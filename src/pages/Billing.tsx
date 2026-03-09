@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard } from "lucide-react";
+import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -119,6 +119,15 @@ const generateInvoicePDF = (inv: any) => {
 
 // ─── Types ────────────────────────────────────────
 interface StageRow { label: string; amount: number; paid: number; }
+interface PharmaLineItem {
+  inventory_id: string;
+  product_id: string;
+  product_name: string;
+  batch_number: string;
+  quantity: number;
+  unit_price: number;
+  available: number;
+}
 
 const Billing = () => {
   const queryClient = useQueryClient();
@@ -137,6 +146,7 @@ const Billing = () => {
   const [paymentMode, setPaymentMode] = useState("Cash");
   const [notes, setNotes] = useState("");
   const [selectedTaxId, setSelectedTaxId] = useState("");
+  const [pharmaItems, setPharmaItems] = useState<PharmaLineItem[]>([]);
 
   // Staged: multiple stages with amount + paid
   const [stages, setStages] = useState<StageRow[]>([{ label: "Stage 1", amount: 0, paid: 0 }]);
@@ -183,16 +193,63 @@ const Billing = () => {
     },
   });
 
+  const { data: pharmaProducts = [] } = useQuery({
+    queryKey: ["pharma-products-billing"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("pharma_products").select("*").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: pharmaInventory = [] } = useQuery({
+    queryKey: ["pharma-inventory-billing"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pharma_inventory")
+        .select("*, pharma_products(name, selling_price)")
+        .order("expiry_date", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const getSelectedTax = () => taxes.find((t: any) => t.id === selectedTaxId);
   const calcTaxAmount = (amount: number) => {
     const tax = getSelectedTax();
     return tax ? (amount * tax.rate / 100) : 0;
   };
 
+  const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+
+  const addPharmaItem = () => {
+    setPharmaItems([...pharmaItems, { inventory_id: "", product_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0 }]);
+  };
+
+  const updatePharmaItem = (idx: number, field: string, value: any) => {
+    const updated = [...pharmaItems];
+    (updated[idx] as any)[field] = value;
+    if (field === "inventory_id") {
+      const inv = pharmaInventory.find((i: any) => i.id === value) as any;
+      if (inv) {
+        updated[idx].product_id = inv.product_id;
+        updated[idx].product_name = inv.pharma_products?.name || "";
+        updated[idx].batch_number = inv.batch_number;
+        updated[idx].unit_price = inv.pharma_products?.selling_price || 0;
+        updated[idx].available = inv.quantity;
+      }
+    }
+    setPharmaItems(updated);
+  };
+
+  const removePharmaItem = (idx: number) => setPharmaItems(pharmaItems.filter((_, i) => i !== idx));
+
   const createInvoice = useMutation({
     mutationFn: async () => {
       const services = serviceInputs.filter((s) => s.trim());
-      if (services.length === 0) throw new Error("Add at least one service");
+      const pharmaServiceNames = pharmaItems.filter(i => i.product_name).map(i => `${i.product_name} x${i.quantity}`);
+      const allServices = [...services, ...pharmaServiceNames];
+      if (allServices.length === 0) throw new Error("Add at least one service or product");
 
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
@@ -211,7 +268,7 @@ const Billing = () => {
             invoice_number: `INV-${baseNum}-S${i + 1}`,
             patient_id: patientId || null,
             patient_name: patientName,
-            services,
+            services: allServices,
             total_amount: stageTotal,
             paid_amount: stage.paid,
             status,
@@ -237,7 +294,7 @@ const Billing = () => {
             invoice_number: `INV-${baseNum}-R${i + 1}`,
             patient_id: patientId || null,
             patient_name: patientName,
-            services,
+            services: allServices,
             total_amount: totalPerInst,
             paid_amount: collected,
             status,
@@ -252,8 +309,9 @@ const Billing = () => {
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
       } else {
-        const taxAmt = totalAmount * taxRate / 100;
-        const grandTotal = totalAmount + taxAmt;
+        const combinedSubtotal = totalAmount + pharmaSubtotal;
+        const taxAmt = combinedSubtotal * taxRate / 100;
+        const grandTotal = combinedSubtotal + taxAmt;
         let status = "Pending";
         if (paidAmount >= grandTotal && grandTotal > 0) status = "Paid";
         else if (paidAmount > 0) status = "Partial";
@@ -262,7 +320,7 @@ const Billing = () => {
           invoice_number: `INV-${baseNum}`,
           patient_id: patientId || null,
           patient_name: patientName,
-          services,
+          services: allServices,
           total_amount: grandTotal,
           paid_amount: paidAmount,
           status,
@@ -275,9 +333,22 @@ const Billing = () => {
         });
         if (error) throw error;
       }
+
+      // Deduct pharma inventory for sold items
+      for (const item of pharmaItems) {
+        if (item.inventory_id && item.quantity > 0) {
+          const invRecord = pharmaInventory.find((inv: any) => inv.id === item.inventory_id) as any;
+          if (invRecord) {
+            await supabase.from("pharma_inventory").update({
+              quantity: Math.max(0, invRecord.quantity - item.quantity)
+            }).eq("id", item.inventory_id);
+          }
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-inventory-billing"] });
       const msg = paymentType === "Staged" ? `${stages.length} staged invoices created` : paymentType === "Recurring" ? `${recurringCount} recurring invoices created` : "Invoice created";
       toast.success(msg);
       resetForm();
@@ -335,6 +406,7 @@ const Billing = () => {
     setPaymentMode("Cash");
     setNotes("");
     setSelectedTaxId("");
+    setPharmaItems([]);
     setStages([{ label: "Stage 1", amount: 0, paid: 0 }]);
     setRecurringCount(1);
     setRecurringAmount(0);
@@ -358,9 +430,13 @@ const Billing = () => {
   const removeStage = (i: number) => setStages(stages.filter((_, idx) => idx !== i));
 
   const canCreateInvoice = () => {
+    const hasServices = serviceInputs.some(s => s.trim());
+    const hasPharma = pharmaItems.some(i => i.inventory_id && i.quantity > 0);
+    const hasLineItems = hasServices || hasPharma;
+    if (!hasLineItems) return false;
     if (paymentType === "Staged") return stages.some((s) => s.amount > 0);
     if (paymentType === "Recurring") return recurringCount > 0 && recurringAmount > 0;
-    return totalAmount > 0;
+    return (totalAmount + pharmaSubtotal) > 0;
   };
 
   const totalRevenue = invoices.reduce((s: number, inv: any) => s + Number(inv.paid_amount), 0);
@@ -426,6 +502,59 @@ const Billing = () => {
                 ))}
               </div>
 
+              {/* ─── Pharma Products ─── */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <Label className="flex items-center gap-1.5"><Pill className="h-3.5 w-3.5" /> Pharma Products</Label>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs" onClick={addPharmaItem}>
+                    <Plus className="h-3 w-3 mr-1" /> Add Product
+                  </Button>
+                </div>
+                {pharmaItems.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No pharma products added. Click "Add Product" to include medicines in this invoice.</p>
+                )}
+                {pharmaItems.map((item, idx) => (
+                  <div key={idx} className="border rounded-lg p-3 mb-2 space-y-2 bg-muted/30">
+                    <div>
+                      <Label className="text-xs">Product (Batch)</Label>
+                      <Select value={item.inventory_id || "placeholder"} onValueChange={(v) => updatePharmaItem(idx, "inventory_id", v === "placeholder" ? "" : v)}>
+                        <SelectTrigger className="mt-1"><SelectValue placeholder="Select product & batch" /></SelectTrigger>
+                        <SelectContent>
+                          {pharmaInventory.filter((i: any) => i.quantity > 0 && new Date(i.expiry_date) > new Date()).map((i: any) => (
+                            <SelectItem key={i.id} value={i.id}>
+                              {i.pharma_products?.name} — Batch: {i.batch_number} (Qty: {i.quantity})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">Qty</Label>
+                        <Input type="number" className="mt-1 h-8" min={1} max={item.available} value={item.quantity} onChange={(e) => updatePharmaItem(idx, "quantity", parseInt(e.target.value) || 1)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Price (₹)</Label>
+                        <Input type="number" className="mt-1 h-8" value={item.unit_price} onChange={(e) => updatePharmaItem(idx, "unit_price", parseFloat(e.target.value) || 0)} />
+                      </div>
+                      <div className="flex items-end">
+                        <div className="flex items-center gap-2 h-8">
+                          <span className="text-sm font-medium">₹{(item.quantity * item.unit_price).toFixed(2)}</span>
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removePharmaItem(idx)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {pharmaItems.length > 0 && (
+                  <div className="text-right text-sm font-medium text-muted-foreground">
+                    Products subtotal: ₹{pharmaSubtotal.toLocaleString()}
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Payment Type</Label>
@@ -466,7 +595,7 @@ const Billing = () => {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Subtotal (₹) *</Label>
+                      <Label>Services Subtotal (₹) {pharmaItems.length === 0 ? "*" : ""}</Label>
                       <Input type="number" className="mt-1.5" value={totalAmount} onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                     <div>
@@ -474,11 +603,15 @@ const Billing = () => {
                       <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
-                  {selectedTaxId && selectedTaxId !== "none" && totalAmount > 0 && (
+                  {((totalAmount + pharmaSubtotal) > 0) && (
                     <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{totalAmount.toLocaleString()}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Tax ({getSelectedTax()?.name})</span><span>₹{calcTaxAmount(totalAmount).toLocaleString()}</span></div>
-                      <div className="flex justify-between font-semibold text-primary"><span>Grand Total</span><span>₹{(totalAmount + calcTaxAmount(totalAmount)).toLocaleString()}</span></div>
+                      {totalAmount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{totalAmount.toLocaleString()}</span></div>}
+                      {pharmaSubtotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>}
+                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{(totalAmount + pharmaSubtotal).toLocaleString()}</span></div>
+                      {selectedTaxId && selectedTaxId !== "none" && (
+                        <div className="flex justify-between"><span className="text-muted-foreground">Tax ({getSelectedTax()?.name})</span><span>₹{calcTaxAmount(totalAmount + pharmaSubtotal).toLocaleString()}</span></div>
+                      )}
+                      <div className="flex justify-between font-semibold text-primary"><span>Grand Total</span><span>₹{(totalAmount + pharmaSubtotal + calcTaxAmount(totalAmount + pharmaSubtotal)).toLocaleString()}</span></div>
                     </div>
                   )}
                 </div>

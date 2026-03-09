@@ -252,15 +252,33 @@ const Services = () => {
                 <Input type="number" placeholder="3500" className="mt-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
               </div>
               <div>
-                <Label>Diagnosis</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Diagnosis</Label>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("diagnosis")} disabled={elaborating !== null}>
+                    {elaborating === "diagnosis" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    Elaborate AI
+                  </Button>
+                </div>
                 <Textarea placeholder="Diagnosis template..." className="mt-1.5" rows={2} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} />
               </div>
               <div>
-                <Label>Procedure Notes</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Procedure Notes</Label>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("procedure_notes")} disabled={elaborating !== null}>
+                    {elaborating === "procedure_notes" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    Elaborate AI
+                  </Button>
+                </div>
                 <Textarea placeholder="Procedure notes template..." className="mt-1.5" rows={2} value={procedureNotes} onChange={(e) => setProcedureNotes(e.target.value)} />
               </div>
               <div>
-                <Label>Recommendations (one per line)</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Recommendations (one per line)</Label>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("recommendations")} disabled={elaborating !== null}>
+                    {elaborating === "recommendations" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    Elaborate AI
+                  </Button>
+                </div>
                 <Textarea placeholder="Avoid sun exposure 48hrs&#10;Apply moisturizer daily" className="mt-1.5" rows={3} value={recommendations} onChange={(e) => setRecommendations(e.target.value)} />
               </div>
 

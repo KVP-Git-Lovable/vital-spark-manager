@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,9 +43,11 @@ const appointmentColors = [
   "bg-warning/15 border-warning/30 text-warning",
 ];
 
+const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancelled"];
+
 const Appointments = () => {
   const queryClient = useQueryClient();
-  const [view, setView] = useState<"week" | "day">("week");
+  const [view, setView] = useState<"week" | "day" | "table">("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [open, setOpen] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
@@ -54,19 +56,24 @@ const Appointments = () => {
   // Form state
   const [patientId, setPatientId] = useState("");
   const [staffId, setStaffId] = useState("");
-  const [service, setService] = useState("");
+  const [serviceId, setServiceId] = useState("");
+  const [appointmentStatus, setAppointmentStatus] = useState("Proposed");
   const [startDate, setStartDate] = useState<Date>();
   const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("09:30");
+  const [endTime, setEndTime] = useState("09:15");
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState("weekly");
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date>();
+
+  // Inline editing state for table view
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editData, setEditData] = useState<any>({});
 
   // Queries
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("patients").select("id, first_name, last_name").order("first_name");
+      const { data, error } = await supabase.from("patients").select("id, first_name, last_name, phone").order("first_name");
       if (error) throw error;
       return data;
     },
@@ -81,10 +88,19 @@ const Appointments = () => {
     },
   });
 
+  const { data: services = [] } = useQuery({
+    queryKey: ["services-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("services").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("appointments").select("*, patients(first_name, last_name), staff(first_name, last_name)").order("start_time");
+      const { data, error } = await supabase.from("appointments").select("*, patients(first_name, last_name, phone), staff(first_name, last_name)").order("start_time");
       if (error) throw error;
       return data;
     },
@@ -110,17 +126,22 @@ const Appointments = () => {
   const createAppointment = useMutation({
     mutationFn: async () => {
       if (!startDate) throw new Error("Please select a date");
-      if (!service) throw new Error("Please enter a service");
 
-      const patient = patients.find((p) => p.id === patientId);
-      const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
-
+      // Validate not past date/time
       const buildDateTime = (date: Date, time: string) => {
         const [h, m] = time.split(":").map(Number);
         const dt = new Date(date);
         dt.setHours(h, m, 0, 0);
-        return dt.toISOString();
+        return dt;
       };
+
+      const startDT = buildDateTime(startDate, startTime);
+      if (startDT < new Date()) throw new Error("Cannot book appointments in the past");
+
+      const patient = patients.find((p) => p.id === patientId);
+      const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
+      const selectedService = services.find((s) => s.id === serviceId);
+      const serviceName = selectedService?.name || "";
 
       if (isRecurring && recurrenceEndDate) {
         const dates = generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate);
@@ -128,9 +149,10 @@ const Appointments = () => {
           patient_id: patientId || null,
           patient_name: patientName,
           staff_id: staffId || null,
-          service,
-          start_time: buildDateTime(d, startTime),
-          end_time: buildDateTime(d, endTime),
+          service: serviceName,
+          status: appointmentStatus,
+          start_time: buildDateTime(d, startTime).toISOString(),
+          end_time: buildDateTime(d, endTime).toISOString(),
           is_recurring: true,
           recurrence_pattern: recurrencePattern,
           recurrence_end_date: format(recurrenceEndDate, "yyyy-MM-dd"),
@@ -142,9 +164,10 @@ const Appointments = () => {
           patient_id: patientId || null,
           patient_name: patientName,
           staff_id: staffId || null,
-          service,
-          start_time: buildDateTime(startDate, startTime),
-          end_time: buildDateTime(startDate, endTime),
+          service: serviceName,
+          status: appointmentStatus,
+          start_time: startDT.toISOString(),
+          end_time: buildDateTime(startDate, endTime).toISOString(),
           is_recurring: false,
         });
         if (error) throw error;
@@ -153,8 +176,28 @@ const Appointments = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       toast.success("Appointment(s) created");
+      // Show patient phone if available
+      const patient = patients.find((p) => p.id === patientId);
+      if (patient?.phone) {
+        toast.info(`Patient phone: ${patient.phone}`, { duration: 6000 });
+      }
       resetForm();
       setOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Inline update mutation for table view
+  const inlineUpdateMutation = useMutation({
+    mutationFn: async (data: { id: string; status?: string; service?: string }) => {
+      const { id, ...updates } = data;
+      const { error } = await supabase.from("appointments").update(updates).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      setEditingId(null);
+      toast.success("Updated");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -162,10 +205,11 @@ const Appointments = () => {
   const resetForm = () => {
     setPatientId("");
     setStaffId("");
-    setService("");
+    setServiceId("");
+    setAppointmentStatus("Proposed");
     setStartDate(undefined);
     setStartTime("09:00");
-    setEndTime("09:30");
+    setEndTime("09:15");
     setIsRecurring(false);
     setRecurrencePattern("weekly");
     setRecurrenceEndDate(undefined);
@@ -197,7 +241,6 @@ const Appointments = () => {
   const weekDates = getWeekDates();
   const currentDay = currentDate.getDay();
 
-  // Map DB appointments to calendar slots
   const getApptsForSlot = (date: Date, hour: number) => {
     return appointments.filter((a: any) => {
       const start = new Date(a.start_time);
@@ -206,6 +249,23 @@ const Appointments = () => {
   };
 
   const colorForIndex = (i: number) => appointmentColors[i % appointmentColors.length];
+
+  const statusColor = (status: string) => {
+    switch (status) {
+      case "Confirmed": return "bg-success/10 text-success";
+      case "Completed": return "bg-primary/10 text-primary";
+      case "No Show": return "bg-destructive/10 text-destructive";
+      case "Cancelled": return "bg-muted text-muted-foreground";
+      default: return "bg-warning/10 text-warning";
+    }
+  };
+
+  // Prevent past date selection in calendar
+  const disablePastDates = (date: Date) => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    return date < todayStart;
+  };
 
   return (
     <div>
@@ -218,6 +278,7 @@ const Appointments = () => {
           <div className="flex bg-muted rounded-lg p-1">
             <Button variant={view === "day" ? "default" : "ghost"} size="sm" onClick={() => setView("day")} className="text-xs">Day</Button>
             <Button variant={view === "week" ? "default" : "ghost"} size="sm" onClick={() => setView("week")} className="text-xs">Week</Button>
+            <Button variant={view === "table" ? "default" : "ghost"} size="sm" onClick={() => setView("table")} className="text-xs gap-1"><List className="h-3 w-3" />Table</Button>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -237,6 +298,14 @@ const Appointments = () => {
                         {patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    {patientId && (() => {
+                      const p = patients.find(pt => pt.id === patientId);
+                      return p?.phone ? (
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                          <Phone className="h-3 w-3" /> {p.phone}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                   <div>
                     <Label>Doctor / Staff</Label>
@@ -249,9 +318,25 @@ const Appointments = () => {
                   </div>
                 </div>
 
-                <div>
-                  <Label>Service *</Label>
-                  <Input className="mt-1.5" placeholder="e.g. Chemical Peel" value={service} onChange={(e) => setService(e.target.value)} />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Service</Label>
+                    <Select value={serviceId} onValueChange={setServiceId}>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select service" /></SelectTrigger>
+                      <SelectContent>
+                        {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Status</Label>
+                    <Select value={appointmentStatus} onValueChange={setAppointmentStatus}>
+                      <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div>
@@ -264,7 +349,7 @@ const Appointments = () => {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus className={cn("p-3 pointer-events-auto")} />
+                      <Calendar mode="single" selected={startDate} onSelect={setStartDate} disabled={disablePastDates} initialFocus className={cn("p-3 pointer-events-auto")} />
                     </PopoverContent>
                   </Popover>
                 </div>
@@ -330,7 +415,7 @@ const Appointments = () => {
                   )}
                 </div>
 
-                <Button className="w-full" onClick={() => createAppointment.mutate()} disabled={!service || !startDate || (isRecurring && !recurrenceEndDate) || createAppointment.isPending}>
+                <Button className="w-full" onClick={() => createAppointment.mutate()} disabled={!startDate || (isRecurring && !recurrenceEndDate) || createAppointment.isPending}>
                   {createAppointment.isPending ? "Creating..." : isRecurring ? "Create Recurring Appointments" : "Create Appointment"}
                 </Button>
               </div>
@@ -340,25 +425,92 @@ const Appointments = () => {
       </div>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="data-table">
-        <div className="p-4 border-b flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => view === "week" ? navigateWeek(-1) : navigateDay(-1)}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <h2 className="font-display font-semibold">
-              {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-            </h2>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => view === "week" ? navigateWeek(1) : navigateDay(1)}>
-              <ChevronRight className="h-4 w-4" />
+        {view !== "table" && (
+          <div className="p-4 border-b flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => view === "week" ? navigateWeek(-1) : navigateDay(-1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <h2 className="font-display font-semibold">
+                {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+              </h2>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => view === "week" ? navigateWeek(1) : navigateDay(1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <Button variant="outline" size="sm" className="text-xs" onClick={() => setCurrentDate(new Date())}>
+              Today
             </Button>
           </div>
-          <Button variant="outline" size="sm" className="text-xs" onClick={() => setCurrentDate(new Date())}>
-            Today
-          </Button>
-        </div>
+        )}
 
         <div className="overflow-x-auto">
-          {view === "week" ? (
+          {view === "table" ? (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/30">
+                  <th className="text-left p-3 font-medium text-muted-foreground">Date & Time</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Patient</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Service</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Doctor</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Status</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {appointments.map((apt: any) => {
+                  const isEditing = editingId === apt.id;
+                  const patientPhone = apt.patients?.phone || "";
+                  return (
+                    <tr
+                      key={apt.id}
+                      className="border-b hover:bg-muted/20 cursor-pointer transition-colors"
+                      onClick={() => {
+                        if (!isEditing) setSelectedAppointmentId(apt.id);
+                      }}
+                    >
+                      <td className="p-3">
+                        <p className="font-medium">{format(new Date(apt.start_time), "MMM d, yyyy")}</p>
+                        <p className="text-xs text-muted-foreground">{format(new Date(apt.start_time), "h:mm a")} - {format(new Date(apt.end_time), "h:mm a")}</p>
+                      </td>
+                      <td className="p-3">
+                        <span className="font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</span>
+                      </td>
+                      <td className="p-3 text-muted-foreground">
+                        {patientPhone ? (
+                          <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span>
+                        ) : "—"}
+                      </td>
+                      <td className="p-3">{apt.service || "—"}</td>
+                      <td className="p-3 text-muted-foreground">
+                        {apt.staff ? `Dr. ${apt.staff.first_name} ${apt.staff.last_name}` : "—"}
+                      </td>
+                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                        <Select
+                          value={apt.status}
+                          onValueChange={(val) => inlineUpdateMutation.mutate({ id: apt.id, status: val })}
+                        >
+                          <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">
+                            <Badge className={cn("text-xs", statusColor(apt.status))}>{apt.status}</Badge>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="p-3">
+                        {apt.source && <Badge variant="outline" className="text-xs">{apt.source}</Badge>}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {appointments.length === 0 && (
+                  <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
+                )}
+              </tbody>
+            </table>
+          ) : view === "week" ? (
             <div className="min-w-[800px]">
               <div className="grid grid-cols-8 border-b">
                 <div className="p-3 text-xs text-muted-foreground" />
@@ -385,9 +537,10 @@ const Appointments = () => {
                       <div key={dayIndex} className={`border-l p-1 min-h-[72px] cursor-pointer hover:bg-muted/30 transition-colors ${isToday ? "bg-primary/5" : ""}`} onClick={() => {
                         const d = new Date(date);
                         d.setHours(hour, 0, 0, 0);
+                        if (d < new Date()) { toast.error("Cannot book in the past"); return; }
                         setStartDate(d);
                         setStartTime(`${String(hour).padStart(2, "0")}:00`);
-                        setEndTime(`${String(hour).padStart(2, "0")}:30`);
+                        setEndTime(`${String(hour).padStart(2, "0")}:15`);
                         setOpen(true);
                       }}>
                         {dayAppts.map((apt: any, ai: number) => (
@@ -423,9 +576,10 @@ const Appointments = () => {
                     <div className="flex-1 border-l p-2 space-y-1 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => {
                         const d = new Date(currentDate);
                         d.setHours(hour, 0, 0, 0);
+                        if (d < new Date()) { toast.error("Cannot book in the past"); return; }
                         setStartDate(d);
                         setStartTime(`${String(hour).padStart(2, "0")}:00`);
-                        setEndTime(`${String(hour).padStart(2, "0")}:30`);
+                        setEndTime(`${String(hour).padStart(2, "0")}:15`);
                         setOpen(true);
                       }}>
                         {dayAppts.map((apt: any, ai: number) => (

@@ -430,9 +430,13 @@ const Billing = () => {
   const removeStage = (i: number) => setStages(stages.filter((_, idx) => idx !== i));
 
   const canCreateInvoice = () => {
+    const hasServices = serviceInputs.some(s => s.trim());
+    const hasPharma = pharmaItems.some(i => i.inventory_id && i.quantity > 0);
+    const hasLineItems = hasServices || hasPharma;
+    if (!hasLineItems) return false;
     if (paymentType === "Staged") return stages.some((s) => s.amount > 0);
     if (paymentType === "Recurring") return recurringCount > 0 && recurringAmount > 0;
-    return totalAmount > 0;
+    return (totalAmount + pharmaSubtotal) > 0;
   };
 
   const totalRevenue = invoices.reduce((s: number, inv: any) => s + Number(inv.paid_amount), 0);

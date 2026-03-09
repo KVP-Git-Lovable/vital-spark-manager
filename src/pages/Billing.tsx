@@ -119,6 +119,15 @@ const generateInvoicePDF = (inv: any) => {
 
 // ─── Types ────────────────────────────────────────
 interface StageRow { label: string; amount: number; paid: number; }
+interface PharmaLineItem {
+  inventory_id: string;
+  product_id: string;
+  product_name: string;
+  batch_number: string;
+  quantity: number;
+  unit_price: number;
+  available: number;
+}
 
 const Billing = () => {
   const queryClient = useQueryClient();

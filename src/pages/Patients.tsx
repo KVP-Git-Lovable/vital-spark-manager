@@ -174,10 +174,15 @@ const Patients = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEdit(patient)}>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEdit(patient); }}>
                             Edit Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem>Book Appointment</DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/patients/${patient.id}`); }}>
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setCameraPatient(patient); }}>
+                            <Camera className="h-3.5 w-3.5 mr-1.5" /> Take Photo
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </td>

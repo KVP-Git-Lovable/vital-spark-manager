@@ -39,6 +39,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [cameraOpen, setCameraOpen] = useState(false);
   const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
+  const [procFormOpen, setProcFormOpen] = useState(false);
+  const [selectedProcId, setSelectedProcId] = useState<string | null>(null);
 
   // Fetch appointment
   const { data: appointment, isLoading } = useQuery({

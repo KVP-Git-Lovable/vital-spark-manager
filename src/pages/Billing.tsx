@@ -595,7 +595,7 @@ const Billing = () => {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Subtotal (₹) *</Label>
+                      <Label>Services Subtotal (₹) {pharmaItems.length === 0 ? "*" : ""}</Label>
                       <Input type="number" className="mt-1.5" value={totalAmount} onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                     <div>
@@ -603,11 +603,15 @@ const Billing = () => {
                       <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
-                  {selectedTaxId && selectedTaxId !== "none" && totalAmount > 0 && (
+                  {((totalAmount + pharmaSubtotal) > 0) && (
                     <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{totalAmount.toLocaleString()}</span></div>
-                      <div className="flex justify-between"><span className="text-muted-foreground">Tax ({getSelectedTax()?.name})</span><span>₹{calcTaxAmount(totalAmount).toLocaleString()}</span></div>
-                      <div className="flex justify-between font-semibold text-primary"><span>Grand Total</span><span>₹{(totalAmount + calcTaxAmount(totalAmount)).toLocaleString()}</span></div>
+                      {totalAmount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{totalAmount.toLocaleString()}</span></div>}
+                      {pharmaSubtotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>}
+                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{(totalAmount + pharmaSubtotal).toLocaleString()}</span></div>
+                      {selectedTaxId && selectedTaxId !== "none" && (
+                        <div className="flex justify-between"><span className="text-muted-foreground">Tax ({getSelectedTax()?.name})</span><span>₹{calcTaxAmount(totalAmount + pharmaSubtotal).toLocaleString()}</span></div>
+                      )}
+                      <div className="flex justify-between font-semibold text-primary"><span>Grand Total</span><span>₹{(totalAmount + pharmaSubtotal + calcTaxAmount(totalAmount + pharmaSubtotal)).toLocaleString()}</span></div>
                     </div>
                   )}
                 </div>

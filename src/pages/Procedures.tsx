@@ -388,8 +388,9 @@ const Procedures = () => {
                           </div>
                         )}
                       </DialogContent>
-                    </Dialog>
-                  </TableCell>
+                        </Dialog>
+                      </div>
+                    </TableCell>
                 </TableRow>
               ))
             )}

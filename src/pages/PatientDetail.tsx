@@ -185,6 +185,34 @@ const PatientDetail = () => {
         </motion.div>
       </div>
 
+      {/* OTP Code Display */}
+      {otpCode && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-primary">Portal Access Code</p>
+            <p className="text-2xl font-mono font-bold tracking-widest mt-1">{otpCode}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Share this with the patient. Portal: <span className="font-medium">{window.location.origin}/portal</span>
+            </p>
+            <p className="text-xs text-muted-foreground">Expires in 24 hours</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1 shrink-0"
+            onClick={() => {
+              navigator.clipboard.writeText(`Access your DermaCare portal: ${window.location.origin}/portal\nPhone: ${patient.phone}\nAccess Code: ${otpCode}`);
+              setOtpCopied(true);
+              toast.success("Copied to clipboard!");
+              setTimeout(() => setOtpCopied(false), 2000);
+            }}
+          >
+            {otpCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {otpCopied ? "Copied" : "Copy"}
+          </Button>
+        </motion.div>
+      )}
+
       <Tabs defaultValue="procedures" className="mt-2">
         <TabsList>
           <TabsTrigger value="procedures" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Procedures ({procedures.length})</TabsTrigger>

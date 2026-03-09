@@ -11,7 +11,6 @@ import { motion } from "framer-motion";
 const PortalLogin = () => {
   const navigate = useNavigate();
   const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {

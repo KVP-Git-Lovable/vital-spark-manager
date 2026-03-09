@@ -25,6 +25,7 @@ import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
+import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 

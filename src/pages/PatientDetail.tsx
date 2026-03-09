@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText } from "lucide-react";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
+import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { toast } from "sonner";
 
 const PatientDetail = () => {
@@ -222,6 +223,11 @@ const PatientDetail = () => {
       {/* AI Patient 360 */}
       <div className="mb-4">
         <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+      </div>
+
+      {/* AI Case Analysis */}
+      <div className="mb-4">
+        <CaseAnalysis patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
       </div>
 
       <Tabs defaultValue="procedures" className="mt-2">

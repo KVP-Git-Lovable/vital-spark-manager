@@ -23,6 +23,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ServiceDetailSheet } from "@/components/services/ServiceDetailSheet";
 
 interface MedicineInput {
   product_id: string;
@@ -39,6 +40,7 @@ const Services = () => {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
 
   // Form state
   const [name, setName] = useState("");
@@ -364,7 +366,8 @@ const Services = () => {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: i * 0.05 }}
-                className="stat-card group"
+                className="stat-card group cursor-pointer"
+                onClick={() => setSelectedServiceId(service.id)}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -372,7 +375,10 @@ const Services = () => {
                     <Badge variant="secondary" className="mt-1 text-xs">{service.category}</Badge>
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteMutation.mutate(service.id)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setSelectedServiceId(service.id); }}>
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(service.id); }}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -437,6 +443,7 @@ const Services = () => {
           })}
         </div>
       )}
+      <ServiceDetailSheet serviceId={selectedServiceId} onClose={() => setSelectedServiceId(null)} />
     </div>
   );
 };

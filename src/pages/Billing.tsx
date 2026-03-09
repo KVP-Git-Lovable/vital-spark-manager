@@ -447,17 +447,40 @@ const Billing = () => {
                 </div>
               </div>
 
+              {/* Tax Selection */}
+              <div>
+                <Label>Tax</Label>
+                <Select value={selectedTaxId} onValueChange={setSelectedTaxId}>
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="No tax" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Tax</SelectItem>
+                    {taxes.map((t: any) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name} ({t.rate}%)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* ─── One-time: simple amount/paid ─── */}
               {paymentType === "One-time" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Total Amount (₹) *</Label>
-                    <Input type="number" className="mt-1.5" value={totalAmount} onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)} />
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Subtotal (₹) *</Label>
+                      <Input type="number" className="mt-1.5" value={totalAmount} onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div>
+                      <Label>Paid Amount (₹)</Label>
+                      <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
+                    </div>
                   </div>
-                  <div>
-                    <Label>Paid Amount (₹)</Label>
-                    <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
-                  </div>
+                  {selectedTaxId && selectedTaxId !== "none" && totalAmount > 0 && (
+                    <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{totalAmount.toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Tax ({getSelectedTax()?.name})</span><span>₹{calcTaxAmount(totalAmount).toLocaleString()}</span></div>
+                      <div className="flex justify-between font-semibold text-primary"><span>Grand Total</span><span>₹{(totalAmount + calcTaxAmount(totalAmount)).toLocaleString()}</span></div>
+                    </div>
+                  )}
                 </div>
               )}
 

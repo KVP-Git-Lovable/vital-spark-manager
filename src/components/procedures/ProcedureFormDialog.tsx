@@ -85,35 +85,48 @@ export function ProcedureFormDialog({
     },
   });
 
-  // When a service is selected, auto-fill diagnosis, notes, recommendations
-  const handleServiceSelect = async (svcId: string) => {
+  // Auto-fill from service master
+  const applyServiceData = async (svc: any, svcId: string) => {
     setServiceId(svcId);
-    const svc = services.find((s: any) => s.id === svcId);
-    if (svc) {
-      setServiceName((svc as any).name);
-      if ((svc as any).diagnosis) setDiagnosis((svc as any).diagnosis);
-      if ((svc as any).procedure_notes) setProcedureNotes((svc as any).procedure_notes);
-      if ((svc as any).recommendations) {
-        setRecommendations(((svc as any).recommendations as string[]).join("\n"));
-      }
-      // Load service medicines as prescriptions
-      const { data: meds } = await supabase
-        .from("service_medicines")
-        .select("*, pharma_products(name)")
-        .eq("service_id", svcId);
-      if (meds && meds.length > 0) {
-        setPrescriptions(meds.map((m: any) => ({
-          product_id: m.product_id,
-          medicine_name: m.pharma_products?.name || "",
-          dosage: "",
-          frequency: m.frequency || "",
-          duration: m.duration || "",
-          instructions: m.instructions || "",
-          quantity: 1,
-        })));
-      }
+    setServiceName(svc.name);
+    if (svc.diagnosis) setDiagnosis(svc.diagnosis);
+    if (svc.procedure_notes) setProcedureNotes(svc.procedure_notes);
+    if (svc.recommendations) {
+      setRecommendations((svc.recommendations as string[]).join("\n"));
     }
+    // Load service medicines as prescriptions
+    const { data: meds } = await supabase
+      .from("service_medicines")
+      .select("*, pharma_products(name)")
+      .eq("service_id", svcId);
+    if (meds && meds.length > 0) {
+      setPrescriptions(meds.map((m: any) => ({
+        product_id: m.product_id,
+        medicine_name: m.pharma_products?.name || "",
+        dosage: "",
+        frequency: m.frequency || "",
+        duration: m.duration || "",
+        instructions: m.instructions || "",
+        quantity: 1,
+      })));
+    }
+    setAutoFilled(true);
+    toast.info("Fields auto-filled from Service Master — you can edit them.");
   };
+
+  // When a service is selected from dropdown
+  const handleServiceSelect = async (svcId: string) => {
+    const svc = services.find((s: any) => s.id === svcId);
+    if (svc) await applyServiceData(svc, svcId);
+  };
+
+  // Auto-match defaultServiceName on first load
+  if (defaultServiceName && services.length > 0 && !autoFilled && !serviceId) {
+    const match = services.find((s: any) => s.name === defaultServiceName);
+    if (match) {
+      applyServiceData(match, match.id);
+    }
+  }
 
   const createMutation = useMutation({
     mutationFn: async () => {

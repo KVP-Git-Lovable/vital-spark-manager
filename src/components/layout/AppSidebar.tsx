@@ -7,6 +7,8 @@ import {
   BarChart3,
   Settings,
   Heart,
+  ClipboardList,
+  Pill,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";

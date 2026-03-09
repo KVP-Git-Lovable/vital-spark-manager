@@ -31,6 +31,8 @@ const mainItems = [
   { title: "Patients", url: "/patients", icon: Users },
   { title: "Appointments", url: "/appointments", icon: Calendar },
   { title: "Services", url: "/services", icon: Stethoscope },
+  { title: "Procedures", url: "/procedures", icon: ClipboardList },
+  { title: "Pharmacy", url: "/pharma", icon: Pill },
   { title: "Billing", url: "/billing", icon: Receipt },
   { title: "Reports", url: "/reports", icon: BarChart3 },
 ];

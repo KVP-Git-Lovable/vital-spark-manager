@@ -15,6 +15,7 @@ import Procedures from "./pages/Procedures";
 import Pharma from "./pages/Pharma";
 import Photos from "./pages/Photos";
 import LeaveManagement from "./pages/LeaveManagement";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/procedures" element={<Procedures />} />
             <Route path="/pharma" element={<Pharma />} />
             <Route path="/photos" element={<Photos />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AppLayout>

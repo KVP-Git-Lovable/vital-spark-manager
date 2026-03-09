@@ -434,6 +434,11 @@ const Appointments = () => {
           )}
         </div>
       </motion.div>
+
+      <AppointmentDetailSheet
+        appointmentId={selectedAppointmentId}
+        onClose={() => setSelectedAppointmentId(null)}
+      />
     </div>
   );
 };

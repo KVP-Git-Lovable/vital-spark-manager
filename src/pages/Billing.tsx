@@ -33,7 +33,6 @@ const statusStyles: Record<string, string> = {
 
 // ─── PDF Generation ───────────────────────────────
 const generateInvoicePDF = (inv: any) => {
-  const services = (inv.services || []).join(", ");
   const date = new Date(inv.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
   const balance = Number(inv.total_amount) - Number(inv.paid_amount);
 
@@ -118,6 +117,9 @@ const generateInvoicePDF = (inv: any) => {
   }
 };
 
+// ─── Types ────────────────────────────────────────
+interface StageRow { label: string; amount: number; paid: number; }
+
 const Billing = () => {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -136,13 +138,196 @@ const Billing = () => {
   const [notes, setNotes] = useState("");
 
   // Staged: multiple stages with amount + paid
-  interface StageRow { label: string; amount: number; paid: number; }
   const [stages, setStages] = useState<StageRow[]>([{ label: "Stage 1", amount: 0, paid: 0 }]);
 
-  // Recurring: number of installments + per-installment amount + collected per installment
+  // Recurring: # of installments + per-installment amount + collected per installment
   const [recurringCount, setRecurringCount] = useState(1);
   const [recurringAmount, setRecurringAmount] = useState(0);
   const [recurringCollected, setRecurringCollected] = useState<number[]>([0]);
+
+  const handleRecurringCountChange = (count: number) => {
+    const c = Math.max(1, count);
+    setRecurringCount(c);
+    setRecurringCollected((prev) => {
+      const arr = [...prev];
+      while (arr.length < c) arr.push(0);
+      return arr.slice(0, c);
+    });
+  };
+
+  const { data: invoices = [] } = useQuery({
+    queryKey: ["invoices"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("invoices").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: patients = [] } = useQuery({
+    queryKey: ["patients-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("patients").select("id, first_name, last_name").order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const createInvoice = useMutation({
+    mutationFn: async () => {
+      const services = serviceInputs.filter((s) => s.trim());
+      if (services.length === 0) throw new Error("Add at least one service");
+
+      const patient = patients.find((p) => p.id === patientId);
+      const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
+      const baseNum = Date.now().toString().slice(-6);
+
+      if (paymentType === "Staged") {
+        const rows = stages.map((stage, i) => {
+          let status = "Pending";
+          if (stage.paid >= stage.amount && stage.amount > 0) status = "Paid";
+          else if (stage.paid > 0) status = "Partial";
+          return {
+            invoice_number: `INV-${baseNum}-S${i + 1}`,
+            patient_id: patientId || null,
+            patient_name: patientName,
+            services,
+            total_amount: stage.amount,
+            paid_amount: stage.paid,
+            status,
+            payment_type: "Staged",
+            payment_mode: paymentMode,
+            notes: `${stage.label}${notes ? ` — ${notes}` : ""}`,
+          };
+        });
+        const { error } = await supabase.from("invoices").insert(rows);
+        if (error) throw error;
+      } else if (paymentType === "Recurring") {
+        const rows = Array.from({ length: recurringCount }, (_, i) => {
+          const collected = recurringCollected[i] || 0;
+          let status = "Pending";
+          if (collected >= recurringAmount && recurringAmount > 0) status = "Paid";
+          else if (collected > 0) status = "Partial";
+          return {
+            invoice_number: `INV-${baseNum}-R${i + 1}`,
+            patient_id: patientId || null,
+            patient_name: patientName,
+            services,
+            total_amount: recurringAmount,
+            paid_amount: collected,
+            status,
+            payment_type: "Recurring",
+            payment_mode: paymentMode,
+            notes: `Installment ${i + 1} of ${recurringCount}${notes ? ` — ${notes}` : ""}`,
+          };
+        });
+        const { error } = await supabase.from("invoices").insert(rows);
+        if (error) throw error;
+      } else {
+        let status = "Pending";
+        if (paidAmount >= totalAmount && totalAmount > 0) status = "Paid";
+        else if (paidAmount > 0) status = "Partial";
+
+        const { error } = await supabase.from("invoices").insert({
+          invoice_number: `INV-${baseNum}`,
+          patient_id: patientId || null,
+          patient_name: patientName,
+          services,
+          total_amount: totalAmount,
+          paid_amount: paidAmount,
+          status,
+          payment_type: "One-time",
+          payment_mode: paymentMode,
+          notes: notes || null,
+        });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      const msg = paymentType === "Staged" ? `${stages.length} staged invoices created` : paymentType === "Recurring" ? `${recurringCount} recurring invoices created` : "Invoice created";
+      toast.success(msg);
+      resetForm();
+      setOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const updatePayment = useMutation({
+    mutationFn: async () => {
+      if (!paymentInv) return;
+      const newPaid = Number(paymentInv.paid_amount) + addPaymentAmount;
+      const total = Number(paymentInv.total_amount);
+      let status = "Partial";
+      if (newPaid >= total) status = "Paid";
+      else if (newPaid <= 0) status = "Pending";
+
+      const { error } = await supabase.from("invoices").update({
+        paid_amount: Math.min(newPaid, total),
+        status,
+        payment_mode: addPaymentMode,
+      }).eq("id", paymentInv.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success("Payment updated");
+      setPaymentInv(null);
+      setAddPaymentAmount(0);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const markAsPaid = useMutation({
+    mutationFn: async (inv: any) => {
+      const { error } = await supabase.from("invoices").update({
+        paid_amount: inv.total_amount,
+        status: "Paid",
+      }).eq("id", inv.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success("Invoice marked as paid");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const resetForm = () => {
+    setPatientId("");
+    setServiceInputs([""]);
+    setTotalAmount(0);
+    setPaidAmount(0);
+    setPaymentType("One-time");
+    setPaymentMode("Cash");
+    setNotes("");
+    setStages([{ label: "Stage 1", amount: 0, paid: 0 }]);
+    setRecurringCount(1);
+    setRecurringAmount(0);
+    setRecurringCollected([0]);
+  };
+
+  const addServiceInput = () => setServiceInputs([...serviceInputs, ""]);
+  const updateServiceInput = (i: number, val: string) => {
+    const updated = [...serviceInputs];
+    updated[i] = val;
+    setServiceInputs(updated);
+  };
+  const removeServiceInput = (i: number) => setServiceInputs(serviceInputs.filter((_, idx) => idx !== i));
+
+  const addStage = () => setStages([...stages, { label: `Stage ${stages.length + 1}`, amount: 0, paid: 0 }]);
+  const updateStage = (i: number, field: keyof StageRow, value: string | number) => {
+    const updated = [...stages];
+    (updated[i] as any)[field] = value;
+    setStages(updated);
+  };
+  const removeStage = (i: number) => setStages(stages.filter((_, idx) => idx !== i));
+
+  const canCreateInvoice = () => {
+    if (paymentType === "Staged") return stages.some((s) => s.amount > 0);
+    if (paymentType === "Recurring") return recurringCount > 0 && recurringAmount > 0;
+    return totalAmount > 0;
+  };
 
   const totalRevenue = invoices.reduce((s: number, inv: any) => s + Number(inv.paid_amount), 0);
   const pendingAmount = invoices.filter((i: any) => i.status === "Pending").reduce((s: number, inv: any) => s + Number(inv.total_amount), 0);
@@ -152,6 +337,12 @@ const Billing = () => {
     const q = search.toLowerCase();
     return inv.invoice_number?.toLowerCase().includes(q) || inv.patient_name?.toLowerCase().includes(q);
   });
+
+  // ─── Staged totals for preview ─────────────────
+  const stagedTotal = stages.reduce((s, st) => s + st.amount, 0);
+  const stagedPaid = stages.reduce((s, st) => s + st.paid, 0);
+  const recurringTotal = recurringCount * recurringAmount;
+  const recurringPaidTotal = recurringCollected.reduce((s, c) => s + c, 0);
 
   return (
     <div>
@@ -203,17 +394,6 @@ const Billing = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Total Amount (₹) *</Label>
-                  <Input type="number" className="mt-1.5" value={totalAmount} onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)} />
-                </div>
-                <div>
-                  <Label>Paid Amount (₹)</Label>
-                  <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
                   <Label>Payment Type</Label>
                   <Select value={paymentType} onValueChange={setPaymentType}>
                     <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
@@ -233,13 +413,117 @@ const Billing = () => {
                 </div>
               </div>
 
+              {/* ─── One-time: simple amount/paid ─── */}
+              {paymentType === "One-time" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Total Amount (₹) *</Label>
+                    <Input type="number" className="mt-1.5" value={totalAmount} onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)} />
+                  </div>
+                  <div>
+                    <Label>Paid Amount (₹)</Label>
+                    <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
+                  </div>
+                </div>
+              )}
+
+              {/* ─── Staged: multiple rows of amount + paid ─── */}
+              {paymentType === "Staged" && (
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-display font-semibold">Payment Stages</Label>
+                    <Button type="button" variant="outline" size="sm" className="text-xs" onClick={addStage}>
+                      <Plus className="h-3 w-3 mr-1" /> Add Stage
+                    </Button>
+                  </div>
+                  {stages.map((stage, i) => (
+                    <div key={i} className="border rounded-lg p-3 bg-muted/30 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Input
+                          className="h-7 text-xs font-medium w-32 border-0 bg-transparent p-0"
+                          value={stage.label}
+                          onChange={(e) => updateStage(i, "label", e.target.value)}
+                        />
+                        {stages.length > 1 && (
+                          <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeStage(i)}>Remove</Button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Amount (₹)</Label>
+                          <Input type="number" className="mt-1 h-8" value={stage.amount} onChange={(e) => updateStage(i, "amount", parseFloat(e.target.value) || 0)} />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Collected (₹)</Label>
+                          <Input type="number" className="mt-1 h-8" value={stage.paid} onChange={(e) => updateStage(i, "paid", parseFloat(e.target.value) || 0)} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Total across stages</span><span className="font-semibold">₹{stagedTotal.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{stagedPaid.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-primary font-semibold"><span>Balance</span><span>₹{(stagedTotal - stagedPaid).toLocaleString()}</span></div>
+                    <p className="text-xs text-muted-foreground mt-1">{stages.length} invoice(s) will be created</p>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── Recurring: # installments + amount + collected per installment ─── */}
+              {paymentType === "Recurring" && (
+                <div className="border-t pt-4 space-y-3">
+                  <Label className="font-display font-semibold">Recurring Installments</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs text-muted-foreground"># of Installments *</Label>
+                      <Input type="number" className="mt-1" min={1} value={recurringCount} onChange={(e) => handleRecurringCountChange(parseInt(e.target.value) || 1)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Amount per Installment (₹) *</Label>
+                      <Input type="number" className="mt-1" value={recurringAmount} onChange={(e) => setRecurringAmount(parseFloat(e.target.value) || 0)} />
+                    </div>
+                  </div>
+
+                  {recurringCount > 0 && (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {Array.from({ length: recurringCount }, (_, i) => (
+                        <div key={i} className="flex items-center gap-3 border rounded-lg p-2 bg-muted/30">
+                          <span className="text-xs font-medium text-muted-foreground w-24 shrink-0">Inst. {i + 1}</span>
+                          <div className="flex-1 text-xs text-right text-muted-foreground">₹{recurringAmount.toLocaleString()}</div>
+                          <div className="w-28">
+                            <Input
+                              type="number"
+                              className="h-7 text-xs"
+                              placeholder="Collected"
+                              value={recurringCollected[i] || 0}
+                              onChange={(e) => {
+                                const updated = [...recurringCollected];
+                                updated[i] = parseFloat(e.target.value) || 0;
+                                setRecurringCollected(updated);
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Total ({recurringCount} × ₹{recurringAmount.toLocaleString()})</span><span className="font-semibold">₹{recurringTotal.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{recurringPaidTotal.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-primary font-semibold"><span>Balance</span><span>₹{(recurringTotal - recurringPaidTotal).toLocaleString()}</span></div>
+                    <p className="text-xs text-muted-foreground mt-1">{recurringCount} invoice(s) will be created</p>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <Label>Notes</Label>
                 <Textarea className="mt-1.5" placeholder="Optional notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
               </div>
 
-              <Button className="w-full" onClick={() => createInvoice.mutate()} disabled={totalAmount <= 0 || createInvoice.isPending}>
-                {createInvoice.isPending ? "Creating..." : "Create Invoice"}
+              <Button className="w-full" onClick={() => createInvoice.mutate()} disabled={!canCreateInvoice() || createInvoice.isPending}>
+                {createInvoice.isPending ? "Creating..." : paymentType === "Staged" ? `Create ${stages.length} Staged Invoice(s)` : paymentType === "Recurring" ? `Create ${recurringCount} Recurring Invoice(s)` : "Create Invoice"}
               </Button>
             </div>
           </DialogContent>

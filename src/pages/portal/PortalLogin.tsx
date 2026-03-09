@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, Phone, KeyRound, Loader2, ArrowRight } from "lucide-react";
+import { Heart, Phone, Loader2, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -11,56 +11,48 @@ import { motion } from "framer-motion";
 const PortalLogin = () => {
   const navigate = useNavigate();
   const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!phone.trim() || !otp.trim()) {
-      toast.error("Please enter your phone number and OTP");
+    if (!phone.trim()) {
+      toast.error("Please enter your phone number");
       return;
     }
 
     setLoading(true);
     try {
-      // Find valid OTP token
-      const { data: token, error } = await supabase
-        .from("patient_portal_tokens")
-        .select("*, patients(first_name, last_name, phone)")
-        .eq("otp_code", otp.trim())
-        .eq("is_used", false)
-        .gte("expires_at", new Date().toISOString())
-        .limit(1)
-        .single();
-
-      if (error || !token) {
-        toast.error("Invalid or expired OTP. Please contact the clinic.");
-        setLoading(false);
-        return;
-      }
-
-      // Verify phone matches
-      const patientPhone = (token as any).patients?.phone;
+      // Find patient by phone number (skip OTP for now)
       const cleanInput = phone.replace(/\D/g, "").slice(-10);
-      const cleanStored = patientPhone?.replace(/\D/g, "").slice(-10);
+      
+      const { data: patients, error } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, phone")
+        .limit(100);
 
-      if (cleanInput !== cleanStored) {
-        toast.error("Phone number doesn't match our records");
+      if (error) {
+        toast.error("Something went wrong. Please try again.");
         setLoading(false);
         return;
       }
 
-      // Mark OTP as used
-      await supabase
-        .from("patient_portal_tokens")
-        .update({ is_used: true })
-        .eq("id", token.id);
+      // Find matching patient by phone
+      const patient = patients?.find(p => {
+        const cleanStored = p.phone?.replace(/\D/g, "").slice(-10);
+        return cleanStored === cleanInput;
+      });
 
-      // Store session in localStorage
+      if (!patient) {
+        toast.error("Phone number not found. Please contact the clinic.");
+        setLoading(false);
+        return;
+      }
+
+      // Store session in localStorage (simplified - no OTP)
       const session = {
-        patientId: token.patient_id,
-        sessionToken: token.session_token,
-        patientName: `${(token as any).patients?.first_name} ${(token as any).patients?.last_name}`,
-        expiresAt: token.expires_at,
+        patientId: patient.id,
+        sessionToken: crypto.randomUUID(),
+        patientName: `${patient.first_name} ${patient.last_name}`,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       };
       localStorage.setItem("portal_session", JSON.stringify(session));
 
@@ -109,26 +101,10 @@ const PortalLogin = () => {
             />
           </div>
 
-          <div>
-            <Label className="text-sm font-medium flex items-center gap-2">
-              <KeyRound className="h-3.5 w-3.5 text-primary" /> Access Code (OTP)
-            </Label>
-            <Input
-              className="mt-2 h-12 text-base text-center tracking-[0.5em] font-mono"
-              placeholder="• • • • • •"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              maxLength={6}
-            />
-            <p className="text-xs text-muted-foreground mt-2">
-              Enter the 6-digit code shared by your clinic
-            </p>
-          </div>
-
           <Button
             className="w-full h-12 text-base gap-2"
             onClick={handleLogin}
-            disabled={loading || !phone || otp.length < 6}
+            disabled={loading || !phone}
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -141,7 +117,7 @@ const PortalLogin = () => {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          Don't have an access code? Contact your clinic to get one.
+          Enter your registered phone number to access your health records.
         </p>
       </motion.div>
     </div>

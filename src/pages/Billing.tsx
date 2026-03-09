@@ -193,11 +193,56 @@ const Billing = () => {
     },
   });
 
+  const { data: pharmaProducts = [] } = useQuery({
+    queryKey: ["pharma-products-billing"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("pharma_products").select("*").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: pharmaInventory = [] } = useQuery({
+    queryKey: ["pharma-inventory-billing"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pharma_inventory")
+        .select("*, pharma_products(name, selling_price)")
+        .order("expiry_date", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const getSelectedTax = () => taxes.find((t: any) => t.id === selectedTaxId);
   const calcTaxAmount = (amount: number) => {
     const tax = getSelectedTax();
     return tax ? (amount * tax.rate / 100) : 0;
   };
+
+  const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+
+  const addPharmaItem = () => {
+    setPharmaItems([...pharmaItems, { inventory_id: "", product_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0 }]);
+  };
+
+  const updatePharmaItem = (idx: number, field: string, value: any) => {
+    const updated = [...pharmaItems];
+    (updated[idx] as any)[field] = value;
+    if (field === "inventory_id") {
+      const inv = pharmaInventory.find((i: any) => i.id === value) as any;
+      if (inv) {
+        updated[idx].product_id = inv.product_id;
+        updated[idx].product_name = inv.pharma_products?.name || "";
+        updated[idx].batch_number = inv.batch_number;
+        updated[idx].unit_price = inv.pharma_products?.selling_price || 0;
+        updated[idx].available = inv.quantity;
+      }
+    }
+    setPharmaItems(updated);
+  };
+
+  const removePharmaItem = (idx: number) => setPharmaItems(pharmaItems.filter((_, i) => i !== idx));
 
   const createInvoice = useMutation({
     mutationFn: async () => {

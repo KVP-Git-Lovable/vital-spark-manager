@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Save, Building2, Clock, Users, Plus, Trash2, Loader2 } from "lucide-react";
+import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -37,6 +37,10 @@ const Settings = () => {
   const [roleName, setRoleName] = useState("");
   const [roleDesc, setRoleDesc] = useState("");
   const [rolePerms, setRolePerms] = useState("");
+  const [taxOpen, setTaxOpen] = useState(false);
+  const [taxName, setTaxName] = useState("");
+  const [taxRate, setTaxRate] = useState(0);
+  const [taxDesc, setTaxDesc] = useState("");
 
   // Clinic settings
   const { data: clinic, isLoading: clinicLoading } = useQuery({
@@ -160,6 +164,57 @@ const Settings = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Tax master
+  const { data: taxes = [] } = useQuery({
+    queryKey: ["tax-master"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("tax_master").select("*").order("rate");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const createTax = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("tax_master").insert({
+        name: taxName,
+        rate: taxRate,
+        description: taxDesc || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tax-master"] });
+      toast.success("Tax rate created");
+      setTaxName(""); setTaxRate(0); setTaxDesc(""); setTaxOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleTax = useMutation({
+    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      const { error } = await supabase.from("tax_master").update({ is_active }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tax-master"] });
+      toast.success("Tax updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteTax = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("tax_master").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tax-master"] });
+      toast.success("Tax deleted");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (clinicLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -180,6 +235,7 @@ const Settings = () => {
           <TabsTrigger value="profile" className="gap-1.5"><Building2 className="h-3.5 w-3.5" /> Clinic Profile</TabsTrigger>
           <TabsTrigger value="hours" className="gap-1.5"><Clock className="h-3.5 w-3.5" /> Working Hours</TabsTrigger>
           <TabsTrigger value="roles" className="gap-1.5"><Users className="h-3.5 w-3.5" /> Staff Roles</TabsTrigger>
+          <TabsTrigger value="tax" className="gap-1.5"><Receipt className="h-3.5 w-3.5" /> Tax Master</TabsTrigger>
         </TabsList>
 
         {/* Clinic Profile */}
@@ -394,6 +450,78 @@ const Settings = () => {
                 </div>
               </div>
             ))}
+          </motion.div>
+        </TabsContent>
+
+        {/* Tax Master */}
+        <TabsContent value="tax">
+          <div className="flex justify-end mt-4 mb-4">
+            <Dialog open={taxOpen} onOpenChange={setTaxOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Add Tax Rate</Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-sm">
+                <DialogHeader><DialogTitle className="font-display">New Tax Rate</DialogTitle></DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <Label>Tax Name *</Label>
+                    <Input className="mt-1.5" placeholder="e.g. GST 18%" value={taxName} onChange={(e) => setTaxName(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Rate (%) *</Label>
+                    <Input type="number" className="mt-1.5" placeholder="18" value={taxRate} onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)} />
+                  </div>
+                  <div>
+                    <Label>Description</Label>
+                    <Input className="mt-1.5" placeholder="Optional description" value={taxDesc} onChange={(e) => setTaxDesc(e.target.value)} />
+                  </div>
+                  <Button className="w-full" onClick={() => createTax.mutate()} disabled={!taxName || createTax.isPending}>
+                    {createTax.isPending ? "Creating..." : "Create Tax Rate"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="data-table">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tax Name</TableHead>
+                  <TableHead>Rate (%)</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="w-20">Active</TableHead>
+                  <TableHead className="w-16"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {taxes.length === 0 ? (
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No tax rates defined</TableCell></TableRow>
+                ) : taxes.map((tax: any) => (
+                  <TableRow key={tax.id}>
+                    <TableCell className="font-medium">{tax.name}</TableCell>
+                    <TableCell>{tax.rate}%</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{tax.description || "—"}</TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={tax.is_active}
+                        onCheckedChange={(checked) => toggleTax.mutate({ id: tax.id, is_active: checked })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive"
+                        onClick={() => deleteTax.mutate(tax.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </motion.div>
         </TabsContent>
       </Tabs>

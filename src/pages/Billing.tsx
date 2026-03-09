@@ -136,6 +136,7 @@ const Billing = () => {
   const [paymentType, setPaymentType] = useState("One-time");
   const [paymentMode, setPaymentMode] = useState("Cash");
   const [notes, setNotes] = useState("");
+  const [selectedTaxId, setSelectedTaxId] = useState("");
 
   // Staged: multiple stages with amount + paid
   const [stages, setStages] = useState<StageRow[]>([{ label: "Stage 1", amount: 0, paid: 0 }]);
@@ -173,6 +174,21 @@ const Billing = () => {
     },
   });
 
+  const { data: taxes = [] } = useQuery({
+    queryKey: ["tax-master-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("tax_master").select("*").eq("is_active", true).order("rate");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const getSelectedTax = () => taxes.find((t: any) => t.id === selectedTaxId);
+  const calcTaxAmount = (amount: number) => {
+    const tax = getSelectedTax();
+    return tax ? (amount * tax.rate / 100) : 0;
+  };
+
   const createInvoice = useMutation({
     mutationFn: async () => {
       const services = serviceInputs.filter((s) => s.trim());
@@ -181,51 +197,65 @@ const Billing = () => {
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
       const baseNum = Date.now().toString().slice(-6);
+      const tax = getSelectedTax();
+      const taxRate = tax?.rate || 0;
 
       if (paymentType === "Staged") {
         const rows = stages.map((stage, i) => {
+          const stageTax = stage.amount * taxRate / 100;
+          const stageTotal = stage.amount + stageTax;
           let status = "Pending";
-          if (stage.paid >= stage.amount && stage.amount > 0) status = "Paid";
+          if (stage.paid >= stageTotal && stageTotal > 0) status = "Paid";
           else if (stage.paid > 0) status = "Partial";
           return {
             invoice_number: `INV-${baseNum}-S${i + 1}`,
             patient_id: patientId || null,
             patient_name: patientName,
             services,
-            total_amount: stage.amount,
+            total_amount: stageTotal,
             paid_amount: stage.paid,
             status,
             payment_type: "Staged",
             payment_mode: paymentMode,
             notes: `${stage.label}${notes ? ` — ${notes}` : ""}`,
+            tax_id: selectedTaxId || null,
+            tax_rate: taxRate,
+            tax_amount: stageTax,
           };
         });
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
       } else if (paymentType === "Recurring") {
+        const taxPerInst = recurringAmount * taxRate / 100;
+        const totalPerInst = recurringAmount + taxPerInst;
         const rows = Array.from({ length: recurringCount }, (_, i) => {
           const collected = recurringCollected[i] || 0;
           let status = "Pending";
-          if (collected >= recurringAmount && recurringAmount > 0) status = "Paid";
+          if (collected >= totalPerInst && totalPerInst > 0) status = "Paid";
           else if (collected > 0) status = "Partial";
           return {
             invoice_number: `INV-${baseNum}-R${i + 1}`,
             patient_id: patientId || null,
             patient_name: patientName,
             services,
-            total_amount: recurringAmount,
+            total_amount: totalPerInst,
             paid_amount: collected,
             status,
             payment_type: "Recurring",
             payment_mode: paymentMode,
             notes: `Installment ${i + 1} of ${recurringCount}${notes ? ` — ${notes}` : ""}`,
+            tax_id: selectedTaxId || null,
+            tax_rate: taxRate,
+            tax_amount: taxPerInst,
           };
         });
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
       } else {
+        const taxAmt = totalAmount * taxRate / 100;
+        const grandTotal = totalAmount + taxAmt;
         let status = "Pending";
-        if (paidAmount >= totalAmount && totalAmount > 0) status = "Paid";
+        if (paidAmount >= grandTotal && grandTotal > 0) status = "Paid";
         else if (paidAmount > 0) status = "Partial";
 
         const { error } = await supabase.from("invoices").insert({
@@ -233,12 +263,15 @@ const Billing = () => {
           patient_id: patientId || null,
           patient_name: patientName,
           services,
-          total_amount: totalAmount,
+          total_amount: grandTotal,
           paid_amount: paidAmount,
           status,
           payment_type: "One-time",
           payment_mode: paymentMode,
           notes: notes || null,
+          tax_id: selectedTaxId || null,
+          tax_rate: taxRate,
+          tax_amount: taxAmt,
         });
         if (error) throw error;
       }
@@ -301,6 +334,7 @@ const Billing = () => {
     setPaymentType("One-time");
     setPaymentMode("Cash");
     setNotes("");
+    setSelectedTaxId("");
     setStages([{ label: "Stage 1", amount: 0, paid: 0 }]);
     setRecurringCount(1);
     setRecurringAmount(0);
@@ -413,17 +447,40 @@ const Billing = () => {
                 </div>
               </div>
 
+              {/* Tax Selection */}
+              <div>
+                <Label>Tax</Label>
+                <Select value={selectedTaxId || "none"} onValueChange={(v) => setSelectedTaxId(v === "none" ? "" : v)}>
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="No tax" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Tax</SelectItem>
+                    {taxes.map((t: any) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name} ({t.rate}%)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* ─── One-time: simple amount/paid ─── */}
               {paymentType === "One-time" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Total Amount (₹) *</Label>
-                    <Input type="number" className="mt-1.5" value={totalAmount} onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)} />
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Subtotal (₹) *</Label>
+                      <Input type="number" className="mt-1.5" value={totalAmount} onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)} />
+                    </div>
+                    <div>
+                      <Label>Paid Amount (₹)</Label>
+                      <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
+                    </div>
                   </div>
-                  <div>
-                    <Label>Paid Amount (₹)</Label>
-                    <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
-                  </div>
+                  {selectedTaxId && selectedTaxId !== "none" && totalAmount > 0 && (
+                    <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{totalAmount.toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Tax ({getSelectedTax()?.name})</span><span>₹{calcTaxAmount(totalAmount).toLocaleString()}</span></div>
+                      <div className="flex justify-between font-semibold text-primary"><span>Grand Total</span><span>₹{(totalAmount + calcTaxAmount(totalAmount)).toLocaleString()}</span></div>
+                    </div>
+                  )}
                 </div>
               )}
 

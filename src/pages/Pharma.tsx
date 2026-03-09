@@ -63,6 +63,7 @@ const Pharma = () => {
   const [billPaymentMode, setBillPaymentMode] = useState("Cash");
   const [billDiscount, setBillDiscount] = useState(0);
   const [billItems, setBillItems] = useState<BillItemInput[]>([]);
+  const [billTaxId, setBillTaxId] = useState("");
 
   // ─── Queries ────────────────────────────────────
   const { data: products = [] } = useQuery({
@@ -90,6 +91,15 @@ const Pharma = () => {
     queryKey: ["pharma-bills"],
     queryFn: async () => {
       const { data, error } = await supabase.from("pharma_bills").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: pharmaTaxes = [] } = useQuery({
+    queryKey: ["tax-master-active-pharma"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("tax_master").select("*").eq("is_active", true).order("rate");
       if (error) throw error;
       return data;
     },
@@ -131,7 +141,10 @@ const Pharma = () => {
   const createBill = useMutation({
     mutationFn: async () => {
       const totalAmount = billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
-      const netAmount = totalAmount - billDiscount;
+      const selectedTax = pharmaTaxes.find((t: any) => t.id === billTaxId);
+      const taxRate = selectedTax?.rate || 0;
+      const taxAmount = totalAmount * taxRate / 100;
+      const netAmount = totalAmount + taxAmount - billDiscount;
       const billNum = `PH-${Date.now().toString().slice(-6)}`;
 
       const { data: bill, error } = await supabase.from("pharma_bills").insert({
@@ -141,6 +154,9 @@ const Pharma = () => {
         discount: billDiscount,
         net_amount: netAmount,
         payment_mode: billPaymentMode,
+        tax_id: billTaxId || null,
+        tax_rate: taxRate,
+        tax_amount: taxAmount,
       }).select().single();
       if (error) throw error;
 
@@ -172,6 +188,7 @@ const Pharma = () => {
       setBillItems([]);
       setBillPatientName("");
       setBillDiscount(0);
+      setBillTaxId("");
       setBillOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -339,12 +356,35 @@ const Pharma = () => {
                 </div>
 
                 <div className="border-t pt-3 space-y-2">
-                  <div className="flex justify-between text-sm"><span>Total</span><span>₹{billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0).toFixed(2)}</span></div>
+                  <div className="flex justify-between text-sm"><span>Subtotal</span><span>₹{billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0).toFixed(2)}</span></div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Tax</span>
+                    <Select value={billTaxId || "none"} onValueChange={(v) => setBillTaxId(v === "none" ? "" : v)}>
+                      <SelectTrigger className="w-40 h-8"><SelectValue placeholder="No tax" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Tax</SelectItem>
+                        {pharmaTaxes.map((t: any) => (
+                          <SelectItem key={t.id} value={t.id}>{t.name} ({t.rate}%)</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {billTaxId && (() => {
+                    const subtotal = billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+                    const tax = pharmaTaxes.find((t: any) => t.id === billTaxId);
+                    const taxAmt = tax ? subtotal * tax.rate / 100 : 0;
+                    return <div className="flex justify-between text-sm text-muted-foreground"><span>Tax Amount ({tax?.name})</span><span>₹{taxAmt.toFixed(2)}</span></div>;
+                  })()}
                   <div className="flex items-center justify-between text-sm">
                     <span>Discount (₹)</span>
                     <Input type="number" className="w-24 h-8 text-right" value={billDiscount} onChange={(e) => setBillDiscount(parseFloat(e.target.value) || 0)} />
                   </div>
-                  <div className="flex justify-between font-semibold"><span>Net Amount</span><span>₹{(billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0) - billDiscount).toFixed(2)}</span></div>
+                  {(() => {
+                    const subtotal = billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+                    const tax = pharmaTaxes.find((t: any) => t.id === billTaxId);
+                    const taxAmt = tax ? subtotal * tax.rate / 100 : 0;
+                    return <div className="flex justify-between font-semibold"><span>Net Amount</span><span>₹{(subtotal + taxAmt - billDiscount).toFixed(2)}</span></div>;
+                  })()}
                 </div>
 
                 <Button className="w-full" onClick={() => createBill.mutate()} disabled={billItems.length === 0 || createBill.isPending}>

@@ -12,6 +12,7 @@ import Billing from "./pages/Billing";
 import Reports from "./pages/Reports";
 import Procedures from "./pages/Procedures";
 import Pharma from "./pages/Pharma";
+import Photos from "./pages/Photos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

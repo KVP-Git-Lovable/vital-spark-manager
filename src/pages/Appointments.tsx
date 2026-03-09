@@ -382,7 +382,14 @@ const Appointments = () => {
                     const dayAppts = getApptsForSlot(date, hour);
                     const isToday = date.toDateString() === today.toDateString();
                     return (
-                      <div key={dayIndex} className={`border-l p-1 ${isToday ? "bg-primary/5" : ""}`}>
+                      <div key={dayIndex} className={`border-l p-1 min-h-[72px] cursor-pointer hover:bg-muted/30 transition-colors ${isToday ? "bg-primary/5" : ""}`} onClick={() => {
+                        const d = new Date(date);
+                        d.setHours(hour, 0, 0, 0);
+                        setStartDate(d);
+                        setStartTime(`${String(hour).padStart(2, "0")}:00`);
+                        setEndTime(`${String(hour).padStart(2, "0")}:30`);
+                        setOpen(true);
+                      }}>
                         {dayAppts.map((apt: any, ai: number) => (
                           <div key={apt.id} className={`rounded-md border p-2 text-xs cursor-pointer hover:opacity-80 transition-opacity mb-1 ${colorForIndex(ai)}`} onClick={() => setSelectedAppointmentId(apt.id)}>
                             <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name}</p>

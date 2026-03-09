@@ -46,6 +46,7 @@ const Procedures = () => {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [viewId, setViewId] = useState<string | null>(null);
+  const [cameraProc, setCameraProc] = useState<any>(null);
 
   // Form state
   const [patientId, setPatientId] = useState("");

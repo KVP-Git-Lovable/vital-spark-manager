@@ -47,6 +47,7 @@ export function ProcedureFormDialog({
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
+  const [autoFilled, setAutoFilled] = useState(false);
 
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],

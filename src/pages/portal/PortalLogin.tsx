@@ -101,23 +101,19 @@ const PortalLogin = () => {
             />
           </div>
 
-          <div>
-            <Label className="text-sm font-medium flex items-center gap-2">
-              <KeyRound className="h-3.5 w-3.5 text-primary" /> Access Code (OTP)
-            </Label>
-            <Input
-              className="mt-2 h-12 text-base text-center tracking-[0.5em] font-mono"
-              placeholder="• • • • • •"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              maxLength={6}
-            />
-            <p className="text-xs text-muted-foreground mt-2">
-              Enter the 6-digit code shared by your clinic
-            </p>
-          </div>
-
           <Button
+            className="w-full h-12 text-base gap-2"
+            onClick={handleLogin}
+            disabled={loading || !phone}
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                Access Portal <ArrowRight className="h-4 w-4" />
+              </>
+            )}
+          </Button>
             className="w-full h-12 text-base gap-2"
             onClick={handleLogin}
             disabled={loading || !phone || otp.length < 6}

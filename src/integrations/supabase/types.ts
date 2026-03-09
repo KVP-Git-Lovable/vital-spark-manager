@@ -180,6 +180,64 @@ export type Database = {
           },
         ]
       }
+      patient_photos: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          patient_id: string
+          photo_type: string
+          photo_url: string
+          procedure_id: string | null
+          taken_at: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          patient_id: string
+          photo_type?: string
+          photo_url: string
+          procedure_id?: string | null
+          taken_at?: string
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          patient_id?: string
+          photo_type?: string
+          photo_url?: string
+          procedure_id?: string | null
+          taken_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_photos_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_photos_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_photos_procedure_id_fkey"
+            columns: ["procedure_id"]
+            isOneToOne: false
+            referencedRelation: "procedures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           address: string | null

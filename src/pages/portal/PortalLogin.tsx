@@ -114,11 +114,6 @@ const PortalLogin = () => {
               </>
             )}
           </Button>
-            className="w-full h-12 text-base gap-2"
-            onClick={handleLogin}
-            disabled={loading || !phone || otp.length < 6}
-          >
-          </Button>
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">

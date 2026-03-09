@@ -135,117 +135,14 @@ const Billing = () => {
   const [paymentMode, setPaymentMode] = useState("Cash");
   const [notes, setNotes] = useState("");
 
-  const { data: invoices = [] } = useQuery({
-    queryKey: ["invoices"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("invoices").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
+  // Staged: multiple stages with amount + paid
+  interface StageRow { label: string; amount: number; paid: number; }
+  const [stages, setStages] = useState<StageRow[]>([{ label: "Stage 1", amount: 0, paid: 0 }]);
 
-  const { data: patients = [] } = useQuery({
-    queryKey: ["patients-list"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("patients").select("id, first_name, last_name").order("first_name");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const createInvoice = useMutation({
-    mutationFn: async () => {
-      const services = serviceInputs.filter((s) => s.trim());
-      if (services.length === 0) throw new Error("Add at least one service");
-
-      const patient = patients.find((p) => p.id === patientId);
-      const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
-      const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
-
-      let status = "Pending";
-      if (paidAmount >= totalAmount && totalAmount > 0) status = "Paid";
-      else if (paidAmount > 0) status = "Partial";
-
-      const { error } = await supabase.from("invoices").insert({
-        invoice_number: invoiceNumber,
-        patient_id: patientId || null,
-        patient_name: patientName,
-        services,
-        total_amount: totalAmount,
-        paid_amount: paidAmount,
-        status,
-        payment_type: paymentType,
-        payment_mode: paymentMode,
-        notes: notes || null,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast.success("Invoice created successfully");
-      resetForm();
-      setOpen(false);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const updatePayment = useMutation({
-    mutationFn: async () => {
-      if (!paymentInv) return;
-      const newPaid = Number(paymentInv.paid_amount) + addPaymentAmount;
-      const total = Number(paymentInv.total_amount);
-      let status = "Partial";
-      if (newPaid >= total) status = "Paid";
-      else if (newPaid <= 0) status = "Pending";
-
-      const { error } = await supabase.from("invoices").update({
-        paid_amount: Math.min(newPaid, total),
-        status,
-        payment_mode: addPaymentMode,
-      }).eq("id", paymentInv.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast.success("Payment updated");
-      setPaymentInv(null);
-      setAddPaymentAmount(0);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const markAsPaid = useMutation({
-    mutationFn: async (inv: any) => {
-      const { error } = await supabase.from("invoices").update({
-        paid_amount: inv.total_amount,
-        status: "Paid",
-      }).eq("id", inv.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast.success("Invoice marked as paid");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const resetForm = () => {
-    setPatientId("");
-    setServiceInputs([""]);
-    setTotalAmount(0);
-    setPaidAmount(0);
-    setPaymentType("One-time");
-    setPaymentMode("Cash");
-    setNotes("");
-  };
-
-  const addServiceInput = () => setServiceInputs([...serviceInputs, ""]);
-  const updateServiceInput = (i: number, val: string) => {
-    const updated = [...serviceInputs];
-    updated[i] = val;
-    setServiceInputs(updated);
-  };
-  const removeServiceInput = (i: number) => setServiceInputs(serviceInputs.filter((_, idx) => idx !== i));
+  // Recurring: number of installments + per-installment amount + collected per installment
+  const [recurringCount, setRecurringCount] = useState(1);
+  const [recurringAmount, setRecurringAmount] = useState(0);
+  const [recurringCollected, setRecurringCollected] = useState<number[]>([0]);
 
   const totalRevenue = invoices.reduce((s: number, inv: any) => s + Number(inv.paid_amount), 0);
   const pendingAmount = invoices.filter((i: any) => i.status === "Pending").reduce((s: number, inv: any) => s + Number(inv.total_amount), 0);

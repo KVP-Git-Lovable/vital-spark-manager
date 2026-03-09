@@ -17,6 +17,7 @@ const PatientDetail = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [otpCode, setOtpCode] = useState<string | null>(null);
   const [otpCopied, setOtpCopied] = useState(false);
 

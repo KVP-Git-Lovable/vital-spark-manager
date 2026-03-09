@@ -849,6 +849,7 @@ export type Database = {
           patient_id: string
           procedure_date: string
           procedure_notes: string | null
+          recommendations: string | null
           service_name: string
           staff_id: string | null
           status: string
@@ -863,6 +864,7 @@ export type Database = {
           patient_id: string
           procedure_date?: string
           procedure_notes?: string | null
+          recommendations?: string | null
           service_name: string
           staff_id?: string | null
           status?: string
@@ -877,6 +879,7 @@ export type Database = {
           patient_id?: string
           procedure_date?: string
           procedure_notes?: string | null
+          recommendations?: string | null
           service_name?: string
           staff_id?: string | null
           status?: string
@@ -905,6 +908,90 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      service_medicines: {
+        Row: {
+          created_at: string
+          duration: string | null
+          frequency: string | null
+          id: string
+          instructions: string | null
+          product_id: string
+          service_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration?: string | null
+          frequency?: string | null
+          id?: string
+          instructions?: string | null
+          product_id: string
+          service_id: string
+        }
+        Update: {
+          created_at?: string
+          duration?: string | null
+          frequency?: string | null
+          id?: string
+          instructions?: string | null
+          product_id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_medicines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "pharma_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_medicines_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          category: string
+          created_at: string
+          diagnosis: string | null
+          duration: number
+          id: string
+          name: string
+          price: number
+          procedure_notes: string | null
+          recommendations: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          diagnosis?: string | null
+          duration?: number
+          id?: string
+          name: string
+          price?: number
+          procedure_notes?: string | null
+          recommendations?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          diagnosis?: string | null
+          duration?: number
+          id?: string
+          name?: string
+          price?: number
+          procedure_notes?: string | null
+          recommendations?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       staff: {
         Row: {

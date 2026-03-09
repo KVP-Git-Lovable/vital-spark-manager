@@ -15,6 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 interface PrescriptionInput {
+  product_id: string;
   medicine_name: string;
   dosage: string;
   frequency: string;
@@ -26,7 +27,6 @@ interface PrescriptionInput {
 interface ProcedureFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  // Pre-fill from appointment context
   defaultPatientId?: string;
   defaultAppointmentId?: string;
   defaultStaffId?: string | null;
@@ -40,11 +40,12 @@ export function ProcedureFormDialog({
   const queryClient = useQueryClient();
   const [patientId, setPatientId] = useState(defaultPatientId || "");
   const [staffId, setStaffId] = useState(defaultStaffId || "");
-  const [appointmentId, setAppointmentId] = useState(defaultAppointmentId || "");
+  const [appointmentId] = useState(defaultAppointmentId || "");
+  const [serviceId, setServiceId] = useState("");
   const [serviceName, setServiceName] = useState(defaultServiceName || "");
   const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
-  const [consultationNotes, setConsultationNotes] = useState("");
+  const [recommendations, setRecommendations] = useState("");
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
 
   const { data: patients = [] } = useQuery({
@@ -65,6 +66,54 @@ export function ProcedureFormDialog({
     },
   });
 
+  const { data: services = [] } = useQuery({
+    queryKey: ["services-lookup"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("services").select("id, name, diagnosis, procedure_notes, recommendations").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: products = [] } = useQuery({
+    queryKey: ["pharma-products-lookup"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("pharma_products").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // When a service is selected, auto-fill diagnosis, notes, recommendations
+  const handleServiceSelect = async (svcId: string) => {
+    setServiceId(svcId);
+    const svc = services.find((s: any) => s.id === svcId);
+    if (svc) {
+      setServiceName((svc as any).name);
+      if ((svc as any).diagnosis) setDiagnosis((svc as any).diagnosis);
+      if ((svc as any).procedure_notes) setProcedureNotes((svc as any).procedure_notes);
+      if ((svc as any).recommendations) {
+        setRecommendations(((svc as any).recommendations as string[]).join("\n"));
+      }
+      // Load service medicines as prescriptions
+      const { data: meds } = await supabase
+        .from("service_medicines")
+        .select("*, pharma_products(name)")
+        .eq("service_id", svcId);
+      if (meds && meds.length > 0) {
+        setPrescriptions(meds.map((m: any) => ({
+          product_id: m.product_id,
+          medicine_name: m.pharma_products?.name || "",
+          dosage: "",
+          frequency: m.frequency || "",
+          duration: m.duration || "",
+          instructions: m.instructions || "",
+          quantity: 1,
+        })));
+      }
+    }
+  };
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const { data: proc, error } = await supabase
@@ -73,27 +122,32 @@ export function ProcedureFormDialog({
           patient_id: patientId,
           staff_id: staffId || null,
           appointment_id: appointmentId || null,
-          service_name: serviceName,
+          service_name: serviceName || "Consultation",
           diagnosis,
           procedure_notes: procedureNotes,
-          consultation_notes: consultationNotes,
+          recommendations: recommendations || null,
         })
         .select()
         .single();
       if (error) throw error;
 
       if (prescriptions.length > 0) {
-        const rxRows = prescriptions.map((rx) => ({
-          procedure_id: proc.id,
-          medicine_name: rx.medicine_name,
-          dosage: rx.dosage,
-          frequency: rx.frequency,
-          duration: rx.duration,
-          instructions: rx.instructions,
-          quantity: rx.quantity,
-        }));
-        const { error: rxErr } = await supabase.from("prescriptions").insert(rxRows);
-        if (rxErr) throw rxErr;
+        const rxRows = prescriptions
+          .filter((rx) => rx.medicine_name || rx.product_id)
+          .map((rx) => ({
+            procedure_id: proc.id,
+            product_id: rx.product_id || null,
+            medicine_name: rx.medicine_name,
+            dosage: rx.dosage,
+            frequency: rx.frequency,
+            duration: rx.duration,
+            instructions: rx.instructions,
+            quantity: rx.quantity,
+          }));
+        if (rxRows.length > 0) {
+          const { error: rxErr } = await supabase.from("prescriptions").insert(rxRows);
+          if (rxErr) throw rxErr;
+        }
       }
       return proc;
     },
@@ -107,12 +161,18 @@ export function ProcedureFormDialog({
   });
 
   const addPrescription = () => {
-    setPrescriptions([...prescriptions, { medicine_name: "", dosage: "", frequency: "", duration: "", instructions: "", quantity: 1 }]);
+    setPrescriptions([...prescriptions, { product_id: "", medicine_name: "", dosage: "", frequency: "", duration: "", instructions: "", quantity: 1 }]);
   };
 
   const updatePrescription = (index: number, field: keyof PrescriptionInput, value: string | number) => {
     const updated = [...prescriptions];
-    (updated[index] as any)[field] = value;
+    if (field === "product_id") {
+      const prod = products.find((p) => p.id === value);
+      updated[index].product_id = value as string;
+      updated[index].medicine_name = prod?.name || "";
+    } else {
+      (updated[index] as any)[field] = value;
+    }
     setPrescriptions(updated);
   };
 
@@ -155,8 +215,15 @@ export function ProcedureFormDialog({
           </div>
 
           <div>
-            <Label>Service / Procedure Name *</Label>
-            <Input value={serviceName} onChange={(e) => setServiceName(e.target.value)} placeholder="e.g. Chemical Peel" className="mt-1.5" />
+            <Label>Service / Procedure Name</Label>
+            <Select value={serviceId} onValueChange={handleServiceSelect}>
+              <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select service (optional)" /></SelectTrigger>
+              <SelectContent>
+                {services.map((s: any) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
@@ -170,8 +237,8 @@ export function ProcedureFormDialog({
           </div>
 
           <div>
-            <Label>Consultation Notes</Label>
-            <Textarea value={consultationNotes} onChange={(e) => setConsultationNotes(e.target.value)} placeholder="Consultation observations, advice..." className="mt-1.5" rows={3} />
+            <Label>Recommendations</Label>
+            <Textarea value={recommendations} onChange={(e) => setRecommendations(e.target.value)} placeholder="Post-procedure recommendations..." className="mt-1.5" rows={3} />
           </div>
 
           {/* Prescriptions */}
@@ -191,7 +258,14 @@ export function ProcedureFormDialog({
                   <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removePrescription(i)}>Remove</Button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <Input placeholder="Medicine name *" value={rx.medicine_name} onChange={(e) => updatePrescription(i, "medicine_name", e.target.value)} />
+                  <Select value={rx.product_id} onValueChange={(v) => updatePrescription(i, "product_id", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select medicine *" /></SelectTrigger>
+                    <SelectContent>
+                      {products.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Input placeholder="Dosage (e.g. 500mg)" value={rx.dosage} onChange={(e) => updatePrescription(i, "dosage", e.target.value)} />
                 </div>
                 <div className="grid grid-cols-3 gap-2">
@@ -204,7 +278,7 @@ export function ProcedureFormDialog({
             ))}
           </div>
 
-          <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!patientId || !serviceName || createMutation.isPending}>
+          <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!patientId || createMutation.isPending}>
             {createMutation.isPending ? "Saving..." : "Save Procedure"}
           </Button>
         </div>

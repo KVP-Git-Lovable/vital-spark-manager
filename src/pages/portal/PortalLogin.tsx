@@ -118,18 +118,11 @@ const PortalLogin = () => {
             onClick={handleLogin}
             disabled={loading || !phone || otp.length < 6}
           >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                Access Portal <ArrowRight className="h-4 w-4" />
-              </>
-            )}
           </Button>
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          Don't have an access code? Contact your clinic to get one.
+          Enter your registered phone number to access your health records.
         </p>
       </motion.div>
     </div>

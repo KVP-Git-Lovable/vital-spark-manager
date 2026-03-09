@@ -502,6 +502,59 @@ const Billing = () => {
                 ))}
               </div>
 
+              {/* ─── Pharma Products ─── */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <Label className="flex items-center gap-1.5"><Pill className="h-3.5 w-3.5" /> Pharma Products</Label>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs" onClick={addPharmaItem}>
+                    <Plus className="h-3 w-3 mr-1" /> Add Product
+                  </Button>
+                </div>
+                {pharmaItems.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No pharma products added. Click "Add Product" to include medicines in this invoice.</p>
+                )}
+                {pharmaItems.map((item, idx) => (
+                  <div key={idx} className="border rounded-lg p-3 mb-2 space-y-2 bg-muted/30">
+                    <div>
+                      <Label className="text-xs">Product (Batch)</Label>
+                      <Select value={item.inventory_id || "placeholder"} onValueChange={(v) => updatePharmaItem(idx, "inventory_id", v === "placeholder" ? "" : v)}>
+                        <SelectTrigger className="mt-1"><SelectValue placeholder="Select product & batch" /></SelectTrigger>
+                        <SelectContent>
+                          {pharmaInventory.filter((i: any) => i.quantity > 0 && new Date(i.expiry_date) > new Date()).map((i: any) => (
+                            <SelectItem key={i.id} value={i.id}>
+                              {i.pharma_products?.name} — Batch: {i.batch_number} (Qty: {i.quantity})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">Qty</Label>
+                        <Input type="number" className="mt-1 h-8" min={1} max={item.available} value={item.quantity} onChange={(e) => updatePharmaItem(idx, "quantity", parseInt(e.target.value) || 1)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Price (₹)</Label>
+                        <Input type="number" className="mt-1 h-8" value={item.unit_price} onChange={(e) => updatePharmaItem(idx, "unit_price", parseFloat(e.target.value) || 0)} />
+                      </div>
+                      <div className="flex items-end">
+                        <div className="flex items-center gap-2 h-8">
+                          <span className="text-sm font-medium">₹{(item.quantity * item.unit_price).toFixed(2)}</span>
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removePharmaItem(idx)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {pharmaItems.length > 0 && (
+                  <div className="text-right text-sm font-medium text-muted-foreground">
+                    Products subtotal: ₹{pharmaSubtotal.toLocaleString()}
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Payment Type</Label>

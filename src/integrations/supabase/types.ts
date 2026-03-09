@@ -14,7 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      patients: {
+        Row: {
+          address: string | null
+          allergies: string | null
+          blood_group: string | null
+          city: string | null
+          created_at: string
+          current_medications: string | null
+          date_of_birth: string | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          first_name: string
+          gender: string | null
+          id: string
+          last_name: string
+          medical_history: string | null
+          notes: string | null
+          phone: string | null
+          pincode: string | null
+          previous_treatments: string | null
+          skin_concerns: string | null
+          skin_type: string | null
+          state: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          allergies?: string | null
+          blood_group?: string | null
+          city?: string | null
+          created_at?: string
+          current_medications?: string | null
+          date_of_birth?: string | null
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          first_name: string
+          gender?: string | null
+          id?: string
+          last_name: string
+          medical_history?: string | null
+          notes?: string | null
+          phone?: string | null
+          pincode?: string | null
+          previous_treatments?: string | null
+          skin_concerns?: string | null
+          skin_type?: string | null
+          state?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          allergies?: string | null
+          blood_group?: string | null
+          city?: string | null
+          created_at?: string
+          current_medications?: string | null
+          date_of_birth?: string | null
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          first_name?: string
+          gender?: string | null
+          id?: string
+          last_name?: string
+          medical_history?: string | null
+          notes?: string | null
+          phone?: string | null
+          pincode?: string | null
+          previous_treatments?: string | null
+          skin_concerns?: string | null
+          skin_type?: string | null
+          state?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

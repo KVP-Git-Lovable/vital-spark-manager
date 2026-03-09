@@ -406,6 +406,7 @@ const Billing = () => {
     setPaymentMode("Cash");
     setNotes("");
     setSelectedTaxId("");
+    setPharmaItems([]);
     setStages([{ label: "Stage 1", amount: 0, paid: 0 }]);
     setRecurringCount(1);
     setRecurringAmount(0);

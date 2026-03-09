@@ -174,6 +174,15 @@ const Billing = () => {
     },
   });
 
+  const { data: taxes = [] } = useQuery({
+    queryKey: ["tax-master-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("tax_master").select("*").eq("is_active", true).order("rate");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const createInvoice = useMutation({
     mutationFn: async () => {
       const services = serviceInputs.filter((s) => s.trim());

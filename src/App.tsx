@@ -16,6 +16,8 @@ import Pharma from "./pages/Pharma";
 import Photos from "./pages/Photos";
 import LeaveManagement from "./pages/LeaveManagement";
 import Settings from "./pages/Settings";
+import PortalLogin from "./pages/portal/PortalLogin";
+import Portal from "./pages/portal/Portal";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,23 +28,35 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AppLayout>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/patients" element={<Patients />} />
-            <Route path="/patients/:id" element={<PatientDetail />} />
-            <Route path="/leave" element={<LeaveManagement />} />
-            <Route path="/appointments" element={<Appointments />} />
-            <Route path="/services" element={<Services />} />
-            <Route path="/billing" element={<Billing />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/procedures" element={<Procedures />} />
-            <Route path="/pharma" element={<Pharma />} />
-            <Route path="/photos" element={<Photos />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AppLayout>
+        <Routes>
+          {/* Patient Portal — outside clinic layout */}
+          <Route path="/portal" element={<PortalLogin />} />
+          <Route path="/portal/dashboard" element={<Portal />} />
+
+          {/* Clinic app — inside sidebar layout */}
+          <Route
+            path="*"
+            element={
+              <AppLayout>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/patients" element={<Patients />} />
+                  <Route path="/patients/:id" element={<PatientDetail />} />
+                  <Route path="/leave" element={<LeaveManagement />} />
+                  <Route path="/appointments" element={<Appointments />} />
+                  <Route path="/services" element={<Services />} />
+                  <Route path="/billing" element={<Billing />} />
+                  <Route path="/reports" element={<Reports />} />
+                  <Route path="/procedures" element={<Procedures />} />
+                  <Route path="/pharma" element={<Pharma />} />
+                  <Route path="/photos" element={<Photos />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </AppLayout>
+            }
+          />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

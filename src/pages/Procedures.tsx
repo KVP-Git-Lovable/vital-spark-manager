@@ -343,10 +343,15 @@ const Procedures = () => {
                   <TableCell>
                     <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
                   </TableCell>
-                  <TableCell>
-                    <Dialog open={viewId === proc.id} onOpenChange={(o) => setViewId(o ? proc.id : null)}>
-                      <DialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCameraProc(proc)} title="Take Photo">
+                          <Camera className="h-4 w-4" />
+                        </Button>
+                        <Dialog open={viewId === proc.id} onOpenChange={(o) => setViewId(o ? proc.id : null)}>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
+                          </DialogTrigger>
                       </DialogTrigger>
                       <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
                         <DialogHeader>

@@ -22,6 +22,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
+import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
+import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -37,6 +39,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [cameraOpen, setCameraOpen] = useState(false);
   const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
+  const [procFormOpen, setProcFormOpen] = useState(false);
+  const [selectedProcId, setSelectedProcId] = useState<string | null>(null);
 
   // Fetch appointment
   const { data: appointment, isLoading } = useQuery({
@@ -162,25 +166,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Quick create procedure from appointment
-  const createProcedureMutation = useMutation({
-    mutationFn: async () => {
-      if (!appointment) throw new Error("No appointment");
-      const { error } = await supabase.from("procedures").insert({
-        patient_id: appointment.patient_id!,
-        appointment_id: appointmentId!,
-        staff_id: appointment.staff_id || null,
-        service_name: appointment.service,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["appointment-procedures", appointmentId] });
-      queryClient.invalidateQueries({ queryKey: ["procedures"] });
-      toast.success("Procedure created from appointment");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  // Removed quick create - now uses ProcedureFormDialog
 
   const patientName = appointment?.patients
     ? `${appointment.patients.first_name} ${appointment.patients.last_name}`
@@ -295,7 +281,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                         <h3 className="text-sm font-semibold font-display flex items-center gap-2">
                           <Pill className="h-4 w-4" /> Linked Procedures
                         </h3>
-                        <Button size="sm" variant="outline" className="gap-1" onClick={() => createProcedureMutation.mutate()} disabled={createProcedureMutation.isPending}>
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => setProcFormOpen(true)}>
                           <Plus className="h-3 w-3" /> Add Procedure
                         </Button>
                       </div>
@@ -304,7 +290,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                       ) : (
                         <div className="space-y-2">
                           {procedures.map((proc: any) => (
-                            <div key={proc.id} className="border rounded-lg p-3 bg-muted/30">
+                            <div key={proc.id} className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setSelectedProcId(proc.id)}>
                               <div className="flex items-center justify-between">
                                 <p className="font-medium text-sm">{proc.service_name}</p>
                                 <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
@@ -431,6 +417,19 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
           patientName={patientName}
         />
       )}
+
+      {procFormOpen && appointment?.patient_id && (
+        <ProcedureFormDialog
+          open={procFormOpen}
+          onOpenChange={setProcFormOpen}
+          defaultPatientId={appointment.patient_id}
+          defaultAppointmentId={appointmentId!}
+          defaultStaffId={appointment.staff_id}
+          defaultServiceName={appointment.service}
+        />
+      )}
+
+      <ProcedureDetailSheet procedureId={selectedProcId} onClose={() => setSelectedProcId(null)} />
     </>
   );
 }

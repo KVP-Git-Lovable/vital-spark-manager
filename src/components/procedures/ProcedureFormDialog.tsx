@@ -1,0 +1,214 @@
+import { useState } from "react";
+import { Plus, Pill } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+interface PrescriptionInput {
+  medicine_name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  instructions: string;
+  quantity: number;
+}
+
+interface ProcedureFormDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  // Pre-fill from appointment context
+  defaultPatientId?: string;
+  defaultAppointmentId?: string;
+  defaultStaffId?: string | null;
+  defaultServiceName?: string;
+}
+
+export function ProcedureFormDialog({
+  open, onOpenChange,
+  defaultPatientId, defaultAppointmentId, defaultStaffId, defaultServiceName,
+}: ProcedureFormDialogProps) {
+  const queryClient = useQueryClient();
+  const [patientId, setPatientId] = useState(defaultPatientId || "");
+  const [staffId, setStaffId] = useState(defaultStaffId || "");
+  const [appointmentId, setAppointmentId] = useState(defaultAppointmentId || "");
+  const [serviceName, setServiceName] = useState(defaultServiceName || "");
+  const [diagnosis, setDiagnosis] = useState("");
+  const [procedureNotes, setProcedureNotes] = useState("");
+  const [consultationNotes, setConsultationNotes] = useState("");
+  const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
+
+  const { data: patients = [] } = useQuery({
+    queryKey: ["patients-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("patients").select("id, first_name, last_name").order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role").order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const { data: proc, error } = await supabase
+        .from("procedures")
+        .insert({
+          patient_id: patientId,
+          staff_id: staffId || null,
+          appointment_id: appointmentId || null,
+          service_name: serviceName,
+          diagnosis,
+          procedure_notes: procedureNotes,
+          consultation_notes: consultationNotes,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+
+      if (prescriptions.length > 0) {
+        const rxRows = prescriptions.map((rx) => ({
+          procedure_id: proc.id,
+          medicine_name: rx.medicine_name,
+          dosage: rx.dosage,
+          frequency: rx.frequency,
+          duration: rx.duration,
+          instructions: rx.instructions,
+          quantity: rx.quantity,
+        }));
+        const { error: rxErr } = await supabase.from("prescriptions").insert(rxRows);
+        if (rxErr) throw rxErr;
+      }
+      return proc;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["procedures"] });
+      queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
+      toast.success("Procedure created successfully");
+      onOpenChange(false);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const addPrescription = () => {
+    setPrescriptions([...prescriptions, { medicine_name: "", dosage: "", frequency: "", duration: "", instructions: "", quantity: 1 }]);
+  };
+
+  const updatePrescription = (index: number, field: keyof PrescriptionInput, value: string | number) => {
+    const updated = [...prescriptions];
+    (updated[index] as any)[field] = value;
+    setPrescriptions(updated);
+  };
+
+  const removePrescription = (index: number) => {
+    setPrescriptions(prescriptions.filter((_, i) => i !== index));
+  };
+
+  const isFromAppointment = !!defaultAppointmentId;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display">New Procedure / Consultation</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Patient *</Label>
+              <Select value={patientId} onValueChange={setPatientId} disabled={isFromAppointment}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select patient" /></SelectTrigger>
+                <SelectContent>
+                  {patients.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Doctor / Staff</Label>
+              <Select value={staffId} onValueChange={setStaffId}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                <SelectContent>
+                  {staffList.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <Label>Service / Procedure Name *</Label>
+            <Input value={serviceName} onChange={(e) => setServiceName(e.target.value)} placeholder="e.g. Chemical Peel" className="mt-1.5" />
+          </div>
+
+          <div>
+            <Label>Diagnosis</Label>
+            <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Patient diagnosis..." className="mt-1.5" rows={2} />
+          </div>
+
+          <div>
+            <Label>Procedure Notes</Label>
+            <Textarea value={procedureNotes} onChange={(e) => setProcedureNotes(e.target.value)} placeholder="Details of the procedure performed..." className="mt-1.5" rows={3} />
+          </div>
+
+          <div>
+            <Label>Consultation Notes</Label>
+            <Textarea value={consultationNotes} onChange={(e) => setConsultationNotes(e.target.value)} placeholder="Consultation observations, advice..." className="mt-1.5" rows={3} />
+          </div>
+
+          {/* Prescriptions */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <Label className="text-base font-display font-semibold flex items-center gap-2">
+                <Pill className="h-4 w-4" /> Prescriptions
+              </Label>
+              <Button type="button" variant="outline" size="sm" onClick={addPrescription}>
+                <Plus className="h-3 w-3 mr-1" /> Add Medicine
+              </Button>
+            </div>
+            {prescriptions.map((rx, i) => (
+              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Medicine {i + 1}</span>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removePrescription(i)}>Remove</Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="Medicine name *" value={rx.medicine_name} onChange={(e) => updatePrescription(i, "medicine_name", e.target.value)} />
+                  <Input placeholder="Dosage (e.g. 500mg)" value={rx.dosage} onChange={(e) => updatePrescription(i, "dosage", e.target.value)} />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Input placeholder="Frequency" value={rx.frequency} onChange={(e) => updatePrescription(i, "frequency", e.target.value)} />
+                  <Input placeholder="Duration" value={rx.duration} onChange={(e) => updatePrescription(i, "duration", e.target.value)} />
+                  <Input type="number" placeholder="Qty" value={rx.quantity} onChange={(e) => updatePrescription(i, "quantity", parseInt(e.target.value) || 1)} />
+                </div>
+                <Input placeholder="Special instructions" value={rx.instructions} onChange={(e) => updatePrescription(i, "instructions", e.target.value)} />
+              </div>
+            ))}
+          </div>
+
+          <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!patientId || !serviceName || createMutation.isPending}>
+            {createMutation.isPending ? "Saving..." : "Save Procedure"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

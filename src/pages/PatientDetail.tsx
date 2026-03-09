@@ -150,9 +150,32 @@ const PatientDetail = () => {
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button variant="outline" size="sm" className="gap-1" onClick={() => setCameraOpen(true)}>
               <Camera className="h-4 w-4" /> Take Photo
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={async () => {
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+                const { error } = await supabase.from("patient_portal_tokens").insert({
+                  patient_id: id,
+                  otp_code: code,
+                  phone: patient.phone,
+                  expires_at: expiresAt,
+                });
+                if (error) {
+                  toast.error("Failed to generate OTP");
+                  return;
+                }
+                setOtpCode(code);
+                toast.success("Portal access code generated!");
+              }}
+            >
+              <Share2 className="h-4 w-4" /> Portal Access
             </Button>
             <Badge className={patient.status === "Active" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}>
               {patient.status}

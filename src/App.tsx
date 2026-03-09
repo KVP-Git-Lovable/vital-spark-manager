@@ -10,6 +10,8 @@ import Appointments from "./pages/Appointments";
 import Services from "./pages/Services";
 import Billing from "./pages/Billing";
 import Reports from "./pages/Reports";
+import Procedures from "./pages/Procedures";
+import Pharma from "./pages/Pharma";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +30,8 @@ const App = () => (
             <Route path="/services" element={<Services />} />
             <Route path="/billing" element={<Billing />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/procedures" element={<Procedures />} />
+            <Route path="/pharma" element={<Pharma />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AppLayout>

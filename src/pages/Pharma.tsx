@@ -1,0 +1,499 @@
+import { useState } from "react";
+import { Plus, Search, Package, ShoppingCart, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { motion } from "framer-motion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+// ─── Product Form ─────────────────────────────────
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", hsn_code: "", gst_percent: 0, mrp: 0, selling_price: 0, reorder_level: 10 };
+
+// ─── Inward (Stock) Form ──────────────────────────
+const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, supplier: "", invoice_number: "" };
+
+// ─── Bill Item ────────────────────────────────────
+interface BillItemInput {
+  product_id: string;
+  inventory_id: string;
+  product_name: string;
+  batch_number: string;
+  quantity: number;
+  unit_price: number;
+  available: number;
+}
+
+const Pharma = () => {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [productOpen, setProductOpen] = useState(false);
+  const [stockOpen, setStockOpen] = useState(false);
+  const [billOpen, setBillOpen] = useState(false);
+  const [productForm, setProductForm] = useState({ ...emptyProduct });
+  const [stockForm, setStockForm] = useState({ ...emptyStock });
+
+  // Bill state
+  const [billPatientName, setBillPatientName] = useState("");
+  const [billPaymentMode, setBillPaymentMode] = useState("Cash");
+  const [billDiscount, setBillDiscount] = useState(0);
+  const [billItems, setBillItems] = useState<BillItemInput[]>([]);
+
+  // ─── Queries ────────────────────────────────────
+  const { data: products = [] } = useQuery({
+    queryKey: ["pharma-products"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("pharma_products").select("*").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: inventory = [] } = useQuery({
+    queryKey: ["pharma-inventory"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pharma_inventory")
+        .select("*, pharma_products(name)")
+        .order("expiry_date", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: bills = [] } = useQuery({
+    queryKey: ["pharma-bills"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("pharma_bills").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // ─── Mutations ──────────────────────────────────
+  const addProduct = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("pharma_products").insert(productForm);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
+      toast.success("Product added");
+      setProductForm({ ...emptyProduct });
+      setProductOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const addStock = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("pharma_inventory").insert({
+        ...stockForm,
+        quantity: Number(stockForm.quantity),
+        purchase_price: Number(stockForm.purchase_price),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pharma-inventory"] });
+      toast.success("Stock added");
+      setStockForm({ ...emptyStock });
+      setStockOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createBill = useMutation({
+    mutationFn: async () => {
+      const totalAmount = billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+      const netAmount = totalAmount - billDiscount;
+      const billNum = `PH-${Date.now().toString().slice(-6)}`;
+
+      const { data: bill, error } = await supabase.from("pharma_bills").insert({
+        bill_number: billNum,
+        patient_name: billPatientName,
+        total_amount: totalAmount,
+        discount: billDiscount,
+        net_amount: netAmount,
+        payment_mode: billPaymentMode,
+      }).select().single();
+      if (error) throw error;
+
+      // Insert bill items
+      const items = billItems.map((i) => ({
+        bill_id: bill.id,
+        product_id: i.product_id,
+        inventory_id: i.inventory_id,
+        product_name: i.product_name,
+        batch_number: i.batch_number,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        total_price: i.quantity * i.unit_price,
+      }));
+      const { error: itemErr } = await supabase.from("pharma_bill_items").insert(items);
+      if (itemErr) throw itemErr;
+
+      // Deduct inventory
+      for (const item of billItems) {
+        const invRecord = inventory.find((inv: any) => inv.id === item.inventory_id);
+        if (invRecord) {
+          await supabase.from("pharma_inventory").update({ quantity: (invRecord as any).quantity - item.quantity }).eq("id", item.inventory_id);
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pharma-bills", "pharma-inventory"] });
+      toast.success("Bill created");
+      setBillItems([]);
+      setBillPatientName("");
+      setBillDiscount(0);
+      setBillOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const addBillItem = () => {
+    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0 }]);
+  };
+
+  const updateBillItem = (idx: number, field: string, value: any) => {
+    const updated = [...billItems];
+    (updated[idx] as any)[field] = value;
+
+    // Auto-fill when inventory selected
+    if (field === "inventory_id") {
+      const inv = inventory.find((i: any) => i.id === value) as any;
+      if (inv) {
+        const prod = products.find((p: any) => p.id === inv.product_id) as any;
+        updated[idx].product_id = inv.product_id;
+        updated[idx].product_name = prod?.name || "";
+        updated[idx].batch_number = inv.batch_number;
+        updated[idx].unit_price = prod?.selling_price || 0;
+        updated[idx].available = inv.quantity;
+      }
+    }
+    setBillItems(updated);
+  };
+
+  const filteredProducts = products.filter((p: any) =>
+    p.name.toLowerCase().includes(search.toLowerCase()) || p.category?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const nearExpiry = inventory.filter((i: any) => {
+    const exp = new Date(i.expiry_date);
+    const diff = (exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+    return diff <= 90 && diff > 0;
+  });
+
+  const expired = inventory.filter((i: any) => new Date(i.expiry_date) < new Date());
+
+  return (
+    <div>
+      <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="page-title">Pharmacy</h1>
+          <p className="page-subtitle">Products, inventory & billing</p>
+        </div>
+        <div className="flex gap-2">
+          <Dialog open={productOpen} onOpenChange={setProductOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2"><Package className="h-4 w-4" /> Add Product</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader><DialogTitle className="font-display">Add Product</DialogTitle></DialogHeader>
+              <div className="space-y-3 pt-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Product Name *</Label><Input className="mt-1" value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} /></div>
+                  <div><Label>Generic Name</Label><Input className="mt-1" value={productForm.generic_name} onChange={(e) => setProductForm({ ...productForm, generic_name: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><Label>Category</Label><Input className="mt-1" value={productForm.category} onChange={(e) => setProductForm({ ...productForm, category: e.target.value })} /></div>
+                  <div><Label>Unit</Label><Input className="mt-1" value={productForm.unit} onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })} /></div>
+                  <div><Label>Manufacturer</Label><Input className="mt-1" value={productForm.manufacturer} onChange={(e) => setProductForm({ ...productForm, manufacturer: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><Label>MRP (₹)</Label><Input type="number" className="mt-1" value={productForm.mrp} onChange={(e) => setProductForm({ ...productForm, mrp: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>Selling Price (₹)</Label><Input type="number" className="mt-1" value={productForm.selling_price} onChange={(e) => setProductForm({ ...productForm, selling_price: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>GST %</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                </div>
+                <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={productForm.reorder_level} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
+                <Button className="w-full" onClick={() => addProduct.mutate()} disabled={!productForm.name || addProduct.isPending}>
+                  {addProduct.isPending ? "Saving..." : "Add Product"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={stockOpen} onOpenChange={setStockOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Inward Stock</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle className="font-display">Add Stock (Inward)</DialogTitle></DialogHeader>
+              <div className="space-y-3 pt-2">
+                <div>
+                  <Label>Product *</Label>
+                  <Select value={stockForm.product_id} onValueChange={(v) => setStockForm({ ...stockForm, product_id: v })}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select product" /></SelectTrigger>
+                    <SelectContent>
+                      {products.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Batch No. *</Label><Input className="mt-1" value={stockForm.batch_number} onChange={(e) => setStockForm({ ...stockForm, batch_number: e.target.value })} /></div>
+                  <div><Label>Expiry Date *</Label><Input type="date" className="mt-1" value={stockForm.expiry_date} onChange={(e) => setStockForm({ ...stockForm, expiry_date: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Quantity *</Label><Input type="number" className="mt-1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: parseInt(e.target.value) || 0 })} /></div>
+                  <div><Label>Purchase Price (₹)</Label><Input type="number" className="mt-1" value={stockForm.purchase_price} onChange={(e) => setStockForm({ ...stockForm, purchase_price: parseFloat(e.target.value) || 0 })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Supplier</Label><Input className="mt-1" value={stockForm.supplier} onChange={(e) => setStockForm({ ...stockForm, supplier: e.target.value })} /></div>
+                  <div><Label>Invoice No.</Label><Input className="mt-1" value={stockForm.invoice_number} onChange={(e) => setStockForm({ ...stockForm, invoice_number: e.target.value })} /></div>
+                </div>
+                <Button className="w-full" onClick={() => addStock.mutate()} disabled={!stockForm.product_id || !stockForm.batch_number || !stockForm.expiry_date || addStock.isPending}>
+                  {addStock.isPending ? "Saving..." : "Add Stock"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={billOpen} onOpenChange={setBillOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2"><ShoppingCart className="h-4 w-4" /> New Bill</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle className="font-display">Pharmacy Bill (Outward)</DialogTitle></DialogHeader>
+              <div className="space-y-4 pt-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Patient Name</Label><Input className="mt-1" value={billPatientName} onChange={(e) => setBillPatientName(e.target.value)} /></div>
+                  <div>
+                    <Label>Payment Mode</Label>
+                    <Select value={billPaymentMode} onValueChange={setBillPaymentMode}>
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {["Cash", "Card", "UPI", "Insurance"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="border-t pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="font-display font-semibold">Items</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={addBillItem}><Plus className="h-3 w-3 mr-1" /> Add Item</Button>
+                  </div>
+                  {billItems.map((item, idx) => (
+                    <div key={idx} className="border rounded-lg p-3 mb-2 space-y-2 bg-muted/30">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Product (Batch)</Label>
+                          <Select value={item.inventory_id} onValueChange={(v) => updateBillItem(idx, "inventory_id", v)}>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent>
+                              {inventory.filter((i: any) => i.quantity > 0 && new Date(i.expiry_date) > new Date()).map((i: any) => (
+                                <SelectItem key={i.id} value={i.id}>
+                                  {i.pharma_products?.name} — Batch: {i.batch_number} (Qty: {i.quantity})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div><Label className="text-xs">Qty</Label><Input type="number" className="mt-1" value={item.quantity} onChange={(e) => updateBillItem(idx, "quantity", parseInt(e.target.value) || 1)} max={item.available} /></div>
+                          <div><Label className="text-xs">Price (₹)</Label><Input type="number" className="mt-1" value={item.unit_price} onChange={(e) => updateBillItem(idx, "unit_price", parseFloat(e.target.value) || 0)} /></div>
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Subtotal: ₹{(item.quantity * item.unit_price).toFixed(2)}</span>
+                        <Button type="button" variant="ghost" size="sm" className="h-5 text-xs text-destructive" onClick={() => setBillItems(billItems.filter((_, i) => i !== idx))}>Remove</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t pt-3 space-y-2">
+                  <div className="flex justify-between text-sm"><span>Total</span><span>₹{billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0).toFixed(2)}</span></div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Discount (₹)</span>
+                    <Input type="number" className="w-24 h-8 text-right" value={billDiscount} onChange={(e) => setBillDiscount(parseFloat(e.target.value) || 0)} />
+                  </div>
+                  <div className="flex justify-between font-semibold"><span>Net Amount</span><span>₹{(billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0) - billDiscount).toFixed(2)}</span></div>
+                </div>
+
+                <Button className="w-full" onClick={() => createBill.mutate()} disabled={billItems.length === 0 || createBill.isPending}>
+                  {createBill.isPending ? "Creating..." : "Create Bill"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Alerts */}
+      {(nearExpiry.length > 0 || expired.length > 0) && (
+        <div className="flex gap-3 mb-6 flex-wrap">
+          {expired.length > 0 && (
+            <div className="flex items-center gap-2 bg-destructive/10 text-destructive rounded-lg px-4 py-2 text-sm">
+              <AlertTriangle className="h-4 w-4" /> {expired.length} batch(es) expired
+            </div>
+          )}
+          {nearExpiry.length > 0 && (
+            <div className="flex items-center gap-2 bg-warning/10 text-warning rounded-lg px-4 py-2 text-sm">
+              <AlertTriangle className="h-4 w-4" /> {nearExpiry.length} batch(es) expiring within 90 days
+            </div>
+          )}
+        </div>
+      )}
+
+      <Tabs defaultValue="products">
+        <TabsList className="mb-4">
+          <TabsTrigger value="products">Products</TabsTrigger>
+          <TabsTrigger value="inventory">Inventory</TabsTrigger>
+          <TabsTrigger value="bills">Bills</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="products">
+          <div className="relative max-w-md mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search products..." className="pl-9 bg-card border" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="data-table">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>MRP</TableHead>
+                  <TableHead>Selling Price</TableHead>
+                  <TableHead>Unit</TableHead>
+                  <TableHead>Reorder Level</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredProducts.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No products found</TableCell></TableRow>
+                ) : filteredProducts.map((p: any) => (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-medium">{p.name}<br /><span className="text-xs text-muted-foreground">{p.generic_name}</span></TableCell>
+                    <TableCell><Badge variant="secondary" className="text-xs">{p.category}</Badge></TableCell>
+                    <TableCell>₹{Number(p.mrp).toFixed(2)}</TableCell>
+                    <TableCell>₹{Number(p.selling_price).toFixed(2)}</TableCell>
+                    <TableCell>{p.unit}</TableCell>
+                    <TableCell>{p.reorder_level}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="inventory">
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="data-table">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Batch</TableHead>
+                  <TableHead>Qty</TableHead>
+                  <TableHead>Purchase Price</TableHead>
+                  <TableHead>Expiry</TableHead>
+                  <TableHead>Supplier</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {inventory.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No inventory records</TableCell></TableRow>
+                ) : inventory.map((i: any) => {
+                  const exp = new Date(i.expiry_date);
+                  const daysLeft = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  const isExpired = daysLeft <= 0;
+                  const isNear = daysLeft > 0 && daysLeft <= 90;
+                  return (
+                    <TableRow key={i.id}>
+                      <TableCell className="font-medium">{i.pharma_products?.name}</TableCell>
+                      <TableCell>{i.batch_number}</TableCell>
+                      <TableCell>{i.quantity}</TableCell>
+                      <TableCell>₹{Number(i.purchase_price).toFixed(2)}</TableCell>
+                      <TableCell>{exp.toLocaleDateString()}</TableCell>
+                      <TableCell className="text-muted-foreground">{i.supplier || "—"}</TableCell>
+                      <TableCell>
+                        {isExpired ? <Badge variant="destructive" className="text-xs">Expired</Badge>
+                          : isNear ? <Badge className="bg-warning/20 text-warning border-warning/30 text-xs">Expiring Soon</Badge>
+                          : <Badge variant="secondary" className="text-xs">OK</Badge>}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="bills">
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="data-table">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Bill #</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Patient</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Discount</TableHead>
+                  <TableHead>Net</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {bills.length === 0 ? (
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No bills yet</TableCell></TableRow>
+                ) : bills.map((b: any) => (
+                  <TableRow key={b.id}>
+                    <TableCell className="font-medium">{b.bill_number}</TableCell>
+                    <TableCell>{new Date(b.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>{b.patient_name || "—"}</TableCell>
+                    <TableCell>₹{Number(b.total_amount).toFixed(2)}</TableCell>
+                    <TableCell>₹{Number(b.discount).toFixed(2)}</TableCell>
+                    <TableCell className="font-semibold">₹{Number(b.net_amount).toFixed(2)}</TableCell>
+                    <TableCell><Badge variant="secondary" className="text-xs">{b.payment_mode}</Badge></TableCell>
+                    <TableCell><Badge variant="secondary" className="text-xs">{b.status}</Badge></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </motion.div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+export default Pharma;

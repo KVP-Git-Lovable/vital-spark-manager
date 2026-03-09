@@ -356,12 +356,35 @@ const Pharma = () => {
                 </div>
 
                 <div className="border-t pt-3 space-y-2">
-                  <div className="flex justify-between text-sm"><span>Total</span><span>₹{billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0).toFixed(2)}</span></div>
+                  <div className="flex justify-between text-sm"><span>Subtotal</span><span>₹{billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0).toFixed(2)}</span></div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Tax</span>
+                    <Select value={billTaxId || "none"} onValueChange={(v) => setBillTaxId(v === "none" ? "" : v)}>
+                      <SelectTrigger className="w-40 h-8"><SelectValue placeholder="No tax" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Tax</SelectItem>
+                        {pharmaTaxes.map((t: any) => (
+                          <SelectItem key={t.id} value={t.id}>{t.name} ({t.rate}%)</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {billTaxId && (() => {
+                    const subtotal = billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+                    const tax = pharmaTaxes.find((t: any) => t.id === billTaxId);
+                    const taxAmt = tax ? subtotal * tax.rate / 100 : 0;
+                    return <div className="flex justify-between text-sm text-muted-foreground"><span>Tax Amount ({tax?.name})</span><span>₹{taxAmt.toFixed(2)}</span></div>;
+                  })()}
                   <div className="flex items-center justify-between text-sm">
                     <span>Discount (₹)</span>
                     <Input type="number" className="w-24 h-8 text-right" value={billDiscount} onChange={(e) => setBillDiscount(parseFloat(e.target.value) || 0)} />
                   </div>
-                  <div className="flex justify-between font-semibold"><span>Net Amount</span><span>₹{(billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0) - billDiscount).toFixed(2)}</span></div>
+                  {(() => {
+                    const subtotal = billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+                    const tax = pharmaTaxes.find((t: any) => t.id === billTaxId);
+                    const taxAmt = tax ? subtotal * tax.rate / 100 : 0;
+                    return <div className="flex justify-between font-semibold"><span>Net Amount</span><span>₹{(subtotal + taxAmt - billDiscount).toFixed(2)}</span></div>;
+                  })()}
                 </div>
 
                 <Button className="w-full" onClick={() => createBill.mutate()} disabled={billItems.length === 0 || createBill.isPending}>

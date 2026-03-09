@@ -414,18 +414,18 @@ const Appointments = () => {
                       {hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? "12:00 PM" : `${hour}:00 AM`}
                     </div>
                     <div className="flex-1 border-l p-2 space-y-1">
-                      {dayAppts.map((apt: any, ai: number) => (
-                        <div key={apt.id} className={`rounded-lg border p-3 cursor-pointer hover:opacity-80 transition-opacity ${colorForIndex(ai)}`}>
-                          <div className="flex items-center justify-between">
-                            <p className="font-medium text-sm">{apt.patient_name || apt.patients?.first_name}</p>
-                            <div className="flex items-center gap-1">
-                              {apt.is_recurring && <Badge variant="secondary" className="text-[10px] px-1.5 py-0"><Repeat className="h-2.5 w-2.5 mr-0.5" />Recurring</Badge>}
-                              <span className="text-xs opacity-70">{format(new Date(apt.start_time), "h:mm a")}</span>
+                        {dayAppts.map((apt: any, ai: number) => (
+                          <div key={apt.id} className={`rounded-lg border p-3 cursor-pointer hover:opacity-80 transition-opacity ${colorForIndex(ai)}`} onClick={() => setSelectedAppointmentId(apt.id)}>
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium text-sm">{apt.patient_name || apt.patients?.first_name}</p>
+                              <div className="flex items-center gap-1">
+                                {apt.is_recurring && <Badge variant="secondary" className="text-[10px] px-1.5 py-0"><Repeat className="h-2.5 w-2.5 mr-0.5" />Recurring</Badge>}
+                                <span className="text-xs opacity-70">{format(new Date(apt.start_time), "h:mm a")}</span>
+                              </div>
                             </div>
+                            <p className="text-xs opacity-70 mt-0.5">{apt.service}</p>
                           </div>
-                          <p className="text-xs opacity-70 mt-0.5">{apt.service}</p>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   </div>
                 );

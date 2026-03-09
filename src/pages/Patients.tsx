@@ -120,7 +120,7 @@ const Patients = () => {
               </thead>
               <tbody className="divide-y">
                 {filtered.map((patient) => (
-                  <tr key={patient.id} className="hover:bg-muted/30 transition-colors">
+                  <tr key={patient.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => navigate(`/patients/${patient.id}`)}>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-semibold text-sm shrink-0">

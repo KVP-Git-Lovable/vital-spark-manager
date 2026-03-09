@@ -37,6 +37,10 @@ const Settings = () => {
   const [roleName, setRoleName] = useState("");
   const [roleDesc, setRoleDesc] = useState("");
   const [rolePerms, setRolePerms] = useState("");
+  const [taxOpen, setTaxOpen] = useState(false);
+  const [taxName, setTaxName] = useState("");
+  const [taxRate, setTaxRate] = useState(0);
+  const [taxDesc, setTaxDesc] = useState("");
 
   // Clinic settings
   const { data: clinic, isLoading: clinicLoading } = useQuery({

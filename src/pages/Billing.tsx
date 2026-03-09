@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Filter, Download, IndianRupee, Plus } from "lucide-react";
+import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,10 +31,100 @@ const statusStyles: Record<string, string> = {
   Pending: "bg-destructive/10 text-destructive",
 };
 
+// ─── PDF Generation ───────────────────────────────
+const generateInvoicePDF = (inv: any) => {
+  const services = (inv.services || []).join(", ");
+  const date = new Date(inv.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
+  const balance = Number(inv.total_amount) - Number(inv.paid_amount);
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, sans-serif; color: #1a1a1a; padding: 40px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; border-bottom: 3px solid #0d9488; padding-bottom: 20px; }
+  .logo { font-size: 24px; font-weight: 700; color: #0d9488; }
+  .logo span { font-size: 12px; display: block; color: #666; font-weight: 400; }
+  .invoice-title { text-align: right; }
+  .invoice-title h1 { font-size: 28px; color: #0d9488; text-transform: uppercase; letter-spacing: 2px; }
+  .invoice-title p { font-size: 13px; color: #666; margin-top: 4px; }
+  .details { display: flex; justify-content: space-between; margin-bottom: 30px; }
+  .details-block h3 { font-size: 11px; text-transform: uppercase; color: #999; letter-spacing: 1px; margin-bottom: 6px; }
+  .details-block p { font-size: 14px; margin-bottom: 2px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+  th { background: #f0fdfa; color: #0d9488; text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #0d9488; }
+  td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #eee; }
+  .amount-col { text-align: right; }
+  .summary { display: flex; justify-content: flex-end; }
+  .summary-table { width: 280px; }
+  .summary-table tr td { padding: 8px 16px; font-size: 14px; border: none; }
+  .summary-table tr:last-child td { font-weight: 700; font-size: 16px; border-top: 2px solid #0d9488; color: #0d9488; padding-top: 12px; }
+  .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
+  .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .status-Paid { background: #dcfce7; color: #16a34a; }
+  .status-Partial { background: #fef3c7; color: #d97706; }
+  .status-Pending { background: #fee2e2; color: #dc2626; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">DermaCare<span>Clinic Manager</span></div>
+    <div class="invoice-title">
+      <h1>Invoice</h1>
+      <p>${inv.invoice_number}</p>
+    </div>
+  </div>
+  <div class="details">
+    <div class="details-block">
+      <h3>Bill To</h3>
+      <p><strong>${inv.patient_name || "Walk-in Patient"}</strong></p>
+    </div>
+    <div class="details-block" style="text-align:right;">
+      <h3>Invoice Details</h3>
+      <p>Date: ${date}</p>
+      <p>Payment: ${inv.payment_mode || "Cash"}</p>
+      <p>Type: ${inv.payment_type || "One-time"}</p>
+      <p style="margin-top:6px;"><span class="status-badge status-${inv.status}">${inv.status}</span></p>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>Service</th><th class="amount-col">Amount</th></tr></thead>
+    <tbody>
+      ${(inv.services || []).map((s: string, i: number) => `<tr><td>${i + 1}</td><td>${s}</td><td class="amount-col">—</td></tr>`).join("")}
+    </tbody>
+  </table>
+  <div class="summary">
+    <table class="summary-table">
+      <tr><td>Total Amount</td><td class="amount-col">₹${Number(inv.total_amount).toLocaleString("en-IN")}</td></tr>
+      <tr><td>Paid Amount</td><td class="amount-col">₹${Number(inv.paid_amount).toLocaleString("en-IN")}</td></tr>
+      <tr><td>Balance Due</td><td class="amount-col">₹${balance.toLocaleString("en-IN")}</td></tr>
+    </table>
+  </div>
+  ${inv.notes ? `<div style="margin-top:20px;padding:12px 16px;background:#f9fafb;border-radius:8px;font-size:13px;"><strong>Notes:</strong> ${inv.notes}</div>` : ""}
+  <div class="footer">
+    <p>Thank you for choosing DermaCare Clinic</p>
+    <p style="margin-top:4px;">This is a computer-generated invoice.</p>
+  </div>
+</body>
+</html>`;
+
+  const printWindow = window.open("", "_blank");
+  if (printWindow) {
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setTimeout(() => printWindow.print(), 300);
+  }
+};
+
 const Billing = () => {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [paymentInv, setPaymentInv] = useState<any>(null);
+  const [addPaymentAmount, setAddPaymentAmount] = useState(0);
+  const [addPaymentMode, setAddPaymentMode] = useState("Cash");
 
   // Form state
   const [patientId, setPatientId] = useState("");
@@ -95,6 +185,46 @@ const Billing = () => {
       toast.success("Invoice created successfully");
       resetForm();
       setOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const updatePayment = useMutation({
+    mutationFn: async () => {
+      if (!paymentInv) return;
+      const newPaid = Number(paymentInv.paid_amount) + addPaymentAmount;
+      const total = Number(paymentInv.total_amount);
+      let status = "Partial";
+      if (newPaid >= total) status = "Paid";
+      else if (newPaid <= 0) status = "Pending";
+
+      const { error } = await supabase.from("invoices").update({
+        paid_amount: Math.min(newPaid, total),
+        status,
+        payment_mode: addPaymentMode,
+      }).eq("id", paymentInv.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success("Payment updated");
+      setPaymentInv(null);
+      setAddPaymentAmount(0);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const markAsPaid = useMutation({
+    mutationFn: async (inv: any) => {
+      const { error } = await supabase.from("invoices").update({
+        paid_amount: inv.total_amount,
+        status: "Paid",
+      }).eq("id", inv.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success("Invoice marked as paid");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -219,6 +349,62 @@ const Billing = () => {
         </Dialog>
       </div>
 
+      {/* Payment Update Dialog */}
+      <Dialog open={!!paymentInv} onOpenChange={(o) => { if (!o) setPaymentInv(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display">Add Payment</DialogTitle>
+          </DialogHeader>
+          {paymentInv && (
+            <div className="space-y-4 pt-2">
+              <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Invoice</span><span className="font-medium">{paymentInv.invoice_number}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Patient</span><span>{paymentInv.patient_name || "—"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-semibold">₹{Number(paymentInv.total_amount).toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Already Paid</span><span>₹{Number(paymentInv.paid_amount).toLocaleString()}</span></div>
+                <div className="flex justify-between font-semibold text-primary"><span>Balance Due</span><span>₹{(Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)).toLocaleString()}</span></div>
+              </div>
+
+              <div>
+                <Label>Payment Amount (₹) *</Label>
+                <Input
+                  type="number"
+                  className="mt-1.5"
+                  placeholder={`Max: ₹${(Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)).toLocaleString()}`}
+                  value={addPaymentAmount}
+                  onChange={(e) => setAddPaymentAmount(parseFloat(e.target.value) || 0)}
+                  max={Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)}
+                />
+              </div>
+
+              <div>
+                <Label>Payment Mode</Label>
+                <Select value={addPaymentMode} onValueChange={setAddPaymentMode}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["Cash", "Card", "UPI", "Insurance", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex gap-2">
+                <Button className="flex-1" onClick={() => updatePayment.mutate()} disabled={addPaymentAmount <= 0 || updatePayment.isPending}>
+                  {updatePayment.isPending ? "Updating..." : "Add Payment"}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => markAsPaid.mutate(paymentInv)}
+                  disabled={paymentInv.status === "Paid" || markAsPaid.isPending}
+                >
+                  Mark Fully Paid
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard title="Total Revenue" value={`₹${totalRevenue.toLocaleString()}`} change="All time" icon={IndianRupee} iconColor="bg-success/10 text-success" />
         <StatCard title="Pending" value={`₹${pendingAmount.toLocaleString()}`} change={`${invoices.filter((i: any) => i.status === "Pending").length} invoice(s)`} icon={IndianRupee} iconColor="bg-destructive/10 text-destructive" delay={0.05} />
@@ -247,14 +433,15 @@ const Billing = () => {
                 <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden sm:table-cell">Type</th>
                 <th className="text-right text-xs font-medium text-muted-foreground p-4">Amount</th>
                 <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
+                <th className="text-right text-xs font-medium text-muted-foreground p-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No invoices found</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No invoices found</td></tr>
               ) : (
                 filtered.map((inv: any) => (
-                  <tr key={inv.id} className="hover:bg-muted/30 transition-colors cursor-pointer">
+                  <tr key={inv.id} className="hover:bg-muted/30 transition-colors">
                     <td className="p-4">
                       <p className="font-medium text-sm">{inv.invoice_number}</p>
                       <p className="text-xs text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</p>
@@ -272,7 +459,7 @@ const Billing = () => {
                     </td>
                     <td className="p-4 text-right">
                       <p className="font-semibold text-sm">₹{Number(inv.total_amount).toLocaleString()}</p>
-                      {inv.status === "Partial" && (
+                      {inv.status !== "Pending" && (
                         <p className="text-xs text-muted-foreground">Paid: ₹{Number(inv.paid_amount).toLocaleString()}</p>
                       )}
                     </td>
@@ -280,6 +467,30 @@ const Billing = () => {
                       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[inv.status] || ""}`}>
                         {inv.status}
                       </span>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex justify-end gap-1">
+                        {inv.status !== "Paid" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Add Payment"
+                            onClick={() => { setPaymentInv(inv); setAddPaymentAmount(0); setAddPaymentMode("Cash"); }}
+                          >
+                            <CreditCard className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Download PDF"
+                          onClick={() => generateInvoicePDF(inv)}
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))

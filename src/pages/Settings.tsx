@@ -164,6 +164,57 @@ const Settings = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Tax master
+  const { data: taxes = [] } = useQuery({
+    queryKey: ["tax-master"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("tax_master").select("*").order("rate");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const createTax = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("tax_master").insert({
+        name: taxName,
+        rate: taxRate,
+        description: taxDesc || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tax-master"] });
+      toast.success("Tax rate created");
+      setTaxName(""); setTaxRate(0); setTaxDesc(""); setTaxOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleTax = useMutation({
+    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      const { error } = await supabase.from("tax_master").update({ is_active }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tax-master"] });
+      toast.success("Tax updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteTax = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("tax_master").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tax-master"] });
+      toast.success("Tax deleted");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (clinicLoading) {
     return (
       <div className="flex items-center justify-center py-20">

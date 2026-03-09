@@ -235,6 +235,7 @@ const Settings = () => {
           <TabsTrigger value="profile" className="gap-1.5"><Building2 className="h-3.5 w-3.5" /> Clinic Profile</TabsTrigger>
           <TabsTrigger value="hours" className="gap-1.5"><Clock className="h-3.5 w-3.5" /> Working Hours</TabsTrigger>
           <TabsTrigger value="roles" className="gap-1.5"><Users className="h-3.5 w-3.5" /> Staff Roles</TabsTrigger>
+          <TabsTrigger value="tax" className="gap-1.5"><Receipt className="h-3.5 w-3.5" /> Tax Master</TabsTrigger>
         </TabsList>
 
         {/* Clinic Profile */}

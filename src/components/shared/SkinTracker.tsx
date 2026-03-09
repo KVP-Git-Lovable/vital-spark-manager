@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { X, SlidersHorizontal, Columns2 } from "lucide-react";
+import { X, SlidersHorizontal, Columns2, Sparkles, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { SkinAnalysisResults, type SkinAnalysis } from "./SkinAnalysisResults";
 
 interface Photo {
   id: string;
@@ -30,6 +33,8 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
   const [selecting, setSelecting] = useState<"before" | "after" | null>(null);
   const [compareMode, setCompareMode] = useState<"slider" | "side-by-side">("slider");
   const [sliderPos, setSliderPos] = useState(50);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<SkinAnalysis | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
@@ -53,11 +58,32 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
     setAfterPhoto(null);
     setSelecting(null);
     setSliderPos(50);
+    setAnalysis(null);
+    setAnalyzing(false);
   };
 
   const handleClose = (o: boolean) => {
     if (!o) reset();
     onOpenChange(o);
+  };
+
+  const runAnalysis = async () => {
+    if (!beforePhoto || !afterPhoto) return;
+    setAnalyzing(true);
+    setAnalysis(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("skin-analysis", {
+        body: { beforeImageUrl: beforePhoto.photo_url, afterImageUrl: afterPhoto.photo_url },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setAnalysis(data as SkinAnalysis);
+    } catch (err: any) {
+      console.error("Skin analysis failed:", err);
+      toast.error(err?.message || "Failed to analyze skin photos. Please try again.");
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const isCompareReady = beforePhoto && afterPhoto;
@@ -79,7 +105,7 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
                 <div className="relative group">
                   <img src={beforePhoto.photo_url} alt="Before" className="w-full h-36 object-cover rounded-lg border-2 border-primary" />
                   <Badge className="absolute top-2 left-2 text-[10px]">Before</Badge>
-                  <Button variant="secondary" size="icon" className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setBeforePhoto(null)}>
+                  <Button variant="secondary" size="icon" className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setBeforePhoto(null); setAnalysis(null); }}>
                     <X className="h-3 w-3" />
                   </Button>
                   <p className="text-[10px] text-muted-foreground mt-1">{format(new Date(beforePhoto.taken_at), "MMM d, yyyy")}</p>
@@ -102,7 +128,7 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
                 <div className="relative group">
                   <img src={afterPhoto.photo_url} alt="After" className="w-full h-36 object-cover rounded-lg border-2 border-primary" />
                   <Badge className="absolute top-2 left-2 text-[10px]">After</Badge>
-                  <Button variant="secondary" size="icon" className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setAfterPhoto(null)}>
+                  <Button variant="secondary" size="icon" className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setAfterPhoto(null); setAnalysis(null); }}>
                     <X className="h-3 w-3" />
                   </Button>
                   <p className="text-[10px] text-muted-foreground mt-1">{format(new Date(afterPhoto.taken_at), "MMM d, yyyy")}</p>
@@ -141,6 +167,7 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
                         if (selecting === "before") setBeforePhoto(photo);
                         else setAfterPhoto(photo);
                         setSelecting(null);
+                        setAnalysis(null);
                       }}
                     >
                       <img src={photo.photo_url} alt="" className="w-full h-20 object-cover" />
@@ -157,16 +184,29 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
           {/* Compare View */}
           {isCompareReady && (
             <div className="space-y-3">
-              <Tabs value={compareMode} onValueChange={(v) => setCompareMode(v as "slider" | "side-by-side")}>
-                <TabsList className="h-9">
-                  <TabsTrigger value="slider" className="text-xs gap-1.5">
-                    <SlidersHorizontal className="h-3.5 w-3.5" /> Slider Compare
-                  </TabsTrigger>
-                  <TabsTrigger value="side-by-side" className="text-xs gap-1.5">
-                    <Columns2 className="h-3.5 w-3.5" /> Side by Side
-                  </TabsTrigger>
-                </TabsList>
+              <div className="flex items-center justify-between">
+                <Tabs value={compareMode} onValueChange={(v) => setCompareMode(v as "slider" | "side-by-side")}>
+                  <TabsList className="h-9">
+                    <TabsTrigger value="slider" className="text-xs gap-1.5">
+                      <SlidersHorizontal className="h-3.5 w-3.5" /> Slider
+                    </TabsTrigger>
+                    <TabsTrigger value="side-by-side" className="text-xs gap-1.5">
+                      <Columns2 className="h-3.5 w-3.5" /> Side by Side
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <Button
+                  size="sm"
+                  onClick={runAnalysis}
+                  disabled={analyzing}
+                  className="gap-1.5"
+                >
+                  {analyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {analyzing ? "Analyzing…" : "AI Analysis"}
+                </Button>
+              </div>
 
+              <Tabs value={compareMode} onValueChange={(v) => setCompareMode(v as "slider" | "side-by-side")}>
                 {/* Slider Compare */}
                 <TabsContent value="slider" className="mt-3">
                   <div
@@ -174,44 +214,18 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
                     className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border cursor-col-resize select-none touch-none"
                     onPointerMove={handlePointerMove}
                   >
-                    {/* After (full background) */}
-                    <img
-                      src={afterPhoto.photo_url}
-                      alt="After"
-                      className="absolute inset-0 w-full h-full object-cover"
-                      draggable={false}
-                    />
-                    {/* Before (clipped) */}
-                    <div
-                      className="absolute inset-0 overflow-hidden"
-                      style={{ width: `${sliderPos}%` }}
-                    >
-                      <img
-                        src={beforePhoto.photo_url}
-                        alt="Before"
-                        className="absolute inset-0 w-full h-full object-cover"
-                        style={{ width: sliderRef.current ? `${sliderRef.current.offsetWidth}px` : "100%" }}
-                        draggable={false}
-                      />
+                    <img src={afterPhoto.photo_url} alt="After" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+                    <div className="absolute inset-0 overflow-hidden" style={{ width: `${sliderPos}%` }}>
+                      <img src={beforePhoto.photo_url} alt="Before" className="absolute inset-0 w-full h-full object-cover" style={{ width: sliderRef.current ? `${sliderRef.current.offsetWidth}px` : "100%" }} draggable={false} />
                     </div>
-                    {/* Labels */}
                     <Badge className="absolute top-3 left-3 bg-black/70 text-white border-0 text-xs">Before</Badge>
                     <Badge className="absolute top-3 right-3 bg-black/70 text-white border-0 text-xs">After</Badge>
-                    {/* Slider handle */}
-                    <div
-                      className="absolute top-0 bottom-0 w-1 bg-white shadow-lg cursor-col-resize z-10"
-                      style={{ left: `${sliderPos}%`, transform: "translateX(-50%)" }}
-                      onPointerDown={handlePointerDown}
-                    >
+                    <div className="absolute top-0 bottom-0 w-1 bg-white shadow-lg cursor-col-resize z-10" style={{ left: `${sliderPos}%`, transform: "translateX(-50%)" }} onPointerDown={handlePointerDown}>
                       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-xl flex items-center justify-center border-2 border-primary">
                         <SlidersHorizontal className="h-4 w-4 text-primary" />
                       </div>
                     </div>
-                    {/* Divider line */}
-                    <div
-                      className="absolute top-0 bottom-0 w-px bg-white/80 z-[5]"
-                      style={{ left: `${sliderPos}%` }}
-                    />
+                    <div className="absolute top-0 bottom-0 w-px bg-white/80 z-[5]" style={{ left: `${sliderPos}%` }} />
                   </div>
                   <div className="flex justify-between mt-2 text-[10px] text-muted-foreground">
                     <span>Before · {format(new Date(beforePhoto.taken_at), "MMM d, yyyy")}</span>
@@ -245,6 +259,15 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
                   </div>
                 </TabsContent>
               </Tabs>
+
+              {/* Analysis Results */}
+              {analyzing && (
+                <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-sm">Analyzing skin changes with AI…</span>
+                </div>
+              )}
+              {analysis && <SkinAnalysisResults analysis={analysis} />}
             </div>
           )}
         </div>

@@ -25,6 +25,7 @@ export type Database = {
           recurrence_end_date: string | null
           recurrence_pattern: string | null
           service: string
+          source: string | null
           staff_id: string | null
           start_time: string
           status: string
@@ -40,6 +41,7 @@ export type Database = {
           recurrence_end_date?: string | null
           recurrence_pattern?: string | null
           service: string
+          source?: string | null
           staff_id?: string | null
           start_time: string
           status?: string
@@ -55,6 +57,7 @@ export type Database = {
           recurrence_end_date?: string | null
           recurrence_pattern?: string | null
           service?: string
+          source?: string | null
           staff_id?: string | null
           start_time?: string
           status?: string
@@ -332,6 +335,57 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_pharma_requests: {
+        Row: {
+          created_at: string | null
+          id: string
+          notes: string | null
+          patient_id: string
+          product_id: string | null
+          product_name: string
+          quantity: number | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          patient_id: string
+          product_id?: string | null
+          product_name: string
+          quantity?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          patient_id?: string
+          product_id?: string | null
+          product_name?: string
+          quantity?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_pharma_requests_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_pharma_requests_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "pharma_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_photos: {
         Row: {
           appointment_id: string | null
@@ -386,6 +440,47 @@ export type Database = {
             columns: ["procedure_id"]
             isOneToOne: false
             referencedRelation: "procedures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patient_portal_tokens: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          is_used: boolean | null
+          otp_code: string
+          patient_id: string
+          phone: string | null
+          session_token: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          is_used?: boolean | null
+          otp_code: string
+          patient_id: string
+          phone?: string | null
+          session_token?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          is_used?: boolean | null
+          otp_code?: string
+          patient_id?: string
+          phone?: string | null
+          session_token?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_portal_tokens_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
         ]

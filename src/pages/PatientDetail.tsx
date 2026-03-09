@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2 } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,11 +9,15 @@ import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { CameraCapture } from "@/components/shared/CameraCapture";
+import { toast } from "sonner";
 
 const PatientDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [otpCode, setOtpCode] = useState<string | null>(null);
+  const [otpCopied, setOtpCopied] = useState(false);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],
@@ -146,9 +151,32 @@ const PatientDetail = () => {
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button variant="outline" size="sm" className="gap-1" onClick={() => setCameraOpen(true)}>
               <Camera className="h-4 w-4" /> Take Photo
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={async () => {
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+                const { error } = await supabase.from("patient_portal_tokens").insert({
+                  patient_id: id,
+                  otp_code: code,
+                  phone: patient.phone,
+                  expires_at: expiresAt,
+                });
+                if (error) {
+                  toast.error("Failed to generate OTP");
+                  return;
+                }
+                setOtpCode(code);
+                toast.success("Portal access code generated!");
+              }}
+            >
+              <Share2 className="h-4 w-4" /> Portal Access
             </Button>
             <Badge className={patient.status === "Active" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}>
               {patient.status}
@@ -156,6 +184,34 @@ const PatientDetail = () => {
           </div>
         </motion.div>
       </div>
+
+      {/* OTP Code Display */}
+      {otpCode && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-primary">Portal Access Code</p>
+            <p className="text-2xl font-mono font-bold tracking-widest mt-1">{otpCode}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Share this with the patient. Portal: <span className="font-medium">{window.location.origin}/portal</span>
+            </p>
+            <p className="text-xs text-muted-foreground">Expires in 24 hours</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1 shrink-0"
+            onClick={() => {
+              navigator.clipboard.writeText(`Access your DermaCare portal: ${window.location.origin}/portal\nPhone: ${patient.phone}\nAccess Code: ${otpCode}`);
+              setOtpCopied(true);
+              toast.success("Copied to clipboard!");
+              setTimeout(() => setOtpCopied(false), 2000);
+            }}
+          >
+            {otpCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {otpCopied ? "Copied" : "Copy"}
+          </Button>
+        </motion.div>
+      )}
 
       <Tabs defaultValue="procedures" className="mt-2">
         <TabsList>

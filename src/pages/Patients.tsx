@@ -204,6 +204,16 @@ const Patients = () => {
         patient={editingPatient}
         onSuccess={() => refetch()}
       />
+
+      {cameraPatient && (
+        <CameraCapture
+          open={!!cameraPatient}
+          onOpenChange={(o) => { if (!o) setCameraPatient(null); }}
+          patientId={cameraPatient.id}
+          patientName={`${cameraPatient.first_name} ${cameraPatient.last_name}`}
+          context="patient"
+        />
+      )}
     </div>
   );
 };

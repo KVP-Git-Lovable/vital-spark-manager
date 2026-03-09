@@ -450,7 +450,7 @@ const Billing = () => {
               {/* Tax Selection */}
               <div>
                 <Label>Tax</Label>
-                <Select value={selectedTaxId} onValueChange={setSelectedTaxId}>
+                <Select value={selectedTaxId || "none"} onValueChange={(v) => setSelectedTaxId(v === "none" ? "" : v)}>
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="No tax" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No Tax</SelectItem>

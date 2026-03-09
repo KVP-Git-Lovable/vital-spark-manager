@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon } from "lucide-react";
+import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

@@ -281,7 +281,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                         <h3 className="text-sm font-semibold font-display flex items-center gap-2">
                           <Pill className="h-4 w-4" /> Linked Procedures
                         </h3>
-                        <Button size="sm" variant="outline" className="gap-1" onClick={() => createProcedureMutation.mutate()} disabled={createProcedureMutation.isPending}>
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => setProcFormOpen(true)}>
                           <Plus className="h-3 w-3" /> Add Procedure
                         </Button>
                       </div>
@@ -290,7 +290,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                       ) : (
                         <div className="space-y-2">
                           {procedures.map((proc: any) => (
-                            <div key={proc.id} className="border rounded-lg p-3 bg-muted/30">
+                            <div key={proc.id} className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setSelectedProcId(proc.id)}>
                               <div className="flex items-center justify-between">
                                 <p className="font-medium text-sm">{proc.service_name}</p>
                                 <Badge variant="secondary" className="text-xs">{proc.status}</Badge>

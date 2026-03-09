@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon } from "lucide-react";
+import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CameraCapture } from "@/components/shared/CameraCapture";
+import { SkinTracker } from "@/components/shared/SkinTracker";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -34,6 +35,7 @@ interface AppointmentDetailSheetProps {
 export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDetailSheetProps) {
   const queryClient = useQueryClient();
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
 
   // Fetch appointment
@@ -359,9 +361,14 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                       <Camera className="h-4 w-4" /> Photos
                     </h3>
                     {appointment.patient_id && (
-                      <Button size="sm" variant="outline" className="gap-1" onClick={() => setCameraOpen(true)}>
-                        <Plus className="h-3 w-3" /> Take Photo
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => setSkinTrackerOpen(true)}>
+                          <ScanEye className="h-3 w-3" /> Skin Tracker
+                        </Button>
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => setCameraOpen(true)}>
+                          <Plus className="h-3 w-3" /> Take Photo
+                        </Button>
+                      </div>
                     )}
                   </div>
 
@@ -413,6 +420,15 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
           patientName={patientName}
           context="appointment"
           contextId={appointmentId!}
+        />
+      )}
+
+      {skinTrackerOpen && appointment?.patient_id && (
+        <SkinTracker
+          open={skinTrackerOpen}
+          onOpenChange={setSkinTrackerOpen}
+          photos={photos}
+          patientName={patientName}
         />
       )}
     </>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { CameraCapture } from "@/components/shared/CameraCapture";
+import { SkinTracker } from "@/components/shared/SkinTracker";
 import { toast } from "sonner";
 
 const PatientDetail = () => {
@@ -16,6 +17,7 @@ const PatientDetail = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [otpCode, setOtpCode] = useState<string | null>(null);
   const [otpCopied, setOtpCopied] = useState(false);
 
@@ -154,6 +156,9 @@ const PatientDetail = () => {
           <div className="flex gap-2 flex-wrap">
             <Button variant="outline" size="sm" className="gap-1" onClick={() => setCameraOpen(true)}>
               <Camera className="h-4 w-4" /> Take Photo
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => setSkinTrackerOpen(true)}>
+              <ScanEye className="h-4 w-4" /> Skin Tracker
             </Button>
             <Button
               variant="outline"
@@ -384,6 +389,13 @@ const PatientDetail = () => {
         patientId={id!}
         patientName={`${patient.first_name} ${patient.last_name}`}
         context="patient"
+      />
+
+      <SkinTracker
+        open={skinTrackerOpen}
+        onOpenChange={setSkinTrackerOpen}
+        photos={photos}
+        patientName={`${patient.first_name} ${patient.last_name}`}
       />
     </div>
   );

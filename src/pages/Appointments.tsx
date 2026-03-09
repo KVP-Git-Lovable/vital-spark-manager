@@ -420,7 +420,14 @@ const Appointments = () => {
                     <div className="w-24 p-3 text-sm text-muted-foreground text-right shrink-0">
                       {hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? "12:00 PM" : `${hour}:00 AM`}
                     </div>
-                    <div className="flex-1 border-l p-2 space-y-1">
+                    <div className="flex-1 border-l p-2 space-y-1 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => {
+                        const d = new Date(currentDate);
+                        d.setHours(hour, 0, 0, 0);
+                        setStartDate(d);
+                        setStartTime(`${String(hour).padStart(2, "0")}:00`);
+                        setEndTime(`${String(hour).padStart(2, "0")}:30`);
+                        setOpen(true);
+                      }}>
                         {dayAppts.map((apt: any, ai: number) => (
                           <div key={apt.id} className={`rounded-lg border p-3 cursor-pointer hover:opacity-80 transition-opacity ${colorForIndex(ai)}`} onClick={() => setSelectedAppointmentId(apt.id)}>
                             <div className="flex items-center justify-between">

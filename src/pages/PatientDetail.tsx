@@ -13,7 +13,10 @@ import { CameraCapture } from "@/components/shared/CameraCapture";
 const PatientDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [otpCode, setOtpCode] = useState<string | null>(null);
+  const [otpCopied, setOtpCopied] = useState(false);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],

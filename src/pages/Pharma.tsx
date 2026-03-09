@@ -188,6 +188,7 @@ const Pharma = () => {
       setBillItems([]);
       setBillPatientName("");
       setBillDiscount(0);
+      setBillTaxId("");
       setBillOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),

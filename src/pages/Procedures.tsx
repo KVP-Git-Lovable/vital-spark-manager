@@ -31,7 +31,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-
+import { CameraCapture } from "@/components/shared/CameraCapture";
 interface PrescriptionInput {
   medicine_name: string;
   dosage: string;

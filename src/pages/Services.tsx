@@ -366,7 +366,8 @@ const Services = () => {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: i * 0.05 }}
-                className="stat-card group"
+                className="stat-card group cursor-pointer"
+                onClick={() => setSelectedServiceId(service.id)}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>

@@ -166,25 +166,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Quick create procedure from appointment
-  const createProcedureMutation = useMutation({
-    mutationFn: async () => {
-      if (!appointment) throw new Error("No appointment");
-      const { error } = await supabase.from("procedures").insert({
-        patient_id: appointment.patient_id!,
-        appointment_id: appointmentId!,
-        staff_id: appointment.staff_id || null,
-        service_name: appointment.service,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["appointment-procedures", appointmentId] });
-      queryClient.invalidateQueries({ queryKey: ["procedures"] });
-      toast.success("Procedure created from appointment");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  // Removed quick create - now uses ProcedureFormDialog
 
   const patientName = appointment?.patients
     ? `${appointment.patients.first_name} ${appointment.patients.last_name}`

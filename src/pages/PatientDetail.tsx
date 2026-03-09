@@ -390,6 +390,13 @@ const PatientDetail = () => {
         patientName={`${patient.first_name} ${patient.last_name}`}
         context="patient"
       />
+
+      <SkinTracker
+        open={skinTrackerOpen}
+        onOpenChange={setSkinTrackerOpen}
+        photos={photos}
+        patientName={`${patient.first_name} ${patient.last_name}`}
+      />
     </div>
   );
 };

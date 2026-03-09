@@ -62,8 +62,9 @@ const Settings = () => {
   const saveClinic = useMutation({
     mutationFn: async () => {
       if (!clinicForm) return;
-      if (clinic?.id) {
-        const { error } = await supabase.from("clinic_settings").update(clinicForm).eq("id", clinic.id);
+      const hasId = clinic && 'id' in clinic;
+      if (hasId) {
+        const { error } = await supabase.from("clinic_settings").update(clinicForm).eq("id", (clinic as any).id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("clinic_settings").insert(clinicForm);

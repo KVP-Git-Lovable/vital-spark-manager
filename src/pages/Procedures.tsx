@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, FileText, Pill, Eye } from "lucide-react";
+import { Plus, Search, FileText, Pill, Eye, Camera } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

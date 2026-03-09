@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye } from "lucide-react";
+import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +28,7 @@ import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailShe
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-const statusOptions = ["Scheduled", "Requested", "Confirmed", "In Progress", "Completed", "Cancelled", "No Show"];
+const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancelled"];
 
 interface AppointmentDetailSheetProps {
   appointmentId: string | null;
@@ -36,6 +37,7 @@ interface AppointmentDetailSheetProps {
 
 export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDetailSheetProps) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [cameraOpen, setCameraOpen] = useState(false);
   const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
@@ -49,7 +51,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
       if (!appointmentId) return null;
       const { data, error } = await supabase
         .from("appointments")
-        .select("*, patients(id, first_name, last_name), staff(first_name, last_name)")
+        .select("*, patients(id, first_name, last_name, phone), staff(first_name, last_name)")
         .eq("id", appointmentId)
         .single();
       if (error) throw error;
@@ -63,19 +65,17 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [editStatus, setEditStatus] = useState("");
   const [editStartTime, setEditStartTime] = useState("");
   const [editEndTime, setEditEndTime] = useState("");
-  const [editNotes, setEditNotes] = useState("");
   const [initialized, setInitialized] = useState(false);
 
   // Initialize form when appointment loads
   if (appointment && !initialized) {
     setEditService(appointment.service || "");
-    setEditStatus(appointment.status || "Scheduled");
+    setEditStatus(appointment.status || "Proposed");
     setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditEndTime(appointment.end_time ? format(new Date(appointment.end_time), "yyyy-MM-dd'T'HH:mm") : "");
     setInitialized(true);
   }
 
-  // Reset on close
   const handleClose = () => {
     setInitialized(false);
     setActiveTab("details");
@@ -97,7 +97,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     enabled: !!appointmentId,
   });
 
-  // Fetch invoices for this patient
+  // Auto-set status to Completed if procedures exist
+  const hasCompletedProcedure = procedures.some((p: any) => p.status === "Completed");
+
   const { data: invoices = [] } = useQuery({
     queryKey: ["appointment-invoices", appointment?.patient_id],
     queryFn: async () => {
@@ -114,7 +116,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     enabled: !!appointment?.patient_id,
   });
 
-  // Fetch photos for this appointment + patient
   const { data: photos = [] } = useQuery({
     queryKey: ["appointment-photos", appointmentId, appointment?.patient_id],
     queryFn: async () => {
@@ -130,14 +131,13 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     enabled: !!appointment?.patient_id,
   });
 
-  // Update appointment
   const updateMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
         .from("appointments")
         .update({
           service: editService,
-          status: editStatus,
+          status: hasCompletedProcedure ? "Completed" : editStatus,
           start_time: new Date(editStartTime).toISOString(),
           end_time: new Date(editEndTime).toISOString(),
         })
@@ -152,7 +152,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Delete appointment
   const deleteMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("appointments").delete().eq("id", appointmentId!);
@@ -166,11 +165,12 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Removed quick create - now uses ProcedureFormDialog
-
   const patientName = appointment?.patients
     ? `${appointment.patients.first_name} ${appointment.patients.last_name}`
     : appointment?.patient_name || "Unknown";
+
+  const patientPhone = appointment?.patients?.phone || "";
+  const patientId = appointment?.patients?.id || appointment?.patient_id;
 
   const appointmentPhotos = photos.filter((p: any) => p.appointment_id === appointmentId);
   const otherPhotos = photos.filter((p: any) => p.appointment_id !== appointmentId);
@@ -183,16 +183,33 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
             <div className="p-6 text-center text-muted-foreground">Loading...</div>
           ) : (
             <>
-              {/* Header */}
               <SheetHeader className="p-6 pb-4 border-b bg-muted/30">
                 <div className="flex items-start justify-between">
                   <div>
-                    <SheetTitle className="font-display text-lg">{patientName}</SheetTitle>
+                    <SheetTitle className="font-display text-lg flex items-center gap-2">
+                      <button
+                        className="hover:text-primary underline-offset-2 hover:underline transition-colors text-left"
+                        onClick={() => {
+                          if (patientId) {
+                            handleClose();
+                            navigate(`/patients/${patientId}`);
+                          }
+                        }}
+                      >
+                        {patientName}
+                      </button>
+                      {patientId && <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />}
+                    </SheetTitle>
                     <p className="text-sm text-muted-foreground mt-1">
                       {format(new Date(appointment.start_time), "EEE, MMM d, yyyy · h:mm a")}
                     </p>
+                    {patientPhone && (
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Phone className="h-3 w-3" /> {patientPhone}
+                      </p>
+                    )}
                   </div>
-                  <Badge variant="secondary" className="text-xs">{appointment.status}</Badge>
+                  <Badge variant="secondary" className="text-xs">{hasCompletedProcedure ? "Completed" : appointment.status}</Badge>
                 </div>
               </SheetHeader>
 
@@ -204,24 +221,45 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                   <TabsTrigger value="photos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Photos</TabsTrigger>
                 </TabsList>
 
-                {/* Details Tab */}
                 <TabsContent value="details" className="p-6 space-y-4 mt-0">
                   <div>
                     <Label>Patient</Label>
-                    <Input value={patientName} disabled className="mt-1.5 bg-muted/50" />
+                    <div className="mt-1.5">
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start font-normal text-left"
+                        onClick={() => {
+                          if (patientId) {
+                            handleClose();
+                            navigate(`/patients/${patientId}`);
+                          }
+                        }}
+                      >
+                        {patientName}
+                        {patientId && <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />}
+                      </Button>
+                    </div>
+                    {patientPhone && (
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Phone className="h-3 w-3" /> {patientPhone}
+                      </p>
+                    )}
                   </div>
                   <div>
-                    <Label>Service *</Label>
+                    <Label>Service</Label>
                     <Input value={editService} onChange={(e) => setEditService(e.target.value)} className="mt-1.5" />
                   </div>
                   <div>
                     <Label>Status</Label>
-                    <Select value={editStatus} onValueChange={setEditStatus}>
+                    <Select value={hasCompletedProcedure ? "Completed" : editStatus} onValueChange={setEditStatus} disabled={hasCompletedProcedure}>
                       <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    {hasCompletedProcedure && (
+                      <p className="text-xs text-muted-foreground mt-1">Auto-set to Completed (has completed procedure)</p>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -273,7 +311,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                   </div>
                 </TabsContent>
 
-                {/* Procedures Tab */}
                 <TabsContent value="procedures" className="p-6 space-y-4 mt-0">
                   {appointment.patient_id ? (
                     <>
@@ -310,7 +347,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                   )}
                 </TabsContent>
 
-                {/* Billing Tab */}
                 <TabsContent value="billing" className="p-6 space-y-4 mt-0">
                   <h3 className="text-sm font-semibold font-display flex items-center gap-2">
                     <IndianRupee className="h-4 w-4" /> Patient Invoices
@@ -340,7 +376,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                   )}
                 </TabsContent>
 
-                {/* Photos Tab */}
                 <TabsContent value="photos" className="p-6 space-y-4 mt-0">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold font-display flex items-center gap-2">

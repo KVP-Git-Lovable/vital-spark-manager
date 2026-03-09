@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Index from "./pages/Index";
 import Patients from "./pages/Patients";
+import PatientDetail from "./pages/PatientDetail";
 import Appointments from "./pages/Appointments";
 import Services from "./pages/Services";
 import Billing from "./pages/Billing";
@@ -13,6 +14,7 @@ import Reports from "./pages/Reports";
 import Procedures from "./pages/Procedures";
 import Pharma from "./pages/Pharma";
 import Photos from "./pages/Photos";
+import LeaveManagement from "./pages/LeaveManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +29,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/patients" element={<Patients />} />
+            <Route path="/patients/:id" element={<PatientDetail />} />
+            <Route path="/leave" element={<LeaveManagement />} />
             <Route path="/appointments" element={<Appointments />} />
             <Route path="/services" element={<Services />} />
             <Route path="/billing" element={<Billing />} />

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, FileText, Pill, Eye } from "lucide-react";
+import { Plus, Search, FileText, Pill, Eye, Camera } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +31,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-
+import { CameraCapture } from "@/components/shared/CameraCapture";
 interface PrescriptionInput {
   medicine_name: string;
   dosage: string;
@@ -46,6 +46,7 @@ const Procedures = () => {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [viewId, setViewId] = useState<string | null>(null);
+  const [cameraProc, setCameraProc] = useState<any>(null);
 
   // Form state
   const [patientId, setPatientId] = useState("");
@@ -342,54 +343,70 @@ const Procedures = () => {
                   <TableCell>
                     <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
                   </TableCell>
-                  <TableCell>
-                    <Dialog open={viewId === proc.id} onOpenChange={(o) => setViewId(o ? proc.id : null)}>
-                      <DialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="font-display">Procedure Details</DialogTitle>
-                        </DialogHeader>
-                        {viewProcedure && (
-                          <div className="space-y-4 text-sm">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div><span className="text-muted-foreground">Patient:</span> <span className="font-medium">{viewProcedure.patients?.first_name} {viewProcedure.patients?.last_name}</span></div>
-                              <div><span className="text-muted-foreground">Doctor:</span> <span className="font-medium">{viewProcedure.staff ? `Dr. ${viewProcedure.staff.first_name}` : "—"}</span></div>
-                              <div><span className="text-muted-foreground">Service:</span> <span className="font-medium">{viewProcedure.service_name}</span></div>
-                              <div><span className="text-muted-foreground">Date:</span> <span className="font-medium">{new Date(viewProcedure.procedure_date).toLocaleDateString()}</span></div>
-                            </div>
-                            {viewProcedure.diagnosis && <div><p className="text-muted-foreground mb-1">Diagnosis</p><p className="bg-muted/50 rounded-md p-3">{viewProcedure.diagnosis}</p></div>}
-                            {viewProcedure.procedure_notes && <div><p className="text-muted-foreground mb-1">Procedure Notes</p><p className="bg-muted/50 rounded-md p-3">{viewProcedure.procedure_notes}</p></div>}
-                            {viewProcedure.consultation_notes && <div><p className="text-muted-foreground mb-1">Consultation Notes</p><p className="bg-muted/50 rounded-md p-3">{viewProcedure.consultation_notes}</p></div>}
-                            {viewProcedure.prescriptions?.length > 0 && (
-                              <div>
-                                <p className="text-muted-foreground mb-2 flex items-center gap-1"><Pill className="h-3.5 w-3.5" /> Prescriptions</p>
-                                <div className="space-y-2">
-                                  {viewProcedure.prescriptions.map((rx: any) => (
-                                    <div key={rx.id} className="bg-muted/50 rounded-md p-3">
-                                      <p className="font-medium">{rx.medicine_name}</p>
-                                      <p className="text-muted-foreground text-xs mt-0.5">
-                                        {[rx.dosage, rx.frequency, rx.duration].filter(Boolean).join(" · ")}
-                                        {rx.quantity > 1 && ` · Qty: ${rx.quantity}`}
-                                      </p>
-                                      {rx.instructions && <p className="text-xs mt-1 text-muted-foreground italic">{rx.instructions}</p>}
-                                    </div>
-                                  ))}
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCameraProc(proc)} title="Take Photo">
+                          <Camera className="h-4 w-4" />
+                        </Button>
+                        <Dialog open={viewId === proc.id} onOpenChange={(o) => setViewId(o ? proc.id : null)}>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle className="font-display">Procedure Details</DialogTitle>
+                            </DialogHeader>
+                            {viewProcedure && (
+                              <div className="space-y-4 text-sm">
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div><span className="text-muted-foreground">Patient:</span> <span className="font-medium">{viewProcedure.patients?.first_name} {viewProcedure.patients?.last_name}</span></div>
+                                  <div><span className="text-muted-foreground">Doctor:</span> <span className="font-medium">{viewProcedure.staff ? `Dr. ${viewProcedure.staff.first_name}` : "—"}</span></div>
+                                  <div><span className="text-muted-foreground">Service:</span> <span className="font-medium">{viewProcedure.service_name}</span></div>
+                                  <div><span className="text-muted-foreground">Date:</span> <span className="font-medium">{new Date(viewProcedure.procedure_date).toLocaleDateString()}</span></div>
                                 </div>
+                                {viewProcedure.diagnosis && <div><p className="text-muted-foreground mb-1">Diagnosis</p><p className="bg-muted/50 rounded-md p-3">{viewProcedure.diagnosis}</p></div>}
+                                {viewProcedure.procedure_notes && <div><p className="text-muted-foreground mb-1">Procedure Notes</p><p className="bg-muted/50 rounded-md p-3">{viewProcedure.procedure_notes}</p></div>}
+                                {viewProcedure.consultation_notes && <div><p className="text-muted-foreground mb-1">Consultation Notes</p><p className="bg-muted/50 rounded-md p-3">{viewProcedure.consultation_notes}</p></div>}
+                                {viewProcedure.prescriptions?.length > 0 && (
+                                  <div>
+                                    <p className="text-muted-foreground mb-2 flex items-center gap-1"><Pill className="h-3.5 w-3.5" /> Prescriptions</p>
+                                    <div className="space-y-2">
+                                      {viewProcedure.prescriptions.map((rx: any) => (
+                                        <div key={rx.id} className="bg-muted/50 rounded-md p-3">
+                                          <p className="font-medium">{rx.medicine_name}</p>
+                                          <p className="text-muted-foreground text-xs mt-0.5">
+                                            {[rx.dosage, rx.frequency, rx.duration].filter(Boolean).join(" · ")}
+                                            {rx.quantity > 1 && ` · Qty: ${rx.quantity}`}
+                                          </p>
+                                          {rx.instructions && <p className="text-xs mt-1 text-muted-foreground italic">{rx.instructions}</p>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
-                          </div>
-                        )}
-                      </DialogContent>
-                    </Dialog>
-                  </TableCell>
-                </TableRow>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </motion.div>
+
+      {cameraProc && (
+        <CameraCapture
+          open={!!cameraProc}
+          onOpenChange={(o) => { if (!o) setCameraProc(null); }}
+          patientId={cameraProc.patient_id}
+          patientName={`${cameraProc.patients?.first_name || ""} ${cameraProc.patients?.last_name || ""}`}
+          context="procedure"
+          contextId={cameraProc.id}
+        />
+      )}
     </div>
   );
 };

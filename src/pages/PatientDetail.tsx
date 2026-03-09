@@ -1,0 +1,336 @@
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { motion } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { CameraCapture } from "@/components/shared/CameraCapture";
+
+const PatientDetail = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [cameraOpen, setCameraOpen] = useState(false);
+
+  const { data: patient, isLoading } = useQuery({
+    queryKey: ["patient", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("patients").select("*").eq("id", id!).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: procedures = [] } = useQuery({
+    queryKey: ["patient-procedures", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("procedures")
+        .select("*, staff(first_name, last_name)")
+        .eq("patient_id", id!)
+        .order("procedure_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: prescriptions = [] } = useQuery({
+    queryKey: ["patient-prescriptions", id],
+    queryFn: async () => {
+      const procIds = procedures.map((p) => p.id);
+      if (procIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("prescriptions")
+        .select("*, procedures(service_name, procedure_date)")
+        .in("procedure_id", procIds)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: procedures.length > 0,
+  });
+
+  const { data: appointments = [] } = useQuery({
+    queryKey: ["patient-appointments", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("*, staff(first_name, last_name)")
+        .eq("patient_id", id!)
+        .order("start_time", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: invoices = [] } = useQuery({
+    queryKey: ["patient-invoices", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("patient_id", id!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: photos = [] } = useQuery({
+    queryKey: ["patient-photos", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patient_photos")
+        .select("*, procedures(service_name)")
+        .eq("patient_id", id!)
+        .order("taken_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!patient) {
+    return (
+      <div className="text-center py-20 text-muted-foreground">
+        <p>Patient not found</p>
+        <Button variant="outline" className="mt-4" onClick={() => navigate("/patients")}>Back to Patients</Button>
+      </div>
+    );
+  }
+
+  const getAge = (dob: string | null) => {
+    if (!dob) return null;
+    return Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+  };
+
+  const statusStyles: Record<string, string> = {
+    Paid: "bg-success/10 text-success",
+    Partial: "bg-warning/10 text-warning",
+    Pending: "bg-destructive/10 text-destructive",
+  };
+
+  return (
+    <div>
+      <div className="page-header">
+        <Button variant="ghost" size="sm" className="gap-1 mb-4" onClick={() => navigate("/patients")}>
+          <ArrowLeft className="h-4 w-4" /> Back to Patients
+        </Button>
+
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="flex items-start justify-between">
+          <div className="flex items-center gap-4">
+            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-bold text-xl">
+              {patient.first_name[0]}{patient.last_name[0]}
+            </div>
+            <div>
+              <h1 className="page-title">{patient.first_name} {patient.last_name}</h1>
+              <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                {patient.gender && <span>{patient.gender}</span>}
+                {getAge(patient.date_of_birth) !== null && <span>• Age {getAge(patient.date_of_birth)}</span>}
+                {patient.blood_group && <span>• {patient.blood_group}</span>}
+                {patient.phone && <span>• {patient.phone}</span>}
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => setCameraOpen(true)}>
+              <Camera className="h-4 w-4" /> Take Photo
+            </Button>
+            <Badge className={patient.status === "Active" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}>
+              {patient.status}
+            </Badge>
+          </div>
+        </motion.div>
+      </div>
+
+      <Tabs defaultValue="procedures" className="mt-2">
+        <TabsList>
+          <TabsTrigger value="procedures" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Procedures ({procedures.length})</TabsTrigger>
+          <TabsTrigger value="prescriptions" className="gap-1.5"><Pill className="h-3.5 w-3.5" /> Prescriptions ({prescriptions.length})</TabsTrigger>
+          <TabsTrigger value="appointments" className="gap-1.5"><Calendar className="h-3.5 w-3.5" /> Appointments ({appointments.length})</TabsTrigger>
+          <TabsTrigger value="invoices" className="gap-1.5"><Receipt className="h-3.5 w-3.5" /> Invoices ({invoices.length})</TabsTrigger>
+          <TabsTrigger value="photos" className="gap-1.5"><Camera className="h-3.5 w-3.5" /> Photos ({photos.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="procedures">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="data-table mt-4">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Date</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Service</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Doctor</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Diagnosis</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {procedures.length === 0 ? (
+                  <tr><td colSpan={5} className="text-center py-8 text-muted-foreground text-sm">No procedures recorded</td></tr>
+                ) : procedures.map((proc: any) => (
+                  <tr key={proc.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="p-4 text-sm">{new Date(proc.procedure_date).toLocaleDateString()}</td>
+                    <td className="p-4 font-medium text-sm">{proc.service_name}</td>
+                    <td className="p-4 text-sm text-muted-foreground">{proc.staff ? `Dr. ${proc.staff.first_name} ${proc.staff.last_name}` : "—"}</td>
+                    <td className="p-4 text-sm text-muted-foreground truncate max-w-[200px]">{proc.diagnosis || "—"}</td>
+                    <td className="p-4"><Badge variant="secondary" className="text-xs">{proc.status}</Badge></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="prescriptions">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3 mt-4">
+            {prescriptions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">No prescriptions found</div>
+            ) : prescriptions.map((rx: any) => (
+              <div key={rx.id} className="stat-card p-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-medium">{rx.medicine_name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {[rx.dosage, rx.frequency, rx.duration].filter(Boolean).join(" · ")}
+                      {rx.quantity > 1 && ` · Qty: ${rx.quantity}`}
+                    </p>
+                    {rx.instructions && <p className="text-xs text-muted-foreground italic mt-1">{rx.instructions}</p>}
+                  </div>
+                  {rx.procedures && (
+                    <div className="text-right text-xs text-muted-foreground">
+                      <p>{rx.procedures.service_name}</p>
+                      <p>{new Date(rx.procedures.procedure_date).toLocaleDateString()}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="appointments">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="data-table mt-4">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Date & Time</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Service</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Doctor</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {appointments.length === 0 ? (
+                  <tr><td colSpan={4} className="text-center py-8 text-muted-foreground text-sm">No appointments found</td></tr>
+                ) : appointments.map((apt: any) => (
+                  <tr key={apt.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="p-4 text-sm">
+                      <p>{new Date(apt.start_time).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(apt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    </td>
+                    <td className="p-4 font-medium text-sm">{apt.service}</td>
+                    <td className="p-4 text-sm text-muted-foreground">{apt.staff ? `Dr. ${apt.staff.first_name} ${apt.staff.last_name}` : "—"}</td>
+                    <td className="p-4"><Badge variant="secondary" className="text-xs">{apt.status}</Badge></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="invoices">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="data-table mt-4">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Invoice #</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Date</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Services</th>
+                  <th className="text-right text-xs font-medium text-muted-foreground p-4">Amount</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {invoices.length === 0 ? (
+                  <tr><td colSpan={5} className="text-center py-8 text-muted-foreground text-sm">No invoices found</td></tr>
+                ) : invoices.map((inv: any) => (
+                  <tr key={inv.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="p-4 font-medium text-sm">{inv.invoice_number}</td>
+                    <td className="p-4 text-sm">{new Date(inv.created_at).toLocaleDateString()}</td>
+                    <td className="p-4">
+                      <div className="flex flex-wrap gap-1">
+                        {(inv.services || []).map((s: string, i: number) => (
+                          <Badge key={i} variant="secondary" className="text-xs">{s}</Badge>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="p-4 text-right">
+                      <p className="font-semibold text-sm">₹{Number(inv.total_amount).toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">Paid: ₹{Number(inv.paid_amount).toLocaleString()}</p>
+                    </td>
+                    <td className="p-4">
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[inv.status] || ""}`}>{inv.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="photos">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            {photos.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Camera className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No photos yet. Take a photo to start documenting.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                {photos.map((photo: any) => (
+                  <div key={photo.id} className="stat-card p-0 overflow-hidden">
+                    <div className="relative">
+                      <img src={photo.photo_url} alt="" className="w-full h-40 object-cover" loading="lazy" />
+                      <Badge className={`absolute top-2 left-2 text-[10px] ${photo.photo_type === "before" ? "bg-warning/90 text-warning-foreground" : "bg-success/90 text-success-foreground"}`}>
+                        {photo.photo_type.toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="p-3">
+                      {photo.procedures?.service_name && <p className="text-xs text-muted-foreground">{photo.procedures.service_name}</p>}
+                      <p className="text-xs text-muted-foreground mt-1">{new Date(photo.taken_at).toLocaleDateString()}</p>
+                      {photo.notes && <p className="text-xs mt-1 truncate">{photo.notes}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        </TabsContent>
+      </Tabs>
+
+      <CameraCapture
+        open={cameraOpen}
+        onOpenChange={setCameraOpen}
+        patientId={id!}
+        patientName={`${patient.first_name} ${patient.last_name}`}
+        context="patient"
+      />
+    </div>
+  );
+};
+
+export default PatientDetail;

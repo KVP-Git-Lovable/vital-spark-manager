@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -12,6 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
+import { CameraCapture } from "@/components/shared/CameraCapture";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
@@ -26,9 +28,11 @@ const fetchPatients = async (): Promise<Patient[]> => {
 };
 
 const Patients = () => {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [cameraPatient, setCameraPatient] = useState<Patient | null>(null);
 
   const { data: patients = [], isLoading, refetch } = useQuery({
     queryKey: ["patients"],
@@ -116,7 +120,7 @@ const Patients = () => {
               </thead>
               <tbody className="divide-y">
                 {filtered.map((patient) => (
-                  <tr key={patient.id} className="hover:bg-muted/30 transition-colors">
+                  <tr key={patient.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => navigate(`/patients/${patient.id}`)}>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-semibold text-sm shrink-0">
@@ -170,10 +174,15 @@ const Patients = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEdit(patient)}>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEdit(patient); }}>
                             Edit Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem>Book Appointment</DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/patients/${patient.id}`); }}>
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setCameraPatient(patient); }}>
+                            <Camera className="h-3.5 w-3.5 mr-1.5" /> Take Photo
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </td>
@@ -195,6 +204,16 @@ const Patients = () => {
         patient={editingPatient}
         onSuccess={() => refetch()}
       />
+
+      {cameraPatient && (
+        <CameraCapture
+          open={!!cameraPatient}
+          onOpenChange={(o) => { if (!o) setCameraPatient(null); }}
+          patientId={cameraPatient.id}
+          patientName={`${cameraPatient.first_name} ${cameraPatient.last_name}`}
+          context="patient"
+        />
+      )}
     </div>
   );
 };

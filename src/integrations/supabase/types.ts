@@ -180,6 +180,97 @@ export type Database = {
           },
         ]
       }
+      leave_applications: {
+        Row: {
+          approved_by: string | null
+          created_at: string
+          days: number
+          end_date: string
+          id: string
+          leave_type_id: string
+          reason: string | null
+          staff_id: string
+          start_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_by?: string | null
+          created_at?: string
+          days?: number
+          end_date: string
+          id?: string
+          leave_type_id: string
+          reason?: string | null
+          staff_id: string
+          start_date: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_by?: string | null
+          created_at?: string
+          days?: number
+          end_date?: string
+          id?: string
+          leave_type_id?: string
+          reason?: string | null
+          staff_id?: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_applications_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_applications_leave_type_id_fkey"
+            columns: ["leave_type_id"]
+            isOneToOne: false
+            referencedRelation: "leave_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_applications_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leave_types: {
+        Row: {
+          created_at: string
+          default_days_per_year: number
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          default_days_per_year?: number
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          default_days_per_year?: number
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
       patient_photos: {
         Row: {
           appointment_id: string | null
@@ -678,6 +769,54 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      staff_leave_balances: {
+        Row: {
+          created_at: string
+          id: string
+          leave_type_id: string
+          opening_balance: number
+          staff_id: string
+          updated_at: string
+          used: number
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          leave_type_id: string
+          opening_balance?: number
+          staff_id: string
+          updated_at?: string
+          used?: number
+          year?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          leave_type_id?: string
+          opening_balance?: number
+          staff_id?: string
+          updated_at?: string
+          used?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_leave_balances_leave_type_id_fkey"
+            columns: ["leave_type_id"]
+            isOneToOne: false
+            referencedRelation: "leave_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_leave_balances_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

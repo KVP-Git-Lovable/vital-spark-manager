@@ -397,6 +397,17 @@ const Procedures = () => {
           </TableBody>
         </Table>
       </motion.div>
+
+      {cameraProc && (
+        <CameraCapture
+          open={!!cameraProc}
+          onOpenChange={(o) => { if (!o) setCameraProc(null); }}
+          patientId={cameraProc.patient_id}
+          patientName={`${cameraProc.patients?.first_name || ""} ${cameraProc.patients?.last_name || ""}`}
+          context="procedure"
+          contextId={cameraProc.id}
+        />
+      )}
     </div>
   );
 };

@@ -443,6 +443,7 @@ const Services = () => {
           })}
         </div>
       )}
+      <ServiceDetailSheet serviceId={selectedServiceId} onClose={() => setSelectedServiceId(null)} />
     </div>
   );
 };

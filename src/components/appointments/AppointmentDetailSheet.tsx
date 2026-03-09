@@ -319,9 +319,12 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                         <h3 className="text-sm font-semibold font-display flex items-center gap-2">
                           <Pill className="h-4 w-4" /> Linked Procedures
                         </h3>
-                        <Button size="sm" variant="outline" className="gap-1" onClick={() => setProcFormOpen(true)}>
-                          <Plus className="h-3 w-3" /> Add Procedure
-                        </Button>
+                        <div className="flex gap-2">
+                          <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
+                          <Button size="sm" variant="outline" className="gap-1" onClick={() => setProcFormOpen(true)}>
+                            <Plus className="h-3 w-3" /> Add Procedure
+                          </Button>
+                        </div>
                       </div>
                       {procedures.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-8">No procedures linked. Click "Add Procedure" to create one.</p>

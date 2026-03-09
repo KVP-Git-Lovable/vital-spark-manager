@@ -225,6 +225,11 @@ const PatientDetail = () => {
         <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
       </div>
 
+      {/* AI Case Analysis */}
+      <div className="mb-4">
+        <CaseAnalysis patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+      </div>
+
       <Tabs defaultValue="procedures" className="mt-2">
         <TabsList>
           <TabsTrigger value="procedures" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Procedures ({procedures.length})</TabsTrigger>

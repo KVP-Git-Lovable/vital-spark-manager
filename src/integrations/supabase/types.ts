@@ -14,6 +14,116 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointments: {
+        Row: {
+          created_at: string
+          end_time: string
+          id: string
+          is_recurring: boolean | null
+          patient_id: string | null
+          patient_name: string | null
+          recurrence_end_date: string | null
+          recurrence_pattern: string | null
+          service: string
+          staff_id: string | null
+          start_time: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_time: string
+          id?: string
+          is_recurring?: boolean | null
+          patient_id?: string | null
+          patient_name?: string | null
+          recurrence_end_date?: string | null
+          recurrence_pattern?: string | null
+          service: string
+          staff_id?: string | null
+          start_time: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_time?: string
+          id?: string
+          is_recurring?: boolean | null
+          patient_id?: string | null
+          patient_name?: string | null
+          recurrence_end_date?: string | null
+          recurrence_pattern?: string | null
+          service?: string
+          staff_id?: string | null
+          start_time?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_records: {
+        Row: {
+          check_in_photo: string | null
+          check_in_time: string | null
+          check_out_photo: string | null
+          check_out_time: string | null
+          created_at: string
+          date: string
+          id: string
+          staff_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          check_in_photo?: string | null
+          check_in_time?: string | null
+          check_out_photo?: string | null
+          check_out_time?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          staff_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          check_in_photo?: string | null
+          check_in_time?: string | null
+          check_out_photo?: string | null
+          check_out_time?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          staff_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           address: string | null
@@ -91,6 +201,42 @@ export type Database = {
           skin_type?: string | null
           state?: string | null
           status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      staff: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_name: string
+          id: string
+          last_name: string
+          phone: string | null
+          role: string
+          specialization: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_name: string
+          id?: string
+          last_name: string
+          phone?: string | null
+          role: string
+          specialization?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_name?: string
+          id?: string
+          last_name?: string
+          phone?: string | null
+          role?: string
+          specialization?: string | null
           updated_at?: string
         }
         Relationships: []

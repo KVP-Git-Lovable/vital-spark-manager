@@ -1,21 +1,39 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { format, addWeeks, addMonths } from "date-fns";
 import { motion } from "framer-motion";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const hours = Array.from({ length: 10 }, (_, i) => i + 9); // 9 AM to 6 PM
-
-interface CalendarAppointment {
-  id: string;
-  patient: string;
-  service: string;
-  time: string;
-  duration: number;
-  day: number;
-  hour: number;
-  color: string;
-}
+const hours = Array.from({ length: 10 }, (_, i) => i + 9);
 
 const appointmentColors = [
   "bg-primary/15 border-primary/30 text-primary",
@@ -24,23 +42,134 @@ const appointmentColors = [
   "bg-warning/15 border-warning/30 text-warning",
 ];
 
-const today = new Date();
-const currentDay = today.getDay();
-
-const mockAppointments: CalendarAppointment[] = [
-  { id: "1", patient: "Sarah Johnson", service: "Chemical Peel", time: "9:00 AM", duration: 45, day: currentDay, hour: 9, color: appointmentColors[0] },
-  { id: "2", patient: "Michael Chen", service: "Botox", time: "10:30 AM", duration: 30, day: currentDay, hour: 10, color: appointmentColors[1] },
-  { id: "3", patient: "Emily Davis", service: "Laser Resurfacing", time: "11:00 AM", duration: 60, day: currentDay, hour: 11, color: appointmentColors[2] },
-  { id: "4", patient: "James Wilson", service: "Dermal Fillers", time: "1:00 PM", duration: 45, day: currentDay, hour: 13, color: appointmentColors[3] },
-  { id: "5", patient: "Lisa Park", service: "Microneedling", time: "2:30 PM", duration: 40, day: currentDay, hour: 14, color: appointmentColors[0] },
-  { id: "6", patient: "Raj Patel", service: "PRP Therapy", time: "10:00 AM", duration: 60, day: (currentDay + 1) % 7, hour: 10, color: appointmentColors[1] },
-  { id: "7", patient: "Anita Sharma", service: "Chemical Peel", time: "3:00 PM", duration: 45, day: (currentDay + 2) % 7, hour: 15, color: appointmentColors[2] },
-];
-
 const Appointments = () => {
+  const queryClient = useQueryClient();
   const [view, setView] = useState<"week" | "day">("week");
-  const [currentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [open, setOpen] = useState(false);
+  const today = new Date();
 
+  // Form state
+  const [patientId, setPatientId] = useState("");
+  const [staffId, setStaffId] = useState("");
+  const [service, setService] = useState("");
+  const [startDate, setStartDate] = useState<Date>();
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("09:30");
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrencePattern, setRecurrencePattern] = useState("weekly");
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date>();
+
+  // Queries
+  const { data: patients = [] } = useQuery({
+    queryKey: ["patients-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("patients").select("id, first_name, last_name").order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role").order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: appointments = [] } = useQuery({
+    queryKey: ["appointments"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("appointments").select("*, patients(first_name, last_name), staff(first_name, last_name)").order("start_time");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Generate recurring dates
+  const generateRecurringDates = (start: Date, pattern: string, endDate: Date): Date[] => {
+    const dates: Date[] = [start];
+    let current = new Date(start);
+    const maxOccurrences = 52;
+
+    for (let i = 0; i < maxOccurrences; i++) {
+      if (pattern === "weekly") current = addWeeks(current, 1);
+      else if (pattern === "biweekly") current = addWeeks(current, 2);
+      else if (pattern === "monthly") current = addMonths(current, 1);
+
+      if (current > endDate) break;
+      dates.push(new Date(current));
+    }
+    return dates;
+  };
+
+  const createAppointment = useMutation({
+    mutationFn: async () => {
+      if (!startDate) throw new Error("Please select a date");
+      if (!service) throw new Error("Please enter a service");
+
+      const patient = patients.find((p) => p.id === patientId);
+      const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
+
+      const buildDateTime = (date: Date, time: string) => {
+        const [h, m] = time.split(":").map(Number);
+        const dt = new Date(date);
+        dt.setHours(h, m, 0, 0);
+        return dt.toISOString();
+      };
+
+      if (isRecurring && recurrenceEndDate) {
+        const dates = generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate);
+        const rows = dates.map((d) => ({
+          patient_id: patientId || null,
+          patient_name: patientName,
+          staff_id: staffId || null,
+          service,
+          start_time: buildDateTime(d, startTime),
+          end_time: buildDateTime(d, endTime),
+          is_recurring: true,
+          recurrence_pattern: recurrencePattern,
+          recurrence_end_date: format(recurrenceEndDate, "yyyy-MM-dd"),
+        }));
+        const { error } = await supabase.from("appointments").insert(rows);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("appointments").insert({
+          patient_id: patientId || null,
+          patient_name: patientName,
+          staff_id: staffId || null,
+          service,
+          start_time: buildDateTime(startDate, startTime),
+          end_time: buildDateTime(startDate, endTime),
+          is_recurring: false,
+        });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success("Appointment(s) created");
+      resetForm();
+      setOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const resetForm = () => {
+    setPatientId("");
+    setStaffId("");
+    setService("");
+    setStartDate(undefined);
+    setStartTime("09:00");
+    setEndTime("09:30");
+    setIsRecurring(false);
+    setRecurrencePattern("weekly");
+    setRecurrenceEndDate(undefined);
+  };
+
+  // Calendar navigation
   const getWeekDates = () => {
     const start = new Date(currentDate);
     start.setDate(start.getDate() - start.getDay());
@@ -51,7 +180,30 @@ const Appointments = () => {
     });
   };
 
+  const navigateWeek = (dir: number) => {
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() + dir * 7);
+    setCurrentDate(d);
+  };
+
+  const navigateDay = (dir: number) => {
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() + dir);
+    setCurrentDate(d);
+  };
+
   const weekDates = getWeekDates();
+  const currentDay = currentDate.getDay();
+
+  // Map DB appointments to calendar slots
+  const getApptsForSlot = (date: Date, hour: number) => {
+    return appointments.filter((a: any) => {
+      const start = new Date(a.start_time);
+      return start.toDateString() === date.toDateString() && start.getHours() === hour;
+    });
+  };
+
+  const colorForIndex = (i: number) => appointmentColors[i % appointmentColors.length];
 
   return (
     <div>
@@ -62,49 +214,143 @@ const Appointments = () => {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex bg-muted rounded-lg p-1">
-            <Button
-              variant={view === "day" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setView("day")}
-              className="text-xs"
-            >
-              Day
-            </Button>
-            <Button
-              variant={view === "week" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setView("week")}
-              className="text-xs"
-            >
-              Week
-            </Button>
+            <Button variant={view === "day" ? "default" : "ghost"} size="sm" onClick={() => setView("day")} className="text-xs">Day</Button>
+            <Button variant={view === "week" ? "default" : "ghost"} size="sm" onClick={() => setView("week")} className="text-xs">Week</Button>
           </div>
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Appointment
-          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2"><Plus className="h-4 w-4" /> New Appointment</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="font-display">New Appointment</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Patient</Label>
+                    <Select value={patientId} onValueChange={setPatientId}>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select patient" /></SelectTrigger>
+                      <SelectContent>
+                        {patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Doctor / Staff</Label>
+                    <Select value={staffId} onValueChange={setStaffId}>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        {staffList.map((s) => <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Service *</Label>
+                  <Input className="mt-1.5" placeholder="e.g. Chemical Peel" value={service} onChange={(e) => setService(e.target.value)} />
+                </div>
+
+                <div>
+                  <Label>Date *</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full mt-1.5 justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {startDate ? format(startDate, "PPP") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus className={cn("p-3 pointer-events-auto")} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Start Time *</Label>
+                    <Input type="time" className="mt-1.5" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>End Time *</Label>
+                    <Input type="time" className="mt-1.5" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                  </div>
+                </div>
+
+                {/* Recurring toggle */}
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Repeat className="h-4 w-4 text-muted-foreground" />
+                      <Label className="font-display font-semibold">Recurring Appointment</Label>
+                    </div>
+                    <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
+                  </div>
+
+                  {isRecurring && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-4 space-y-4 overflow-hidden">
+                      <div>
+                        <Label>Repeat Pattern</Label>
+                        <Select value={recurrencePattern} onValueChange={setRecurrencePattern}>
+                          <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="biweekly">Biweekly (Every 2 weeks)</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Repeat Until *</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className={cn("w-full mt-1.5 justify-start text-left font-normal", !recurrenceEndDate && "text-muted-foreground")}>
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {recurrenceEndDate ? format(recurrenceEndDate, "PPP") : "Select end date"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar mode="single" selected={recurrenceEndDate} onSelect={setRecurrenceEndDate} disabled={(date) => date < (startDate || new Date())} initialFocus className={cn("p-3 pointer-events-auto")} />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      {startDate && recurrenceEndDate && (
+                        <div className="bg-muted/50 rounded-lg p-3">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Preview</p>
+                          <p className="text-sm">
+                            {generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate).length} appointments will be created
+                            <span className="text-muted-foreground"> ({recurrencePattern}, from {format(startDate, "MMM d")} to {format(recurrenceEndDate, "MMM d, yyyy")})</span>
+                          </p>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </div>
+
+                <Button className="w-full" onClick={() => createAppointment.mutate()} disabled={!service || !startDate || (isRecurring && !recurrenceEndDate) || createAppointment.isPending}>
+                  {createAppointment.isPending ? "Creating..." : isRecurring ? "Create Recurring Appointments" : "Create Appointment"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="data-table"
-      >
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="data-table">
         <div className="p-4 border-b flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => view === "week" ? navigateWeek(-1) : navigateDay(-1)}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <h2 className="font-display font-semibold">
               {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
             </h2>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => view === "week" ? navigateWeek(1) : navigateDay(1)}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          <Button variant="outline" size="sm" className="text-xs">
+          <Button variant="outline" size="sm" className="text-xs" onClick={() => setCurrentDate(new Date())}>
             Today
           </Button>
         </div>
@@ -112,7 +358,6 @@ const Appointments = () => {
         <div className="overflow-x-auto">
           {view === "week" ? (
             <div className="min-w-[800px]">
-              {/* Week header */}
               <div className="grid grid-cols-8 border-b">
                 <div className="p-3 text-xs text-muted-foreground" />
                 {weekDates.map((date, i) => {
@@ -120,37 +365,30 @@ const Appointments = () => {
                   return (
                     <div key={i} className={`p-3 text-center border-l ${isToday ? "bg-primary/5" : ""}`}>
                       <p className="text-xs text-muted-foreground">{daysOfWeek[i]}</p>
-                      <p className={`text-lg font-display font-semibold mt-0.5 ${isToday ? "text-primary" : ""}`}>
-                        {date.getDate()}
-                      </p>
+                      <p className={`text-lg font-display font-semibold mt-0.5 ${isToday ? "text-primary" : ""}`}>{date.getDate()}</p>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Time grid */}
               {hours.map((hour) => (
                 <div key={hour} className="grid grid-cols-8 border-b last:border-0 min-h-[72px]">
                   <div className="p-2 text-xs text-muted-foreground text-right pr-3 pt-1">
                     {hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? "12:00 PM" : `${hour}:00 AM`}
                   </div>
-                  {Array.from({ length: 7 }, (_, dayIndex) => {
-                    const dayAppts = mockAppointments.filter(
-                      (a) => a.day === dayIndex && a.hour === hour
-                    );
-                    const isToday = weekDates[dayIndex]?.toDateString() === today.toDateString();
+                  {weekDates.map((date, dayIndex) => {
+                    const dayAppts = getApptsForSlot(date, hour);
+                    const isToday = date.toDateString() === today.toDateString();
                     return (
                       <div key={dayIndex} className={`border-l p-1 ${isToday ? "bg-primary/5" : ""}`}>
-                        {dayAppts.map((apt) => (
-                          <div
-                            key={apt.id}
-                            className={`rounded-md border p-2 text-xs cursor-pointer hover:opacity-80 transition-opacity ${apt.color}`}
-                          >
-                            <p className="font-medium truncate">{apt.patient}</p>
+                        {dayAppts.map((apt: any, ai: number) => (
+                          <div key={apt.id} className={`rounded-md border p-2 text-xs cursor-pointer hover:opacity-80 transition-opacity mb-1 ${colorForIndex(ai)}`}>
+                            <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name}</p>
                             <p className="opacity-70 truncate">{apt.service}</p>
                             <div className="flex items-center gap-1 mt-1 opacity-70">
+                              {apt.is_recurring && <Repeat className="h-3 w-3" />}
                               <Clock className="h-3 w-3" />
-                              <span>{apt.duration}m</span>
+                              <span>{format(new Date(apt.start_time), "h:mm a")}</span>
                             </div>
                           </div>
                         ))}
@@ -164,28 +402,26 @@ const Appointments = () => {
             <div className="min-w-[400px]">
               <div className="p-3 text-center border-b bg-primary/5">
                 <p className="text-xs text-muted-foreground">{daysOfWeek[currentDay]}</p>
-                <p className="text-2xl font-display font-bold text-primary">{today.getDate()}</p>
+                <p className="text-2xl font-display font-bold text-primary">{currentDate.getDate()}</p>
               </div>
               {hours.map((hour) => {
-                const dayAppts = mockAppointments.filter(
-                  (a) => a.day === currentDay && a.hour === hour
-                );
+                const dayAppts = getApptsForSlot(currentDate, hour);
                 return (
                   <div key={hour} className="flex border-b last:border-0 min-h-[72px]">
                     <div className="w-24 p-3 text-sm text-muted-foreground text-right shrink-0">
                       {hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? "12:00 PM" : `${hour}:00 AM`}
                     </div>
                     <div className="flex-1 border-l p-2 space-y-1">
-                      {dayAppts.map((apt) => (
-                        <div
-                          key={apt.id}
-                          className={`rounded-lg border p-3 cursor-pointer hover:opacity-80 transition-opacity ${apt.color}`}
-                        >
+                      {dayAppts.map((apt: any, ai: number) => (
+                        <div key={apt.id} className={`rounded-lg border p-3 cursor-pointer hover:opacity-80 transition-opacity ${colorForIndex(ai)}`}>
                           <div className="flex items-center justify-between">
-                            <p className="font-medium text-sm">{apt.patient}</p>
-                            <span className="text-xs opacity-70">{apt.time}</span>
+                            <p className="font-medium text-sm">{apt.patient_name || apt.patients?.first_name}</p>
+                            <div className="flex items-center gap-1">
+                              {apt.is_recurring && <Badge variant="secondary" className="text-[10px] px-1.5 py-0"><Repeat className="h-2.5 w-2.5 mr-0.5" />Recurring</Badge>}
+                              <span className="text-xs opacity-70">{format(new Date(apt.start_time), "h:mm a")}</span>
+                            </div>
                           </div>
-                          <p className="text-xs opacity-70 mt-0.5">{apt.service} · {apt.duration} mins</p>
+                          <p className="text-xs opacity-70 mt-0.5">{apt.service}</p>
                         </div>
                       ))}
                     </div>

@@ -352,7 +352,6 @@ const Procedures = () => {
                           <DialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
                           </DialogTrigger>
-                      </DialogTrigger>
                       <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
                         <DialogHeader>
                           <DialogTitle className="font-display">Procedure Details</DialogTitle>

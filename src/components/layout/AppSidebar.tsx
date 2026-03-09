@@ -32,11 +32,11 @@ const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Patients", url: "/patients", icon: Users },
   { title: "Appointments", url: "/appointments", icon: Calendar },
-  { title: "Service Master", url: "/services", icon: Stethoscope },
   { title: "Procedures", url: "/procedures", icon: ClipboardList },
   { title: "Photos", url: "/photos", icon: Camera },
   { title: "Pharmacy", url: "/pharma", icon: Pill },
   { title: "Billing", url: "/billing", icon: Receipt },
+  { title: "Service Master", url: "/services", icon: Stethoscope },
   { title: "Leave", url: "/leave", icon: CalendarDays },
   { title: "Reports", url: "/reports", icon: BarChart3 },
 ];

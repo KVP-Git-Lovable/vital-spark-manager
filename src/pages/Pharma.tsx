@@ -96,6 +96,15 @@ const Pharma = () => {
     },
   });
 
+  const { data: pharmaTaxes = [] } = useQuery({
+    queryKey: ["tax-master-active-pharma"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("tax_master").select("*").eq("is_active", true).order("rate");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // ─── Mutations ──────────────────────────────────
   const addProduct = useMutation({
     mutationFn: async () => {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye } from "lucide-react";
+import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -217,6 +218,11 @@ const PatientDetail = () => {
           </Button>
         </motion.div>
       )}
+
+      {/* AI Patient 360 */}
+      <div className="mb-4">
+        <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+      </div>
 
       <Tabs defaultValue="procedures" className="mt-2">
         <TabsList>

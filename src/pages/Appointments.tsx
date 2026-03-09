@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon } from "lucide-react";
+import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +48,7 @@ const Appointments = () => {
   const [view, setView] = useState<"week" | "day">("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [open, setOpen] = useState(false);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const today = new Date();
 
   // Form state
@@ -380,9 +382,16 @@ const Appointments = () => {
                     const dayAppts = getApptsForSlot(date, hour);
                     const isToday = date.toDateString() === today.toDateString();
                     return (
-                      <div key={dayIndex} className={`border-l p-1 ${isToday ? "bg-primary/5" : ""}`}>
+                      <div key={dayIndex} className={`border-l p-1 min-h-[72px] cursor-pointer hover:bg-muted/30 transition-colors ${isToday ? "bg-primary/5" : ""}`} onClick={() => {
+                        const d = new Date(date);
+                        d.setHours(hour, 0, 0, 0);
+                        setStartDate(d);
+                        setStartTime(`${String(hour).padStart(2, "0")}:00`);
+                        setEndTime(`${String(hour).padStart(2, "0")}:30`);
+                        setOpen(true);
+                      }}>
                         {dayAppts.map((apt: any, ai: number) => (
-                          <div key={apt.id} className={`rounded-md border p-2 text-xs cursor-pointer hover:opacity-80 transition-opacity mb-1 ${colorForIndex(ai)}`}>
+                          <div key={apt.id} className={`rounded-md border p-2 text-xs cursor-pointer hover:opacity-80 transition-opacity mb-1 ${colorForIndex(ai)}`} onClick={(e) => { e.stopPropagation(); setSelectedAppointmentId(apt.id); }}>
                             <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name}</p>
                             <p className="opacity-70 truncate">{apt.service}</p>
                             <div className="flex items-center gap-1 mt-1 opacity-70">
@@ -411,19 +420,26 @@ const Appointments = () => {
                     <div className="w-24 p-3 text-sm text-muted-foreground text-right shrink-0">
                       {hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? "12:00 PM" : `${hour}:00 AM`}
                     </div>
-                    <div className="flex-1 border-l p-2 space-y-1">
-                      {dayAppts.map((apt: any, ai: number) => (
-                        <div key={apt.id} className={`rounded-lg border p-3 cursor-pointer hover:opacity-80 transition-opacity ${colorForIndex(ai)}`}>
-                          <div className="flex items-center justify-between">
-                            <p className="font-medium text-sm">{apt.patient_name || apt.patients?.first_name}</p>
-                            <div className="flex items-center gap-1">
-                              {apt.is_recurring && <Badge variant="secondary" className="text-[10px] px-1.5 py-0"><Repeat className="h-2.5 w-2.5 mr-0.5" />Recurring</Badge>}
-                              <span className="text-xs opacity-70">{format(new Date(apt.start_time), "h:mm a")}</span>
+                    <div className="flex-1 border-l p-2 space-y-1 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => {
+                        const d = new Date(currentDate);
+                        d.setHours(hour, 0, 0, 0);
+                        setStartDate(d);
+                        setStartTime(`${String(hour).padStart(2, "0")}:00`);
+                        setEndTime(`${String(hour).padStart(2, "0")}:30`);
+                        setOpen(true);
+                      }}>
+                        {dayAppts.map((apt: any, ai: number) => (
+                          <div key={apt.id} className={`rounded-lg border p-3 cursor-pointer hover:opacity-80 transition-opacity ${colorForIndex(ai)}`} onClick={(e) => { e.stopPropagation(); setSelectedAppointmentId(apt.id); }}>
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium text-sm">{apt.patient_name || apt.patients?.first_name}</p>
+                              <div className="flex items-center gap-1">
+                                {apt.is_recurring && <Badge variant="secondary" className="text-[10px] px-1.5 py-0"><Repeat className="h-2.5 w-2.5 mr-0.5" />Recurring</Badge>}
+                                <span className="text-xs opacity-70">{format(new Date(apt.start_time), "h:mm a")}</span>
+                              </div>
                             </div>
+                            <p className="text-xs opacity-70 mt-0.5">{apt.service}</p>
                           </div>
-                          <p className="text-xs opacity-70 mt-0.5">{apt.service}</p>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   </div>
                 );
@@ -432,6 +448,11 @@ const Appointments = () => {
           )}
         </div>
       </motion.div>
+
+      <AppointmentDetailSheet
+        appointmentId={selectedAppointmentId}
+        onClose={() => setSelectedAppointmentId(null)}
+      />
     </div>
   );
 };

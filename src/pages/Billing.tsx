@@ -268,7 +268,7 @@ const Billing = () => {
             invoice_number: `INV-${baseNum}-S${i + 1}`,
             patient_id: patientId || null,
             patient_name: patientName,
-            services,
+            services: allServices,
             total_amount: stageTotal,
             paid_amount: stage.paid,
             status,
@@ -294,7 +294,7 @@ const Billing = () => {
             invoice_number: `INV-${baseNum}-R${i + 1}`,
             patient_id: patientId || null,
             patient_name: patientName,
-            services,
+            services: allServices,
             total_amount: totalPerInst,
             paid_amount: collected,
             status,
@@ -309,8 +309,9 @@ const Billing = () => {
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
       } else {
-        const taxAmt = totalAmount * taxRate / 100;
-        const grandTotal = totalAmount + taxAmt;
+        const combinedSubtotal = totalAmount + pharmaSubtotal;
+        const taxAmt = combinedSubtotal * taxRate / 100;
+        const grandTotal = combinedSubtotal + taxAmt;
         let status = "Pending";
         if (paidAmount >= grandTotal && grandTotal > 0) status = "Paid";
         else if (paidAmount > 0) status = "Partial";
@@ -319,7 +320,7 @@ const Billing = () => {
           invoice_number: `INV-${baseNum}`,
           patient_id: patientId || null,
           patient_name: patientName,
-          services,
+          services: allServices,
           total_amount: grandTotal,
           paid_amount: paidAmount,
           status,
@@ -331,6 +332,18 @@ const Billing = () => {
           tax_amount: taxAmt,
         });
         if (error) throw error;
+      }
+
+      // Deduct pharma inventory for sold items
+      for (const item of pharmaItems) {
+        if (item.inventory_id && item.quantity > 0) {
+          const invRecord = pharmaInventory.find((inv: any) => inv.id === item.inventory_id) as any;
+          if (invRecord) {
+            await supabase.from("pharma_inventory").update({
+              quantity: Math.max(0, invRecord.quantity - item.quantity)
+            }).eq("id", item.inventory_id);
+          }
+        }
       }
     },
     onSuccess: () => {

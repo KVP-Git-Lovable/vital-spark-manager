@@ -182,6 +182,9 @@ export type Database = {
           payment_type: string
           services: string[]
           status: string
+          tax_amount: number | null
+          tax_id: string | null
+          tax_rate: number | null
           total_amount: number
           updated_at: string
         }
@@ -197,6 +200,9 @@ export type Database = {
           payment_type?: string
           services?: string[]
           status?: string
+          tax_amount?: number | null
+          tax_id?: string | null
+          tax_rate?: number | null
           total_amount?: number
           updated_at?: string
         }
@@ -212,6 +218,9 @@ export type Database = {
           payment_type?: string
           services?: string[]
           status?: string
+          tax_amount?: number | null
+          tax_id?: string | null
+          tax_rate?: number | null
           total_amount?: number
           updated_at?: string
         }
@@ -221,6 +230,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_tax_id_fkey"
+            columns: ["tax_id"]
+            isOneToOne: false
+            referencedRelation: "tax_master"
             referencedColumns: ["id"]
           },
         ]
@@ -527,6 +543,9 @@ export type Database = {
           patient_name: string | null
           payment_mode: string
           status: string
+          tax_amount: number | null
+          tax_id: string | null
+          tax_rate: number | null
           total_amount: number
         }
         Insert: {
@@ -539,6 +558,9 @@ export type Database = {
           patient_name?: string | null
           payment_mode?: string
           status?: string
+          tax_amount?: number | null
+          tax_id?: string | null
+          tax_rate?: number | null
           total_amount?: number
         }
         Update: {
@@ -551,6 +573,9 @@ export type Database = {
           patient_name?: string | null
           payment_mode?: string
           status?: string
+          tax_amount?: number | null
+          tax_id?: string | null
+          tax_rate?: number | null
           total_amount?: number
         }
         Relationships: [
@@ -559,6 +584,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pharma_bills_tax_id_fkey"
+            columns: ["tax_id"]
+            isOneToOne: false
+            referencedRelation: "tax_master"
             referencedColumns: ["id"]
           },
         ]
@@ -887,6 +919,33 @@ export type Database = {
           is_active?: boolean
           name?: string
           permissions?: string[] | null
+        }
+        Relationships: []
+      }
+      tax_master: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          rate: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          rate?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          rate?: number
         }
         Relationships: []
       }

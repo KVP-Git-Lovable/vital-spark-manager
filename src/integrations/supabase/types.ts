@@ -124,6 +124,62 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          created_at: string
+          id: string
+          invoice_number: string
+          notes: string | null
+          paid_amount: number
+          patient_id: string | null
+          patient_name: string | null
+          payment_mode: string | null
+          payment_type: string
+          services: string[]
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invoice_number: string
+          notes?: string | null
+          paid_amount?: number
+          patient_id?: string | null
+          patient_name?: string | null
+          payment_mode?: string | null
+          payment_type?: string
+          services?: string[]
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invoice_number?: string
+          notes?: string | null
+          paid_amount?: number
+          patient_id?: string | null
+          patient_name?: string | null
+          payment_mode?: string | null
+          payment_type?: string
+          services?: string[]
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           address: string | null

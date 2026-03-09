@@ -422,6 +422,15 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
           contextId={appointmentId!}
         />
       )}
+
+      {skinTrackerOpen && appointment?.patient_id && (
+        <SkinTracker
+          open={skinTrackerOpen}
+          onOpenChange={setSkinTrackerOpen}
+          photos={photos}
+          patientName={patientName}
+        />
+      )}
     </>
   );
 }

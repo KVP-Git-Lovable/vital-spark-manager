@@ -417,6 +417,19 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
           patientName={patientName}
         />
       )}
+
+      {procFormOpen && appointment?.patient_id && (
+        <ProcedureFormDialog
+          open={procFormOpen}
+          onOpenChange={setProcFormOpen}
+          defaultPatientId={appointment.patient_id}
+          defaultAppointmentId={appointmentId!}
+          defaultStaffId={appointment.staff_id}
+          defaultServiceName={appointment.service}
+        />
+      )}
+
+      <ProcedureDetailSheet procedureId={selectedProcId} onClose={() => setSelectedProcId(null)} />
     </>
   );
 }

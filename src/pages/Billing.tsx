@@ -136,6 +136,7 @@ const Billing = () => {
   const [paymentType, setPaymentType] = useState("One-time");
   const [paymentMode, setPaymentMode] = useState("Cash");
   const [notes, setNotes] = useState("");
+  const [selectedTaxId, setSelectedTaxId] = useState("");
 
   // Staged: multiple stages with amount + paid
   const [stages, setStages] = useState<StageRow[]>([{ label: "Stage 1", amount: 0, paid: 0 }]);

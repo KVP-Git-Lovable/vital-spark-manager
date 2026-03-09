@@ -15,52 +15,45 @@ const PortalLogin = () => {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!phone.trim() || !otp.trim()) {
-      toast.error("Please enter your phone number and OTP");
+    if (!phone.trim()) {
+      toast.error("Please enter your phone number");
       return;
     }
 
     setLoading(true);
     try {
-      // Find valid OTP token
-      const { data: token, error } = await supabase
-        .from("patient_portal_tokens")
-        .select("*, patients(first_name, last_name, phone)")
-        .eq("otp_code", otp.trim())
-        .eq("is_used", false)
-        .gte("expires_at", new Date().toISOString())
-        .limit(1)
-        .single();
-
-      if (error || !token) {
-        toast.error("Invalid or expired OTP. Please contact the clinic.");
-        setLoading(false);
-        return;
-      }
-
-      // Verify phone matches
-      const patientPhone = (token as any).patients?.phone;
+      // Find patient by phone number (skip OTP for now)
       const cleanInput = phone.replace(/\D/g, "").slice(-10);
-      const cleanStored = patientPhone?.replace(/\D/g, "").slice(-10);
+      
+      const { data: patients, error } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, phone")
+        .limit(100);
 
-      if (cleanInput !== cleanStored) {
-        toast.error("Phone number doesn't match our records");
+      if (error) {
+        toast.error("Something went wrong. Please try again.");
         setLoading(false);
         return;
       }
 
-      // Mark OTP as used
-      await supabase
-        .from("patient_portal_tokens")
-        .update({ is_used: true })
-        .eq("id", token.id);
+      // Find matching patient by phone
+      const patient = patients?.find(p => {
+        const cleanStored = p.phone?.replace(/\D/g, "").slice(-10);
+        return cleanStored === cleanInput;
+      });
 
-      // Store session in localStorage
+      if (!patient) {
+        toast.error("Phone number not found. Please contact the clinic.");
+        setLoading(false);
+        return;
+      }
+
+      // Store session in localStorage (simplified - no OTP)
       const session = {
-        patientId: token.patient_id,
-        sessionToken: token.session_token,
-        patientName: `${(token as any).patients?.first_name} ${(token as any).patients?.last_name}`,
-        expiresAt: token.expires_at,
+        patientId: patient.id,
+        sessionToken: crypto.randomUUID(),
+        patientName: `${patient.first_name} ${patient.last_name}`,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       };
       localStorage.setItem("portal_session", JSON.stringify(session));
 

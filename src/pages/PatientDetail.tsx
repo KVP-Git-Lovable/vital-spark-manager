@@ -157,6 +157,9 @@ const PatientDetail = () => {
             <Button variant="outline" size="sm" className="gap-1" onClick={() => setCameraOpen(true)}>
               <Camera className="h-4 w-4" /> Take Photo
             </Button>
+            <Button variant="outline" size="sm" className="gap-1" onClick={() => setSkinTrackerOpen(true)}>
+              <ScanEye className="h-4 w-4" /> Skin Tracker
+            </Button>
             <Button
               variant="outline"
               size="sm"

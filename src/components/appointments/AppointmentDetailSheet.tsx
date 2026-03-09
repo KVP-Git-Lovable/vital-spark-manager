@@ -361,9 +361,14 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                       <Camera className="h-4 w-4" /> Photos
                     </h3>
                     {appointment.patient_id && (
-                      <Button size="sm" variant="outline" className="gap-1" onClick={() => setCameraOpen(true)}>
-                        <Plus className="h-3 w-3" /> Take Photo
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => setSkinTrackerOpen(true)}>
+                          <ScanEye className="h-3 w-3" /> Skin Tracker
+                        </Button>
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => setCameraOpen(true)}>
+                          <Plus className="h-3 w-3" /> Take Photo
+                        </Button>
+                      </div>
                     )}
                   </div>
 

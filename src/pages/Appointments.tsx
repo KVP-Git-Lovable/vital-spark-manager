@@ -391,7 +391,7 @@ const Appointments = () => {
                         setOpen(true);
                       }}>
                         {dayAppts.map((apt: any, ai: number) => (
-                          <div key={apt.id} className={`rounded-md border p-2 text-xs cursor-pointer hover:opacity-80 transition-opacity mb-1 ${colorForIndex(ai)}`} onClick={() => setSelectedAppointmentId(apt.id)}>
+                          <div key={apt.id} className={`rounded-md border p-2 text-xs cursor-pointer hover:opacity-80 transition-opacity mb-1 ${colorForIndex(ai)}`} onClick={(e) => { e.stopPropagation(); setSelectedAppointmentId(apt.id); }}>
                             <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name}</p>
                             <p className="opacity-70 truncate">{apt.service}</p>
                             <div className="flex items-center gap-1 mt-1 opacity-70">

@@ -35,6 +35,7 @@ interface AppointmentDetailSheetProps {
 export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDetailSheetProps) {
   const queryClient = useQueryClient();
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
 
   // Fetch appointment

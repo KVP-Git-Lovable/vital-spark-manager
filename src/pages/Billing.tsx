@@ -334,6 +334,7 @@ const Billing = () => {
     setPaymentType("One-time");
     setPaymentMode("Cash");
     setNotes("");
+    setSelectedTaxId("");
     setStages([{ label: "Stage 1", amount: 0, paid: 0 }]);
     setRecurringCount(1);
     setRecurringAmount(0);

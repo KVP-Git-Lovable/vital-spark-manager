@@ -40,6 +40,7 @@ const Services = () => {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
 
   // Form state
   const [name, setName] = useState("");

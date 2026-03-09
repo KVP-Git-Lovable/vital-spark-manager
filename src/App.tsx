@@ -15,6 +15,7 @@ import Procedures from "./pages/Procedures";
 import Pharma from "./pages/Pharma";
 import Photos from "./pages/Photos";
 import LeaveManagement from "./pages/LeaveManagement";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

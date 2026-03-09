@@ -28,9 +28,11 @@ const fetchPatients = async (): Promise<Patient[]> => {
 };
 
 const Patients = () => {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [cameraPatient, setCameraPatient] = useState<Patient | null>(null);
 
   const { data: patients = [], isLoading, refetch } = useQuery({
     queryKey: ["patients"],

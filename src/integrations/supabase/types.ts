@@ -124,6 +124,51 @@ export type Database = {
           },
         ]
       }
+      clinic_settings: {
+        Row: {
+          address: string | null
+          city: string | null
+          created_at: string
+          email: string | null
+          gst_number: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          phone: string | null
+          pincode: string | null
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          gst_number?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          phone?: string | null
+          pincode?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          gst_number?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          phone?: string | null
+          pincode?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           created_at: string
@@ -817,6 +862,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      staff_roles: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          permissions: string[] | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          permissions?: string[] | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          permissions?: string[] | null
+        }
+        Relationships: []
+      }
+      working_hours: {
+        Row: {
+          break_end: string | null
+          break_start: string | null
+          close_time: string
+          created_at: string
+          day_of_week: number
+          id: string
+          is_open: boolean
+          open_time: string
+        }
+        Insert: {
+          break_end?: string | null
+          break_start?: string | null
+          close_time?: string
+          created_at?: string
+          day_of_week: number
+          id?: string
+          is_open?: boolean
+          open_time?: string
+        }
+        Update: {
+          break_end?: string | null
+          break_start?: string | null
+          close_time?: string
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          is_open?: boolean
+          open_time?: string
+        }
+        Relationships: []
       }
     }
     Views: {

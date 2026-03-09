@@ -49,6 +49,36 @@ const Services = () => {
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [medicines, setMedicines] = useState<MedicineInput[]>([]);
+  const [elaborating, setElaborating] = useState<string | null>(null);
+
+  const elaborate = async (fieldType: "diagnosis" | "procedure_notes" | "recommendations") => {
+    if (!name.trim()) {
+      toast.error("Enter a service name first");
+      return;
+    }
+    const currentText = fieldType === "diagnosis" ? diagnosis : fieldType === "procedure_notes" ? procedureNotes : recommendations;
+    setElaborating(fieldType);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elaborate-text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify({ serviceName: name, fieldType, currentText }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "AI request failed" }));
+        throw new Error(err.error || "AI request failed");
+      }
+      const { text } = await res.json();
+      if (fieldType === "diagnosis") setDiagnosis(text);
+      else if (fieldType === "procedure_notes") setProcedureNotes(text);
+      else setRecommendations(text);
+      toast.success("Text elaborated — review and edit as needed");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to elaborate");
+    } finally {
+      setElaborating(null);
+    }
+  };
 
   const { data: services = [], isLoading } = useQuery({
     queryKey: ["services"],

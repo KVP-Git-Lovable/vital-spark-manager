@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";

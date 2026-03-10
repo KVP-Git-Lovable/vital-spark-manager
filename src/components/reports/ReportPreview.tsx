@@ -15,10 +15,9 @@ import {
   LineChart,
   Line,
 } from "recharts";
-import { useNavigate } from "react-router-dom";
 
 const COLORS = [
-  "hsl(174, 62%, 38%)",
+  "hsl(var(--primary))",
   "hsl(210, 80%, 55%)",
   "hsl(152, 60%, 40%)",
   "hsl(38, 92%, 50%)",
@@ -63,7 +62,6 @@ export function ReportPreview({
 }: Props) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
@@ -74,59 +72,35 @@ export function ReportPreview({
     const primaryObj = getObjectByKey(primaryObject);
     if (!primaryObj) return;
 
-    // Build select columns from primary object only (simple approach)
     const allFieldKeys = [...new Set([...columns, ...groupRows, ...groupColumns])];
     const primaryFields = allFieldKeys
       .filter((fk) => fk.startsWith(`${primaryObject}.`))
       .map((fk) => fk.split(".")[1]);
 
-    // Always include id
     if (!primaryFields.includes("id")) primaryFields.push("id");
 
     let query = supabase.from(primaryObj.table as any).select(primaryFields.join(","));
 
-    // Apply filters for primary object
     filters
       .filter((f) => f.field.startsWith(`${primaryObject}.`))
       .forEach((f) => {
         const col = f.field.split(".")[1];
         switch (f.operator) {
-          case "equals":
-            query = query.eq(col, f.value);
-            break;
-          case "not_equals":
-            query = query.neq(col, f.value);
-            break;
-          case "contains":
-            query = query.ilike(col, `%${f.value}%`);
-            break;
-          case "gt":
-            query = query.gt(col, f.value);
-            break;
-          case "lt":
-            query = query.lt(col, f.value);
-            break;
-          case "gte":
-            query = query.gte(col, f.value);
-            break;
-          case "lte":
-            query = query.lte(col, f.value);
-            break;
-          case "is_null":
-            query = query.is(col, null);
-            break;
-          case "is_not_null":
-            query = query.not(col, "is", null);
-            break;
+          case "equals": query = query.eq(col, f.value); break;
+          case "not_equals": query = query.neq(col, f.value); break;
+          case "contains": query = query.ilike(col, `%${f.value}%`); break;
+          case "gt": query = query.gt(col, f.value); break;
+          case "lt": query = query.lt(col, f.value); break;
+          case "gte": query = query.gte(col, f.value); break;
+          case "lte": query = query.lte(col, f.value); break;
+          case "is_null": query = query.is(col, null); break;
+          case "is_not_null": query = query.not(col, "is", null); break;
         }
       });
 
     query = query.limit(500);
-
     const { data: result, error } = await query;
-    if (!error && result) {
-      setData(result);
-    }
+    if (!error && result) setData(result);
     setLoading(false);
   };
 
@@ -139,11 +113,21 @@ export function ReportPreview({
   const handleRecordClick = (record: any) => {
     const route = RECORD_ROUTES[primaryObject];
     if (route && record.id) {
-      // Open in new tab using window.open
-      const detailPath =
-        primaryObject === "patients" ? `${route}/${record.id}` : route;
+      const detailPath = primaryObject === "patients" ? `${route}/${record.id}` : route;
       window.open(detailPath, "_blank");
     }
+  };
+
+  const formatVal = (val: any) => {
+    if (val === null || val === undefined) return "—";
+    if (typeof val === "boolean") return val ? "Yes" : "No";
+    if (typeof val === "number") return val.toLocaleString("en-IN");
+    if (String(val).match(/^\d{4}-\d{2}-\d{2}/)) {
+      try {
+        return new Date(val).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      } catch { return String(val); }
+    }
+    return String(val);
   };
 
   if (loading) {
@@ -158,8 +142,8 @@ export function ReportPreview({
     );
   }
 
-  // Build grouped chart data
   const groupField = groupRows[0]?.split(".")[1];
+  const groupColField = groupColumns[0]?.split(".")[1];
   const numericCols = columns.filter((c) => {
     const obj = getObjectByKey(c.split(".")[0]);
     return obj?.fields.find((f) => f.key === c.split(".")[1])?.type === "number";
@@ -188,7 +172,6 @@ export function ReportPreview({
       const sum = data.reduce((s, r) => s + (Number(r[col]) || 0), 0);
       return { label: getFieldLabel(nc), sum };
     });
-
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="data-table p-4 text-center">
@@ -197,9 +180,7 @@ export function ReportPreview({
         </div>
         {sums.map((s) => (
           <div key={s.label} className="data-table p-4 text-center">
-            <div className="text-3xl font-display font-bold text-foreground">
-              {s.sum.toLocaleString("en-IN")}
-            </div>
+            <div className="text-3xl font-display font-bold text-foreground">{s.sum.toLocaleString("en-IN")}</div>
             <div className="text-xs text-muted-foreground mt-1">{s.label}</div>
           </div>
         ))}
@@ -217,11 +198,11 @@ export function ReportPreview({
       return (
         <ResponsiveContainer width="100%" height={height}>
           <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 90%)" />
-            <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(210, 15%, 50%)" />
-            <YAxis tick={{ fontSize: 11 }} stroke="hsl(210, 15%, 50%)" />
-            <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid hsl(210, 20%, 90%)" }} />
-            <Bar dataKey={valueKey} fill="hsl(174, 62%, 38%)" radius={[6, 6, 0, 0]} />
+            <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Bar dataKey={valueKey} fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       );
@@ -246,7 +227,7 @@ export function ReportPreview({
                   <Cell key={i} fill={COLORS[i % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid hsl(210, 20%, 90%)" }} />
+              <Tooltip />
             </PieChart>
           </ResponsiveContainer>
           <div className="flex flex-wrap gap-3 justify-center mt-2">
@@ -265,19 +246,73 @@ export function ReportPreview({
       return (
         <ResponsiveContainer width="100%" height={height}>
           <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 90%)" />
-            <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(210, 15%, 50%)" />
-            <YAxis tick={{ fontSize: 11 }} stroke="hsl(210, 15%, 50%)" />
-            <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid hsl(210, 20%, 90%)" }} />
-            <Line type="monotone" dataKey={valueKey} stroke="hsl(174, 62%, 38%)" strokeWidth={2.5} dot={{ fill: "hsl(174, 62%, 38%)", r: 4 }} />
+            <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Line type="monotone" dataKey={valueKey} stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ fill: "hsl(var(--primary))", r: 4 }} />
           </LineChart>
         </ResponsiveContainer>
       );
     }
   }
 
-  // Table view (default)
+  // TABLE VIEW — with group rows support
   const displayCols = columns.filter((c) => c.startsWith(`${primaryObject}.`));
+
+  if (groupField && chartType === "table") {
+    // Group data by the groupField
+    const grouped: Record<string, any[]> = {};
+    data.forEach((row) => {
+      const key = String(row[groupField] || "N/A");
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(row);
+    });
+
+    const groupLabel = getFieldLabel(groupRows[0]);
+
+    return (
+      <div className="overflow-x-auto">
+        {Object.entries(grouped).map(([groupKey, rows]) => (
+          <div key={groupKey} className="mb-4">
+            <div className="bg-muted/50 px-3 py-1.5 rounded-t text-xs font-semibold text-foreground flex items-center gap-2">
+              <span className="text-muted-foreground">{groupLabel}:</span>
+              <span>{groupKey}</span>
+              <Badge variant="secondary" className="text-[10px] ml-auto">{rows.length}</Badge>
+            </div>
+            <table className="w-full text-sm border border-border rounded-b overflow-hidden">
+              <thead>
+                <tr className="border-b border-border bg-muted/20">
+                  {displayCols.map((c) => (
+                    <th key={c} className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
+                      {getFieldLabel(c)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.slice(0, compact ? 5 : 50).map((row, i) => (
+                  <tr
+                    key={i}
+                    className="border-b border-border/50 hover:bg-accent/20 cursor-pointer transition-colors"
+                    onClick={() => handleRecordClick(row)}
+                  >
+                    {displayCols.map((c) => (
+                      <td key={c} className="py-1.5 px-3 whitespace-nowrap text-xs text-foreground">
+                        {formatVal(row[c.split(".")[1]])}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Flat table (no grouping)
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -297,27 +332,11 @@ export function ReportPreview({
               className="border-b border-border/50 hover:bg-accent/20 cursor-pointer transition-colors"
               onClick={() => handleRecordClick(row)}
             >
-              {displayCols.map((c) => {
-                const col = c.split(".")[1];
-                let val = row[col];
-                if (val === null || val === undefined) val = "—";
-                else if (typeof val === "boolean") val = val ? "Yes" : "No";
-                else if (typeof val === "number") val = val.toLocaleString("en-IN");
-                else if (String(val).match(/^\d{4}-\d{2}-\d{2}/)) {
-                  try {
-                    val = new Date(val).toLocaleDateString("en-IN", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    });
-                  } catch {}
-                }
-                return (
-                  <td key={c} className="py-2 px-3 whitespace-nowrap text-foreground">
-                    {String(val)}
-                  </td>
-                );
-              })}
+              {displayCols.map((c) => (
+                <td key={c} className="py-2 px-3 whitespace-nowrap text-foreground">
+                  {formatVal(row[c.split(".")[1]])}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>

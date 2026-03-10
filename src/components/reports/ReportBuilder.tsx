@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -25,6 +24,8 @@ import {
   PieChart,
   LineChart,
   Hash,
+  ChevronDown,
+  ChevronRight,
   Filter,
 } from "lucide-react";
 import {
@@ -63,16 +64,19 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
   const [filters, setFilters] = useState<ReportFilter[]>(initial?.filters || []);
   const [chartType, setChartType] = useState(initial?.chart_type || "table");
   const [fieldSearch, setFieldSearch] = useState("");
-  const [showPreview, setShowPreview] = useState(false);
-  const [activeTab, setActiveTab] = useState("outline");
   const [dragItem, setDragItem] = useState<{ field: string; source: string } | null>(null);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    fields: true,
+    groupRows: true,
+    groupColumns: false,
+    columns: true,
+    filters: true,
+  });
 
-  // Step 1: Object not yet selected
   const primaryObj = getObjectByKey(primaryObject);
   const relatedObj = relatedObject ? getObjectByKey(relatedObject) : null;
   const relatedOptions = primaryObject ? getRelatedObjects(primaryObject) : [];
 
-  // All available fields
   const allFields: (ReportField & { objectKey: string; prefix: string })[] = [];
   if (primaryObj) {
     primaryObj.fields.forEach((f) =>
@@ -91,8 +95,7 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
       f.prefix.toLowerCase().includes(fieldSearch.toLowerCase())
   );
 
-  const fieldKey = (f: { objectKey: string; key: string }) => `${f.objectKey}.${f.key}`;
-
+  const fieldKeyStr = (f: { objectKey: string; key: string }) => `${f.objectKey}.${f.key}`;
   const usedFields = new Set([...columns, ...groupRows, ...groupColumns]);
 
   const handleDragStart = (field: string, source: string) => {
@@ -102,23 +105,19 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
   const handleDrop = (target: string) => {
     if (!dragItem) return;
     const { field, source } = dragItem;
-
-    // Remove from source
     if (source === "columns") setColumns((p) => p.filter((c) => c !== field));
     if (source === "groupRows") setGroupRows((p) => p.filter((c) => c !== field));
     if (source === "groupColumns") setGroupColumns((p) => p.filter((c) => c !== field));
-
-    // Add to target
     if (target === "columns" && !columns.includes(field)) setColumns((p) => [...p, field]);
     if (target === "groupRows" && !groupRows.includes(field)) setGroupRows((p) => [...p, field]);
-    if (target === "groupColumns" && !groupColumns.includes(field))
-      setGroupColumns((p) => [...p, field]);
-
+    if (target === "groupColumns" && !groupColumns.includes(field)) setGroupColumns((p) => [...p, field]);
     setDragItem(null);
   };
 
-  const addFieldToColumns = (fk: string) => {
-    if (!columns.includes(fk)) setColumns((p) => [...p, fk]);
+  const addFieldTo = (fk: string, target: string) => {
+    if (target === "columns" && !columns.includes(fk)) setColumns((p) => [...p, fk]);
+    if (target === "groupRows" && !groupRows.includes(fk)) setGroupRows((p) => [...p, fk]);
+    if (target === "groupColumns" && !groupColumns.includes(fk)) setGroupColumns((p) => [...p, fk]);
   };
 
   const removeField = (fk: string, from: string) => {
@@ -128,24 +127,17 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
   };
 
   const getFieldLabel = (fk: string) => {
-    const [objKey, fieldKey] = fk.split(".");
+    const [objKey, fldKey] = fk.split(".");
     const obj = getObjectByKey(objKey);
-    const field = obj?.fields.find((f) => f.key === fieldKey);
-    return field ? `${field.label}` : fk;
+    return obj?.fields.find((f) => f.key === fldKey)?.label || fk;
   };
 
-  const getFieldObj = (fk: string) => {
-    const [objKey] = fk.split(".");
-    return getObjectByKey(objKey)?.label || objKey;
-  };
-
-  // Filters
   const addFilter = () => {
     if (allFields.length === 0) return;
     const first = allFields[0];
     setFilters((p) => [
       ...p,
-      { field: fieldKey(first), operator: "equals", value: "", objectKey: first.objectKey },
+      { field: fieldKeyStr(first), operator: "equals", value: "", objectKey: first.objectKey },
     ]);
   };
 
@@ -155,6 +147,10 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
 
   const removeFilter = (idx: number) => {
     setFilters((p) => p.filter((_, i) => i !== idx));
+  };
+
+  const toggleSection = (key: string) => {
+    setExpandedSections((p) => ({ ...p, [key]: !p[key] }));
   };
 
   const handleSave = () => {
@@ -186,10 +182,8 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
             <p className="text-sm text-muted-foreground">Step 1: Select a primary object</p>
           </div>
         </div>
-
         <div className="data-table overflow-hidden">
           <div className="p-4 border-b border-border">
-            <h3 className="font-semibold text-foreground mb-1">Select a Report Type</h3>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -200,7 +194,6 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
               />
             </div>
           </div>
-
           <div className="divide-y divide-border max-h-[60vh] overflow-y-auto">
             {REPORT_OBJECTS.filter((o) =>
               o.label.toLowerCase().includes(fieldSearch.toLowerCase())
@@ -215,9 +208,7 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
               >
                 <div>
                   <span className="font-medium text-foreground">{obj.label}</span>
-                  <span className="text-xs text-muted-foreground ml-2">
-                    {obj.fields.length} fields
-                  </span>
+                  <span className="text-xs text-muted-foreground ml-2">{obj.fields.length} fields</span>
                 </div>
                 <Badge variant="secondary">{obj.table}</Badge>
               </button>
@@ -228,54 +219,24 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
     );
   }
 
-  if (showPreview) {
-    return (
-      <div>
-        <div className="flex items-center gap-3 mb-4">
-          <Button variant="ghost" size="icon" onClick={() => setShowPreview(false)}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="font-display text-xl font-bold text-foreground flex-1 truncate">
-            {name || "Untitled Report"}
-          </h1>
-          <Button onClick={handleSave} className="gap-2">
-            <Save className="h-4 w-4" /> Save
-          </Button>
-        </div>
-        <ReportPreview
-          primaryObject={primaryObject}
-          relatedObject={relatedObject}
-          columns={columns}
-          groupRows={groupRows}
-          groupColumns={groupColumns}
-          filters={filters}
-          chartType={chartType}
-        />
-      </div>
-    );
-  }
-
-  // Step 2: Builder UI (Salesforce-style)
+  // Step 2: Salesforce-style builder
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-1 py-3 border-b border-border shrink-0 flex-wrap">
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <ArrowLeft className="h-5 w-5" />
+      {/* Header bar */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0 flex-wrap bg-card">
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+          <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1 min-w-0">
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Report Name"
-            className="font-display font-semibold text-base border-none shadow-none px-0 h-8 focus-visible:ring-0"
-          />
-        </div>
-        <Badge variant="outline" className="shrink-0">{primaryObj?.label}</Badge>
-        {relatedObj && <Badge variant="outline" className="shrink-0">+ {relatedObj.label}</Badge>}
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Report Name"
+          className="font-display font-semibold text-sm border-none shadow-none px-1 h-7 focus-visible:ring-0 max-w-[200px] md:max-w-[300px]"
+        />
+        <Badge variant="outline" className="text-[10px] shrink-0">{primaryObj?.label}</Badge>
+        {relatedObj && <Badge variant="outline" className="text-[10px] shrink-0">+ {relatedObj.label}</Badge>}
 
-        {/* Chart type picker */}
-        <div className="flex gap-1 shrink-0">
+        <div className="flex gap-0.5 shrink-0 ml-auto">
           {CHART_TYPES.map((ct) => {
             const Icon = chartIcons[ct.key] || Table;
             return (
@@ -283,234 +244,267 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
                 key={ct.key}
                 size="icon"
                 variant={chartType === ct.key ? "default" : "ghost"}
-                className="h-8 w-8"
+                className="h-7 w-7"
                 title={ct.label}
                 onClick={() => setChartType(ct.key)}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-3.5 w-3.5" />
               </Button>
             );
           })}
         </div>
 
-        <Button variant="outline" size="sm" onClick={() => setShowPreview(true)} className="gap-1">
-          <Play className="h-3.5 w-3.5" /> Run
+        <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleSave}>
+          <Save className="h-3 w-3" /> Save
         </Button>
-        <Button size="sm" onClick={handleSave} className="gap-1">
-          <Save className="h-3.5 w-3.5" /> Save
+        <Button size="sm" className="h-7 gap-1 text-xs" onClick={handleSave}>
+          <Play className="h-3 w-3" /> Save & Run
         </Button>
       </div>
 
-      {/* Main builder area */}
+      {/* Main area: left panel + right preview */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar - Fields */}
-        <div className="w-64 border-r border-border flex flex-col shrink-0 bg-card hidden md:flex">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1">
-            <TabsList className="mx-2 mt-2 grid grid-cols-2">
-              <TabsTrigger value="outline" className="text-xs">Outline</TabsTrigger>
-              <TabsTrigger value="filters" className="text-xs">
-                Filters {filters.length > 0 && <Badge className="ml-1 h-4 px-1 text-[10px]">{filters.length}</Badge>}
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="outline" className="flex-1 overflow-hidden flex flex-col m-0">
-              {/* Related object picker */}
-              {relatedOptions.length > 0 && (
-                <div className="px-3 py-2 border-b border-border">
-                  <Label className="text-xs text-muted-foreground mb-1 block">Related Object</Label>
-                  <Select value={relatedObject} onValueChange={setRelatedObject}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {relatedOptions.map((ro) => (
-                        <SelectItem key={ro.key} value={ro.key}>
-                          {ro.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Search */}
-              <div className="px-3 py-2 border-b border-border">
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Search fields..."
-                    value={fieldSearch}
-                    onChange={(e) => setFieldSearch(e.target.value)}
-                    className="pl-7 h-7 text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Fields list */}
-              <div className="flex-1 overflow-y-auto">
-                {primaryObj && (
-                  <FieldGroup
-                    label={primaryObj.label}
-                    fields={filteredFields.filter((f) => f.objectKey === primaryObject)}
-                    usedFields={usedFields}
-                    onAdd={addFieldToColumns}
-                    onDragStart={handleDragStart}
-                    fieldKeyFn={fieldKey}
-                  />
-                )}
-                {relatedObj && (
-                  <FieldGroup
-                    label={relatedObj.label}
-                    fields={filteredFields.filter((f) => f.objectKey === relatedObject)}
-                    usedFields={usedFields}
-                    onAdd={addFieldToColumns}
-                    onDragStart={handleDragStart}
-                    fieldKeyFn={fieldKey}
-                  />
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="filters" className="flex-1 overflow-y-auto m-0 p-3">
-              <div className="space-y-3">
-                {filters.map((filter, idx) => (
-                  <FilterRow
-                    key={idx}
-                    filter={filter}
-                    allFields={allFields}
-                    fieldKeyFn={fieldKey}
-                    onChange={(patch) => updateFilter(idx, patch)}
-                    onRemove={() => removeFilter(idx)}
-                  />
-                ))}
-                <Button size="sm" variant="outline" onClick={addFilter} className="w-full gap-1 text-xs">
-                  <Plus className="h-3.5 w-3.5" /> Add Filter
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* Center - Drop zones & preview */}
-        <div className="flex-1 flex flex-col overflow-y-auto p-4 gap-4">
-          {/* Description */}
-          <Input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Report description (optional)"
-            className="text-sm"
-          />
-
-          {/* Mobile field picker */}
-          <div className="md:hidden">
-            <details className="data-table">
-              <summary className="px-3 py-2 font-medium text-sm cursor-pointer">
-                Fields ({allFields.length}) & Filters
-              </summary>
-              <div className="px-3 pb-3 space-y-2 max-h-60 overflow-y-auto">
-                <div className="relative mb-2">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Search..."
-                    value={fieldSearch}
-                    onChange={(e) => setFieldSearch(e.target.value)}
-                    className="pl-7 h-7 text-xs"
-                  />
-                </div>
-                {filteredFields.map((f) => {
-                  const fk = fieldKey(f);
-                  return (
-                    <button
-                      key={fk}
-                      className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-accent/50 flex items-center justify-between"
-                      onClick={() => addFieldToColumns(fk)}
-                    >
-                      <span>
-                        <span className="text-muted-foreground">{f.prefix}.</span>
-                        {f.label}
-                      </span>
-                      {usedFields.has(fk) && <Badge variant="secondary" className="text-[10px] h-4 px-1">Added</Badge>}
-                    </button>
-                  );
-                })}
-              </div>
-            </details>
+        {/* LEFT PANEL — Salesforce-style cascaded outline */}
+        <div className="w-72 md:w-80 border-r border-border flex flex-col shrink-0 bg-card overflow-y-auto">
+          {/* Search fields */}
+          <div className="px-3 py-2 border-b border-border">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search all fields..."
+                value={fieldSearch}
+                onChange={(e) => setFieldSearch(e.target.value)}
+                className="pl-7 h-7 text-xs"
+              />
+            </div>
           </div>
 
-          {/* Drop zones */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Related object selector */}
+          {relatedOptions.length > 0 && (
+            <div className="px-3 py-2 border-b border-border">
+              <Label className="text-[10px] text-muted-foreground mb-1 block">Related Object</Label>
+              <Select value={relatedObject || "none"} onValueChange={(v) => setRelatedObject(v === "none" ? "" : v)}>
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {relatedOptions.map((ro) => (
+                    <SelectItem key={ro.key} value={ro.key}>{ro.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Description */}
+          <div className="px-3 py-2 border-b border-border">
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Description (optional)"
+              className="h-7 text-xs"
+            />
+          </div>
+
+          {/* GROUPS section */}
+          <CollapsibleSection
+            title="GROUP ROWS"
+            count={groupRows.length}
+            expanded={expandedSections.groupRows}
+            onToggle={() => toggleSection("groupRows")}
+          >
             <DropZone
-              title="Group Rows"
-              icon="📊"
               items={groupRows}
               getLabel={getFieldLabel}
-              getObj={getFieldObj}
               onRemove={(fk) => removeField(fk, "groupRows")}
               onDrop={() => handleDrop("groupRows")}
               onDragOver={(e) => e.preventDefault()}
               onDragStart={handleDragStart}
               source="groupRows"
+              placeholder="Drag fields here or search below"
             />
+            <AddFieldSearch
+              allFields={filteredFields}
+              usedFields={usedFields}
+              fieldKeyFn={fieldKeyStr}
+              onAdd={(fk) => addFieldTo(fk, "groupRows")}
+            />
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="GROUP COLUMNS"
+            count={groupColumns.length}
+            expanded={expandedSections.groupColumns}
+            onToggle={() => toggleSection("groupColumns")}
+          >
             <DropZone
-              title="Group Columns"
-              icon="📋"
               items={groupColumns}
               getLabel={getFieldLabel}
-              getObj={getFieldObj}
               onRemove={(fk) => removeField(fk, "groupColumns")}
               onDrop={() => handleDrop("groupColumns")}
               onDragOver={(e) => e.preventDefault()}
               onDragStart={handleDragStart}
               source="groupColumns"
+              placeholder="Drag fields here"
             />
+            <AddFieldSearch
+              allFields={filteredFields}
+              usedFields={usedFields}
+              fieldKeyFn={fieldKeyStr}
+              onAdd={(fk) => addFieldTo(fk, "groupColumns")}
+            />
+          </CollapsibleSection>
+
+          {/* COLUMNS section */}
+          <CollapsibleSection
+            title="COLUMNS"
+            count={columns.length}
+            expanded={expandedSections.columns}
+            onToggle={() => toggleSection("columns")}
+          >
             <DropZone
-              title="Columns"
-              icon="📄"
               items={columns}
               getLabel={getFieldLabel}
-              getObj={getFieldObj}
               onRemove={(fk) => removeField(fk, "columns")}
               onDrop={() => handleDrop("columns")}
               onDragOver={(e) => e.preventDefault()}
               onDragStart={handleDragStart}
               source="columns"
+              placeholder="Drag fields here"
             />
-          </div>
+            <AddFieldSearch
+              allFields={filteredFields}
+              usedFields={usedFields}
+              fieldKeyFn={fieldKeyStr}
+              onAdd={(fk) => addFieldTo(fk, "columns")}
+            />
+          </CollapsibleSection>
 
-          {/* Mobile filters */}
-          <div className="md:hidden data-table p-3">
-            <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
-              <Filter className="h-3.5 w-3.5" /> Filters
-            </h4>
-            {filters.map((filter, idx) => (
-              <FilterRow
-                key={idx}
-                filter={filter}
-                allFields={allFields}
-                fieldKeyFn={fieldKey}
-                onChange={(patch) => updateFilter(idx, patch)}
-                onRemove={() => removeFilter(idx)}
-              />
-            ))}
-            <Button size="sm" variant="outline" onClick={addFilter} className="w-full gap-1 text-xs mt-2">
-              <Plus className="h-3.5 w-3.5" /> Add Filter
-            </Button>
-          </div>
-
-          {/* Inline preview */}
-          <div className="data-table p-4 flex-1 min-h-[300px]">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-display font-semibold text-sm">Preview</h4>
-              <Button size="sm" variant="outline" onClick={() => setShowPreview(true)} className="gap-1 text-xs">
-                <Play className="h-3 w-3" /> Full Preview
+          {/* FILTERS section */}
+          <CollapsibleSection
+            title="FILTERS"
+            count={filters.length}
+            expanded={expandedSections.filters}
+            onToggle={() => toggleSection("filters")}
+            icon={<Filter className="h-3 w-3" />}
+          >
+            <div className="space-y-2">
+              {filters.map((filter, idx) => (
+                <FilterRow
+                  key={idx}
+                  filter={filter}
+                  allFields={allFields}
+                  fieldKeyFn={fieldKeyStr}
+                  onChange={(patch) => updateFilter(idx, patch)}
+                  onRemove={() => removeFilter(idx)}
+                />
+              ))}
+              <Button size="sm" variant="outline" onClick={addFilter} className="w-full gap-1 text-xs h-7">
+                <Plus className="h-3 w-3" /> Add Filter
               </Button>
             </div>
-            {columns.length === 0 && groupRows.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Add columns or group fields to see a preview
-              </p>
-            ) : (
+          </CollapsibleSection>
+
+          {/* FIELDS tree (cascaded) */}
+          <CollapsibleSection
+            title={`${primaryObj?.label || "Fields"} (${filteredFields.filter(f => f.objectKey === primaryObject).length})`}
+            expanded={expandedSections.fields}
+            onToggle={() => toggleSection("fields")}
+          >
+            <div className="space-y-0">
+              {filteredFields
+                .filter((f) => f.objectKey === primaryObject)
+                .map((f) => {
+                  const fk = fieldKeyStr(f);
+                  const used = usedFields.has(fk);
+                  return (
+                    <div
+                      key={fk}
+                      draggable
+                      onDragStart={() => handleDragStart(fk, "fields")}
+                      className={`flex items-center gap-1.5 px-2 py-1 text-xs cursor-grab hover:bg-accent/30 transition-colors ${used ? "opacity-40" : ""}`}
+                      onClick={() => !used && addFieldTo(fk, "columns")}
+                    >
+                      <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <TypeIcon type={f.type} />
+                      <span className="truncate">{f.label}</span>
+                    </div>
+                  );
+                })}
+            </div>
+          </CollapsibleSection>
+
+          {relatedObj && (
+            <CollapsibleSection
+              title={`${relatedObj.label} (${filteredFields.filter(f => f.objectKey === relatedObject).length})`}
+              expanded={false}
+              onToggle={() => {}}
+            >
+              <div className="space-y-0">
+                {filteredFields
+                  .filter((f) => f.objectKey === relatedObject)
+                  .map((f) => {
+                    const fk = fieldKeyStr(f);
+                    const used = usedFields.has(fk);
+                    return (
+                      <div
+                        key={fk}
+                        draggable
+                        onDragStart={() => handleDragStart(fk, "fields")}
+                        className={`flex items-center gap-1.5 px-2 py-1 text-xs cursor-grab hover:bg-accent/30 transition-colors ${used ? "opacity-40" : ""}`}
+                        onClick={() => !used && addFieldTo(fk, "columns")}
+                      >
+                        <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <TypeIcon type={f.type} />
+                        <span className="truncate">{f.label}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </CollapsibleSection>
+          )}
+        </div>
+
+        {/* RIGHT — Preview */}
+        <div className="flex-1 overflow-y-auto p-4 bg-background">
+          {/* Preview info bar */}
+          <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
+            <span className="bg-primary/10 text-primary px-2 py-0.5 rounded font-medium">
+              Preview
+            </span>
+            {groupRows.length > 0 && (
+              <span>Grouped by: {groupRows.map(getFieldLabel).join(", ")}</span>
+            )}
+            {filters.length > 0 && (
+              <Badge variant="secondary" className="text-[10px]">
+                <Filter className="h-2.5 w-2.5 mr-1" /> {filters.length} filter{filters.length > 1 ? "s" : ""}
+              </Badge>
+            )}
+          </div>
+
+          {/* Column pills */}
+          {columns.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {columns.map((c) => (
+                <Badge key={c} variant="outline" className="text-[10px] gap-1 pr-1">
+                  {getFieldLabel(c)}
+                  <button onClick={() => removeField(c, "columns")}>
+                    <X className="h-2.5 w-2.5 text-muted-foreground hover:text-destructive" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {columns.length === 0 && groupRows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
+              <Table className="h-12 w-12 opacity-20" />
+              <p className="text-sm">Add columns or group fields to see a preview</p>
+              <p className="text-xs">Click fields in the left panel or drag them to groups/columns</p>
+            </div>
+          ) : (
+            <div className="data-table p-3">
               <ReportPreview
                 primaryObject={primaryObject}
                 relatedObject={relatedObject}
@@ -521,8 +515,8 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
                 chartType={chartType}
                 compact
               />
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -531,99 +525,137 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
 
 // --- Sub-components ---
 
-function FieldGroup({
-  label,
-  fields,
-  usedFields,
-  onAdd,
-  onDragStart,
-  fieldKeyFn,
+function TypeIcon({ type }: { type: string }) {
+  const map: Record<string, string> = { number: "#", date: "📅", boolean: "☑", text: "A" };
+  return <span className="text-muted-foreground text-[10px] w-3 text-center shrink-0">{map[type] || "A"}</span>;
+}
+
+function CollapsibleSection({
+  title,
+  count,
+  expanded: initialExpanded,
+  onToggle,
+  icon,
+  children,
 }: {
-  label: string;
-  fields: (ReportField & { objectKey: string; prefix: string })[];
-  usedFields: Set<string>;
-  onAdd: (fk: string) => void;
-  onDragStart: (field: string, source: string) => void;
-  fieldKeyFn: (f: { objectKey: string; key: string }) => string;
+  title: string;
+  count?: number;
+  expanded: boolean;
+  onToggle: () => void;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(initialExpanded);
   return (
     <div className="border-b border-border">
-      <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/50">
-        {label} ({fields.length})
+      <button
+        className="w-full flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider hover:bg-muted/50 transition-colors"
+        onClick={() => setOpen(!open)}
+      >
+        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {icon}
+        <span>{title}</span>
+        {count !== undefined && count > 0 && (
+          <Badge className="ml-auto h-4 px-1.5 text-[9px]">{count}</Badge>
+        )}
+      </button>
+      {open && <div className="px-3 pb-2">{children}</div>}
+    </div>
+  );
+}
+
+function AddFieldSearch({
+  allFields,
+  usedFields,
+  fieldKeyFn,
+  onAdd,
+}: {
+  allFields: (ReportField & { objectKey: string; prefix: string })[];
+  usedFields: Set<string>;
+  fieldKeyFn: (f: { objectKey: string; key: string }) => string;
+  onAdd: (fk: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const filtered = allFields.filter(
+    (f) => !usedFields.has(fieldKeyFn(f)) && f.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="mt-1">
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+        <Input
+          placeholder="Add field..."
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          className="pl-6 h-6 text-[11px]"
+        />
       </div>
-      {fields.map((f) => {
-        const fk = fieldKeyFn(f);
-        const used = usedFields.has(fk);
-        return (
-          <div
-            key={fk}
-            draggable
-            onDragStart={() => onDragStart(fk, "fields")}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs cursor-grab hover:bg-accent/30 transition-colors ${
-              used ? "opacity-50" : ""
-            }`}
-            onClick={() => !used && onAdd(fk)}
-          >
-            <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
-            <span className="text-muted-foreground">{f.type === "number" ? "#" : f.type === "date" ? "📅" : f.type === "boolean" ? "☑" : "A"}</span>
-            <span className="truncate">{f.label}</span>
-          </div>
-        );
-      })}
+      {open && search && filtered.length > 0 && (
+        <div className="max-h-32 overflow-y-auto bg-popover border border-border rounded mt-1 shadow-md">
+          {filtered.slice(0, 8).map((f) => {
+            const fk = fieldKeyFn(f);
+            return (
+              <button
+                key={fk}
+                className="w-full text-left px-2 py-1 text-[11px] hover:bg-accent/50 flex items-center gap-1"
+                onClick={() => { onAdd(fk); setSearch(""); setOpen(false); }}
+              >
+                <TypeIcon type={f.type} />
+                <span className="text-muted-foreground">{f.prefix}.</span>
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 function DropZone({
-  title,
-  icon,
   items,
   getLabel,
-  getObj,
   onRemove,
   onDrop,
   onDragOver,
   onDragStart,
   source,
+  placeholder,
 }: {
-  title: string;
-  icon: string;
   items: string[];
   getLabel: (fk: string) => string;
-  getObj: (fk: string) => string;
   onRemove: (fk: string) => void;
   onDrop: () => void;
   onDragOver: (e: React.DragEvent) => void;
   onDragStart: (field: string, source: string) => void;
   source: string;
+  placeholder: string;
 }) {
   return (
     <div
-      className="data-table min-h-[120px] p-3 border-2 border-dashed border-border hover:border-primary/50 transition-colors"
+      className="min-h-[32px] rounded border border-dashed border-border/60 hover:border-primary/40 transition-colors p-1.5"
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
-        <span>{icon}</span> {title}
-      </div>
       {items.length === 0 ? (
-        <p className="text-xs text-muted-foreground text-center py-4 opacity-50">
-          Drag fields here
-        </p>
+        <p className="text-[10px] text-muted-foreground text-center py-1 opacity-50">{placeholder}</p>
       ) : (
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {items.map((fk) => (
             <div
               key={fk}
               draggable
               onDragStart={() => onDragStart(fk, source)}
-              className="flex items-center gap-1.5 bg-accent/30 rounded px-2 py-1 text-xs cursor-grab group"
+              className="flex items-center gap-1 bg-primary/10 rounded px-1.5 py-0.5 text-[11px] cursor-grab group"
             >
-              <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+              <GripVertical className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
               <span className="text-primary font-medium truncate">{getLabel(fk)}</span>
-              <span className="text-[10px] text-muted-foreground hidden sm:inline">({getObj(fk)})</span>
               <button onClick={() => onRemove(fk)} className="ml-auto opacity-0 group-hover:opacity-100">
-                <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                <X className="h-2.5 w-2.5 text-muted-foreground hover:text-destructive" />
               </button>
             </div>
           ))}
@@ -650,20 +682,19 @@ function FilterRow({
     { key: "equals", label: "Equals" },
     { key: "not_equals", label: "Not Equals" },
     { key: "contains", label: "Contains" },
-    { key: "gt", label: "Greater Than" },
-    { key: "lt", label: "Less Than" },
+    { key: "gt", label: ">" },
+    { key: "lt", label: "<" },
     { key: "gte", label: "≥" },
     { key: "lte", label: "≤" },
     { key: "is_null", label: "Is Empty" },
-    { key: "is_not_null", label: "Is Not Empty" },
+    { key: "is_not_null", label: "Not Empty" },
   ];
 
   return (
-    <div className="flex flex-wrap gap-2 items-end p-2 bg-muted/30 rounded-lg">
-      <div className="flex-1 min-w-[120px]">
-        <Label className="text-[10px] text-muted-foreground">Field</Label>
+    <div className="flex flex-col gap-1 p-1.5 bg-muted/30 rounded text-[11px]">
+      <div className="flex gap-1 items-center">
         <Select value={filter.field} onValueChange={(v) => onChange({ field: v })}>
-          <SelectTrigger className="h-7 text-xs">
+          <SelectTrigger className="h-6 text-[11px] flex-1">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -674,36 +705,30 @@ function FilterRow({
             ))}
           </SelectContent>
         </Select>
+        <Button size="icon" variant="ghost" className="h-5 w-5 shrink-0" onClick={onRemove}>
+          <Trash2 className="h-3 w-3 text-destructive" />
+        </Button>
       </div>
-      <div className="w-28">
-        <Label className="text-[10px] text-muted-foreground">Operator</Label>
+      <div className="flex gap-1">
         <Select value={filter.operator} onValueChange={(v: any) => onChange({ operator: v })}>
-          <SelectTrigger className="h-7 text-xs">
+          <SelectTrigger className="h-6 text-[11px] w-24">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {operators.map((op) => (
-              <SelectItem key={op.key} value={op.key} className="text-xs">
-                {op.label}
-              </SelectItem>
+              <SelectItem key={op.key} value={op.key} className="text-xs">{op.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-      </div>
-      {!["is_null", "is_not_null"].includes(filter.operator) && (
-        <div className="flex-1 min-w-[100px]">
-          <Label className="text-[10px] text-muted-foreground">Value</Label>
+        {!["is_null", "is_not_null"].includes(filter.operator) && (
           <Input
             value={filter.value}
             onChange={(e) => onChange({ value: e.target.value })}
-            className="h-7 text-xs"
+            className="h-6 text-[11px] flex-1"
             placeholder="Value"
           />
-        </div>
-      )}
-      <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={onRemove}>
-        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-      </Button>
+        )}
+      </div>
     </div>
   );
 }

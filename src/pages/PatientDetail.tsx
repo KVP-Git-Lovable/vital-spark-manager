@@ -13,6 +13,7 @@ import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { FamilyMembers } from "@/components/patients/FamilyMembers";
+import { FamilySummaryCard } from "@/components/patients/FamilySummaryCard";
 import { toast } from "sonner";
 
 const PatientDetail = () => {
@@ -225,8 +226,11 @@ const PatientDetail = () => {
         </motion.div>
       )}
 
-      <div className="mb-4">
-        <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <div className="lg:col-span-2">
+          <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+        </div>
+        <FamilySummaryCard patientId={id!} />
       </div>
 
       <div className="mb-4">

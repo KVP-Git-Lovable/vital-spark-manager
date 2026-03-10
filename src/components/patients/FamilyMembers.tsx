@@ -31,7 +31,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Users, User, Phone, Mail, Star, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Users, User, Phone, Mail, Star, ChevronDown, ChevronRight, Facebook, Instagram, Cake } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -64,14 +64,14 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("patient_family_members")
-        .select("*, related_patient:patients!patient_family_members_related_patient_id_fkey(id, first_name, last_name, phone, email, gender, date_of_birth, status, city)")
+        .select("*, related_patient:patients!patient_family_members_related_patient_id_fkey(id, first_name, last_name, phone, email, gender, date_of_birth, status, city, facebook_url, instagram_url)")
         .eq("patient_id", patientId);
       if (error) throw error;
 
       // Also fetch reverse relationships
       const { data: reverseData, error: reverseError } = await supabase
         .from("patient_family_members")
-        .select("*, related_patient:patients!patient_family_members_patient_id_fkey(id, first_name, last_name, phone, email, gender, date_of_birth, status, city)")
+        .select("*, related_patient:patients!patient_family_members_patient_id_fkey(id, first_name, last_name, phone, email, gender, date_of_birth, status, city, facebook_url, instagram_url)")
         .eq("related_patient_id", patientId);
       if (reverseError) throw reverseError;
 
@@ -337,9 +337,15 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
                           </div>
 
                           {/* Quick info */}
-                          <div className="flex gap-3 mt-2.5 text-xs text-muted-foreground">
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2.5 text-xs text-muted-foreground">
                             {rp.gender && <span>{rp.gender}</span>}
                             {age !== null && <span>Age {age}</span>}
+                            {rp.date_of_birth && (
+                              <span className="flex items-center gap-0.5">
+                                <Cake className="h-3 w-3" />
+                                {new Date(rp.date_of_birth).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                              </span>
+                            )}
                             {rp.city && <span>{rp.city}</span>}
                           </div>
 
@@ -363,6 +369,18 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
                                     <div className="flex items-center gap-2 text-xs">
                                       <Mail className="h-3 w-3 text-muted-foreground" />
                                       <span className="truncate">{rp.email}</span>
+                                    </div>
+                                  )}
+                                  {rp.facebook_url && (
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <Facebook className="h-3 w-3 text-muted-foreground" />
+                                      <a href={rp.facebook_url} target="_blank" rel="noopener noreferrer" className="truncate text-primary hover:underline">{rp.facebook_url.replace(/https?:\/\/(www\.)?facebook\.com\/?/, "")}</a>
+                                    </div>
+                                  )}
+                                  {rp.instagram_url && (
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <Instagram className="h-3 w-3 text-muted-foreground" />
+                                      <a href={rp.instagram_url} target="_blank" rel="noopener noreferrer" className="truncate text-primary hover:underline">{rp.instagram_url.replace(/https?:\/\/(www\.)?instagram\.com\/?/, "")}</a>
                                     </div>
                                   )}
                                   {member.notes && (

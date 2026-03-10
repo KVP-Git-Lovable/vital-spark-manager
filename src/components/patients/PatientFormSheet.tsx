@@ -18,6 +18,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
@@ -53,6 +54,10 @@ const emptyForm: TablesInsert<"patients"> = {
   previous_treatments: null,
   notes: null,
   status: "Active",
+  facebook_url: null,
+  instagram_url: null,
+  follows_facebook: false,
+  follows_instagram: false,
 };
 
 export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: PatientFormSheetProps) {
@@ -85,6 +90,10 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
         previous_treatments: patient.previous_treatments,
         notes: patient.notes,
         status: patient.status,
+        facebook_url: (patient as any).facebook_url || null,
+        instagram_url: (patient as any).instagram_url || null,
+        follows_facebook: (patient as any).follows_facebook || false,
+        follows_instagram: (patient as any).follows_instagram || false,
       });
     } else {
       setForm(emptyForm);
@@ -133,10 +142,11 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
         </SheetHeader>
 
         <Tabs defaultValue="personal" className="mt-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
             <TabsTrigger value="medical" className="text-xs">Medical</TabsTrigger>
-            <TabsTrigger value="derma" className="text-xs">Dermatology</TabsTrigger>
+            <TabsTrigger value="derma" className="text-xs">Derma</TabsTrigger>
+            <TabsTrigger value="social" className="text-xs">Social</TabsTrigger>
           </TabsList>
 
           <TabsContent value="personal" className="space-y-4 mt-4">
@@ -387,6 +397,48 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
                 className="mt-1.5"
                 rows={4}
               />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="social" className="space-y-4 mt-4">
+            <div>
+              <Label>Facebook URL</Label>
+              <Input
+                value={(form as any).facebook_url || ""}
+                onChange={(e) => updateField("facebook_url" as any, e.target.value)}
+                placeholder="https://facebook.com/username"
+                className="mt-1.5"
+              />
+            </div>
+
+            <div>
+              <Label>Instagram URL</Label>
+              <Input
+                value={(form as any).instagram_url || ""}
+                onChange={(e) => updateField("instagram_url" as any, e.target.value)}
+                placeholder="https://instagram.com/username"
+                className="mt-1.5"
+              />
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  id="follows-fb"
+                  checked={(form as any).follows_facebook || false}
+                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, follows_facebook: !!checked }))}
+                />
+                <Label htmlFor="follows-fb" className="text-sm cursor-pointer">Follows us on Facebook</Label>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  id="follows-ig"
+                  checked={(form as any).follows_instagram || false}
+                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, follows_instagram: !!checked }))}
+                />
+                <Label htmlFor="follows-ig" className="text-sm cursor-pointer">Follows us on Instagram</Label>
+              </div>
             </div>
           </TabsContent>
         </Tabs>

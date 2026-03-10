@@ -752,9 +752,13 @@ export type Database = {
           email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
+          facebook_url: string | null
           first_name: string
+          follows_facebook: boolean | null
+          follows_instagram: boolean | null
           gender: string | null
           id: string
+          instagram_url: string | null
           last_name: string
           medical_history: string | null
           notes: string | null
@@ -778,9 +782,13 @@ export type Database = {
           email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
+          facebook_url?: string | null
           first_name: string
+          follows_facebook?: boolean | null
+          follows_instagram?: boolean | null
           gender?: string | null
           id?: string
+          instagram_url?: string | null
           last_name: string
           medical_history?: string | null
           notes?: string | null
@@ -804,9 +812,13 @@ export type Database = {
           email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
+          facebook_url?: string | null
           first_name?: string
+          follows_facebook?: boolean | null
+          follows_instagram?: boolean | null
           gender?: string | null
           id?: string
+          instagram_url?: string | null
           last_name?: string
           medical_history?: string | null
           notes?: string | null

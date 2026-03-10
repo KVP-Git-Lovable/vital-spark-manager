@@ -42,6 +42,7 @@ const mainItems = [
   { title: "Leave", url: "/leave", icon: CalendarDays },
   { title: "Assets", url: "/assets", icon: Package },
   { title: "Reports", url: "/reports", icon: BarChart3 },
+  { title: "Report Builder", url: "/report-builder", icon: FileBarChart },
 ];
 
 const settingsItems = [

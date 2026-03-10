@@ -11,6 +11,7 @@ import Appointments from "./pages/Appointments";
 import Services from "./pages/Services";
 import Billing from "./pages/Billing";
 import Reports from "./pages/Reports";
+import ReportConfigurator from "./pages/ReportConfigurator";
 import Procedures from "./pages/Procedures";
 import Pharma from "./pages/Pharma";
 import Photos from "./pages/Photos";

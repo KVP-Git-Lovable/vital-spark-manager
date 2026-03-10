@@ -238,6 +238,7 @@ const PatientDetail = () => {
           <TabsTrigger value="appointments" className="gap-1.5"><Calendar className="h-3.5 w-3.5" /> Appointments ({appointments.length})</TabsTrigger>
           <TabsTrigger value="invoices" className="gap-1.5"><Receipt className="h-3.5 w-3.5" /> Invoices ({invoices.length})</TabsTrigger>
           <TabsTrigger value="photos" className="gap-1.5"><Camera className="h-3.5 w-3.5" /> Photos ({photos.length})</TabsTrigger>
+          <TabsTrigger value="family" className="gap-1.5"><Users className="h-3.5 w-3.5" /> Family</TabsTrigger>
         </TabsList>
 
         <TabsContent value="procedures">

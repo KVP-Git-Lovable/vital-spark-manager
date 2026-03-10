@@ -27,13 +27,13 @@ export function StatCard({
       transition={{ duration: 0.3, delay }}
       className="stat-card"
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="text-3xl font-bold font-display mt-1">{value}</p>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs md:text-sm text-muted-foreground truncate">{title}</p>
+          <p className="text-xl md:text-3xl font-bold font-display mt-1">{value}</p>
           {change && (
             <p
-              className={`text-xs mt-2 font-medium ${
+              className={`text-[10px] md:text-xs mt-1.5 md:mt-2 font-medium ${
                 changeType === "positive"
                   ? "text-success"
                   : changeType === "negative"
@@ -45,8 +45,8 @@ export function StatCard({
             </p>
           )}
         </div>
-        <div className={`p-3 rounded-xl ${iconColor}`}>
-          <Icon className="h-5 w-5" />
+        <div className={`p-2 md:p-3 rounded-lg md:rounded-xl shrink-0 ${iconColor}`}>
+          <Icon className="h-4 w-4 md:h-5 md:w-5" />
         </div>
       </div>
     </motion.div>

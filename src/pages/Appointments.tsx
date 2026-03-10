@@ -47,7 +47,8 @@ const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancell
 
 const Appointments = () => {
   const queryClient = useQueryClient();
-  const [view, setView] = useState<"week" | "day" | "table">("week");
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+  const [view, setView] = useState<"week" | "day" | "table">(isMobile ? "day" : "week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [open, setOpen] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);

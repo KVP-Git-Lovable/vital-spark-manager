@@ -142,10 +142,11 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
         </SheetHeader>
 
         <Tabs defaultValue="personal" className="mt-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
             <TabsTrigger value="medical" className="text-xs">Medical</TabsTrigger>
-            <TabsTrigger value="derma" className="text-xs">Dermatology</TabsTrigger>
+            <TabsTrigger value="derma" className="text-xs">Derma</TabsTrigger>
+            <TabsTrigger value="social" className="text-xs">Social</TabsTrigger>
           </TabsList>
 
           <TabsContent value="personal" className="space-y-4 mt-4">

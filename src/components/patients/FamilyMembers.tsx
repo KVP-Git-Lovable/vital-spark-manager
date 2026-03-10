@@ -337,9 +337,15 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
                           </div>
 
                           {/* Quick info */}
-                          <div className="flex gap-3 mt-2.5 text-xs text-muted-foreground">
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2.5 text-xs text-muted-foreground">
                             {rp.gender && <span>{rp.gender}</span>}
                             {age !== null && <span>Age {age}</span>}
+                            {rp.date_of_birth && (
+                              <span className="flex items-center gap-0.5">
+                                <Cake className="h-3 w-3" />
+                                {new Date(rp.date_of_birth).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                              </span>
+                            )}
                             {rp.city && <span>{rp.city}</span>}
                           </div>
 

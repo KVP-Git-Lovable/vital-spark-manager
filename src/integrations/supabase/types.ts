@@ -80,6 +80,216 @@ export type Database = {
           },
         ]
       }
+      asset_issues: {
+        Row: {
+          asset_id: string
+          cost: number | null
+          created_at: string
+          description: string | null
+          id: string
+          priority: string
+          reported_by: string | null
+          reported_date: string
+          resolution_notes: string | null
+          resolved_date: string | null
+          status: string
+          title: string
+          updated_at: string
+          vendor_id: string | null
+        }
+        Insert: {
+          asset_id: string
+          cost?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string
+          reported_by?: string | null
+          reported_date?: string
+          resolution_notes?: string | null
+          resolved_date?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          asset_id?: string
+          cost?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string
+          reported_by?: string | null
+          reported_date?: string
+          resolution_notes?: string | null
+          resolved_date?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_issues_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_issues_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_service_links: {
+        Row: {
+          asset_id: string
+          created_at: string
+          id: string
+          is_required: boolean | null
+          notes: string | null
+          service_id: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          id?: string
+          is_required?: boolean | null
+          notes?: string | null
+          service_id: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          id?: string
+          is_required?: boolean | null
+          notes?: string | null
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_service_links_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_service_links_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assets: {
+        Row: {
+          amc_cost: number | null
+          amc_end_date: string | null
+          amc_start_date: string | null
+          amc_terms: string | null
+          amc_vendor_id: string | null
+          asset_code: string | null
+          category: string
+          condition: string | null
+          created_at: string
+          description: string | null
+          id: string
+          invoice_number: string | null
+          location: string | null
+          manufacturer: string | null
+          model_number: string | null
+          name: string
+          notes: string | null
+          purchase_date: string | null
+          purchase_price: number | null
+          serial_number: string | null
+          status: string
+          updated_at: string
+          vendor_id: string | null
+          warranty_end_date: string | null
+          warranty_start_date: string | null
+          warranty_terms: string | null
+        }
+        Insert: {
+          amc_cost?: number | null
+          amc_end_date?: string | null
+          amc_start_date?: string | null
+          amc_terms?: string | null
+          amc_vendor_id?: string | null
+          asset_code?: string | null
+          category?: string
+          condition?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          invoice_number?: string | null
+          location?: string | null
+          manufacturer?: string | null
+          model_number?: string | null
+          name: string
+          notes?: string | null
+          purchase_date?: string | null
+          purchase_price?: number | null
+          serial_number?: string | null
+          status?: string
+          updated_at?: string
+          vendor_id?: string | null
+          warranty_end_date?: string | null
+          warranty_start_date?: string | null
+          warranty_terms?: string | null
+        }
+        Update: {
+          amc_cost?: number | null
+          amc_end_date?: string | null
+          amc_start_date?: string | null
+          amc_terms?: string | null
+          amc_vendor_id?: string | null
+          asset_code?: string | null
+          category?: string
+          condition?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          invoice_number?: string | null
+          location?: string | null
+          manufacturer?: string | null
+          model_number?: string | null
+          name?: string
+          notes?: string | null
+          purchase_date?: string | null
+          purchase_price?: number | null
+          serial_number?: string | null
+          status?: string
+          updated_at?: string
+          vendor_id?: string | null
+          warranty_end_date?: string | null
+          warranty_start_date?: string | null
+          warranty_terms?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assets_amc_vendor_id_fkey"
+            columns: ["amc_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_records: {
         Row: {
           check_in_photo: string | null
@@ -1228,6 +1438,57 @@ export type Database = {
           is_active?: boolean
           name?: string
           rate?: number
+        }
+        Relationships: []
+      }
+      vendors: {
+        Row: {
+          address: string | null
+          category: string | null
+          city: string | null
+          contact_person: string | null
+          created_at: string
+          email: string | null
+          gst_number: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          phone: string | null
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          category?: string | null
+          city?: string | null
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          gst_number?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          phone?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          category?: string | null
+          city?: string | null
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          gst_number?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          state?: string | null
+          updated_at?: string
         }
         Relationships: []
       }

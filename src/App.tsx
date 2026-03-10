@@ -15,6 +15,7 @@ import Procedures from "./pages/Procedures";
 import Pharma from "./pages/Pharma";
 import Photos from "./pages/Photos";
 import LeaveManagement from "./pages/LeaveManagement";
+import Assets from "./pages/Assets";
 import Settings from "./pages/Settings";
 import PortalLogin from "./pages/portal/PortalLogin";
 import Portal from "./pages/portal/Portal";
@@ -50,6 +51,7 @@ const App = () => (
                   <Route path="/procedures" element={<Procedures />} />
                   <Route path="/pharma" element={<Pharma />} />
                   <Route path="/photos" element={<Photos />} />
+                  <Route path="/assets" element={<Assets />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>

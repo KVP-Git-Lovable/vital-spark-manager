@@ -11,6 +11,7 @@ import {
   Pill,
   Camera,
   CalendarDays,
+  Package,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -38,6 +39,7 @@ const mainItems = [
   { title: "Billing", url: "/billing", icon: Receipt },
   { title: "Service Master", url: "/services", icon: Stethoscope },
   { title: "Leave", url: "/leave", icon: CalendarDays },
+  { title: "Assets", url: "/assets", icon: Package },
   { title: "Reports", url: "/reports", icon: BarChart3 },
 ];
 

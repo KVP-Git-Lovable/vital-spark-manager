@@ -395,6 +395,12 @@ const PatientDetail = () => {
             )}
           </motion.div>
         </TabsContent>
+
+        <TabsContent value="family">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            <FamilyMembers patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+          </motion.div>
+        </TabsContent>
       </Tabs>
 
       <CameraCapture

@@ -1231,6 +1231,51 @@ export type Database = {
           },
         ]
       }
+      saved_reports: {
+        Row: {
+          chart_type: string
+          columns: Json
+          created_at: string
+          description: string | null
+          filters: Json
+          group_columns: Json
+          group_rows: Json
+          id: string
+          name: string
+          primary_object: string
+          related_object: string | null
+          updated_at: string
+        }
+        Insert: {
+          chart_type?: string
+          columns?: Json
+          created_at?: string
+          description?: string | null
+          filters?: Json
+          group_columns?: Json
+          group_rows?: Json
+          id?: string
+          name: string
+          primary_object: string
+          related_object?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chart_type?: string
+          columns?: Json
+          created_at?: string
+          description?: string | null
+          filters?: Json
+          group_columns?: Json
+          group_rows?: Json
+          id?: string
+          name?: string
+          primary_object?: string
+          related_object?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       service_medicines: {
         Row: {
           created_at: string

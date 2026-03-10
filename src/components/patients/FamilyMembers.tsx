@@ -71,7 +71,7 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
       // Also fetch reverse relationships
       const { data: reverseData, error: reverseError } = await supabase
         .from("patient_family_members")
-        .select("*, related_patient:patients!patient_family_members_patient_id_fkey(id, first_name, last_name, phone, email, gender, date_of_birth, status, city)")
+        .select("*, related_patient:patients!patient_family_members_patient_id_fkey(id, first_name, last_name, phone, email, gender, date_of_birth, status, city, facebook_url, instagram_url)")
         .eq("related_patient_id", patientId);
       if (reverseError) throw reverseError;
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users } from "lucide-react";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
+import { FamilyMembers } from "@/components/patients/FamilyMembers";
 import { toast } from "sonner";
 
 const PatientDetail = () => {
@@ -237,6 +238,7 @@ const PatientDetail = () => {
           <TabsTrigger value="appointments" className="gap-1.5"><Calendar className="h-3.5 w-3.5" /> Appointments ({appointments.length})</TabsTrigger>
           <TabsTrigger value="invoices" className="gap-1.5"><Receipt className="h-3.5 w-3.5" /> Invoices ({invoices.length})</TabsTrigger>
           <TabsTrigger value="photos" className="gap-1.5"><Camera className="h-3.5 w-3.5" /> Photos ({photos.length})</TabsTrigger>
+          <TabsTrigger value="family" className="gap-1.5"><Users className="h-3.5 w-3.5" /> Family</TabsTrigger>
         </TabsList>
 
         <TabsContent value="procedures">
@@ -391,6 +393,12 @@ const PatientDetail = () => {
                 ))}
               </div>
             )}
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="family">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            <FamilyMembers patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
           </motion.div>
         </TabsContent>
       </Tabs>

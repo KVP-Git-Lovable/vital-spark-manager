@@ -33,6 +33,9 @@ export function AppLayout({ children }: AppLayoutProps) {
               <div className="h-8 w-8 md:h-9 md:w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-display font-semibold text-xs md:text-sm">
                 DC
               </div>
+              <SidebarTrigger className="shrink-0">
+                <Menu className="h-5 w-5" />
+              </SidebarTrigger>
             </div>
           </header>
           <main className="flex-1 p-3 md:p-6 overflow-auto">

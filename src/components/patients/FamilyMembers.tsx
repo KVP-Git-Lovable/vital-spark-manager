@@ -64,7 +64,7 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("patient_family_members")
-        .select("*, related_patient:patients!patient_family_members_related_patient_id_fkey(id, first_name, last_name, phone, email, gender, date_of_birth, status, city)")
+        .select("*, related_patient:patients!patient_family_members_related_patient_id_fkey(id, first_name, last_name, phone, email, gender, date_of_birth, status, city, facebook_url, instagram_url)")
         .eq("patient_id", patientId);
       if (error) throw error;
 

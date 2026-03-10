@@ -11,6 +11,7 @@ import Appointments from "./pages/Appointments";
 import Services from "./pages/Services";
 import Billing from "./pages/Billing";
 import Reports from "./pages/Reports";
+import ReportConfigurator from "./pages/ReportConfigurator";
 import Procedures from "./pages/Procedures";
 import Pharma from "./pages/Pharma";
 import Photos from "./pages/Photos";
@@ -48,6 +49,7 @@ const App = () => (
                   <Route path="/services" element={<Services />} />
                   <Route path="/billing" element={<Billing />} />
                   <Route path="/reports" element={<Reports />} />
+                  <Route path="/report-builder" element={<ReportConfigurator />} />
                   <Route path="/procedures" element={<Procedures />} />
                   <Route path="/pharma" element={<Pharma />} />
                   <Route path="/photos" element={<Photos />} />

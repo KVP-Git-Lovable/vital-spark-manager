@@ -68,7 +68,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" side="right" className="bg-background border-l border-border">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
             <Heart className="h-5 w-5 text-sidebar-primary-foreground" />
           </div>
           {!collapsed && (

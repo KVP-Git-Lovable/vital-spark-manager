@@ -76,7 +76,7 @@ export function AppSidebar() {
               <h2 className="font-display text-sm font-bold text-foreground">
                 DermaCare
               </h2>
-              <p className="text-xs text-sidebar-foreground">Clinic Manager</p>
+              <p className="text-xs text-muted-foreground">Clinic Manager</p>
             </div>
           )}
         </div>

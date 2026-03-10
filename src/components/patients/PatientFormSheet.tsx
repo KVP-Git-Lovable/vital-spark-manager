@@ -399,6 +399,48 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
               />
             </div>
           </TabsContent>
+
+          <TabsContent value="social" className="space-y-4 mt-4">
+            <div>
+              <Label>Facebook URL</Label>
+              <Input
+                value={(form as any).facebook_url || ""}
+                onChange={(e) => updateField("facebook_url" as any, e.target.value)}
+                placeholder="https://facebook.com/username"
+                className="mt-1.5"
+              />
+            </div>
+
+            <div>
+              <Label>Instagram URL</Label>
+              <Input
+                value={(form as any).instagram_url || ""}
+                onChange={(e) => updateField("instagram_url" as any, e.target.value)}
+                placeholder="https://instagram.com/username"
+                className="mt-1.5"
+              />
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  id="follows-fb"
+                  checked={(form as any).follows_facebook || false}
+                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, follows_facebook: !!checked }))}
+                />
+                <Label htmlFor="follows-fb" className="text-sm cursor-pointer">Follows us on Facebook</Label>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  id="follows-ig"
+                  checked={(form as any).follows_instagram || false}
+                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, follows_instagram: !!checked }))}
+                />
+                <Label htmlFor="follows-ig" className="text-sm cursor-pointer">Follows us on Instagram</Label>
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
 
         <div className="flex gap-3 mt-6 pt-4 border-t">

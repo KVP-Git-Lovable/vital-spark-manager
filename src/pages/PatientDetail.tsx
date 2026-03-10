@@ -226,8 +226,11 @@ const PatientDetail = () => {
         </motion.div>
       )}
 
-      <div className="mb-4">
-        <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <div className="lg:col-span-2">
+          <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+        </div>
+        <FamilySummaryCard patientId={id!} />
       </div>
 
       <div className="mb-4">

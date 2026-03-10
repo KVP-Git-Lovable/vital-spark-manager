@@ -371,6 +371,18 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
                                       <span className="truncate">{rp.email}</span>
                                     </div>
                                   )}
+                                  {rp.facebook_url && (
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <Facebook className="h-3 w-3 text-muted-foreground" />
+                                      <a href={rp.facebook_url} target="_blank" rel="noopener noreferrer" className="truncate text-primary hover:underline">{rp.facebook_url.replace(/https?:\/\/(www\.)?facebook\.com\/?/, "")}</a>
+                                    </div>
+                                  )}
+                                  {rp.instagram_url && (
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <Instagram className="h-3 w-3 text-muted-foreground" />
+                                      <a href={rp.instagram_url} target="_blank" rel="noopener noreferrer" className="truncate text-primary hover:underline">{rp.instagram_url.replace(/https?:\/\/(www\.)?instagram\.com\/?/, "")}</a>
+                                    </div>
+                                  )}
                                   {member.notes && (
                                     <p className="text-xs text-muted-foreground italic">{member.notes}</p>
                                   )}

@@ -1,0 +1,265 @@
+export interface ReportField {
+  key: string;
+  label: string;
+  type: "text" | "number" | "date" | "boolean";
+}
+
+export interface ReportObject {
+  key: string;
+  label: string;
+  table: string;
+  fields: ReportField[];
+  relations?: { objectKey: string; foreignKey: string; label: string }[];
+}
+
+export const REPORT_OBJECTS: ReportObject[] = [
+  {
+    key: "patients",
+    label: "Patients",
+    table: "patients",
+    fields: [
+      { key: "id", label: "Patient ID", type: "text" },
+      { key: "first_name", label: "First Name", type: "text" },
+      { key: "last_name", label: "Last Name", type: "text" },
+      { key: "phone", label: "Phone", type: "text" },
+      { key: "email", label: "Email", type: "text" },
+      { key: "gender", label: "Gender", type: "text" },
+      { key: "date_of_birth", label: "Date of Birth", type: "date" },
+      { key: "city", label: "City", type: "text" },
+      { key: "state", label: "State", type: "text" },
+      { key: "status", label: "Status", type: "text" },
+      { key: "blood_group", label: "Blood Group", type: "text" },
+      { key: "skin_type", label: "Skin Type", type: "text" },
+      { key: "allergies", label: "Allergies", type: "text" },
+      { key: "follows_facebook", label: "Follows Facebook", type: "boolean" },
+      { key: "follows_instagram", label: "Follows Instagram", type: "boolean" },
+      { key: "created_at", label: "Created At", type: "date" },
+    ],
+    relations: [
+      { objectKey: "appointments", foreignKey: "patient_id", label: "Appointments" },
+      { objectKey: "procedures", foreignKey: "patient_id", label: "Procedures" },
+      { objectKey: "invoices", foreignKey: "patient_id", label: "Invoices" },
+    ],
+  },
+  {
+    key: "appointments",
+    label: "Appointments",
+    table: "appointments",
+    fields: [
+      { key: "id", label: "Appointment ID", type: "text" },
+      { key: "patient_name", label: "Patient Name", type: "text" },
+      { key: "service", label: "Service", type: "text" },
+      { key: "status", label: "Status", type: "text" },
+      { key: "start_time", label: "Start Time", type: "date" },
+      { key: "end_time", label: "End Time", type: "date" },
+      { key: "source", label: "Source", type: "text" },
+      { key: "is_recurring", label: "Is Recurring", type: "boolean" },
+      { key: "created_at", label: "Created At", type: "date" },
+    ],
+    relations: [
+      { objectKey: "patients", foreignKey: "patient_id", label: "Patients" },
+    ],
+  },
+  {
+    key: "procedures",
+    label: "Procedures",
+    table: "procedures",
+    fields: [
+      { key: "id", label: "Procedure ID", type: "text" },
+      { key: "service_name", label: "Service Name", type: "text" },
+      { key: "status", label: "Status", type: "text" },
+      { key: "procedure_date", label: "Procedure Date", type: "date" },
+      { key: "diagnosis", label: "Diagnosis", type: "text" },
+      { key: "consultation_notes", label: "Consultation Notes", type: "text" },
+      { key: "recommendations", label: "Recommendations", type: "text" },
+      { key: "created_at", label: "Created At", type: "date" },
+    ],
+    relations: [
+      { objectKey: "patients", foreignKey: "patient_id", label: "Patients" },
+      { objectKey: "appointments", foreignKey: "appointment_id", label: "Appointments" },
+    ],
+  },
+  {
+    key: "invoices",
+    label: "Invoices",
+    table: "invoices",
+    fields: [
+      { key: "id", label: "Invoice ID", type: "text" },
+      { key: "invoice_number", label: "Invoice Number", type: "text" },
+      { key: "patient_name", label: "Patient Name", type: "text" },
+      { key: "total_amount", label: "Total Amount", type: "number" },
+      { key: "paid_amount", label: "Paid Amount", type: "number" },
+      { key: "tax_amount", label: "Tax Amount", type: "number" },
+      { key: "status", label: "Status", type: "text" },
+      { key: "payment_type", label: "Payment Type", type: "text" },
+      { key: "payment_mode", label: "Payment Mode", type: "text" },
+      { key: "created_at", label: "Created At", type: "date" },
+    ],
+    relations: [
+      { objectKey: "patients", foreignKey: "patient_id", label: "Patients" },
+    ],
+  },
+  {
+    key: "services",
+    label: "Services",
+    table: "services",
+    fields: [
+      { key: "id", label: "Service ID", type: "text" },
+      { key: "name", label: "Name", type: "text" },
+      { key: "category", label: "Category", type: "text" },
+      { key: "price", label: "Price", type: "number" },
+      { key: "duration", label: "Duration (min)", type: "number" },
+      { key: "created_at", label: "Created At", type: "date" },
+    ],
+  },
+  {
+    key: "staff",
+    label: "Staff",
+    table: "staff",
+    fields: [
+      { key: "id", label: "Staff ID", type: "text" },
+      { key: "first_name", label: "First Name", type: "text" },
+      { key: "last_name", label: "Last Name", type: "text" },
+      { key: "role", label: "Role", type: "text" },
+      { key: "specialization", label: "Specialization", type: "text" },
+      { key: "email", label: "Email", type: "text" },
+      { key: "phone", label: "Phone", type: "text" },
+      { key: "created_at", label: "Created At", type: "date" },
+    ],
+  },
+  {
+    key: "assets",
+    label: "Assets",
+    table: "assets",
+    fields: [
+      { key: "id", label: "Asset ID", type: "text" },
+      { key: "name", label: "Name", type: "text" },
+      { key: "category", label: "Category", type: "text" },
+      { key: "status", label: "Status", type: "text" },
+      { key: "condition", label: "Condition", type: "text" },
+      { key: "location", label: "Location", type: "text" },
+      { key: "purchase_price", label: "Purchase Price", type: "number" },
+      { key: "purchase_date", label: "Purchase Date", type: "date" },
+      { key: "warranty_start_date", label: "Warranty Start", type: "date" },
+      { key: "warranty_end_date", label: "Warranty End", type: "date" },
+      { key: "amc_cost", label: "AMC Cost", type: "number" },
+      { key: "created_at", label: "Created At", type: "date" },
+    ],
+    relations: [
+      { objectKey: "vendors", foreignKey: "vendor_id", label: "Vendors" },
+    ],
+  },
+  {
+    key: "vendors",
+    label: "Vendors",
+    table: "vendors",
+    fields: [
+      { key: "id", label: "Vendor ID", type: "text" },
+      { key: "name", label: "Name", type: "text" },
+      { key: "category", label: "Category", type: "text" },
+      { key: "contact_person", label: "Contact Person", type: "text" },
+      { key: "phone", label: "Phone", type: "text" },
+      { key: "email", label: "Email", type: "text" },
+      { key: "city", label: "City", type: "text" },
+      { key: "state", label: "State", type: "text" },
+      { key: "is_active", label: "Active", type: "boolean" },
+      { key: "created_at", label: "Created At", type: "date" },
+    ],
+  },
+  {
+    key: "pharma_products",
+    label: "Pharma Products",
+    table: "pharma_products",
+    fields: [
+      { key: "id", label: "Product ID", type: "text" },
+      { key: "name", label: "Name", type: "text" },
+      { key: "category", label: "Category", type: "text" },
+      { key: "generic_name", label: "Generic Name", type: "text" },
+      { key: "manufacturer", label: "Manufacturer", type: "text" },
+      { key: "mrp", label: "MRP", type: "number" },
+      { key: "selling_price", label: "Selling Price", type: "number" },
+      { key: "gst_percent", label: "GST %", type: "number" },
+      { key: "reorder_level", label: "Reorder Level", type: "number" },
+      { key: "created_at", label: "Created At", type: "date" },
+    ],
+  },
+  {
+    key: "leave_applications",
+    label: "Leave Applications",
+    table: "leave_applications",
+    fields: [
+      { key: "id", label: "Leave ID", type: "text" },
+      { key: "start_date", label: "Start Date", type: "date" },
+      { key: "end_date", label: "End Date", type: "date" },
+      { key: "days", label: "Days", type: "number" },
+      { key: "status", label: "Status", type: "text" },
+      { key: "reason", label: "Reason", type: "text" },
+      { key: "created_at", label: "Created At", type: "date" },
+    ],
+    relations: [
+      { objectKey: "staff", foreignKey: "staff_id", label: "Staff" },
+    ],
+  },
+  {
+    key: "asset_issues",
+    label: "Asset Issues",
+    table: "asset_issues",
+    fields: [
+      { key: "id", label: "Issue ID", type: "text" },
+      { key: "title", label: "Title", type: "text" },
+      { key: "description", label: "Description", type: "text" },
+      { key: "status", label: "Status", type: "text" },
+      { key: "priority", label: "Priority", type: "text" },
+      { key: "cost", label: "Cost", type: "number" },
+      { key: "reported_by", label: "Reported By", type: "text" },
+      { key: "reported_date", label: "Reported Date", type: "date" },
+      { key: "resolved_date", label: "Resolved Date", type: "date" },
+      { key: "created_at", label: "Created At", type: "date" },
+    ],
+    relations: [
+      { objectKey: "assets", foreignKey: "asset_id", label: "Assets" },
+      { objectKey: "vendors", foreignKey: "vendor_id", label: "Vendors" },
+    ],
+  },
+];
+
+export const getObjectByKey = (key: string) =>
+  REPORT_OBJECTS.find((o) => o.key === key);
+
+export const getRelatedObjects = (primaryKey: string): ReportObject[] => {
+  const primary = getObjectByKey(primaryKey);
+  if (!primary?.relations) return [];
+  return primary.relations
+    .map((r) => getObjectByKey(r.objectKey))
+    .filter(Boolean) as ReportObject[];
+};
+
+export interface ReportFilter {
+  field: string;
+  operator: "equals" | "not_equals" | "contains" | "gt" | "lt" | "gte" | "lte" | "is_null" | "is_not_null";
+  value: string;
+  objectKey: string;
+}
+
+export interface SavedReport {
+  id?: string;
+  name: string;
+  description?: string;
+  primary_object: string;
+  related_object?: string;
+  columns: string[];
+  group_rows: string[];
+  group_columns: string[];
+  filters: ReportFilter[];
+  chart_type: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const CHART_TYPES = [
+  { key: "table", label: "Tabular", icon: "Table" },
+  { key: "bar", label: "Bar Chart", icon: "BarChart3" },
+  { key: "doughnut", label: "Doughnut Chart", icon: "PieChart" },
+  { key: "line", label: "Line Chart", icon: "LineChart" },
+  { key: "number", label: "Summary Number", icon: "Hash" },
+];

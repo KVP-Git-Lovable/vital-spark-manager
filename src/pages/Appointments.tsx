@@ -270,20 +270,20 @@ const Appointments = () => {
 
   return (
     <div>
-      <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
         <div>
           <h1 className="page-title">Appointments</h1>
-          <p className="page-subtitle">Calendar view of all scheduled appointments</p>
+          <p className="page-subtitle hidden sm:block">Calendar view of all scheduled appointments</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex bg-muted rounded-lg p-1">
-            <Button variant={view === "day" ? "default" : "ghost"} size="sm" onClick={() => setView("day")} className="text-xs">Day</Button>
-            <Button variant={view === "week" ? "default" : "ghost"} size="sm" onClick={() => setView("week")} className="text-xs">Week</Button>
-            <Button variant={view === "table" ? "default" : "ghost"} size="sm" onClick={() => setView("table")} className="text-xs gap-1"><List className="h-3 w-3" />Table</Button>
+        <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+          <div className="flex bg-muted rounded-lg p-0.5 md:p-1">
+            <Button variant={view === "day" ? "default" : "ghost"} size="sm" onClick={() => setView("day")} className="text-xs h-7 md:h-8 px-2 md:px-3">Day</Button>
+            <Button variant={view === "week" ? "default" : "ghost"} size="sm" onClick={() => setView("week")} className="text-xs h-7 md:h-8 px-2 md:px-3 hidden sm:flex">Week</Button>
+            <Button variant={view === "table" ? "default" : "ghost"} size="sm" onClick={() => setView("table")} className="text-xs h-7 md:h-8 px-2 md:px-3 gap-1"><List className="h-3 w-3" />List</Button>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2"><Plus className="h-4 w-4" /> New Appointment</Button>
+              <Button className="gap-2 h-8 md:h-9 text-xs md:text-sm"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">New</span> Appt</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>

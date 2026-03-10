@@ -31,7 +31,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Users, User, Phone, Mail, Star, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Users, User, Phone, Mail, Star, ChevronDown, ChevronRight, Facebook, Instagram, Cake } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";

@@ -290,7 +290,7 @@ const Appointments = () => {
                 <DialogTitle className="font-display">New Appointment</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-2">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                   <div>
                     <Label>Patient</Label>
                     <Select value={patientId} onValueChange={setPatientId}>

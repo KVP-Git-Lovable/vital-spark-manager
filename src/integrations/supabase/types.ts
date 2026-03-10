@@ -335,6 +335,51 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_family_members: {
+        Row: {
+          created_at: string
+          id: string
+          is_primary_contact: boolean | null
+          notes: string | null
+          patient_id: string
+          related_patient_id: string
+          relationship: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_primary_contact?: boolean | null
+          notes?: string | null
+          patient_id: string
+          related_patient_id: string
+          relationship: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_primary_contact?: boolean | null
+          notes?: string | null
+          patient_id?: string
+          related_patient_id?: string
+          relationship?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_family_members_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_family_members_related_patient_id_fkey"
+            columns: ["related_patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_pharma_requests: {
         Row: {
           created_at: string | null

@@ -54,6 +54,10 @@ const emptyForm: TablesInsert<"patients"> = {
   previous_treatments: null,
   notes: null,
   status: "Active",
+  facebook_url: null,
+  instagram_url: null,
+  follows_facebook: false,
+  follows_instagram: false,
 };
 
 export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: PatientFormSheetProps) {

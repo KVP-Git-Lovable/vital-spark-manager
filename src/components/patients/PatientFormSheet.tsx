@@ -90,6 +90,10 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
         previous_treatments: patient.previous_treatments,
         notes: patient.notes,
         status: patient.status,
+        facebook_url: (patient as any).facebook_url || null,
+        instagram_url: (patient as any).instagram_url || null,
+        follows_facebook: (patient as any).follows_facebook || false,
+        follows_instagram: (patient as any).follows_instagram || false,
       });
     } else {
       setForm(emptyForm);

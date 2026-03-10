@@ -155,7 +155,10 @@ export function ReportBuilder({ initial, onSave, onClose }: Props) {
   };
 
   const handleSave = () => {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      toast.error("Please enter a report name");
+      return;
+    }
     onSave({
       id: initial?.id,
       name,

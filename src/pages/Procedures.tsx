@@ -38,7 +38,7 @@ const Procedures = () => {
 
   return (
     <div>
-      <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
         <div>
           <h1 className="page-title">Procedures</h1>
           <p className="page-subtitle">Record consultations, procedures & prescriptions</p>
@@ -49,12 +49,49 @@ const Procedures = () => {
         </Button>
       </div>
 
-      <div className="relative max-w-md mb-6">
+      <div className="relative max-w-md mb-4 md:mb-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input placeholder="Search by patient or service..." className="pl-9 bg-card border" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="data-table">
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">No procedures found</div>
+        ) : (
+          filtered.map((proc: any) => (
+            <motion.div
+              key={proc.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="stat-card p-3 cursor-pointer active:scale-[0.98] transition-transform"
+              onClick={() => setSelectedId(proc.id)}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm">{proc.patients?.first_name} {proc.patients?.last_name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{proc.service_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {proc.staff ? `Dr. ${proc.staff.first_name} ${proc.staff.last_name}` : "—"}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
+                  <span className="text-xs text-muted-foreground">{new Date(proc.procedure_date).toLocaleDateString()}</span>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setCameraProc(proc); }}>
+                    <Camera className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="hidden md:block data-table">
         <Table>
           <TableHeader>
             <TableRow>

@@ -36,11 +36,13 @@ import { toast } from "sonner";
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const hours = Array.from({ length: 12 }, (_, i) => i + 8);
 
-const appointmentColors = [
-  "bg-primary/15 border-primary/30 text-primary",
-  "bg-info/15 border-info/30 text-info",
-  "bg-success/15 border-success/30 text-success",
-  "bg-warning/15 border-warning/30 text-warning",
+const DOCTOR_PALETTE = [
+  { bg: "bg-primary/15", border: "border-primary/30", text: "text-primary", dot: "bg-primary" },
+  { bg: "bg-info/15", border: "border-info/30", text: "text-info", dot: "bg-info" },
+  { bg: "bg-success/15", border: "border-success/30", text: "text-success", dot: "bg-success" },
+  { bg: "bg-warning/15", border: "border-warning/30", text: "text-warning", dot: "bg-warning" },
+  { bg: "bg-destructive/15", border: "border-destructive/30", text: "text-destructive", dot: "bg-destructive" },
+  { bg: "bg-accent", border: "border-accent-foreground/30", text: "text-accent-foreground", dot: "bg-accent-foreground" },
 ];
 
 const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancelled"];

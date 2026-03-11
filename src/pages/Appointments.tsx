@@ -761,7 +761,7 @@ const Appointments = () => {
                             key={apt.id}
                             draggable
                             onDragStart={(e) => handleDragStart(e, apt)}
-                            className={`rounded-md border p-2 text-xs cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity mb-1 ${colorForIndex(ai)}`}
+                            className={`rounded-md border p-2 text-xs cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity mb-1 ${colorForApt(apt)}`}
                             onClick={(e) => { e.stopPropagation(); setSelectedAppointmentId(apt.id); }}
                           >
                             <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name}</p>

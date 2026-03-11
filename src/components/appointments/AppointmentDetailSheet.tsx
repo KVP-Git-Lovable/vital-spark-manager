@@ -153,6 +153,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
           status: hasCompletedProcedure ? "Completed" : editStatus,
           start_time: new Date(editStartTime).toISOString(),
           end_time: new Date(editEndTime).toISOString(),
+          staff_id: editStaffId || null,
         })
         .eq("id", appointmentId!);
       if (error) throw error;

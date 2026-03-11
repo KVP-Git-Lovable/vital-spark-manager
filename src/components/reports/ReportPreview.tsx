@@ -73,12 +73,18 @@ export function ReportPreview({
     const primaryObj = getObjectByKey(primaryObject);
     if (!primaryObj) return;
 
+    // Collect all fields we need: columns + groupRows + groupColumns
     const allFieldKeys = [...new Set([...columns, ...groupRows, ...groupColumns])];
     const primaryFields = allFieldKeys
       .filter((fk) => fk.startsWith(`${primaryObject}.`))
       .map((fk) => fk.split(".")[1]);
 
     if (!primaryFields.includes("id")) primaryFields.push("id");
+
+    // Ensure we have at least one field
+    if (primaryFields.length === 1 && primaryFields[0] === "id" && allFieldKeys.length === 0) {
+      primaryFields.push("id");
+    }
 
     let query = supabase.from(primaryObj.table as any).select(primaryFields.join(","));
 
@@ -110,6 +116,8 @@ export function ReportPreview({
     const obj = getObjectByKey(objKey);
     return obj?.fields.find((f) => f.key === fieldKey)?.label || fieldKey;
   };
+
+  const getFieldKey = (fk: string) => fk.split(".")[1];
 
   const handleRecordClick = (record: any) => {
     const route = RECORD_ROUTES[primaryObject];
@@ -143,9 +151,16 @@ export function ReportPreview({
     );
   }
 
-  const groupField = groupRows[0]?.split(".")[1];
-  const groupColField = groupColumns[0]?.split(".")[1];
-  const numericCols = columns.filter((c) => {
+  // Determine display columns: all columns that are not group fields
+  const allDisplayCols = columns.filter((c) => c.startsWith(`${primaryObject}.`));
+  // Also include group row/col fields in display if they're not already in columns
+  const groupRowFields = groupRows.filter((c) => c.startsWith(`${primaryObject}.`));
+  const groupColFields = groupColumns.filter((c) => c.startsWith(`${primaryObject}.`));
+
+  const groupField = groupRowFields.length > 0 ? getFieldKey(groupRowFields[0]) : null;
+  const groupColField = groupColFields.length > 0 ? getFieldKey(groupColFields[0]) : null;
+
+  const numericCols = [...columns, ...groupColumns].filter((c) => {
     const obj = getObjectByKey(c.split(".")[0]);
     return obj?.fields.find((f) => f.key === c.split(".")[1])?.type === "number";
   });
@@ -259,7 +274,8 @@ export function ReportPreview({
   }
 
   // TABLE VIEW — with group rows support
-  const displayCols = columns.filter((c) => c.startsWith(`${primaryObject}.`));
+  // Build display columns: show columns (if any), otherwise show group fields
+  const displayCols = allDisplayCols.length > 0 ? allDisplayCols : groupRowFields;
 
   if (groupField && chartType === "table") {
     // Group data by the groupField
@@ -270,8 +286,53 @@ export function ReportPreview({
       grouped[key].push(row);
     });
 
-    const groupLabel = getFieldLabel(groupRows[0]);
+    const groupLabel = getFieldLabel(groupRowFields[0]);
 
+    // If we also have groupColumns, create a cross-tab / matrix header
+    if (groupColField) {
+      const colValues = [...new Set(data.map((r) => String(r[groupColField] || "N/A")))].sort();
+      const groupColLabel = getFieldLabel(groupColFields[0]);
+
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border border-border rounded overflow-hidden">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground">{groupLabel}</th>
+                {colValues.map((cv) => (
+                  <th key={cv} className="text-center py-1.5 px-3 text-[11px] font-semibold text-muted-foreground">{cv}</th>
+                ))}
+                <th className="text-center py-1.5 px-3 text-[11px] font-semibold text-primary">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(grouped).map(([groupKey, rows]) => (
+                <tr key={groupKey} className="border-b border-border/50 hover:bg-accent/20">
+                  <td className="py-1.5 px-3 text-xs font-medium">{groupKey}</td>
+                  {colValues.map((cv) => {
+                    const count = rows.filter((r) => String(r[groupColField] || "N/A") === cv).length;
+                    return (
+                      <td key={cv} className="py-1.5 px-3 text-xs text-center">{count || "—"}</td>
+                    );
+                  })}
+                  <td className="py-1.5 px-3 text-xs text-center font-semibold text-primary">{rows.length}</td>
+                </tr>
+              ))}
+              <tr className="bg-muted/30 font-semibold">
+                <td className="py-1.5 px-3 text-xs">Total</td>
+                {colValues.map((cv) => {
+                  const count = data.filter((r) => String(r[groupColField] || "N/A") === cv).length;
+                  return <td key={cv} className="py-1.5 px-3 text-xs text-center">{count}</td>;
+                })}
+                <td className="py-1.5 px-3 text-xs text-center text-primary">{data.length}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    // Simple group rows (no group columns)
     return (
       <div className="overflow-x-auto">
         {Object.entries(grouped).map(([groupKey, rows]) => (
@@ -300,15 +361,25 @@ export function ReportPreview({
                   >
                     {displayCols.map((c) => (
                       <td key={c} className="py-1.5 px-3 whitespace-nowrap text-xs text-foreground">
-                        {formatVal(row[c.split(".")[1]])}
+                        {formatVal(row[getFieldKey(c)])}
                       </td>
                     ))}
                   </tr>
                 ))}
+                {rows.length > (compact ? 5 : 50) && (
+                  <tr>
+                    <td colSpan={displayCols.length} className="text-xs text-muted-foreground text-center py-1">
+                      +{rows.length - (compact ? 5 : 50)} more
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         ))}
+        <div className="text-xs text-muted-foreground text-center mt-2">
+          {Object.keys(grouped).length} groups · {data.length} total records
+        </div>
       </div>
     );
   }
@@ -335,7 +406,7 @@ export function ReportPreview({
             >
               {displayCols.map((c) => (
                 <td key={c} className="py-2 px-3 whitespace-nowrap text-foreground">
-                  {formatVal(row[c.split(".")[1]])}
+                  {formatVal(row[getFieldKey(c)])}
                 </td>
               ))}
             </tr>

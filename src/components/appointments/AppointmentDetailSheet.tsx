@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { format } from "date-fns";
-import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink } from "lucide-react";
+import { format, isWithinInterval, parseISO } from "date-fns";
+import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -44,6 +47,12 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [activeTab, setActiveTab] = useState("details");
   const [procFormOpen, setProcFormOpen] = useState(false);
   const [selectedProcId, setSelectedProcId] = useState<string | null>(null);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [newInvService, setNewInvService] = useState("");
+  const [newInvTotal, setNewInvTotal] = useState(0);
+  const [newInvPaid, setNewInvPaid] = useState(0);
+  const [newInvMode, setNewInvMode] = useState("Cash");
+  const [newInvNotes, setNewInvNotes] = useState("");
 
   // Fetch appointment
   const { data: appointment, isLoading } = useQuery({
@@ -79,6 +88,24 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
       return data;
     },
   });
+
+  // Fetch approved leaves to show on-leave indicator
+  const { data: approvedLeaves = [] } = useQuery({
+    queryKey: ["approved-leaves-today"],
+    queryFn: async () => {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const { data, error } = await supabase
+        .from("leave_applications")
+        .select("staff_id, start_date, end_date")
+        .eq("status", "Approved")
+        .lte("start_date", today)
+        .gte("end_date", today);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const staffOnLeaveIds = new Set(approvedLeaves.map((l: any) => l.staff_id));
 
   if (appointment && !initialized) {
     setEditService(appointment.service || "");
@@ -175,6 +202,44 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       toast.success("Appointment deleted");
       handleClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createInvoiceMutation = useMutation({
+    mutationFn: async () => {
+      const services = [newInvService].filter(s => s.trim());
+      if (services.length === 0) throw new Error("Service is required");
+      const baseNum = Date.now().toString().slice(-6);
+      let status = "Pending";
+      if (newInvPaid >= newInvTotal && newInvTotal > 0) status = "Paid";
+      else if (newInvPaid > 0) status = "Partial";
+
+      const { error } = await supabase.from("invoices").insert({
+        invoice_number: `INV-${baseNum}`,
+        patient_id: appointment?.patient_id || null,
+        patient_name: patientName,
+        services,
+        total_amount: newInvTotal,
+        paid_amount: newInvPaid,
+        status,
+        payment_type: "One-time",
+        payment_mode: newInvMode,
+        notes: newInvNotes || null,
+        appointment_id: appointmentId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointment-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success("Invoice created");
+      setInvoiceDialogOpen(false);
+      setNewInvService("");
+      setNewInvTotal(0);
+      setNewInvPaid(0);
+      setNewInvMode("Cash");
+      setNewInvNotes("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -292,9 +357,21 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">No doctor assigned</SelectItem>
-                        {staffList.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>
-                        ))}
+                        {staffList.map((s) => {
+                          const onLeave = staffOnLeaveIds.has(s.id);
+                          return (
+                            <SelectItem key={s.id} value={s.id}>
+                              <span className="flex items-center gap-2">
+                                Dr. {s.first_name} {s.last_name}
+                                {onLeave && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] text-warning bg-warning/10 px-1.5 py-0.5 rounded-full">
+                                    <AlertTriangle className="h-3 w-3" /> On Leave
+                                  </span>
+                                )}
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -372,9 +449,23 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                 </TabsContent>
 
                 <TabsContent value="billing" className="p-6 space-y-4 mt-0">
-                  <h3 className="text-sm font-semibold font-display flex items-center gap-2">
-                    <IndianRupee className="h-4 w-4" /> Patient Invoices
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+                      <IndianRupee className="h-4 w-4" /> Patient Invoices
+                    </h3>
+                    {appointment.patient_id && (
+                      <Button size="sm" variant="outline" className="gap-1" onClick={() => {
+                        setNewInvService(appointment.service || "");
+                        setNewInvTotal(0);
+                        setNewInvPaid(0);
+                        setNewInvMode("Cash");
+                        setNewInvNotes("");
+                        setInvoiceDialogOpen(true);
+                      }}>
+                        <Plus className="h-3 w-3" /> Create Invoice
+                      </Button>
+                    )}
+                  </div>
                   {invoices.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">No invoices found for this patient.</p>
                   ) : (
@@ -489,6 +580,52 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
       )}
 
       <ProcedureDetailSheet procedureId={selectedProcId} onClose={() => setSelectedProcId(null)} />
+
+      <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Invoice</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Patient</Label>
+              <Input value={patientName} disabled className="mt-1.5 bg-muted/50" />
+            </div>
+            <div>
+              <Label>Service</Label>
+              <Input value={newInvService} onChange={(e) => setNewInvService(e.target.value)} className="mt-1.5" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Total Amount (₹)</Label>
+                <Input type="number" value={newInvTotal} onChange={(e) => setNewInvTotal(Number(e.target.value))} className="mt-1.5" />
+              </div>
+              <div>
+                <Label>Paid Amount (₹)</Label>
+                <Input type="number" value={newInvPaid} onChange={(e) => setNewInvPaid(Number(e.target.value))} className="mt-1.5" />
+              </div>
+            </div>
+            <div>
+              <Label>Payment Mode</Label>
+              <Select value={newInvMode} onValueChange={setNewInvMode}>
+                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["Cash", "Card", "UPI", "Bank Transfer", "Cheque"].map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Input value={newInvNotes} onChange={(e) => setNewInvNotes(e.target.value)} className="mt-1.5" placeholder="Optional notes" />
+            </div>
+            <Button onClick={() => createInvoiceMutation.mutate()} disabled={createInvoiceMutation.isPending} className="w-full">
+              {createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

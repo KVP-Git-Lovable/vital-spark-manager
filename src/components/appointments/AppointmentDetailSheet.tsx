@@ -580,6 +580,52 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
       )}
 
       <ProcedureDetailSheet procedureId={selectedProcId} onClose={() => setSelectedProcId(null)} />
+
+      <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Invoice</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Patient</Label>
+              <Input value={patientName} disabled className="mt-1.5 bg-muted/50" />
+            </div>
+            <div>
+              <Label>Service</Label>
+              <Input value={newInvService} onChange={(e) => setNewInvService(e.target.value)} className="mt-1.5" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Total Amount (₹)</Label>
+                <Input type="number" value={newInvTotal} onChange={(e) => setNewInvTotal(Number(e.target.value))} className="mt-1.5" />
+              </div>
+              <div>
+                <Label>Paid Amount (₹)</Label>
+                <Input type="number" value={newInvPaid} onChange={(e) => setNewInvPaid(Number(e.target.value))} className="mt-1.5" />
+              </div>
+            </div>
+            <div>
+              <Label>Payment Mode</Label>
+              <Select value={newInvMode} onValueChange={setNewInvMode}>
+                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["Cash", "Card", "UPI", "Bank Transfer", "Cheque"].map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Input value={newInvNotes} onChange={(e) => setNewInvNotes(e.target.value)} className="mt-1.5" placeholder="Optional notes" />
+            </div>
+            <Button onClick={() => createInvoiceMutation.mutate()} disabled={createInvoiceMutation.isPending} className="w-full">
+              {createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

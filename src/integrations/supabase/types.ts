@@ -384,6 +384,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          appointment_id: string | null
           created_at: string
           id: string
           invoice_number: string
@@ -402,6 +403,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          appointment_id?: string | null
           created_at?: string
           id?: string
           invoice_number: string
@@ -420,6 +422,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          appointment_id?: string | null
           created_at?: string
           id?: string
           invoice_number?: string
@@ -438,6 +441,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "invoices_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "invoices_patient_id_fkey"
             columns: ["patient_id"]

@@ -183,6 +183,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     <Sheet open={!!serviceId} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <SheetContent className="sm:max-w-xl w-full overflow-y-auto">
         <SheetHeader>
+          <Badge variant="outline" className="text-[10px] text-muted-foreground w-fit font-normal">Service</Badge>
           <SheetTitle className="font-display">Edit Service</SheetTitle>
         </SheetHeader>
         {!service ? (

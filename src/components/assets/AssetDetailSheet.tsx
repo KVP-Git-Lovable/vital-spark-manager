@@ -127,6 +127,7 @@ export function AssetDetailSheet({ open, onOpenChange, asset, vendors }: AssetDe
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
           <SheetHeader>
+            <Badge variant="outline" className="text-[10px] text-muted-foreground w-fit font-normal">Asset</Badge>
             <SheetTitle className="font-display flex items-center gap-2">
               <Package className="h-5 w-5" /> {asset.name}
             </SheetTitle>

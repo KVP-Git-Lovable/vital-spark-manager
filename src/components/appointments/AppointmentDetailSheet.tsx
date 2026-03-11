@@ -286,12 +286,18 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                       <Input type="datetime-local" value={editEndTime} onChange={(e) => setEditEndTime(e.target.value)} className="mt-1.5" />
                     </div>
                   </div>
-                  {appointment.staff && (
-                    <div>
-                      <Label>Doctor</Label>
-                      <Input value={`Dr. ${appointment.staff.first_name} ${appointment.staff.last_name}`} disabled className="mt-1.5 bg-muted/50" />
-                    </div>
-                  )}
+                  <div>
+                    <Label>Doctor</Label>
+                    <Select value={editStaffId || "none"} onValueChange={(v) => setEditStaffId(v === "none" ? "" : v)}>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No doctor assigned</SelectItem>
+                        {staffList.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {appointment.source && (
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs">Source: {appointment.source}</Badge>

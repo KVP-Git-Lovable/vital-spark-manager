@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef } from "react";
-import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical } from "lucide-react";
+import { useState, useCallback, useRef, useMemo } from "react";
+import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,11 +36,13 @@ import { toast } from "sonner";
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const hours = Array.from({ length: 12 }, (_, i) => i + 8);
 
-const appointmentColors = [
-  "bg-primary/15 border-primary/30 text-primary",
-  "bg-info/15 border-info/30 text-info",
-  "bg-success/15 border-success/30 text-success",
-  "bg-warning/15 border-warning/30 text-warning",
+const DOCTOR_PALETTE = [
+  { bg: "bg-primary/15", border: "border-primary/30", text: "text-primary", dot: "bg-primary" },
+  { bg: "bg-info/15", border: "border-info/30", text: "text-info", dot: "bg-info" },
+  { bg: "bg-success/15", border: "border-success/30", text: "text-success", dot: "bg-success" },
+  { bg: "bg-warning/15", border: "border-warning/30", text: "text-warning", dot: "bg-warning" },
+  { bg: "bg-destructive/15", border: "border-destructive/30", text: "text-destructive", dot: "bg-destructive" },
+  { bg: "bg-accent", border: "border-accent-foreground/30", text: "text-accent-foreground", dot: "bg-accent-foreground" },
 ];
 
 const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancelled"];
@@ -58,6 +60,8 @@ const Appointments = () => {
   const [filterDoctor, setFilterDoctor] = useState<string>("all");
   const [filterDate, setFilterDate] = useState<Date | undefined>();
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [showFilters, setShowFilters] = useState(false);
 
   // Drag state
   const dragRef = useRef<{ aptId: string; originalStart: string; originalEnd: string } | null>(null);
@@ -288,7 +292,21 @@ const Appointments = () => {
     });
   };
 
-  const colorForIndex = (i: number) => appointmentColors[i % appointmentColors.length];
+  // Doctor color map - stable mapping of staff_id to color
+  const doctorColorMap = useMemo(() => {
+    const map = new Map<string, typeof DOCTOR_PALETTE[0]>();
+    const uniqueStaffIds = [...new Set(appointments.map((a: any) => a.staff_id).filter(Boolean))];
+    uniqueStaffIds.forEach((id, i) => {
+      map.set(id as string, DOCTOR_PALETTE[i % DOCTOR_PALETTE.length]);
+    });
+    return map;
+  }, [appointments]);
+
+  const colorForApt = (apt: any) => {
+    const palette = apt.staff_id ? doctorColorMap.get(apt.staff_id) : DOCTOR_PALETTE[0];
+    const p = palette || DOCTOR_PALETTE[0];
+    return `${p.bg} ${p.border} ${p.text}`;
+  };
 
   const statusColor = (status: string) => {
     switch (status) {
@@ -375,7 +393,7 @@ const Appointments = () => {
         <div className="flex items-center gap-2 md:gap-3 flex-wrap">
           <div className="flex bg-muted rounded-lg p-0.5 md:p-1">
             <Button variant={view === "day" ? "default" : "ghost"} size="sm" onClick={() => setView("day")} className="text-xs h-7 md:h-8 px-2 md:px-3">Day</Button>
-            <Button variant={view === "week" ? "default" : "ghost"} size="sm" onClick={() => setView("week")} className="text-xs h-7 md:h-8 px-2 md:px-3 hidden sm:flex">Week</Button>
+            <Button variant={view === "week" ? "default" : "ghost"} size="sm" onClick={() => setView("week")} className="text-xs h-7 md:h-8 px-2 md:px-3">Week</Button>
             <Button variant={view === "month" ? "default" : "ghost"} size="sm" onClick={() => setView("month")} className="text-xs h-7 md:h-8 px-2 md:px-3">Month</Button>
             <Button variant={view === "table" ? "default" : "ghost"} size="sm" onClick={() => setView("table")} className="text-xs h-7 md:h-8 px-2 md:px-3 gap-1"><List className="h-3 w-3" />List</Button>
           </div>
@@ -521,45 +539,59 @@ const Appointments = () => {
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-muted/30 rounded-lg border">
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search patient name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-9 text-sm"
-          />
-        </div>
-        <Select value={filterDoctor} onValueChange={setFilterDoctor}>
-          <SelectTrigger className="w-[180px] h-9 text-sm">
-            <SelectValue placeholder="All Doctors" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Doctors</SelectItem>
-            {staffList.map((s) => (
-              <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", filterDate && "border-primary text-primary")}>
-              <CalendarIcon className="h-4 w-4" />
-              {filterDate ? format(filterDate, "MMM d, yyyy") : "Filter by date"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus className={cn("p-3 pointer-events-auto")} />
-          </PopoverContent>
-        </Popover>
-        {(searchQuery || filterDoctor !== "all" || filterDate) && (
-          <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctor("all"); setFilterDate(undefined); }}>
-            Clear filters
-          </Button>
+      {/* Collapsible Filters Bar */}
+      <div className="mb-4">
+        <Button variant="outline" size="sm" className="gap-2 text-xs mb-2" onClick={() => setShowFilters(!showFilters)}>
+          <Filter className="h-3.5 w-3.5" />
+          Filters & Search
+          {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          {(searchQuery || filterDoctor !== "all" || filterDate) && <Badge className="h-4 px-1.5 text-[10px]">Active</Badge>}
+        </Button>
+        {showFilters && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex flex-wrap items-center gap-3 p-3 bg-muted/30 rounded-lg border overflow-hidden">
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search patient name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9 text-sm" />
+            </div>
+            <Select value={filterDoctor} onValueChange={setFilterDoctor}>
+              <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Doctors" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Doctors</SelectItem>
+                {staffList.map((s) => <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", filterDate && "border-primary text-primary")}>
+                  <CalendarIcon className="h-4 w-4" />
+                  {filterDate ? format(filterDate, "MMM d, yyyy") : "Filter by date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus className={cn("p-3 pointer-events-auto")} />
+              </PopoverContent>
+            </Popover>
+            {(searchQuery || filterDoctor !== "all" || filterDate) && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctor("all"); setFilterDate(undefined); }}>Clear filters</Button>
+            )}
+            <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
+          </motion.div>
         )}
-        <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
+        {/* Doctor color legend */}
+        {view !== "table" && doctorColorMap.size > 0 && (
+          <div className="flex flex-wrap items-center gap-3 mt-2">
+            <span className="text-xs text-muted-foreground font-medium">Doctors:</span>
+            {staffList.filter(s => doctorColorMap.has(s.id)).map(s => {
+              const p = doctorColorMap.get(s.id)!;
+              return (
+                <div key={s.id} className="flex items-center gap-1.5 text-xs">
+                  <span className={cn("w-2.5 h-2.5 rounded-full", p.dot)} />
+                  <span className="text-muted-foreground">Dr. {s.first_name} {s.last_name}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="data-table">
@@ -669,7 +701,7 @@ const Appointments = () => {
                             key={apt.id}
                             draggable
                             onDragStart={(e) => handleDragStart(e, apt)}
-                            className={cn("rounded px-1.5 py-0.5 text-[10px] truncate cursor-grab active:cursor-grabbing border", colorForIndex(ai))}
+                            className={cn("rounded px-1.5 py-0.5 text-[10px] truncate cursor-grab active:cursor-grabbing border", colorForApt(apt))}
                             onClick={() => setSelectedAppointmentId(apt.id)}
                           >
                             <span className="font-medium">{format(new Date(apt.start_time), "h:mm")}</span>{" "}
@@ -729,7 +761,7 @@ const Appointments = () => {
                             key={apt.id}
                             draggable
                             onDragStart={(e) => handleDragStart(e, apt)}
-                            className={`rounded-md border p-2 text-xs cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity mb-1 ${colorForIndex(ai)}`}
+                            className={`rounded-md border p-2 text-xs cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity mb-1 ${colorForApt(apt)}`}
                             onClick={(e) => { e.stopPropagation(); setSelectedAppointmentId(apt.id); }}
                           >
                             <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name}</p>
@@ -780,7 +812,7 @@ const Appointments = () => {
                           key={apt.id}
                           draggable
                           onDragStart={(e) => handleDragStart(e, apt)}
-                          className={`rounded-lg border p-3 cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity ${colorForIndex(ai)}`}
+                          className={`rounded-lg border p-3 cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity ${colorForApt(apt)}`}
                           onClick={(e) => { e.stopPropagation(); setSelectedAppointmentId(apt.id); }}
                         >
                           <div className="flex items-center justify-between">

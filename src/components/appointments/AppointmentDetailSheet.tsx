@@ -70,11 +70,22 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [initialized, setInitialized] = useState(false);
 
   // Initialize form when appointment loads
+  // Fetch staff list for doctor dropdown
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role").order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   if (appointment && !initialized) {
     setEditService(appointment.service || "");
     setEditStatus(appointment.status || "Proposed");
     setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditEndTime(appointment.end_time ? format(new Date(appointment.end_time), "yyyy-MM-dd'T'HH:mm") : "");
+    setEditStaffId(appointment.staff_id || "");
     setInitialized(true);
   }
 

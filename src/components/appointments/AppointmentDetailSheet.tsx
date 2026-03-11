@@ -66,6 +66,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [editStatus, setEditStatus] = useState("");
   const [editStartTime, setEditStartTime] = useState("");
   const [editEndTime, setEditEndTime] = useState("");
+  const [editStaffId, setEditStaffId] = useState("");
   const [initialized, setInitialized] = useState(false);
 
   // Initialize form when appointment loads

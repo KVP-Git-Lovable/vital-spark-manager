@@ -539,45 +539,59 @@ const Appointments = () => {
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-muted/30 rounded-lg border">
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search patient name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-9 text-sm"
-          />
-        </div>
-        <Select value={filterDoctor} onValueChange={setFilterDoctor}>
-          <SelectTrigger className="w-[180px] h-9 text-sm">
-            <SelectValue placeholder="All Doctors" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Doctors</SelectItem>
-            {staffList.map((s) => (
-              <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", filterDate && "border-primary text-primary")}>
-              <CalendarIcon className="h-4 w-4" />
-              {filterDate ? format(filterDate, "MMM d, yyyy") : "Filter by date"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus className={cn("p-3 pointer-events-auto")} />
-          </PopoverContent>
-        </Popover>
-        {(searchQuery || filterDoctor !== "all" || filterDate) && (
-          <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctor("all"); setFilterDate(undefined); }}>
-            Clear filters
-          </Button>
+      {/* Collapsible Filters Bar */}
+      <div className="mb-4">
+        <Button variant="outline" size="sm" className="gap-2 text-xs mb-2" onClick={() => setShowFilters(!showFilters)}>
+          <Filter className="h-3.5 w-3.5" />
+          Filters & Search
+          {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          {(searchQuery || filterDoctor !== "all" || filterDate) && <Badge className="h-4 px-1.5 text-[10px]">Active</Badge>}
+        </Button>
+        {showFilters && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex flex-wrap items-center gap-3 p-3 bg-muted/30 rounded-lg border overflow-hidden">
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search patient name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9 text-sm" />
+            </div>
+            <Select value={filterDoctor} onValueChange={setFilterDoctor}>
+              <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Doctors" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Doctors</SelectItem>
+                {staffList.map((s) => <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", filterDate && "border-primary text-primary")}>
+                  <CalendarIcon className="h-4 w-4" />
+                  {filterDate ? format(filterDate, "MMM d, yyyy") : "Filter by date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus className={cn("p-3 pointer-events-auto")} />
+              </PopoverContent>
+            </Popover>
+            {(searchQuery || filterDoctor !== "all" || filterDate) && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctor("all"); setFilterDate(undefined); }}>Clear filters</Button>
+            )}
+            <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
+          </motion.div>
         )}
-        <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
+        {/* Doctor color legend */}
+        {view !== "table" && doctorColorMap.size > 0 && (
+          <div className="flex flex-wrap items-center gap-3 mt-2">
+            <span className="text-xs text-muted-foreground font-medium">Doctors:</span>
+            {staffList.filter(s => doctorColorMap.has(s.id)).map(s => {
+              const p = doctorColorMap.get(s.id)!;
+              return (
+                <div key={s.id} className="flex items-center gap-1.5 text-xs">
+                  <span className={cn("w-2.5 h-2.5 rounded-full", p.dot)} />
+                  <span className="text-muted-foreground">Dr. {s.first_name} {s.last_name}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="data-table">

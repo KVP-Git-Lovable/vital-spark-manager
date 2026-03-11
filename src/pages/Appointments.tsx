@@ -812,7 +812,7 @@ const Appointments = () => {
                           key={apt.id}
                           draggable
                           onDragStart={(e) => handleDragStart(e, apt)}
-                          className={`rounded-lg border p-3 cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity ${colorForIndex(ai)}`}
+                          className={`rounded-lg border p-3 cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity ${colorForApt(apt)}`}
                           onClick={(e) => { e.stopPropagation(); setSelectedAppointmentId(apt.id); }}
                         >
                           <div className="flex items-center justify-between">

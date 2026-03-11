@@ -206,6 +206,44 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const createInvoiceMutation = useMutation({
+    mutationFn: async () => {
+      const services = [newInvService].filter(s => s.trim());
+      if (services.length === 0) throw new Error("Service is required");
+      const baseNum = Date.now().toString().slice(-6);
+      let status = "Pending";
+      if (newInvPaid >= newInvTotal && newInvTotal > 0) status = "Paid";
+      else if (newInvPaid > 0) status = "Partial";
+
+      const { error } = await supabase.from("invoices").insert({
+        invoice_number: `INV-${baseNum}`,
+        patient_id: appointment?.patient_id || null,
+        patient_name: patientName,
+        services,
+        total_amount: newInvTotal,
+        paid_amount: newInvPaid,
+        status,
+        payment_type: "One-time",
+        payment_mode: newInvMode,
+        notes: newInvNotes || null,
+        appointment_id: appointmentId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointment-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success("Invoice created");
+      setInvoiceDialogOpen(false);
+      setNewInvService("");
+      setNewInvTotal(0);
+      setNewInvPaid(0);
+      setNewInvMode("Cash");
+      setNewInvNotes("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const patientName = appointment?.patients
     ? `${appointment.patients.first_name} ${appointment.patients.last_name}`
     : appointment?.patient_name || "Unknown";

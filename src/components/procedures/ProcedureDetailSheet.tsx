@@ -296,6 +296,7 @@ export function ProcedureDetailSheet({ procedureId, onClose }: ProcedureDetailSh
               <SheetHeader className="p-6 pb-4 border-b bg-muted/30">
                 <div className="flex items-start justify-between">
                   <div>
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground mb-1.5 font-normal">Procedure</Badge>
                     <SheetTitle className="font-display text-lg">{patientName}</SheetTitle>
                     <p className="text-sm text-muted-foreground mt-1">
                       {format(new Date(procedure.procedure_date), "EEE, MMM d, yyyy · h:mm a")}

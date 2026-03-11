@@ -3,6 +3,7 @@ import { Save, Trash2, Plus, Pill, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -183,6 +184,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     <Sheet open={!!serviceId} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <SheetContent className="sm:max-w-xl w-full overflow-y-auto">
         <SheetHeader>
+          <Badge variant="outline" className="text-[10px] text-muted-foreground w-fit font-normal">Service</Badge>
           <SheetTitle className="font-display">Edit Service</SheetTitle>
         </SheetHeader>
         {!service ? (

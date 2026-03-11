@@ -66,14 +66,26 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [editStatus, setEditStatus] = useState("");
   const [editStartTime, setEditStartTime] = useState("");
   const [editEndTime, setEditEndTime] = useState("");
+  const [editStaffId, setEditStaffId] = useState("");
   const [initialized, setInitialized] = useState(false);
 
   // Initialize form when appointment loads
+  // Fetch staff list for doctor dropdown
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role").order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   if (appointment && !initialized) {
     setEditService(appointment.service || "");
     setEditStatus(appointment.status || "Proposed");
     setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditEndTime(appointment.end_time ? format(new Date(appointment.end_time), "yyyy-MM-dd'T'HH:mm") : "");
+    setEditStaffId(appointment.staff_id || "");
     setInitialized(true);
   }
 
@@ -141,6 +153,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
           status: hasCompletedProcedure ? "Completed" : editStatus,
           start_time: new Date(editStartTime).toISOString(),
           end_time: new Date(editEndTime).toISOString(),
+          staff_id: editStaffId || null,
         })
         .eq("id", appointmentId!);
       if (error) throw error;
@@ -187,6 +200,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
               <SheetHeader className="p-6 pb-4 border-b bg-muted/30">
                 <div className="flex items-start justify-between">
                   <div>
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground mb-1.5 font-normal">Appointment</Badge>
                     <SheetTitle className="font-display text-lg flex items-center gap-2">
                       <button
                         className="hover:text-primary underline-offset-2 hover:underline transition-colors text-left"
@@ -272,12 +286,18 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                       <Input type="datetime-local" value={editEndTime} onChange={(e) => setEditEndTime(e.target.value)} className="mt-1.5" />
                     </div>
                   </div>
-                  {appointment.staff && (
-                    <div>
-                      <Label>Doctor</Label>
-                      <Input value={`Dr. ${appointment.staff.first_name} ${appointment.staff.last_name}`} disabled className="mt-1.5 bg-muted/50" />
-                    </div>
-                  )}
+                  <div>
+                    <Label>Doctor</Label>
+                    <Select value={editStaffId || "none"} onValueChange={(v) => setEditStaffId(v === "none" ? "" : v)}>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No doctor assigned</SelectItem>
+                        {staffList.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {appointment.source && (
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs">Source: {appointment.source}</Badge>

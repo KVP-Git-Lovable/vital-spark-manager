@@ -34,7 +34,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const hours = Array.from({ length: 12 }, (_, i) => i + 8);
+// 15-min slots from 8:00 to 19:45
+const slots: { hour: number; minute: number }[] = [];
+for (let h = 8; h < 20; h++) {
+  for (let m = 0; m < 60; m += 15) {
+    slots.push({ hour: h, minute: m });
+  }
+}
 
 const DOCTOR_PALETTE = [
   { bg: "bg-primary/15", border: "border-primary/30", text: "text-primary", dot: "bg-primary" },
@@ -60,7 +66,6 @@ const Appointments = () => {
   const [filterDoctor, setFilterDoctor] = useState<string>("all");
   const [filterDate, setFilterDate] = useState<Date | undefined>();
   const [searchQuery, setSearchQuery] = useState("");
-
   const [showFilters, setShowFilters] = useState(false);
 
   // Drag state
@@ -77,9 +82,6 @@ const Appointments = () => {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState("weekly");
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date>();
-
-  // Inline editing state
-  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Queries
   const { data: patients = [] } = useQuery({
@@ -208,13 +210,11 @@ const Appointments = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
-      setEditingId(null);
       toast.success("Updated");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Drag-drop reschedule mutation
   const rescheduleAppointment = useMutation({
     mutationFn: async ({ id, newStart, newEnd }: { id: string; newStart: string; newEnd: string }) => {
       const { error } = await supabase.from("appointments").update({ start_time: newStart, end_time: newEnd }).eq("id", id);
@@ -285,14 +285,14 @@ const Appointments = () => {
     return filteredAppointments.filter((a: any) => isSameDay(new Date(a.start_time), date));
   };
 
-  const getApptsForSlot = (date: Date, hour: number) => {
+  const getApptsForSlot = (date: Date, hour: number, minute: number) => {
     return filteredAppointments.filter((a: any) => {
       const start = new Date(a.start_time);
-      return start.toDateString() === date.toDateString() && start.getHours() === hour;
+      return start.toDateString() === date.toDateString() && start.getHours() === hour && start.getMinutes() >= minute && start.getMinutes() < minute + 15;
     });
   };
 
-  // Doctor color map - stable mapping of staff_id to color
+  // Doctor color map
   const doctorColorMap = useMemo(() => {
     const map = new Map<string, typeof DOCTOR_PALETTE[0]>();
     const uniqueStaffIds = [...new Set(appointments.map((a: any) => a.staff_id).filter(Boolean))];
@@ -306,6 +306,11 @@ const Appointments = () => {
     const palette = apt.staff_id ? doctorColorMap.get(apt.staff_id) : DOCTOR_PALETTE[0];
     const p = palette || DOCTOR_PALETTE[0];
     return `${p.bg} ${p.border} ${p.text}`;
+  };
+
+  const getDoctorName = (apt: any) => {
+    if (apt.staff) return `Dr. ${apt.staff.first_name}`;
+    return "";
   };
 
   const statusColor = (status: string) => {
@@ -337,7 +342,7 @@ const Appointments = () => {
     e.dataTransfer.dropEffect = "move";
   };
 
-  const handleDropOnSlot = (e: React.DragEvent, targetDate: Date, targetHour: number) => {
+  const handleDropOnSlot = (e: React.DragEvent, targetDate: Date, targetHour: number, targetMinute: number = 0) => {
     e.preventDefault();
     if (!dragRef.current) return;
     const { aptId, originalStart, originalEnd } = dragRef.current;
@@ -345,7 +350,7 @@ const Appointments = () => {
     const origEnd = new Date(originalEnd);
     const durationMs = origEnd.getTime() - origStart.getTime();
     const newStart = new Date(targetDate);
-    newStart.setHours(targetHour, origStart.getMinutes(), 0, 0);
+    newStart.setHours(targetHour, targetMinute, 0, 0);
     const newEnd = new Date(newStart.getTime() + durationMs);
     if (newStart < new Date()) {
       toast.error("Cannot move to past");
@@ -382,6 +387,46 @@ const Appointments = () => {
   };
 
   const monthDays = getMonthDays();
+
+  // Dates that have appointments for mini calendar highlighting
+  const appointmentDates = useMemo(() => {
+    const dates: Date[] = [];
+    filteredAppointments.forEach((a: any) => {
+      dates.push(new Date(a.start_time));
+    });
+    return dates;
+  }, [filteredAppointments]);
+
+  const formatSlotTime = (hour: number, minute: number) => {
+    const h = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+    const ampm = hour >= 12 ? "PM" : "AM";
+    return `${h}:${String(minute).padStart(2, "0")} ${ampm}`;
+  };
+
+  // Appointment card for calendar views — shows patient name + doctor name, no time
+  const AptCard = ({ apt, compact = false }: { apt: any; compact?: boolean }) => (
+    <div
+      draggable
+      onDragStart={(e) => handleDragStart(e, apt)}
+      className={cn(
+        "rounded-md border cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity",
+        colorForApt(apt),
+        compact ? "px-1.5 py-0.5 text-[10px]" : "p-2 text-xs mb-1"
+      )}
+      onClick={(e) => { e.stopPropagation(); setSelectedAppointmentId(apt.id); }}
+    >
+      <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name || "—"}</p>
+      {!compact && <p className="opacity-70 truncate">{apt.service}</p>}
+      {getDoctorName(apt) && (
+        <p className={cn("truncate", compact ? "opacity-70" : "opacity-70 mt-0.5")}>
+          {getDoctorName(apt)}
+        </p>
+      )}
+      {!compact && apt.is_recurring && (
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 mt-1"><Repeat className="h-2.5 w-2.5 mr-0.5" />Recurring</Badge>
+      )}
+    </div>
+  );
 
   return (
     <div>
@@ -594,245 +639,266 @@ const Appointments = () => {
         )}
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="data-table">
+      {/* Main layout: mini calendar sidebar + calendar view */}
+      <div className="flex gap-4">
+        {/* Mini Calendar Sidebar — hidden on mobile & table view */}
         {view !== "table" && (
-          <div className="p-4 border-b flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(-1)}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <h2 className="font-display font-semibold">
-                {view === "month"
-                  ? format(currentDate, "MMMM yyyy")
-                  : currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-              </h2>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(1)}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+          <div className="hidden lg:block shrink-0 w-[260px]">
+            <div className="rounded-lg border bg-card p-2 sticky top-4">
+              <Calendar
+                mode="single"
+                selected={currentDate}
+                onSelect={(date) => { if (date) setCurrentDate(date); }}
+                modifiers={{ hasAppointment: appointmentDates }}
+                modifiersClassNames={{ hasAppointment: "bg-primary/20 font-bold" }}
+                className="p-1"
+              />
+              <div className="border-t mt-2 pt-2 px-2">
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  {format(currentDate, "EEEE, MMM d")}
+                </p>
+                <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                  {getApptsForDate(currentDate).length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">No appointments</p>
+                  )}
+                  {getApptsForDate(currentDate).map((apt: any) => (
+                    <div
+                      key={apt.id}
+                      className={cn("rounded px-2 py-1 text-[11px] cursor-pointer border", colorForApt(apt))}
+                      onClick={() => setSelectedAppointmentId(apt.id)}
+                    >
+                      <span className="font-medium">{format(new Date(apt.start_time), "h:mm a")}</span>
+                      {" — "}
+                      {apt.patient_name || apt.patients?.first_name || "—"}
+                      {getDoctorName(apt) && <span className="opacity-70"> · {getDoctorName(apt)}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <Button variant="outline" size="sm" className="text-xs" onClick={() => setCurrentDate(new Date())}>
-              Today
-            </Button>
           </div>
         )}
 
-        <div className="overflow-x-auto">
-          {view === "table" ? (
-            /* TABLE VIEW */
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/30">
-                  <th className="text-left p-3 font-medium text-muted-foreground">Date & Time</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Patient</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Service</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Doctor</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Status</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Source</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAppointments.map((apt: any) => {
-                  const patientPhone = apt.patients?.phone || "";
-                  return (
-                    <tr key={apt.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors" onClick={() => setSelectedAppointmentId(apt.id)}>
-                      <td className="p-3">
-                        <p className="font-medium">{format(new Date(apt.start_time), "MMM d, yyyy")}</p>
-                        <p className="text-xs text-muted-foreground">{format(new Date(apt.start_time), "h:mm a")} - {format(new Date(apt.end_time), "h:mm a")}</p>
-                      </td>
-                      <td className="p-3 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
-                      <td className="p-3 text-muted-foreground">
-                        {patientPhone ? <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span> : "—"}
-                      </td>
-                      <td className="p-3">{apt.service || "—"}</td>
-                      <td className="p-3 text-muted-foreground">{apt.staff ? `Dr. ${apt.staff.first_name} ${apt.staff.last_name}` : "—"}</td>
-                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                        <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({ id: apt.id, status: val })}>
-                          <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">
-                            <Badge className={cn("text-xs", statusColor(apt.status))}>{apt.status}</Badge>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="p-3">{apt.source && <Badge variant="outline" className="text-xs">{apt.source}</Badge>}</td>
-                    </tr>
-                  );
-                })}
-                {filteredAppointments.length === 0 && (
-                  <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
-                )}
-              </tbody>
-            </table>
-          ) : view === "month" ? (
-            /* MONTH VIEW */
-            <div>
-              <div className="grid grid-cols-7 border-b">
-                {daysOfWeek.map((d) => (
-                  <div key={d} className="p-2 text-center text-xs font-medium text-muted-foreground border-l first:border-l-0">{d}</div>
-                ))}
+        {/* Calendar / Table area */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="data-table flex-1 min-w-0">
+          {view !== "table" && (
+            <div className="p-4 border-b flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(-1)}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <h2 className="font-display font-semibold">
+                  {view === "month"
+                    ? format(currentDate, "MMMM yyyy")
+                    : currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                </h2>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(1)}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
-              <div className="grid grid-cols-7">
-                {monthDays.map((date, i) => {
-                  const dayAppts = getApptsForDate(date);
-                  const isCurrentMonth = isSameMonth(date, currentDate);
-                  const isToday = isSameDay(date, today);
-                  return (
-                    <div
-                      key={i}
-                      className={cn(
-                        "border-b border-l first:border-l-0 min-h-[100px] p-1 transition-colors",
-                        !isCurrentMonth && "bg-muted/20",
-                        isToday && "bg-primary/5",
-                      )}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDropOnDate(e, date)}
-                    >
-                      <div className="flex items-center justify-between px-1">
-                        <span className={cn("text-xs font-medium", isToday ? "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center" : !isCurrentMonth ? "text-muted-foreground/50" : "text-foreground")}>
-                          {date.getDate()}
-                        </span>
-                        {dayAppts.length > 0 && <span className="text-[10px] text-muted-foreground">{dayAppts.length}</span>}
-                      </div>
-                      <div className="mt-1 space-y-0.5 max-h-[80px] overflow-y-auto">
-                        {dayAppts.slice(0, 3).map((apt: any, ai: number) => (
-                          <div
-                            key={apt.id}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, apt)}
-                            className={cn("rounded px-1.5 py-0.5 text-[10px] truncate cursor-grab active:cursor-grabbing border", colorForApt(apt))}
-                            onClick={() => setSelectedAppointmentId(apt.id)}
-                          >
-                            <span className="font-medium">{format(new Date(apt.start_time), "h:mm")}</span>{" "}
-                            {apt.patient_name || apt.patients?.first_name || ""}
-                          </div>
-                        ))}
-                        {dayAppts.length > 3 && (
-                          <p className="text-[10px] text-muted-foreground px-1">+{dayAppts.length - 3} more</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <Button variant="outline" size="sm" className="text-xs" onClick={() => setCurrentDate(new Date())}>
+                Today
+              </Button>
             </div>
-          ) : view === "week" ? (
-            /* WEEK VIEW */
-            <div className="min-w-[800px]">
-              <div className="grid grid-cols-8 border-b">
-                <div className="p-3 text-xs text-muted-foreground" />
-                {weekDates.map((date, i) => {
-                  const isToday = date.toDateString() === today.toDateString();
-                  return (
-                    <div key={i} className={`p-3 text-center border-l ${isToday ? "bg-primary/5" : ""}`}>
-                      <p className="text-xs text-muted-foreground">{daysOfWeek[i]}</p>
-                      <p className={`text-lg font-display font-semibold mt-0.5 ${isToday ? "text-primary" : ""}`}>{date.getDate()}</p>
-                    </div>
-                  );
-                })}
-              </div>
-              {hours.map((hour) => (
-                <div key={hour} className="grid grid-cols-8 border-b last:border-0 min-h-[72px]">
-                  <div className="p-2 text-xs text-muted-foreground text-right pr-3 pt-1">
-                    {hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? "12:00 PM" : `${hour}:00 AM`}
-                  </div>
-                  {weekDates.map((date, dayIndex) => {
-                    const dayAppts = getApptsForSlot(date, hour);
-                    const isToday = date.toDateString() === today.toDateString();
+          )}
+
+          <div className="overflow-x-auto">
+            {view === "table" ? (
+              /* TABLE VIEW */
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="text-left p-3 font-medium text-muted-foreground">Date & Time</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Patient</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Service</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Doctor</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Status</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAppointments.map((apt: any) => {
+                    const patientPhone = apt.patients?.phone || "";
+                    return (
+                      <tr key={apt.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors" onClick={() => setSelectedAppointmentId(apt.id)}>
+                        <td className="p-3">
+                          <p className="font-medium">{format(new Date(apt.start_time), "MMM d, yyyy")}</p>
+                          <p className="text-xs text-muted-foreground">{format(new Date(apt.start_time), "h:mm a")} - {format(new Date(apt.end_time), "h:mm a")}</p>
+                        </td>
+                        <td className="p-3 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
+                        <td className="p-3 text-muted-foreground">
+                          {patientPhone ? <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span> : "—"}
+                        </td>
+                        <td className="p-3">{apt.service || "—"}</td>
+                        <td className="p-3 text-muted-foreground">{apt.staff ? `Dr. ${apt.staff.first_name} ${apt.staff.last_name}` : "—"}</td>
+                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                          <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({ id: apt.id, status: val })}>
+                            <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">
+                              <Badge className={cn("text-xs", statusColor(apt.status))}>{apt.status}</Badge>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="p-3">{apt.source && <Badge variant="outline" className="text-xs">{apt.source}</Badge>}</td>
+                      </tr>
+                    );
+                  })}
+                  {filteredAppointments.length === 0 && (
+                    <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
+                  )}
+                </tbody>
+              </table>
+            ) : view === "month" ? (
+              /* MONTH VIEW */
+              <div>
+                <div className="grid grid-cols-7 border-b">
+                  {daysOfWeek.map((d) => (
+                    <div key={d} className="p-2 text-center text-xs font-medium text-muted-foreground border-l first:border-l-0">{d}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7">
+                  {monthDays.map((date, i) => {
+                    const dayAppts = getApptsForDate(date);
+                    const isCurrentMonth = isSameMonth(date, currentDate);
+                    const isToday = isSameDay(date, today);
                     return (
                       <div
-                        key={dayIndex}
-                        className={`border-l p-1 min-h-[72px] cursor-pointer hover:bg-muted/30 transition-colors ${isToday ? "bg-primary/5" : ""}`}
+                        key={i}
+                        className={cn(
+                          "border-b border-l first:border-l-0 min-h-[100px] p-1 transition-colors",
+                          !isCurrentMonth && "bg-muted/20",
+                          isToday && "bg-primary/5",
+                        )}
                         onDragOver={handleDragOver}
-                        onDrop={(e) => handleDropOnSlot(e, date, hour)}
-                        onClick={() => {
-                          const d = new Date(date);
-                          d.setHours(hour, 0, 0, 0);
-                          if (d < new Date()) { toast.error("Cannot book in the past"); return; }
-                          setStartDate(d);
-                          setStartTime(`${String(hour).padStart(2, "0")}:00`);
-                          setEndTime(`${String(hour).padStart(2, "0")}:15`);
-                          setOpen(true);
-                        }}
+                        onDrop={(e) => handleDropOnDate(e, date)}
                       >
-                        {dayAppts.map((apt: any, ai: number) => (
-                          <div
-                            key={apt.id}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, apt)}
-                            className={`rounded-md border p-2 text-xs cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity mb-1 ${colorForApt(apt)}`}
-                            onClick={(e) => { e.stopPropagation(); setSelectedAppointmentId(apt.id); }}
+                        <div className="flex items-center justify-between px-1">
+                          <span
+                            className={cn("text-xs font-medium cursor-pointer hover:underline", isToday ? "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center" : !isCurrentMonth ? "text-muted-foreground/50" : "text-foreground")}
+                            onClick={() => { setCurrentDate(date); setView("day"); }}
                           >
-                            <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name}</p>
-                            <p className="opacity-70 truncate">{apt.service}</p>
-                            <div className="flex items-center gap-1 mt-1 opacity-70">
-                              {apt.is_recurring && <Repeat className="h-3 w-3" />}
-                              <Clock className="h-3 w-3" />
-                              <span>{format(new Date(apt.start_time), "h:mm a")}</span>
-                            </div>
-                          </div>
-                        ))}
+                            {date.getDate()}
+                          </span>
+                          {dayAppts.length > 0 && <span className="text-[10px] text-muted-foreground">{dayAppts.length}</span>}
+                        </div>
+                        <div className="mt-1 space-y-0.5 max-h-[80px] overflow-y-auto">
+                          {dayAppts.slice(0, 3).map((apt: any) => (
+                            <AptCard key={apt.id} apt={apt} compact />
+                          ))}
+                          {dayAppts.length > 3 && (
+                            <p className="text-[10px] text-muted-foreground px-1">+{dayAppts.length - 3} more</p>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-              ))}
-            </div>
-          ) : (
-            /* DAY VIEW */
-            <div className="min-w-[400px]">
-              <div className="p-3 text-center border-b bg-primary/5">
-                <p className="text-xs text-muted-foreground">{daysOfWeek[currentDay]}</p>
-                <p className="text-2xl font-display font-bold text-primary">{currentDate.getDate()}</p>
               </div>
-              {hours.map((hour) => {
-                const dayAppts = getApptsForSlot(currentDate, hour);
-                return (
-                  <div key={hour} className="flex border-b last:border-0 min-h-[72px]">
-                    <div className="w-24 p-3 text-sm text-muted-foreground text-right shrink-0">
-                      {hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? "12:00 PM" : `${hour}:00 AM`}
-                    </div>
-                    <div
-                      className="flex-1 border-l p-2 space-y-1 cursor-pointer hover:bg-muted/30 transition-colors"
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDropOnSlot(e, currentDate, hour)}
-                      onClick={() => {
-                        const d = new Date(currentDate);
-                        d.setHours(hour, 0, 0, 0);
-                        if (d < new Date()) { toast.error("Cannot book in the past"); return; }
-                        setStartDate(d);
-                        setStartTime(`${String(hour).padStart(2, "0")}:00`);
-                        setEndTime(`${String(hour).padStart(2, "0")}:15`);
-                        setOpen(true);
-                      }}
-                    >
-                      {dayAppts.map((apt: any, ai: number) => (
-                        <div
-                          key={apt.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, apt)}
-                          className={`rounded-lg border p-3 cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity ${colorForApt(apt)}`}
-                          onClick={(e) => { e.stopPropagation(); setSelectedAppointmentId(apt.id); }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <p className="font-medium text-sm">{apt.patient_name || apt.patients?.first_name}</p>
-                            <div className="flex items-center gap-1">
-                              {apt.is_recurring && <Badge variant="secondary" className="text-[10px] px-1.5 py-0"><Repeat className="h-2.5 w-2.5 mr-0.5" />Recurring</Badge>}
-                              <span className="text-xs opacity-70">{format(new Date(apt.start_time), "h:mm a")}</span>
-                            </div>
+            ) : view === "week" ? (
+              /* WEEK VIEW — 15 min slots */
+              <div className="min-w-[800px]">
+                <div className="grid grid-cols-8 border-b">
+                  <div className="p-3 text-xs text-muted-foreground" />
+                  {weekDates.map((date, i) => {
+                    const isToday = date.toDateString() === today.toDateString();
+                    return (
+                      <div key={i} className={cn("p-3 text-center border-l", isToday && "bg-primary/5")}>
+                        <p className="text-xs text-muted-foreground">{daysOfWeek[i]}</p>
+                        <p className={cn("text-lg font-display font-semibold mt-0.5", isToday && "text-primary")}>{date.getDate()}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                {slots.map((slot, si) => {
+                  const showLabel = slot.minute === 0;
+                  return (
+                    <div key={si} className={cn("grid grid-cols-8 border-b last:border-0", slot.minute === 0 ? "min-h-[18px]" : "min-h-[18px]")}>
+                      <div className="p-0.5 text-[10px] text-muted-foreground text-right pr-2 pt-0.5">
+                        {showLabel && formatSlotTime(slot.hour, slot.minute)}
+                      </div>
+                      {weekDates.map((date, dayIndex) => {
+                        const dayAppts = getApptsForSlot(date, slot.hour, slot.minute);
+                        const isToday = date.toDateString() === today.toDateString();
+                        return (
+                          <div
+                            key={dayIndex}
+                            className={cn(
+                              "border-l p-0.5 min-h-[18px] cursor-pointer hover:bg-muted/30 transition-colors",
+                              isToday && "bg-primary/5",
+                              slot.minute === 0 && "border-t"
+                            )}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDropOnSlot(e, date, slot.hour, slot.minute)}
+                            onClick={() => {
+                              const d = new Date(date);
+                              d.setHours(slot.hour, slot.minute, 0, 0);
+                              if (d < new Date()) { toast.error("Cannot book in the past"); return; }
+                              setStartDate(d);
+                              setStartTime(`${String(slot.hour).padStart(2, "0")}:${String(slot.minute).padStart(2, "0")}`);
+                              const endMin = slot.minute + 15;
+                              const endH = endMin >= 60 ? slot.hour + 1 : slot.hour;
+                              const endM = endMin >= 60 ? 0 : endMin;
+                              setEndTime(`${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`);
+                              setOpen(true);
+                            }}
+                          >
+                            {dayAppts.map((apt: any) => (
+                              <AptCard key={apt.id} apt={apt} compact />
+                            ))}
                           </div>
-                          <p className="text-xs opacity-70 mt-0.5">{apt.service}</p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </motion.div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* DAY VIEW — 15 min slots */
+              <div className="min-w-[400px]">
+                <div className="p-3 text-center border-b bg-primary/5">
+                  <p className="text-xs text-muted-foreground">{daysOfWeek[currentDay]}</p>
+                  <p className="text-2xl font-display font-bold text-primary">{currentDate.getDate()}</p>
+                </div>
+                {slots.map((slot, si) => {
+                  const dayAppts = getApptsForSlot(currentDate, slot.hour, slot.minute);
+                  const showLabel = slot.minute === 0;
+                  return (
+                    <div key={si} className={cn("flex", slot.minute === 0 ? "border-t" : "border-t border-dashed border-border/40", "last:border-b min-h-[36px]")}>
+                      <div className="w-24 p-1 text-xs text-muted-foreground text-right shrink-0 pr-3">
+                        {showLabel && formatSlotTime(slot.hour, slot.minute)}
+                      </div>
+                      <div
+                        className="flex-1 border-l p-1 space-y-0.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDropOnSlot(e, currentDate, slot.hour, slot.minute)}
+                        onClick={() => {
+                          const d = new Date(currentDate);
+                          d.setHours(slot.hour, slot.minute, 0, 0);
+                          if (d < new Date()) { toast.error("Cannot book in the past"); return; }
+                          setStartDate(d);
+                          setStartTime(`${String(slot.hour).padStart(2, "0")}:${String(slot.minute).padStart(2, "0")}`);
+                          const endMin = slot.minute + 15;
+                          const endH = endMin >= 60 ? slot.hour + 1 : slot.hour;
+                          const endM = endMin >= 60 ? 0 : endMin;
+                          setEndTime(`${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`);
+                          setOpen(true);
+                        }}
+                      >
+                        {dayAppts.map((apt: any) => (
+                          <AptCard key={apt.id} apt={apt} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </div>
 
       <AppointmentDetailSheet
         appointmentId={selectedAppointmentId}

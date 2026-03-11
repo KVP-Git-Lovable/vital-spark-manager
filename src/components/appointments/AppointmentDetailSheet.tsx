@@ -199,6 +199,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
               <SheetHeader className="p-6 pb-4 border-b bg-muted/30">
                 <div className="flex items-start justify-between">
                   <div>
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground mb-1.5 font-normal">Appointment</Badge>
                     <SheetTitle className="font-display text-lg flex items-center gap-2">
                       <button
                         className="hover:text-primary underline-offset-2 hover:underline transition-colors text-left"

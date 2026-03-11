@@ -701,7 +701,7 @@ const Appointments = () => {
                             key={apt.id}
                             draggable
                             onDragStart={(e) => handleDragStart(e, apt)}
-                            className={cn("rounded px-1.5 py-0.5 text-[10px] truncate cursor-grab active:cursor-grabbing border", colorForIndex(ai))}
+                            className={cn("rounded px-1.5 py-0.5 text-[10px] truncate cursor-grab active:cursor-grabbing border", colorForApt(apt))}
                             onClick={() => setSelectedAppointmentId(apt.id)}
                           >
                             <span className="font-medium">{format(new Date(apt.start_time), "h:mm")}</span>{" "}

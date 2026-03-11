@@ -61,6 +61,8 @@ const Appointments = () => {
   const [filterDate, setFilterDate] = useState<Date | undefined>();
   const [searchQuery, setSearchQuery] = useState("");
 
+  const [showFilters, setShowFilters] = useState(false);
+
   // Drag state
   const dragRef = useRef<{ aptId: string; originalStart: string; originalEnd: string } | null>(null);
 

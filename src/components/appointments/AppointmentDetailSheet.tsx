@@ -319,9 +319,21 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">No doctor assigned</SelectItem>
-                        {staffList.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>
-                        ))}
+                        {staffList.map((s) => {
+                          const onLeave = staffOnLeaveIds.has(s.id);
+                          return (
+                            <SelectItem key={s.id} value={s.id}>
+                              <span className="flex items-center gap-2">
+                                Dr. {s.first_name} {s.last_name}
+                                {onLeave && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] text-warning bg-warning/10 px-1.5 py-0.5 rounded-full">
+                                    <AlertTriangle className="h-3 w-3" /> On Leave
+                                  </span>
+                                )}
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>

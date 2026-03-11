@@ -449,9 +449,23 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                 </TabsContent>
 
                 <TabsContent value="billing" className="p-6 space-y-4 mt-0">
-                  <h3 className="text-sm font-semibold font-display flex items-center gap-2">
-                    <IndianRupee className="h-4 w-4" /> Patient Invoices
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+                      <IndianRupee className="h-4 w-4" /> Patient Invoices
+                    </h3>
+                    {appointment.patient_id && (
+                      <Button size="sm" variant="outline" className="gap-1" onClick={() => {
+                        setNewInvService(appointment.service || "");
+                        setNewInvTotal(0);
+                        setNewInvPaid(0);
+                        setNewInvMode("Cash");
+                        setNewInvNotes("");
+                        setInvoiceDialogOpen(true);
+                      }}>
+                        <Plus className="h-3 w-3" /> Create Invoice
+                      </Button>
+                    )}
+                  </div>
                   {invoices.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">No invoices found for this patient.</p>
                   ) : (

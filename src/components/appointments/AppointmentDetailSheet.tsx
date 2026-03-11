@@ -47,6 +47,12 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [activeTab, setActiveTab] = useState("details");
   const [procFormOpen, setProcFormOpen] = useState(false);
   const [selectedProcId, setSelectedProcId] = useState<string | null>(null);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [newInvService, setNewInvService] = useState("");
+  const [newInvTotal, setNewInvTotal] = useState(0);
+  const [newInvPaid, setNewInvPaid] = useState(0);
+  const [newInvMode, setNewInvMode] = useState("Cash");
+  const [newInvNotes, setNewInvNotes] = useState("");
 
   // Fetch appointment
   const { data: appointment, isLoading } = useQuery({

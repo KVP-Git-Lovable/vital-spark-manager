@@ -89,7 +89,24 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     },
   });
 
-  if (appointment && !initialized) {
+  // Fetch approved leaves to show on-leave indicator
+  const { data: approvedLeaves = [] } = useQuery({
+    queryKey: ["approved-leaves-today"],
+    queryFn: async () => {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const { data, error } = await supabase
+        .from("leave_applications")
+        .select("staff_id, start_date, end_date")
+        .eq("status", "Approved")
+        .lte("start_date", today)
+        .gte("end_date", today);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const staffOnLeaveIds = new Set(approvedLeaves.map((l: any) => l.staff_id));
+
     setEditService(appointment.service || "");
     setEditStatus(appointment.status || "Proposed");
     setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : "");

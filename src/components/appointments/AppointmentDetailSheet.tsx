@@ -107,6 +107,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
 
   const staffOnLeaveIds = new Set(approvedLeaves.map((l: any) => l.staff_id));
 
+  if (appointment && !initialized) {
     setEditService(appointment.service || "");
     setEditStatus(appointment.status || "Proposed");
     setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : "");

@@ -292,7 +292,21 @@ const Appointments = () => {
     });
   };
 
-  const colorForIndex = (i: number) => appointmentColors[i % appointmentColors.length];
+  // Doctor color map - stable mapping of staff_id to color
+  const doctorColorMap = useMemo(() => {
+    const map = new Map<string, typeof DOCTOR_PALETTE[0]>();
+    const uniqueStaffIds = [...new Set(appointments.map((a: any) => a.staff_id).filter(Boolean))];
+    uniqueStaffIds.forEach((id, i) => {
+      map.set(id as string, DOCTOR_PALETTE[i % DOCTOR_PALETTE.length]);
+    });
+    return map;
+  }, [appointments]);
+
+  const colorForApt = (apt: any) => {
+    const palette = apt.staff_id ? doctorColorMap.get(apt.staff_id) : DOCTOR_PALETTE[0];
+    const p = palette || DOCTOR_PALETTE[0];
+    return `${p.bg} ${p.border} ${p.text}`;
+  };
 
   const statusColor = (status: string) => {
     switch (status) {

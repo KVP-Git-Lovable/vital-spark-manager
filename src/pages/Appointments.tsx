@@ -639,47 +639,8 @@ const Appointments = () => {
         )}
       </div>
 
-      {/* Main layout: mini calendar sidebar + calendar view */}
+      {/* Calendar / Table area */}
       <div className="flex gap-4">
-        {/* Mini Calendar Sidebar — hidden on mobile & table view */}
-        {view !== "table" && (
-          <div className="hidden lg:block shrink-0 w-[260px]">
-            <div className="rounded-lg border bg-card p-2 sticky top-4">
-              <Calendar
-                mode="single"
-                selected={currentDate}
-                onSelect={(date) => { if (date) setCurrentDate(date); }}
-                modifiers={{ hasAppointment: appointmentDates }}
-                modifiersClassNames={{ hasAppointment: "bg-primary/20 font-bold" }}
-                className="p-1"
-              />
-              <div className="border-t mt-2 pt-2 px-2">
-                <p className="text-xs font-medium text-muted-foreground mb-2">
-                  {format(currentDate, "EEEE, MMM d")}
-                </p>
-                <div className="space-y-1 max-h-[200px] overflow-y-auto">
-                  {getApptsForDate(currentDate).length === 0 && (
-                    <p className="text-xs text-muted-foreground italic">No appointments</p>
-                  )}
-                  {getApptsForDate(currentDate).map((apt: any) => (
-                    <div
-                      key={apt.id}
-                      className={cn("rounded px-2 py-1 text-[11px] cursor-pointer border", colorForApt(apt))}
-                      onClick={() => setSelectedAppointmentId(apt.id)}
-                    >
-                      <span className="font-medium">{format(new Date(apt.start_time), "h:mm a")}</span>
-                      {" — "}
-                      {apt.patient_name || apt.patients?.first_name || "—"}
-                      {getDoctorName(apt) && <span className="opacity-70"> · {getDoctorName(apt)}</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Calendar / Table area */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="data-table flex-1 min-w-0">
           {view !== "table" && (
             <div className="p-4 border-b flex items-center justify-between">
@@ -687,11 +648,26 @@ const Appointments = () => {
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(-1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <h2 className="font-display font-semibold">
-                  {view === "month"
-                    ? format(currentDate, "MMMM yyyy")
-                    : currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                </h2>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" className="font-display font-semibold text-base hover:bg-muted/50 gap-1.5 px-2">
+                      {view === "month"
+                        ? format(currentDate, "MMMM yyyy")
+                        : currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={currentDate}
+                      onSelect={(date) => { if (date) setCurrentDate(date); }}
+                      modifiers={{ hasAppointment: appointmentDates }}
+                      modifiersClassNames={{ hasAppointment: "bg-primary/20 font-bold" }}
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>

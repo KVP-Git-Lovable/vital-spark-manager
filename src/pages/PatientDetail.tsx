@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus } from "lucide-react";
+import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -231,8 +232,11 @@ const PatientDetail = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-2">
           <FamilySummaryCard patientId={id!} />
+        </div>
+        <div>
+          <EngagementScoreCard patientId={id!} />
         </div>
       </div>
 

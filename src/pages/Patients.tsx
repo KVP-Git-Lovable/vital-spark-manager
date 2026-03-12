@@ -14,6 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { CameraCapture } from "@/components/shared/CameraCapture";
+import { EngagementBadge } from "@/components/patients/EngagementBadge";
+import { useEngagementScores } from "@/hooks/useEngagementScores";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
@@ -38,6 +40,9 @@ const Patients = () => {
     queryKey: ["patients"],
     queryFn: fetchPatients,
   });
+
+  const patientIds = patients.map((p) => p.id);
+  const { data: engagementScores = {} } = useEngagementScores(patientIds);
 
   const filtered = patients.filter(
     (p) =>
@@ -112,10 +117,10 @@ const Patients = () => {
                 <tr className="border-b bg-muted/50">
                   <th className="text-left text-xs font-medium text-muted-foreground p-4">Patient</th>
                   <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden md:table-cell">Contact</th>
-                  <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden lg:table-cell">Skin Type</th>
-                  <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden sm:table-cell">Blood</th>
-                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
-                  <th className="text-right text-xs font-medium text-muted-foreground p-4"></th>
+                   <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden lg:table-cell">Skin Type</th>
+                   <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden sm:table-cell">Engagement</th>
+                   <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
+                   <th className="text-right text-xs font-medium text-muted-foreground p-4"></th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -155,7 +160,7 @@ const Patients = () => {
                       <span className="text-sm">{patient.skin_type || "—"}</span>
                     </td>
                     <td className="p-4 hidden sm:table-cell">
-                      <span className="text-sm font-medium">{patient.blood_group || "—"}</span>
+                      <EngagementBadge data={engagementScores[patient.id]} />
                     </td>
                     <td className="p-4">
                       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${

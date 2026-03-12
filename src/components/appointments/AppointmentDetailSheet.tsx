@@ -427,6 +427,19 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     setBillingConfirmed(false);
   };
 
+  const addScheduleRow = () => {
+    const lastDate = customSchedule.length > 0 ? customSchedule[customSchedule.length - 1].date : new Date();
+    const nextDate = billingFrequency === "monthly" ? addMonths(lastDate, 1) : addWeeks(lastDate, 1);
+    setCustomSchedule([...customSchedule, { date: nextDate, amount: 0 }]);
+    setBillingConfirmed(false);
+  };
+
+  const removeScheduleRow = (idx: number) => {
+    if (customSchedule.length <= 1) return;
+    setCustomSchedule(customSchedule.filter((_, i) => i !== idx));
+    setBillingConfirmed(false);
+  };
+
   const handleCreateBillingInvoices = async () => {
     if (billingTotal <= 0) { toast.error("Enter a valid amount"); return; }
     if (scheduleMismatch) { toast.error("Schedule amounts don't match the total bill amount"); return; }

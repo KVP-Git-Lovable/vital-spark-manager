@@ -1678,33 +1678,45 @@ export type Database = {
           email: string | null
           first_name: string
           id: string
+          is_active: boolean | null
           last_name: string
           phone: string | null
+          photo_url: string | null
           role: string
           specialization: string | null
           updated_at: string
+          work_end_time: string | null
+          work_start_time: string | null
         }
         Insert: {
           created_at?: string
           email?: string | null
           first_name: string
           id?: string
+          is_active?: boolean | null
           last_name: string
           phone?: string | null
+          photo_url?: string | null
           role: string
           specialization?: string | null
           updated_at?: string
+          work_end_time?: string | null
+          work_start_time?: string | null
         }
         Update: {
           created_at?: string
           email?: string | null
           first_name?: string
           id?: string
+          is_active?: boolean | null
           last_name?: string
           phone?: string | null
+          photo_url?: string | null
           role?: string
           specialization?: string | null
           updated_at?: string
+          work_end_time?: string | null
+          work_start_time?: string | null
         }
         Relationships: []
       }

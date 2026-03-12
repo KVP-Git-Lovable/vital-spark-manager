@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { format, isWithinInterval, parseISO } from "date-fns";
-import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle } from "lucide-react";
+import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
+import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -47,12 +49,14 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [activeTab, setActiveTab] = useState("details");
   const [procFormOpen, setProcFormOpen] = useState(false);
   const [selectedProcId, setSelectedProcId] = useState<string | null>(null);
-  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
-  const [newInvService, setNewInvService] = useState("");
-  const [newInvTotal, setNewInvTotal] = useState(0);
-  const [newInvPaid, setNewInvPaid] = useState(0);
-  const [newInvMode, setNewInvMode] = useState("Cash");
-  const [newInvNotes, setNewInvNotes] = useState("");
+  // Billing plan state
+  const [billingTotal, setBillingTotal] = useState(0);
+  const [billingType, setBillingType] = useState<"one-time" | "recurring">("one-time");
+  const [billingFrequency, setBillingFrequency] = useState<"weekly" | "monthly">("monthly");
+  const [billingInstallments, setBillingInstallments] = useState(2);
+  const [billingMode, setBillingMode] = useState("Cash");
+  const [billingConfirmed, setBillingConfirmed] = useState(false);
+  const [billingCreating, setBillingCreating] = useState(false);
 
   // Fetch appointment
   const { data: appointment, isLoading } = useQuery({
@@ -206,43 +210,57 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const createInvoiceMutation = useMutation({
-    mutationFn: async () => {
-      const services = [newInvService].filter(s => s.trim());
-      if (services.length === 0) throw new Error("Service is required");
-      const baseNum = Date.now().toString().slice(-6);
-      let status = "Pending";
-      if (newInvPaid >= newInvTotal && newInvTotal > 0) status = "Paid";
-      else if (newInvPaid > 0) status = "Partial";
+  // Generate installment schedule
+  const getInstallmentSchedule = () => {
+    if (billingTotal <= 0) return [];
+    const baseDate = appointment?.start_time ? new Date(appointment.start_time) : new Date();
+    if (billingType === "one-time") {
+      return [{ date: baseDate, amount: billingTotal, index: 1 }];
+    }
+    const count = Math.max(2, billingInstallments);
+    const perInstallment = Math.floor(billingTotal / count);
+    const remainder = billingTotal - perInstallment * count;
+    return Array.from({ length: count }, (_, i) => {
+      const date = billingFrequency === "monthly" ? addMonths(baseDate, i) : addWeeks(baseDate, i);
+      return { date, amount: i === 0 ? perInstallment + remainder : perInstallment, index: i + 1 };
+    });
+  };
 
-      const { error } = await supabase.from("invoices").insert({
-        invoice_number: `INV-${baseNum}`,
-        patient_id: appointment?.patient_id || null,
-        patient_name: patientName,
-        services,
-        total_amount: newInvTotal,
-        paid_amount: newInvPaid,
-        status,
-        payment_type: "One-time",
-        payment_mode: newInvMode,
-        notes: newInvNotes || null,
-        appointment_id: appointmentId,
+  const handleCreateBillingInvoices = async () => {
+    if (billingTotal <= 0) { toast.error("Enter a valid amount"); return; }
+    setBillingCreating(true);
+    try {
+      const schedule = getInstallmentSchedule();
+      const services = [appointment?.service || ""].filter(Boolean);
+      const inserts = schedule.map((inst) => {
+        const baseNum = (Date.now() + inst.index).toString().slice(-6);
+        return {
+          invoice_number: `INV-${baseNum}`,
+          patient_id: appointment?.patient_id || null,
+          patient_name: patientName,
+          services,
+          total_amount: inst.amount,
+          paid_amount: 0,
+          status: "Pending" as const,
+          payment_type: billingType === "one-time" ? "One-time" : "Staged",
+          payment_mode: billingMode,
+          notes: billingType === "recurring" ? `Installment ${inst.index} of ${schedule.length}` : null,
+          appointment_id: appointmentId,
+        };
       });
+      const { error } = await supabase.from("invoices").insert(inserts);
       if (error) throw error;
-    },
-    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointment-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast.success("Invoice created");
-      setInvoiceDialogOpen(false);
-      setNewInvService("");
-      setNewInvTotal(0);
-      setNewInvPaid(0);
-      setNewInvMode("Cash");
-      setNewInvNotes("");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+      toast.success(`${inserts.length} invoice(s) created`);
+      setBillingConfirmed(false);
+      setBillingTotal(0);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBillingCreating(false);
+    }
+  };
 
   const patientName = appointment?.patients
     ? `${appointment.patients.first_name} ${appointment.patients.last_name}`
@@ -449,45 +467,157 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                 </TabsContent>
 
                 <TabsContent value="billing" className="p-6 space-y-4 mt-0">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold font-display flex items-center gap-2">
-                      <IndianRupee className="h-4 w-4" /> Patient Invoices
-                    </h3>
-                    {appointment.patient_id && (
-                      <Button size="sm" variant="outline" className="gap-1" onClick={() => {
-                        setNewInvService(appointment.service || "");
-                        setNewInvTotal(0);
-                        setNewInvPaid(0);
-                        setNewInvMode("Cash");
-                        setNewInvNotes("");
-                        setInvoiceDialogOpen(true);
-                      }}>
-                        <Plus className="h-3 w-3" /> Create Invoice
-                      </Button>
-                    )}
-                  </div>
-                  {invoices.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">No invoices found for this patient.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {invoices.map((inv: any) => (
-                        <div key={inv.id} className="border rounded-lg p-3 bg-muted/30">
-                          <div className="flex items-center justify-between">
-                            <p className="font-medium text-sm">{inv.invoice_number}</p>
-                            <Badge variant="secondary" className={`text-xs ${inv.status === "Paid" ? "bg-success/10 text-success" : inv.status === "Partial" ? "bg-warning/10 text-warning" : "bg-destructive/10 text-destructive"}`}>
-                              {inv.status}
-                            </Badge>
+                  <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+                    <IndianRupee className="h-4 w-4" /> Billing Plan
+                  </h3>
+
+                  {appointment.patient_id ? (
+                    <div className="space-y-4">
+                      {/* Total Amount */}
+                      <div>
+                        <Label>Total Bill Amount (₹)</Label>
+                        <Input
+                          type="number"
+                          placeholder="e.g. 100000"
+                          value={billingTotal || ""}
+                          onChange={(e) => { setBillingTotal(Number(e.target.value)); setBillingConfirmed(false); }}
+                          className="mt-1.5"
+                        />
+                      </div>
+
+                      {/* Billing Type */}
+                      <div>
+                        <Label>Billing Type</Label>
+                        <RadioGroup
+                          value={billingType}
+                          onValueChange={(v) => { setBillingType(v as any); setBillingConfirmed(false); }}
+                          className="flex gap-4 mt-1.5"
+                        >
+                          <div className="flex items-center gap-2">
+                            <RadioGroupItem value="one-time" id="bt-one" />
+                            <Label htmlFor="bt-one" className="font-normal cursor-pointer">One-time</Label>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {inv.services?.join(", ")} · ₹{Number(inv.total_amount).toLocaleString()}
-                          </p>
-                          <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                            <span>Paid: ₹{Number(inv.paid_amount).toLocaleString()}</span>
-                            <span>Balance: ₹{(Number(inv.total_amount) - Number(inv.paid_amount)).toLocaleString()}</span>
+                          <div className="flex items-center gap-2">
+                            <RadioGroupItem value="recurring" id="bt-rec" />
+                            <Label htmlFor="bt-rec" className="font-normal cursor-pointer">Installments</Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+
+                      {/* Recurring options */}
+                      {billingType === "recurring" && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Frequency</Label>
+                            <Select value={billingFrequency} onValueChange={(v) => { setBillingFrequency(v as any); setBillingConfirmed(false); }}>
+                              <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="weekly">Weekly</SelectItem>
+                                <SelectItem value="monthly">Monthly</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>No. of Installments</Label>
+                            <Input
+                              type="number"
+                              min={2}
+                              max={24}
+                              value={billingInstallments}
+                              onChange={(e) => { setBillingInstallments(Math.max(2, Number(e.target.value))); setBillingConfirmed(false); }}
+                              className="mt-1.5"
+                            />
                           </div>
                         </div>
-                      ))}
+                      )}
+
+                      {/* Payment Mode */}
+                      <div>
+                        <Label>Payment Mode</Label>
+                        <Select value={billingMode} onValueChange={setBillingMode}>
+                          <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {["Cash", "Card", "UPI", "Bank Transfer", "Cheque"].map((m) => (
+                              <SelectItem key={m} value={m}>{m}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Schedule Preview */}
+                      {billingTotal > 0 && (
+                        <div className="border rounded-lg p-3 bg-muted/30 space-y-2">
+                          <p className="text-xs font-semibold flex items-center gap-1.5">
+                            <CalendarClock className="h-3.5 w-3.5" /> Invoice Schedule
+                          </p>
+                          <div className="space-y-1.5">
+                            {getInstallmentSchedule().map((inst) => (
+                              <div key={inst.index} className="flex items-center justify-between text-xs border-b border-border/50 pb-1.5 last:border-0">
+                                <span className="text-muted-foreground">
+                                  #{inst.index} · {format(inst.date, "MMM d, yyyy")}
+                                </span>
+                                <span className="font-medium">₹{inst.amount.toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex justify-between text-xs font-semibold pt-1 border-t">
+                            <span>Total</span>
+                            <span>₹{billingTotal.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Confirm & Create */}
+                      {billingTotal > 0 && (
+                        <div className="space-y-3 pt-2">
+                          <div className="flex items-start gap-2">
+                            <Checkbox
+                              id="billing-confirm"
+                              checked={billingConfirmed}
+                              onCheckedChange={(c) => setBillingConfirmed(!!c)}
+                            />
+                            <Label htmlFor="billing-confirm" className="font-normal text-xs leading-relaxed cursor-pointer">
+                              I confirm the schedule above. Create {getInstallmentSchedule().length} invoice(s) for {patientName} with service "{appointment.service}" linked to this appointment.
+                            </Label>
+                          </div>
+                          <Button
+                            onClick={handleCreateBillingInvoices}
+                            disabled={!billingConfirmed || billingCreating}
+                            className="w-full gap-2"
+                          >
+                            <Check className="h-4 w-4" />
+                            {billingCreating ? "Creating Invoices..." : `Create ${getInstallmentSchedule().length} Invoice(s)`}
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Existing invoices */}
+                      {invoices.length > 0 && (
+                        <div className="pt-4 border-t space-y-2">
+                          <p className="text-xs font-semibold text-muted-foreground">Existing Invoices</p>
+                          {invoices.map((inv: any) => (
+                            <div key={inv.id} className="border rounded-lg p-3 bg-muted/30">
+                              <div className="flex items-center justify-between">
+                                <p className="font-medium text-sm">{inv.invoice_number}</p>
+                                <Badge variant="secondary" className={`text-xs ${inv.status === "Paid" ? "bg-success/10 text-success" : inv.status === "Partial" ? "bg-warning/10 text-warning" : "bg-destructive/10 text-destructive"}`}>
+                                  {inv.status}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {inv.services?.join(", ")} · ₹{Number(inv.total_amount).toLocaleString()}
+                                {inv.notes && ` · ${inv.notes}`}
+                              </p>
+                              <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+                                <span>Paid: ₹{Number(inv.paid_amount).toLocaleString()}</span>
+                                <span>Balance: ₹{(Number(inv.total_amount) - Number(inv.paid_amount)).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">No patient linked to this appointment.</p>
                   )}
                 </TabsContent>
 
@@ -580,52 +710,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
       )}
 
       <ProcedureDetailSheet procedureId={selectedProcId} onClose={() => setSelectedProcId(null)} />
-
-      <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create Invoice</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Patient</Label>
-              <Input value={patientName} disabled className="mt-1.5 bg-muted/50" />
-            </div>
-            <div>
-              <Label>Service</Label>
-              <Input value={newInvService} onChange={(e) => setNewInvService(e.target.value)} className="mt-1.5" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Total Amount (₹)</Label>
-                <Input type="number" value={newInvTotal} onChange={(e) => setNewInvTotal(Number(e.target.value))} className="mt-1.5" />
-              </div>
-              <div>
-                <Label>Paid Amount (₹)</Label>
-                <Input type="number" value={newInvPaid} onChange={(e) => setNewInvPaid(Number(e.target.value))} className="mt-1.5" />
-              </div>
-            </div>
-            <div>
-              <Label>Payment Mode</Label>
-              <Select value={newInvMode} onValueChange={setNewInvMode}>
-                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["Cash", "Card", "UPI", "Bank Transfer", "Cheque"].map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Notes</Label>
-              <Input value={newInvNotes} onChange={(e) => setNewInvNotes(e.target.value)} className="mt-1.5" placeholder="Optional notes" />
-            </div>
-            <Button onClick={() => createInvoiceMutation.mutate()} disabled={createInvoiceMutation.isPending} className="w-full">
-              {createInvoiceMutation.isPending ? "Creating..." : "Create Invoice"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

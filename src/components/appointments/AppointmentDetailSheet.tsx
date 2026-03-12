@@ -693,7 +693,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                         <Label>Billing Type</Label>
                         <RadioGroup
                           value={billingType}
-                          onValueChange={(v) => { setBillingType(v as any); setBillingConfirmed(false); }}
+                          onValueChange={(v) => { setBillingType(v as any); setBillingConfirmed(false); setCustomSchedule([]); }}
                           className="flex gap-4 mt-1.5"
                         >
                           <div className="flex items-center gap-2">

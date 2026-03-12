@@ -250,6 +250,11 @@ const PatientDetail = () => {
 
         <TabsContent value="procedures">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 space-y-3 md:space-y-0">
+            <div className="flex justify-end mb-3">
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setProcedureFormOpen(true)}>
+                <Plus className="h-3.5 w-3.5" /> Add Procedure
+              </Button>
+            </div>
             {/* Mobile card view */}
             <div className="md:hidden space-y-3">
               {procedures.length === 0 ? (

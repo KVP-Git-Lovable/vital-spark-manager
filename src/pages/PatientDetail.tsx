@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus } from "lucide-react";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { SkinTracker } from "@/components/shared/SkinTracker";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { FamilyMembers } from "@/components/patients/FamilyMembers";
 import { FamilySummaryCard } from "@/components/patients/FamilySummaryCard";
+import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { toast } from "sonner";
 
 const PatientDetail = () => {
@@ -24,6 +25,7 @@ const PatientDetail = () => {
   const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [otpCode, setOtpCode] = useState<string | null>(null);
   const [otpCopied, setOtpCopied] = useState(false);
+  const [procedureFormOpen, setProcedureFormOpen] = useState(false);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],
@@ -161,6 +163,8 @@ const PatientDetail = () => {
               </div>
             </div>
             <div className="flex gap-2 flex-wrap">
+              <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+              <CaseAnalysis patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
               <Button variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => setCameraOpen(true)}>
                 <Camera className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Take</span> Photo
               </Button>
@@ -227,14 +231,9 @@ const PatientDetail = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        <div className="lg:col-span-2">
-          <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+        <div className="lg:col-span-3">
+          <FamilySummaryCard patientId={id!} />
         </div>
-        <FamilySummaryCard patientId={id!} />
-      </div>
-
-      <div className="mb-4">
-        <CaseAnalysis patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
       </div>
 
       <Tabs defaultValue="procedures" className="mt-2">
@@ -251,6 +250,11 @@ const PatientDetail = () => {
 
         <TabsContent value="procedures">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 space-y-3 md:space-y-0">
+            <div className="flex justify-end mb-3">
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setProcedureFormOpen(true)}>
+                <Plus className="h-3.5 w-3.5" /> Add Procedure
+              </Button>
+            </div>
             {/* Mobile card view */}
             <div className="md:hidden space-y-3">
               {procedures.length === 0 ? (
@@ -332,6 +336,11 @@ const PatientDetail = () => {
 
         <TabsContent value="appointments">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            <div className="flex justify-end mb-3">
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate("/appointments")}>
+                <Plus className="h-3.5 w-3.5" /> Book Appointment
+              </Button>
+            </div>
             <div className="md:hidden space-y-3">
               {appointments.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">No appointments found</div>
@@ -383,6 +392,11 @@ const PatientDetail = () => {
 
         <TabsContent value="invoices">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            <div className="flex justify-end mb-3">
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate("/billing")}>
+                <Plus className="h-3.5 w-3.5" /> Create Invoice
+              </Button>
+            </div>
             <div className="md:hidden space-y-3">
               {invoices.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">No invoices found</div>
@@ -450,6 +464,11 @@ const PatientDetail = () => {
 
         <TabsContent value="photos">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            <div className="flex justify-end mb-3">
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setCameraOpen(true)}>
+                <Plus className="h-3.5 w-3.5" /> Take Photo
+              </Button>
+            </div>
             {photos.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Camera className="h-10 w-10 mx-auto mb-2 opacity-40" />
@@ -496,6 +515,12 @@ const PatientDetail = () => {
         onOpenChange={setSkinTrackerOpen}
         photos={photos}
         patientName={`${patient.first_name} ${patient.last_name}`}
+      />
+
+      <ProcedureFormDialog
+        open={procedureFormOpen}
+        onOpenChange={setProcedureFormOpen}
+        defaultPatientId={id}
       />
     </div>
   );

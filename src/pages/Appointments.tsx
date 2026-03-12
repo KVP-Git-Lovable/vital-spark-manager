@@ -768,12 +768,21 @@ const Appointments = () => {
                       <div
                         key={i}
                         className={cn(
-                          "border-b border-l first:border-l-0 min-h-[100px] p-1 transition-colors",
+                          "border-b border-l first:border-l-0 min-h-[100px] p-1 transition-colors cursor-pointer hover:bg-muted/20",
                           !isCurrentMonth && "bg-muted/20",
                           isToday && "bg-primary/5",
                         )}
                         onDragOver={handleDragOver}
                         onDrop={(e) => handleDropOnDate(e, date)}
+                        onClick={() => {
+                          const d = new Date(date);
+                          d.setHours(9, 0, 0, 0);
+                          if (d < new Date()) { toast.error("Cannot book in the past"); return; }
+                          setStartDate(d);
+                          setStartTime("09:00");
+                          setEndTime("09:15");
+                          setOpen(true);
+                        }}
                       >
                         <div className="flex items-center justify-between px-1">
                           <span

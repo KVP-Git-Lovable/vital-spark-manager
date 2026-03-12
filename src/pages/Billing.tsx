@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { format } from "date-fns";
-import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock } from "lucide-react";
+import { useState, useMemo } from "react";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
+import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const statusStyles: Record<string, string> = {
   Paid: "bg-success/10 text-success",
@@ -37,6 +51,7 @@ const statusStyles: Record<string, string> = {
 const generateInvoicePDF = (inv: any) => {
   const date = new Date(inv.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
   const balance = Number(inv.total_amount) - Number(inv.paid_amount);
+  const drName = inv.appointments?.staff ? `Dr. ${inv.appointments.staff.first_name} ${inv.appointments.staff.last_name}` : "";
 
   const html = `
 <!DOCTYPE html>
@@ -81,6 +96,7 @@ const generateInvoicePDF = (inv: any) => {
     <div class="details-block">
       <h3>Bill To</h3>
       <p><strong>${inv.patient_name || "Walk-in Patient"}</strong></p>
+      ${drName ? `<p style="margin-top:4px;">Doctor: ${drName}</p>` : ""}
     </div>
     <div class="details-block" style="text-align:right;">
       <h3>Invoice Details</h3>
@@ -131,6 +147,13 @@ interface PharmaLineItem {
   available: number;
 }
 
+const getDrName = (inv: any) => {
+  if (inv.appointments?.staff) {
+    return `Dr. ${inv.appointments.staff.first_name} ${inv.appointments.staff.last_name}`;
+  }
+  return "";
+};
+
 const Billing = () => {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -139,6 +162,20 @@ const Billing = () => {
   const [addPaymentAmount, setAddPaymentAmount] = useState(0);
   const [addPaymentMode, setAddPaymentMode] = useState("Cash");
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+
+  // View/Edit Sheet
+  const [viewInvoice, setViewInvoice] = useState<any>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState<any>({});
+
+  // Filter state
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterDateFrom, setFilterDateFrom] = useState<Date | undefined>();
+  const [filterDateTo, setFilterDateTo] = useState<Date | undefined>();
+  const [filterDoctor, setFilterDoctor] = useState("");
+  const [filterService, setFilterService] = useState("");
+  const [filterType, setFilterType] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
 
   // Form state
   const [patientId, setPatientId] = useState("");
@@ -151,10 +188,7 @@ const Billing = () => {
   const [selectedTaxId, setSelectedTaxId] = useState("");
   const [pharmaItems, setPharmaItems] = useState<PharmaLineItem[]>([]);
 
-  // Staged: multiple stages with amount + paid
   const [stages, setStages] = useState<StageRow[]>([{ label: "Stage 1", amount: 0, paid: 0 }]);
-
-  // Recurring: # of installments + per-installment amount + collected per installment
   const [recurringCount, setRecurringCount] = useState(1);
   const [recurringAmount, setRecurringAmount] = useState(0);
   const [recurringCollected, setRecurringCollected] = useState<number[]>([0]);
@@ -219,6 +253,22 @@ const Billing = () => {
       return data;
     },
   });
+
+  // Unique doctors and services for filter dropdowns
+  const uniqueDoctors = useMemo(() => {
+    const docs = new Map<string, string>();
+    invoices.forEach((inv: any) => {
+      const name = getDrName(inv);
+      if (name) docs.set(inv.appointments?.staff_id, name);
+    });
+    return Array.from(docs.entries());
+  }, [invoices]);
+
+  const uniqueServices = useMemo(() => {
+    const svcs = new Set<string>();
+    invoices.forEach((inv: any) => (inv.services || []).forEach((s: string) => svcs.add(s)));
+    return Array.from(svcs).sort();
+  }, [invoices]);
 
   const getSelectedTax = () => taxes.find((t: any) => t.id === selectedTaxId);
   const calcTaxAmount = (amount: number) => {
@@ -340,7 +390,6 @@ const Billing = () => {
         if (error) throw error;
       }
 
-      // Deduct pharma inventory for sold items
       for (const item of pharmaItems) {
         if (item.inventory_id && item.quantity > 0) {
           const invRecord = pharmaInventory.find((inv: any) => inv.id === item.inventory_id) as any;
@@ -403,6 +452,49 @@ const Billing = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deleteInvoice = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("invoices").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success("Invoice deleted");
+      setViewInvoice(null);
+      setIsEditing(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const updateInvoice = useMutation({
+    mutationFn: async () => {
+      if (!viewInvoice) return;
+      const newPaid = Number(editData.paid_amount);
+      const newTotal = Number(editData.total_amount);
+      let status = "Pending";
+      if (newPaid >= newTotal && newTotal > 0) status = "Paid";
+      else if (newPaid > 0) status = "Partial";
+
+      const { error } = await supabase.from("invoices").update({
+        patient_name: editData.patient_name,
+        total_amount: newTotal,
+        paid_amount: newPaid,
+        payment_mode: editData.payment_mode,
+        payment_type: editData.payment_type,
+        notes: editData.notes || null,
+        status,
+      }).eq("id", viewInvoice.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success("Invoice updated");
+      setIsEditing(false);
+      setViewInvoice(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const resetForm = () => {
     setPatientId("");
     setServiceInputs([""]);
@@ -449,16 +541,107 @@ const Billing = () => {
   const pendingAmount = invoices.filter((i: any) => i.status === "Pending").reduce((s: number, inv: any) => s + Number(inv.total_amount), 0);
   const partialAmount = invoices.filter((i: any) => i.status === "Partial").reduce((s: number, inv: any) => s + (Number(inv.total_amount) - Number(inv.paid_amount)), 0);
 
-  const filtered = invoices.filter((inv: any) => {
-    const q = search.toLowerCase();
-    return inv.invoice_number?.toLowerCase().includes(q) || inv.patient_name?.toLowerCase().includes(q);
-  });
+  // Full-text search + filters
+  const filtered = useMemo(() => {
+    return invoices.filter((inv: any) => {
+      const q = search.toLowerCase();
+      if (q) {
+        const drName = getDrName(inv).toLowerCase();
+        const servicesStr = (inv.services || []).join(" ").toLowerCase();
+        const searchFields = [
+          inv.invoice_number,
+          inv.patient_name,
+          servicesStr,
+          inv.payment_type,
+          inv.payment_mode,
+          drName,
+        ].join(" ").toLowerCase();
+        if (!searchFields.includes(q)) return false;
+      }
 
-  // ─── Staged totals for preview ─────────────────
+      // Date filter
+      if (filterDateFrom || filterDateTo) {
+        const invDate = new Date(inv.created_at);
+        if (filterDateFrom && invDate < startOfDay(filterDateFrom)) return false;
+        if (filterDateTo && invDate > endOfDay(filterDateTo)) return false;
+      }
+
+      // Doctor filter
+      if (filterDoctor) {
+        const staffId = inv.appointments?.staff_id;
+        if (staffId !== filterDoctor) return false;
+      }
+
+      // Service filter
+      if (filterService) {
+        if (!(inv.services || []).some((s: string) => s === filterService)) return false;
+      }
+
+      // Type filter
+      if (filterType && inv.payment_type !== filterType) return false;
+
+      // Status filter
+      if (filterStatus && inv.status !== filterStatus) return false;
+
+      return true;
+    });
+  }, [invoices, search, filterDateFrom, filterDateTo, filterDoctor, filterService, filterType, filterStatus]);
+
+  const hasActiveFilters = filterDateFrom || filterDateTo || filterDoctor || filterService || filterType || filterStatus;
+
+  const clearFilters = () => {
+    setFilterDateFrom(undefined);
+    setFilterDateTo(undefined);
+    setFilterDoctor("");
+    setFilterService("");
+    setFilterType("");
+    setFilterStatus("");
+  };
+
+  // CSV Export
+  const exportCSV = () => {
+    const headers = ["Invoice", "Date", "Patient", "Doctor", "Services", "Type", "Mode", "Total", "Paid", "Balance", "Status"];
+    const rows = filtered.map((inv: any) => [
+      inv.invoice_number,
+      format(new Date(inv.created_at), "yyyy-MM-dd"),
+      inv.patient_name || "",
+      getDrName(inv),
+      (inv.services || []).join("; "),
+      inv.payment_type,
+      inv.payment_mode || "",
+      Number(inv.total_amount),
+      Number(inv.paid_amount),
+      Number(inv.total_amount) - Number(inv.paid_amount),
+      inv.status,
+    ]);
+    const csv = [headers, ...rows].map(r => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `invoices-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filtered.length} invoices`);
+  };
+
   const stagedTotal = stages.reduce((s, st) => s + st.amount, 0);
   const stagedPaid = stages.reduce((s, st) => s + st.paid, 0);
   const recurringTotal = recurringCount * recurringAmount;
   const recurringPaidTotal = recurringCollected.reduce((s, c) => s + c, 0);
+
+  const openViewSheet = (inv: any) => {
+    setViewInvoice(inv);
+    setIsEditing(false);
+    setEditData({
+      patient_name: inv.patient_name || "",
+      total_amount: inv.total_amount,
+      paid_amount: inv.paid_amount,
+      payment_mode: inv.payment_mode || "Cash",
+      payment_type: inv.payment_type || "One-time",
+      notes: inv.notes || "",
+    });
+  };
 
   return (
     <div>
@@ -508,7 +691,7 @@ const Billing = () => {
                 ))}
               </div>
 
-              {/* ─── Pharma Products ─── */}
+              {/* Pharma Products */}
               <div className="border-t pt-4">
                 <div className="flex items-center justify-between mb-1.5">
                   <Label className="flex items-center gap-1.5"><Pill className="h-3.5 w-3.5" /> Pharma Products</Label>
@@ -582,7 +765,6 @@ const Billing = () => {
                 </div>
               </div>
 
-              {/* Tax Selection */}
               <div>
                 <Label>Tax</Label>
                 <Select value={selectedTaxId || "none"} onValueChange={(v) => setSelectedTaxId(v === "none" ? "" : v)}>
@@ -596,7 +778,6 @@ const Billing = () => {
                 </Select>
               </div>
 
-              {/* ─── One-time: simple amount/paid ─── */}
               {paymentType === "One-time" && (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-4">
@@ -623,7 +804,6 @@ const Billing = () => {
                 </div>
               )}
 
-              {/* ─── Staged: multiple rows of amount + paid ─── */}
               {paymentType === "Staged" && (
                 <div className="border-t pt-4 space-y-3">
                   <div className="flex items-center justify-between">
@@ -635,11 +815,7 @@ const Billing = () => {
                   {stages.map((stage, i) => (
                     <div key={i} className="border rounded-lg p-3 bg-muted/30 space-y-2">
                       <div className="flex items-center justify-between">
-                        <Input
-                          className="h-7 text-xs font-medium w-32 border-0 bg-transparent p-0"
-                          value={stage.label}
-                          onChange={(e) => updateStage(i, "label", e.target.value)}
-                        />
+                        <Input className="h-7 text-xs font-medium w-32 border-0 bg-transparent p-0" value={stage.label} onChange={(e) => updateStage(i, "label", e.target.value)} />
                         {stages.length > 1 && (
                           <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeStage(i)}>Remove</Button>
                         )}
@@ -665,7 +841,6 @@ const Billing = () => {
                 </div>
               )}
 
-              {/* ─── Recurring: # installments + amount + collected per installment ─── */}
               {paymentType === "Recurring" && (
                 <div className="border-t pt-4 space-y-3">
                   <Label className="font-display font-semibold">Recurring Installments</Label>
@@ -679,7 +854,6 @@ const Billing = () => {
                       <Input type="number" className="mt-1" value={recurringAmount} onChange={(e) => setRecurringAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
-
                   {recurringCount > 0 && (
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                       {Array.from({ length: recurringCount }, (_, i) => (
@@ -687,23 +861,16 @@ const Billing = () => {
                           <span className="text-xs font-medium text-muted-foreground w-24 shrink-0">Inst. {i + 1}</span>
                           <div className="flex-1 text-xs text-right text-muted-foreground">₹{recurringAmount.toLocaleString()}</div>
                           <div className="w-28">
-                            <Input
-                              type="number"
-                              className="h-7 text-xs"
-                              placeholder="Collected"
-                              value={recurringCollected[i] || 0}
-                              onChange={(e) => {
-                                const updated = [...recurringCollected];
-                                updated[i] = parseFloat(e.target.value) || 0;
-                                setRecurringCollected(updated);
-                              }}
-                            />
+                            <Input type="number" className="h-7 text-xs" placeholder="Collected" value={recurringCollected[i] || 0} onChange={(e) => {
+                              const updated = [...recurringCollected];
+                              updated[i] = parseFloat(e.target.value) || 0;
+                              setRecurringCollected(updated);
+                            }} />
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
-
                   <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
                     <div className="flex justify-between"><span className="text-muted-foreground">Total ({recurringCount} × ₹{recurringAmount.toLocaleString()})</span><span className="font-semibold">₹{recurringTotal.toLocaleString()}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{recurringPaidTotal.toLocaleString()}</span></div>
@@ -741,19 +908,10 @@ const Billing = () => {
                 <div className="flex justify-between"><span className="text-muted-foreground">Already Paid</span><span>₹{Number(paymentInv.paid_amount).toLocaleString()}</span></div>
                 <div className="flex justify-between font-semibold text-primary"><span>Balance Due</span><span>₹{(Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)).toLocaleString()}</span></div>
               </div>
-
               <div>
                 <Label>Payment Amount (₹) *</Label>
-                <Input
-                  type="number"
-                  className="mt-1.5"
-                  placeholder={`Max: ₹${(Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)).toLocaleString()}`}
-                  value={addPaymentAmount}
-                  onChange={(e) => setAddPaymentAmount(parseFloat(e.target.value) || 0)}
-                  max={Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)}
-                />
+                <Input type="number" className="mt-1.5" placeholder={`Max: ₹${(Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)).toLocaleString()}`} value={addPaymentAmount} onChange={(e) => setAddPaymentAmount(parseFloat(e.target.value) || 0)} max={Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)} />
               </div>
-
               <div>
                 <Label>Payment Mode</Label>
                 <Select value={addPaymentMode} onValueChange={setAddPaymentMode}>
@@ -763,17 +921,11 @@ const Billing = () => {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="flex gap-2">
                 <Button className="flex-1" onClick={() => updatePayment.mutate()} disabled={addPaymentAmount <= 0 || updatePayment.isPending}>
                   {updatePayment.isPending ? "Updating..." : "Add Payment"}
                 </Button>
-                <Button
-                  variant="outline"
-                  className="shrink-0"
-                  onClick={() => markAsPaid.mutate(paymentInv)}
-                  disabled={paymentInv.status === "Paid" || markAsPaid.isPending}
-                >
+                <Button variant="outline" className="shrink-0" onClick={() => markAsPaid.mutate(paymentInv)} disabled={paymentInv.status === "Paid" || markAsPaid.isPending}>
                   Mark Fully Paid
                 </Button>
               </div>
@@ -792,11 +944,95 @@ const Billing = () => {
         <div className="p-4 border-b flex flex-col sm:flex-row gap-3 items-center justify-between">
           <div className="relative flex-1 w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search invoices..." className="pl-9 bg-muted border-0" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder="Search invoices, services, doctor, type..." className="pl-9 bg-muted border-0" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="gap-2"><Filter className="h-3.5 w-3.5" />Filter</Button>
-            <Button variant="outline" size="sm" className="gap-2"><Download className="h-3.5 w-3.5" />Export</Button>
+            <Popover open={showFilters} onOpenChange={setShowFilters}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("gap-2", hasActiveFilters && "border-primary text-primary")}>
+                  <Filter className="h-3.5 w-3.5" />Filter
+                  {hasActiveFilters && <span className="h-2 w-2 rounded-full bg-primary" />}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 space-y-3" align="end">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-sm">Filters</h4>
+                  {hasActiveFilters && <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearFilters}>Clear all</Button>}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Date From</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full justify-start text-left font-normal">
+                        {filterDateFrom ? format(filterDateFrom, "PPP") : "Any"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={filterDateFrom} onSelect={setFilterDateFrom} className="p-3 pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Date To</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full justify-start text-left font-normal">
+                        {filterDateTo ? format(filterDateTo, "PPP") : "Any"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={filterDateTo} onSelect={setFilterDateTo} className="p-3 pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Doctor</Label>
+                  <Select value={filterDoctor || "all"} onValueChange={(v) => setFilterDoctor(v === "all" ? "" : v)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Doctors</SelectItem>
+                      {uniqueDoctors.map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Service</Label>
+                  <Select value={filterService || "all"} onValueChange={(v) => setFilterService(v === "all" ? "" : v)}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Services</SelectItem>
+                      {uniqueServices.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Type</Label>
+                    <Select value={filterType || "all"} onValueChange={(v) => setFilterType(v === "all" ? "" : v)}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {["One-time", "Staged", "Recurring"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Status</Label>
+                    <Select value={filterStatus || "all"} onValueChange={(v) => setFilterStatus(v === "all" ? "" : v)}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {["Paid", "Partial", "Pending"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button size="sm" className="w-full" onClick={() => setShowFilters(false)}>Apply</Button>
+              </PopoverContent>
+            </Popover>
+            <Button variant="outline" size="sm" className="gap-2" onClick={exportCSV}>
+              <Download className="h-3.5 w-3.5" />Export
+            </Button>
           </div>
         </div>
 
@@ -806,6 +1042,7 @@ const Billing = () => {
               <tr className="border-b bg-muted/50">
                 <th className="text-left text-xs font-medium text-muted-foreground p-4">Invoice</th>
                 <th className="text-left text-xs font-medium text-muted-foreground p-4">Patient</th>
+                <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden lg:table-cell">Doctor</th>
                 <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden md:table-cell">Services</th>
                 <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden sm:table-cell">Type</th>
                 <th className="text-right text-xs font-medium text-muted-foreground p-4">Amount</th>
@@ -815,25 +1052,22 @@ const Billing = () => {
             </thead>
             <tbody className="divide-y">
               {filtered.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No invoices found</td></tr>
+                <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No invoices found</td></tr>
               ) : (
                 filtered.map((inv: any) => (
-                  <tr key={inv.id} className="hover:bg-muted/30 transition-colors">
+                  <tr key={inv.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => openViewSheet(inv)}>
                     <td className="p-4">
-                      <p className="font-medium text-sm">{inv.invoice_number}</p>
+                      <p className="font-medium text-sm text-primary hover:underline">{inv.invoice_number}</p>
                       <p className="text-xs text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</p>
-                      {inv.appointments && (
-                        <button
-                          onClick={() => setSelectedAppointmentId(inv.appointments.id)}
-                          className="mt-1 flex items-center gap-1 text-[10px] text-primary bg-primary/5 hover:bg-primary/10 rounded px-1.5 py-0.5 w-fit cursor-pointer transition-colors"
-                        >
-                          <CalendarClock className="h-3 w-3" />
-                          {inv.appointments.service} · {format(new Date(inv.appointments.start_time), "MMM d, h:mm a")}
-                          {inv.appointments.staff && ` · Dr. ${inv.appointments.staff.first_name}`}
-                        </button>
-                      )}
                     </td>
                     <td className="p-4 text-sm">{inv.patient_name || "—"}</td>
+                    <td className="p-4 hidden lg:table-cell">
+                      {getDrName(inv) ? (
+                        <span className="text-sm">{getDrName(inv)}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="p-4 hidden md:table-cell">
                       <div className="flex flex-wrap gap-1">
                         {(inv.services || []).map((s: string, i: number) => (
@@ -855,26 +1089,14 @@ const Billing = () => {
                         {inv.status}
                       </span>
                     </td>
-                    <td className="p-4">
+                    <td className="p-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-1">
                         {inv.status !== "Paid" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            title="Add Payment"
-                            onClick={() => { setPaymentInv(inv); setAddPaymentAmount(0); setAddPaymentMode("Cash"); }}
-                          >
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Add Payment" onClick={() => { setPaymentInv(inv); setAddPaymentAmount(0); setAddPaymentMode("Cash"); }}>
                             <CreditCard className="h-4 w-4" />
                           </Button>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Download PDF"
-                          onClick={() => generateInvoicePDF(inv)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Download PDF" onClick={() => generateInvoicePDF(inv)}>
                           <FileText className="h-4 w-4" />
                         </Button>
                       </div>
@@ -886,6 +1108,135 @@ const Billing = () => {
           </table>
         </div>
       </motion.div>
+
+      {/* Invoice View/Edit Sheet */}
+      <Sheet open={!!viewInvoice} onOpenChange={(o) => { if (!o) { setViewInvoice(null); setIsEditing(false); } }}>
+        <SheetContent className="sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="font-display">{isEditing ? "Edit Invoice" : "Invoice Details"}</SheetTitle>
+            <SheetDescription>{viewInvoice?.invoice_number}</SheetDescription>
+          </SheetHeader>
+
+          {viewInvoice && !isEditing && (
+            <div className="space-y-6 mt-6">
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setIsEditing(true)}>
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </Button>
+                <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => {
+                  if (confirm("Are you sure you want to delete this invoice?")) deleteInvoice.mutate(viewInvoice.id);
+                }}>
+                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                </Button>
+                <Button size="sm" variant="outline" className="gap-1.5 ml-auto" onClick={() => generateInvoicePDF(viewInvoice)}>
+                  <FileText className="h-3.5 w-3.5" /> PDF
+                </Button>
+              </div>
+
+              {/* Details */}
+              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><span className="text-muted-foreground text-xs block">Patient</span><span className="font-medium">{viewInvoice.patient_name || "Walk-in"}</span></div>
+                  <div><span className="text-muted-foreground text-xs block">Date</span><span className="font-medium">{format(new Date(viewInvoice.created_at), "PPP")}</span></div>
+                  <div><span className="text-muted-foreground text-xs block">Doctor</span><span className="font-medium">{getDrName(viewInvoice) || "—"}</span></div>
+                  <div><span className="text-muted-foreground text-xs block">Payment Mode</span><span className="font-medium">{viewInvoice.payment_mode || "Cash"}</span></div>
+                  <div><span className="text-muted-foreground text-xs block">Type</span><Badge variant="outline" className="text-xs mt-0.5">{viewInvoice.payment_type}</Badge></div>
+                  <div><span className="text-muted-foreground text-xs block">Status</span><span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[viewInvoice.status] || ""}`}>{viewInvoice.status}</span></div>
+                </div>
+              </div>
+
+              {/* Services */}
+              <div>
+                <h4 className="text-sm font-semibold mb-2">Services</h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {(viewInvoice.services || []).map((s: string, i: number) => (
+                    <Badge key={i} variant="secondary">{s}</Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Financials */}
+              <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Total Amount</span><span className="font-semibold">₹{Number(viewInvoice.total_amount).toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Paid Amount</span><span>₹{Number(viewInvoice.paid_amount).toLocaleString()}</span></div>
+                {viewInvoice.tax_rate > 0 && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">Tax ({viewInvoice.tax_rate}%)</span><span>₹{Number(viewInvoice.tax_amount || 0).toLocaleString()}</span></div>
+                )}
+                <div className="flex justify-between font-semibold text-primary border-t pt-2"><span>Balance Due</span><span>₹{(Number(viewInvoice.total_amount) - Number(viewInvoice.paid_amount)).toLocaleString()}</span></div>
+              </div>
+
+              {viewInvoice.notes && (
+                <div className="bg-muted/30 rounded-lg p-3 text-sm">
+                  <span className="text-muted-foreground text-xs block mb-1">Notes</span>
+                  {viewInvoice.notes}
+                </div>
+              )}
+
+              {/* Linked appointment */}
+              {viewInvoice.appointments && (
+                <button
+                  onClick={() => { setSelectedAppointmentId(viewInvoice.appointments.id); setViewInvoice(null); }}
+                  className="w-full flex items-center gap-2 text-sm text-primary bg-primary/5 hover:bg-primary/10 rounded-lg px-3 py-2 transition-colors"
+                >
+                  <CalendarClock className="h-4 w-4" />
+                  <span>{viewInvoice.appointments.service} · {format(new Date(viewInvoice.appointments.start_time), "MMM d, h:mm a")}</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Edit Mode */}
+          {viewInvoice && isEditing && (
+            <div className="space-y-4 mt-6">
+              <div>
+                <Label>Patient Name</Label>
+                <Input className="mt-1.5" value={editData.patient_name} onChange={(e) => setEditData({ ...editData, patient_name: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Total Amount (₹)</Label>
+                  <Input type="number" className="mt-1.5" value={editData.total_amount} onChange={(e) => setEditData({ ...editData, total_amount: parseFloat(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <Label>Paid Amount (₹)</Label>
+                  <Input type="number" className="mt-1.5" value={editData.paid_amount} onChange={(e) => setEditData({ ...editData, paid_amount: parseFloat(e.target.value) || 0 })} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Payment Type</Label>
+                  <Select value={editData.payment_type} onValueChange={(v) => setEditData({ ...editData, payment_type: v })}>
+                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["One-time", "Staged", "Recurring"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Payment Mode</Label>
+                  <Select value={editData.payment_mode} onValueChange={(v) => setEditData({ ...editData, payment_mode: v })}>
+                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["Cash", "Card", "UPI", "Insurance", "Bank Transfer"].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Notes</Label>
+                <Textarea className="mt-1.5" value={editData.notes} onChange={(e) => setEditData({ ...editData, notes: e.target.value })} rows={2} />
+              </div>
+              <div className="flex gap-2">
+                <Button className="flex-1" onClick={() => updateInvoice.mutate()} disabled={updateInvoice.isPending}>
+                  {updateInvoice.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+                <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
 
       <AppointmentDetailSheet
         appointmentId={selectedAppointmentId}

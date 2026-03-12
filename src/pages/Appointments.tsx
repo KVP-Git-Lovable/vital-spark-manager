@@ -566,7 +566,7 @@ const Appointments = () => {
     return slotIndex >= min && slotIndex <= max;
   };
 
-
+  const navigate = (dir: number) => {
     if (view === "week") navigateWeek(dir);
     else if (view === "day") navigateDay(dir);
     else if (view === "month") navigateMonth(dir);

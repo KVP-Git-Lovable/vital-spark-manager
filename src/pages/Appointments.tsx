@@ -1131,13 +1131,17 @@ const Appointments = () => {
                           <div
                             key={dayIndex}
                             className={cn(
-                              "border-l p-0.5 min-h-[18px] cursor-pointer hover:bg-muted/30 transition-colors",
+                              "border-l p-0.5 min-h-[18px] cursor-crosshair transition-colors select-none",
                               isToday && "bg-primary/5",
-                              slot.minute === 0 && "border-t"
+                              slot.minute === 0 && "border-t",
+                              isSlotInDragRange(date, si) ? "bg-primary/20" : "hover:bg-muted/30"
                             )}
                             onDragOver={handleDragOver}
                             onDrop={(e) => handleDropOnSlot(e, date, slot.hour, slot.minute)}
+                            onMouseDown={(e) => { e.preventDefault(); handleSlotMouseDown(date, si); }}
+                            onMouseEnter={() => handleSlotMouseEnter(date, si)}
                             onClick={() => {
+                              if (isDragSelecting) return;
                               const d = new Date(date);
                               d.setHours(slot.hour, slot.minute, 0, 0);
                               if (d < new Date()) { toast.error("Cannot book in the past"); return; }

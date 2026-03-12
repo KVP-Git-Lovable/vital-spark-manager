@@ -293,6 +293,7 @@ const Appointments = () => {
       if (startDT < new Date()) throw new Error("Cannot book appointments in the past");
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
+      const patientSource = (patient as any)?.source || "Walk-in";
       const selectedService = services.find((s) => s.id === serviceId);
       const serviceName = selectedService?.name || "";
       if (isRecurring && recurrenceEndDate) {

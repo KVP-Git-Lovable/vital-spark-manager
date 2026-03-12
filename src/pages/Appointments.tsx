@@ -332,7 +332,7 @@ const Appointments = () => {
   });
 
   const inlineUpdateMutation = useMutation({
-    mutationFn: async (data: { id: string; status?: string; service?: string }) => {
+    mutationFn: async (data: Record<string, any>) => {
       const { id, ...updates } = data;
       const { error } = await supabase.from("appointments").update(updates).eq("id", id);
       if (error) throw error;

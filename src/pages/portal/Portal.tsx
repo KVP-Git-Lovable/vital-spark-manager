@@ -43,7 +43,8 @@ const tabs = [
   { id: "procedures", label: "History", icon: ClipboardList },
   { id: "photos", label: "Photos", icon: Camera },
   { id: "billing", label: "Bills", icon: Receipt },
-  { id: "pharmacy", label: "Shop", icon: Pill },
+  { id: "pharmacy", label: "Shop", icon: ShoppingBag },
+  { id: "bot", label: "AI Bot", icon: MessageCircle },
 ];
 
 const Portal = () => {

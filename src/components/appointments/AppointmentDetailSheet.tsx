@@ -270,6 +270,15 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     },
   });
 
+  const { data: servicesList = [] } = useQuery({
+    queryKey: ["services-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("services").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Fetch approved leaves to show on-leave indicator
   const { data: approvedLeaves = [] } = useQuery({
     queryKey: ["approved-leaves-today"],

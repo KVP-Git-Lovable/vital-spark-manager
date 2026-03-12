@@ -619,8 +619,8 @@ const Appointments = () => {
                 <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus className={cn("p-3 pointer-events-auto")} />
               </PopoverContent>
             </Popover>
-            {(searchQuery || filterDoctor !== "all" || filterDate) && (
-              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctor("all"); setFilterDate(undefined); }}>Clear filters</Button>
+            {(searchQuery || filterDoctors.size > 0 || filterDate) && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterDate(undefined); }}>Clear filters</Button>
             )}
             <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
           </motion.div>

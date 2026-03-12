@@ -627,17 +627,42 @@ const Appointments = () => {
         )}
         {/* Doctor color legend */}
         {view !== "table" && doctorColorMap.size > 0 && (
-          <div className="flex flex-wrap items-center gap-3 mt-2">
+          <div className="flex flex-wrap items-center gap-2 mt-2">
             <span className="text-xs text-muted-foreground font-medium">Doctors:</span>
             {staffList.filter(s => doctorColorMap.has(s.id)).map(s => {
               const p = doctorColorMap.get(s.id)!;
+              const isSelected = filterDoctors.has(s.id);
+              const isFiltering = filterDoctors.size > 0;
               return (
-                <div key={s.id} className="flex items-center gap-1.5 text-xs">
+                <button
+                  key={s.id}
+                  className={cn(
+                    "flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border transition-all cursor-pointer",
+                    isSelected
+                      ? `${p.bg} ${p.border} ${p.text} font-medium`
+                      : isFiltering
+                        ? "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
+                        : "border-transparent text-muted-foreground hover:bg-muted"
+                  )}
+                  onClick={() => {
+                    setFilterDoctors(prev => {
+                      const next = new Set(prev);
+                      if (next.has(s.id)) next.delete(s.id);
+                      else next.add(s.id);
+                      return next;
+                    });
+                  }}
+                >
                   <span className={cn("w-2.5 h-2.5 rounded-full", p.dot)} />
-                  <span className="text-muted-foreground">Dr. {s.first_name} {s.last_name}</span>
-                </div>
+                  Dr. {s.first_name} {s.last_name}
+                </button>
               );
             })}
+            {filterDoctors.size > 0 && (
+              <button className="text-[10px] text-muted-foreground hover:text-foreground ml-1" onClick={() => setFilterDoctors(new Set())}>
+                Clear
+              </button>
+            )}
           </div>
         )}
       </div>

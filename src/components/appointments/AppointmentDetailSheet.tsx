@@ -382,20 +382,44 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Generate installment schedule
-  const getInstallmentSchedule = () => {
+  // Generate installment schedule (used to seed customSchedule)
+  const generateDefaultSchedule = () => {
     if (billingTotal <= 0) return [];
     const baseDate = appointment?.start_time ? new Date(appointment.start_time) : new Date();
     if (billingType === "one-time") {
-      return [{ date: baseDate, amount: billingTotal, index: 1 }];
+      return [{ date: baseDate, amount: billingTotal }];
     }
     const count = Math.max(2, billingInstallments);
     const perInstallment = Math.floor(billingTotal / count);
     const remainder = billingTotal - perInstallment * count;
     return Array.from({ length: count }, (_, i) => {
       const date = billingFrequency === "monthly" ? addMonths(baseDate, i) : addWeeks(baseDate, i);
-      return { date, amount: i === 0 ? perInstallment + remainder : perInstallment, index: i + 1 };
+      return { date, amount: i === 0 ? perInstallment + remainder : perInstallment };
     });
+  };
+
+  // Recalculate schedule when inputs change
+  const regenerateSchedule = () => {
+    const schedule = generateDefaultSchedule();
+    setCustomSchedule(schedule);
+    setBillingConfirmed(false);
+  };
+
+  const scheduleTotal = customSchedule.reduce((s, i) => s + i.amount, 0);
+  const scheduleMismatch = customSchedule.length > 0 && scheduleTotal !== billingTotal;
+
+  const updateScheduleDate = (idx: number, date: Date) => {
+    const updated = [...customSchedule];
+    updated[idx] = { ...updated[idx], date };
+    setCustomSchedule(updated);
+    setBillingConfirmed(false);
+  };
+
+  const updateScheduleAmount = (idx: number, amount: number) => {
+    const updated = [...customSchedule];
+    updated[idx] = { ...updated[idx], amount };
+    setCustomSchedule(updated);
+    setBillingConfirmed(false);
   };
 
   const handleCreateBillingInvoices = async () => {

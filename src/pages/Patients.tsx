@@ -41,6 +41,9 @@ const Patients = () => {
     queryFn: fetchPatients,
   });
 
+  const patientIds = patients.map((p) => p.id);
+  const { data: engagementScores = {} } = useEngagementScores(patientIds);
+
   const filtered = patients.filter(
     (p) =>
       `${p.first_name} ${p.last_name}`.toLowerCase().includes(search.toLowerCase()) ||

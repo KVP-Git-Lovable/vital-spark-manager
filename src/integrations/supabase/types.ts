@@ -1720,6 +1720,129 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_aspirations: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          staff_id: string
+          status: string
+          target_date: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          staff_id: string
+          status?: string
+          target_date?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          staff_id?: string
+          status?: string
+          target_date?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_aspirations_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_education: {
+        Row: {
+          created_at: string
+          degree: string
+          end_year: number | null
+          field_of_study: string | null
+          id: string
+          institution: string
+          notes: string | null
+          staff_id: string
+          start_year: number | null
+        }
+        Insert: {
+          created_at?: string
+          degree: string
+          end_year?: number | null
+          field_of_study?: string | null
+          id?: string
+          institution: string
+          notes?: string | null
+          staff_id: string
+          start_year?: number | null
+        }
+        Update: {
+          created_at?: string
+          degree?: string
+          end_year?: number | null
+          field_of_study?: string | null
+          id?: string
+          institution?: string
+          notes?: string | null
+          staff_id?: string
+          start_year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_education_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_experience: {
+        Row: {
+          company: string
+          created_at: string
+          end_date: string | null
+          id: string
+          notes: string | null
+          staff_id: string
+          start_date: string | null
+          title: string
+        }
+        Insert: {
+          company: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          notes?: string | null
+          staff_id: string
+          start_date?: string | null
+          title: string
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          notes?: string | null
+          staff_id?: string
+          start_date?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_experience_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_leave_balances: {
         Row: {
           created_at: string
@@ -1761,6 +1884,53 @@ export type Database = {
           },
           {
             foreignKeyName: "staff_leave_balances_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_requests: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          priority: string
+          resolved_at: string | null
+          staff_id: string
+          status: string
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string
+          resolved_at?: string | null
+          staff_id: string
+          status?: string
+          title: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string
+          resolved_at?: string | null
+          staff_id?: string
+          status?: string
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_requests_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"

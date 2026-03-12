@@ -210,43 +210,57 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const createInvoiceMutation = useMutation({
-    mutationFn: async () => {
-      const services = [newInvService].filter(s => s.trim());
-      if (services.length === 0) throw new Error("Service is required");
-      const baseNum = Date.now().toString().slice(-6);
-      let status = "Pending";
-      if (newInvPaid >= newInvTotal && newInvTotal > 0) status = "Paid";
-      else if (newInvPaid > 0) status = "Partial";
+  // Generate installment schedule
+  const getInstallmentSchedule = () => {
+    if (billingTotal <= 0) return [];
+    const baseDate = appointment?.start_time ? new Date(appointment.start_time) : new Date();
+    if (billingType === "one-time") {
+      return [{ date: baseDate, amount: billingTotal, index: 1 }];
+    }
+    const count = Math.max(2, billingInstallments);
+    const perInstallment = Math.floor(billingTotal / count);
+    const remainder = billingTotal - perInstallment * count;
+    return Array.from({ length: count }, (_, i) => {
+      const date = billingFrequency === "monthly" ? addMonths(baseDate, i) : addWeeks(baseDate, i);
+      return { date, amount: i === 0 ? perInstallment + remainder : perInstallment, index: i + 1 };
+    });
+  };
 
-      const { error } = await supabase.from("invoices").insert({
-        invoice_number: `INV-${baseNum}`,
-        patient_id: appointment?.patient_id || null,
-        patient_name: patientName,
-        services,
-        total_amount: newInvTotal,
-        paid_amount: newInvPaid,
-        status,
-        payment_type: "One-time",
-        payment_mode: newInvMode,
-        notes: newInvNotes || null,
-        appointment_id: appointmentId,
+  const handleCreateBillingInvoices = async () => {
+    if (billingTotal <= 0) { toast.error("Enter a valid amount"); return; }
+    setBillingCreating(true);
+    try {
+      const schedule = getInstallmentSchedule();
+      const services = [appointment?.service || ""].filter(Boolean);
+      const inserts = schedule.map((inst) => {
+        const baseNum = (Date.now() + inst.index).toString().slice(-6);
+        return {
+          invoice_number: `INV-${baseNum}`,
+          patient_id: appointment?.patient_id || null,
+          patient_name: patientName,
+          services,
+          total_amount: inst.amount,
+          paid_amount: 0,
+          status: "Pending" as const,
+          payment_type: billingType === "one-time" ? "One-time" : "Staged",
+          payment_mode: billingMode,
+          notes: billingType === "recurring" ? `Installment ${inst.index} of ${schedule.length}` : null,
+          appointment_id: appointmentId,
+        };
       });
+      const { error } = await supabase.from("invoices").insert(inserts);
       if (error) throw error;
-    },
-    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointment-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast.success("Invoice created");
-      setInvoiceDialogOpen(false);
-      setNewInvService("");
-      setNewInvTotal(0);
-      setNewInvPaid(0);
-      setNewInvMode("Cash");
-      setNewInvNotes("");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+      toast.success(`${inserts.length} invoice(s) created`);
+      setBillingConfirmed(false);
+      setBillingTotal(0);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBillingCreating(false);
+    }
+  };
 
   const patientName = appointment?.patients
     ? `${appointment.patients.first_name} ${appointment.patients.last_name}`

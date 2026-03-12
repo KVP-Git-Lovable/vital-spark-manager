@@ -170,7 +170,10 @@ const Billing = () => {
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("invoices").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("*, appointments(id, service, start_time, staff_id, staff(first_name, last_name))")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },

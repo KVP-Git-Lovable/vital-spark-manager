@@ -392,6 +392,11 @@ const PatientDetail = () => {
 
         <TabsContent value="invoices">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            <div className="flex justify-end mb-3">
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate("/billing")}>
+                <Plus className="h-3.5 w-3.5" /> Create Invoice
+              </Button>
+            </div>
             <div className="md:hidden space-y-3">
               {invoices.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">No invoices found</div>

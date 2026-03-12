@@ -516,6 +516,12 @@ const PatientDetail = () => {
         photos={photos}
         patientName={`${patient.first_name} ${patient.last_name}`}
       />
+
+      <ProcedureFormDialog
+        open={procedureFormOpen}
+        onOpenChange={setProcedureFormOpen}
+        defaultPatientId={id}
+      />
     </div>
   );
 };

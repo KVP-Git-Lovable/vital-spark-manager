@@ -20,6 +20,7 @@ import Assets from "./pages/Assets";
 import Settings from "./pages/Settings";
 import Orders from "./pages/Orders";
 import Expenses from "./pages/Expenses";
+import StaffManagement from "./pages/StaffManagement";
 import PortalLogin from "./pages/portal/PortalLogin";
 import Portal from "./pages/portal/Portal";
 import NotFound from "./pages/NotFound";

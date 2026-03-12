@@ -11,7 +11,7 @@ const tools = [
     type: "function",
     function: {
       name: "list_doctors",
-      description: "List all available doctors/practitioners at the clinic. Call this when the patient asks to book an appointment and you need to show them which doctors are available.",
+      description: "List all available doctors/practitioners at the clinic.",
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
@@ -19,7 +19,7 @@ const tools = [
     type: "function",
     function: {
       name: "check_doctor_availability",
-      description: "Check if a specific doctor is available at a given date and time. Use this after the patient has chosen a doctor and proposed a date/time.",
+      description: "Check if a specific doctor is available at a given date and time.",
       parameters: {
         type: "object",
         properties: {
@@ -35,7 +35,7 @@ const tools = [
     type: "function",
     function: {
       name: "book_appointment",
-      description: "Book an appointment for the patient after confirming doctor availability and getting patient confirmation. Only call this after the patient has explicitly confirmed they want to book.",
+      description: "Book an appointment for the patient after confirming doctor availability and getting patient confirmation.",
       parameters: {
         type: "object",
         properties: {
@@ -48,6 +48,123 @@ const tools = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "list_patient_appointments",
+      description: "List the patient's upcoming appointments. Use this when the patient wants to cancel or reschedule, so you can show them which appointments they have.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "cancel_appointment",
+      description: "Cancel a specific appointment by its ID. Only call after the patient explicitly confirms cancellation.",
+      parameters: {
+        type: "object",
+        properties: {
+          appointment_id: { type: "string", description: "UUID of the appointment to cancel" },
+        },
+        required: ["appointment_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "reschedule_appointment",
+      description: "Reschedule an existing appointment to a new date/time. First check doctor availability for the new slot, then call this.",
+      parameters: {
+        type: "object",
+        properties: {
+          appointment_id: { type: "string", description: "UUID of the appointment to reschedule" },
+          new_date: { type: "string", description: "New date in YYYY-MM-DD format" },
+          new_time: { type: "string", description: "New time in HH:MM format (24h)" },
+        },
+        required: ["appointment_id", "new_date", "new_time"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_shop_products",
+      description: "List available products in the clinic shop that patients can order. Optionally filter by category.",
+      parameters: {
+        type: "object",
+        properties: {
+          category: { type: "string", description: "Optional category filter" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "order_products",
+      description: "Place an order for products on behalf of the patient. Call after the patient confirms the products, quantities, and delivery method.",
+      parameters: {
+        type: "object",
+        properties: {
+          items: {
+            type: "array",
+            description: "Array of items to order",
+            items: {
+              type: "object",
+              properties: {
+                product_id: { type: "string", description: "UUID of the product" },
+                product_name: { type: "string", description: "Name of the product" },
+                quantity: { type: "number", description: "Quantity to order" },
+                unit_price: { type: "number", description: "Price per unit" },
+              },
+              required: ["product_id", "product_name", "quantity", "unit_price"],
+            },
+          },
+          delivery_method: { type: "string", description: "'pickup' or 'delivery'" },
+        },
+        required: ["items", "delivery_method"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_patient_orders",
+      description: "List the patient's recent orders so they can track status or reorder.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "reorder_previous_order",
+      description: "Reorder all items from a previous order. Call after the patient confirms which order to reorder.",
+      parameters: {
+        type: "object",
+        properties: {
+          order_id: { type: "string", description: "UUID of the previous order to reorder" },
+          delivery_method: { type: "string", description: "'pickup' or 'delivery'" },
+        },
+        required: ["order_id", "delivery_method"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "track_order",
+      description: "Get detailed tracking/status information for a specific order.",
+      parameters: {
+        type: "object",
+        properties: {
+          order_id: { type: "string", description: "UUID of the order to track" },
+        },
+        required: ["order_id"],
+      },
+    },
+  },
 ];
 
 async function executeTool(sb: any, toolName: string, args: any, patientId: string, patientName: string) {
@@ -55,7 +172,6 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
     case "list_doctors": {
       const { data } = await sb.from("staff").select("id, first_name, last_name, specialization, role").in("role", ["Doctor", "Dermatologist", "Practitioner"]);
       if (!data || data.length === 0) {
-        // Fallback: get all staff
         const { data: allStaff } = await sb.from("staff").select("id, first_name, last_name, specialization, role");
         return JSON.stringify({ doctors: allStaff || [] });
       }
@@ -66,31 +182,26 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
       const { doctor_id, date, time } = args;
       const startTime = `${date}T${time}:00`;
       const startDate = new Date(startTime);
-      const endDate = new Date(startDate.getTime() + 30 * 60000); // 30 min slot
+      const endDate = new Date(startDate.getTime() + 30 * 60000);
 
-      // Check clinic working hours
       const dayOfWeek = startDate.getDay();
       const { data: wh } = await sb.from("working_hours").select("*").eq("day_of_week", dayOfWeek).single();
       if (wh && !wh.is_open) {
         return JSON.stringify({ available: false, reason: "The clinic is closed on this day." });
       }
       if (wh) {
-        const requestedTime = time;
-        if (requestedTime < wh.open_time || requestedTime >= wh.close_time) {
+        if (time < wh.open_time || time >= wh.close_time) {
           return JSON.stringify({ available: false, reason: `Clinic hours are ${wh.open_time} to ${wh.close_time} on this day.` });
         }
-        if (wh.break_start && wh.break_end && requestedTime >= wh.break_start && requestedTime < wh.break_end) {
+        if (wh.break_start && wh.break_end && time >= wh.break_start && time < wh.break_end) {
           return JSON.stringify({ available: false, reason: `This time falls during the lunch break (${wh.break_start} - ${wh.break_end}).` });
         }
       }
 
-      // Check for conflicting appointments
       const { data: conflicts } = await sb
-        .from("appointments")
-        .select("id, start_time, end_time, service, status")
+        .from("appointments").select("id, start_time, end_time, service, status")
         .eq("staff_id", doctor_id)
-        .gte("start_time", `${date}T00:00:00`)
-        .lte("start_time", `${date}T23:59:59`)
+        .gte("start_time", `${date}T00:00:00`).lte("start_time", `${date}T23:59:59`)
         .neq("status", "Cancelled");
 
       const hasConflict = (conflicts || []).some((appt: any) => {
@@ -100,7 +211,6 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
       });
 
       if (hasConflict) {
-        // Suggest nearby available slots
         const bookedTimes = (conflicts || []).map((a: any) => {
           const s = new Date(a.start_time);
           return `${s.getHours().toString().padStart(2, "0")}:${s.getMinutes().toString().padStart(2, "0")}`;
@@ -108,31 +218,22 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
         return JSON.stringify({ available: false, reason: "Doctor already has an appointment at this time.", booked_slots_on_this_day: bookedTimes });
       }
 
-      // Check doctor leave
       const { data: doctorInfo } = await sb.from("staff").select("first_name, last_name").eq("id", doctor_id).single();
       return JSON.stringify({ available: true, doctor_name: doctorInfo ? `Dr. ${doctorInfo.first_name} ${doctorInfo.last_name}` : "Doctor", date, time });
     }
 
     case "book_appointment": {
       const { doctor_id, date, time, service } = args;
-      const startTime = `${date}T${time}:00`;
-      const startDate = new Date(startTime);
+      const startDate = new Date(`${date}T${time}:00`);
       const endDate = new Date(startDate.getTime() + 30 * 60000);
 
       const { data: appt, error } = await sb.from("appointments").insert({
-        patient_id: patientId,
-        patient_name: patientName,
-        staff_id: doctor_id,
-        service,
-        start_time: startDate.toISOString(),
-        end_time: endDate.toISOString(),
-        status: "Scheduled",
-        source: "portal",
+        patient_id: patientId, patient_name: patientName, staff_id: doctor_id,
+        service, start_time: startDate.toISOString(), end_time: endDate.toISOString(),
+        status: "Scheduled", source: "portal",
       }).select("id, start_time, end_time, service, status").single();
 
-      if (error) {
-        return JSON.stringify({ success: false, error: error.message });
-      }
+      if (error) return JSON.stringify({ success: false, error: error.message });
 
       const { data: doctorInfo } = await sb.from("staff").select("first_name, last_name").eq("id", doctor_id).single();
       return JSON.stringify({
@@ -142,8 +243,209 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
           doctor: doctorInfo ? `Dr. ${doctorInfo.first_name} ${doctorInfo.last_name}` : "Doctor",
           date: new Date(appt.start_time).toLocaleDateString("en-IN"),
           time: new Date(appt.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+          service: appt.service, status: appt.status,
+        },
+      });
+    }
+
+    case "list_patient_appointments": {
+      const { data } = await sb.from("appointments")
+        .select("id, service, start_time, end_time, status, staff(first_name, last_name)")
+        .eq("patient_id", patientId)
+        .gte("start_time", new Date().toISOString())
+        .neq("status", "Cancelled")
+        .order("start_time", { ascending: true })
+        .limit(10);
+
+      const appointments = (data || []).map((a: any) => ({
+        id: a.id,
+        service: a.service,
+        date: new Date(a.start_time).toLocaleDateString("en-IN"),
+        time: new Date(a.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+        status: a.status,
+        doctor: a.staff ? `Dr. ${a.staff.first_name} ${a.staff.last_name}` : "Not assigned",
+      }));
+      return JSON.stringify({ upcoming_appointments: appointments, count: appointments.length });
+    }
+
+    case "cancel_appointment": {
+      const { appointment_id } = args;
+      // Verify it belongs to this patient
+      const { data: appt } = await sb.from("appointments").select("id, patient_id, service, start_time, status").eq("id", appointment_id).single();
+      if (!appt) return JSON.stringify({ success: false, error: "Appointment not found." });
+      if (appt.patient_id !== patientId) return JSON.stringify({ success: false, error: "This appointment doesn't belong to you." });
+      if (appt.status === "Cancelled") return JSON.stringify({ success: false, error: "This appointment is already cancelled." });
+
+      const { error } = await sb.from("appointments").update({ status: "Cancelled" }).eq("id", appointment_id);
+      if (error) return JSON.stringify({ success: false, error: error.message });
+
+      return JSON.stringify({
+        success: true,
+        cancelled_appointment: {
+          id: appt.id,
           service: appt.service,
-          status: appt.status,
+          date: new Date(appt.start_time).toLocaleDateString("en-IN"),
+          time: new Date(appt.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+        },
+      });
+    }
+
+    case "reschedule_appointment": {
+      const { appointment_id, new_date, new_time } = args;
+      const { data: appt } = await sb.from("appointments").select("id, patient_id, staff_id, service, status").eq("id", appointment_id).single();
+      if (!appt) return JSON.stringify({ success: false, error: "Appointment not found." });
+      if (appt.patient_id !== patientId) return JSON.stringify({ success: false, error: "This appointment doesn't belong to you." });
+      if (appt.status === "Cancelled") return JSON.stringify({ success: false, error: "Cannot reschedule a cancelled appointment." });
+
+      const newStart = new Date(`${new_date}T${new_time}:00`);
+      const newEnd = new Date(newStart.getTime() + 30 * 60000);
+
+      const { error } = await sb.from("appointments").update({
+        start_time: newStart.toISOString(),
+        end_time: newEnd.toISOString(),
+        status: "Rescheduled",
+      }).eq("id", appointment_id);
+
+      if (error) return JSON.stringify({ success: false, error: error.message });
+
+      const { data: doctorInfo } = await sb.from("staff").select("first_name, last_name").eq("id", appt.staff_id).single();
+      return JSON.stringify({
+        success: true,
+        rescheduled_appointment: {
+          id: appt.id,
+          service: appt.service,
+          doctor: doctorInfo ? `Dr. ${doctorInfo.first_name} ${doctorInfo.last_name}` : "Doctor",
+          new_date: newStart.toLocaleDateString("en-IN"),
+          new_time: newStart.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+        },
+      });
+    }
+
+    case "list_shop_products": {
+      const { category } = args;
+      let query = sb.from("pharma_products").select("id, name, category, selling_price, generic_name, image_url");
+      if (category) query = query.ilike("category", `%${category}%`);
+      const { data } = await query.limit(30);
+      return JSON.stringify({ products: (data || []).map((p: any) => ({ id: p.id, name: p.name, category: p.category, price: p.selling_price, generic_name: p.generic_name })) });
+    }
+
+    case "order_products": {
+      const { items, delivery_method } = args;
+      const totalAmount = items.reduce((s: number, i: any) => s + i.quantity * i.unit_price, 0);
+
+      // Get patient address for delivery
+      let address = null, city = null, state = null, pincode = null, phone = null;
+      if (delivery_method === "delivery") {
+        const { data: pat } = await sb.from("patients").select("address, city, state, pincode, phone").eq("id", patientId).single();
+        if (pat) { address = pat.address; city = pat.city; state = pat.state; pincode = pat.pincode; phone = pat.phone; }
+      }
+
+      const { data: order, error } = await sb.from("portal_orders").insert({
+        patient_id: patientId, patient_name: patientName, total_amount: totalAmount,
+        delivery_method, status: "Pending", payment_status: "Pending",
+        address, city, state, pincode, phone,
+      }).select("id").single();
+
+      if (error) return JSON.stringify({ success: false, error: error.message });
+
+      const orderItems = items.map((item: any) => ({
+        order_id: order.id, product_id: item.product_id, product_name: item.product_name,
+        quantity: item.quantity, unit_price: item.unit_price, total_price: item.quantity * item.unit_price,
+      }));
+      await sb.from("portal_order_items").insert(orderItems);
+
+      return JSON.stringify({
+        success: true,
+        order: {
+          id: order.id, total: totalAmount, delivery_method,
+          item_count: items.length, status: "Pending",
+        },
+      });
+    }
+
+    case "list_patient_orders": {
+      const { data } = await sb.from("portal_orders")
+        .select("id, total_amount, status, payment_status, delivery_method, tracking_number, created_at")
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      const orders = (data || []).map((o: any) => ({
+        id: o.id,
+        total: o.total_amount,
+        status: o.status,
+        payment_status: o.payment_status,
+        delivery: o.delivery_method,
+        tracking: o.tracking_number,
+        date: new Date(o.created_at).toLocaleDateString("en-IN"),
+      }));
+      return JSON.stringify({ orders, count: orders.length });
+    }
+
+    case "reorder_previous_order": {
+      const { order_id, delivery_method } = args;
+      // Verify the order belongs to this patient
+      const { data: origOrder } = await sb.from("portal_orders").select("id, patient_id, total_amount").eq("id", order_id).single();
+      if (!origOrder) return JSON.stringify({ success: false, error: "Order not found." });
+      if (origOrder.patient_id !== patientId) return JSON.stringify({ success: false, error: "This order doesn't belong to you." });
+
+      // Get original items
+      const { data: origItems } = await sb.from("portal_order_items").select("product_id, product_name, quantity, unit_price, total_price").eq("order_id", order_id);
+      if (!origItems || origItems.length === 0) return JSON.stringify({ success: false, error: "No items found in the original order." });
+
+      const totalAmount = origItems.reduce((s: number, i: any) => s + Number(i.total_price), 0);
+
+      let address = null, city = null, state = null, pincode = null, phone = null;
+      if (delivery_method === "delivery") {
+        const { data: pat } = await sb.from("patients").select("address, city, state, pincode, phone").eq("id", patientId).single();
+        if (pat) { address = pat.address; city = pat.city; state = pat.state; pincode = pat.pincode; phone = pat.phone; }
+      }
+
+      const { data: newOrder, error } = await sb.from("portal_orders").insert({
+        patient_id: patientId, patient_name: patientName, total_amount: totalAmount,
+        delivery_method, status: "Pending", payment_status: "Pending",
+        address, city, state, pincode, phone,
+      }).select("id").single();
+
+      if (error) return JSON.stringify({ success: false, error: error.message });
+
+      const newItems = origItems.map((item: any) => ({
+        order_id: newOrder.id, product_id: item.product_id, product_name: item.product_name,
+        quantity: item.quantity, unit_price: item.unit_price, total_price: item.total_price,
+      }));
+      await sb.from("portal_order_items").insert(newItems);
+
+      return JSON.stringify({
+        success: true,
+        order: {
+          id: newOrder.id, total: totalAmount, delivery_method,
+          item_count: origItems.length, status: "Pending",
+          items: origItems.map((i: any) => ({ name: i.product_name, qty: i.quantity, price: i.unit_price })),
+        },
+      });
+    }
+
+    case "track_order": {
+      const { order_id } = args;
+      const { data: order } = await sb.from("portal_orders")
+        .select("id, total_amount, status, payment_status, delivery_method, tracking_number, created_at, updated_at, address, city, state, pincode, notes")
+        .eq("id", order_id).single();
+
+      if (!order) return JSON.stringify({ error: "Order not found." });
+      if (order.patient_id && order.patient_id !== patientId) return JSON.stringify({ error: "This order doesn't belong to you." });
+
+      const { data: items } = await sb.from("portal_order_items").select("product_name, quantity, unit_price, total_price").eq("order_id", order_id);
+
+      return JSON.stringify({
+        order: {
+          id: order.id, total: order.total_amount, status: order.status,
+          payment_status: order.payment_status, delivery: order.delivery_method,
+          tracking_number: order.tracking_number || "Not yet assigned",
+          ordered_on: new Date(order.created_at).toLocaleDateString("en-IN"),
+          last_updated: new Date(order.updated_at).toLocaleDateString("en-IN"),
+          delivery_address: order.delivery_method === "delivery" ? `${order.address || ""}, ${order.city || ""}, ${order.state || ""} ${order.pincode || ""}`.trim() : "Clinic Pickup",
+          notes: order.notes,
+          items: (items || []).map((i: any) => ({ name: i.product_name, qty: i.quantity, price: i.unit_price, total: i.total_price })),
         },
       });
     }
@@ -166,15 +468,13 @@ serve(async (req) => {
     const sb = createClient(supabaseUrl, supabaseKey);
 
     // Fetch patient context
-    const [patientRes, appointmentsRes, proceduresRes, invoicesRes, prescriptionsRes] = await Promise.all([
+    const [patientRes, appointmentsRes, proceduresRes, invoicesRes] = await Promise.all([
       sb.from("patients").select("*").eq("id", patientId).single(),
       sb.from("appointments").select("*, staff(first_name, last_name)").eq("patient_id", patientId).order("start_time", { ascending: false }).limit(20),
       sb.from("procedures").select("*, staff(first_name, last_name)").eq("patient_id", patientId).order("procedure_date", { ascending: false }).limit(20),
       sb.from("invoices").select("*").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(20),
-      Promise.resolve().then(() => sb.rpc("get_patient_prescriptions", { p_patient_id: patientId })).catch(() => ({ data: null })),
     ]);
 
-    // Get prescriptions via procedures
     let prescriptions: any[] = [];
     if (proceduresRes.data) {
       const procIds = proceduresRes.data.map((p: any) => p.id);
@@ -184,21 +484,21 @@ serve(async (req) => {
       }
     }
 
-    const [servicesRes, productsRes] = await Promise.all([
+    const [servicesRes, productsRes, ordersRes] = await Promise.all([
       sb.from("services").select("name, category, price").limit(50),
-      sb.from("pharma_products").select("name, category, selling_price, generic_name").limit(50),
+      sb.from("pharma_products").select("id, name, category, selling_price, generic_name").limit(50),
+      sb.from("portal_orders").select("id, total_amount, status, payment_status, delivery_method, tracking_number, created_at").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(10),
     ]);
 
     const patient = patientRes.data;
     const appointments = appointmentsRes.data || [];
     const procedures = proceduresRes.data || [];
     const invoices = invoicesRes.data || [];
+    const orders = ordersRes.data || [];
 
-    const upcomingAppts = appointments.filter((a: any) => new Date(a.start_time) >= new Date());
+    const upcomingAppts = appointments.filter((a: any) => new Date(a.start_time) >= new Date() && a.status !== "Cancelled");
     const pastAppts = appointments.filter((a: any) => new Date(a.start_time) < new Date());
-    const totalDue = invoices
-      .filter((i: any) => i.status !== "Paid")
-      .reduce((s: number, i: any) => s + (Number(i.total_amount) - Number(i.paid_amount)), 0);
+    const totalDue = invoices.filter((i: any) => i.status !== "Paid").reduce((s: number, i: any) => s + (Number(i.total_amount) - Number(i.paid_amount)), 0);
 
     const today = new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
@@ -217,7 +517,7 @@ PATIENT PROFILE:
 
 APPOINTMENTS:
 - Upcoming: ${upcomingAppts.length} appointments
-${upcomingAppts.slice(0, 5).map((a: any) => `  - ${a.service} on ${new Date(a.start_time).toLocaleDateString("en-IN")} at ${new Date(a.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} (${a.status})${a.staff ? ` with Dr. ${a.staff.first_name} ${a.staff.last_name}` : ""}`).join("\n")}
+${upcomingAppts.slice(0, 5).map((a: any) => `  - [ID: ${a.id}] ${a.service} on ${new Date(a.start_time).toLocaleDateString("en-IN")} at ${new Date(a.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} (${a.status})${a.staff ? ` with Dr. ${a.staff.first_name} ${a.staff.last_name}` : ""}`).join("\n")}
 - Past: ${pastAppts.length} appointments
 
 PROCEDURE HISTORY (recent):
@@ -231,41 +531,65 @@ BILLING:
 - Total invoices: ${invoices.length}
 ${invoices.slice(0, 5).map((i: any) => `- ${i.invoice_number}: ₹${i.total_amount} (${i.status}) - ${new Date(i.created_at).toLocaleDateString("en-IN")}`).join("\n")}
 
+RECENT ORDERS:
+${orders.slice(0, 5).map((o: any) => `- [ID: ${o.id}] ₹${o.total_amount} | Status: ${o.status} | Payment: ${o.payment_status} | ${o.delivery_method} | Tracking: ${o.tracking_number || "N/A"} | ${new Date(o.created_at).toLocaleDateString("en-IN")}`).join("\n") || "No orders"}
+
 AVAILABLE SERVICES:
 ${(servicesRes.data || []).slice(0, 20).map((s: any) => `- ${s.name} (${s.category}) - ₹${s.price}`).join("\n")}
 
 AVAILABLE PRODUCTS:
-${(productsRes.data || []).slice(0, 20).map((p: any) => `- ${p.name} (${p.category}) - ₹${p.selling_price}${p.generic_name ? ` [${p.generic_name}]` : ""}`).join("\n")}
+${(productsRes.data || []).slice(0, 20).map((p: any) => `- [ID: ${p.id}] ${p.name} (${p.category}) - ₹${p.selling_price}${p.generic_name ? ` [${p.generic_name}]` : ""}`).join("\n")}
 
 APPOINTMENT BOOKING GUIDELINES:
-You can book appointments for the patient using the provided tools. Follow this flow:
-1. When the patient wants to book, first ask what their concern/issue is (or use the one they mentioned).
-2. Call list_doctors to show available doctors. Present them with names and specializations.
-3. Once they pick a doctor, ask for their preferred date and time.
-4. Call check_doctor_availability to verify the slot. If unavailable, suggest alternatives.
-5. Once a slot is confirmed available, summarize the appointment details (doctor, date, time, service) and ask for explicit confirmation.
-6. Only after they confirm, call book_appointment to create it.
-7. Confirm the booking with all details.
+You can book appointments using tools. Follow this flow:
+1. Ask what their concern/issue is.
+2. Call list_doctors to show available doctors.
+3. Once they pick a doctor, ask for preferred date and time.
+4. Call check_doctor_availability to verify. If unavailable, suggest alternatives.
+5. Summarize details and ask for explicit confirmation.
+6. Only after confirmation, call book_appointment.
+
+APPOINTMENT CANCELLATION GUIDELINES:
+1. Call list_patient_appointments to show their upcoming appointments.
+2. Ask which one they want to cancel.
+3. Confirm with the patient before calling cancel_appointment.
+4. Confirm the cancellation.
+
+APPOINTMENT RESCHEDULE GUIDELINES:
+1. Call list_patient_appointments to show their upcoming appointments.
+2. Ask which one to reschedule and the new preferred date/time.
+3. Call check_doctor_availability for the new slot (use the staff_id from the appointment).
+4. If available, confirm with patient, then call reschedule_appointment.
+5. Confirm the new schedule.
+
+PRODUCT ORDERING GUIDELINES:
+1. When the patient wants to buy products, call list_shop_products to show options.
+2. Help them choose products and quantities.
+3. Ask if they want pickup or delivery.
+4. Summarize the order with total cost and ask for confirmation.
+5. Call order_products after confirmation.
+
+REORDER GUIDELINES:
+1. Call list_patient_orders to show their past orders.
+2. Ask which order they want to reorder.
+3. Ask pickup or delivery.
+4. Confirm, then call reorder_previous_order.
+
+ORDER TRACKING GUIDELINES:
+1. Call list_patient_orders to show orders with statuses.
+2. If they want details on a specific order, call track_order.
+3. Share tracking number, status, and estimated info.
 
 GENERAL GUIDELINES:
 1. Be warm, empathetic, and professional. Use the patient's first name.
-2. When asked about appointments, show their upcoming ones and offer to help book new ones.
-3. When asked about procedures/history, summarize their recent procedures with key details.
-4. When asked about bills/invoices, show their outstanding balance and recent invoices.
-5. When asked about medications, list their current prescriptions.
-6. For product recommendations, consider their skin type, concerns, and current treatments.
-7. Never diagnose conditions - always recommend consulting with the doctor.
-8. Keep responses concise and helpful. Use bullet points for lists.
-9. If you can't find specific data, let them know and suggest next steps.`;
+2. Never diagnose conditions - always recommend consulting with the doctor.
+3. Keep responses concise and helpful. Use bullet points for lists.
+4. When showing appointment/order IDs to the patient, don't show raw UUIDs - use numbered lists instead.
+5. For product recommendations, consider their skin type, concerns, and current treatments.`;
 
-    // Build the full message array for the AI
-    const aiMessages: any[] = [
-      { role: "system", content: systemPrompt },
-      ...messages,
-    ];
+    const aiMessages: any[] = [{ role: "system", content: systemPrompt }, ...messages];
 
-    // Tool-calling loop: keep calling until we get a final text response
-    const MAX_TOOL_ROUNDS = 5;
+    const MAX_TOOL_ROUNDS = 8;
     let round = 0;
 
     while (round < MAX_TOOL_ROUNDS) {
@@ -274,10 +598,7 @@ GENERAL GUIDELINES:
 
       const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "google/gemini-3-flash-preview",
           messages: aiMessages,
@@ -287,70 +608,41 @@ GENERAL GUIDELINES:
       });
 
       if (!response.ok) {
-        if (response.status === 429) {
-          return new Response(JSON.stringify({ error: "Rate limited. Please try again shortly." }), {
-            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        if (response.status === 402) {
-          return new Response(JSON.stringify({ error: "AI credits exhausted." }), {
-            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+        if (response.status === 429) return new Response(JSON.stringify({ error: "Rate limited. Please try again shortly." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        if (response.status === 402) return new Response(JSON.stringify({ error: "AI credits exhausted." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         const t = await response.text();
         console.error("AI gateway error:", response.status, t);
-        return new Response(JSON.stringify({ error: "AI gateway error" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(JSON.stringify({ error: "AI gateway error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
       const result = await response.json();
       const choice = result.choices?.[0];
-
-      if (!choice) {
-        return new Response(JSON.stringify({ error: "No response from AI" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      if (!choice) return new Response(JSON.stringify({ error: "No response from AI" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
       const assistantMessage = choice.message;
 
-      // If the model wants to call tools
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
         aiMessages.push(assistantMessage);
-
         for (const toolCall of assistantMessage.tool_calls) {
           const fnName = toolCall.function.name;
           let fnArgs: any = {};
-          try {
-            fnArgs = JSON.parse(toolCall.function.arguments || "{}");
-          } catch { /* empty args */ }
-
+          try { fnArgs = JSON.parse(toolCall.function.arguments || "{}"); } catch { /* empty */ }
           console.log(`Tool call: ${fnName}`, fnArgs);
           const toolResult = await executeTool(sb, fnName, fnArgs, patientId, patientName);
           console.log(`Tool result: ${toolResult}`);
-
-          aiMessages.push({
-            role: "tool",
-            tool_call_id: toolCall.id,
-            content: toolResult,
-          });
+          aiMessages.push({ role: "tool", tool_call_id: toolCall.id, content: toolResult });
         }
-        // Continue the loop to get the next AI response
         continue;
       }
 
-      // Final text response - stream it back as SSE for the client
+      // Final text response - stream as SSE
       const content = assistantMessage.content || "";
-      // Create SSE response manually
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
         start(controller) {
-          // Send the content as a single SSE chunk (simulating streaming format the client expects)
           const words = content.split(" ");
           let i = 0;
-          const chunkSize = 3; // Send ~3 words at a time for smooth rendering
-          
+          const chunkSize = 3;
           function sendChunk() {
             if (i >= words.length) {
               controller.enqueue(encoder.encode("data: [DONE]\n\n"));
@@ -358,31 +650,21 @@ GENERAL GUIDELINES:
               return;
             }
             const chunk = words.slice(i, i + chunkSize).join(" ") + (i + chunkSize < words.length ? " " : "");
-            const sseData = JSON.stringify({
-              choices: [{ delta: { content: chunk } }],
-            });
+            const sseData = JSON.stringify({ choices: [{ delta: { content: chunk } }] });
             controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
             i += chunkSize;
-            // Use setTimeout for a slight delay to simulate streaming
             setTimeout(sendChunk, 10);
           }
           sendChunk();
         },
       });
 
-      return new Response(stream, {
-        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-      });
+      return new Response(stream, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
     }
 
-    // Should not reach here, but safety fallback
-    return new Response(JSON.stringify({ error: "Too many tool rounds" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ error: "Too many tool rounds" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("portal-bot error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });

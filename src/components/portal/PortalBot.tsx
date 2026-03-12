@@ -18,11 +18,13 @@ interface PortalBotProps {
 
 const quickActions = [
   "Book an appointment",
+  "Cancel or reschedule appointment",
+  "Order products",
+  "Track my order",
+  "Reorder previous purchase",
   "Show my procedure history",
-  "Show my invoices",
-  "Product recommendations for my skin",
-  "I have a concern about my treatment",
   "What medications am I on?",
+  "Show my invoices",
 ];
 
 const PortalBot = ({ patientId, patientName }: PortalBotProps) => {

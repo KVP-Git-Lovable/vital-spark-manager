@@ -231,14 +231,9 @@ const PatientDetail = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        <div className="lg:col-span-2">
-          <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+        <div className="lg:col-span-3">
+          <FamilySummaryCard patientId={id!} />
         </div>
-        <FamilySummaryCard patientId={id!} />
-      </div>
-
-      <div className="mb-4">
-        <CaseAnalysis patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
       </div>
 
       <Tabs defaultValue="procedures" className="mt-2">

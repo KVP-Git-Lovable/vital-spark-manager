@@ -160,7 +160,7 @@ const Patients = () => {
                       <span className="text-sm">{patient.skin_type || "—"}</span>
                     </td>
                     <td className="p-4 hidden sm:table-cell">
-                      <span className="text-sm font-medium">{patient.blood_group || "—"}</span>
+                      <EngagementBadge data={engagementScores[patient.id]} />
                     </td>
                     <td className="p-4">
                       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${

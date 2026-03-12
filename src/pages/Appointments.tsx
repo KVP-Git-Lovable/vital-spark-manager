@@ -551,6 +551,7 @@ const Appointments = () => {
       const endH = maxSlot + 1 < slots.length ? slots[maxSlot + 1].hour : 20;
       const endM = maxSlot + 1 < slots.length ? slots[maxSlot + 1].minute : 0;
       setEndTime(`${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`);
+      if (filterDoctors.size === 1) setStaffId(Array.from(filterDoctors)[0]);
       setOpen(true);
     }
     setIsDragSelecting(false);

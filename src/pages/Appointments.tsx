@@ -1079,6 +1079,7 @@ const Appointments = () => {
                           setStartDate(d);
                           setStartTime("09:00");
                           setEndTime("09:15");
+                          if (filterDoctors.size === 1) setStaffId(Array.from(filterDoctors)[0]);
                           setOpen(true);
                         }}
                       >

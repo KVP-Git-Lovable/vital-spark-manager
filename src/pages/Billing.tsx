@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock } from "lucide-react";
+import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -137,6 +138,7 @@ const Billing = () => {
   const [paymentInv, setPaymentInv] = useState<any>(null);
   const [addPaymentAmount, setAddPaymentAmount] = useState(0);
   const [addPaymentMode, setAddPaymentMode] = useState("Cash");
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
 
   // Form state
   const [patientId, setPatientId] = useState("");
@@ -821,11 +823,14 @@ const Billing = () => {
                       <p className="font-medium text-sm">{inv.invoice_number}</p>
                       <p className="text-xs text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</p>
                       {inv.appointments && (
-                        <div className="mt-1 flex items-center gap-1 text-[10px] text-primary bg-primary/5 rounded px-1.5 py-0.5 w-fit">
+                        <button
+                          onClick={() => setSelectedAppointmentId(inv.appointments.id)}
+                          className="mt-1 flex items-center gap-1 text-[10px] text-primary bg-primary/5 hover:bg-primary/10 rounded px-1.5 py-0.5 w-fit cursor-pointer transition-colors"
+                        >
                           <CalendarClock className="h-3 w-3" />
                           {inv.appointments.service} · {format(new Date(inv.appointments.start_time), "MMM d, h:mm a")}
                           {inv.appointments.staff && ` · Dr. ${inv.appointments.staff.first_name}`}
-                        </div>
+                        </button>
                       )}
                     </td>
                     <td className="p-4 text-sm">{inv.patient_name || "—"}</td>
@@ -881,6 +886,11 @@ const Billing = () => {
           </table>
         </div>
       </motion.div>
+
+      <AppointmentDetailSheet
+        appointmentId={selectedAppointmentId}
+        onClose={() => setSelectedAppointmentId(null)}
+      />
     </div>
   );
 };

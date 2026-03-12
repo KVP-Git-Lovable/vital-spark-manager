@@ -768,9 +768,17 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                         <div className="pt-4 border-t space-y-2">
                           <p className="text-xs font-semibold text-muted-foreground">Existing Invoices</p>
                           {invoices.map((inv: any) => (
-                            <div key={inv.id} className="border rounded-lg p-3 bg-muted/30">
+                            <div
+                              key={inv.id}
+                              className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                              onClick={() => { handleClose(); navigate("/billing"); }}
+                              title="Open in Billing"
+                            >
                               <div className="flex items-center justify-between">
-                                <p className="font-medium text-sm">{inv.invoice_number}</p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className="font-medium text-sm">{inv.invoice_number}</p>
+                                  <ExternalLink className="h-3 w-3 text-primary" />
+                                </div>
                                 <Badge variant="secondary" className={`text-xs ${inv.status === "Paid" ? "bg-success/10 text-success" : inv.status === "Partial" ? "bg-warning/10 text-warning" : "bg-destructive/10 text-destructive"}`}>
                                   {inv.status}
                                 </Badge>

@@ -7,38 +7,23 @@ import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ProductDetailSheet, InventoryDetailSheet, BillDetailSheet } from "@/components/pharma/PharmaDetailSheet";
 
-// ─── Product Form ─────────────────────────────────
+// ─── Form Defaults ────────────────────────────────
 const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", hsn_code: "", gst_percent: 0, mrp: 0, selling_price: 0, reorder_level: 10 };
-
-// ─── Inward (Stock) Form ──────────────────────────
 const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, supplier: "", invoice_number: "" };
 
-// ─── Bill Item ────────────────────────────────────
 interface BillItemInput {
   product_id: string;
   inventory_id: string;
@@ -57,6 +42,11 @@ const Pharma = () => {
   const [billOpen, setBillOpen] = useState(false);
   const [productForm, setProductForm] = useState({ ...emptyProduct });
   const [stockForm, setStockForm] = useState({ ...emptyStock });
+
+  // Detail sheet state
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedInventoryId, setSelectedInventoryId] = useState<string | null>(null);
+  const [selectedBillId, setSelectedBillId] = useState<string | null>(null);
 
   // Bill state
   const [billPatientName, setBillPatientName] = useState("");
@@ -78,10 +68,7 @@ const Pharma = () => {
   const { data: inventory = [] } = useQuery({
     queryKey: ["pharma-inventory"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pharma_inventory")
-        .select("*, pharma_products(name)")
-        .order("expiry_date", { ascending: true });
+      const { data, error } = await supabase.from("pharma_inventory").select("*, pharma_products(name)").order("expiry_date", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -160,7 +147,6 @@ const Pharma = () => {
       }).select().single();
       if (error) throw error;
 
-      // Insert bill items
       const items = billItems.map((i) => ({
         bill_id: bill.id,
         product_id: i.product_id,
@@ -174,7 +160,6 @@ const Pharma = () => {
       const { error: itemErr } = await supabase.from("pharma_bill_items").insert(items);
       if (itemErr) throw itemErr;
 
-      // Deduct inventory
       for (const item of billItems) {
         const invRecord = inventory.find((inv: any) => inv.id === item.inventory_id);
         if (invRecord) {
@@ -201,8 +186,6 @@ const Pharma = () => {
   const updateBillItem = (idx: number, field: string, value: any) => {
     const updated = [...billItems];
     (updated[idx] as any)[field] = value;
-
-    // Auto-fill when inventory selected
     if (field === "inventory_id") {
       const inv = inventory.find((i: any) => i.id === value) as any;
       if (inv) {
@@ -215,6 +198,46 @@ const Pharma = () => {
       }
     }
     setBillItems(updated);
+  };
+
+  // Clone handlers
+  const handleCloneProduct = (product: any) => {
+    setProductForm({
+      name: `${product.name} (Copy)`,
+      generic_name: product.generic_name || "",
+      category: product.category || "General",
+      manufacturer: product.manufacturer || "",
+      unit: product.unit || "Nos",
+      hsn_code: product.hsn_code || "",
+      gst_percent: product.gst_percent || 0,
+      mrp: product.mrp || 0,
+      selling_price: product.selling_price || 0,
+      reorder_level: product.reorder_level || 10,
+    });
+    setProductOpen(true);
+  };
+
+  const handleCloneInventory = (inv: any) => {
+    setStockForm({
+      product_id: inv.product_id || "",
+      batch_number: "",
+      expiry_date: "",
+      quantity: inv.quantity || 0,
+      purchase_price: inv.purchase_price || 0,
+      supplier: inv.supplier || "",
+      invoice_number: "",
+    });
+    setStockOpen(true);
+  };
+
+  const handleCloneBill = (bill: any) => {
+    setBillPatientName(bill.patient_name || "");
+    setBillPaymentMode(bill.payment_mode || "Cash");
+    setBillDiscount(bill.discount || 0);
+    setBillTaxId(bill.tax_id || "");
+    setBillItems([]);
+    setBillOpen(true);
+    toast.info("Bill cloned — add items to complete");
   };
 
   const filteredProducts = products.filter((p: any) =>
@@ -258,7 +281,10 @@ const Pharma = () => {
                   <div><Label>Selling Price (₹)</Label><Input type="number" className="mt-1" value={productForm.selling_price} onChange={(e) => setProductForm({ ...productForm, selling_price: parseFloat(e.target.value) || 0 })} /></div>
                   <div><Label>GST %</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
                 </div>
-                <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={productForm.reorder_level} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
+                  <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={productForm.reorder_level} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
+                </div>
                 <Button className="w-full" onClick={() => addProduct.mutate()} disabled={!productForm.name || addProduct.isPending}>
                   {addProduct.isPending ? "Saving..." : "Add Product"}
                 </Button>
@@ -277,9 +303,7 @@ const Pharma = () => {
                   <Label>Product *</Label>
                   <Select value={stockForm.product_id} onValueChange={(v) => setStockForm({ ...stockForm, product_id: v })}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select product" /></SelectTrigger>
-                    <SelectContent>
-                      {products.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                    </SelectContent>
+                    <SelectContent>{products.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -314,9 +338,7 @@ const Pharma = () => {
                     <Label>Payment Mode</Label>
                     <Select value={billPaymentMode} onValueChange={setBillPaymentMode}>
                       <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {["Cash", "Card", "UPI", "Insurance"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                      </SelectContent>
+                      <SelectContent>{["Cash", "Card", "UPI", "Insurance"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>
@@ -440,7 +462,7 @@ const Pharma = () => {
                 {filteredProducts.length === 0 ? (
                   <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No products found</TableCell></TableRow>
                 ) : filteredProducts.map((p: any) => (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setSelectedProductId(p.id)}>
                     <TableCell className="font-medium">{p.name}<br /><span className="text-xs text-muted-foreground">{p.generic_name}</span></TableCell>
                     <TableCell><Badge variant="secondary" className="text-xs">{p.category}</Badge></TableCell>
                     <TableCell>₹{Number(p.mrp).toFixed(2)}</TableCell>
@@ -477,7 +499,7 @@ const Pharma = () => {
                   const isExpired = daysLeft <= 0;
                   const isNear = daysLeft > 0 && daysLeft <= 90;
                   return (
-                    <TableRow key={i.id}>
+                    <TableRow key={i.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setSelectedInventoryId(i.id)}>
                       <TableCell className="font-medium">{i.pharma_products?.name}</TableCell>
                       <TableCell>{i.batch_number}</TableCell>
                       <TableCell>{i.quantity}</TableCell>
@@ -516,7 +538,7 @@ const Pharma = () => {
                 {bills.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No bills yet</TableCell></TableRow>
                 ) : bills.map((b: any) => (
-                  <TableRow key={b.id}>
+                  <TableRow key={b.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setSelectedBillId(b.id)}>
                     <TableCell className="font-medium">{b.bill_number}</TableCell>
                     <TableCell>{new Date(b.created_at).toLocaleDateString()}</TableCell>
                     <TableCell>{b.patient_name || "—"}</TableCell>
@@ -532,6 +554,24 @@ const Pharma = () => {
           </motion.div>
         </TabsContent>
       </Tabs>
+
+      {/* Detail Sheets */}
+      <ProductDetailSheet
+        productId={selectedProductId}
+        onClose={() => setSelectedProductId(null)}
+        onClone={handleCloneProduct}
+      />
+      <InventoryDetailSheet
+        inventoryId={selectedInventoryId}
+        onClose={() => setSelectedInventoryId(null)}
+        onClone={handleCloneInventory}
+        products={products}
+      />
+      <BillDetailSheet
+        billId={selectedBillId}
+        onClose={() => setSelectedBillId(null)}
+        onClone={handleCloneBill}
+      />
     </div>
   );
 };

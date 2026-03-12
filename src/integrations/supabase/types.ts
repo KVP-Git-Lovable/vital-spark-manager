@@ -1288,6 +1288,53 @@ export type Database = {
           },
         ]
       }
+      product_prices: {
+        Row: {
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          is_active: boolean
+          mrp: number
+          notes: string | null
+          product_id: string
+          purchase_price: number
+          selling_price: number
+        }
+        Insert: {
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean
+          mrp?: number
+          notes?: string | null
+          product_id: string
+          purchase_price?: number
+          selling_price?: number
+        }
+        Update: {
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean
+          mrp?: number
+          notes?: string | null
+          product_id?: string
+          purchase_price?: number
+          selling_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_prices_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "pharma_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_reports: {
         Row: {
           chart_type: string

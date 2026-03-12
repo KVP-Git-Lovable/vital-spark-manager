@@ -646,6 +646,7 @@ export type Database = {
           name: string | null
           notes: string | null
           patient_id: string
+          phone: string | null
           related_patient_id: string | null
           relationship: string
         }
@@ -656,6 +657,7 @@ export type Database = {
           name?: string | null
           notes?: string | null
           patient_id: string
+          phone?: string | null
           related_patient_id?: string | null
           relationship: string
         }
@@ -666,6 +668,7 @@ export type Database = {
           name?: string | null
           notes?: string | null
           patient_id?: string
+          phone?: string | null
           related_patient_id?: string | null
           relationship?: string
         }

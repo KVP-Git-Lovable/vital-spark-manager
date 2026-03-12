@@ -643,27 +643,30 @@ export type Database = {
           created_at: string
           id: string
           is_primary_contact: boolean | null
+          name: string | null
           notes: string | null
           patient_id: string
-          related_patient_id: string
+          related_patient_id: string | null
           relationship: string
         }
         Insert: {
           created_at?: string
           id?: string
           is_primary_contact?: boolean | null
+          name?: string | null
           notes?: string | null
           patient_id: string
-          related_patient_id: string
+          related_patient_id?: string | null
           relationship: string
         }
         Update: {
           created_at?: string
           id?: string
           is_primary_contact?: boolean | null
+          name?: string | null
           notes?: string | null
           patient_id?: string
-          related_patient_id?: string
+          related_patient_id?: string | null
           relationship?: string
         }
         Relationships: [

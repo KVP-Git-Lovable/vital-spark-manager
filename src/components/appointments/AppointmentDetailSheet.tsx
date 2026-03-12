@@ -747,49 +747,93 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                         </Select>
                       </div>
 
-                      {/* Schedule Preview */}
-                      {billingTotal > 0 && (
-                        <div className="border rounded-lg p-3 bg-muted/30 space-y-2">
-                          <p className="text-xs font-semibold flex items-center gap-1.5">
-                            <CalendarClock className="h-3.5 w-3.5" /> Invoice Schedule
-                          </p>
-                          <div className="space-y-1.5">
-                            {getInstallmentSchedule().map((inst) => (
-                              <div key={inst.index} className="flex items-center justify-between text-xs border-b border-border/50 pb-1.5 last:border-0">
-                                <span className="text-muted-foreground">
-                                  #{inst.index} · {format(inst.date, "MMM d, yyyy")}
-                                </span>
-                                <span className="font-medium">₹{inst.amount.toLocaleString()}</span>
+                      {/* Generate / Schedule Preview */}
+                      {billingTotal > 0 && customSchedule.length === 0 && (
+                        <Button variant="outline" className="w-full gap-2" onClick={regenerateSchedule}>
+                          <CalendarClock className="h-4 w-4" /> Generate Invoice Schedule
+                        </Button>
+                      )}
+
+                      {customSchedule.length > 0 && (
+                        <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold flex items-center gap-1.5">
+                              <CalendarClock className="h-3.5 w-3.5" /> Invoice Schedule
+                            </p>
+                            <Button variant="ghost" size="sm" className="h-6 text-[10px] text-muted-foreground" onClick={regenerateSchedule}>
+                              Reset
+                            </Button>
+                          </div>
+                          <div className="space-y-2">
+                            {customSchedule.map((inst, idx) => (
+                              <div key={idx} className="flex items-center gap-2 border-b border-border/50 pb-2 last:border-0">
+                                <span className="text-xs text-muted-foreground w-5 shrink-0">#{idx + 1}</span>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1 flex-1 justify-start font-normal">
+                                      <CalendarIcon className="h-3 w-3" />
+                                      {format(inst.date, "MMM d, yyyy")}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                      mode="single"
+                                      selected={inst.date}
+                                      onSelect={(d) => d && updateScheduleDate(idx, d)}
+                                      initialFocus
+                                      className={cn("p-3 pointer-events-auto")}
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                                <div className="w-24 shrink-0">
+                                  <Input
+                                    type="number"
+                                    className="h-7 text-xs"
+                                    value={inst.amount || ""}
+                                    onChange={(e) => updateScheduleAmount(idx, Number(e.target.value) || 0)}
+                                  />
+                                </div>
                               </div>
                             ))}
                           </div>
                           <div className="flex justify-between text-xs font-semibold pt-1 border-t">
-                            <span>Total</span>
+                            <span>Schedule Total</span>
+                            <span className={scheduleMismatch ? "text-destructive" : ""}>₹{scheduleTotal.toLocaleString()}</span>
+                          </div>
+                          {scheduleMismatch && (
+                            <div className="flex items-center gap-1.5 text-[10px] text-destructive bg-destructive/10 rounded px-2 py-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              Schedule total (₹{scheduleTotal.toLocaleString()}) doesn't match bill amount (₹{billingTotal.toLocaleString()}). Adjust amounts to proceed.
+                            </div>
+                          )}
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Bill Amount</span>
                             <span>₹{billingTotal.toLocaleString()}</span>
                           </div>
                         </div>
                       )}
 
                       {/* Confirm & Create */}
-                      {billingTotal > 0 && (
+                      {customSchedule.length > 0 && (
                         <div className="space-y-3 pt-2">
                           <div className="flex items-start gap-2">
                             <Checkbox
                               id="billing-confirm"
                               checked={billingConfirmed}
                               onCheckedChange={(c) => setBillingConfirmed(!!c)}
+                              disabled={scheduleMismatch}
                             />
-                            <Label htmlFor="billing-confirm" className="font-normal text-xs leading-relaxed cursor-pointer">
-                              I confirm the schedule above. Create {getInstallmentSchedule().length} invoice(s) for {patientName} with service "{appointment.service}" linked to this appointment.
+                            <Label htmlFor="billing-confirm" className={cn("font-normal text-xs leading-relaxed cursor-pointer", scheduleMismatch && "text-muted-foreground")}>
+                              I confirm the schedule above. Create {customSchedule.length} invoice(s) for {patientName} with service "{appointment.service}" linked to this appointment.
                             </Label>
                           </div>
                           <Button
                             onClick={handleCreateBillingInvoices}
-                            disabled={!billingConfirmed || billingCreating}
+                            disabled={!billingConfirmed || billingCreating || scheduleMismatch}
                             className="w-full gap-2"
                           >
                             <Check className="h-4 w-4" />
-                            {billingCreating ? "Creating Invoices..." : `Create ${getInstallmentSchedule().length} Invoice(s)`}
+                            {billingCreating ? "Creating Invoices..." : `Create ${customSchedule.length} Invoice(s)`}
                           </Button>
                         </div>
                       )}

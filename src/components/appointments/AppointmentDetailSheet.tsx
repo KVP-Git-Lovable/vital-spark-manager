@@ -49,12 +49,14 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [activeTab, setActiveTab] = useState("details");
   const [procFormOpen, setProcFormOpen] = useState(false);
   const [selectedProcId, setSelectedProcId] = useState<string | null>(null);
-  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
-  const [newInvService, setNewInvService] = useState("");
-  const [newInvTotal, setNewInvTotal] = useState(0);
-  const [newInvPaid, setNewInvPaid] = useState(0);
-  const [newInvMode, setNewInvMode] = useState("Cash");
-  const [newInvNotes, setNewInvNotes] = useState("");
+  // Billing plan state
+  const [billingTotal, setBillingTotal] = useState(0);
+  const [billingType, setBillingType] = useState<"one-time" | "recurring">("one-time");
+  const [billingFrequency, setBillingFrequency] = useState<"weekly" | "monthly">("monthly");
+  const [billingInstallments, setBillingInstallments] = useState(2);
+  const [billingMode, setBillingMode] = useState("Cash");
+  const [billingConfirmed, setBillingConfirmed] = useState(false);
+  const [billingCreating, setBillingCreating] = useState(false);
 
   // Fetch appointment
   const { data: appointment, isLoading } = useQuery({

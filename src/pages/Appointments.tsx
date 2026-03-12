@@ -598,7 +598,10 @@ const Appointments = () => {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search patient name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9 text-sm" />
             </div>
-            <Select value={filterDoctor} onValueChange={setFilterDoctor}>
+            <Select value={filterDoctors.size === 0 ? "all" : filterDoctors.size === 1 ? [...filterDoctors][0] : "multi"} onValueChange={(v) => {
+              if (v === "all") setFilterDoctors(new Set());
+              else setFilterDoctors(new Set([v]));
+            }}>
               <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Doctors" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Doctors</SelectItem>

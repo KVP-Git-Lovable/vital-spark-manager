@@ -815,6 +815,9 @@ export type Database = {
           previous_treatments: string | null
           skin_concerns: string | null
           skin_type: string | null
+          source: string | null
+          source_ad_details: string | null
+          source_referral_doctor: string | null
           state: string | null
           status: string
           updated_at: string
@@ -845,6 +848,9 @@ export type Database = {
           previous_treatments?: string | null
           skin_concerns?: string | null
           skin_type?: string | null
+          source?: string | null
+          source_ad_details?: string | null
+          source_referral_doctor?: string | null
           state?: string | null
           status?: string
           updated_at?: string
@@ -875,6 +881,9 @@ export type Database = {
           previous_treatments?: string | null
           skin_concerns?: string | null
           skin_type?: string | null
+          source?: string | null
+          source_ad_details?: string | null
+          source_referral_doctor?: string | null
           state?: string | null
           status?: string
           updated_at?: string

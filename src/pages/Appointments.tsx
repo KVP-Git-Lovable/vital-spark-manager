@@ -77,8 +77,13 @@ const Appointments = () => {
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>({});
 
-  // Drag state
+  // Drag-reschedule state
   const dragRef = useRef<{ aptId: string; originalStart: string; originalEnd: string } | null>(null);
+
+  // Drag-to-select state for creating multi-slot appointments
+  const dragSelectRef = useRef<{ date: Date; startSlotIndex: number } | null>(null);
+  const [dragSelectEnd, setDragSelectEnd] = useState<number | null>(null);
+  const [isDragSelecting, setIsDragSelecting] = useState(false);
 
   // Form state
   const [patientId, setPatientId] = useState("");
@@ -96,7 +101,7 @@ const Appointments = () => {
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("patients").select("id, first_name, last_name, phone").order("first_name");
+      const { data, error } = await supabase.from("patients").select("id, first_name, last_name, phone, source, source_ad_details, source_referral_doctor").order("first_name");
       if (error) throw error;
       return data;
     },
@@ -288,6 +293,7 @@ const Appointments = () => {
       if (startDT < new Date()) throw new Error("Cannot book appointments in the past");
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
+      const patientSource = (patient as any)?.source || "Walk-in";
       const selectedService = services.find((s) => s.id === serviceId);
       const serviceName = selectedService?.name || "";
       if (isRecurring && recurrenceEndDate) {
@@ -303,6 +309,7 @@ const Appointments = () => {
           is_recurring: true,
           recurrence_pattern: recurrencePattern,
           recurrence_end_date: format(recurrenceEndDate, "yyyy-MM-dd"),
+          source: patientSource,
         }));
         const { error } = await supabase.from("appointments").insert(rows);
         if (error) throw error;
@@ -316,6 +323,7 @@ const Appointments = () => {
           start_time: startDT.toISOString(),
           end_time: buildDateTime(startDate, endTime).toISOString(),
           is_recurring: false,
+          source: patientSource,
         });
         if (error) throw error;
       }
@@ -507,6 +515,55 @@ const Appointments = () => {
     }
     rescheduleAppointment.mutate({ id: aptId, newStart: newStart.toISOString(), newEnd: newEnd.toISOString() });
     dragRef.current = null;
+  };
+
+  // Drag-to-select handlers for multi-slot appointment creation
+  const handleSlotMouseDown = (date: Date, slotIndex: number) => {
+    dragSelectRef.current = { date, startSlotIndex: slotIndex };
+    setDragSelectEnd(slotIndex);
+    setIsDragSelecting(true);
+  };
+
+  const handleSlotMouseEnter = (date: Date, slotIndex: number) => {
+    if (!isDragSelecting || !dragSelectRef.current) return;
+    if (date.toDateString() === dragSelectRef.current.date.toDateString()) {
+      setDragSelectEnd(slotIndex);
+    }
+  };
+
+  const handleSlotMouseUp = () => {
+    if (!isDragSelecting || !dragSelectRef.current || dragSelectEnd === null) {
+      setIsDragSelecting(false);
+      dragSelectRef.current = null;
+      setDragSelectEnd(null);
+      return;
+    }
+    const { date, startSlotIndex } = dragSelectRef.current;
+    const minSlot = Math.min(startSlotIndex, dragSelectEnd);
+    const maxSlot = Math.max(startSlotIndex, dragSelectEnd);
+    const startSlot = slots[minSlot];
+    const endSlot = slots[Math.min(maxSlot + 1, slots.length - 1)];
+    const d = new Date(date);
+    d.setHours(startSlot.hour, startSlot.minute, 0, 0);
+    if (d < new Date()) { toast.error("Cannot book in the past"); } else {
+      setStartDate(d);
+      setStartTime(`${String(startSlot.hour).padStart(2, "0")}:${String(startSlot.minute).padStart(2, "0")}`);
+      const endH = maxSlot + 1 < slots.length ? slots[maxSlot + 1].hour : 20;
+      const endM = maxSlot + 1 < slots.length ? slots[maxSlot + 1].minute : 0;
+      setEndTime(`${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`);
+      setOpen(true);
+    }
+    setIsDragSelecting(false);
+    dragSelectRef.current = null;
+    setDragSelectEnd(null);
+  };
+
+  const isSlotInDragRange = (date: Date, slotIndex: number) => {
+    if (!isDragSelecting || !dragSelectRef.current || dragSelectEnd === null) return false;
+    if (date.toDateString() !== dragSelectRef.current.date.toDateString()) return false;
+    const min = Math.min(dragSelectRef.current.startSlotIndex, dragSelectEnd);
+    const max = Math.max(dragSelectRef.current.startSlotIndex, dragSelectEnd);
+    return slotIndex >= min && slotIndex <= max;
   };
 
   const navigate = (dir: number) => {
@@ -1047,7 +1104,7 @@ const Appointments = () => {
               </div>
             ) : view === "week" ? (
               /* WEEK VIEW — 15 min slots */
-              <div className="min-w-[800px]">
+              <div className="min-w-[800px]" onMouseUp={handleSlotMouseUp} onMouseLeave={() => { if (isDragSelecting) { setIsDragSelecting(false); dragSelectRef.current = null; setDragSelectEnd(null); } }}>
                 <div className="grid grid-cols-8 border-b">
                   <div className="p-3 text-xs text-muted-foreground" />
                   {weekDates.map((date, i) => {
@@ -1074,13 +1131,17 @@ const Appointments = () => {
                           <div
                             key={dayIndex}
                             className={cn(
-                              "border-l p-0.5 min-h-[18px] cursor-pointer hover:bg-muted/30 transition-colors",
+                              "border-l p-0.5 min-h-[18px] cursor-crosshair transition-colors select-none",
                               isToday && "bg-primary/5",
-                              slot.minute === 0 && "border-t"
+                              slot.minute === 0 && "border-t",
+                              isSlotInDragRange(date, si) ? "bg-primary/20" : "hover:bg-muted/30"
                             )}
                             onDragOver={handleDragOver}
                             onDrop={(e) => handleDropOnSlot(e, date, slot.hour, slot.minute)}
+                            onMouseDown={(e) => { e.preventDefault(); handleSlotMouseDown(date, si); }}
+                            onMouseEnter={() => handleSlotMouseEnter(date, si)}
                             onClick={() => {
+                              if (isDragSelecting) return;
                               const d = new Date(date);
                               d.setHours(slot.hour, slot.minute, 0, 0);
                               if (d < new Date()) { toast.error("Cannot book in the past"); return; }
@@ -1105,7 +1166,7 @@ const Appointments = () => {
               </div>
             ) : (
               /* DAY VIEW — 15 min slots */
-              <div className="min-w-[400px]">
+              <div className="min-w-[400px]" onMouseUp={handleSlotMouseUp} onMouseLeave={() => { if (isDragSelecting) { setIsDragSelecting(false); dragSelectRef.current = null; setDragSelectEnd(null); } }}>
                 <div className="p-3 text-center border-b bg-primary/5">
                   <p className="text-xs text-muted-foreground">{daysOfWeek[currentDay]}</p>
                   <p className="text-2xl font-display font-bold text-primary">{currentDate.getDate()}</p>
@@ -1119,10 +1180,16 @@ const Appointments = () => {
                         {showLabel && formatSlotTime(slot.hour, slot.minute)}
                       </div>
                       <div
-                        className="flex-1 border-l p-1 space-y-0.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                        className={cn(
+                          "flex-1 border-l p-1 space-y-0.5 cursor-crosshair transition-colors select-none",
+                          isSlotInDragRange(currentDate, si) ? "bg-primary/20" : "hover:bg-muted/30"
+                        )}
                         onDragOver={handleDragOver}
                         onDrop={(e) => handleDropOnSlot(e, currentDate, slot.hour, slot.minute)}
+                        onMouseDown={(e) => { e.preventDefault(); handleSlotMouseDown(currentDate, si); }}
+                        onMouseEnter={() => handleSlotMouseEnter(currentDate, si)}
                         onClick={() => {
+                          if (isDragSelecting) return;
                           const d = new Date(currentDate);
                           d.setHours(slot.hour, slot.minute, 0, 0);
                           if (d < new Date()) { toast.error("Cannot book in the past"); return; }

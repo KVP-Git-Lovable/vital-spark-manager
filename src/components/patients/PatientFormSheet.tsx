@@ -58,6 +58,9 @@ const emptyForm: TablesInsert<"patients"> = {
   instagram_url: null,
   follows_facebook: false,
   follows_instagram: false,
+  source: "Walk-in",
+  source_ad_details: null,
+  source_referral_doctor: null,
 };
 
 export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: PatientFormSheetProps) {
@@ -94,6 +97,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
         instagram_url: (patient as any).instagram_url || null,
         follows_facebook: (patient as any).follows_facebook || false,
         follows_instagram: (patient as any).follows_instagram || false,
+        source: (patient as any).source || "Walk-in",
+        source_ad_details: (patient as any).source_ad_details || null,
+        source_referral_doctor: (patient as any).source_referral_doctor || null,
       });
     } else {
       setForm(emptyForm);
@@ -401,6 +407,47 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
           </TabsContent>
 
           <TabsContent value="social" className="space-y-4 mt-4">
+            <div>
+              <Label>Source</Label>
+              <Select
+                value={(form as any).source || "Walk-in"}
+                onValueChange={(v) => setForm((prev) => ({ ...prev, source: v, source_ad_details: v !== "Advertisement" ? null : (prev as any).source_ad_details, source_referral_doctor: v !== "Other Dr. referral" ? null : (prev as any).source_referral_doctor }))}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Walk-in">Walk-in</SelectItem>
+                  <SelectItem value="Advertisement">Advertisement</SelectItem>
+                  <SelectItem value="Other Dr. referral">Other Dr. referral</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(form as any).source === "Advertisement" && (
+              <div>
+                <Label>Advertisement Details *</Label>
+                <Input
+                  value={(form as any).source_ad_details || ""}
+                  onChange={(e) => setForm((prev) => ({ ...prev, source_ad_details: e.target.value || null }))}
+                  placeholder="e.g. Google Ads, Facebook campaign, newspaper..."
+                  className="mt-1.5"
+                />
+              </div>
+            )}
+
+            {(form as any).source === "Other Dr. referral" && (
+              <div>
+                <Label>Referred Doctor Name *</Label>
+                <Input
+                  value={(form as any).source_referral_doctor || ""}
+                  onChange={(e) => setForm((prev) => ({ ...prev, source_referral_doctor: e.target.value || null }))}
+                  placeholder="Dr. name who referred"
+                  className="mt-1.5"
+                />
+              </div>
+            )}
+
             <div>
               <Label>Facebook URL</Label>
               <Input

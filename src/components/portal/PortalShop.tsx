@@ -160,9 +160,13 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
           <ArrowLeft className="h-4 w-4" /> Back
         </Button>
         <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
-          <div className="h-48 bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center">
-            <Package className="h-20 w-20 text-primary/30" />
-          </div>
+          {selectedProduct.image_url ? (
+            <img src={selectedProduct.image_url} alt={selectedProduct.name} className="h-48 w-full object-cover" />
+          ) : (
+            <div className="h-48 bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center">
+              <Package className="h-20 w-20 text-primary/30" />
+            </div>
+          )}
           <div className="p-4 space-y-3">
             <div>
               <Badge variant="secondary" className="text-xs mb-2">{selectedProduct.category}</Badge>

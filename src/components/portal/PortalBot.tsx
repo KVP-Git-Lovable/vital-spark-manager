@@ -132,11 +132,11 @@ const PortalBot = ({ patientId, patientName }: PortalBotProps) => {
                 Hi {patientName.split(" ")[0]}! 👋 I'm your DermaCare AI assistant. I can help you with:
               </p>
               <ul className="text-sm text-muted-foreground mt-2 space-y-1">
-                <li>• Book or reschedule appointments</li>
-                <li>• View your procedure history & prescriptions</li>
-                <li>• Check your invoices & billing</li>
-                <li>• Get product recommendations</li>
-                <li>• Answer your health questions</li>
+                <li>• Book, cancel or reschedule appointments</li>
+                <li>• Order products & reorder past purchases</li>
+                <li>• Track your delivery status</li>
+                <li>• View procedure history & prescriptions</li>
+                <li>• Check invoices & billing</li>
               </ul>
             </div>
             <div className="grid grid-cols-2 gap-2">

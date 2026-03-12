@@ -32,7 +32,11 @@ const PatientDetail = () => {
   const [otpCode, setOtpCode] = useState<string | null>(null);
   const [otpCopied, setOtpCopied] = useState(false);
   const [procedureFormOpen, setProcedureFormOpen] = useState(false);
-
+  const [detailsEditing, setDetailsEditing] = useState(false);
+  const [detailsForm, setDetailsForm] = useState<any>(null);
+  const [detailsSaving, setDetailsSaving] = useState(false);
+  const [addRxOpen, setAddRxOpen] = useState(false);
+  const [rxForm, setRxForm] = useState({ medicine_name: "", dosage: "", frequency: "", duration: "", quantity: 1, instructions: "", procedure_id: "" });
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],
     queryFn: async () => {

@@ -36,6 +36,173 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancelled"];
 
+const NPS_LABELS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+
+function FeedbackTabContent({
+  appointmentId, patientId, patientName,
+  npsScore, setNpsScore, serviceRating, setServiceRating,
+  feedbackSubmitting, setFeedbackSubmitting, queryClient,
+}: {
+  appointmentId: string;
+  patientId: string | null;
+  patientName: string;
+  npsScore: number | null;
+  setNpsScore: (v: number | null) => void;
+  serviceRating: number | null;
+  setServiceRating: (v: number | null) => void;
+  feedbackSubmitting: boolean;
+  setFeedbackSubmitting: (v: boolean) => void;
+  queryClient: any;
+}) {
+  const { data: existingFeedback, isLoading } = useQuery({
+    queryKey: ["patient-feedback", appointmentId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patient_feedback")
+        .select("*")
+        .eq("appointment_id", appointmentId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!appointmentId,
+  });
+
+  const handleSubmitFeedback = async () => {
+    if (npsScore === null || serviceRating === null) {
+      toast.error("Please answer both questions");
+      return;
+    }
+    setFeedbackSubmitting(true);
+    try {
+      const { error } = await supabase.from("patient_feedback").insert({
+        appointment_id: appointmentId,
+        patient_id: patientId || "00000000-0000-0000-0000-000000000000",
+        patient_name: patientName,
+        nps_score: npsScore,
+        service_rating: serviceRating,
+      });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["patient-feedback", appointmentId] });
+      toast.success("Feedback recorded!");
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  };
+
+  const getNpsColor = (score: number) => {
+    if (score <= 6) return "bg-destructive text-destructive-foreground";
+    if (score <= 8) return "bg-yellow-500 text-white";
+    return "bg-green-600 text-white";
+  };
+
+  const getNpsLabel = (score: number) => {
+    if (score <= 6) return "Detractor";
+    if (score <= 8) return "Passive";
+    return "Promoter";
+  };
+
+  if (isLoading) return <TabsContent value="feedback" className="p-6 mt-0"><p className="text-sm text-muted-foreground text-center py-8">Loading...</p></TabsContent>;
+
+  if (existingFeedback) {
+    return (
+      <TabsContent value="feedback" className="p-6 space-y-5 mt-0">
+        <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+          <MessageSquare className="h-4 w-4" /> Feedback Received
+        </h3>
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">How likely are you to recommend us? (NPS)</p>
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center justify-center h-8 w-8 rounded-full text-sm font-bold ${getNpsColor(existingFeedback.nps_score)}`}>
+                {existingFeedback.nps_score}
+              </span>
+              <Badge variant="outline" className="text-xs">{getNpsLabel(existingFeedback.nps_score)}</Badge>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Overall Service Quality</p>
+            <div className="flex gap-0.5">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <Star key={s} className={`h-5 w-5 ${s <= existingFeedback.service_rating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"}`} />
+              ))}
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground">Submitted {format(new Date(existingFeedback.created_at), "MMM d, yyyy · h:mm a")}</p>
+        </div>
+      </TabsContent>
+    );
+  }
+
+  return (
+    <TabsContent value="feedback" className="p-6 space-y-5 mt-0">
+      <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+        <MessageSquare className="h-4 w-4" /> Patient Feedback
+      </h3>
+
+      {/* NPS Question */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium">How likely are you to recommend us to a friend or colleague?</Label>
+        <div className="flex gap-1 flex-wrap">
+          {NPS_LABELS.map((label, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setNpsScore(i)}
+              className={`h-8 w-8 rounded-md text-xs font-semibold border transition-all ${
+                npsScore === i
+                  ? getNpsColor(i)
+                  : "bg-background hover:bg-accent text-foreground border-border"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-between text-[10px] text-muted-foreground px-0.5">
+          <span>Not at all likely</span>
+          <span>Extremely likely</span>
+        </div>
+        {npsScore !== null && (
+          <Badge variant="outline" className="text-xs">{getNpsLabel(npsScore)}</Badge>
+        )}
+      </div>
+
+      {/* Service Quality */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium">How would you rate the overall quality of service?</Label>
+        <div className="flex gap-1">
+          {[1, 2, 3, 4, 5].map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setServiceRating(s)}
+              className="p-1 transition-transform hover:scale-110"
+            >
+              <Star className={`h-7 w-7 ${serviceRating !== null && s <= serviceRating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30 hover:text-yellow-300"}`} />
+            </button>
+          ))}
+        </div>
+        {serviceRating !== null && (
+          <p className="text-xs text-muted-foreground">
+            {serviceRating <= 2 ? "Poor" : serviceRating === 3 ? "Average" : serviceRating === 4 ? "Good" : "Excellent"}
+          </p>
+        )}
+      </div>
+
+      <Button
+        onClick={handleSubmitFeedback}
+        disabled={feedbackSubmitting || npsScore === null || serviceRating === null}
+        className="w-full gap-2"
+      >
+        <Check className="h-4 w-4" /> Submit Feedback
+      </Button>
+    </TabsContent>
+  );
+}
+
 interface AppointmentDetailSheetProps {
   appointmentId: string | null;
   onClose: () => void;

@@ -57,6 +57,10 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [billingMode, setBillingMode] = useState("Cash");
   const [billingConfirmed, setBillingConfirmed] = useState(false);
   const [billingCreating, setBillingCreating] = useState(false);
+  // Feedback state
+  const [npsScore, setNpsScore] = useState<number | null>(null);
+  const [serviceRating, setServiceRating] = useState<number | null>(null);
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
 
   // Fetch appointment
   const { data: appointment, isLoading } = useQuery({

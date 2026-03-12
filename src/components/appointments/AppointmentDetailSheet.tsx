@@ -429,12 +429,13 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
 
   const handleCreateBillingInvoices = async () => {
     if (billingTotal <= 0) { toast.error("Enter a valid amount"); return; }
+    if (scheduleMismatch) { toast.error("Schedule amounts don't match the total bill amount"); return; }
     setBillingCreating(true);
     try {
-      const schedule = getInstallmentSchedule();
+      const schedule = customSchedule;
       const services = [appointment?.service || ""].filter(Boolean);
-      const inserts = schedule.map((inst) => {
-        const baseNum = (Date.now() + inst.index).toString().slice(-6);
+      const inserts = schedule.map((inst, i) => {
+        const baseNum = (Date.now() + i + 1).toString().slice(-6);
         return {
           invoice_number: `INV-${baseNum}`,
           patient_id: appointment?.patient_id || null,
@@ -445,7 +446,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
           status: "Pending" as const,
           payment_type: billingType === "one-time" ? "One-time" : "Staged",
           payment_mode: billingMode,
-          notes: billingType === "recurring" ? `Installment ${inst.index} of ${schedule.length}` : null,
+          notes: billingType === "recurring" ? `Installment ${i + 1} of ${schedule.length}` : null,
           appointment_id: appointmentId,
         };
       });

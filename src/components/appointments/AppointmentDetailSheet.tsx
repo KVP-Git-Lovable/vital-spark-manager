@@ -683,7 +683,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                           type="number"
                           placeholder="e.g. 100000"
                           value={billingTotal || ""}
-                          onChange={(e) => { setBillingTotal(Number(e.target.value)); setBillingConfirmed(false); }}
+                          onChange={(e) => { setBillingTotal(Number(e.target.value)); setBillingConfirmed(false); setCustomSchedule([]); }}
                           className="mt-1.5"
                         />
                       </div>

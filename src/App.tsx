@@ -18,6 +18,7 @@ import Photos from "./pages/Photos";
 import LeaveManagement from "./pages/LeaveManagement";
 import Assets from "./pages/Assets";
 import Settings from "./pages/Settings";
+import Orders from "./pages/Orders";
 import PortalLogin from "./pages/portal/PortalLogin";
 import Portal from "./pages/portal/Portal";
 import NotFound from "./pages/NotFound";

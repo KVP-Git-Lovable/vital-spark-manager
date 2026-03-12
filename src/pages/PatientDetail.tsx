@@ -163,6 +163,8 @@ const PatientDetail = () => {
               </div>
             </div>
             <div className="flex gap-2 flex-wrap">
+              <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+              <CaseAnalysis patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
               <Button variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => setCameraOpen(true)}>
                 <Camera className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Take</span> Photo
               </Button>

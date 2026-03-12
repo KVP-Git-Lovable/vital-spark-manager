@@ -1154,6 +1154,7 @@ const Appointments = () => {
                               const endH = endMin >= 60 ? slot.hour + 1 : slot.hour;
                               const endM = endMin >= 60 ? 0 : endMin;
                               setEndTime(`${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`);
+                              if (filterDoctors.size === 1) setStaffId(Array.from(filterDoctors)[0]);
                               setOpen(true);
                             }}
                           >

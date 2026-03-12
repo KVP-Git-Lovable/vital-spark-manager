@@ -58,6 +58,9 @@ const emptyForm: TablesInsert<"patients"> = {
   instagram_url: null,
   follows_facebook: false,
   follows_instagram: false,
+  source: "Walk-in",
+  source_ad_details: null,
+  source_referral_doctor: null,
 };
 
 export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: PatientFormSheetProps) {

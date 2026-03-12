@@ -168,6 +168,13 @@ Deno.serve(async (req) => {
           distinctServices,
           totalBilled,
           daysSinceLastVisit: Math.round(daysSinceLastVisit),
+          lastVisitDate: (() => {
+            const completedDates = patientApts
+              .filter((a) => a.status === "Completed")
+              .map((a) => a.start_time)
+              .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+            return completedDates.length > 0 ? completedDates[0] : null;
+          })(),
         },
       };
     }

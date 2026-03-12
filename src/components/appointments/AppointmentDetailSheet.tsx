@@ -677,6 +677,19 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                     <p className="text-sm text-muted-foreground text-center py-8">No photos yet. Click "Take Photo" to add one.</p>
                   )}
                 </TabsContent>
+
+                <FeedbackTabContent
+                  appointmentId={appointmentId!}
+                  patientId={appointment.patient_id}
+                  patientName={patientName}
+                  npsScore={npsScore}
+                  setNpsScore={setNpsScore}
+                  serviceRating={serviceRating}
+                  setServiceRating={setServiceRating}
+                  feedbackSubmitting={feedbackSubmitting}
+                  setFeedbackSubmitting={setFeedbackSubmitting}
+                  queryClient={queryClient}
+                />
               </Tabs>
             </>
           )}

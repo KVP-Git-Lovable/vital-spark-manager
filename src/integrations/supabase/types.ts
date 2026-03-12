@@ -1109,6 +1109,122 @@ export type Database = {
         }
         Relationships: []
       }
+      portal_order_items: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string
+          product_id: string | null
+          product_name: string
+          quantity: number
+          total_price: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id: string
+          product_id?: string | null
+          product_name: string
+          quantity?: number
+          total_price?: number
+          unit_price?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string
+          product_id?: string | null
+          product_name?: string
+          quantity?: number
+          total_price?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "portal_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "pharma_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portal_orders: {
+        Row: {
+          address: string | null
+          city: string | null
+          created_at: string
+          delivery_method: string
+          id: string
+          notes: string | null
+          patient_id: string
+          patient_name: string | null
+          payment_mode: string | null
+          payment_status: string
+          phone: string | null
+          pincode: string | null
+          state: string | null
+          status: string
+          total_amount: number
+          tracking_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          delivery_method?: string
+          id?: string
+          notes?: string | null
+          patient_id: string
+          patient_name?: string | null
+          payment_mode?: string | null
+          payment_status?: string
+          phone?: string | null
+          pincode?: string | null
+          state?: string | null
+          status?: string
+          total_amount?: number
+          tracking_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          delivery_method?: string
+          id?: string
+          notes?: string | null
+          patient_id?: string
+          patient_name?: string | null
+          payment_mode?: string | null
+          payment_status?: string
+          phone?: string | null
+          pincode?: string | null
+          state?: string | null
+          status?: string
+          total_amount?: number
+          tracking_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_orders_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prescriptions: {
         Row: {
           created_at: string

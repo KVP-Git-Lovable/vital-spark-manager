@@ -117,10 +117,10 @@ const Patients = () => {
                 <tr className="border-b bg-muted/50">
                   <th className="text-left text-xs font-medium text-muted-foreground p-4">Patient</th>
                   <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden md:table-cell">Contact</th>
-                  <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden lg:table-cell">Skin Type</th>
-                  <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden sm:table-cell">Blood</th>
-                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
-                  <th className="text-right text-xs font-medium text-muted-foreground p-4"></th>
+                   <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden lg:table-cell">Skin Type</th>
+                   <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden sm:table-cell">Engagement</th>
+                   <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
+                   <th className="text-right text-xs font-medium text-muted-foreground p-4"></th>
                 </tr>
               </thead>
               <tbody className="divide-y">

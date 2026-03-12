@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import {
   Heart, Home, Calendar, ClipboardList, Camera, Receipt, Pill,
   LogOut, Clock, User, ChevronRight, Plus, Send, Loader2, Stethoscope,
+  MessageCircle, ShoppingBag,
 } from "lucide-react";
+import PortalShop from "@/components/portal/PortalShop";
+import PortalBot from "@/components/portal/PortalBot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,7 +43,8 @@ const tabs = [
   { id: "procedures", label: "History", icon: ClipboardList },
   { id: "photos", label: "Photos", icon: Camera },
   { id: "billing", label: "Bills", icon: Receipt },
-  { id: "pharmacy", label: "Shop", icon: Pill },
+  { id: "pharmacy", label: "Shop", icon: ShoppingBag },
+  { id: "bot", label: "AI Bot", icon: MessageCircle },
 ];
 
 const Portal = () => {
@@ -592,65 +596,17 @@ const Portal = () => {
               </motion.div>
             )}
 
-            {/* ─── PHARMACY ─── */}
+            {/* ─── SHOP ─── */}
             {activeTab === "pharmacy" && (
-              <motion.div key="pharmacy" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-bold text-lg">Pharmacy</h2>
-                  <Button size="sm" className="gap-1" onClick={() => setPharmaOpen(true)}>
-                    <Plus className="h-3.5 w-3.5" /> Request
-                  </Button>
-                </div>
+              <motion.div key="pharmacy" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+                <PortalShop patientId={patientId!} patientName={session.patientName} />
+              </motion.div>
+            )}
 
-                {/* Previous requests */}
-                {pharmaRequests.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Your Requests</p>
-                    <div className="space-y-2">
-                      {pharmaRequests.map((r: any) => (
-                        <div key={r.id} className="bg-card rounded-xl border p-3 shadow-sm">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-sm">{r.product_name}</p>
-                              <p className="text-xs text-muted-foreground">Qty: {r.quantity} • {new Date(r.created_at).toLocaleDateString("en-IN")}</p>
-                            </div>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${requestStatusColors[r.status] || ""}`}>
-                              {r.status}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Browse products */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Available Products</p>
-                  <div className="space-y-2">
-                    {pharmaProducts.map((p: any) => (
-                      <div key={p.id} className="bg-card rounded-xl border p-3 shadow-sm flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{p.name}</p>
-                          <p className="text-xs text-muted-foreground">{p.category} {p.generic_name ? `• ${p.generic_name}` : ""}</p>
-                          <p className="text-sm font-semibold text-primary mt-0.5">₹{p.selling_price}</p>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="shrink-0"
-                          onClick={() => {
-                            setPharmaProductId(p.id);
-                            setPharmaQty(1);
-                            setPharmaOpen(true);
-                          }}
-                        >
-                          Request
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            {/* ─── AI BOT ─── */}
+            {activeTab === "bot" && (
+              <motion.div key="bot" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+                <PortalBot patientId={patientId!} patientName={session.patientName} />
               </motion.div>
             )}
           </AnimatePresence>

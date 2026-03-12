@@ -138,6 +138,7 @@ const Billing = () => {
   const [paymentInv, setPaymentInv] = useState<any>(null);
   const [addPaymentAmount, setAddPaymentAmount] = useState(0);
   const [addPaymentMode, setAddPaymentMode] = useState("Cash");
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
 
   // Form state
   const [patientId, setPatientId] = useState("");

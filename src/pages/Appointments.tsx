@@ -122,7 +122,7 @@ const Appointments = () => {
 
   // Filtered appointments
   const filteredAppointments = appointments.filter((apt: any) => {
-    if (filterDoctor && filterDoctor !== "all" && apt.staff_id !== filterDoctor) return false;
+    if (filterDoctors.size > 0 && apt.staff_id && !filterDoctors.has(apt.staff_id)) return false;
     if (filterDate && !isSameDay(new Date(apt.start_time), filterDate)) return false;
     if (searchQuery) {
       const name = apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");

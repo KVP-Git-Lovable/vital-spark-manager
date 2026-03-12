@@ -427,6 +427,19 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     setBillingConfirmed(false);
   };
 
+  const addScheduleRow = () => {
+    const lastDate = customSchedule.length > 0 ? customSchedule[customSchedule.length - 1].date : new Date();
+    const nextDate = billingFrequency === "monthly" ? addMonths(lastDate, 1) : addWeeks(lastDate, 1);
+    setCustomSchedule([...customSchedule, { date: nextDate, amount: 0 }]);
+    setBillingConfirmed(false);
+  };
+
+  const removeScheduleRow = (idx: number) => {
+    if (customSchedule.length <= 1) return;
+    setCustomSchedule(customSchedule.filter((_, i) => i !== idx));
+    setBillingConfirmed(false);
+  };
+
   const handleCreateBillingInvoices = async () => {
     if (billingTotal <= 0) { toast.error("Enter a valid amount"); return; }
     if (scheduleMismatch) { toast.error("Schedule amounts don't match the total bill amount"); return; }
@@ -793,9 +806,21 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                                     onChange={(e) => updateScheduleAmount(idx, Number(e.target.value) || 0)}
                                   />
                                 </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-destructive"
+                                  onClick={() => removeScheduleRow(idx)}
+                                  disabled={customSchedule.length <= 1}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
                               </div>
                             ))}
                           </div>
+                          <Button variant="outline" size="sm" className="w-full h-7 text-xs gap-1" onClick={addScheduleRow}>
+                            <Plus className="h-3 w-3" /> Add Installment
+                          </Button>
                           <div className="flex justify-between text-xs font-semibold pt-1 border-t">
                             <span>Schedule Total</span>
                             <span className={scheduleMismatch ? "text-destructive" : ""}>₹{scheduleTotal.toLocaleString()}</span>

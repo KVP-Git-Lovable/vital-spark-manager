@@ -712,7 +712,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label>Frequency</Label>
-                            <Select value={billingFrequency} onValueChange={(v) => { setBillingFrequency(v as any); setBillingConfirmed(false); }}>
+                            <Select value={billingFrequency} onValueChange={(v) => { setBillingFrequency(v as any); setBillingConfirmed(false); setCustomSchedule([]); }}>
                               <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="weekly">Weekly</SelectItem>

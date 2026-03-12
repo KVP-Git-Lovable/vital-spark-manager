@@ -806,6 +806,15 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                                     onChange={(e) => updateScheduleAmount(idx, Number(e.target.value) || 0)}
                                   />
                                 </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-destructive"
+                                  onClick={() => removeScheduleRow(idx)}
+                                  disabled={customSchedule.length <= 1}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
                               </div>
                             ))}
                           </div>

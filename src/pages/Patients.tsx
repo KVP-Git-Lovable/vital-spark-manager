@@ -14,6 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { CameraCapture } from "@/components/shared/CameraCapture";
+import { EngagementBadge } from "@/components/patients/EngagementBadge";
+import { useEngagementScores } from "@/hooks/useEngagementScores";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;

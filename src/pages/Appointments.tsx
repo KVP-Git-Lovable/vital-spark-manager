@@ -517,7 +517,56 @@ const Appointments = () => {
     dragRef.current = null;
   };
 
-  const navigate = (dir: number) => {
+  // Drag-to-select handlers for multi-slot appointment creation
+  const handleSlotMouseDown = (date: Date, slotIndex: number) => {
+    dragSelectRef.current = { date, startSlotIndex: slotIndex };
+    setDragSelectEnd(slotIndex);
+    setIsDragSelecting(true);
+  };
+
+  const handleSlotMouseEnter = (date: Date, slotIndex: number) => {
+    if (!isDragSelecting || !dragSelectRef.current) return;
+    if (date.toDateString() === dragSelectRef.current.date.toDateString()) {
+      setDragSelectEnd(slotIndex);
+    }
+  };
+
+  const handleSlotMouseUp = () => {
+    if (!isDragSelecting || !dragSelectRef.current || dragSelectEnd === null) {
+      setIsDragSelecting(false);
+      dragSelectRef.current = null;
+      setDragSelectEnd(null);
+      return;
+    }
+    const { date, startSlotIndex } = dragSelectRef.current;
+    const minSlot = Math.min(startSlotIndex, dragSelectEnd);
+    const maxSlot = Math.max(startSlotIndex, dragSelectEnd);
+    const startSlot = slots[minSlot];
+    const endSlot = slots[Math.min(maxSlot + 1, slots.length - 1)];
+    const d = new Date(date);
+    d.setHours(startSlot.hour, startSlot.minute, 0, 0);
+    if (d < new Date()) { toast.error("Cannot book in the past"); } else {
+      setStartDate(d);
+      setStartTime(`${String(startSlot.hour).padStart(2, "0")}:${String(startSlot.minute).padStart(2, "0")}`);
+      const endH = maxSlot + 1 < slots.length ? slots[maxSlot + 1].hour : 20;
+      const endM = maxSlot + 1 < slots.length ? slots[maxSlot + 1].minute : 0;
+      setEndTime(`${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`);
+      setOpen(true);
+    }
+    setIsDragSelecting(false);
+    dragSelectRef.current = null;
+    setDragSelectEnd(null);
+  };
+
+  const isSlotInDragRange = (date: Date, slotIndex: number) => {
+    if (!isDragSelecting || !dragSelectRef.current || dragSelectEnd === null) return false;
+    if (date.toDateString() !== dragSelectRef.current.date.toDateString()) return false;
+    const min = Math.min(dragSelectRef.current.startSlotIndex, dragSelectEnd);
+    const max = Math.max(dragSelectRef.current.startSlotIndex, dragSelectEnd);
+    return slotIndex >= min && slotIndex <= max;
+  };
+
+
     if (view === "week") navigateWeek(dir);
     else if (view === "day") navigateDay(dir);
     else if (view === "month") navigateMonth(dir);

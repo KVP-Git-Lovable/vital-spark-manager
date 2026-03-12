@@ -24,7 +24,7 @@ serve(async (req) => {
       sb.from("appointments").select("*, staff(first_name, last_name)").eq("patient_id", patientId).order("start_time", { ascending: false }).limit(20),
       sb.from("procedures").select("*, staff(first_name, last_name)").eq("patient_id", patientId).order("procedure_date", { ascending: false }).limit(20),
       sb.from("invoices").select("*").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(20),
-      sb.rpc("get_patient_prescriptions", { p_patient_id: patientId }).catch(() => ({ data: null })),
+      Promise.resolve().then(() => sb.rpc("get_patient_prescriptions", { p_patient_id: patientId })).catch(() => ({ data: null })),
     ]);
 
     // Get prescriptions via procedures

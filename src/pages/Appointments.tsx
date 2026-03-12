@@ -101,7 +101,7 @@ const Appointments = () => {
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("patients").select("id, first_name, last_name, phone").order("first_name");
+      const { data, error } = await supabase.from("patients").select("id, first_name, last_name, phone, source, source_ad_details, source_referral_doctor").order("first_name");
       if (error) throw error;
       return data;
     },

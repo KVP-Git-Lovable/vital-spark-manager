@@ -1069,6 +1069,7 @@ export type Database = {
           gst_percent: number
           hsn_code: string | null
           id: string
+          image_url: string | null
           manufacturer: string | null
           mrp: number
           name: string
@@ -1084,6 +1085,7 @@ export type Database = {
           gst_percent?: number
           hsn_code?: string | null
           id?: string
+          image_url?: string | null
           manufacturer?: string | null
           mrp?: number
           name: string
@@ -1099,6 +1101,7 @@ export type Database = {
           gst_percent?: number
           hsn_code?: string | null
           id?: string
+          image_url?: string | null
           manufacturer?: string | null
           mrp?: number
           name?: string

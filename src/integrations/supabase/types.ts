@@ -382,6 +382,89 @@ export type Database = {
         }
         Relationships: []
       }
+      expense_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
+      expenses: {
+        Row: {
+          amount: number
+          attachment_name: string | null
+          attachment_url: string | null
+          category_id: string | null
+          created_at: string
+          description: string | null
+          expense_date: string
+          id: string
+          notes: string | null
+          payment_mode: string | null
+          reference_number: string | null
+          title: string
+          updated_at: string
+          vendor_name: string | null
+        }
+        Insert: {
+          amount?: number
+          attachment_name?: string | null
+          attachment_url?: string | null
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          expense_date?: string
+          id?: string
+          notes?: string | null
+          payment_mode?: string | null
+          reference_number?: string | null
+          title: string
+          updated_at?: string
+          vendor_name?: string | null
+        }
+        Update: {
+          amount?: number
+          attachment_name?: string | null
+          attachment_url?: string | null
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          expense_date?: string
+          id?: string
+          notes?: string | null
+          payment_mode?: string | null
+          reference_number?: string | null
+          title?: string
+          updated_at?: string
+          vendor_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           appointment_id: string | null

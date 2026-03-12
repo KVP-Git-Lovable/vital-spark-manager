@@ -224,6 +224,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [billingMode, setBillingMode] = useState("Cash");
   const [billingConfirmed, setBillingConfirmed] = useState(false);
   const [billingCreating, setBillingCreating] = useState(false);
+  const [customSchedule, setCustomSchedule] = useState<{ date: Date; amount: number }[]>([]);
   // Feedback state
   const [npsScore, setNpsScore] = useState<number | null>(null);
   const [serviceRating, setServiceRating] = useState<number | null>(null);

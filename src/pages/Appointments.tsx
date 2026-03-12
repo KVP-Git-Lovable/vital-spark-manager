@@ -63,7 +63,7 @@ const Appointments = () => {
   const today = new Date();
 
   // Filter state
-  const [filterDoctor, setFilterDoctor] = useState<string>("all");
+  const [filterDoctors, setFilterDoctors] = useState<Set<string>>(new Set());
   const [filterDate, setFilterDate] = useState<Date | undefined>();
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -122,7 +122,7 @@ const Appointments = () => {
 
   // Filtered appointments
   const filteredAppointments = appointments.filter((apt: any) => {
-    if (filterDoctor && filterDoctor !== "all" && apt.staff_id !== filterDoctor) return false;
+    if (filterDoctors.size > 0 && apt.staff_id && !filterDoctors.has(apt.staff_id)) return false;
     if (filterDate && !isSameDay(new Date(apt.start_time), filterDate)) return false;
     if (searchQuery) {
       const name = apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
@@ -590,7 +590,7 @@ const Appointments = () => {
           <Filter className="h-3.5 w-3.5" />
           Filters & Search
           {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          {(searchQuery || filterDoctor !== "all" || filterDate) && <Badge className="h-4 px-1.5 text-[10px]">Active</Badge>}
+          {(searchQuery || filterDoctors.size > 0 || filterDate) && <Badge className="h-4 px-1.5 text-[10px]">Active</Badge>}
         </Button>
         {showFilters && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex flex-wrap items-center gap-3 p-3 bg-muted/30 rounded-lg border overflow-hidden">
@@ -598,7 +598,10 @@ const Appointments = () => {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search patient name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9 text-sm" />
             </div>
-            <Select value={filterDoctor} onValueChange={setFilterDoctor}>
+            <Select value={filterDoctors.size === 0 ? "all" : filterDoctors.size === 1 ? [...filterDoctors][0] : "multi"} onValueChange={(v) => {
+              if (v === "all") setFilterDoctors(new Set());
+              else setFilterDoctors(new Set([v]));
+            }}>
               <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Doctors" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Doctors</SelectItem>
@@ -616,25 +619,50 @@ const Appointments = () => {
                 <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus className={cn("p-3 pointer-events-auto")} />
               </PopoverContent>
             </Popover>
-            {(searchQuery || filterDoctor !== "all" || filterDate) && (
-              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctor("all"); setFilterDate(undefined); }}>Clear filters</Button>
+            {(searchQuery || filterDoctors.size > 0 || filterDate) && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterDate(undefined); }}>Clear filters</Button>
             )}
             <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
           </motion.div>
         )}
         {/* Doctor color legend */}
         {view !== "table" && doctorColorMap.size > 0 && (
-          <div className="flex flex-wrap items-center gap-3 mt-2">
+          <div className="flex flex-wrap items-center gap-2 mt-2">
             <span className="text-xs text-muted-foreground font-medium">Doctors:</span>
             {staffList.filter(s => doctorColorMap.has(s.id)).map(s => {
               const p = doctorColorMap.get(s.id)!;
+              const isSelected = filterDoctors.has(s.id);
+              const isFiltering = filterDoctors.size > 0;
               return (
-                <div key={s.id} className="flex items-center gap-1.5 text-xs">
+                <button
+                  key={s.id}
+                  className={cn(
+                    "flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border transition-all cursor-pointer",
+                    isSelected
+                      ? `${p.bg} ${p.border} ${p.text} font-medium`
+                      : isFiltering
+                        ? "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
+                        : "border-transparent text-muted-foreground hover:bg-muted"
+                  )}
+                  onClick={() => {
+                    setFilterDoctors(prev => {
+                      const next = new Set(prev);
+                      if (next.has(s.id)) next.delete(s.id);
+                      else next.add(s.id);
+                      return next;
+                    });
+                  }}
+                >
                   <span className={cn("w-2.5 h-2.5 rounded-full", p.dot)} />
-                  <span className="text-muted-foreground">Dr. {s.first_name} {s.last_name}</span>
-                </div>
+                  Dr. {s.first_name} {s.last_name}
+                </button>
               );
             })}
+            {filterDoctors.size > 0 && (
+              <button className="text-[10px] text-muted-foreground hover:text-foreground ml-1" onClick={() => setFilterDoctors(new Set())}>
+                Clear
+              </button>
+            )}
           </div>
         )}
       </div>

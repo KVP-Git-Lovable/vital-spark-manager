@@ -31,9 +31,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Users, User, Phone, Mail, Star, ChevronDown, ChevronRight, Facebook, Instagram, Cake } from "lucide-react";
+import { Plus, Trash2, Users, Star, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 const RELATIONSHIPS = [
@@ -49,29 +48,27 @@ interface FamilyMembersProps {
 
 export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [memberName, setMemberName] = useState("");
   const [relationship, setRelationship] = useState("");
   const [isPrimary, setIsPrimary] = useState(false);
   const [notes, setNotes] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Fetch family members
+  // Fetch family members (direct + reverse)
   const { data: familyMembers = [], isLoading } = useQuery({
     queryKey: ["family-members", patientId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("patient_family_members")
-        .select("*, related_patient:patients!patient_family_members_related_patient_id_fkey(id, first_name, last_name, phone, email, gender, date_of_birth, status, city, facebook_url, instagram_url)")
+        .select("*")
         .eq("patient_id", patientId);
       if (error) throw error;
 
       // Also fetch reverse relationships
       const { data: reverseData, error: reverseError } = await supabase
         .from("patient_family_members")
-        .select("*, related_patient:patients!patient_family_members_patient_id_fkey(id, first_name, last_name, phone, email, gender, date_of_birth, status, city, facebook_url, instagram_url)")
+        .select("*")
         .eq("related_patient_id", patientId);
       if (reverseError) throw reverseError;
 
@@ -79,7 +76,6 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
         ...r,
         relationship: getInverseRelationship(r.relationship),
         _isReverse: true,
-        related_patient: r.related_patient,
       }));
 
       return [...(data || []), ...reverseFormatted];
@@ -87,28 +83,11 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
     enabled: !!patientId,
   });
 
-  // Search patients for adding
-  const { data: searchResults = [] } = useQuery({
-    queryKey: ["patient-search-family", search],
-    queryFn: async () => {
-      if (search.length < 2) return [];
-      const { data, error } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name, phone, city")
-        .neq("id", patientId)
-        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone.ilike.%${search}%`)
-        .limit(10);
-      if (error) throw error;
-      return data;
-    },
-    enabled: search.length >= 2,
-  });
-
   const addMember = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("patient_family_members").insert({
         patient_id: patientId,
-        related_patient_id: selectedPatientId,
+        name: memberName,
         relationship,
         is_primary_contact: isPrimary,
         notes: notes || null,
@@ -137,16 +116,19 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
   });
 
   const resetForm = () => {
-    setSearch("");
-    setSelectedPatientId("");
+    setMemberName("");
     setRelationship("");
     setIsPrimary(false);
     setNotes("");
   };
 
-  const getAge = (dob: string | null) => {
-    if (!dob) return null;
-    return Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+  const getMemberDisplayName = (member: any): string => {
+    if (member.name) return member.name;
+    // Fallback for old records linked to patients
+    if (member.related_patient) {
+      return `${member.related_patient.first_name} ${member.related_patient.last_name}`;
+    }
+    return "Unknown";
   };
 
   return (
@@ -169,39 +151,20 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
               <DialogTitle className="font-display">Add Family Member</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 mt-2">
+              {/* Parent patient display */}
+              <div className="rounded-lg bg-muted/50 border p-3">
+                <p className="text-xs text-muted-foreground">Patient</p>
+                <p className="font-medium text-sm">{patientName}</p>
+              </div>
+
               <div>
-                <Label>Search Patient</Label>
+                <Label>Family Member Name</Label>
                 <Input
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setSelectedPatientId(""); }}
-                  placeholder="Type name or phone..."
+                  value={memberName}
+                  onChange={(e) => setMemberName(e.target.value)}
+                  placeholder="Enter name..."
                   className="mt-1.5"
                 />
-                {searchResults.length > 0 && !selectedPatientId && (
-                  <div className="border rounded-lg mt-2 max-h-48 overflow-y-auto divide-y">
-                    {searchResults.map((p: any) => (
-                      <button
-                        key={p.id}
-                        className="w-full text-left px-3 py-2.5 hover:bg-muted/50 transition-colors flex items-center gap-3"
-                        onClick={() => {
-                          setSelectedPatientId(p.id);
-                          setSearch(`${p.first_name} ${p.last_name}`);
-                        }}
-                      >
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                          {p.first_name[0]}{p.last_name[0]}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{p.first_name} {p.last_name}</p>
-                          <p className="text-xs text-muted-foreground">{p.phone || p.city || "—"}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {selectedPatientId && (
-                  <p className="text-xs text-success mt-1">✓ Patient selected</p>
-                )}
               </div>
 
               <div>
@@ -242,7 +205,7 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
 
               <Button
                 className="w-full"
-                disabled={!selectedPatientId || !relationship || addMember.isPending}
+                disabled={!memberName.trim() || !relationship || addMember.isPending}
                 onClick={() => addMember.mutate()}
               >
                 {addMember.isPending ? "Adding..." : "Add Family Member"}
@@ -258,7 +221,7 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
         <div className="text-center py-12 text-muted-foreground">
           <Users className="h-10 w-10 mx-auto mb-2 opacity-40" />
           <p className="text-sm">No family members linked yet.</p>
-          <p className="text-xs mt-1">Add existing patients as family members to build the family tree.</p>
+          <p className="text-xs mt-1">Add family members to build the family tree.</p>
         </div>
       ) : (
         <>
@@ -286,10 +249,9 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 <AnimatePresence>
                   {familyMembers.map((member: any) => {
-                    const rp = member.related_patient;
-                    if (!rp) return null;
+                    const displayName = getMemberDisplayName(member);
+                    const initials = displayName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
                     const isExpanded = expandedId === member.id;
-                    const age = getAge(rp.date_of_birth);
 
                     return (
                       <motion.div
@@ -306,19 +268,13 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
 
                         <div className="p-4">
                           <div className="flex items-start gap-3">
-                            <div
-                              className="h-10 w-10 rounded-full bg-accent/50 flex items-center justify-center text-sm font-bold text-foreground shrink-0 cursor-pointer hover:bg-accent transition-colors"
-                              onClick={() => navigate(`/patients/${rp.id}`)}
-                            >
-                              {rp.first_name[0]}{rp.last_name[0]}
+                            <div className="h-10 w-10 rounded-full bg-accent/50 flex items-center justify-center text-sm font-bold text-foreground shrink-0">
+                              {initials}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <p
-                                  className="font-medium text-sm truncate cursor-pointer hover:text-primary transition-colors"
-                                  onClick={() => navigate(`/patients/${rp.id}`)}
-                                >
-                                  {rp.first_name} {rp.last_name}
+                                <p className="font-medium text-sm truncate">
+                                  {displayName}
                                 </p>
                                 {member.is_primary_contact && (
                                   <Star className="h-3.5 w-3.5 text-warning fill-warning shrink-0" />
@@ -328,105 +284,59 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
                                 {member.relationship}
                               </Badge>
                             </div>
-                            <button
-                              onClick={() => setExpandedId(isExpanded ? null : member.id)}
-                              className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
-                            >
-                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            </button>
-                          </div>
-
-                          {/* Quick info */}
-                          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2.5 text-xs text-muted-foreground">
-                            {rp.gender && <span>{rp.gender}</span>}
-                            {age !== null && <span>Age {age}</span>}
-                            {rp.date_of_birth && (
-                              <span className="flex items-center gap-0.5">
-                                <Cake className="h-3 w-3" />
-                                {new Date(rp.date_of_birth).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                              </span>
+                            {member.notes && (
+                              <button
+                                onClick={() => setExpandedId(isExpanded ? null : member.id)}
+                                className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                              >
+                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </button>
                             )}
-                            {rp.city && <span>{rp.city}</span>}
                           </div>
 
-                          {/* Expanded details */}
+                          {/* Expanded notes */}
                           <AnimatePresence>
-                            {isExpanded && (
+                            {isExpanded && member.notes && (
                               <motion.div
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: "auto", opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }}
                                 className="overflow-hidden"
                               >
-                                <div className="mt-3 pt-3 border-t space-y-2">
-                                  {rp.phone && (
-                                    <div className="flex items-center gap-2 text-xs">
-                                      <Phone className="h-3 w-3 text-muted-foreground" />
-                                      <span>{rp.phone}</span>
-                                    </div>
-                                  )}
-                                  {rp.email && (
-                                    <div className="flex items-center gap-2 text-xs">
-                                      <Mail className="h-3 w-3 text-muted-foreground" />
-                                      <span className="truncate">{rp.email}</span>
-                                    </div>
-                                  )}
-                                  {rp.facebook_url && (
-                                    <div className="flex items-center gap-2 text-xs">
-                                      <Facebook className="h-3 w-3 text-muted-foreground" />
-                                      <a href={rp.facebook_url} target="_blank" rel="noopener noreferrer" className="truncate text-primary hover:underline">{rp.facebook_url.replace(/https?:\/\/(www\.)?facebook\.com\/?/, "")}</a>
-                                    </div>
-                                  )}
-                                  {rp.instagram_url && (
-                                    <div className="flex items-center gap-2 text-xs">
-                                      <Instagram className="h-3 w-3 text-muted-foreground" />
-                                      <a href={rp.instagram_url} target="_blank" rel="noopener noreferrer" className="truncate text-primary hover:underline">{rp.instagram_url.replace(/https?:\/\/(www\.)?instagram\.com\/?/, "")}</a>
-                                    </div>
-                                  )}
-                                  {member.notes && (
-                                    <p className="text-xs text-muted-foreground italic">{member.notes}</p>
-                                  )}
-                                  <div className="flex gap-2 pt-1">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="text-xs h-7 flex-1"
-                                      onClick={() => navigate(`/patients/${rp.id}`)}
-                                    >
-                                      <User className="h-3 w-3 mr-1" /> View Profile
-                                    </Button>
-                                    {!member._isReverse && (
-                                      <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                          <Button variant="outline" size="sm" className="text-xs h-7 text-destructive hover:text-destructive">
-                                            <Trash2 className="h-3 w-3" />
-                                          </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                          <AlertDialogHeader>
-                                            <AlertDialogTitle>Remove family member?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                              This will unlink {rp.first_name} {rp.last_name} from this patient's family. The patient record itself won't be affected.
-                                            </AlertDialogDescription>
-                                          </AlertDialogHeader>
-                                          <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => removeMember.mutate(member.id)}>
-                                              Remove
-                                            </AlertDialogAction>
-                                          </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                      </AlertDialog>
-                                    )}
-                                  </div>
+                                <div className="mt-3 pt-3 border-t">
+                                  <p className="text-xs text-muted-foreground italic">{member.notes}</p>
                                 </div>
                               </motion.div>
                             )}
                           </AnimatePresence>
-                        </div>
 
-                        {/* Status bar */}
-                        <div className={`h-1 ${rp.status === 'Active' ? 'bg-success/40' : 'bg-muted'}`} />
+                          {/* Delete button */}
+                          {!member._isReverse && (
+                            <div className="mt-3 pt-2 border-t">
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="text-xs h-7 text-destructive hover:text-destructive w-full">
+                                    <Trash2 className="h-3 w-3 mr-1" /> Remove
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Remove family member?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will remove {displayName} from this patient's family.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => removeMember.mutate(member.id)}>
+                                      Remove
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          )}
+                        </div>
                       </motion.div>
                     );
                   })}

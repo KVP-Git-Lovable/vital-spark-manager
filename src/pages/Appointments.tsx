@@ -77,8 +77,13 @@ const Appointments = () => {
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>({});
 
-  // Drag state
+  // Drag-reschedule state
   const dragRef = useRef<{ aptId: string; originalStart: string; originalEnd: string } | null>(null);
+
+  // Drag-to-select state for creating multi-slot appointments
+  const dragSelectRef = useRef<{ date: Date; startSlotIndex: number } | null>(null);
+  const [dragSelectEnd, setDragSelectEnd] = useState<number | null>(null);
+  const [isDragSelecting, setIsDragSelecting] = useState(false);
 
   // Form state
   const [patientId, setPatientId] = useState("");

@@ -1104,7 +1104,7 @@ const Appointments = () => {
               </div>
             ) : view === "week" ? (
               /* WEEK VIEW — 15 min slots */
-              <div className="min-w-[800px]">
+              <div className="min-w-[800px]" onMouseUp={handleSlotMouseUp} onMouseLeave={() => { if (isDragSelecting) { setIsDragSelecting(false); dragSelectRef.current = null; setDragSelectEnd(null); } }}>
                 <div className="grid grid-cols-8 border-b">
                   <div className="p-3 text-xs text-muted-foreground" />
                   {weekDates.map((date, i) => {

@@ -497,6 +497,8 @@ const PatientDetail = () => {
             })()}
           </motion.div>
         </TabsContent>
+
+        <TabsContent value="procedures">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 space-y-3 md:space-y-0">
             <div className="flex justify-end mb-3">
               <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setProcedureFormOpen(true)}>

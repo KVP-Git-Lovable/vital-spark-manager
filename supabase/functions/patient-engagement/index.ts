@@ -22,6 +22,7 @@ Deno.serve(async (req) => {
     }
 
     // Fetch all data in parallel
+    // Fetch completed appointments separately for last visit date
     const [aptsRes, procsRes, invoicesRes, patientsRes] = await Promise.all([
       supabase.from("appointments").select("id, patient_id, status, start_time").in("patient_id", patientIds),
       supabase.from("procedures").select("id, patient_id, service_name, status").in("patient_id", patientIds),
@@ -167,6 +168,13 @@ Deno.serve(async (req) => {
           distinctServices,
           totalBilled,
           daysSinceLastVisit: Math.round(daysSinceLastVisit),
+          lastVisitDate: (() => {
+            const completedDates = patientApts
+              .filter((a) => a.status === "Completed")
+              .map((a) => a.start_time)
+              .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+            return completedDates.length > 0 ? completedDates[0] : null;
+          })(),
         },
       };
     }

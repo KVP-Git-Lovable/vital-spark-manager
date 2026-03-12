@@ -600,6 +600,44 @@ export type Database = {
           },
         ]
       }
+      patient_feedback: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          id: string
+          nps_score: number
+          patient_id: string
+          patient_name: string | null
+          service_rating: number
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          id?: string
+          nps_score: number
+          patient_id: string
+          patient_name?: string | null
+          service_rating: number
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          id?: string
+          nps_score?: number
+          patient_id?: string
+          patient_name?: string | null
+          service_rating?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_feedback_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_pharma_requests: {
         Row: {
           created_at: string | null

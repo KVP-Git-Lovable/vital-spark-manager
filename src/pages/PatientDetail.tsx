@@ -245,9 +245,10 @@ const PatientDetail = () => {
         <FamilySummaryCard patientId={id!} />
       </div>
 
-      <Tabs defaultValue="procedures" className="mt-2">
+      <Tabs defaultValue="details" className="mt-2">
         <div className="overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
           <TabsList className="w-max md:w-auto">
+            <TabsTrigger value="details" className="gap-1 text-xs md:text-sm"><Info className="h-3.5 w-3.5" /> Details</TabsTrigger>
             <TabsTrigger value="procedures" className="gap-1 text-xs md:text-sm"><ClipboardList className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Procedures</span> ({procedures.length})</TabsTrigger>
             <TabsTrigger value="prescriptions" className="gap-1 text-xs md:text-sm"><Pill className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Rx</span> ({prescriptions.length})</TabsTrigger>
             <TabsTrigger value="appointments" className="gap-1 text-xs md:text-sm"><Calendar className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Appts</span> ({appointments.length})</TabsTrigger>
@@ -257,7 +258,245 @@ const PatientDetail = () => {
           </TabsList>
         </div>
 
-        <TabsContent value="procedures">
+        {/* Details Tab */}
+        <TabsContent value="details">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            <div className="flex justify-end mb-3">
+              {detailsEditing ? (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => { setDetailsEditing(false); setDetailsForm(null); }}>Cancel</Button>
+                  <Button size="sm" className="gap-1.5 h-8 text-xs" disabled={detailsSaving} onClick={async () => {
+                    if (!detailsForm) return;
+                    setDetailsSaving(true);
+                    try {
+                      const { error } = await supabase.from("patients").update(detailsForm).eq("id", id!);
+                      if (error) throw error;
+                      toast.success("Patient details updated");
+                      queryClient.invalidateQueries({ queryKey: ["patient", id] });
+                      setDetailsEditing(false);
+                      setDetailsForm(null);
+                    } catch (err: any) {
+                      toast.error(err.message);
+                    } finally {
+                      setDetailsSaving(false);
+                    }
+                  }}>
+                    <Save className="h-3.5 w-3.5" /> Save
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => {
+                  setDetailsEditing(true);
+                  setDetailsForm({
+                    first_name: patient.first_name, last_name: patient.last_name, date_of_birth: patient.date_of_birth,
+                    gender: patient.gender, phone: patient.phone, email: patient.email, address: patient.address,
+                    city: patient.city, state: patient.state, pincode: patient.pincode,
+                    emergency_contact_name: patient.emergency_contact_name, emergency_contact_phone: patient.emergency_contact_phone,
+                    blood_group: patient.blood_group, medical_history: patient.medical_history,
+                    current_medications: patient.current_medications, allergies: patient.allergies,
+                    skin_type: patient.skin_type, skin_concerns: patient.skin_concerns,
+                    previous_treatments: patient.previous_treatments, notes: patient.notes, status: patient.status,
+                    source: patient.source, source_ad_details: patient.source_ad_details,
+                    source_referral_doctor: patient.source_referral_doctor,
+                    facebook_url: patient.facebook_url, instagram_url: patient.instagram_url,
+                    follows_facebook: patient.follows_facebook, follows_instagram: patient.follows_instagram,
+                  });
+                }}>
+                  <Edit2 className="h-3.5 w-3.5" /> Edit
+                </Button>
+              )}
+            </div>
+            {(() => {
+              const d = detailsEditing ? detailsForm : patient;
+              const upd = (field: string, value: any) => setDetailsForm((prev: any) => ({ ...prev, [field]: value || null }));
+              const readOnly = !detailsEditing;
+
+              const SectionTitle = ({ children }: { children: React.ReactNode }) => (
+                <h3 className="text-sm font-semibold text-foreground border-b pb-1.5 mb-3">{children}</h3>
+              );
+
+              const Field = ({ label, value, field, type = "text" }: { label: string; value: any; field: string; type?: string }) => (
+                <div>
+                  <Label className="text-xs text-muted-foreground">{label}</Label>
+                  {readOnly ? (
+                    <p className="text-sm mt-1">{value || <span className="text-muted-foreground/50">—</span>}</p>
+                  ) : (
+                    <Input type={type} value={value || ""} onChange={(e) => upd(field, e.target.value)} className="mt-1 h-8 text-sm" />
+                  )}
+                </div>
+              );
+
+              const TextareaField = ({ label, value, field }: { label: string; value: any; field: string }) => (
+                <div>
+                  <Label className="text-xs text-muted-foreground">{label}</Label>
+                  {readOnly ? (
+                    <p className="text-sm mt-1 whitespace-pre-wrap">{value || <span className="text-muted-foreground/50">—</span>}</p>
+                  ) : (
+                    <Textarea value={value || ""} onChange={(e) => upd(field, e.target.value)} className="mt-1 text-sm" rows={3} />
+                  )}
+                </div>
+              );
+
+              return (
+                <div className="space-y-6">
+                  {/* Personal */}
+                  <div className="stat-card p-4">
+                    <SectionTitle>Personal Information</SectionTitle>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <Field label="First Name" value={d.first_name} field="first_name" />
+                      <Field label="Last Name" value={d.last_name} field="last_name" />
+                      <Field label="Date of Birth" value={d.date_of_birth} field="date_of_birth" type="date" />
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Gender</Label>
+                        {readOnly ? (
+                          <p className="text-sm mt-1">{d.gender || <span className="text-muted-foreground/50">—</span>}</p>
+                        ) : (
+                          <Select value={d.gender || ""} onValueChange={(v) => upd("gender", v)}>
+                            <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Male">Male</SelectItem>
+                              <SelectItem value="Female">Female</SelectItem>
+                              <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                      <Field label="Phone" value={d.phone} field="phone" />
+                      <Field label="Email" value={d.email} field="email" type="email" />
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Status</Label>
+                        {readOnly ? (
+                          <p className="text-sm mt-1">{d.status}</p>
+                        ) : (
+                          <Select value={d.status || "Active"} onValueChange={(v) => upd("status", v)}>
+                            <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Active">Active</SelectItem>
+                              <SelectItem value="Inactive">Inactive</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Address */}
+                  <div className="stat-card p-4">
+                    <SectionTitle>Address</SectionTitle>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="md:col-span-3">
+                        <TextareaField label="Address" value={d.address} field="address" />
+                      </div>
+                      <Field label="City" value={d.city} field="city" />
+                      <Field label="State" value={d.state} field="state" />
+                      <Field label="Pincode" value={d.pincode} field="pincode" />
+                    </div>
+                  </div>
+
+                  {/* Emergency */}
+                  <div className="stat-card p-4">
+                    <SectionTitle>Emergency Contact</SectionTitle>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field label="Contact Name" value={d.emergency_contact_name} field="emergency_contact_name" />
+                      <Field label="Contact Phone" value={d.emergency_contact_phone} field="emergency_contact_phone" />
+                    </div>
+                  </div>
+
+                  {/* Medical */}
+                  <div className="stat-card p-4">
+                    <SectionTitle>Medical Information</SectionTitle>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Blood Group</Label>
+                        {readOnly ? (
+                          <p className="text-sm mt-1">{d.blood_group || <span className="text-muted-foreground/50">—</span>}</p>
+                        ) : (
+                          <Select value={d.blood_group || ""} onValueChange={(v) => upd("blood_group", v)}>
+                            <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent>
+                              {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bg) => <SelectItem key={bg} value={bg}>{bg}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <TextareaField label="Medical History" value={d.medical_history} field="medical_history" />
+                      <TextareaField label="Current Medications" value={d.current_medications} field="current_medications" />
+                      <TextareaField label="Allergies" value={d.allergies} field="allergies" />
+                    </div>
+                  </div>
+
+                  {/* Derma */}
+                  <div className="stat-card p-4">
+                    <SectionTitle>Dermatology</SectionTitle>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Skin Type</Label>
+                        {readOnly ? (
+                          <p className="text-sm mt-1">{d.skin_type || <span className="text-muted-foreground/50">—</span>}</p>
+                        ) : (
+                          <Select value={d.skin_type || ""} onValueChange={(v) => upd("skin_type", v)}>
+                            <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectContent>
+                              {["Normal", "Dry", "Oily", "Combination", "Sensitive"].map((st) => <SelectItem key={st} value={st}>{st}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <TextareaField label="Skin Concerns" value={d.skin_concerns} field="skin_concerns" />
+                      <TextareaField label="Previous Treatments" value={d.previous_treatments} field="previous_treatments" />
+                    </div>
+                  </div>
+
+                  {/* Source & Social */}
+                  <div className="stat-card p-4">
+                    <SectionTitle>Source & Social</SectionTitle>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Source</Label>
+                        {readOnly ? (
+                          <p className="text-sm mt-1">{d.source || <span className="text-muted-foreground/50">—</span>}</p>
+                        ) : (
+                          <Select value={d.source || "Walk-in"} onValueChange={(v) => upd("source", v)}>
+                            <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Walk-in">Walk-in</SelectItem>
+                              <SelectItem value="Advertisement">Advertisement</SelectItem>
+                              <SelectItem value="Other Dr. referral">Other Dr. referral</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                      {d.source === "Advertisement" && <Field label="Ad Details" value={d.source_ad_details} field="source_ad_details" />}
+                      {d.source === "Other Dr. referral" && <Field label="Referring Doctor" value={d.source_referral_doctor} field="source_referral_doctor" />}
+                      <Field label="Facebook URL" value={d.facebook_url} field="facebook_url" />
+                      <Field label="Instagram URL" value={d.instagram_url} field="instagram_url" />
+                      <div className="flex items-center gap-4 col-span-2">
+                        <div className="flex items-center gap-2">
+                          <Checkbox id="det-fb" checked={d.follows_facebook || false} disabled={readOnly} onCheckedChange={(c) => upd("follows_facebook", !!c)} />
+                          <Label htmlFor="det-fb" className="text-xs">Follows Facebook</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox id="det-ig" checked={d.follows_instagram || false} disabled={readOnly} onCheckedChange={(c) => upd("follows_instagram", !!c)} />
+                          <Label htmlFor="det-ig" className="text-xs">Follows Instagram</Label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  <div className="stat-card p-4">
+                    <SectionTitle>Notes</SectionTitle>
+                    <TextareaField label="Additional Notes" value={d.notes} field="notes" />
+                  </div>
+                </div>
+              );
+            })()}
+          </motion.div>
+        </TabsContent>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 space-y-3 md:space-y-0">
             <div className="flex justify-end mb-3">
               <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setProcedureFormOpen(true)}>

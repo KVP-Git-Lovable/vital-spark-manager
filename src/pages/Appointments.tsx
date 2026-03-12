@@ -1166,7 +1166,7 @@ const Appointments = () => {
               </div>
             ) : (
               /* DAY VIEW — 15 min slots */
-              <div className="min-w-[400px]">
+              <div className="min-w-[400px]" onMouseUp={handleSlotMouseUp} onMouseLeave={() => { if (isDragSelecting) { setIsDragSelecting(false); dragSelectRef.current = null; setDragSelectEnd(null); } }}>
                 <div className="p-3 text-center border-b bg-primary/5">
                   <p className="text-xs text-muted-foreground">{daysOfWeek[currentDay]}</p>
                   <p className="text-2xl font-display font-bold text-primary">{currentDate.getDate()}</p>
@@ -1180,10 +1180,16 @@ const Appointments = () => {
                         {showLabel && formatSlotTime(slot.hour, slot.minute)}
                       </div>
                       <div
-                        className="flex-1 border-l p-1 space-y-0.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                        className={cn(
+                          "flex-1 border-l p-1 space-y-0.5 cursor-crosshair transition-colors select-none",
+                          isSlotInDragRange(currentDate, si) ? "bg-primary/20" : "hover:bg-muted/30"
+                        )}
                         onDragOver={handleDragOver}
                         onDrop={(e) => handleDropOnSlot(e, currentDate, slot.hour, slot.minute)}
+                        onMouseDown={(e) => { e.preventDefault(); handleSlotMouseDown(currentDate, si); }}
+                        onMouseEnter={() => handleSlotMouseEnter(currentDate, si)}
                         onClick={() => {
+                          if (isDragSelecting) return;
                           const d = new Date(currentDate);
                           d.setHours(slot.hour, slot.minute, 0, 0);
                           if (d < new Date()) { toast.error("Cannot book in the past"); return; }

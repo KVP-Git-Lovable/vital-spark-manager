@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
-import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare } from "lucide-react";
+import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,11 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -224,6 +229,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [billingMode, setBillingMode] = useState("Cash");
   const [billingConfirmed, setBillingConfirmed] = useState(false);
   const [billingCreating, setBillingCreating] = useState(false);
+  const [customSchedule, setCustomSchedule] = useState<{ date: Date; amount: number }[]>([]);
   // Feedback state
   const [npsScore, setNpsScore] = useState<number | null>(null);
   const [serviceRating, setServiceRating] = useState<number | null>(null);
@@ -381,30 +387,55 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Generate installment schedule
-  const getInstallmentSchedule = () => {
+  // Generate installment schedule (used to seed customSchedule)
+  const generateDefaultSchedule = () => {
     if (billingTotal <= 0) return [];
     const baseDate = appointment?.start_time ? new Date(appointment.start_time) : new Date();
     if (billingType === "one-time") {
-      return [{ date: baseDate, amount: billingTotal, index: 1 }];
+      return [{ date: baseDate, amount: billingTotal }];
     }
     const count = Math.max(2, billingInstallments);
     const perInstallment = Math.floor(billingTotal / count);
     const remainder = billingTotal - perInstallment * count;
     return Array.from({ length: count }, (_, i) => {
       const date = billingFrequency === "monthly" ? addMonths(baseDate, i) : addWeeks(baseDate, i);
-      return { date, amount: i === 0 ? perInstallment + remainder : perInstallment, index: i + 1 };
+      return { date, amount: i === 0 ? perInstallment + remainder : perInstallment };
     });
+  };
+
+  // Recalculate schedule when inputs change
+  const regenerateSchedule = () => {
+    const schedule = generateDefaultSchedule();
+    setCustomSchedule(schedule);
+    setBillingConfirmed(false);
+  };
+
+  const scheduleTotal = customSchedule.reduce((s, i) => s + i.amount, 0);
+  const scheduleMismatch = customSchedule.length > 0 && scheduleTotal !== billingTotal;
+
+  const updateScheduleDate = (idx: number, date: Date) => {
+    const updated = [...customSchedule];
+    updated[idx] = { ...updated[idx], date };
+    setCustomSchedule(updated);
+    setBillingConfirmed(false);
+  };
+
+  const updateScheduleAmount = (idx: number, amount: number) => {
+    const updated = [...customSchedule];
+    updated[idx] = { ...updated[idx], amount };
+    setCustomSchedule(updated);
+    setBillingConfirmed(false);
   };
 
   const handleCreateBillingInvoices = async () => {
     if (billingTotal <= 0) { toast.error("Enter a valid amount"); return; }
+    if (scheduleMismatch) { toast.error("Schedule amounts don't match the total bill amount"); return; }
     setBillingCreating(true);
     try {
-      const schedule = getInstallmentSchedule();
+      const schedule = customSchedule;
       const services = [appointment?.service || ""].filter(Boolean);
-      const inserts = schedule.map((inst) => {
-        const baseNum = (Date.now() + inst.index).toString().slice(-6);
+      const inserts = schedule.map((inst, i) => {
+        const baseNum = (Date.now() + i + 1).toString().slice(-6);
         return {
           invoice_number: `INV-${baseNum}`,
           patient_id: appointment?.patient_id || null,
@@ -415,7 +446,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
           status: "Pending" as const,
           payment_type: billingType === "one-time" ? "One-time" : "Staged",
           payment_mode: billingMode,
-          notes: billingType === "recurring" ? `Installment ${inst.index} of ${schedule.length}` : null,
+          notes: billingType === "recurring" ? `Installment ${i + 1} of ${schedule.length}` : null,
           appointment_id: appointmentId,
         };
       });
@@ -652,7 +683,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                           type="number"
                           placeholder="e.g. 100000"
                           value={billingTotal || ""}
-                          onChange={(e) => { setBillingTotal(Number(e.target.value)); setBillingConfirmed(false); }}
+                          onChange={(e) => { setBillingTotal(Number(e.target.value)); setBillingConfirmed(false); setCustomSchedule([]); }}
                           className="mt-1.5"
                         />
                       </div>
@@ -662,7 +693,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                         <Label>Billing Type</Label>
                         <RadioGroup
                           value={billingType}
-                          onValueChange={(v) => { setBillingType(v as any); setBillingConfirmed(false); }}
+                          onValueChange={(v) => { setBillingType(v as any); setBillingConfirmed(false); setCustomSchedule([]); }}
                           className="flex gap-4 mt-1.5"
                         >
                           <div className="flex items-center gap-2">
@@ -681,7 +712,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <Label>Frequency</Label>
-                            <Select value={billingFrequency} onValueChange={(v) => { setBillingFrequency(v as any); setBillingConfirmed(false); }}>
+                            <Select value={billingFrequency} onValueChange={(v) => { setBillingFrequency(v as any); setBillingConfirmed(false); setCustomSchedule([]); }}>
                               <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="weekly">Weekly</SelectItem>
@@ -696,7 +727,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                               min={2}
                               max={24}
                               value={billingInstallments}
-                              onChange={(e) => { setBillingInstallments(Math.max(2, Number(e.target.value))); setBillingConfirmed(false); }}
+                              onChange={(e) => { setBillingInstallments(Math.max(2, Number(e.target.value))); setBillingConfirmed(false); setCustomSchedule([]); }}
                               className="mt-1.5"
                             />
                           </div>
@@ -716,49 +747,93 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                         </Select>
                       </div>
 
-                      {/* Schedule Preview */}
-                      {billingTotal > 0 && (
-                        <div className="border rounded-lg p-3 bg-muted/30 space-y-2">
-                          <p className="text-xs font-semibold flex items-center gap-1.5">
-                            <CalendarClock className="h-3.5 w-3.5" /> Invoice Schedule
-                          </p>
-                          <div className="space-y-1.5">
-                            {getInstallmentSchedule().map((inst) => (
-                              <div key={inst.index} className="flex items-center justify-between text-xs border-b border-border/50 pb-1.5 last:border-0">
-                                <span className="text-muted-foreground">
-                                  #{inst.index} · {format(inst.date, "MMM d, yyyy")}
-                                </span>
-                                <span className="font-medium">₹{inst.amount.toLocaleString()}</span>
+                      {/* Generate / Schedule Preview */}
+                      {billingTotal > 0 && customSchedule.length === 0 && (
+                        <Button variant="outline" className="w-full gap-2" onClick={regenerateSchedule}>
+                          <CalendarClock className="h-4 w-4" /> Generate Invoice Schedule
+                        </Button>
+                      )}
+
+                      {customSchedule.length > 0 && (
+                        <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-semibold flex items-center gap-1.5">
+                              <CalendarClock className="h-3.5 w-3.5" /> Invoice Schedule
+                            </p>
+                            <Button variant="ghost" size="sm" className="h-6 text-[10px] text-muted-foreground" onClick={regenerateSchedule}>
+                              Reset
+                            </Button>
+                          </div>
+                          <div className="space-y-2">
+                            {customSchedule.map((inst, idx) => (
+                              <div key={idx} className="flex items-center gap-2 border-b border-border/50 pb-2 last:border-0">
+                                <span className="text-xs text-muted-foreground w-5 shrink-0">#{idx + 1}</span>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1 flex-1 justify-start font-normal">
+                                      <CalendarIcon className="h-3 w-3" />
+                                      {format(inst.date, "MMM d, yyyy")}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                      mode="single"
+                                      selected={inst.date}
+                                      onSelect={(d) => d && updateScheduleDate(idx, d)}
+                                      initialFocus
+                                      className={cn("p-3 pointer-events-auto")}
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                                <div className="w-24 shrink-0">
+                                  <Input
+                                    type="number"
+                                    className="h-7 text-xs"
+                                    value={inst.amount || ""}
+                                    onChange={(e) => updateScheduleAmount(idx, Number(e.target.value) || 0)}
+                                  />
+                                </div>
                               </div>
                             ))}
                           </div>
                           <div className="flex justify-between text-xs font-semibold pt-1 border-t">
-                            <span>Total</span>
+                            <span>Schedule Total</span>
+                            <span className={scheduleMismatch ? "text-destructive" : ""}>₹{scheduleTotal.toLocaleString()}</span>
+                          </div>
+                          {scheduleMismatch && (
+                            <div className="flex items-center gap-1.5 text-[10px] text-destructive bg-destructive/10 rounded px-2 py-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              Schedule total (₹{scheduleTotal.toLocaleString()}) doesn't match bill amount (₹{billingTotal.toLocaleString()}). Adjust amounts to proceed.
+                            </div>
+                          )}
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Bill Amount</span>
                             <span>₹{billingTotal.toLocaleString()}</span>
                           </div>
                         </div>
                       )}
 
                       {/* Confirm & Create */}
-                      {billingTotal > 0 && (
+                      {customSchedule.length > 0 && (
                         <div className="space-y-3 pt-2">
                           <div className="flex items-start gap-2">
                             <Checkbox
                               id="billing-confirm"
                               checked={billingConfirmed}
                               onCheckedChange={(c) => setBillingConfirmed(!!c)}
+                              disabled={scheduleMismatch}
                             />
-                            <Label htmlFor="billing-confirm" className="font-normal text-xs leading-relaxed cursor-pointer">
-                              I confirm the schedule above. Create {getInstallmentSchedule().length} invoice(s) for {patientName} with service "{appointment.service}" linked to this appointment.
+                            <Label htmlFor="billing-confirm" className={cn("font-normal text-xs leading-relaxed cursor-pointer", scheduleMismatch && "text-muted-foreground")}>
+                              I confirm the schedule above. Create {customSchedule.length} invoice(s) for {patientName} with service "{appointment.service}" linked to this appointment.
                             </Label>
                           </div>
                           <Button
                             onClick={handleCreateBillingInvoices}
-                            disabled={!billingConfirmed || billingCreating}
+                            disabled={!billingConfirmed || billingCreating || scheduleMismatch}
                             className="w-full gap-2"
                           >
                             <Check className="h-4 w-4" />
-                            {billingCreating ? "Creating Invoices..." : `Create ${getInstallmentSchedule().length} Invoice(s)`}
+                            {billingCreating ? "Creating Invoices..." : `Create ${customSchedule.length} Invoice(s)`}
                           </Button>
                         </div>
                       )}

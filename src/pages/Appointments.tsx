@@ -67,6 +67,15 @@ const Appointments = () => {
   const [filterDate, setFilterDate] = useState<Date | undefined>();
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [quickFilter, setQuickFilter] = useState<string>("");
+
+  // Sort state for table view
+  const [sortColumn, setSortColumn] = useState<string>("start_time");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  // Inline edit state
+  const [editingRow, setEditingRow] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<any>({});
 
   // Drag state
   const dragRef = useRef<{ aptId: string; originalStart: string; originalEnd: string } | null>(null);

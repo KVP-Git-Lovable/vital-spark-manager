@@ -46,6 +46,7 @@ const mainItems = [
   { title: "Assets", url: "/assets", icon: Package },
   { title: "Portal Orders", url: "/orders", icon: ShoppingBag },
   { title: "Expenses", url: "/expenses", icon: Wallet },
+  { title: "Staff", url: "/staff", icon: UserCog },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart },
 ];

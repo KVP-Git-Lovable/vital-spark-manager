@@ -97,6 +97,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
         instagram_url: (patient as any).instagram_url || null,
         follows_facebook: (patient as any).follows_facebook || false,
         follows_instagram: (patient as any).follows_instagram || false,
+        source: (patient as any).source || "Walk-in",
+        source_ad_details: (patient as any).source_ad_details || null,
+        source_referral_doctor: (patient as any).source_referral_doctor || null,
       });
     } else {
       setForm(emptyForm);

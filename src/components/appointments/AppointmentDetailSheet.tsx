@@ -561,7 +561,12 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                   </div>
                   <div>
                     <Label>Service</Label>
-                    <Input value={editService} onChange={(e) => setEditService(e.target.value)} className="mt-1.5" />
+                    <Select value={editService} onValueChange={setEditService}>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select service" /></SelectTrigger>
+                      <SelectContent>
+                        {servicesList.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label>Status</Label>

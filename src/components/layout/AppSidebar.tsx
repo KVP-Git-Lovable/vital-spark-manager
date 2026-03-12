@@ -42,6 +42,7 @@ const mainItems = [
   { title: "Service Master", url: "/services", icon: Stethoscope },
   { title: "Leave", url: "/leave", icon: CalendarDays },
   { title: "Assets", url: "/assets", icon: Package },
+  { title: "Portal Orders", url: "/orders", icon: ShoppingBag },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart },
 ];

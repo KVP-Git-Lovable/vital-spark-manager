@@ -556,29 +556,100 @@ const PatientDetail = () => {
         </TabsContent>
 
         <TabsContent value="prescriptions">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3 mt-4">
-            {prescriptions.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground text-sm">No prescriptions found</div>
-            ) : prescriptions.map((rx: any) => (
-              <div key={rx.id} className="stat-card p-3 md:p-4">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
-                  <div className="min-w-0">
-                    <p className="font-medium">{rx.medicine_name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {[rx.dosage, rx.frequency, rx.duration].filter(Boolean).join(" · ")}
-                      {rx.quantity > 1 && ` · Qty: ${rx.quantity}`}
-                    </p>
-                    {rx.instructions && <p className="text-xs text-muted-foreground italic mt-1">{rx.instructions}</p>}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            <div className="flex justify-end mb-3">
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setAddRxOpen(!addRxOpen)}>
+                <Plus className="h-3.5 w-3.5" /> Add Medicine
+              </Button>
+            </div>
+            {addRxOpen && (
+              <div className="stat-card p-4 mb-4 space-y-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs">Procedure *</Label>
+                    <Select value={rxForm.procedure_id} onValueChange={(v) => setRxForm(p => ({ ...p, procedure_id: v }))}>
+                      <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select procedure" /></SelectTrigger>
+                      <SelectContent>
+                        {procedures.map((proc: any) => (
+                          <SelectItem key={proc.id} value={proc.id}>{proc.service_name} — {new Date(proc.procedure_date).toLocaleDateString()}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  {rx.procedures && (
-                    <div className="text-left sm:text-right text-xs text-muted-foreground shrink-0">
-                      <p>{rx.procedures.service_name}</p>
-                      <p>{new Date(rx.procedures.procedure_date).toLocaleDateString()}</p>
-                    </div>
-                  )}
+                  <div>
+                    <Label className="text-xs">Medicine Name *</Label>
+                    <Input value={rxForm.medicine_name} onChange={(e) => setRxForm(p => ({ ...p, medicine_name: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="Medicine name" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Dosage</Label>
+                    <Input value={rxForm.dosage} onChange={(e) => setRxForm(p => ({ ...p, dosage: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="e.g. 500mg" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Frequency</Label>
+                    <Input value={rxForm.frequency} onChange={(e) => setRxForm(p => ({ ...p, frequency: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="e.g. Twice daily" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Duration</Label>
+                    <Input value={rxForm.duration} onChange={(e) => setRxForm(p => ({ ...p, duration: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="e.g. 7 days" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Quantity</Label>
+                    <Input type="number" value={rxForm.quantity} onChange={(e) => setRxForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className="mt-1 h-8 text-sm" />
+                  </div>
+                  <div className="col-span-2 md:col-span-3">
+                    <Label className="text-xs">Instructions</Label>
+                    <Input value={rxForm.instructions} onChange={(e) => setRxForm(p => ({ ...p, instructions: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="e.g. After meals" />
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAddRxOpen(false)}>Cancel</Button>
+                  <Button size="sm" className="h-7 text-xs" onClick={async () => {
+                    if (!rxForm.procedure_id || !rxForm.medicine_name.trim()) {
+                      toast.error("Procedure and medicine name are required");
+                      return;
+                    }
+                    const { error } = await supabase.from("prescriptions").insert({
+                      procedure_id: rxForm.procedure_id,
+                      medicine_name: rxForm.medicine_name,
+                      dosage: rxForm.dosage || null,
+                      frequency: rxForm.frequency || null,
+                      duration: rxForm.duration || null,
+                      quantity: rxForm.quantity,
+                      instructions: rxForm.instructions || null,
+                    });
+                    if (error) { toast.error(error.message); return; }
+                    toast.success("Medicine added");
+                    setRxForm({ medicine_name: "", dosage: "", frequency: "", duration: "", quantity: 1, instructions: "", procedure_id: "" });
+                    setAddRxOpen(false);
+                    queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", id] });
+                  }}>Save</Button>
                 </div>
               </div>
-            ))}
+            )}
+            <div className="space-y-3">
+              {prescriptions.length === 0 && !addRxOpen ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">No prescriptions found</div>
+              ) : prescriptions.map((rx: any) => (
+                <div key={rx.id} className="stat-card p-3 md:p-4">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
+                    <div className="min-w-0">
+                      <p className="font-medium">{rx.medicine_name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {[rx.dosage, rx.frequency, rx.duration].filter(Boolean).join(" · ")}
+                        {rx.quantity > 1 && ` · Qty: ${rx.quantity}`}
+                      </p>
+                      {rx.instructions && <p className="text-xs text-muted-foreground italic mt-1">{rx.instructions}</p>}
+                    </div>
+                    {rx.procedures && (
+                      <div className="text-left sm:text-right text-xs text-muted-foreground shrink-0">
+                        <p>{rx.procedures.service_name}</p>
+                        <p>{new Date(rx.procedures.procedure_date).toLocaleDateString()}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </motion.div>
         </TabsContent>
 

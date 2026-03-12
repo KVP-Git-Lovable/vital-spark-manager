@@ -727,7 +727,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                               min={2}
                               max={24}
                               value={billingInstallments}
-                              onChange={(e) => { setBillingInstallments(Math.max(2, Number(e.target.value))); setBillingConfirmed(false); }}
+                              onChange={(e) => { setBillingInstallments(Math.max(2, Number(e.target.value))); setBillingConfirmed(false); setCustomSchedule([]); }}
                               className="mt-1.5"
                             />
                           </div>

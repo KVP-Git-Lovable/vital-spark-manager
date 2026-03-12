@@ -402,6 +402,47 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
 
           <TabsContent value="social" className="space-y-4 mt-4">
             <div>
+              <Label>Source</Label>
+              <Select
+                value={(form as any).source || "Walk-in"}
+                onValueChange={(v) => setForm((prev) => ({ ...prev, source: v, source_ad_details: v !== "Advertisement" ? null : (prev as any).source_ad_details, source_referral_doctor: v !== "Other Dr. referral" ? null : (prev as any).source_referral_doctor }))}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Walk-in">Walk-in</SelectItem>
+                  <SelectItem value="Advertisement">Advertisement</SelectItem>
+                  <SelectItem value="Other Dr. referral">Other Dr. referral</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(form as any).source === "Advertisement" && (
+              <div>
+                <Label>Advertisement Details *</Label>
+                <Input
+                  value={(form as any).source_ad_details || ""}
+                  onChange={(e) => setForm((prev) => ({ ...prev, source_ad_details: e.target.value || null }))}
+                  placeholder="e.g. Google Ads, Facebook campaign, newspaper..."
+                  className="mt-1.5"
+                />
+              </div>
+            )}
+
+            {(form as any).source === "Other Dr. referral" && (
+              <div>
+                <Label>Referred Doctor Name *</Label>
+                <Input
+                  value={(form as any).source_referral_doctor || ""}
+                  onChange={(e) => setForm((prev) => ({ ...prev, source_referral_doctor: e.target.value || null }))}
+                  placeholder="Dr. name who referred"
+                  className="mt-1.5"
+                />
+              </div>
+            )}
+
+            <div>
               <Label>Facebook URL</Label>
               <Input
                 value={(form as any).facebook_url || ""}

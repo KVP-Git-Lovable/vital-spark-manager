@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Sparkles, Loader2, Star, TrendingUp, TrendingDown, Minus, AlertTriangle, ChevronRight, Activity, IndianRupee, CalendarDays, Target } from "lucide-react";
+import { Sparkles, Loader2, Star, TrendingUp, TrendingDown, Minus, AlertTriangle, Activity, IndianRupee, CalendarDays, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { motion, AnimatePresence } from "framer-motion";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "sonner";
 
 interface Patient360Props {
@@ -45,7 +45,7 @@ export const Patient360 = ({ patientId, patientName }: Patient360Props) => {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [rawStats, setRawStats] = useState<RawStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const fetchAnalysis = async () => {
     setLoading(true);
@@ -65,6 +65,7 @@ export const Patient360 = ({ patientId, patientName }: Patient360Props) => {
       const data = await res.json();
       setAnalysis(data.analysis);
       setRawStats(data.rawStats);
+      setSheetOpen(true);
     } catch (e: any) {
       toast.error(e.message || "Failed to generate analysis");
     } finally {
@@ -72,69 +73,46 @@ export const Patient360 = ({ patientId, patientName }: Patient360Props) => {
     }
   };
 
-  if (!analysis) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="border border-dashed border-primary/30 rounded-xl p-6 text-center bg-primary/5"
-      >
-        <Sparkles className="h-8 w-8 mx-auto text-primary mb-3" />
-        <h3 className="font-display font-semibold text-lg">AI Patient 360°</h3>
-        <p className="text-sm text-muted-foreground mt-1 mb-4">
-          Get AI-powered insights on {patientName}'s engagement, visit patterns, and growth prediction.
-        </p>
-        <Button onClick={fetchAnalysis} disabled={loading} className="gap-2">
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {loading ? "Analyzing..." : "Generate Patient 360°"}
-        </Button>
-      </motion.div>
-    );
-  }
+  const handleClick = () => {
+    if (analysis) {
+      setSheetOpen(true);
+    } else {
+      fetchAnalysis();
+    }
+  };
 
-  const pred = predictionConfig[analysis.prediction] || predictionConfig.Stable;
-  const PredIcon = pred.icon;
+  const pred = analysis ? (predictionConfig[analysis.prediction] || predictionConfig.Stable) : null;
+  const PredIcon = pred?.icon;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="border rounded-xl bg-card overflow-hidden">
-      {/* Header */}
-      <div
-        className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/30 transition-colors"
-        onClick={() => setExpanded(!expanded)}
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-2 h-8 text-xs"
+        onClick={handleClick}
+        disabled={loading}
       >
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Sparkles className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-display font-semibold text-sm">AI Patient 360°</h3>
-            <div className="flex items-center gap-2 mt-0.5">
-              <Badge className={`text-[10px] ${pred.bg} ${pred.color} border`}>{analysis.prediction}</Badge>
-              <span className="text-xs text-muted-foreground">{analysis.ratingLabel} Patient</span>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={(e) => { e.stopPropagation(); fetchAnalysis(); }} disabled={loading}>
-            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Refresh
-          </Button>
-          <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-90" : ""}`} />
-        </div>
-      </div>
+        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+        {loading ? "Analyzing..." : "AI 360°"}
+        {analysis && pred && (
+          <Badge className={`text-[10px] ml-1 ${pred.bg} ${pred.color} border`}>{analysis.prediction}</Badge>
+        )}
+      </Button>
 
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="px-4 pb-4 space-y-4">
-              {/* Top metrics row */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {/* Rating */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent className="sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI Patient 360° — {patientName}
+            </SheetTitle>
+          </SheetHeader>
+
+          {analysis && pred && PredIcon && (
+            <div className="space-y-4 mt-4">
+              {/* Top metrics */}
+              <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg border p-3 bg-muted/20">
                   <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Rating</p>
                   <div className="flex items-center gap-1 mt-1">
@@ -145,7 +123,6 @@ export const Patient360 = ({ patientId, patientName }: Patient360Props) => {
                   <p className="text-xs text-muted-foreground mt-1">{analysis.ratingLabel}</p>
                 </div>
 
-                {/* Prediction */}
                 <div className={`rounded-lg border p-3 ${pred.bg}`}>
                   <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Prediction</p>
                   <div className="flex items-center gap-1.5 mt-1">
@@ -155,7 +132,6 @@ export const Patient360 = ({ patientId, patientName }: Patient360Props) => {
                   <p className="text-xs text-muted-foreground mt-1">{analysis.predictionConfidence}% confidence</p>
                 </div>
 
-                {/* Engagement */}
                 <div className="rounded-lg border p-3 bg-muted/20">
                   <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Engagement</p>
                   <div className="flex items-center gap-2 mt-1">
@@ -168,7 +144,6 @@ export const Patient360 = ({ patientId, patientName }: Patient360Props) => {
                   </div>
                 </div>
 
-                {/* Lifetime Value */}
                 <div className="rounded-lg border p-3 bg-muted/20">
                   <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Lifetime Value</p>
                   <div className="flex items-center gap-1 mt-1">
@@ -179,8 +154,8 @@ export const Patient360 = ({ patientId, patientName }: Patient360Props) => {
                 </div>
               </div>
 
-              {/* Visit pattern row */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {/* Visit pattern */}
+              <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg border p-3 bg-muted/20">
                   <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1"><CalendarDays className="h-3 w-3" /> Visit Frequency</p>
                   <p className="font-semibold text-sm mt-1">{analysis.visitFrequency}</p>
@@ -190,13 +165,15 @@ export const Patient360 = ({ patientId, patientName }: Patient360Props) => {
                   <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1"><Target className="h-3 w-3" /> Next Visit</p>
                   <p className="font-semibold text-sm mt-1">{analysis.nextVisitEstimate}</p>
                 </div>
-                <div className="rounded-lg border p-3 bg-muted/20">
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Quick Stats</p>
-                  <div className="flex items-center gap-3 mt-1 text-xs">
-                    <span><strong>{rawStats?.totalVisits || 0}</strong> visits</span>
-                    <span><strong>{rawStats?.uniqueServices || 0}</strong> services</span>
-                    <span className={rawStats?.noShowCount ? "text-destructive" : ""}><strong>{rawStats?.noShowCount || 0}</strong> no-shows</span>
-                  </div>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="rounded-lg border p-3 bg-muted/20">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Quick Stats</p>
+                <div className="flex items-center gap-3 mt-1 text-xs">
+                  <span><strong>{rawStats?.totalVisits || 0}</strong> visits</span>
+                  <span><strong>{rawStats?.uniqueServices || 0}</strong> services</span>
+                  <span className={rawStats?.noShowCount ? "text-destructive" : ""}><strong>{rawStats?.noShowCount || 0}</strong> no-shows</span>
                 </div>
               </div>
 
@@ -215,8 +192,8 @@ export const Patient360 = ({ patientId, patientName }: Patient360Props) => {
                 </div>
               )}
 
-              {/* Risk & Opportunities side by side */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Risk & Opportunities */}
+              <div className="grid grid-cols-1 gap-3">
                 {analysis.riskFactors.length > 0 && (
                   <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
                     <p className="text-xs font-semibold text-destructive flex items-center gap-1 mb-2"><AlertTriangle className="h-3 w-3" /> Risk Factors</p>
@@ -234,10 +211,16 @@ export const Patient360 = ({ patientId, patientName }: Patient360Props) => {
                   </div>
                 )}
               </div>
+
+              {/* Refresh button */}
+              <Button variant="outline" size="sm" className="w-full gap-2" onClick={fetchAnalysis} disabled={loading}>
+                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                Refresh Analysis
+              </Button>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+          )}
+        </SheetContent>
+      </Sheet>
+    </>
   );
 };

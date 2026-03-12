@@ -818,6 +818,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                               </div>
                             ))}
                           </div>
+                          <Button variant="outline" size="sm" className="w-full h-7 text-xs gap-1" onClick={addScheduleRow}>
+                            <Plus className="h-3 w-3" /> Add Installment
+                          </Button>
                           <div className="flex justify-between text-xs font-semibold pt-1 border-t">
                             <span>Schedule Total</span>
                             <span className={scheduleMismatch ? "text-destructive" : ""}>₹{scheduleTotal.toLocaleString()}</span>

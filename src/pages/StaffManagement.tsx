@@ -308,7 +308,7 @@ const StaffManagement = () => {
             </TableHeader>
             <TableBody>
               {filtered.map((s: any) => (
-                <TableRow key={s.id} className="cursor-pointer" onClick={() => openEdit(s)}>
+                <TableRow key={s.id} className="cursor-pointer" onClick={() => navigate(`/staff/${s.id}`)}>
                   <TableCell>
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={s.photo_url} />

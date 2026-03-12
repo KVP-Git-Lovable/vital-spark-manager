@@ -599,6 +599,7 @@ const Appointments = () => {
         colorForApt(apt),
         compact ? "px-1.5 py-0.5 text-[10px]" : "p-2 text-xs mb-1"
       )}
+      onMouseDown={(e) => { e.stopPropagation(); }}
       onClick={(e) => { e.stopPropagation(); setSelectedAppointmentId(apt.id); }}
     >
       <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name || "—"}</p>

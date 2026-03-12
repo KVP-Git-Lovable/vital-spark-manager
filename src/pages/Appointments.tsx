@@ -129,6 +129,39 @@ const Appointments = () => {
     },
   });
 
+  // Fetch invoices for bill amount in table view
+  const { data: invoices = [] } = useQuery({
+    queryKey: ["invoices-for-appointments"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("invoices").select("id, appointment_id, total_amount, paid_amount, payment_mode, status");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const invoiceByAppointmentId = useMemo(() => {
+    const map = new Map<string, any>();
+    invoices.forEach((inv: any) => {
+      if (inv.appointment_id) map.set(inv.appointment_id, inv);
+    });
+    return map;
+  }, [invoices]);
+
+  // Quick filter logic
+  const getQuickFilterRange = (filter: string) => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart);
+    todayEnd.setHours(23, 59, 59, 999);
+    switch (filter) {
+      case "today": return { start: todayStart, end: todayEnd };
+      case "tomorrow": return { start: addDays(todayStart, 1), end: addDays(todayEnd, 1) };
+      case "yesterday": return { start: addDays(todayStart, -1), end: addDays(todayEnd, -1) };
+      case "this_week": return { start: startOfWeek(todayStart), end: endOfWeek(todayStart) };
+      default: return null;
+    }
+  };
+
   // Filtered appointments
   const filteredAppointments = appointments.filter((apt: any) => {
     if (filterDoctors.size > 0 && apt.staff_id && !filterDoctors.has(apt.staff_id)) return false;
@@ -137,8 +170,95 @@ const Appointments = () => {
       const name = apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
       if (!name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     }
+    if (quickFilter) {
+      const range = getQuickFilterRange(quickFilter);
+      if (range && !isWithinInterval(new Date(apt.start_time), range)) return false;
+    }
     return true;
   });
+
+  // Sorted appointments for table view
+  const sortedAppointments = useMemo(() => {
+    const sorted = [...filteredAppointments];
+    sorted.sort((a: any, b: any) => {
+      let valA: any, valB: any;
+      switch (sortColumn) {
+        case "start_time":
+          valA = new Date(a.start_time).getTime();
+          valB = new Date(b.start_time).getTime();
+          break;
+        case "patient":
+          valA = (a.patient_name || a.patients?.first_name || "").toLowerCase();
+          valB = (b.patient_name || b.patients?.first_name || "").toLowerCase();
+          break;
+        case "service":
+          valA = (a.service || "").toLowerCase();
+          valB = (b.service || "").toLowerCase();
+          break;
+        case "doctor":
+          valA = (a.staff?.first_name || "").toLowerCase();
+          valB = (b.staff?.first_name || "").toLowerCase();
+          break;
+        case "status":
+          valA = (a.status || "").toLowerCase();
+          valB = (b.status || "").toLowerCase();
+          break;
+        case "bill":
+          valA = invoiceByAppointmentId.get(a.id)?.total_amount || 0;
+          valB = invoiceByAppointmentId.get(b.id)?.total_amount || 0;
+          break;
+        default:
+          valA = 0; valB = 0;
+      }
+      if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+      if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [filteredAppointments, sortColumn, sortDirection, invoiceByAppointmentId]);
+
+  const toggleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortColumn !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return sortDirection === "asc" ? <ArrowUp className="h-3 w-3 ml-1 text-primary" /> : <ArrowDown className="h-3 w-3 ml-1 text-primary" />;
+  };
+
+  const startInlineEdit = (apt: any) => {
+    setEditingRow(apt.id);
+    setEditValues({
+      service: apt.service || "",
+      staff_id: apt.staff_id || "",
+      status: apt.status,
+      start_time: format(new Date(apt.start_time), "yyyy-MM-dd'T'HH:mm"),
+      end_time: format(new Date(apt.end_time), "yyyy-MM-dd'T'HH:mm"),
+    });
+  };
+
+  const saveInlineEdit = async () => {
+    if (!editingRow) return;
+    const updates: any = {};
+    if (editValues.service) updates.service = editValues.service;
+    if (editValues.staff_id) updates.staff_id = editValues.staff_id;
+    if (editValues.status) updates.status = editValues.status;
+    if (editValues.start_time) updates.start_time = new Date(editValues.start_time).toISOString();
+    if (editValues.end_time) updates.end_time = new Date(editValues.end_time).toISOString();
+    inlineUpdateMutation.mutate({ id: editingRow, ...updates });
+    setEditingRow(null);
+    setEditValues({});
+  };
+
+  const cancelInlineEdit = () => {
+    setEditingRow(null);
+    setEditValues({});
+  };
 
   // Generate recurring dates
   const generateRecurringDates = (start: Date, pattern: string, endDate: Date): Date[] => {

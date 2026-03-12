@@ -56,6 +56,7 @@ const emptyForm: StaffForm = {
 };
 
 const StaffManagement = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const photoRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");

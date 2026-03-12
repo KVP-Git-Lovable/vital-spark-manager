@@ -886,6 +886,11 @@ const Billing = () => {
           </table>
         </div>
       </motion.div>
+
+      <AppointmentDetailSheet
+        appointmentId={selectedAppointmentId}
+        onClose={() => setSelectedAppointmentId(null)}
+      />
     </div>
   );
 };

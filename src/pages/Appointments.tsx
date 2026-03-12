@@ -63,7 +63,7 @@ const Appointments = () => {
   const today = new Date();
 
   // Filter state
-  const [filterDoctor, setFilterDoctor] = useState<string>("all");
+  const [filterDoctors, setFilterDoctors] = useState<Set<string>>(new Set());
   const [filterDate, setFilterDate] = useState<Date | undefined>();
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);

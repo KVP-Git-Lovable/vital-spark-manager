@@ -25,6 +25,7 @@ const PatientDetail = () => {
   const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [otpCode, setOtpCode] = useState<string | null>(null);
   const [otpCopied, setOtpCopied] = useState(false);
+  const [procedureFormOpen, setProcedureFormOpen] = useState(false);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],

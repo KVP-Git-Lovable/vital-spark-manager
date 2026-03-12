@@ -141,6 +141,50 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
                 <Button size="sm" variant="destructive" onClick={() => setDeleteOpen(true)}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>
               </div>
 
+              {/* Product Image */}
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">Product Image</p>
+                {(product as any).image_url ? (
+                  <div className="relative group">
+                    <img src={(product as any).image_url} alt={product.name} className="w-full h-40 object-cover rounded-lg border" />
+                    <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg cursor-pointer">
+                      <span className="text-white text-xs font-medium">Change Image</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const ext = file.name.split(".").pop();
+                        const path = `${productId}/${Date.now()}.${ext}`;
+                        const { error: uploadErr } = await supabase.storage.from("product-images").upload(path, file);
+                        if (uploadErr) { toast.error("Upload failed"); return; }
+                        const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
+                        await supabase.from("pharma_products").update({ image_url: urlData.publicUrl } as any).eq("id", productId!);
+                        queryClient.invalidateQueries({ queryKey: ["pharma-product", productId] });
+                        queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
+                        toast.success("Image updated");
+                      }} />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+                    <Plus className="h-6 w-6 text-muted-foreground mb-1" />
+                    <span className="text-xs text-muted-foreground">Upload product image</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const ext = file.name.split(".").pop();
+                      const path = `${productId}/${Date.now()}.${ext}`;
+                      const { error: uploadErr } = await supabase.storage.from("product-images").upload(path, file);
+                      if (uploadErr) { toast.error("Upload failed"); return; }
+                      const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
+                      await supabase.from("pharma_products").update({ image_url: urlData.publicUrl } as any).eq("id", productId!);
+                      queryClient.invalidateQueries({ queryKey: ["pharma-product", productId] });
+                      queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
+                      toast.success("Image uploaded");
+                    }} />
+                  </label>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Name" value={product.name} />
                 <Field label="Generic Name" value={product.generic_name} />

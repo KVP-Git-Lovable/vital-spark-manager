@@ -160,9 +160,13 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
           <ArrowLeft className="h-4 w-4" /> Back
         </Button>
         <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
-          <div className="h-48 bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center">
-            <Package className="h-20 w-20 text-primary/30" />
-          </div>
+          {selectedProduct.image_url ? (
+            <img src={selectedProduct.image_url} alt={selectedProduct.name} className="h-48 w-full object-cover" />
+          ) : (
+            <div className="h-48 bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center">
+              <Package className="h-20 w-20 text-primary/30" />
+            </div>
+          )}
           <div className="p-4 space-y-3">
             <div>
               <Badge variant="secondary" className="text-xs mb-2">{selectedProduct.category}</Badge>
@@ -467,8 +471,12 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
               className="bg-card rounded-xl border shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => { setSelectedProduct(p); setView("product"); }}
             >
-              <div className="h-24 bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center relative">
-                <Package className="h-10 w-10 text-primary/20" />
+              <div className="h-24 bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center relative overflow-hidden">
+                {p.image_url ? (
+                  <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+                ) : (
+                  <Package className="h-10 w-10 text-primary/20" />
+                )}
                 {p.mrp > p.selling_price && (
                   <Badge className="absolute top-1.5 left-1.5 bg-success/90 text-[10px] px-1.5 py-0">
                     {Math.round((1 - p.selling_price / p.mrp) * 100)}% off

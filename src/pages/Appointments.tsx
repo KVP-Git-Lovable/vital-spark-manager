@@ -838,52 +838,158 @@ const Appointments = () => {
           <div className="overflow-x-auto">
             {view === "table" ? (
               /* TABLE VIEW */
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/30">
-                    <th className="text-left p-3 font-medium text-muted-foreground">Date & Time</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Patient</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Service</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Doctor</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Status</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Source</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAppointments.map((apt: any) => {
-                    const patientPhone = apt.patients?.phone || "";
-                    return (
-                      <tr key={apt.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors" onClick={() => setSelectedAppointmentId(apt.id)}>
-                        <td className="p-3">
-                          <p className="font-medium">{format(new Date(apt.start_time), "MMM d, yyyy")}</p>
-                          <p className="text-xs text-muted-foreground">{format(new Date(apt.start_time), "h:mm a")} - {format(new Date(apt.end_time), "h:mm a")}</p>
-                        </td>
-                        <td className="p-3 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
-                        <td className="p-3 text-muted-foreground">
-                          {patientPhone ? <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span> : "—"}
-                        </td>
-                        <td className="p-3">{apt.service || "—"}</td>
-                        <td className="p-3 text-muted-foreground">{apt.staff ? `Dr. ${apt.staff.first_name} ${apt.staff.last_name}` : "—"}</td>
-                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                          <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({ id: apt.id, status: val })}>
-                            <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">
-                              <Badge className={cn("text-xs", statusColor(apt.status))}>{apt.status}</Badge>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="p-3">{apt.source && <Badge variant="outline" className="text-xs">{apt.source}</Badge>}</td>
-                      </tr>
-                    );
-                  })}
-                  {filteredAppointments.length === 0 && (
-                    <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
+              <div>
+                {/* Quick date filters */}
+                <div className="p-3 border-b flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground font-medium mr-1">Quick:</span>
+                  {[
+                    { key: "yesterday", label: "Yesterday" },
+                    { key: "today", label: "Today" },
+                    { key: "tomorrow", label: "Tomorrow" },
+                    { key: "this_week", label: "This Week" },
+                  ].map((f) => (
+                    <Button
+                      key={f.key}
+                      variant={quickFilter === f.key ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 text-xs px-3"
+                      onClick={() => setQuickFilter(quickFilter === f.key ? "" : f.key)}
+                    >
+                      {f.label}
+                    </Button>
+                  ))}
+                  {quickFilter && (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setQuickFilter("")}>
+                      Clear
+                    </Button>
                   )}
-                </tbody>
-              </table>
+                  <span className="text-xs text-muted-foreground ml-auto">{sortedAppointments.length} result{sortedAppointments.length !== 1 ? "s" : ""}</span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("start_time")}>
+                        <span className="flex items-center">Date & Time<SortIcon column="start_time" /></span>
+                      </th>
+                      <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("patient")}>
+                        <span className="flex items-center">Patient<SortIcon column="patient" /></span>
+                      </th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("service")}>
+                        <span className="flex items-center">Service<SortIcon column="service" /></span>
+                      </th>
+                      <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("doctor")}>
+                        <span className="flex items-center">Doctor<SortIcon column="doctor" /></span>
+                      </th>
+                      <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("status")}>
+                        <span className="flex items-center">Status<SortIcon column="status" /></span>
+                      </th>
+                      <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("bill")}>
+                        <span className="flex items-center">Bill Amount<SortIcon column="bill" /></span>
+                      </th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Payment</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground w-20">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedAppointments.map((apt: any) => {
+                      const patientPhone = apt.patients?.phone || "";
+                      const invoice = invoiceByAppointmentId.get(apt.id);
+                      const isEditing = editingRow === apt.id;
+
+                      if (isEditing) {
+                        return (
+                          <tr key={apt.id} className="border-b bg-primary/5">
+                            <td className="p-2">
+                              <Input
+                                type="datetime-local"
+                                className="h-8 text-xs w-40"
+                                value={editValues.start_time}
+                                onChange={(e) => setEditValues({ ...editValues, start_time: e.target.value })}
+                              />
+                              <Input
+                                type="datetime-local"
+                                className="h-8 text-xs w-40 mt-1"
+                                value={editValues.end_time}
+                                onChange={(e) => setEditValues({ ...editValues, end_time: e.target.value })}
+                              />
+                            </td>
+                            <td className="p-2 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
+                            <td className="p-2 text-muted-foreground text-xs">{patientPhone || "—"}</td>
+                            <td className="p-2">
+                              <Select value={editValues.service} onValueChange={(val) => setEditValues({ ...editValues, service: val })}>
+                                <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {services.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="p-2">
+                              <Select value={editValues.staff_id} onValueChange={(val) => setEditValues({ ...editValues, staff_id: val })}>
+                                <SelectTrigger className="h-8 text-xs w-36"><SelectValue placeholder="Select" /></SelectTrigger>
+                                <SelectContent>
+                                  {staffList.map((s) => <SelectItem key={s.id} value={s.id}>Dr. {s.first_name}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="p-2">
+                              <Select value={editValues.status} onValueChange={(val) => setEditValues({ ...editValues, status: val })}>
+                                <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="p-2 text-muted-foreground text-xs">{invoice ? `₹${invoice.total_amount?.toLocaleString()}` : "—"}</td>
+                            <td className="p-2 text-muted-foreground text-xs">{invoice?.payment_mode || "—"}</td>
+                            <td className="p-2">
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-success" onClick={saveInlineEdit}><CheckIcon className="h-3.5 w-3.5" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={cancelInlineEdit}><X className="h-3.5 w-3.5" /></Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return (
+                        <tr key={apt.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors" onClick={() => setSelectedAppointmentId(apt.id)}>
+                          <td className="p-3">
+                            <p className="font-medium">{format(new Date(apt.start_time), "MMM d, yyyy")}</p>
+                            <p className="text-xs text-muted-foreground">{format(new Date(apt.start_time), "h:mm a")} - {format(new Date(apt.end_time), "h:mm a")}</p>
+                          </td>
+                          <td className="p-3 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
+                          <td className="p-3 text-muted-foreground">
+                            {patientPhone ? <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span> : "—"}
+                          </td>
+                          <td className="p-3">{apt.service || "—"}</td>
+                          <td className="p-3 text-muted-foreground">{apt.staff ? `Dr. ${apt.staff.first_name} ${apt.staff.last_name}` : "—"}</td>
+                          <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                            <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({ id: apt.id, status: val })}>
+                              <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">
+                                <Badge className={cn("text-xs", statusColor(apt.status))}>{apt.status}</Badge>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="p-3 text-xs">{invoice ? <span className="font-medium">₹{invoice.total_amount?.toLocaleString()}</span> : <span className="text-muted-foreground">—</span>}</td>
+                          <td className="p-3 text-xs">{invoice?.payment_mode ? <Badge variant="outline" className="text-xs">{invoice.payment_mode}</Badge> : <span className="text-muted-foreground">—</span>}</td>
+                          <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startInlineEdit(apt)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {sortedAppointments.length === 0 && (
+                      <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             ) : view === "month" ? (
               /* MONTH VIEW */
               <div>

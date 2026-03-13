@@ -1501,6 +1501,7 @@ export type Database = {
           created_at: string
           effective_from: string
           effective_to: string | null
+          gst_percent: number
           id: string
           is_active: boolean
           mrp: number
@@ -1513,6 +1514,7 @@ export type Database = {
           created_at?: string
           effective_from?: string
           effective_to?: string | null
+          gst_percent?: number
           id?: string
           is_active?: boolean
           mrp?: number
@@ -1525,6 +1527,7 @@ export type Database = {
           created_at?: string
           effective_from?: string
           effective_to?: string | null
+          gst_percent?: number
           id?: string
           is_active?: boolean
           mrp?: number

@@ -29,7 +29,7 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
   const [isEditing, setIsEditing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [form, setForm] = useState<any>({});
-  const [priceForm, setPriceForm] = useState({ mrp: 0, selling_price: 0, purchase_price: 0, notes: "" });
+  const [priceForm, setPriceForm] = useState({ mrp: 0, selling_price: 0, purchase_price: 0, gst_percent: 0, notes: "" });
   const [showPriceForm, setShowPriceForm] = useState(false);
 
   const { data: product } = useQuery({

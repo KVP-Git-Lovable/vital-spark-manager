@@ -197,11 +197,24 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
                 <Field label="Unit" value={product.unit} />
                 <Field label="Manufacturer" value={product.manufacturer} />
                 <Field label="HSN Code" value={product.hsn_code} />
-                <Field label="GST %" value={`${product.gst_percent}%`} />
                 <Field label="Reorder Level" value={product.reorder_level} />
-                <Field label="Current MRP" value={`₹${Number(product.mrp).toFixed(2)}`} />
-                <Field label="Current Selling Price" value={`₹${Number(product.selling_price).toFixed(2)}`} />
               </div>
+
+              {/* Roll-up pricing from active price */}
+              {(() => {
+                const activePrice = prices.find((p: any) => p.is_active);
+                return (
+                  <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+                    <h3 className="font-display font-semibold text-sm mb-2">Current Pricing (Roll-up)</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field label="Current MRP" value={product.mrp ? `₹${Number(product.mrp).toFixed(2)}` : "—"} />
+                      <Field label="Current Selling Price" value={product.selling_price ? `₹${Number(product.selling_price).toFixed(2)}` : "—"} />
+                      <Field label="GST %" value={product.gst_percent ? `${product.gst_percent}%` : "—"} />
+                      <Field label="Effective From" value={activePrice ? format(new Date(activePrice.effective_from), "dd MMM yyyy") : "—"} />
+                    </div>
+                  </div>
+                );
+              })()}
 
               <Separator />
 

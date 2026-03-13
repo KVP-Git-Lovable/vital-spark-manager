@@ -288,12 +288,11 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
                 <div><Label>Unit</Label><Input className="mt-1" value={form.unit || ""} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></div>
                 <div><Label>Manufacturer</Label><Input className="mt-1" value={form.manufacturer || ""} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} /></div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div><Label>HSN Code</Label><Input className="mt-1" value={form.hsn_code || ""} onChange={(e) => setForm({ ...form, hsn_code: e.target.value })} /></div>
-                <div><Label>GST %</Label><Input type="number" className="mt-1" value={form.gst_percent || 0} onChange={(e) => setForm({ ...form, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
                 <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={form.reorder_level || 10} onChange={(e) => setForm({ ...form, reorder_level: parseInt(e.target.value) || 10 })} /></div>
               </div>
-              <p className="text-xs text-muted-foreground italic">Note: To change MRP or Selling Price, use "New Price" in view mode to preserve price history.</p>
+              <p className="text-xs text-muted-foreground italic">Note: To change MRP, Selling Price or GST%, use "New Price" in view mode to preserve price history.</p>
               <div className="flex gap-2 pt-2">
                 <Button onClick={() => updateProduct.mutate()} disabled={updateProduct.isPending}>{updateProduct.isPending ? "Saving..." : "Save"}</Button>
                 <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>

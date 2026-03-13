@@ -90,17 +90,22 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
     mutationFn: async () => {
       // Deactivate existing active prices
       await supabase.from("product_prices").update({ is_active: false, effective_to: new Date().toISOString() }).eq("product_id", productId!).eq("is_active", true);
-      // Insert new active price
+      // Insert new active price with gst_percent
       const { error } = await supabase.from("product_prices").insert({
         product_id: productId!,
-        ...priceForm,
+        mrp: priceForm.mrp,
+        selling_price: priceForm.selling_price,
+        purchase_price: priceForm.purchase_price,
+        gst_percent: priceForm.gst_percent,
+        notes: priceForm.notes,
         is_active: true,
-      });
+      } as any);
       if (error) throw error;
-      // Update the product's current MRP and selling_price
+      // Update the product's current MRP, selling_price and gst_percent
       await supabase.from("pharma_products").update({
         mrp: priceForm.mrp,
         selling_price: priceForm.selling_price,
+        gst_percent: priceForm.gst_percent,
       }).eq("id", productId!);
     },
     onSuccess: () => {
@@ -109,7 +114,7 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
       queryClient.invalidateQueries({ queryKey: ["pharma-product", productId] });
       toast.success("Price updated — previous prices preserved");
       setShowPriceForm(false);
-      setPriceForm({ mrp: 0, selling_price: 0, purchase_price: 0, notes: "" });
+      setPriceForm({ mrp: 0, selling_price: 0, purchase_price: 0, gst_percent: 0, notes: "" });
     },
     onError: (e: Error) => toast.error(e.message),
   });

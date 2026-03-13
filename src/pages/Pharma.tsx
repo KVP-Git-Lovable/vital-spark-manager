@@ -273,15 +273,11 @@ const Pharma = () => {
                   <div><Label>Unit</Label><Input className="mt-1" value={productForm.unit} onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })} /></div>
                   <div><Label>Manufacturer</Label><Input className="mt-1" value={productForm.manufacturer} onChange={(e) => setProductForm({ ...productForm, manufacturer: e.target.value })} /></div>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div><Label>MRP (₹)</Label><Input type="number" className="mt-1" value={productForm.mrp} onChange={(e) => setProductForm({ ...productForm, mrp: parseFloat(e.target.value) || 0 })} /></div>
-                  <div><Label>Selling Price (₹)</Label><Input type="number" className="mt-1" value={productForm.selling_price} onChange={(e) => setProductForm({ ...productForm, selling_price: parseFloat(e.target.value) || 0 })} /></div>
-                  <div><Label>GST %</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
-                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
                   <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={productForm.reorder_level} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
                 </div>
+                <p className="text-xs text-muted-foreground italic">MRP, Selling Price & GST% are managed via Price History after saving the product.</p>
                 <Button className="w-full" onClick={() => addProduct.mutate()} disabled={!productForm.name || addProduct.isPending}>
                   {addProduct.isPending ? "Saving..." : "Add Product"}
                 </Button>

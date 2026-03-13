@@ -29,7 +29,7 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
   const [isEditing, setIsEditing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [form, setForm] = useState<any>({});
-  const [priceForm, setPriceForm] = useState({ mrp: 0, selling_price: 0, purchase_price: 0, notes: "" });
+  const [priceForm, setPriceForm] = useState({ mrp: 0, selling_price: 0, purchase_price: 0, gst_percent: 0, notes: "" });
   const [showPriceForm, setShowPriceForm] = useState(false);
 
   const { data: product } = useQuery({
@@ -90,17 +90,22 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
     mutationFn: async () => {
       // Deactivate existing active prices
       await supabase.from("product_prices").update({ is_active: false, effective_to: new Date().toISOString() }).eq("product_id", productId!).eq("is_active", true);
-      // Insert new active price
+      // Insert new active price with gst_percent
       const { error } = await supabase.from("product_prices").insert({
         product_id: productId!,
-        ...priceForm,
+        mrp: priceForm.mrp,
+        selling_price: priceForm.selling_price,
+        purchase_price: priceForm.purchase_price,
+        gst_percent: priceForm.gst_percent,
+        notes: priceForm.notes,
         is_active: true,
-      });
+      } as any);
       if (error) throw error;
-      // Update the product's current MRP and selling_price
+      // Update the product's current MRP, selling_price and gst_percent
       await supabase.from("pharma_products").update({
         mrp: priceForm.mrp,
         selling_price: priceForm.selling_price,
+        gst_percent: priceForm.gst_percent,
       }).eq("id", productId!);
     },
     onSuccess: () => {
@@ -109,7 +114,7 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
       queryClient.invalidateQueries({ queryKey: ["pharma-product", productId] });
       toast.success("Price updated — previous prices preserved");
       setShowPriceForm(false);
-      setPriceForm({ mrp: 0, selling_price: 0, purchase_price: 0, notes: "" });
+      setPriceForm({ mrp: 0, selling_price: 0, purchase_price: 0, gst_percent: 0, notes: "" });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -192,11 +197,24 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
                 <Field label="Unit" value={product.unit} />
                 <Field label="Manufacturer" value={product.manufacturer} />
                 <Field label="HSN Code" value={product.hsn_code} />
-                <Field label="GST %" value={`${product.gst_percent}%`} />
                 <Field label="Reorder Level" value={product.reorder_level} />
-                <Field label="Current MRP" value={`₹${Number(product.mrp).toFixed(2)}`} />
-                <Field label="Current Selling Price" value={`₹${Number(product.selling_price).toFixed(2)}`} />
               </div>
+
+              {/* Roll-up pricing from active price */}
+              {(() => {
+                const activePrice = prices.find((p: any) => p.is_active);
+                return (
+                  <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+                    <h3 className="font-display font-semibold text-sm mb-2">Current Pricing (Roll-up)</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field label="Current MRP" value={product.mrp ? `₹${Number(product.mrp).toFixed(2)}` : "—"} />
+                      <Field label="Current Selling Price" value={product.selling_price ? `₹${Number(product.selling_price).toFixed(2)}` : "—"} />
+                      <Field label="GST %" value={product.gst_percent ? `${product.gst_percent}%` : "—"} />
+                      <Field label="Effective From" value={activePrice ? format(new Date(activePrice.effective_from), "dd MMM yyyy") : "—"} />
+                    </div>
+                  </div>
+                );
+              })()}
 
               <Separator />
 
@@ -205,17 +223,20 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-display font-semibold text-sm">Price History</h3>
                   <Button size="sm" variant="outline" onClick={() => {
-                    setPriceForm({ mrp: Number(product.mrp), selling_price: Number(product.selling_price), purchase_price: 0, notes: "" });
+                    setPriceForm({ mrp: Number(product.mrp), selling_price: Number(product.selling_price), purchase_price: 0, gst_percent: Number(product.gst_percent) || 0, notes: "" });
                     setShowPriceForm(true);
                   }}><Plus className="h-3 w-3 mr-1" />New Price</Button>
                 </div>
 
                 {showPriceForm && (
                   <div className="border rounded-lg p-3 mb-3 bg-muted/30 space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <div><Label className="text-xs">MRP (₹)</Label><Input type="number" className="mt-1 h-8" value={priceForm.mrp} onChange={(e) => setPriceForm({ ...priceForm, mrp: parseFloat(e.target.value) || 0 })} /></div>
                       <div><Label className="text-xs">Sell Price (₹)</Label><Input type="number" className="mt-1 h-8" value={priceForm.selling_price} onChange={(e) => setPriceForm({ ...priceForm, selling_price: parseFloat(e.target.value) || 0 })} /></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
                       <div><Label className="text-xs">Buy Price (₹)</Label><Input type="number" className="mt-1 h-8" value={priceForm.purchase_price} onChange={(e) => setPriceForm({ ...priceForm, purchase_price: parseFloat(e.target.value) || 0 })} /></div>
+                      <div><Label className="text-xs">GST %</Label><Input type="number" className="mt-1 h-8" value={priceForm.gst_percent} onChange={(e) => setPriceForm({ ...priceForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
                     </div>
                     <div><Label className="text-xs">Notes</Label><Input className="mt-1 h-8" value={priceForm.notes} onChange={(e) => setPriceForm({ ...priceForm, notes: e.target.value })} placeholder="Reason for price change" /></div>
                     <div className="flex gap-2">
@@ -232,19 +253,21 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
                       <TableHead className="text-xs">MRP</TableHead>
                       <TableHead className="text-xs">Sell</TableHead>
                       <TableHead className="text-xs">Buy</TableHead>
+                      <TableHead className="text-xs">GST%</TableHead>
                       <TableHead className="text-xs">From</TableHead>
                       <TableHead className="text-xs">Notes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {prices.length === 0 ? (
-                      <TableRow><TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-4">No price history — add a new price to start tracking</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} className="text-center text-xs text-muted-foreground py-4">No price history — add a new price to start tracking</TableCell></TableRow>
                     ) : prices.map((p: any) => (
                       <TableRow key={p.id}>
                         <TableCell>{p.is_active ? <Badge className="bg-success/20 text-success border-success/30 text-xs">Active</Badge> : <Badge variant="secondary" className="text-xs">Inactive</Badge>}</TableCell>
                         <TableCell className="text-xs">₹{Number(p.mrp).toFixed(2)}</TableCell>
                         <TableCell className="text-xs">₹{Number(p.selling_price).toFixed(2)}</TableCell>
                         <TableCell className="text-xs">₹{Number(p.purchase_price).toFixed(2)}</TableCell>
+                        <TableCell className="text-xs">{p.gst_percent != null ? `${p.gst_percent}%` : "—"}</TableCell>
                         <TableCell className="text-xs">{format(new Date(p.effective_from), "dd MMM yyyy")}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{p.notes || "—"}</TableCell>
                       </TableRow>
@@ -265,12 +288,11 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
                 <div><Label>Unit</Label><Input className="mt-1" value={form.unit || ""} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></div>
                 <div><Label>Manufacturer</Label><Input className="mt-1" value={form.manufacturer || ""} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} /></div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div><Label>HSN Code</Label><Input className="mt-1" value={form.hsn_code || ""} onChange={(e) => setForm({ ...form, hsn_code: e.target.value })} /></div>
-                <div><Label>GST %</Label><Input type="number" className="mt-1" value={form.gst_percent || 0} onChange={(e) => setForm({ ...form, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
                 <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={form.reorder_level || 10} onChange={(e) => setForm({ ...form, reorder_level: parseInt(e.target.value) || 10 })} /></div>
               </div>
-              <p className="text-xs text-muted-foreground italic">Note: To change MRP or Selling Price, use "New Price" in view mode to preserve price history.</p>
+              <p className="text-xs text-muted-foreground italic">Note: To change MRP, Selling Price or GST%, use "New Price" in view mode to preserve price history.</p>
               <div className="flex gap-2 pt-2">
                 <Button onClick={() => updateProduct.mutate()} disabled={updateProduct.isPending}>{updateProduct.isPending ? "Saving..." : "Save"}</Button>
                 <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>

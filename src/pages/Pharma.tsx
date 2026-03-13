@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { ProductDetailSheet, InventoryDetailSheet, BillDetailSheet } from "@/components/pharma/PharmaDetailSheet";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", hsn_code: "", gst_percent: 0, mrp: 0, selling_price: 0, reorder_level: 10 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", hsn_code: "", reorder_level: 10 };
 const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {
@@ -209,9 +209,6 @@ const Pharma = () => {
       manufacturer: product.manufacturer || "",
       unit: product.unit || "Nos",
       hsn_code: product.hsn_code || "",
-      gst_percent: product.gst_percent || 0,
-      mrp: product.mrp || 0,
-      selling_price: product.selling_price || 0,
       reorder_level: product.reorder_level || 10,
     });
     setProductOpen(true);
@@ -276,15 +273,11 @@ const Pharma = () => {
                   <div><Label>Unit</Label><Input className="mt-1" value={productForm.unit} onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })} /></div>
                   <div><Label>Manufacturer</Label><Input className="mt-1" value={productForm.manufacturer} onChange={(e) => setProductForm({ ...productForm, manufacturer: e.target.value })} /></div>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div><Label>MRP (₹)</Label><Input type="number" className="mt-1" value={productForm.mrp} onChange={(e) => setProductForm({ ...productForm, mrp: parseFloat(e.target.value) || 0 })} /></div>
-                  <div><Label>Selling Price (₹)</Label><Input type="number" className="mt-1" value={productForm.selling_price} onChange={(e) => setProductForm({ ...productForm, selling_price: parseFloat(e.target.value) || 0 })} /></div>
-                  <div><Label>GST %</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
-                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
                   <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={productForm.reorder_level} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
                 </div>
+                <p className="text-xs text-muted-foreground italic">MRP, Selling Price & GST% are managed via Price History after saving the product.</p>
                 <Button className="w-full" onClick={() => addProduct.mutate()} disabled={!productForm.name || addProduct.isPending}>
                   {addProduct.isPending ? "Saving..." : "Add Product"}
                 </Button>

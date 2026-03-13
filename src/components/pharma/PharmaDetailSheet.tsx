@@ -230,10 +230,13 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
 
                 {showPriceForm && (
                   <div className="border rounded-lg p-3 mb-3 bg-muted/30 space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <div><Label className="text-xs">MRP (₹)</Label><Input type="number" className="mt-1 h-8" value={priceForm.mrp} onChange={(e) => setPriceForm({ ...priceForm, mrp: parseFloat(e.target.value) || 0 })} /></div>
                       <div><Label className="text-xs">Sell Price (₹)</Label><Input type="number" className="mt-1 h-8" value={priceForm.selling_price} onChange={(e) => setPriceForm({ ...priceForm, selling_price: parseFloat(e.target.value) || 0 })} /></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
                       <div><Label className="text-xs">Buy Price (₹)</Label><Input type="number" className="mt-1 h-8" value={priceForm.purchase_price} onChange={(e) => setPriceForm({ ...priceForm, purchase_price: parseFloat(e.target.value) || 0 })} /></div>
+                      <div><Label className="text-xs">GST %</Label><Input type="number" className="mt-1 h-8" value={priceForm.gst_percent} onChange={(e) => setPriceForm({ ...priceForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
                     </div>
                     <div><Label className="text-xs">Notes</Label><Input className="mt-1 h-8" value={priceForm.notes} onChange={(e) => setPriceForm({ ...priceForm, notes: e.target.value })} placeholder="Reason for price change" /></div>
                     <div className="flex gap-2">

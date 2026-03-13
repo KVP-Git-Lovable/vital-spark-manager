@@ -253,19 +253,21 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
                       <TableHead className="text-xs">MRP</TableHead>
                       <TableHead className="text-xs">Sell</TableHead>
                       <TableHead className="text-xs">Buy</TableHead>
+                      <TableHead className="text-xs">GST%</TableHead>
                       <TableHead className="text-xs">From</TableHead>
                       <TableHead className="text-xs">Notes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {prices.length === 0 ? (
-                      <TableRow><TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-4">No price history — add a new price to start tracking</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} className="text-center text-xs text-muted-foreground py-4">No price history — add a new price to start tracking</TableCell></TableRow>
                     ) : prices.map((p: any) => (
                       <TableRow key={p.id}>
                         <TableCell>{p.is_active ? <Badge className="bg-success/20 text-success border-success/30 text-xs">Active</Badge> : <Badge variant="secondary" className="text-xs">Inactive</Badge>}</TableCell>
                         <TableCell className="text-xs">₹{Number(p.mrp).toFixed(2)}</TableCell>
                         <TableCell className="text-xs">₹{Number(p.selling_price).toFixed(2)}</TableCell>
                         <TableCell className="text-xs">₹{Number(p.purchase_price).toFixed(2)}</TableCell>
+                        <TableCell className="text-xs">{p.gst_percent != null ? `${p.gst_percent}%` : "—"}</TableCell>
                         <TableCell className="text-xs">{format(new Date(p.effective_from), "dd MMM yyyy")}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{p.notes || "—"}</TableCell>
                       </TableRow>

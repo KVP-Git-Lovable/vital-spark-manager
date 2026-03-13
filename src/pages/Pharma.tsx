@@ -209,9 +209,6 @@ const Pharma = () => {
       manufacturer: product.manufacturer || "",
       unit: product.unit || "Nos",
       hsn_code: product.hsn_code || "",
-      gst_percent: product.gst_percent || 0,
-      mrp: product.mrp || 0,
-      selling_price: product.selling_price || 0,
       reorder_level: product.reorder_level || 10,
     });
     setProductOpen(true);

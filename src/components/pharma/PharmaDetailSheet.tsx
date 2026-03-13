@@ -223,7 +223,7 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-display font-semibold text-sm">Price History</h3>
                   <Button size="sm" variant="outline" onClick={() => {
-                    setPriceForm({ mrp: Number(product.mrp), selling_price: Number(product.selling_price), purchase_price: 0, notes: "" });
+                    setPriceForm({ mrp: Number(product.mrp), selling_price: Number(product.selling_price), purchase_price: 0, gst_percent: Number(product.gst_percent) || 0, notes: "" });
                     setShowPriceForm(true);
                   }}><Plus className="h-3 w-3 mr-1" />New Price</Button>
                 </div>

@@ -461,6 +461,7 @@ const Pharma = () => {
                     <TableCell><Badge variant="secondary" className="text-xs">{p.category}</Badge></TableCell>
                     <TableCell>₹{Number(p.mrp).toFixed(2)}</TableCell>
                     <TableCell>₹{Number(p.selling_price).toFixed(2)}</TableCell>
+                    <TableCell>{Number(p.gst_percent)}%</TableCell>
                     <TableCell>{p.unit}</TableCell>
                     <TableCell>{p.reorder_level}</TableCell>
                   </TableRow>

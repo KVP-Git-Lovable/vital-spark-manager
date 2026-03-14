@@ -120,7 +120,7 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
     if (existing) {
       saveCart(cart.map(i => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i));
     } else {
-      saveCart([...cart, { productId: product.id, name: product.name, price: product.selling_price, quantity: 1, category: product.category }]);
+      saveCart([...cart, { productId: product.id, name: product.name, price: product.selling_price, quantity: 1, category: product.category, gstPercent: Number(product.gst_percent) || 0 }]);
     }
     toast.success(`${product.name} added to cart`);
   };

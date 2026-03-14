@@ -548,7 +548,7 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
           <div className="max-w-lg mx-auto">
             <Button className="w-full h-12 shadow-lg gap-2 text-base" onClick={() => setView("cart")}>
               <ShoppingCart className="h-4 w-4" />
-              {cartCount} item{cartCount > 1 ? "s" : ""} — ₹{cartTotal.toLocaleString()}
+              {cartCount} item{cartCount > 1 ? "s" : ""} — ₹{cartGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               <ChevronRight className="h-4 w-4 ml-auto" />
             </Button>
           </div>

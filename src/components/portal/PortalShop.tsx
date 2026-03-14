@@ -142,6 +142,8 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
   });
 
   const cartTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const cartGst = cart.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
+  const cartGrandTotal = cartTotal + cartGst;
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
   const orderStatusColors: Record<string, string> = {

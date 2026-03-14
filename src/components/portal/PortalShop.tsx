@@ -490,14 +490,26 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
                   <span className="text-sm font-bold text-primary">₹{p.selling_price}</span>
                   {p.mrp > p.selling_price && <span className="text-[10px] line-through text-muted-foreground">₹{p.mrp}</span>}
                 </div>
-                <Button
-                  size="sm"
-                  className="w-full mt-2 h-8 text-xs"
-                  variant={inCart ? "secondary" : "default"}
-                  onClick={(e) => { e.stopPropagation(); addToCart(p); }}
-                >
-                  {inCart ? `In Cart (${inCart.quantity})` : "Add to Cart"}
-                </Button>
+                {inCart ? (
+                  <div className="flex items-center gap-1 mt-2">
+                    <Button variant="outline" size="icon" className="h-7 w-7 shrink-0" onClick={(e) => { e.stopPropagation(); if (inCart.quantity <= 1) { removeFromCart(p.id); } else { updateQty(p.id, -1); } }}>
+                      {inCart.quantity <= 1 ? <Trash2 className="h-3 w-3 text-destructive" /> : <Minus className="h-3 w-3" />}
+                    </Button>
+                    <span className="text-sm font-semibold flex-1 text-center">{inCart.quantity}</span>
+                    <Button variant="outline" size="icon" className="h-7 w-7 shrink-0" onClick={(e) => { e.stopPropagation(); updateQty(p.id, 1); }}>
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                    <span className="text-xs font-bold text-primary ml-1">₹{(p.selling_price * inCart.quantity).toLocaleString()}</span>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="w-full mt-2 h-8 text-xs"
+                    onClick={(e) => { e.stopPropagation(); addToCart(p); }}
+                  >
+                    Add to Cart
+                  </Button>
+                )}
               </div>
             </div>
           );

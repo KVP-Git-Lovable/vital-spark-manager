@@ -336,9 +336,19 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
               <span>₹{(item.price * item.quantity).toLocaleString()}</span>
             </div>
           ))}
-          <div className="flex justify-between text-sm font-bold pt-2 border-t mt-2">
-            <span>Total</span>
-            <span className="text-primary">₹{cartTotal.toLocaleString()}</span>
+          <div className="flex justify-between text-sm pt-2 border-t mt-2">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span>₹{cartTotal.toLocaleString()}</span>
+          </div>
+          {cartGst > 0 && (
+            <div className="flex justify-between text-sm py-0.5">
+              <span className="text-muted-foreground">GST</span>
+              <span>₹{cartGst.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm font-bold pt-1 border-t mt-1">
+            <span>Grand Total</span>
+            <span className="text-primary">₹{cartGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
 

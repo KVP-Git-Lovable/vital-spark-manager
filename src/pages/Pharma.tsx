@@ -54,7 +54,7 @@ const Pharma = () => {
   const [billPaymentMode, setBillPaymentMode] = useState("Cash");
   const [billDiscount, setBillDiscount] = useState(0);
   const [billItems, setBillItems] = useState<BillItemInput[]>([]);
-  const [billTaxId, setBillTaxId] = useState("");
+  // billTaxId removed — tax is now per-item from product master
 
   // ─── Queries ────────────────────────────────────
   const { data: products = [] } = useQuery({

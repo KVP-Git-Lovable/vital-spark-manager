@@ -422,7 +422,7 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
           onClick={() => placeOrder.mutate()}
           disabled={placeOrder.isPending || (deliveryMethod === "delivery" && (!address.address || !address.city || !address.pincode))}
         >
-          {placeOrder.isPending ? "Placing Order..." : `Place Order — ₹${cartTotal.toLocaleString()}`}
+          {placeOrder.isPending ? "Placing Order..." : `Place Order — ₹${cartGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         </Button>
         <p className="text-xs text-center text-muted-foreground">Payment will be collected at the clinic or on delivery.</p>
       </motion.div>

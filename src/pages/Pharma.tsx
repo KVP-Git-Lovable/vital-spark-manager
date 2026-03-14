@@ -447,13 +447,14 @@ const Pharma = () => {
                   <TableHead>Category</TableHead>
                   <TableHead>MRP</TableHead>
                   <TableHead>Selling Price</TableHead>
+                  <TableHead>GST%</TableHead>
                   <TableHead>Unit</TableHead>
                   <TableHead>Reorder Level</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredProducts.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No products found</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No products found</TableCell></TableRow>
                 ) : filteredProducts.map((p: any) => (
                   <TableRow key={p.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setSelectedProductId(p.id)}>
                     <TableCell className="font-medium">{p.name}<br /><span className="text-xs text-muted-foreground">{p.generic_name}</span></TableCell>

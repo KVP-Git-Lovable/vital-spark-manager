@@ -32,6 +32,7 @@ interface BillItemInput {
   quantity: number;
   unit_price: number;
   available: number;
+  gst_percent: number;
 }
 
 const Pharma = () => {
@@ -53,7 +54,7 @@ const Pharma = () => {
   const [billPaymentMode, setBillPaymentMode] = useState("Cash");
   const [billDiscount, setBillDiscount] = useState(0);
   const [billItems, setBillItems] = useState<BillItemInput[]>([]);
-  const [billTaxId, setBillTaxId] = useState("");
+  // billTaxId removed — tax is now per-item from product master
 
   // ─── Queries ────────────────────────────────────
   const { data: products = [] } = useQuery({
@@ -128,9 +129,7 @@ const Pharma = () => {
   const createBill = useMutation({
     mutationFn: async () => {
       const totalAmount = billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
-      const selectedTax = pharmaTaxes.find((t: any) => t.id === billTaxId);
-      const taxRate = selectedTax?.rate || 0;
-      const taxAmount = totalAmount * taxRate / 100;
+      const taxAmount = billItems.reduce((s, i) => s + (i.quantity * i.unit_price * i.gst_percent) / 100, 0);
       const netAmount = totalAmount + taxAmount - billDiscount;
       const billNum = `PH-${Date.now().toString().slice(-6)}`;
 
@@ -141,8 +140,8 @@ const Pharma = () => {
         discount: billDiscount,
         net_amount: netAmount,
         payment_mode: billPaymentMode,
-        tax_id: billTaxId || null,
-        tax_rate: taxRate,
+        tax_id: null,
+        tax_rate: 0,
         tax_amount: taxAmount,
       }).select().single();
       if (error) throw error;
@@ -173,14 +172,13 @@ const Pharma = () => {
       setBillItems([]);
       setBillPatientName("");
       setBillDiscount(0);
-      setBillTaxId("");
       setBillOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const addBillItem = () => {
-    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0 }]);
+    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0, gst_percent: 0 }]);
   };
 
   const updateBillItem = (idx: number, field: string, value: any) => {
@@ -195,6 +193,7 @@ const Pharma = () => {
         updated[idx].batch_number = inv.batch_number;
         updated[idx].unit_price = prod?.selling_price || 0;
         updated[idx].available = inv.quantity;
+        updated[idx].gst_percent = Number(prod?.gst_percent) || 0;
       }
     }
     setBillItems(updated);
@@ -231,7 +230,7 @@ const Pharma = () => {
     setBillPatientName(bill.patient_name || "");
     setBillPaymentMode(bill.payment_mode || "Cash");
     setBillDiscount(bill.discount || 0);
-    setBillTaxId(bill.tax_id || "");
+    setBillItems([]);
     setBillItems([]);
     setBillOpen(true);
     toast.info("Bill cloned — add items to complete");
@@ -363,7 +362,10 @@ const Pharma = () => {
                         </div>
                       </div>
                       <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Subtotal: ₹{(item.quantity * item.unit_price).toFixed(2)}</span>
+                        <span className="text-muted-foreground">
+                          Subtotal: ₹{(item.quantity * item.unit_price).toFixed(2)}
+                          {item.gst_percent > 0 && ` + GST ${item.gst_percent}%: ₹${(item.quantity * item.unit_price * item.gst_percent / 100).toFixed(2)}`}
+                        </span>
                         <Button type="button" variant="ghost" size="sm" className="h-5 text-xs text-destructive" onClick={() => setBillItems(billItems.filter((_, i) => i !== idx))}>Remove</Button>
                       </div>
                     </div>
@@ -372,32 +374,17 @@ const Pharma = () => {
 
                 <div className="border-t pt-3 space-y-2">
                   <div className="flex justify-between text-sm"><span>Subtotal</span><span>₹{billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0).toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Tax</span>
-                    <Select value={billTaxId || "none"} onValueChange={(v) => setBillTaxId(v === "none" ? "" : v)}>
-                      <SelectTrigger className="w-40 h-8"><SelectValue placeholder="No tax" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No Tax</SelectItem>
-                        {pharmaTaxes.map((t: any) => (
-                          <SelectItem key={t.id} value={t.id}>{t.name} ({t.rate}%)</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>GST (per-item)</span>
+                    <span>₹{billItems.reduce((s, i) => s + (i.quantity * i.unit_price * i.gst_percent) / 100, 0).toFixed(2)}</span>
                   </div>
-                  {billTaxId && (() => {
-                    const subtotal = billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
-                    const tax = pharmaTaxes.find((t: any) => t.id === billTaxId);
-                    const taxAmt = tax ? subtotal * tax.rate / 100 : 0;
-                    return <div className="flex justify-between text-sm text-muted-foreground"><span>Tax Amount ({tax?.name})</span><span>₹{taxAmt.toFixed(2)}</span></div>;
-                  })()}
                   <div className="flex items-center justify-between text-sm">
                     <span>Discount (₹)</span>
                     <Input type="number" className="w-24 h-8 text-right" value={billDiscount} onChange={(e) => setBillDiscount(parseFloat(e.target.value) || 0)} />
                   </div>
                   {(() => {
                     const subtotal = billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
-                    const tax = pharmaTaxes.find((t: any) => t.id === billTaxId);
-                    const taxAmt = tax ? subtotal * tax.rate / 100 : 0;
+                    const taxAmt = billItems.reduce((s, i) => s + (i.quantity * i.unit_price * i.gst_percent) / 100, 0);
                     return <div className="flex justify-between font-semibold"><span>Net Amount</span><span>₹{(subtotal + taxAmt - billDiscount).toFixed(2)}</span></div>;
                   })()}
                 </div>

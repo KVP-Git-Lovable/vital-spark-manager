@@ -22,6 +22,7 @@ interface CartItem {
   price: number;
   quantity: number;
   category: string;
+  gstPercent: number;
 }
 
 interface PortalShopProps {

@@ -32,6 +32,7 @@ interface BillItemInput {
   quantity: number;
   unit_price: number;
   available: number;
+  gst_percent: number;
 }
 
 const Pharma = () => {

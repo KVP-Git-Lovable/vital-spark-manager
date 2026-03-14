@@ -178,7 +178,7 @@ const Pharma = () => {
   });
 
   const addBillItem = () => {
-    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0 }]);
+    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0, gst_percent: 0 }]);
   };
 
   const updateBillItem = (idx: number, field: string, value: any) => {
@@ -193,6 +193,7 @@ const Pharma = () => {
         updated[idx].batch_number = inv.batch_number;
         updated[idx].unit_price = prod?.selling_price || 0;
         updated[idx].available = inv.quantity;
+        updated[idx].gst_percent = Number(prod?.gst_percent) || 0;
       }
     }
     setBillItems(updated);

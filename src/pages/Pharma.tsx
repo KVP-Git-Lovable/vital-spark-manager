@@ -362,7 +362,10 @@ const Pharma = () => {
                         </div>
                       </div>
                       <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Subtotal: ₹{(item.quantity * item.unit_price).toFixed(2)}</span>
+                        <span className="text-muted-foreground">
+                          Subtotal: ₹{(item.quantity * item.unit_price).toFixed(2)}
+                          {item.gst_percent > 0 && ` + GST ${item.gst_percent}%: ₹${(item.quantity * item.unit_price * item.gst_percent / 100).toFixed(2)}`}
+                        </span>
                         <Button type="button" variant="ghost" size="sm" className="h-5 text-xs text-destructive" onClick={() => setBillItems(billItems.filter((_, i) => i !== idx))}>Remove</Button>
                       </div>
                     </div>

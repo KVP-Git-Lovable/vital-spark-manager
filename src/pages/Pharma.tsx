@@ -129,9 +129,7 @@ const Pharma = () => {
   const createBill = useMutation({
     mutationFn: async () => {
       const totalAmount = billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
-      const selectedTax = pharmaTaxes.find((t: any) => t.id === billTaxId);
-      const taxRate = selectedTax?.rate || 0;
-      const taxAmount = totalAmount * taxRate / 100;
+      const taxAmount = billItems.reduce((s, i) => s + (i.quantity * i.unit_price * i.gst_percent) / 100, 0);
       const netAmount = totalAmount + taxAmount - billDiscount;
       const billNum = `PH-${Date.now().toString().slice(-6)}`;
 
@@ -142,8 +140,8 @@ const Pharma = () => {
         discount: billDiscount,
         net_amount: netAmount,
         payment_mode: billPaymentMode,
-        tax_id: billTaxId || null,
-        tax_rate: taxRate,
+        tax_id: null,
+        tax_rate: 0,
         tax_amount: taxAmount,
       }).select().single();
       if (error) throw error;
@@ -174,7 +172,6 @@ const Pharma = () => {
       setBillItems([]);
       setBillPatientName("");
       setBillDiscount(0);
-      setBillTaxId("");
       setBillOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),

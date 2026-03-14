@@ -230,7 +230,7 @@ const Pharma = () => {
     setBillPatientName(bill.patient_name || "");
     setBillPaymentMode(bill.payment_mode || "Cash");
     setBillDiscount(bill.discount || 0);
-    setBillTaxId(bill.tax_id || "");
+    setBillItems([]);
     setBillItems([]);
     setBillOpen(true);
     toast.info("Bill cloned — add items to complete");

@@ -91,7 +91,7 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
         state: deliveryMethod === "delivery" ? address.state : null,
         pincode: deliveryMethod === "delivery" ? address.pincode : null,
         phone: address.phone || patientData?.phone,
-        total_amount: total,
+        total_amount: grandTotal,
         notes: orderNotes || null,
       }).select().single();
       if (error) throw error;

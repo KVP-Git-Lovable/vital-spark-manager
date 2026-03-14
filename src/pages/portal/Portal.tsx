@@ -331,7 +331,7 @@ const Portal = () => {
                       <Plus className="h-4 w-4 text-primary" />
                       <span className="text-xs">Request Appointment</span>
                     </Button>
-                    <Button variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => { setActiveTab("pharmacy"); setPharmaOpen(true); }}>
+                    <Button variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setActiveTab("pharmacy")}>
                       <Pill className="h-4 w-4 text-primary" />
                       <span className="text-xs">Order Medicine</span>
                     </Button>

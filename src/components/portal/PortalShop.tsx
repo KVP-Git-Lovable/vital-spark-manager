@@ -22,6 +22,7 @@ interface CartItem {
   price: number;
   quantity: number;
   category: string;
+  gstPercent: number;
 }
 
 interface PortalShopProps {
@@ -79,6 +80,8 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
   const placeOrder = useMutation({
     mutationFn: async () => {
       const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+      const gst = cart.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
+      const grandTotal = total + gst;
       const { data: order, error } = await supabase.from("portal_orders").insert({
         patient_id: patientId,
         patient_name: patientName,
@@ -88,7 +91,7 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
         state: deliveryMethod === "delivery" ? address.state : null,
         pincode: deliveryMethod === "delivery" ? address.pincode : null,
         phone: address.phone || patientData?.phone,
-        total_amount: total,
+        total_amount: grandTotal,
         notes: orderNotes || null,
       }).select().single();
       if (error) throw error;
@@ -119,7 +122,7 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
     if (existing) {
       saveCart(cart.map(i => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i));
     } else {
-      saveCart([...cart, { productId: product.id, name: product.name, price: product.selling_price, quantity: 1, category: product.category }]);
+      saveCart([...cart, { productId: product.id, name: product.name, price: product.selling_price, quantity: 1, category: product.category, gstPercent: Number(product.gst_percent) || 0 }]);
     }
     toast.success(`${product.name} added to cart`);
   };
@@ -141,6 +144,8 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
   });
 
   const cartTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const cartGst = cart.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
+  const cartGrandTotal = cartTotal + cartGst;
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
 
   const orderStatusColors: Record<string, string> = {
@@ -333,9 +338,19 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
               <span>₹{(item.price * item.quantity).toLocaleString()}</span>
             </div>
           ))}
-          <div className="flex justify-between text-sm font-bold pt-2 border-t mt-2">
-            <span>Total</span>
-            <span className="text-primary">₹{cartTotal.toLocaleString()}</span>
+          <div className="flex justify-between text-sm pt-2 border-t mt-2">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span>₹{cartTotal.toLocaleString()}</span>
+          </div>
+          {cartGst > 0 && (
+            <div className="flex justify-between text-sm py-0.5">
+              <span className="text-muted-foreground">GST</span>
+              <span>₹{cartGst.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm font-bold pt-1 border-t mt-1">
+            <span>Grand Total</span>
+            <span className="text-primary">₹{cartGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
 
@@ -407,7 +422,7 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
           onClick={() => placeOrder.mutate()}
           disabled={placeOrder.isPending || (deliveryMethod === "delivery" && (!address.address || !address.city || !address.pincode))}
         >
-          {placeOrder.isPending ? "Placing Order..." : `Place Order — ₹${cartTotal.toLocaleString()}`}
+          {placeOrder.isPending ? "Placing Order..." : `Place Order — ₹${cartGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
         </Button>
         <p className="text-xs text-center text-muted-foreground">Payment will be collected at the clinic or on delivery.</p>
       </motion.div>
@@ -533,7 +548,7 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
           <div className="max-w-lg mx-auto">
             <Button className="w-full h-12 shadow-lg gap-2 text-base" onClick={() => setView("cart")}>
               <ShoppingCart className="h-4 w-4" />
-              {cartCount} item{cartCount > 1 ? "s" : ""} — ₹{cartTotal.toLocaleString()}
+              {cartCount} item{cartCount > 1 ? "s" : ""} — ₹{cartGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               <ChevronRight className="h-4 w-4 ml-auto" />
             </Button>
           </div>

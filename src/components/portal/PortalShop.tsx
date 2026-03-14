@@ -80,6 +80,8 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
   const placeOrder = useMutation({
     mutationFn: async () => {
       const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+      const gst = cart.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
+      const grandTotal = total + gst;
       const { data: order, error } = await supabase.from("portal_orders").insert({
         patient_id: patientId,
         patient_name: patientName,

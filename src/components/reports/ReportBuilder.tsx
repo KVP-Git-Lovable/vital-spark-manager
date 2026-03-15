@@ -332,10 +332,13 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
           })}
         </div>
 
+        <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={handleRun}>
+          <Play className="h-3 w-3" /> Run
+        </Button>
         <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleSave}>
           <Save className="h-3 w-3" /> Save
         </Button>
-        <Button size="sm" className="h-7 gap-1 text-xs" onClick={handleSave}>
+        <Button size="sm" className="h-7 gap-1 text-xs" onClick={handleSaveAndRun}>
           <Play className="h-3 w-3" /> Save & Run
         </Button>
       </div>

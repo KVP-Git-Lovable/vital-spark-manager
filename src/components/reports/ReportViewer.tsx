@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft,
   Edit,
@@ -13,15 +14,16 @@ import {
   LineChart,
   Hash,
   Lock,
-  PanelRightOpen,
   PanelRightClose,
 } from "lucide-react";
 import {
   CHART_TYPES,
   getObjectByKey,
+  DEFAULT_DISPLAY_OPTIONS,
   type SavedReport,
   type ReportFilter,
   type ReportField,
+  type ReportDisplayOptions,
 } from "@/lib/reportObjects";
 import { ReportPreview } from "./ReportPreview";
 import { FilterRow } from "./FilterRow";
@@ -44,6 +46,9 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
   const [chartType, setChartType] = useState(report.chart_type);
   const [tempFilters, setTempFilters] = useState<ReportFilter[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [displayOptions, setDisplayOptions] = useState<ReportDisplayOptions>(
+    report.display_options || { ...DEFAULT_DISPLAY_OPTIONS }
+  );
 
   const primaryObj = getObjectByKey(report.primary_object);
   const relatedObj = report.related_object ? getObjectByKey(report.related_object) : null;
@@ -140,26 +145,57 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Report content */}
-        <div className="flex-1 overflow-y-auto p-4 bg-background">
-          <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground flex-wrap">
-            {report.description && <span>{report.description}</span>}
-            {activeFilters.length > 0 && (
-              <Badge variant="secondary" className="text-[10px]">
-                <Filter className="h-2.5 w-2.5 mr-1" /> {activeFilters.length} filter{activeFilters.length > 1 ? "s" : ""}
-              </Badge>
-            )}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-4 bg-background">
+            <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground flex-wrap">
+              {report.description && <span>{report.description}</span>}
+              {activeFilters.length > 0 && (
+                <Badge variant="secondary" className="text-[10px]">
+                  <Filter className="h-2.5 w-2.5 mr-1" /> {activeFilters.length} filter{activeFilters.length > 1 ? "s" : ""}
+                </Badge>
+              )}
+            </div>
+
+            <div className="data-table p-3">
+              <ReportPreview
+                primaryObject={report.primary_object}
+                relatedObject={report.related_object || ""}
+                columns={report.columns}
+                groupRows={report.group_rows}
+                groupColumns={report.group_columns}
+                filters={activeFilters}
+                chartType={chartType}
+                displayOptions={displayOptions}
+              />
+            </div>
           </div>
 
-          <div className="data-table p-3">
-            <ReportPreview
-              primaryObject={report.primary_object}
-              relatedObject={report.related_object || ""}
-              columns={report.columns}
-              groupRows={report.group_rows}
-              groupColumns={report.group_columns}
-              filters={activeFilters}
-              chartType={chartType}
-            />
+          {/* Bottom toggles */}
+          <div className="border-t border-border px-4 py-2 flex items-center gap-6 bg-card shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">Row Counts</span>
+              <Switch
+                checked={displayOptions.show_row_counts}
+                onCheckedChange={(v) => setDisplayOptions((p) => ({ ...p, show_row_counts: v }))}
+                className="scale-75"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">Subtotals</span>
+              <Switch
+                checked={displayOptions.show_subtotals}
+                onCheckedChange={(v) => setDisplayOptions((p) => ({ ...p, show_subtotals: v }))}
+                className="scale-75"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">Grand Total</span>
+              <Switch
+                checked={displayOptions.show_grand_total}
+                onCheckedChange={(v) => setDisplayOptions((p) => ({ ...p, show_grand_total: v }))}
+                className="scale-75"
+              />
+            </div>
           </div>
         </div>
 

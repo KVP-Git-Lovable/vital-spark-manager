@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getObjectByKey, type ReportFilter } from "@/lib/reportObjects";
+import { getObjectByKey, type ReportFilter, type ReportDisplayOptions, DEFAULT_DISPLAY_OPTIONS } from "@/lib/reportObjects";
 import { Badge } from "@/components/ui/badge";
 import {
   BarChart,
@@ -36,6 +36,7 @@ interface Props {
   groupColumns: string[];
   filters: ReportFilter[];
   chartType: string;
+  displayOptions?: ReportDisplayOptions;
   compact?: boolean;
 }
 
@@ -59,10 +60,12 @@ export function ReportPreview({
   groupColumns,
   filters,
   chartType,
+  displayOptions: displayOptionsProp,
   compact,
 }: Props) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const opts = displayOptionsProp || DEFAULT_DISPLAY_OPTIONS;
 
   useEffect(() => {
     fetchData();
@@ -74,21 +77,17 @@ export function ReportPreview({
     if (!primaryObj) { setLoading(false); return; }
 
     const allFieldKeys = [...new Set([...columns, ...groupRows, ...groupColumns])];
-
-    // Determine which fields we need from primary
     const primaryFieldKeys = allFieldKeys
       .filter((fk) => fk.startsWith(`${primaryObject}.`))
       .map((fk) => fk.split(".")[1]);
     if (!primaryFieldKeys.includes("id")) primaryFieldKeys.push("id");
 
-    // If no fields selected at all, select all primary fields
     if (allFieldKeys.length === 0) {
       primaryObj.fields.forEach((f) => {
         if (!primaryFieldKeys.includes(f.key)) primaryFieldKeys.push(f.key);
       });
     }
 
-    // Determine related object fields
     const relatedObj = relatedObject ? getObjectByKey(relatedObject) : null;
     const relatedFieldKeys = relatedObj
       ? allFieldKeys
@@ -96,28 +95,20 @@ export function ReportPreview({
           .map((fk) => fk.split(".")[1])
       : [];
 
-    // Build select string - use Supabase nested select for joins
     let selectStr = primaryFieldKeys.join(",");
-
-    // Find the foreign key relationship
     let foreignKey = "";
     if (relatedObj && relatedObject) {
       const relation = primaryObj.relations?.find((r) => r.objectKey === relatedObject);
       if (relation) {
         foreignKey = relation.foreignKey;
-        // Primary table has the FK pointing to related table
-        // Use Supabase nested select: related_table(field1, field2)
         const relFields = relatedFieldKeys.length > 0 ? relatedFieldKeys : relatedObj.fields.map((f) => f.key);
         selectStr += `,${relatedObj.table}(${relFields.join(",")})`;
-        // Ensure the FK column is selected
         if (!primaryFieldKeys.includes(foreignKey)) {
           selectStr = `${foreignKey},${selectStr}`;
         }
       } else {
-        // Check reverse: related object might have FK to primary
         const reverseRelation = relatedObj.relations?.find((r) => r.objectKey === primaryObject);
         if (reverseRelation) {
-          // Related table has FK to primary - still use nested select
           const relFields = relatedFieldKeys.length > 0 ? relatedFieldKeys : relatedObj.fields.map((f) => f.key);
           selectStr += `,${relatedObj.table}(${relFields.join(",")})`;
         }
@@ -125,8 +116,6 @@ export function ReportPreview({
     }
 
     let query = supabase.from(primaryObj.table as any).select(selectStr);
-
-    // Apply primary object filters
     filters
       .filter((f) => f.field.startsWith(`${primaryObject}.`))
       .forEach((f) => {
@@ -154,29 +143,17 @@ export function ReportPreview({
       return;
     }
 
-    if (!result) {
-      setData([]);
-      setLoading(false);
-      return;
-    }
+    if (!result) { setData([]); setLoading(false); return; }
 
-    // Flatten nested related object data
     const flattenedData = (result as any[]).map((row) => {
       const flat: any = {};
-      // Copy primary fields
       for (const key of Object.keys(row)) {
         if (relatedObj && key === relatedObj.table) {
-          // Nested related object - flatten with prefix
           const nested = row[key];
           if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-            for (const nk of Object.keys(nested)) {
-              flat[`__related__.${nk}`] = nested[nk];
-            }
+            for (const nk of Object.keys(nested)) flat[`__related__.${nk}`] = nested[nk];
           } else if (Array.isArray(nested) && nested.length > 0) {
-            // One-to-many: take first match for now
-            for (const nk of Object.keys(nested[0])) {
-              flat[`__related__.${nk}`] = nested[0][nk];
-            }
+            for (const nk of Object.keys(nested[0])) flat[`__related__.${nk}`] = nested[0][nk];
           }
         } else {
           flat[key] = row[key];
@@ -185,7 +162,6 @@ export function ReportPreview({
       return flat;
     });
 
-    // Apply related object filters client-side
     const relatedFilters = filters.filter((f) => relatedObject && f.field.startsWith(`${relatedObject}.`));
     let filteredData = flattenedData;
     if (relatedFilters.length > 0) {
@@ -214,7 +190,6 @@ export function ReportPreview({
     setLoading(false);
   };
 
-  // Resolve a column key like "patients.first_name" to the actual data key in our flattened row
   const resolveDataKey = (fk: string): string => {
     const [objKey, fieldKey] = fk.split(".");
     if (objKey === primaryObject) return fieldKey;
@@ -227,7 +202,6 @@ export function ReportPreview({
     const obj = getObjectByKey(objKey);
     const field = obj?.fields.find((f) => f.key === fieldKey);
     if (!field) return fieldKey;
-    // If we have a related object, prefix with object label for clarity
     if (relatedObject && obj) return `${obj.label} · ${field.label}`;
     return field.label;
   };
@@ -252,6 +226,17 @@ export function ReportPreview({
     return String(val);
   };
 
+  const isNumericField = (fk: string) => {
+    const [objKey, fieldKey] = fk.split(".");
+    const obj = getObjectByKey(objKey);
+    return obj?.fields.find((f) => f.key === fieldKey)?.type === "number";
+  };
+
+  const sumColumn = (rows: any[], fk: string) => {
+    const dataKey = resolveDataKey(fk);
+    return rows.reduce((s, r) => s + (Number(r[dataKey]) || 0), 0);
+  };
+
   if (loading) {
     return <div className="text-sm text-muted-foreground py-8 text-center">Loading report data...</div>;
   }
@@ -264,7 +249,6 @@ export function ReportPreview({
     );
   }
 
-  // Use ALL columns (both primary and related)
   const allDisplayCols = columns.length > 0 ? columns : [];
   const groupRowFields = groupRows;
   const groupColFields = groupColumns;
@@ -273,10 +257,7 @@ export function ReportPreview({
   const groupField2 = groupRowFields.length > 1 ? resolveDataKey(groupRowFields[1]) : null;
   const groupColField = groupColFields.length > 0 ? resolveDataKey(groupColFields[0]) : null;
 
-  const numericCols = [...columns, ...groupColumns].filter((c) => {
-    const obj = getObjectByKey(c.split(".")[0]);
-    return obj?.fields.find((f) => f.key === c.split(".")[1])?.type === "number";
-  });
+  const numericCols = [...columns, ...groupColumns].filter((c) => isNumericField(c));
 
   const buildChartData = () => {
     if (!groupField) return [];
@@ -336,25 +317,13 @@ export function ReportPreview({
         </ResponsiveContainer>
       );
     }
-
     if (chartType === "doughnut") {
       return (
         <div className="flex flex-col items-center">
           <ResponsiveContainer width="100%" height={height}>
             <PieChart>
-              <Pie
-                data={chartData}
-                cx="50%"
-                cy="50%"
-                innerRadius={compact ? 40 : 60}
-                outerRadius={compact ? 70 : 100}
-                paddingAngle={3}
-                dataKey={valueKey}
-                nameKey="name"
-              >
-                {chartData.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                ))}
+              <Pie data={chartData} cx="50%" cy="50%" innerRadius={compact ? 40 : 60} outerRadius={compact ? 70 : 100} paddingAngle={3} dataKey={valueKey} nameKey="name">
+                {chartData.map((_, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
               </Pie>
               <Tooltip />
             </PieChart>
@@ -370,7 +339,6 @@ export function ReportPreview({
         </div>
       );
     }
-
     if (chartType === "line") {
       return (
         <ResponsiveContainer width="100%" height={height}>
@@ -388,18 +356,17 @@ export function ReportPreview({
 
   // TABLE VIEW
   const displayCols = allDisplayCols.length > 0 ? allDisplayCols : groupRowFields;
-
-  // If still no columns to display, show all primary object fields
   const finalDisplayCols = displayCols.length > 0
     ? displayCols
     : (getObjectByKey(primaryObject)?.fields.slice(0, 6).map((f) => `${primaryObject}.${f.key}`) || []);
 
-  // Matrix report: group rows + group columns
+  const numericDisplayCols = finalDisplayCols.filter((c) => isNumericField(c));
+
+  // Matrix report
   if (groupField && groupColField && chartType === "table") {
     const colValues = [...new Set(data.map((r) => String(r[groupColField] || "N/A")))].sort();
     const groupLabel = getFieldLabel(groupRowFields[0]);
 
-    // Build nested groups for multi-level
     const grouped: Record<string, Record<string, any[]>> = {};
     data.forEach((row) => {
       const g1 = String(row[groupField] || "N/A");
@@ -441,7 +408,6 @@ export function ReportPreview({
                   </tr>
                 );
               }
-              // Multi-level
               const subEntries = Object.entries(subGroups);
               return subEntries.map(([g2Key, rows], si) => (
                 <tr key={`${g1Key}-${g2Key}`} className="border-b border-border/50 hover:bg-accent/20">
@@ -459,21 +425,23 @@ export function ReportPreview({
                 </tr>
               ));
             })}
-            <tr className="bg-muted/30 font-semibold">
-              <td className="py-1.5 px-3 text-xs" colSpan={groupField2 ? 2 : 1}>Total</td>
-              {colValues.map((cv) => {
-                const count = data.filter((r) => String(r[groupColField] || "N/A") === cv).length;
-                return <td key={cv} className="py-1.5 px-3 text-xs text-center">{count}</td>;
-              })}
-              <td className="py-1.5 px-3 text-xs text-center text-primary">{data.length}</td>
-            </tr>
+            {opts.show_grand_total && (
+              <tr className="bg-muted/30 font-semibold">
+                <td className="py-1.5 px-3 text-xs" colSpan={groupField2 ? 2 : 1}>Grand Total</td>
+                {colValues.map((cv) => {
+                  const count = data.filter((r) => String(r[groupColField] || "N/A") === cv).length;
+                  return <td key={cv} className="py-1.5 px-3 text-xs text-center">{count}</td>;
+                })}
+                <td className="py-1.5 px-3 text-xs text-center text-primary">{data.length}</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
     );
   }
 
-  // Excel-style grouped rows (no group columns)
+  // Excel-style grouped rows
   if (groupField && chartType === "table") {
     const groupLabel = getFieldLabel(groupRowFields[0]);
 
@@ -524,7 +492,9 @@ export function ReportPreview({
                       <td className="py-1.5 px-3 text-xs font-bold text-primary">G{currentGroupNum}</td>
                       <td colSpan={finalDisplayCols.length + 1} className="py-1.5 px-3 text-xs font-semibold text-foreground">
                         {g1Key}
-                        <span className="text-[9px] ml-2 text-muted-foreground">({node.rows.length})</span>
+                        {opts.show_row_counts && (
+                          <span className="text-[9px] ml-2 text-muted-foreground">({node.rows.length})</span>
+                        )}
                       </td>
                     </tr>
                     {subEntries.map(([g2Key, subNode]) => {
@@ -537,7 +507,9 @@ export function ReportPreview({
                             </td>
                             <td colSpan={finalDisplayCols.length + 1} className="py-1 px-3 text-[11px] font-medium text-foreground">
                               {g2Key}
-                              <span className="text-[9px] ml-2 text-muted-foreground">({subNode.rows.length})</span>
+                              {opts.show_row_counts && (
+                                <span className="text-[9px] ml-2 text-muted-foreground">({subNode.rows.length})</span>
+                              )}
                             </td>
                           </tr>
                           {subNode.rows.slice(0, compact ? 3 : 50).map((row, ri) => (
@@ -549,15 +521,37 @@ export function ReportPreview({
                               <td className="py-1 px-3 text-[10px] text-muted-foreground pl-10"></td>
                               <td className="py-1 px-3 text-xs text-muted-foreground"></td>
                               {finalDisplayCols.map((c) => (
-                                <td key={c} className="py-1 px-3 whitespace-nowrap text-xs text-foreground">
-                                  {formatVal(row[resolveDataKey(c)])}
+                                <td key={c} className="py-1 px-3 whitespace-nowrap text-xs">
+                                  <span className="text-primary underline cursor-pointer">{formatVal(row[resolveDataKey(c)])}</span>
                                 </td>
                               ))}
                             </tr>
                           ))}
+                          {opts.show_subtotals && numericDisplayCols.length > 0 && (
+                            <tr className="bg-muted/10 border-b border-border/30">
+                              <td className="py-1 px-3" colSpan={2}></td>
+                              {finalDisplayCols.map((c) => (
+                                <td key={c} className="py-1 px-3 text-[10px] font-semibold text-muted-foreground">
+                                  {isNumericField(c) ? formatVal(sumColumn(subNode.rows, c)) : ""}
+                                </td>
+                              ))}
+                            </tr>
+                          )}
                         </React.Fragment>
                       );
                     })}
+                    {opts.show_subtotals && numericDisplayCols.length > 0 && (
+                      <tr className="bg-primary/5 border-b border-border">
+                        <td className="py-1 px-3" colSpan={2}>
+                          <span className="text-[10px] font-semibold text-primary">Subtotal — {g1Key}</span>
+                        </td>
+                        {finalDisplayCols.map((c) => (
+                          <td key={c} className="py-1 px-3 text-[10px] font-bold text-primary">
+                            {isNumericField(c) ? formatVal(sumColumn(node.rows, c)) : ""}
+                          </td>
+                        ))}
+                      </tr>
+                    )}
                   </React.Fragment>
                 );
               }
@@ -569,7 +563,9 @@ export function ReportPreview({
                     <td className="py-1.5 px-3 text-xs font-bold text-primary">G{currentGroupNum}</td>
                     <td colSpan={finalDisplayCols.length + 1} className="py-1.5 px-3 text-xs font-semibold text-foreground">
                       {g1Key}
-                      <span className="text-[9px] ml-2 text-muted-foreground">({node.rows.length})</span>
+                      {opts.show_row_counts && (
+                        <span className="text-[9px] ml-2 text-muted-foreground">({node.rows.length})</span>
+                      )}
                     </td>
                   </tr>
                   {node.rows.slice(0, compact ? 5 : 50).map((row, ri) => (
@@ -581,12 +577,24 @@ export function ReportPreview({
                       <td className="py-1 px-3 text-[10px] text-muted-foreground"></td>
                       <td className="py-1 px-3 text-xs text-muted-foreground"></td>
                       {finalDisplayCols.map((c) => (
-                        <td key={c} className="py-1 px-3 whitespace-nowrap text-xs text-foreground">
-                          {formatVal(row[resolveDataKey(c)])}
+                        <td key={c} className="py-1 px-3 whitespace-nowrap text-xs">
+                          <span className="text-primary underline cursor-pointer">{formatVal(row[resolveDataKey(c)])}</span>
                         </td>
                       ))}
                     </tr>
                   ))}
+                  {opts.show_subtotals && numericDisplayCols.length > 0 && (
+                    <tr className="bg-primary/5 border-b border-border">
+                      <td className="py-1 px-3" colSpan={2}>
+                        <span className="text-[10px] font-semibold text-primary">Subtotal</span>
+                      </td>
+                      {finalDisplayCols.map((c) => (
+                        <td key={c} className="py-1 px-3 text-[10px] font-bold text-primary">
+                          {isNumericField(c) ? formatVal(sumColumn(node.rows, c)) : ""}
+                        </td>
+                      ))}
+                    </tr>
+                  )}
                   {node.rows.length > (compact ? 5 : 50) && (
                     <tr>
                       <td colSpan={finalDisplayCols.length + 2} className="text-xs text-muted-foreground text-center py-1">
@@ -597,12 +605,16 @@ export function ReportPreview({
                 </React.Fragment>
               );
             })}
-            <tr className="bg-muted/30 font-semibold">
-              <td className="py-1.5 px-3 text-xs" colSpan={2}>Total</td>
-              {finalDisplayCols.map((c) => (
-                <td key={c} className="py-1.5 px-3 text-xs text-muted-foreground"></td>
-              ))}
-            </tr>
+            {opts.show_grand_total && (
+              <tr className="bg-muted/30 font-semibold">
+                <td className="py-1.5 px-3 text-xs" colSpan={2}>Grand Total</td>
+                {finalDisplayCols.map((c) => (
+                  <td key={c} className="py-1.5 px-3 text-xs font-bold text-primary">
+                    {isNumericField(c) ? formatVal(sumColumn(data, c)) : ""}
+                  </td>
+                ))}
+              </tr>
+            )}
           </tbody>
         </table>
         <div className="text-xs text-muted-foreground text-center mt-2">
@@ -633,13 +645,24 @@ export function ReportPreview({
               onClick={() => handleRecordClick(row)}
             >
               {finalDisplayCols.map((c) => (
-                <td key={c} className="py-2 px-3 whitespace-nowrap text-foreground">
-                  {formatVal(row[resolveDataKey(c)])}
+                <td key={c} className="py-2 px-3 whitespace-nowrap">
+                  <span className="text-primary underline cursor-pointer">{formatVal(row[resolveDataKey(c)])}</span>
                 </td>
               ))}
             </tr>
           ))}
         </tbody>
+        {opts.show_grand_total && numericDisplayCols.length > 0 && (
+          <tfoot>
+            <tr className="bg-muted/30 font-semibold border-t border-border">
+              {finalDisplayCols.map((c) => (
+                <td key={c} className="py-2 px-3 text-xs font-bold text-primary">
+                  {isNumericField(c) ? formatVal(sumColumn(data, c)) : ""}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        )}
       </table>
       {data.length > (compact ? 10 : 100) && (
         <p className="text-xs text-muted-foreground py-2 text-center">

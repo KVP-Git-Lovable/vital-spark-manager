@@ -45,6 +45,7 @@ import {
   type ReportField,
 } from "@/lib/reportObjects";
 import { ReportPreview } from "./ReportPreview";
+import { FilterRow } from "./FilterRow";
 
 const chartIcons: Record<string, any> = {
   table: Table,

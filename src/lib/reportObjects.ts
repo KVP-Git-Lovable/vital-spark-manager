@@ -279,6 +279,18 @@ export interface ReportFilter {
   objectKey: string;
 }
 
+export interface ReportDisplayOptions {
+  show_row_counts: boolean;
+  show_subtotals: boolean;
+  show_grand_total: boolean;
+}
+
+export const DEFAULT_DISPLAY_OPTIONS: ReportDisplayOptions = {
+  show_row_counts: true,
+  show_subtotals: false,
+  show_grand_total: true,
+};
+
 export interface SavedReport {
   id?: string;
   name: string;
@@ -291,6 +303,7 @@ export interface SavedReport {
   filters: ReportFilter[];
   chart_type: string;
   folder_id?: string | null;
+  display_options?: ReportDisplayOptions;
   created_at?: string;
   updated_at?: string;
 }

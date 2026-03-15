@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -18,9 +18,7 @@ import {
   Play,
   X,
   Search,
-  GripVertical,
   Plus,
-  Trash2,
   Table,
   BarChart3,
   PieChart,
@@ -40,9 +38,11 @@ import {
   getJoinPresets,
   generateReportName,
   CHART_TYPES,
+  DEFAULT_DISPLAY_OPTIONS,
   type SavedReport,
   type ReportFilter,
   type ReportField,
+  type ReportDisplayOptions,
 } from "@/lib/reportObjects";
 import { ReportPreview } from "./ReportPreview";
 import { FilterRow } from "./FilterRow";
@@ -75,9 +75,11 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
   const [chartType, setChartType] = useState(initial?.chart_type || "table");
   const [folderId, setFolderId] = useState(initial?.folder_id || "");
   const [fieldSearch, setFieldSearch] = useState("");
-  const [leftTab, setLeftTab] = useState("fields");
   const [objectSearch, setObjectSearch] = useState("");
   const [collapsedObjects, setCollapsedObjects] = useState<Set<string>>(new Set());
+  const [displayOptions, setDisplayOptions] = useState<ReportDisplayOptions>(
+    initial?.display_options || { ...DEFAULT_DISPLAY_OPTIONS }
+  );
 
   const primaryObj = getObjectByKey(primaryObject);
   const relatedObj = relatedObject ? getObjectByKey(relatedObject) : null;
@@ -180,6 +182,7 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
       filters,
       chart_type: chartType,
       folder_id: folderId || null,
+      display_options: displayOptions,
     };
   };
 
@@ -232,7 +235,6 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
           </div>
 
           <div className="max-h-[60vh] overflow-y-auto">
-            {/* Joined Reports */}
             {filteredPresets.length > 0 && (
               <div>
                 <div className="px-4 py-2 bg-primary/5 text-xs font-semibold text-primary uppercase tracking-wider flex items-center gap-1.5">
@@ -261,7 +263,6 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
               </div>
             )}
 
-            {/* Individual Objects */}
             <div>
               <div className="px-4 py-2 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <Layers className="h-3.5 w-3.5" /> Individual Objects
@@ -297,7 +298,7 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
     );
   }
 
-  // Step 2: Builder
+  // Step 2: Builder — 3 panel layout: Fields | Groups+Columns+Filters | Preview
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header bar */}
@@ -332,270 +333,274 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
           })}
         </div>
 
-        <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={handleRun}>
-          <Play className="h-3 w-3" /> Run
-        </Button>
         <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleSave}>
           <Save className="h-3 w-3" /> Save
         </Button>
-        <Button size="sm" className="h-7 gap-1 text-xs" onClick={handleSaveAndRun}>
+        <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={handleSaveAndRun}>
           <Play className="h-3 w-3" /> Save & Run
+        </Button>
+        <Button size="sm" className="h-7 gap-1 text-xs" onClick={handleRun}>
+          <Play className="h-3 w-3" /> Run
         </Button>
       </div>
 
-      {/* Main area */}
+      {/* Main area — 3 panels */}
       <div className="flex flex-1 overflow-hidden">
-        {/* LEFT PANEL */}
-        <div className="w-72 md:w-80 border-r border-border flex flex-col shrink-0 bg-card overflow-hidden">
-          {/* Related object + folder + description */}
-          <div className="px-3 py-2 border-b border-border space-y-2">
-            {relatedOptions.length > 0 && (
-              <div>
-                <Label className="text-[10px] text-muted-foreground mb-1 block">Related Object</Label>
-                <Select value={relatedObject || "none"} onValueChange={(v) => {
-                  const newRel = v === "none" ? "" : v;
-                  setRelatedObject(newRel);
-                  if (!initial) setName(generateReportName(primaryObject, newRel || undefined));
-                }}>
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {relatedOptions.map((ro) => (
-                      <SelectItem key={ro.key} value={ro.key}>{ro.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        {/* LEFT PANEL — Fields browser */}
+        <div className="w-52 md:w-56 border-r border-border flex flex-col shrink-0 bg-card overflow-hidden">
+          <div className="px-2 py-2 border-b border-border">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search all fields..."
+                value={fieldSearch}
+                onChange={(e) => setFieldSearch(e.target.value)}
+                className="pl-7 h-7 text-xs"
+              />
+            </div>
+          </div>
+
+          {/* Related object selector */}
+          {relatedOptions.length > 0 && (
+            <div className="px-2 py-1.5 border-b border-border">
+              <Select value={relatedObject || "none"} onValueChange={(v) => {
+                const newRel = v === "none" ? "" : v;
+                setRelatedObject(newRel);
+                if (!initial) setName(generateReportName(primaryObject, newRel || undefined));
+              }}>
+                <SelectTrigger className="h-6 text-[10px]">
+                  <SelectValue placeholder="Related object" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No related object</SelectItem>
+                  {relatedOptions.map((ro) => (
+                    <SelectItem key={ro.key} value={ro.key}>{ro.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto">
+            {primaryObj && (
+              <ObjectFieldTree
+                obj={primaryObj}
+                objectKey={primaryObject}
+                fields={filteredFields.filter((f) => f.objectKey === primaryObject)}
+                usedFields={usedFields}
+                fieldKeyStr={fieldKeyStr}
+                collapsed={collapsedObjects.has(primaryObject)}
+                onToggle={() => toggleCollapse(primaryObject)}
+                onAdd={(fk) => addFieldTo(fk, "columns")}
+              />
             )}
-            {folders.length > 0 && (
-              <div>
-                <Label className="text-[10px] text-muted-foreground mb-1 block">Folder</Label>
-                <Select value={folderId || "none"} onValueChange={(v) => setFolderId(v === "none" ? "" : v)}>
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue placeholder="No folder" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No folder</SelectItem>
-                    {folders.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {relatedObj && (
+              <ObjectFieldTree
+                obj={relatedObj}
+                objectKey={relatedObject}
+                fields={filteredFields.filter((f) => f.objectKey === relatedObject)}
+                usedFields={usedFields}
+                fieldKeyStr={fieldKeyStr}
+                collapsed={collapsedObjects.has(relatedObject)}
+                onToggle={() => toggleCollapse(relatedObject)}
+                onAdd={(fk) => addFieldTo(fk, "columns")}
+              />
             )}
+          </div>
+        </div>
+
+        {/* MIDDLE PANEL — Groups, Columns, Filters */}
+        <div className="w-64 md:w-72 border-r border-border flex flex-col shrink-0 bg-card overflow-hidden">
+          {/* Description + folder */}
+          <div className="px-3 py-2 border-b border-border space-y-1.5">
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Description (optional)"
-              className="h-7 text-xs"
+              className="h-6 text-[10px]"
             />
+            {folders.length > 0 && (
+              <Select value={folderId || "none"} onValueChange={(v) => setFolderId(v === "none" ? "" : v)}>
+                <SelectTrigger className="h-6 text-[10px]">
+                  <SelectValue placeholder="No folder" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No folder</SelectItem>
+                  {folders.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
-          <Tabs value={leftTab} onValueChange={setLeftTab} className="flex flex-col flex-1 overflow-hidden">
-            <TabsList className="mx-3 mt-2 mb-1 h-8">
-              <TabsTrigger value="fields" className="text-xs flex-1 gap-1">
-                <Table className="h-3 w-3" /> Fields
-              </TabsTrigger>
-              <TabsTrigger value="grouping" className="text-xs flex-1 gap-1">
-                <GripVertical className="h-3 w-3" /> Grouping
-                {(groupRows.length + groupColumns.length + columns.length) > 0 && (
-                  <Badge className="h-4 px-1 text-[9px] ml-1">{groupRows.length + groupColumns.length + columns.length}</Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="filters" className="text-xs flex-1 gap-1">
-                <Filter className="h-3 w-3" /> Filters
-                {filters.length > 0 && <Badge className="h-4 px-1 text-[9px] ml-1">{filters.length}</Badge>}
-              </TabsTrigger>
-            </TabsList>
+          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-4">
+            {/* Groups section */}
+            <div>
+              <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 block">
+                Groups
+              </Label>
+              <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 mt-2">
+                GROUP ROWS
+              </div>
+              <FieldSearchAndAdd
+                allFields={filteredFields}
+                usedFields={usedFields}
+                fieldKeyFn={fieldKeyStr}
+                onAdd={(fk) => addFieldTo(fk, "groupRows")}
+                placeholder="Add group..."
+              />
+              <ReorderableList
+                items={groupRows}
+                getLabel={getFieldLabel}
+                onRemove={(fk) => removeField(fk, "groupRows")}
+                onMove={(fk, dir) => moveField(fk, "groupRows", dir)}
+              />
 
-            {/* TAB: Fields — Available fields browser with collapsible objects */}
-            <TabsContent value="fields" className="flex-1 overflow-y-auto mt-0 px-3 pb-3 space-y-3">
-              <div>
-                <div className="relative mb-2">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Search fields..."
-                    value={fieldSearch}
-                    onChange={(e) => setFieldSearch(e.target.value)}
-                    className="pl-7 h-7 text-xs"
-                  />
+              <div className="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 mt-3">
+                GROUP COLUMNS
+              </div>
+              <FieldSearchAndAdd
+                allFields={filteredFields}
+                usedFields={usedFields}
+                fieldKeyFn={fieldKeyStr}
+                onAdd={(fk) => addFieldTo(fk, "groupColumns")}
+                placeholder="Add group column..."
+              />
+              <ReorderableList
+                items={groupColumns}
+                getLabel={getFieldLabel}
+                onRemove={(fk) => removeField(fk, "groupColumns")}
+                onMove={(fk, dir) => moveField(fk, "groupColumns", dir)}
+              />
+            </div>
+
+            {/* Columns section */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                  Columns
+                </Label>
+              </div>
+              <FieldSearchAndAdd
+                allFields={filteredFields}
+                usedFields={usedFields}
+                fieldKeyFn={fieldKeyStr}
+                onAdd={(fk) => addFieldTo(fk, "columns")}
+                placeholder="Add column..."
+              />
+              {columns.map((c) => (
+                <div key={c} className="flex items-center gap-1 py-0.5">
+                  <span className="text-[11px] text-primary underline flex-1 truncate">{getFieldLabel(c)}</span>
+                  <button onClick={() => removeField(c, "columns")} className="h-4 w-4 flex items-center justify-center rounded hover:bg-destructive/20 shrink-0">
+                    <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                  </button>
                 </div>
-                <p className="text-[10px] text-muted-foreground mb-2">Click a field to add it as a column</p>
-                <div className="border border-border rounded max-h-[calc(100vh-16rem)] overflow-y-auto">
-                  {primaryObj && (
-                    <ObjectFieldTree
-                      obj={primaryObj}
-                      objectKey={primaryObject}
-                      fields={filteredFields.filter((f) => f.objectKey === primaryObject)}
-                      usedFields={usedFields}
-                      fieldKeyStr={fieldKeyStr}
-                      collapsed={collapsedObjects.has(primaryObject)}
-                      onToggle={() => toggleCollapse(primaryObject)}
-                      onAdd={(fk) => addFieldTo(fk, "columns")}
-                    />
-                  )}
-                  {relatedObj && (
-                    <ObjectFieldTree
-                      obj={relatedObj}
-                      objectKey={relatedObject}
-                      fields={filteredFields.filter((f) => f.objectKey === relatedObject)}
-                      usedFields={usedFields}
-                      fieldKeyStr={fieldKeyStr}
-                      collapsed={collapsedObjects.has(relatedObject)}
-                      onToggle={() => toggleCollapse(relatedObject)}
-                      onAdd={(fk) => addFieldTo(fk, "columns")}
-                    />
-                  )}
-                </div>
-              </div>
-            </TabsContent>
+              ))}
+            </div>
 
-            {/* TAB: Grouping — Group Rows, Group Columns, then Columns */}
-            <TabsContent value="grouping" className="flex-1 overflow-y-auto mt-0 px-3 pb-3 space-y-4">
-              <div>
-                <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 block">
-                  Group Rows ({groupRows.length})
-                </Label>
-                <FieldSearchAndAdd
-                  allFields={filteredFields}
-                  usedFields={usedFields}
-                  fieldKeyFn={fieldKeyStr}
-                  onAdd={(fk) => addFieldTo(fk, "groupRows")}
-                  placeholder="Search & add group row..."
-                />
-                <ReorderableList
-                  items={groupRows}
-                  getLabel={getFieldLabel}
-                  onRemove={(fk) => removeField(fk, "groupRows")}
-                  onMove={(fk, dir) => moveField(fk, "groupRows", dir)}
-                />
-              </div>
-
-              <div>
-                <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 block">
-                  Group Columns ({groupColumns.length})
-                </Label>
-                <FieldSearchAndAdd
-                  allFields={filteredFields}
-                  usedFields={usedFields}
-                  fieldKeyFn={fieldKeyStr}
-                  onAdd={(fk) => addFieldTo(fk, "groupColumns")}
-                  placeholder="Search & add group column..."
-                />
-                <ReorderableList
-                  items={groupColumns}
-                  getLabel={getFieldLabel}
-                  onRemove={(fk) => removeField(fk, "groupColumns")}
-                  onMove={(fk, dir) => moveField(fk, "groupColumns", dir)}
-                />
-              </div>
-
-              <div>
-                <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 block">
-                  Columns ({columns.length})
-                </Label>
-                <FieldSearchAndAdd
-                  allFields={filteredFields}
-                  usedFields={usedFields}
-                  fieldKeyFn={fieldKeyStr}
-                  onAdd={(fk) => addFieldTo(fk, "columns")}
-                  placeholder="Search & add column..."
-                />
-                <ReorderableList
-                  items={columns}
-                  getLabel={getFieldLabel}
-                  onRemove={(fk) => removeField(fk, "columns")}
-                  onMove={(fk, dir) => moveField(fk, "columns", dir)}
-                />
-              </div>
-            </TabsContent>
-
-            {/* TAB: Filters */}
-            <TabsContent value="filters" className="flex-1 overflow-y-auto mt-0 px-3 pb-3">
-              <div className="space-y-2">
-                {filters.map((filter, idx) => (
+            {/* Filters section */}
+            <div>
+              <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1.5 block">
+                <Filter className="h-3 w-3 inline mr-1" />
+                Filters ({filters.length})
+              </Label>
+              {filters.map((filter, idx) => (
+                <div key={idx} className="mb-2">
                   <FilterRow
-                    key={idx}
                     filter={filter}
                     allFields={allFields}
                     fieldKeyFn={fieldKeyStr}
                     onChange={(patch) => updateFilter(idx, patch)}
                     onRemove={() => removeFilter(idx)}
                   />
-                ))}
-                <Button size="sm" variant="outline" onClick={addFilter} className="w-full gap-1 text-xs h-7">
-                  <Plus className="h-3 w-3" /> Add Filter
-                </Button>
-                {filters.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-4">No filters applied.</p>
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
+                </div>
+              ))}
+              <Button size="sm" variant="outline" onClick={addFilter} className="w-full gap-1 text-xs h-7">
+                <Plus className="h-3 w-3" /> Add Filter
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* RIGHT — Preview */}
-        <div className="flex-1 overflow-y-auto p-4 bg-background">
-          {!showPreview && (columns.length === 0 && groupRows.length === 0) ? (
-            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
-              <Table className="h-12 w-12 opacity-20" />
-              <p className="text-sm">Add columns or group fields to see a preview</p>
-              <p className="text-xs">Use the Fields tab to add columns, Grouping tab for row/column groups</p>
-            </div>
-          ) : !showPreview ? (
-            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
-              <Play className="h-12 w-12 opacity-20" />
-              <p className="text-sm">Click "Run" to preview the report</p>
-              <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={handleRun}>
-                <Play className="h-3 w-3" /> Run Preview
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground flex-wrap">
-                <span className="bg-primary/10 text-primary px-2 py-0.5 rounded font-medium">Preview</span>
-                {groupRows.length > 0 && (
-                  <span>Grouped by: {groupRows.map(getFieldLabel).join(", ")}</span>
-                )}
-                {filters.length > 0 && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    <Filter className="h-2.5 w-2.5 mr-1" /> {filters.length} filter{filters.length > 1 ? "s" : ""}
-                  </Badge>
-                )}
-                <Button variant="ghost" size="sm" className="h-5 text-[10px] ml-auto" onClick={() => setShowPreview(false)}>
-                  Hide Preview
+        <div className="flex-1 flex flex-col overflow-hidden bg-background">
+          <div className="flex-1 overflow-y-auto p-4">
+            {!showPreview && (columns.length === 0 && groupRows.length === 0) ? (
+              <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
+                <Table className="h-12 w-12 opacity-20" />
+                <p className="text-sm">Add columns or group fields to see a preview</p>
+                <p className="text-xs">Use the Fields panel to add columns, Groups panel for row/column groups</p>
+              </div>
+            ) : !showPreview ? (
+              <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
+                <Play className="h-12 w-12 opacity-20" />
+                <p className="text-sm">Click "Run" to preview the report</p>
+                <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={handleRun}>
+                  <Play className="h-3 w-3" /> Run Preview
                 </Button>
               </div>
-
-              {columns.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  {columns.map((c) => (
-                    <Badge key={c} variant="outline" className="text-[10px] gap-1 pr-1">
-                      {getFieldLabel(c)}
-                      <button onClick={() => removeField(c, "columns")}>
-                        <X className="h-2.5 w-2.5 text-muted-foreground hover:text-destructive" />
-                      </button>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground flex-wrap">
+                  <span className="bg-primary/10 text-primary px-2 py-0.5 rounded font-medium">Preview</span>
+                  {groupRows.length > 0 && (
+                    <span>Grouped by: {groupRows.map(getFieldLabel).join(", ")}</span>
+                  )}
+                  {filters.length > 0 && (
+                    <Badge variant="secondary" className="text-[10px]">
+                      <Filter className="h-2.5 w-2.5 mr-1" /> {filters.length} filter{filters.length > 1 ? "s" : ""}
                     </Badge>
-                  ))}
+                  )}
+                  <Button variant="ghost" size="sm" className="h-5 text-[10px] ml-auto" onClick={() => setShowPreview(false)}>
+                    Hide Preview
+                  </Button>
                 </div>
-              )}
 
-              <div className="data-table p-3">
-                <ReportPreview
-                  primaryObject={primaryObject}
-                  relatedObject={relatedObject}
-                  columns={columns}
-                  groupRows={groupRows}
-                  groupColumns={groupColumns}
-                  filters={filters}
-                  chartType={chartType}
-                  compact
-                />
-              </div>
-            </>
-          )}
+                <div className="data-table p-3">
+                  <ReportPreview
+                    primaryObject={primaryObject}
+                    relatedObject={relatedObject}
+                    columns={columns}
+                    groupRows={groupRows}
+                    groupColumns={groupColumns}
+                    filters={filters}
+                    chartType={chartType}
+                    displayOptions={displayOptions}
+                    compact
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Bottom toggles */}
+          <div className="border-t border-border px-4 py-2 flex items-center gap-6 bg-card shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">Row Counts</span>
+              <Switch
+                checked={displayOptions.show_row_counts}
+                onCheckedChange={(v) => setDisplayOptions((p) => ({ ...p, show_row_counts: v }))}
+                className="scale-75"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">Subtotals</span>
+              <Switch
+                checked={displayOptions.show_subtotals}
+                onCheckedChange={(v) => setDisplayOptions((p) => ({ ...p, show_subtotals: v }))}
+                className="scale-75"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">Grand Total</span>
+              <Switch
+                checked={displayOptions.show_grand_total}
+                onCheckedChange={(v) => setDisplayOptions((p) => ({ ...p, show_grand_total: v }))}
+                className="scale-75"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -724,9 +729,7 @@ function ReorderableList({
   onRemove: (fk: string) => void;
   onMove: (fk: string, dir: "up" | "down") => void;
 }) {
-  if (items.length === 0) {
-    return <p className="text-[10px] text-muted-foreground text-center py-2 opacity-50">No fields added yet</p>;
-  }
+  if (items.length === 0) return null;
 
   return (
     <div className="space-y-0.5 border border-border rounded p-1">
@@ -749,4 +752,3 @@ function ReorderableList({
     </div>
   );
 }
-

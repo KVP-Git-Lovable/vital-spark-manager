@@ -1546,6 +1546,30 @@ export type Database = {
           },
         ]
       }
+      report_folders: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       saved_reports: {
         Row: {
           chart_type: string
@@ -1553,6 +1577,7 @@ export type Database = {
           created_at: string
           description: string | null
           filters: Json
+          folder_id: string | null
           group_columns: Json
           group_rows: Json
           id: string
@@ -1567,6 +1592,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           filters?: Json
+          folder_id?: string | null
           group_columns?: Json
           group_rows?: Json
           id?: string
@@ -1581,6 +1607,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           filters?: Json
+          folder_id?: string | null
           group_columns?: Json
           group_rows?: Json
           id?: string
@@ -1589,7 +1616,15 @@ export type Database = {
           related_object?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "saved_reports_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "report_folders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       service_medicines: {
         Row: {

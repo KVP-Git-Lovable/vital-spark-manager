@@ -1,29 +1,46 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Plus, FileBarChart } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Plus, FileBarChart, FolderPlus, Folder } from "lucide-react";
 import { toast } from "sonner";
 import { ReportList } from "@/components/reports/ReportList";
 import { ReportBuilder } from "@/components/reports/ReportBuilder";
+import { ReportViewer } from "@/components/reports/ReportViewer";
 import type { SavedReport } from "@/lib/reportObjects";
+
+interface ReportFolder {
+  id: string;
+  name: string;
+  description?: string;
+}
 
 const ReportConfigurator = () => {
   const [reports, setReports] = useState<SavedReport[]>([]);
+  const [folders, setFolders] = useState<ReportFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeReport, setActiveReport] = useState<SavedReport | null>(null);
-  const [isBuilderOpen, setIsBuilderOpen] = useState(false);
+  const [mode, setMode] = useState<"list" | "edit" | "view">("list");
+  const [activeFolder, setActiveFolder] = useState<string>("all");
+  const [newFolderName, setNewFolderName] = useState("");
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
 
-  const fetchReports = async () => {
+  const fetchData = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("saved_reports")
-      .select("*")
-      .order("updated_at", { ascending: false });
-    if (error) {
-      toast.error("Failed to load reports");
-    } else {
+    const [reportsRes, foldersRes] = await Promise.all([
+      supabase.from("saved_reports").select("*").order("updated_at", { ascending: false }),
+      supabase.from("report_folders" as any).select("*").order("name"),
+    ]);
+    if (!reportsRes.error) {
       setReports(
-        (data || []).map((r: any) => ({
+        (reportsRes.data || []).map((r: any) => ({
           ...r,
           columns: r.columns || [],
           group_rows: r.group_rows || [],
@@ -32,21 +49,29 @@ const ReportConfigurator = () => {
         }))
       );
     }
+    if (!foldersRes.error) {
+      setFolders((foldersRes.data as any) || []);
+    }
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchReports();
+    fetchData();
   }, []);
 
   const handleNew = () => {
     setActiveReport(null);
-    setIsBuilderOpen(true);
+    setMode("edit");
   };
 
   const handleEdit = (report: SavedReport) => {
     setActiveReport(report);
-    setIsBuilderOpen(true);
+    setMode("edit");
+  };
+
+  const handleView = (report: SavedReport) => {
+    setActiveReport(report);
+    setMode("view");
   };
 
   const handleDelete = async (id: string) => {
@@ -55,7 +80,7 @@ const ReportConfigurator = () => {
       toast.error("Failed to delete report");
     } else {
       toast.success("Report deleted");
-      fetchReports();
+      fetchData();
     }
   };
 
@@ -70,6 +95,7 @@ const ReportConfigurator = () => {
       group_columns: report.group_columns as any,
       filters: report.filters as any,
       chart_type: report.chart_type,
+      folder_id: report.folder_id || null,
     };
 
     if (report.id) {
@@ -90,19 +116,49 @@ const ReportConfigurator = () => {
       }
       toast.success("Report saved");
     }
-    setIsBuilderOpen(false);
-    fetchReports();
+    setMode("list");
+    fetchData();
   };
 
-  if (isBuilderOpen) {
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+    const { error } = await supabase.from("report_folders" as any).insert({ name: newFolderName.trim() } as any);
+    if (error) {
+      toast.error("Failed to create folder");
+    } else {
+      toast.success("Folder created");
+      setNewFolderName("");
+      setFolderDialogOpen(false);
+      fetchData();
+    }
+  };
+
+  if (mode === "edit") {
     return (
       <ReportBuilder
         initial={activeReport}
         onSave={handleSave}
-        onClose={() => setIsBuilderOpen(false)}
+        onClose={() => setMode("list")}
+        folders={folders}
       />
     );
   }
+
+  if (mode === "view" && activeReport) {
+    return (
+      <ReportViewer
+        report={activeReport}
+        onEdit={() => setMode("edit")}
+        onClose={() => setMode("list")}
+      />
+    );
+  }
+
+  const filteredReports = activeFolder === "all"
+    ? reports
+    : activeFolder === "unfiled"
+      ? reports.filter((r) => !r.folder_id)
+      : reports.filter((r) => r.folder_id === activeFolder);
 
   return (
     <div>
@@ -111,14 +167,73 @@ const ReportConfigurator = () => {
           <h1 className="page-title">Report Configurator</h1>
           <p className="page-subtitle">Build, save and manage custom reports</p>
         </div>
-        <Button onClick={handleNew} className="gap-2">
-          <Plus className="h-4 w-4" /> New Report
-        </Button>
+        <div className="flex gap-2">
+          <Dialog open={folderDialogOpen} onOpenChange={setFolderDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <FolderPlus className="h-4 w-4" /> New Folder
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Create Folder</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <Input
+                  placeholder="Folder name"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
+                />
+                <Button onClick={handleCreateFolder} className="w-full">Create</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Button onClick={handleNew} className="gap-2">
+            <Plus className="h-4 w-4" /> New Report
+          </Button>
+        </div>
       </div>
+
+      {/* Folder tabs */}
+      {folders.length > 0 && (
+        <div className="flex gap-2 mb-4 flex-wrap">
+          <Button
+            size="sm"
+            variant={activeFolder === "all" ? "default" : "outline"}
+            onClick={() => setActiveFolder("all")}
+            className="gap-1 text-xs"
+          >
+            All ({reports.length})
+          </Button>
+          {folders.map((f) => {
+            const count = reports.filter((r) => r.folder_id === f.id).length;
+            return (
+              <Button
+                key={f.id}
+                size="sm"
+                variant={activeFolder === f.id ? "default" : "outline"}
+                onClick={() => setActiveFolder(f.id)}
+                className="gap-1 text-xs"
+              >
+                <Folder className="h-3 w-3" /> {f.name} ({count})
+              </Button>
+            );
+          })}
+          <Button
+            size="sm"
+            variant={activeFolder === "unfiled" ? "default" : "outline"}
+            onClick={() => setActiveFolder("unfiled")}
+            className="gap-1 text-xs"
+          >
+            Unfiled ({reports.filter((r) => !r.folder_id).length})
+          </Button>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-48 text-muted-foreground">Loading...</div>
-      ) : reports.length === 0 ? (
+      ) : filteredReports.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 gap-4 text-muted-foreground">
           <FileBarChart className="h-16 w-16 opacity-30" />
           <p>No reports yet. Create your first report.</p>
@@ -127,7 +242,13 @@ const ReportConfigurator = () => {
           </Button>
         </div>
       ) : (
-        <ReportList reports={reports} onEdit={handleEdit} onDelete={handleDelete} onRun={handleEdit} />
+        <ReportList
+          reports={filteredReports}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onRun={handleView}
+          folders={folders}
+        />
       )}
     </div>
   );

@@ -234,6 +234,44 @@ export const getRelatedObjects = (primaryKey: string): ReportObject[] => {
     .filter(Boolean) as ReportObject[];
 };
 
+export interface JoinPreset {
+  primary: string;
+  related: string;
+  label: string;
+  fieldCount: number;
+}
+
+export const getJoinPresets = (): JoinPreset[] => {
+  const presets: JoinPreset[] = [];
+  const seen = new Set<string>();
+  REPORT_OBJECTS.forEach((obj) => {
+    obj.relations?.forEach((rel) => {
+      const key = [obj.key, rel.objectKey].sort().join("+");
+      if (seen.has(key)) return;
+      seen.add(key);
+      const relObj = getObjectByKey(rel.objectKey);
+      if (!relObj) return;
+      presets.push({
+        primary: obj.key,
+        related: rel.objectKey,
+        label: `${obj.label} + ${relObj.label}`,
+        fieldCount: obj.fields.length + relObj.fields.length,
+      });
+    });
+  });
+  return presets;
+};
+
+export const generateReportName = (primaryKey: string, relatedKey?: string): string => {
+  const primary = getObjectByKey(primaryKey);
+  if (!primary) return "New Report";
+  if (relatedKey) {
+    const related = getObjectByKey(relatedKey);
+    return `${primary.label} + ${related?.label || ""} Report`;
+  }
+  return `${primary.label} Report`;
+};
+
 export interface ReportFilter {
   field: string;
   operator: "equals" | "not_equals" | "contains" | "gt" | "lt" | "gte" | "lte" | "is_null" | "is_not_null";
@@ -252,6 +290,7 @@ export interface SavedReport {
   group_columns: string[];
   filters: ReportFilter[];
   chart_type: string;
+  folder_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }

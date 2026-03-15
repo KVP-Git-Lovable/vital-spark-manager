@@ -58,6 +58,7 @@ const chartIcons: Record<string, any> = {
 interface Props {
   initial: SavedReport | null;
   onSave: (r: SavedReport) => void;
+  onSaveAndRun: (r: SavedReport) => void;
   onClose: () => void;
   folders: { id: string; name: string }[];
 }

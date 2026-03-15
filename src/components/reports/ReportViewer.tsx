@@ -1,14 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import {
   ArrowLeft,
   Edit,
@@ -20,8 +13,6 @@ import {
   LineChart,
   Hash,
   Lock,
-  X,
-  Trash2,
 } from "lucide-react";
 import {
   CHART_TYPES,
@@ -197,6 +188,3 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
     </div>
   );
 }
-
-// Need to import Label
-import { Label } from "@/components/ui/label";

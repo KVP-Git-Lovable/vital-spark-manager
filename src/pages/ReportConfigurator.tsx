@@ -131,6 +131,7 @@ const ReportConfigurator = () => {
       filters: report.filters as any,
       chart_type: report.chart_type,
       folder_id: report.folder_id || null,
+      display_options: (report.display_options || null) as any,
     };
 
     if (report.id) {

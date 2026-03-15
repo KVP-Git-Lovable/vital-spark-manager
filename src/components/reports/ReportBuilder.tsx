@@ -538,50 +538,63 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
 
         {/* RIGHT — Preview */}
         <div className="flex-1 overflow-y-auto p-4 bg-background">
-          <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground flex-wrap">
-            <span className="bg-primary/10 text-primary px-2 py-0.5 rounded font-medium">Preview</span>
-            {groupRows.length > 0 && (
-              <span>Grouped by: {groupRows.map(getFieldLabel).join(", ")}</span>
-            )}
-            {filters.length > 0 && (
-              <Badge variant="secondary" className="text-[10px]">
-                <Filter className="h-2.5 w-2.5 mr-1" /> {filters.length} filter{filters.length > 1 ? "s" : ""}
-              </Badge>
-            )}
-          </div>
-
-          {columns.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {columns.map((c) => (
-                <Badge key={c} variant="outline" className="text-[10px] gap-1 pr-1">
-                  {getFieldLabel(c)}
-                  <button onClick={() => removeField(c, "columns")}>
-                    <X className="h-2.5 w-2.5 text-muted-foreground hover:text-destructive" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          {columns.length === 0 && groupRows.length === 0 ? (
+          {!showPreview && (columns.length === 0 && groupRows.length === 0) ? (
             <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
               <Table className="h-12 w-12 opacity-20" />
               <p className="text-sm">Add columns or group fields to see a preview</p>
               <p className="text-xs">Use the Fields tab to add columns, Grouping tab for row/column groups</p>
             </div>
-          ) : (
-            <div className="data-table p-3">
-              <ReportPreview
-                primaryObject={primaryObject}
-                relatedObject={relatedObject}
-                columns={columns}
-                groupRows={groupRows}
-                groupColumns={groupColumns}
-                filters={filters}
-                chartType={chartType}
-                compact
-              />
+          ) : !showPreview ? (
+            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
+              <Play className="h-12 w-12 opacity-20" />
+              <p className="text-sm">Click "Run" to preview the report</p>
+              <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={handleRun}>
+                <Play className="h-3 w-3" /> Run Preview
+              </Button>
             </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground flex-wrap">
+                <span className="bg-primary/10 text-primary px-2 py-0.5 rounded font-medium">Preview</span>
+                {groupRows.length > 0 && (
+                  <span>Grouped by: {groupRows.map(getFieldLabel).join(", ")}</span>
+                )}
+                {filters.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    <Filter className="h-2.5 w-2.5 mr-1" /> {filters.length} filter{filters.length > 1 ? "s" : ""}
+                  </Badge>
+                )}
+                <Button variant="ghost" size="sm" className="h-5 text-[10px] ml-auto" onClick={() => setShowPreview(false)}>
+                  Hide Preview
+                </Button>
+              </div>
+
+              {columns.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {columns.map((c) => (
+                    <Badge key={c} variant="outline" className="text-[10px] gap-1 pr-1">
+                      {getFieldLabel(c)}
+                      <button onClick={() => removeField(c, "columns")}>
+                        <X className="h-2.5 w-2.5 text-muted-foreground hover:text-destructive" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              <div className="data-table p-3">
+                <ReportPreview
+                  primaryObject={primaryObject}
+                  relatedObject={relatedObject}
+                  columns={columns}
+                  groupRows={groupRows}
+                  groupColumns={groupColumns}
+                  filters={filters}
+                  chartType={chartType}
+                  compact
+                />
+              </div>
+            </>
           )}
         </div>
       </div>

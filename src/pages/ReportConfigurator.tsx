@@ -85,6 +85,41 @@ const ReportConfigurator = () => {
   };
 
   const handleSave = async (report: SavedReport) => {
+    const saved = await saveReport(report);
+    if (saved) {
+      setMode("list");
+      fetchData();
+    }
+  };
+
+  const handleSaveAndRun = async (report: SavedReport) => {
+    const saved = await saveReport(report);
+    if (saved) {
+      // Refetch to get the saved report with ID
+      const { data } = await supabase
+        .from("saved_reports")
+        .select("*")
+        .eq("name", report.name)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (data && data.length > 0) {
+        const r = data[0] as any;
+        setActiveReport({
+          ...r,
+          columns: r.columns || [],
+          group_rows: r.group_rows || [],
+          group_columns: r.group_columns || [],
+          filters: r.filters || [],
+        });
+        setMode("view");
+      } else {
+        setMode("list");
+      }
+      fetchData();
+    }
+  };
+
+  const saveReport = async (report: SavedReport): Promise<boolean> => {
     const payload = {
       name: report.name,
       description: report.description || null,
@@ -105,19 +140,18 @@ const ReportConfigurator = () => {
         .eq("id", report.id);
       if (error) {
         toast.error("Failed to update report");
-        return;
+        return false;
       }
       toast.success("Report updated");
     } else {
       const { error } = await supabase.from("saved_reports").insert(payload);
       if (error) {
         toast.error("Failed to save report");
-        return;
+        return false;
       }
       toast.success("Report saved");
     }
-    setMode("list");
-    fetchData();
+    return true;
   };
 
   const handleCreateFolder = async () => {

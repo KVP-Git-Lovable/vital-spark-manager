@@ -161,12 +161,14 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
     });
   };
 
-  const handleSave = () => {
+  const [showPreview, setShowPreview] = useState(false);
+
+  const buildReport = (): SavedReport | null => {
     if (!name.trim()) {
       toast.error("Please enter a report name");
-      return;
+      return null;
     }
-    onSave({
+    return {
       id: initial?.id,
       name,
       description,
@@ -178,7 +180,21 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
       filters,
       chart_type: chartType,
       folder_id: folderId || null,
-    });
+    };
+  };
+
+  const handleSave = () => {
+    const r = buildReport();
+    if (r) onSave(r);
+  };
+
+  const handleSaveAndRun = () => {
+    const r = buildReport();
+    if (r) onSaveAndRun(r);
+  };
+
+  const handleRun = () => {
+    setShowPreview(true);
   };
 
   // Step 1: Select objects

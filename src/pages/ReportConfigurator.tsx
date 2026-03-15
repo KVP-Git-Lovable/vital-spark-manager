@@ -172,6 +172,7 @@ const ReportConfigurator = () => {
       <ReportBuilder
         initial={activeReport}
         onSave={handleSave}
+        onSaveAndRun={handleSaveAndRun}
         onClose={() => setMode("list")}
         folders={folders}
       />

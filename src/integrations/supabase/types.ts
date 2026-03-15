@@ -1576,6 +1576,7 @@ export type Database = {
           columns: Json
           created_at: string
           description: string | null
+          display_options: Json | null
           filters: Json
           folder_id: string | null
           group_columns: Json
@@ -1591,6 +1592,7 @@ export type Database = {
           columns?: Json
           created_at?: string
           description?: string | null
+          display_options?: Json | null
           filters?: Json
           folder_id?: string | null
           group_columns?: Json
@@ -1606,6 +1608,7 @@ export type Database = {
           columns?: Json
           created_at?: string
           description?: string | null
+          display_options?: Json | null
           filters?: Json
           folder_id?: string | null
           group_columns?: Json

@@ -73,7 +73,6 @@ export function ReportPreview({
     const primaryObj = getObjectByKey(primaryObject);
     if (!primaryObj) return;
 
-    // Collect all fields we need: columns + groupRows + groupColumns
     const allFieldKeys = [...new Set([...columns, ...groupRows, ...groupColumns])];
     const primaryFields = allFieldKeys
       .filter((fk) => fk.startsWith(`${primaryObject}.`))
@@ -81,7 +80,6 @@ export function ReportPreview({
 
     if (!primaryFields.includes("id")) primaryFields.push("id");
 
-    // Ensure we have at least one field
     if (primaryFields.length === 1 && primaryFields[0] === "id" && allFieldKeys.length === 0) {
       primaryFields.push("id");
     }
@@ -151,13 +149,12 @@ export function ReportPreview({
     );
   }
 
-  // Determine display columns: all columns that are not group fields
   const allDisplayCols = columns.filter((c) => c.startsWith(`${primaryObject}.`));
-  // Also include group row/col fields in display if they're not already in columns
   const groupRowFields = groupRows.filter((c) => c.startsWith(`${primaryObject}.`));
   const groupColFields = groupColumns.filter((c) => c.startsWith(`${primaryObject}.`));
 
   const groupField = groupRowFields.length > 0 ? getFieldKey(groupRowFields[0]) : null;
+  const groupField2 = groupRowFields.length > 1 ? getFieldKey(groupRowFields[1]) : null;
   const groupColField = groupColFields.length > 0 ? getFieldKey(groupColFields[0]) : null;
 
   const numericCols = [...columns, ...groupColumns].filter((c) => {
@@ -273,110 +270,222 @@ export function ReportPreview({
     }
   }
 
-  // TABLE VIEW — with group rows support
-  // Build display columns: show columns (if any), otherwise show group fields
+  // TABLE VIEW
   const displayCols = allDisplayCols.length > 0 ? allDisplayCols : groupRowFields;
 
-  if (groupField && chartType === "table") {
-    // Group data by the groupField
-    const grouped: Record<string, any[]> = {};
+  // Matrix report: group rows + group columns
+  if (groupField && groupColField && chartType === "table") {
+    const colValues = [...new Set(data.map((r) => String(r[groupColField] || "N/A")))].sort();
+    const groupLabel = getFieldLabel(groupRowFields[0]);
+    const groupColLabel = getFieldLabel(groupColFields[0]);
+
+    // Build nested groups for multi-level
+    const grouped: Record<string, Record<string, any[]>> = {};
     data.forEach((row) => {
-      const key = String(row[groupField] || "N/A");
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(row);
+      const g1 = String(row[groupField] || "N/A");
+      const g2 = groupField2 ? String(row[groupField2] || "N/A") : "__all__";
+      if (!grouped[g1]) grouped[g1] = {};
+      if (!grouped[g1][g2]) grouped[g1][g2] = [];
+      grouped[g1][g2].push(row);
     });
 
-    const groupLabel = getFieldLabel(groupRowFields[0]);
-
-    // If we also have groupColumns, create a cross-tab / matrix header
-    if (groupColField) {
-      const colValues = [...new Set(data.map((r) => String(r[groupColField] || "N/A")))].sort();
-      const groupColLabel = getFieldLabel(groupColFields[0]);
-
-      return (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border border-border rounded overflow-hidden">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground">{groupLabel}</th>
-                {colValues.map((cv) => (
-                  <th key={cv} className="text-center py-1.5 px-3 text-[11px] font-semibold text-muted-foreground">{cv}</th>
-                ))}
-                <th className="text-center py-1.5 px-3 text-[11px] font-semibold text-primary">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(grouped).map(([groupKey, rows]) => (
-                <tr key={groupKey} className="border-b border-border/50 hover:bg-accent/20">
-                  <td className="py-1.5 px-3 text-xs font-medium">{groupKey}</td>
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border border-border rounded overflow-hidden">
+          <thead>
+            <tr className="border-b border-border bg-muted/30">
+              <th className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground">{groupLabel}</th>
+              {groupField2 && (
+                <th className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground">
+                  {getFieldLabel(groupRowFields[1])}
+                </th>
+              )}
+              {colValues.map((cv) => (
+                <th key={cv} className="text-center py-1.5 px-3 text-[11px] font-semibold text-muted-foreground">{cv}</th>
+              ))}
+              <th className="text-center py-1.5 px-3 text-[11px] font-semibold text-primary">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(grouped).map(([g1Key, subGroups]) => {
+              if (!groupField2) {
+                const allRows = Object.values(subGroups).flat();
+                return (
+                  <tr key={g1Key} className="border-b border-border/50 hover:bg-accent/20">
+                    <td className="py-1.5 px-3 text-xs font-medium">{g1Key}</td>
+                    {colValues.map((cv) => {
+                      const count = allRows.filter((r) => String(r[groupColField] || "N/A") === cv).length;
+                      return <td key={cv} className="py-1.5 px-3 text-xs text-center">{count || "—"}</td>;
+                    })}
+                    <td className="py-1.5 px-3 text-xs text-center font-semibold text-primary">{allRows.length}</td>
+                  </tr>
+                );
+              }
+              // Multi-level: show g1 as a spanning row, then g2 rows
+              const subEntries = Object.entries(subGroups);
+              return subEntries.map(([g2Key, rows], si) => (
+                <tr key={`${g1Key}-${g2Key}`} className="border-b border-border/50 hover:bg-accent/20">
+                  {si === 0 ? (
+                    <td rowSpan={subEntries.length} className="py-1.5 px-3 text-xs font-semibold bg-muted/20 border-r border-border/50 align-top">
+                      {g1Key}
+                    </td>
+                  ) : null}
+                  <td className="py-1.5 px-3 text-xs">{g2Key}</td>
                   {colValues.map((cv) => {
                     const count = rows.filter((r) => String(r[groupColField] || "N/A") === cv).length;
-                    return (
-                      <td key={cv} className="py-1.5 px-3 text-xs text-center">{count || "—"}</td>
-                    );
+                    return <td key={cv} className="py-1.5 px-3 text-xs text-center">{count || "—"}</td>;
                   })}
                   <td className="py-1.5 px-3 text-xs text-center font-semibold text-primary">{rows.length}</td>
                 </tr>
-              ))}
-              <tr className="bg-muted/30 font-semibold">
-                <td className="py-1.5 px-3 text-xs">Total</td>
-                {colValues.map((cv) => {
-                  const count = data.filter((r) => String(r[groupColField] || "N/A") === cv).length;
-                  return <td key={cv} className="py-1.5 px-3 text-xs text-center">{count}</td>;
-                })}
-                <td className="py-1.5 px-3 text-xs text-center text-primary">{data.length}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      );
-    }
+              ));
+            })}
+            <tr className="bg-muted/30 font-semibold">
+              <td className="py-1.5 px-3 text-xs" colSpan={groupField2 ? 2 : 1}>Total</td>
+              {colValues.map((cv) => {
+                const count = data.filter((r) => String(r[groupColField] || "N/A") === cv).length;
+                return <td key={cv} className="py-1.5 px-3 text-xs text-center">{count}</td>;
+              })}
+              <td className="py-1.5 px-3 text-xs text-center text-primary">{data.length}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    );
+  }
 
-    // Simple group rows (no group columns)
+  // Excel-style grouped rows (no group columns)
+  if (groupField && chartType === "table") {
+    const groupLabel = getFieldLabel(groupRowFields[0]);
+
+    // Build nested grouping
+    type GroupNode = { rows: any[]; subGroups?: Record<string, GroupNode> };
+    const buildGroups = (): Record<string, GroupNode> => {
+      const result: Record<string, GroupNode> = {};
+      data.forEach((row) => {
+        const g1 = String(row[groupField] || "N/A");
+        if (!result[g1]) result[g1] = { rows: [], subGroups: groupField2 ? {} : undefined };
+        if (groupField2 && result[g1].subGroups) {
+          const g2 = String(row[groupField2] || "N/A");
+          if (!result[g1].subGroups![g2]) result[g1].subGroups![g2] = { rows: [] };
+          result[g1].subGroups![g2].rows.push(row);
+        }
+        result[g1].rows.push(row);
+      });
+      return result;
+    };
+
+    const grouped = buildGroups();
+    let groupCounter = 0;
+
     return (
       <div className="overflow-x-auto">
-        {Object.entries(grouped).map(([groupKey, rows]) => (
-          <div key={groupKey} className="mb-4">
-            <div className="bg-muted/50 px-3 py-1.5 rounded-t text-xs font-semibold text-foreground flex items-center gap-2">
-              <span className="text-muted-foreground">{groupLabel}:</span>
-              <span>{groupKey}</span>
-              <Badge variant="secondary" className="text-[10px] ml-auto">{rows.length}</Badge>
-            </div>
-            <table className="w-full text-sm border border-border rounded-b overflow-hidden">
-              <thead>
-                <tr className="border-b border-border bg-muted/20">
-                  {displayCols.map((c) => (
-                    <th key={c} className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
-                      {getFieldLabel(c)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.slice(0, compact ? 5 : 50).map((row, i) => (
-                  <tr
-                    key={i}
-                    className="border-b border-border/50 hover:bg-accent/20 cursor-pointer transition-colors"
-                    onClick={() => handleRecordClick(row)}
-                  >
-                    {displayCols.map((c) => (
-                      <td key={c} className="py-1.5 px-3 whitespace-nowrap text-xs text-foreground">
-                        {formatVal(row[getFieldKey(c)])}
+        <table className="w-full text-sm border border-border rounded overflow-hidden">
+          <thead>
+            <tr className="border-b border-border bg-muted/30">
+              <th className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground w-10">#</th>
+              <th className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground">{groupLabel}</th>
+              {displayCols.map((c) => (
+                <th key={c} className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
+                  {getFieldLabel(c)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(grouped).map(([g1Key, node]) => {
+              groupCounter++;
+              const currentGroupNum = groupCounter;
+
+              if (groupField2 && node.subGroups) {
+                let subCounter = 0;
+                const subEntries = Object.entries(node.subGroups);
+                return (
+                  <>
+                    <tr key={`g1-${g1Key}`} className="bg-primary/5 border-b border-border">
+                      <td className="py-1.5 px-3 text-xs font-bold text-primary">G{currentGroupNum}</td>
+                      <td colSpan={displayCols.length + 1} className="py-1.5 px-3 text-xs font-semibold text-foreground">
+                        {g1Key}
+                        <Badge variant="secondary" className="text-[9px] ml-2">{node.rows.length}</Badge>
                       </td>
-                    ))}
-                  </tr>
-                ))}
-                {rows.length > (compact ? 5 : 50) && (
-                  <tr>
-                    <td colSpan={displayCols.length} className="text-xs text-muted-foreground text-center py-1">
-                      +{rows.length - (compact ? 5 : 50)} more
+                    </tr>
+                    {subEntries.map(([g2Key, subNode]) => {
+                      subCounter++;
+                      return (
+                        <>
+                          <tr key={`g2-${g1Key}-${g2Key}`} className="bg-muted/20 border-b border-border/50">
+                            <td className="py-1 px-3 pl-6 text-[10px] text-muted-foreground font-medium">
+                              {currentGroupNum}.{subCounter}
+                            </td>
+                            <td colSpan={displayCols.length + 1} className="py-1 px-3 text-[11px] font-medium text-foreground">
+                              {g2Key}
+                              <Badge variant="outline" className="text-[9px] ml-2">{subNode.rows.length}</Badge>
+                            </td>
+                          </tr>
+                          {subNode.rows.slice(0, compact ? 3 : 50).map((row, ri) => (
+                            <tr
+                              key={`row-${g1Key}-${g2Key}-${ri}`}
+                              className="border-b border-border/30 hover:bg-accent/20 cursor-pointer transition-colors"
+                              onClick={() => handleRecordClick(row)}
+                            >
+                              <td className="py-1 px-3 text-[10px] text-muted-foreground pl-10"></td>
+                              <td className="py-1 px-3 text-xs text-muted-foreground"></td>
+                              {displayCols.map((c) => (
+                                <td key={c} className="py-1 px-3 whitespace-nowrap text-xs text-foreground">
+                                  {formatVal(row[getFieldKey(c)])}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </>
+                      );
+                    })}
+                  </>
+                );
+              }
+
+              // Single-level group
+              return (
+                <>
+                  <tr key={`g1-${g1Key}`} className="bg-primary/5 border-b border-border">
+                    <td className="py-1.5 px-3 text-xs font-bold text-primary">G{currentGroupNum}</td>
+                    <td colSpan={displayCols.length + 1} className="py-1.5 px-3 text-xs font-semibold text-foreground">
+                      {g1Key}
+                      <Badge variant="secondary" className="text-[9px] ml-2">{node.rows.length}</Badge>
                     </td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        ))}
+                  {node.rows.slice(0, compact ? 5 : 50).map((row, ri) => (
+                    <tr
+                      key={`row-${g1Key}-${ri}`}
+                      className="border-b border-border/30 hover:bg-accent/20 cursor-pointer transition-colors"
+                      onClick={() => handleRecordClick(row)}
+                    >
+                      <td className="py-1 px-3 text-[10px] text-muted-foreground"></td>
+                      <td className="py-1 px-3 text-xs text-muted-foreground"></td>
+                      {displayCols.map((c) => (
+                        <td key={c} className="py-1 px-3 whitespace-nowrap text-xs text-foreground">
+                          {formatVal(row[getFieldKey(c)])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  {node.rows.length > (compact ? 5 : 50) && (
+                    <tr>
+                      <td colSpan={displayCols.length + 2} className="text-xs text-muted-foreground text-center py-1">
+                        +{node.rows.length - (compact ? 5 : 50)} more
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
+            <tr className="bg-muted/30 font-semibold">
+              <td className="py-1.5 px-3 text-xs" colSpan={2}>Total</td>
+              {displayCols.map((c) => (
+                <td key={c} className="py-1.5 px-3 text-xs text-muted-foreground"></td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
         <div className="text-xs text-muted-foreground text-center mt-2">
           {Object.keys(grouped).length} groups · {data.length} total records
         </div>

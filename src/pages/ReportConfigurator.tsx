@@ -111,6 +111,7 @@ const ReportConfigurator = () => {
           group_rows: r.group_rows || [],
           group_columns: r.group_columns || [],
           filters: r.filters || [],
+          display_options: r.display_options || undefined,
         });
         setMode("view");
       } else {

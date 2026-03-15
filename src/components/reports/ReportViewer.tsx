@@ -13,6 +13,8 @@ import {
   LineChart,
   Hash,
   Lock,
+  PanelRightOpen,
+  PanelRightClose,
 } from "lucide-react";
 import {
   CHART_TYPES,
@@ -41,6 +43,7 @@ interface Props {
 export function ReportViewer({ report, onEdit, onClose }: Props) {
   const [chartType, setChartType] = useState(report.chart_type);
   const [tempFilters, setTempFilters] = useState<ReportFilter[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
 
   const primaryObj = getObjectByKey(report.primary_object);
   const relatedObj = report.related_object ? getObjectByKey(report.related_object) : null;
@@ -84,6 +87,8 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
     setTempFilters((p) => p.filter((_, i) => i !== idx));
   };
 
+  const totalFilterCount = activeFilters.length;
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
@@ -115,53 +120,26 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
           })}
         </div>
 
+        <Button
+          variant={showFilters ? "default" : "outline"}
+          size="sm"
+          className="h-7 gap-1 text-xs"
+          onClick={() => setShowFilters((p) => !p)}
+        >
+          <Filter className="h-3 w-3" />
+          Filters
+          {totalFilterCount > 0 && (
+            <Badge variant="secondary" className="text-[9px] h-4 px-1 ml-0.5">{totalFilterCount}</Badge>
+          )}
+        </Button>
+
         <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={onEdit}>
           <Edit className="h-3 w-3" /> Edit
         </Button>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: Filters panel */}
-        <div className="w-72 md:w-80 border-r border-border flex flex-col shrink-0 bg-card overflow-y-auto p-3">
-          <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2 block">
-            Saved Filters
-          </Label>
-          {report.filters.length === 0 && (
-            <p className="text-[10px] text-muted-foreground mb-3">No saved filters</p>
-          )}
-          {report.filters.map((filter, idx) => (
-            <div key={`saved-${idx}`} className="flex flex-col gap-1 p-1.5 bg-muted/30 rounded text-[11px] mb-2 opacity-80">
-              <div className="flex items-center gap-1">
-                <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
-                <span className="truncate font-medium">{getFieldLabel(filter.field)}</span>
-              </div>
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <span>{filter.operator.replace("_", " ")}</span>
-                {filter.value && <span className="text-foreground font-medium">"{filter.value}"</span>}
-              </div>
-            </div>
-          ))}
-
-          <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2 mt-4 block">
-            Additional Filters
-          </Label>
-          {tempFilters.map((filter, idx) => (
-            <div key={`temp-${idx}`} className="mb-2">
-              <FilterRow
-                filter={filter}
-                allFields={allFields}
-                fieldKeyFn={fieldKeyStr}
-                onChange={(patch) => updateTempFilter(idx, patch)}
-                onRemove={() => removeTempFilter(idx)}
-              />
-            </div>
-          ))}
-          <Button size="sm" variant="outline" onClick={addTempFilter} className="w-full gap-1 text-xs h-7">
-            <Plus className="h-3 w-3" /> Add Filter
-          </Button>
-        </div>
-
-        {/* Right: Report */}
+        {/* Left: Report content */}
         <div className="flex-1 overflow-y-auto p-4 bg-background">
           <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground flex-wrap">
             {report.description && <span>{report.description}</span>}
@@ -184,6 +162,58 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
             />
           </div>
         </div>
+
+        {/* Right: Filters panel (toggled) */}
+        {showFilters && (
+          <div className="w-72 md:w-80 border-l border-border flex flex-col shrink-0 bg-card overflow-y-auto p-3">
+            <div className="flex items-center justify-between mb-3">
+              <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                Filters
+              </Label>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowFilters(false)}>
+                <PanelRightClose className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            {report.filters.length > 0 && (
+              <>
+                <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2 block">
+                  Saved Filters
+                </Label>
+                {report.filters.map((filter, idx) => (
+                  <div key={`saved-${idx}`} className="flex flex-col gap-1 p-1.5 bg-muted/30 rounded text-[11px] mb-2 opacity-80">
+                    <div className="flex items-center gap-1">
+                      <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span className="truncate font-medium">{getFieldLabel(filter.field)}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <span>{filter.operator.replace("_", " ")}</span>
+                      {filter.value && <span className="text-foreground font-medium">"{filter.value}"</span>}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2 mt-3 block">
+              Additional Filters
+            </Label>
+            {tempFilters.map((filter, idx) => (
+              <div key={`temp-${idx}`} className="mb-2">
+                <FilterRow
+                  filter={filter}
+                  allFields={allFields}
+                  fieldKeyFn={fieldKeyStr}
+                  onChange={(patch) => updateTempFilter(idx, patch)}
+                  onRemove={() => removeTempFilter(idx)}
+                />
+              </div>
+            ))}
+            <Button size="sm" variant="outline" onClick={addTempFilter} className="w-full gap-1 text-xs h-7">
+              <Plus className="h-3 w-3" /> Add Filter
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

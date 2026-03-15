@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getObjectByKey, type ReportFilter } from "@/lib/reportObjects";
 import { Badge } from "@/components/ui/badge";
@@ -71,21 +71,62 @@ export function ReportPreview({
   const fetchData = async () => {
     setLoading(true);
     const primaryObj = getObjectByKey(primaryObject);
-    if (!primaryObj) return;
+    if (!primaryObj) { setLoading(false); return; }
 
     const allFieldKeys = [...new Set([...columns, ...groupRows, ...groupColumns])];
-    const primaryFields = allFieldKeys
+
+    // Determine which fields we need from primary
+    const primaryFieldKeys = allFieldKeys
       .filter((fk) => fk.startsWith(`${primaryObject}.`))
       .map((fk) => fk.split(".")[1]);
+    if (!primaryFieldKeys.includes("id")) primaryFieldKeys.push("id");
 
-    if (!primaryFields.includes("id")) primaryFields.push("id");
-
-    if (primaryFields.length === 1 && primaryFields[0] === "id" && allFieldKeys.length === 0) {
-      primaryFields.push("id");
+    // If no fields selected at all, select all primary fields
+    if (allFieldKeys.length === 0) {
+      primaryObj.fields.forEach((f) => {
+        if (!primaryFieldKeys.includes(f.key)) primaryFieldKeys.push(f.key);
+      });
     }
 
-    let query = supabase.from(primaryObj.table as any).select(primaryFields.join(","));
+    // Determine related object fields
+    const relatedObj = relatedObject ? getObjectByKey(relatedObject) : null;
+    const relatedFieldKeys = relatedObj
+      ? allFieldKeys
+          .filter((fk) => fk.startsWith(`${relatedObject}.`))
+          .map((fk) => fk.split(".")[1])
+      : [];
 
+    // Build select string - use Supabase nested select for joins
+    let selectStr = primaryFieldKeys.join(",");
+
+    // Find the foreign key relationship
+    let foreignKey = "";
+    if (relatedObj && relatedObject) {
+      const relation = primaryObj.relations?.find((r) => r.objectKey === relatedObject);
+      if (relation) {
+        foreignKey = relation.foreignKey;
+        // Primary table has the FK pointing to related table
+        // Use Supabase nested select: related_table(field1, field2)
+        const relFields = relatedFieldKeys.length > 0 ? relatedFieldKeys : relatedObj.fields.map((f) => f.key);
+        selectStr += `,${relatedObj.table}(${relFields.join(",")})`;
+        // Ensure the FK column is selected
+        if (!primaryFieldKeys.includes(foreignKey)) {
+          selectStr = `${foreignKey},${selectStr}`;
+        }
+      } else {
+        // Check reverse: related object might have FK to primary
+        const reverseRelation = relatedObj.relations?.find((r) => r.objectKey === primaryObject);
+        if (reverseRelation) {
+          // Related table has FK to primary - still use nested select
+          const relFields = relatedFieldKeys.length > 0 ? relatedFieldKeys : relatedObj.fields.map((f) => f.key);
+          selectStr += `,${relatedObj.table}(${relFields.join(",")})`;
+        }
+      }
+    }
+
+    let query = supabase.from(primaryObj.table as any).select(selectStr);
+
+    // Apply primary object filters
     filters
       .filter((f) => f.field.startsWith(`${primaryObject}.`))
       .forEach((f) => {
@@ -105,17 +146,91 @@ export function ReportPreview({
 
     query = query.limit(500);
     const { data: result, error } = await query;
-    if (!error && result) setData(result);
+
+    if (error) {
+      console.error("Report query error:", error);
+      setData([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!result) {
+      setData([]);
+      setLoading(false);
+      return;
+    }
+
+    // Flatten nested related object data
+    const flattenedData = (result as any[]).map((row) => {
+      const flat: any = {};
+      // Copy primary fields
+      for (const key of Object.keys(row)) {
+        if (relatedObj && key === relatedObj.table) {
+          // Nested related object - flatten with prefix
+          const nested = row[key];
+          if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+            for (const nk of Object.keys(nested)) {
+              flat[`__related__.${nk}`] = nested[nk];
+            }
+          } else if (Array.isArray(nested) && nested.length > 0) {
+            // One-to-many: take first match for now
+            for (const nk of Object.keys(nested[0])) {
+              flat[`__related__.${nk}`] = nested[0][nk];
+            }
+          }
+        } else {
+          flat[key] = row[key];
+        }
+      }
+      return flat;
+    });
+
+    // Apply related object filters client-side
+    const relatedFilters = filters.filter((f) => relatedObject && f.field.startsWith(`${relatedObject}.`));
+    let filteredData = flattenedData;
+    if (relatedFilters.length > 0) {
+      filteredData = flattenedData.filter((row) => {
+        return relatedFilters.every((f) => {
+          const col = f.field.split(".")[1];
+          const val = row[`__related__.${col}`];
+          const strVal = String(val ?? "");
+          switch (f.operator) {
+            case "equals": return strVal === f.value;
+            case "not_equals": return strVal !== f.value;
+            case "contains": return strVal.toLowerCase().includes(f.value.toLowerCase());
+            case "gt": return Number(val) > Number(f.value);
+            case "lt": return Number(val) < Number(f.value);
+            case "gte": return Number(val) >= Number(f.value);
+            case "lte": return Number(val) <= Number(f.value);
+            case "is_null": return val === null || val === undefined;
+            case "is_not_null": return val !== null && val !== undefined;
+            default: return true;
+          }
+        });
+      });
+    }
+
+    setData(filteredData);
     setLoading(false);
+  };
+
+  // Resolve a column key like "patients.first_name" to the actual data key in our flattened row
+  const resolveDataKey = (fk: string): string => {
+    const [objKey, fieldKey] = fk.split(".");
+    if (objKey === primaryObject) return fieldKey;
+    if (objKey === relatedObject) return `__related__.${fieldKey}`;
+    return fieldKey;
   };
 
   const getFieldLabel = (fk: string) => {
     const [objKey, fieldKey] = fk.split(".");
     const obj = getObjectByKey(objKey);
-    return obj?.fields.find((f) => f.key === fieldKey)?.label || fieldKey;
+    const field = obj?.fields.find((f) => f.key === fieldKey);
+    if (!field) return fieldKey;
+    // If we have a related object, prefix with object label for clarity
+    if (relatedObject && obj) return `${obj.label} · ${field.label}`;
+    return field.label;
   };
-
-  const getFieldKey = (fk: string) => fk.split(".")[1];
 
   const handleRecordClick = (record: any) => {
     const route = RECORD_ROUTES[primaryObject];
@@ -144,18 +259,19 @@ export function ReportPreview({
   if (data.length === 0) {
     return (
       <div className="text-sm text-muted-foreground py-8 text-center">
-        No records found. Try adjusting your filters.
+        No records found. Try adjusting your filters or selecting different fields.
       </div>
     );
   }
 
-  const allDisplayCols = columns.filter((c) => c.startsWith(`${primaryObject}.`));
-  const groupRowFields = groupRows.filter((c) => c.startsWith(`${primaryObject}.`));
-  const groupColFields = groupColumns.filter((c) => c.startsWith(`${primaryObject}.`));
+  // Use ALL columns (both primary and related)
+  const allDisplayCols = columns.length > 0 ? columns : [];
+  const groupRowFields = groupRows;
+  const groupColFields = groupColumns;
 
-  const groupField = groupRowFields.length > 0 ? getFieldKey(groupRowFields[0]) : null;
-  const groupField2 = groupRowFields.length > 1 ? getFieldKey(groupRowFields[1]) : null;
-  const groupColField = groupColFields.length > 0 ? getFieldKey(groupColFields[0]) : null;
+  const groupField = groupRowFields.length > 0 ? resolveDataKey(groupRowFields[0]) : null;
+  const groupField2 = groupRowFields.length > 1 ? resolveDataKey(groupRowFields[1]) : null;
+  const groupColField = groupColFields.length > 0 ? resolveDataKey(groupColFields[0]) : null;
 
   const numericCols = [...columns, ...groupColumns].filter((c) => {
     const obj = getObjectByKey(c.split(".")[0]);
@@ -170,8 +286,8 @@ export function ReportPreview({
       if (!grouped[key]) grouped[key] = { name: key, count: 0 };
       grouped[key].count += 1;
       numericCols.forEach((nc) => {
-        const col = nc.split(".")[1];
-        grouped[key][col] = (grouped[key][col] || 0) + (Number(row[col]) || 0);
+        const dataKey = resolveDataKey(nc);
+        grouped[key][dataKey] = (grouped[key][dataKey] || 0) + (Number(row[dataKey]) || 0);
       });
     });
     return Object.values(grouped);
@@ -181,8 +297,8 @@ export function ReportPreview({
   if (chartType === "number") {
     const total = data.length;
     const sums = numericCols.map((nc) => {
-      const col = nc.split(".")[1];
-      const sum = data.reduce((s, r) => s + (Number(r[col]) || 0), 0);
+      const dataKey = resolveDataKey(nc);
+      const sum = data.reduce((s, r) => s + (Number(r[dataKey]) || 0), 0);
       return { label: getFieldLabel(nc), sum };
     });
     return (
@@ -204,7 +320,7 @@ export function ReportPreview({
   // Charts
   if (chartType !== "table" && groupField) {
     const chartData = buildChartData();
-    const valueKey = numericCols.length > 0 ? numericCols[0].split(".")[1] : "count";
+    const valueKey = numericCols.length > 0 ? resolveDataKey(numericCols[0]) : "count";
     const height = compact ? 200 : 350;
 
     if (chartType === "bar") {
@@ -273,11 +389,15 @@ export function ReportPreview({
   // TABLE VIEW
   const displayCols = allDisplayCols.length > 0 ? allDisplayCols : groupRowFields;
 
+  // If still no columns to display, show all primary object fields
+  const finalDisplayCols = displayCols.length > 0
+    ? displayCols
+    : (getObjectByKey(primaryObject)?.fields.slice(0, 6).map((f) => `${primaryObject}.${f.key}`) || []);
+
   // Matrix report: group rows + group columns
   if (groupField && groupColField && chartType === "table") {
     const colValues = [...new Set(data.map((r) => String(r[groupColField] || "N/A")))].sort();
     const groupLabel = getFieldLabel(groupRowFields[0]);
-    const groupColLabel = getFieldLabel(groupColFields[0]);
 
     // Build nested groups for multi-level
     const grouped: Record<string, Record<string, any[]>> = {};
@@ -321,7 +441,7 @@ export function ReportPreview({
                   </tr>
                 );
               }
-              // Multi-level: show g1 as a spanning row, then g2 rows
+              // Multi-level
               const subEntries = Object.entries(subGroups);
               return subEntries.map(([g2Key, rows], si) => (
                 <tr key={`${g1Key}-${g2Key}`} className="border-b border-border/50 hover:bg-accent/20">
@@ -357,7 +477,6 @@ export function ReportPreview({
   if (groupField && chartType === "table") {
     const groupLabel = getFieldLabel(groupRowFields[0]);
 
-    // Build nested grouping
     type GroupNode = { rows: any[]; subGroups?: Record<string, GroupNode> };
     const buildGroups = (): Record<string, GroupNode> => {
       const result: Record<string, GroupNode> = {};
@@ -384,7 +503,7 @@ export function ReportPreview({
             <tr className="border-b border-border bg-muted/30">
               <th className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground w-10">#</th>
               <th className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground">{groupLabel}</th>
-              {displayCols.map((c) => (
+              {finalDisplayCols.map((c) => (
                 <th key={c} className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
                   {getFieldLabel(c)}
                 </th>
@@ -400,25 +519,25 @@ export function ReportPreview({
                 let subCounter = 0;
                 const subEntries = Object.entries(node.subGroups);
                 return (
-                  <>
-                    <tr key={`g1-${g1Key}`} className="bg-primary/5 border-b border-border">
+                  <React.Fragment key={`g1-${g1Key}`}>
+                    <tr className="bg-primary/5 border-b border-border">
                       <td className="py-1.5 px-3 text-xs font-bold text-primary">G{currentGroupNum}</td>
-                      <td colSpan={displayCols.length + 1} className="py-1.5 px-3 text-xs font-semibold text-foreground">
+                      <td colSpan={finalDisplayCols.length + 1} className="py-1.5 px-3 text-xs font-semibold text-foreground">
                         {g1Key}
-                        <Badge variant="secondary" className="text-[9px] ml-2">{node.rows.length}</Badge>
+                        <span className="text-[9px] ml-2 text-muted-foreground">({node.rows.length})</span>
                       </td>
                     </tr>
                     {subEntries.map(([g2Key, subNode]) => {
                       subCounter++;
                       return (
-                        <>
-                          <tr key={`g2-${g1Key}-${g2Key}`} className="bg-muted/20 border-b border-border/50">
+                        <React.Fragment key={`g2-${g1Key}-${g2Key}`}>
+                          <tr className="bg-muted/20 border-b border-border/50">
                             <td className="py-1 px-3 pl-6 text-[10px] text-muted-foreground font-medium">
                               {currentGroupNum}.{subCounter}
                             </td>
-                            <td colSpan={displayCols.length + 1} className="py-1 px-3 text-[11px] font-medium text-foreground">
+                            <td colSpan={finalDisplayCols.length + 1} className="py-1 px-3 text-[11px] font-medium text-foreground">
                               {g2Key}
-                              <Badge variant="outline" className="text-[9px] ml-2">{subNode.rows.length}</Badge>
+                              <span className="text-[9px] ml-2 text-muted-foreground">({subNode.rows.length})</span>
                             </td>
                           </tr>
                           {subNode.rows.slice(0, compact ? 3 : 50).map((row, ri) => (
@@ -429,28 +548,28 @@ export function ReportPreview({
                             >
                               <td className="py-1 px-3 text-[10px] text-muted-foreground pl-10"></td>
                               <td className="py-1 px-3 text-xs text-muted-foreground"></td>
-                              {displayCols.map((c) => (
+                              {finalDisplayCols.map((c) => (
                                 <td key={c} className="py-1 px-3 whitespace-nowrap text-xs text-foreground">
-                                  {formatVal(row[getFieldKey(c)])}
+                                  {formatVal(row[resolveDataKey(c)])}
                                 </td>
                               ))}
                             </tr>
                           ))}
-                        </>
+                        </React.Fragment>
                       );
                     })}
-                  </>
+                  </React.Fragment>
                 );
               }
 
               // Single-level group
               return (
-                <>
-                  <tr key={`g1-${g1Key}`} className="bg-primary/5 border-b border-border">
+                <React.Fragment key={`g1-${g1Key}`}>
+                  <tr className="bg-primary/5 border-b border-border">
                     <td className="py-1.5 px-3 text-xs font-bold text-primary">G{currentGroupNum}</td>
-                    <td colSpan={displayCols.length + 1} className="py-1.5 px-3 text-xs font-semibold text-foreground">
+                    <td colSpan={finalDisplayCols.length + 1} className="py-1.5 px-3 text-xs font-semibold text-foreground">
                       {g1Key}
-                      <Badge variant="secondary" className="text-[9px] ml-2">{node.rows.length}</Badge>
+                      <span className="text-[9px] ml-2 text-muted-foreground">({node.rows.length})</span>
                     </td>
                   </tr>
                   {node.rows.slice(0, compact ? 5 : 50).map((row, ri) => (
@@ -461,26 +580,26 @@ export function ReportPreview({
                     >
                       <td className="py-1 px-3 text-[10px] text-muted-foreground"></td>
                       <td className="py-1 px-3 text-xs text-muted-foreground"></td>
-                      {displayCols.map((c) => (
+                      {finalDisplayCols.map((c) => (
                         <td key={c} className="py-1 px-3 whitespace-nowrap text-xs text-foreground">
-                          {formatVal(row[getFieldKey(c)])}
+                          {formatVal(row[resolveDataKey(c)])}
                         </td>
                       ))}
                     </tr>
                   ))}
                   {node.rows.length > (compact ? 5 : 50) && (
                     <tr>
-                      <td colSpan={displayCols.length + 2} className="text-xs text-muted-foreground text-center py-1">
+                      <td colSpan={finalDisplayCols.length + 2} className="text-xs text-muted-foreground text-center py-1">
                         +{node.rows.length - (compact ? 5 : 50)} more
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               );
             })}
             <tr className="bg-muted/30 font-semibold">
               <td className="py-1.5 px-3 text-xs" colSpan={2}>Total</td>
-              {displayCols.map((c) => (
+              {finalDisplayCols.map((c) => (
                 <td key={c} className="py-1.5 px-3 text-xs text-muted-foreground"></td>
               ))}
             </tr>
@@ -499,7 +618,7 @@ export function ReportPreview({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border">
-            {displayCols.map((c) => (
+            {finalDisplayCols.map((c) => (
               <th key={c} className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground whitespace-nowrap">
                 {getFieldLabel(c)}
               </th>
@@ -509,13 +628,13 @@ export function ReportPreview({
         <tbody>
           {data.slice(0, compact ? 10 : 100).map((row, i) => (
             <tr
-              key={i}
+              key={row.id || i}
               className="border-b border-border/50 hover:bg-accent/20 cursor-pointer transition-colors"
               onClick={() => handleRecordClick(row)}
             >
-              {displayCols.map((c) => (
+              {finalDisplayCols.map((c) => (
                 <td key={c} className="py-2 px-3 whitespace-nowrap text-foreground">
-                  {formatVal(row[getFieldKey(c)])}
+                  {formatVal(row[resolveDataKey(c)])}
                 </td>
               ))}
             </tr>

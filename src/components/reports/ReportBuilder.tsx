@@ -63,7 +63,7 @@ interface Props {
   folders: { id: string; name: string }[];
 }
 
-export function ReportBuilder({ initial, onSave, onClose, folders }: Props) {
+export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders }: Props) {
   const [name, setName] = useState(initial?.name || "");
   const [description, setDescription] = useState(initial?.description || "");
   const [primaryObject, setPrimaryObject] = useState(initial?.primary_object || "");

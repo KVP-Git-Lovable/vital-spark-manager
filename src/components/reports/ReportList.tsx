@@ -1,6 +1,6 @@
 import { SavedReport, CHART_TYPES, getObjectByKey } from "@/lib/reportObjects";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Play, BarChart3, PieChart, LineChart, Table, Hash } from "lucide-react";
+import { Edit, Trash2, Play, BarChart3, PieChart, LineChart, Table, Hash, Folder } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 
@@ -15,15 +15,22 @@ interface Props {
   onEdit: (r: SavedReport) => void;
   onDelete: (id: string) => void;
   onRun: (r: SavedReport) => void;
+  folders?: { id: string; name: string }[];
 }
 
-export function ReportList({ reports, onEdit, onDelete, onRun }: Props) {
+export function ReportList({ reports, onEdit, onDelete, onRun, folders }: Props) {
+  const getFolderName = (folderId?: string | null) => {
+    if (!folderId || !folders) return null;
+    return folders.find((f) => f.id === folderId)?.name;
+  };
+
   return (
     <div className="grid gap-4">
       {reports.map((r) => {
         const primary = getObjectByKey(r.primary_object);
         const related = r.related_object ? getObjectByKey(r.related_object) : null;
         const chartLabel = CHART_TYPES.find((c) => c.key === r.chart_type)?.label || r.chart_type;
+        const folderName = getFolderName(r.folder_id);
 
         return (
           <div
@@ -36,6 +43,11 @@ export function ReportList({ reports, onEdit, onDelete, onRun }: Props) {
                 <Badge variant="secondary" className="gap-1 text-xs shrink-0">
                   {chartIcon(r.chart_type)} {chartLabel}
                 </Badge>
+                {folderName && (
+                  <Badge variant="outline" className="gap-1 text-[10px] shrink-0">
+                    <Folder className="h-3 w-3" /> {folderName}
+                  </Badge>
+                )}
               </div>
               {r.description && (
                 <p className="text-sm text-muted-foreground truncate">{r.description}</p>
@@ -54,7 +66,7 @@ export function ReportList({ reports, onEdit, onDelete, onRun }: Props) {
             </div>
             <div className="flex gap-2 shrink-0">
               <Button size="sm" variant="outline" onClick={() => onRun(r)} className="gap-1">
-                <Play className="h-3.5 w-3.5" /> Run
+                <Play className="h-3.5 w-3.5" /> View
               </Button>
               <Button size="sm" variant="ghost" onClick={() => onEdit(r)}>
                 <Edit className="h-3.5 w-3.5" />

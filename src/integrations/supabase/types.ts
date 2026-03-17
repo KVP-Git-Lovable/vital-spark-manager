@@ -337,6 +337,48 @@ export type Database = {
           },
         ]
       }
+      cart_items: {
+        Row: {
+          created_at: string
+          id: string
+          patient_id: string
+          product_id: string
+          quantity: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          patient_id: string
+          product_id: string
+          quantity?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          patient_id?: string
+          product_id?: string
+          quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cart_items_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cart_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "pharma_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_settings: {
         Row: {
           address: string | null
@@ -881,6 +923,7 @@ export type Database = {
         Row: {
           address: string | null
           allergies: string | null
+          auth_user_id: string | null
           blood_group: string | null
           city: string | null
           created_at: string
@@ -914,6 +957,7 @@ export type Database = {
         Insert: {
           address?: string | null
           allergies?: string | null
+          auth_user_id?: string | null
           blood_group?: string | null
           city?: string | null
           created_at?: string
@@ -947,6 +991,7 @@ export type Database = {
         Update: {
           address?: string | null
           allergies?: string | null
+          auth_user_id?: string | null
           blood_group?: string | null
           city?: string | null
           created_at?: string

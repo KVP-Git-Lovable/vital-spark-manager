@@ -33,7 +33,6 @@ import ShopProduct from "./pages/shop/ShopProduct";
 import ShopCart from "./pages/shop/ShopCart";
 import ShopCheckout from "./pages/shop/ShopCheckout";
 import ShopOrders from "./pages/shop/ShopOrders";
-import Website from "./pages/Website";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,9 +45,6 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* Marketing website */}
-            <Route path="/website" element={<Website />} />
-
             {/* Auth pages */}
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />

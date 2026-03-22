@@ -35,7 +35,20 @@ import ShopCheckout from "./pages/shop/ShopCheckout";
 import ShopOrders from "./pages/shop/ShopOrders";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      refetchOnWindowFocus: true,
+      staleTime: 30_000,
+      meta: {
+        onError: (error: Error) => {
+          console.error("[QueryClient] Query error:", error.message);
+        },
+      },
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

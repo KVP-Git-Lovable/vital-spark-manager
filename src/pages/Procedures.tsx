@@ -113,6 +113,8 @@ const Procedures = () => {
           <TableBody>
             {isLoading ? (
               <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+            ) : queryError ? (
+              <TableRow><TableCell colSpan={6} className="text-center py-8 text-destructive">Error: {queryError.message}</TableCell></TableRow>
             ) : filtered.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No procedures found</TableCell></TableRow>
             ) : (

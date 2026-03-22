@@ -63,6 +63,8 @@ const Procedures = () => {
       <div className="md:hidden space-y-3">
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
+        ) : queryError ? (
+          <div className="text-center py-8 text-destructive text-sm">Error loading procedures: {queryError.message}</div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground text-sm">No procedures found</div>
         ) : (

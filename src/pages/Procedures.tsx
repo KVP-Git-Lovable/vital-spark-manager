@@ -19,14 +19,19 @@ const Procedures = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [cameraProc, setCameraProc] = useState<any>(null);
 
-  const { data: procedures = [], isLoading } = useQuery({
+  const { data: procedures = [], isLoading, error: queryError } = useQuery({
     queryKey: ["procedures"],
     queryFn: async () => {
+      console.log("[Procedures] Fetching procedures...");
       const { data, error } = await supabase
         .from("procedures")
         .select("*, patients(first_name, last_name), staff(first_name, last_name)")
         .order("procedure_date", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        console.error("[Procedures] Query error:", error);
+        throw error;
+      }
+      console.log("[Procedures] Fetched", data?.length, "records");
       return data;
     },
   });

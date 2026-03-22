@@ -87,9 +87,10 @@ const Expenses = () => {
     },
   });
 
-  const { data: expenses = [], isLoading } = useQuery({
+  const { data: expenses = [], isLoading, error: queryError } = useQuery({
     queryKey: ["expenses", filterMonth, filterCategory, search],
     queryFn: async () => {
+      console.log("[Expenses] Fetching expenses for month:", filterMonth);
       let query = supabase.from("expenses").select("*, expense_categories(*)").order("expense_date", { ascending: false });
 
       if (filterMonth) {
@@ -105,7 +106,11 @@ const Expenses = () => {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error("[Expenses] Query error:", error);
+        throw error;
+      }
+      console.log("[Expenses] Fetched", data?.length, "records");
       return data as Expense[];
     },
   });

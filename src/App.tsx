@@ -1,7 +1,12 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  MutationCache,
+  QueryCache,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -36,7 +41,28 @@ import ShopOrders from "./pages/shop/ShopOrders";
 import Website from "./pages/Website";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      networkMode: "always",
+    },
+    mutations: {
+      retry: 1,
+      networkMode: "always",
+    },
+  },
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      console.error("Query failed:", query.queryKey, error);
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      console.error("Mutation failed:", mutation.options.mutationKey, error);
+    },
+  }),
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

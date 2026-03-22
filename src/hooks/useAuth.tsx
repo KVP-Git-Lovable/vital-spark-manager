@@ -92,45 +92,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, sess) => {
-        setSession(sess);
-        setUser(sess?.user ?? null);
-        try {
-          if (sess?.user) {
-            await loadPatientProfile(sess.user);
-          } else {
-            setPatientId(null);
-            setPatientName(null);
-          }
-        } catch (error) {
-          console.error("Failed to load patient profile on auth change:", error);
-          setPatientId(null);
-          setPatientName(null);
-        } finally {
-          setLoading(false);
-        }
-      }
-    );
+    let isMounted = true;
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (!s?.user) {
+    const clearPatient = () => {
+      if (!isMounted) return;
+      setPatientId(null);
+      setPatientName(null);
+    };
+
+    const syncSessionState = async (sess: Session | null) => {
+      if (!isMounted) return;
+
+      setSession(sess);
+      setUser(sess?.user ?? null);
+
+      if (!sess?.user) {
+        clearPatient();
         setLoading(false);
         return;
       }
 
-      loadPatientProfile(s.user)
-        .catch((error) => {
-          console.error("Failed to load patient profile from initial session:", error);
-          setPatientId(null);
-          setPatientName(null);
-        })
-        .finally(() => setLoading(false));
+      try {
+        await loadPatientProfile(sess.user);
+      } catch (error) {
+        console.error("Failed to load patient profile:", error);
+        clearPatient();
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess) => {
+      window.setTimeout(() => {
+        void syncSessionState(sess);
+      }, 0);
     });
 
-    return () => subscription.unsubscribe();
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      void syncSessionState(s);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {

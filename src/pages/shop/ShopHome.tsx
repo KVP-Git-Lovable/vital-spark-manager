@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Package, ShoppingCart } from "lucide-react";
+import { Search, Package, ShoppingCart, Plus, Minus, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,10 +11,29 @@ import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
+import sampleSerum from "@/assets/sample-products/serum.jpg";
+import sampleMoisturizer from "@/assets/sample-products/moisturizer.jpg";
+import sampleSunscreen from "@/assets/sample-products/sunscreen.jpg";
+import sampleCleanser from "@/assets/sample-products/cleanser.jpg";
+import sampleToner from "@/assets/sample-products/toner.jpg";
+import sampleEyecream from "@/assets/sample-products/eyecream.jpg";
+
+const sampleImages = [sampleSerum, sampleMoisturizer, sampleSunscreen, sampleCleanser, sampleToner, sampleEyecream];
+const getSampleImage = (name: string, index: number) => {
+  const lower = name.toLowerCase();
+  if (lower.includes("serum")) return sampleSerum;
+  if (lower.includes("moistur") || lower.includes("cream")) return sampleMoisturizer;
+  if (lower.includes("sun") || lower.includes("spf")) return sampleSunscreen;
+  if (lower.includes("clean") || lower.includes("wash") || lower.includes("foam")) return sampleCleanser;
+  if (lower.includes("toner") || lower.includes("tonic")) return sampleToner;
+  if (lower.includes("eye")) return sampleEyecream;
+  return sampleImages[index % sampleImages.length];
+};
+
 const ShopHome = () => {
   const navigate = useNavigate();
   const { user, patientId } = useAuth();
-  const { addToCart } = useCart(patientId);
+  const { addToCart, cartItems, updateQuantity, removeFromCart } = useCart(patientId);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
@@ -33,7 +52,13 @@ const ShopHome = () => {
     return matchSearch && matchCat;
   });
 
-  const handleAddToCart = (product: any) => {
+  const getCartQty = (productId: string) => {
+    const item = cartItems.find(i => i.productId === productId);
+    return item?.quantity || 0;
+  };
+
+  const handleAddToCart = (product: any, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (!user) {
       toast.error("Please sign in to add items to cart");
       navigate("/login");
@@ -42,6 +67,17 @@ const ShopHome = () => {
     addToCart.mutate(product, {
       onSuccess: () => toast.success(`${product.name} added to cart`),
     });
+  };
+
+  const handleUpdateQty = (productId: string, delta: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!user) return;
+    const qty = getCartQty(productId);
+    if (qty + delta <= 0) {
+      removeFromCart.mutate(productId);
+    } else {
+      updateQuantity.mutate({ productId, delta });
+    }
   };
 
   return (
@@ -99,49 +135,62 @@ const ShopHome = () => {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-            {filtered.map((product: any) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="bg-card rounded-xl border shadow-sm overflow-hidden hover:shadow-md transition-shadow group cursor-pointer"
-                onClick={() => navigate(`/shop/product/${product.id}`)}
-              >
-                {product.image_url ? (
-                  <img src={product.image_url} alt={product.name} className="h-32 md:h-40 w-full object-cover" />
-                ) : (
-                  <div className="h-32 md:h-40 bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center">
-                    <Package className="h-10 w-10 text-primary/20" />
-                  </div>
-                )}
-                <div className="p-3">
-                  <Badge variant="secondary" className="text-[10px] mb-1">{product.category}</Badge>
-                  <h3 className="text-sm font-semibold text-foreground line-clamp-2 leading-tight">{product.name}</h3>
-                  {product.generic_name && (
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{product.generic_name}</p>
-                  )}
-                  <div className="flex items-center justify-between mt-2">
-                    <div>
-                      <span className="text-sm font-bold text-primary">₹{product.selling_price}</span>
-                      {product.mrp > product.selling_price && (
-                        <span className="text-xs line-through text-muted-foreground ml-1">₹{product.mrp}</span>
+            {filtered.map((product: any, idx: number) => {
+              const qty = getCartQty(product.id);
+              const imgSrc = product.image_url || getSampleImage(product.name, idx);
+              return (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="bg-card rounded-xl border shadow-sm overflow-hidden hover:shadow-md transition-shadow group cursor-pointer"
+                  onClick={() => navigate(`/shop/product/${product.id}`)}
+                >
+                  <img src={imgSrc} alt={product.name} className="h-32 md:h-40 w-full object-cover" />
+                  <div className="p-3">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Badge variant="secondary" className="text-[10px]">{product.category}</Badge>
+                      <span className="text-[10px] text-muted-foreground ml-auto">{product.unit}</span>
+                    </div>
+                    <h3 className="text-sm font-semibold text-foreground line-clamp-2 leading-tight">{product.name}</h3>
+                    {product.generic_name && (
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{product.generic_name}</p>
+                    )}
+                    <div className="flex items-center justify-between mt-2">
+                      <div>
+                        <span className="text-sm font-bold text-primary">₹{product.selling_price}</span>
+                        {product.mrp > product.selling_price && (
+                          <span className="text-xs line-through text-muted-foreground ml-1">₹{product.mrp}</span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Quantity controls */}
+                    <div className="mt-2" onClick={e => e.stopPropagation()}>
+                      {qty === 0 ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full h-8 text-xs gap-1"
+                          onClick={(e) => handleAddToCart(product, e)}
+                        >
+                          <ShoppingCart className="h-3 w-3" /> Add to Cart
+                        </Button>
+                      ) : (
+                        <div className="flex items-center justify-between bg-primary/5 rounded-lg px-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => handleUpdateQty(product.id, -1, e)}>
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="text-sm font-semibold text-primary">{qty}</span>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => handleUpdateQty(product.id, 1, e)}>
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
                       )}
                     </div>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-8 w-8"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAddToCart(product);
-                      }}
-                    >
-                      <ShoppingCart className="h-3.5 w-3.5" />
-                    </Button>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>

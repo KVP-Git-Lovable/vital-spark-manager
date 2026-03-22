@@ -19,19 +19,14 @@ const Procedures = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [cameraProc, setCameraProc] = useState<any>(null);
 
-  const { data: procedures = [], isLoading, error: queryError } = useQuery({
+  const { data: procedures = [], isLoading } = useQuery({
     queryKey: ["procedures"],
     queryFn: async () => {
-      console.log("[Procedures] Fetching procedures...");
       const { data, error } = await supabase
         .from("procedures")
         .select("*, patients(first_name, last_name), staff(first_name, last_name)")
         .order("procedure_date", { ascending: false });
-      if (error) {
-        console.error("[Procedures] Query error:", error);
-        throw error;
-      }
-      console.log("[Procedures] Fetched", data?.length, "records");
+      if (error) throw error;
       return data;
     },
   });
@@ -63,8 +58,6 @@ const Procedures = () => {
       <div className="md:hidden space-y-3">
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
-        ) : queryError ? (
-          <div className="text-center py-8 text-destructive text-sm">Error loading procedures: {queryError.message}</div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground text-sm">No procedures found</div>
         ) : (
@@ -113,8 +106,6 @@ const Procedures = () => {
           <TableBody>
             {isLoading ? (
               <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
-            ) : queryError ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8 text-destructive">Error: {queryError.message}</TableCell></TableRow>
             ) : filtered.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No procedures found</TableCell></TableRow>
             ) : (

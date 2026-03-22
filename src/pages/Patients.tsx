@@ -21,16 +21,11 @@ import type { Tables } from "@/integrations/supabase/types";
 type Patient = Tables<"patients">;
 
 const fetchPatients = async (): Promise<Patient[]> => {
-  console.log("[Patients] Fetching patients...");
   const { data, error } = await supabase
     .from("patients")
     .select("*")
     .order("created_at", { ascending: false });
-  if (error) {
-    console.error("[Patients] Query error:", error);
-    throw error;
-  }
-  console.log("[Patients] Fetched", data?.length, "records");
+  if (error) throw error;
   return data;
 };
 

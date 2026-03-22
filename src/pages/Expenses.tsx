@@ -390,6 +390,8 @@ const Expenses = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={7} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></TableCell></TableRow>
+              ) : queryError ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-destructive">Error: {queryError.message}</TableCell></TableRow>
               ) : expenses.length === 0 ? (
                 <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No expenses found</TableCell></TableRow>
               ) : (

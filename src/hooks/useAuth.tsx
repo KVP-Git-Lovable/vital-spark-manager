@@ -31,11 +31,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadPatientProfile = async (u: User) => {
     // Find patient linked to this auth user
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("patients")
       .select("id, first_name, last_name")
       .eq("auth_user_id", u.id)
       .maybeSingle();
+
+    if (error) throw error;
 
     if (data) {
       setPatientId(data.id);
@@ -54,10 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (byEmail) {
-        await supabase
+        const { error: updateError } = await supabase
           .from("patients")
           .update({ auth_user_id: u.id })
           .eq("id", byEmail.id);
+        if (updateError) throw updateError;
         setPatientId(byEmail.id);
         setPatientName(`${byEmail.first_name} ${byEmail.last_name}`);
         return;
@@ -68,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const meta = u.user_metadata || {};
     const firstName = meta.first_name || email?.split("@")[0] || "User";
     const lastName = meta.last_name || "";
-    const { data: newPatient } = await supabase
+    const { data: newPatient, error: insertError } = await supabase
       .from("patients")
       .insert({
         first_name: firstName,
@@ -79,6 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .select("id, first_name, last_name")
       .single();
+
+    if (insertError) throw insertError;
 
     if (newPatient) {
       setPatientId(newPatient.id);
@@ -91,24 +96,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (_event, sess) => {
         setSession(sess);
         setUser(sess?.user ?? null);
-        if (sess?.user) {
-          await loadPatientProfile(sess.user);
-        } else {
+        try {
+          if (sess?.user) {
+            await loadPatientProfile(sess.user);
+          } else {
+            setPatientId(null);
+            setPatientName(null);
+          }
+        } catch (error) {
+          console.error("Failed to load patient profile on auth change:", error);
           setPatientId(null);
           setPatientName(null);
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
-      if (s?.user) {
-        loadPatientProfile(s.user).then(() => setLoading(false));
-      } else {
+      if (!s?.user) {
         setLoading(false);
+        return;
       }
+
+      loadPatientProfile(s.user)
+        .catch((error) => {
+          console.error("Failed to load patient profile from initial session:", error);
+          setPatientId(null);
+          setPatientName(null);
+        })
+        .finally(() => setLoading(false));
     });
 
     return () => subscription.unsubscribe();

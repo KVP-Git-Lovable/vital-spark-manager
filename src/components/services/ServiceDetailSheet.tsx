@@ -190,6 +190,18 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
         const { error: mErr } = await supabase.from("service_medicines").insert(rows);
         if (mErr) throw mErr;
       }
+
+      // Delete old asset links, re-insert
+      await supabase.from("asset_service_links").delete().eq("service_id", serviceId!);
+      const assetRows = assetLinks.filter((a) => a.asset_id).map((a) => ({
+        service_id: serviceId!, asset_id: a.asset_id,
+        usage_guideline: a.usage_guideline || null,
+        time_taken: a.time_taken ? parseInt(a.time_taken) : null,
+      }));
+      if (assetRows.length > 0) {
+        const { error: aErr } = await supabase.from("asset_service_links").insert(assetRows);
+        if (aErr) throw aErr;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["services"] });

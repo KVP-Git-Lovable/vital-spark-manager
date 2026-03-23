@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { X, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,8 +19,14 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
@@ -66,8 +72,19 @@ const emptyForm: TablesInsert<"patients"> = {
 export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: PatientFormSheetProps) {
   const [form, setForm] = useState<TablesInsert<"patients">>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [referralPatientSearch, setReferralPatientSearch] = useState("");
+  const [referralPopoverOpen, setReferralPopoverOpen] = useState(false);
+  const [selectedReferralPatientName, setSelectedReferralPatientName] = useState("");
   const { toast } = useToast();
   const isEditing = !!patient;
+
+  const { data: allPatients = [] } = useQuery({
+    queryKey: ["patients-lookup"],
+    queryFn: async () => {
+      const { data } = await supabase.from("patients").select("id, first_name, last_name").order("first_name");
+      return data || [];
+    },
+  });
 
   useEffect(() => {
     if (patient) {
@@ -101,10 +118,15 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
         source_ad_details: (patient as any).source_ad_details || null,
         source_referral_doctor: (patient as any).source_referral_doctor || null,
       });
+      // Set referral patient name if source is "Referred by Patient"
+      if ((patient as any).source === "Referred by Patient" && (patient as any).source_referral_doctor) {
+        const refPat = allPatients.find(p => p.id === (patient as any).source_referral_doctor);
+        if (refPat) setSelectedReferralPatientName(`${refPat.first_name} ${refPat.last_name}`);
+      }
     } else {
       setForm(emptyForm);
     }
-  }, [patient, open]);
+  }, [patient, open, allPatients]);
 
   const updateField = (field: keyof typeof form, value: string | null) => {
     setForm((prev) => ({ ...prev, [field]: value || null }));
@@ -285,21 +307,108 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
               </div>
             </div>
 
-            <div>
-              <Label>Status</Label>
-              <Select
-                value={form.status || "Active"}
-                onValueChange={(v) => updateField("status", v)}
-              >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Status</Label>
+                <Select
+                  value={form.status || "Active"}
+                  onValueChange={(v) => updateField("status", v)}
+                >
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Source</Label>
+                <Select
+                  value={(form as any).source || "Walk-in"}
+                  onValueChange={(v) => setForm((prev) => ({ ...prev, source: v, source_ad_details: v !== "Advertisement" ? null : (prev as any).source_ad_details, source_referral_doctor: (v !== "Dr. referral" && v !== "Referred by Patient") ? null : (prev as any).source_referral_doctor }))}
+                >
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Walk-in">Walk-in</SelectItem>
+                    <SelectItem value="Advertisement">Advertisement</SelectItem>
+                    <SelectItem value="Dr. referral">Dr. referral</SelectItem>
+                    <SelectItem value="Referred by Patient">Referred by Patient</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
+            {(form as any).source === "Advertisement" && (
+              <div>
+                <Label>Advertisement Details *</Label>
+                <Input
+                  value={(form as any).source_ad_details || ""}
+                  onChange={(e) => setForm((prev) => ({ ...prev, source_ad_details: e.target.value || null }))}
+                  placeholder="e.g. Google Ads, Facebook campaign, newspaper..."
+                  className="mt-1.5"
+                />
+              </div>
+            )}
+
+            {(form as any).source === "Dr. referral" && (
+              <div>
+                <Label>Referred Doctor Name *</Label>
+                <Input
+                  value={(form as any).source_referral_doctor || ""}
+                  onChange={(e) => setForm((prev) => ({ ...prev, source_referral_doctor: e.target.value || null }))}
+                  placeholder="Dr. name who referred"
+                  className="mt-1.5"
+                />
+              </div>
+            )}
+
+            {(form as any).source === "Referred by Patient" && (
+              <div>
+                <Label>Referring Patient *</Label>
+                <Popover open={referralPopoverOpen} onOpenChange={setReferralPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full mt-1.5 justify-start font-normal">
+                      {selectedReferralPatientName || "Select patient..."}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-2" align="start">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Search className="h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search patients..."
+                        value={referralPatientSearch}
+                        onChange={(e) => setReferralPatientSearch(e.target.value)}
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto space-y-0.5">
+                      {allPatients
+                        .filter(p => patient ? p.id !== patient.id : true)
+                        .filter(p => `${p.first_name} ${p.last_name}`.toLowerCase().includes(referralPatientSearch.toLowerCase()))
+                        .slice(0, 20)
+                        .map(p => (
+                          <button
+                            key={p.id}
+                            className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent"
+                            onClick={() => {
+                              setForm(prev => ({ ...prev, source_referral_doctor: p.id }));
+                              setSelectedReferralPatientName(`${p.first_name} ${p.last_name}`);
+                              setReferralPopoverOpen(false);
+                              setReferralPatientSearch("");
+                            }}
+                          >
+                            {p.first_name} {p.last_name}
+                          </button>
+                        ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="medical" className="space-y-4 mt-4">
@@ -407,47 +516,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
           </TabsContent>
 
           <TabsContent value="social" className="space-y-4 mt-4">
-            <div>
-              <Label>Source</Label>
-              <Select
-                value={(form as any).source || "Walk-in"}
-                onValueChange={(v) => setForm((prev) => ({ ...prev, source: v, source_ad_details: v !== "Advertisement" ? null : (prev as any).source_ad_details, source_referral_doctor: v !== "Other Dr. referral" ? null : (prev as any).source_referral_doctor }))}
-              >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Walk-in">Walk-in</SelectItem>
-                  <SelectItem value="Advertisement">Advertisement</SelectItem>
-                  <SelectItem value="Other Dr. referral">Other Dr. referral</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {(form as any).source === "Advertisement" && (
-              <div>
-                <Label>Advertisement Details *</Label>
-                <Input
-                  value={(form as any).source_ad_details || ""}
-                  onChange={(e) => setForm((prev) => ({ ...prev, source_ad_details: e.target.value || null }))}
-                  placeholder="e.g. Google Ads, Facebook campaign, newspaper..."
-                  className="mt-1.5"
-                />
-              </div>
-            )}
-
-            {(form as any).source === "Other Dr. referral" && (
-              <div>
-                <Label>Referred Doctor Name *</Label>
-                <Input
-                  value={(form as any).source_referral_doctor || ""}
-                  onChange={(e) => setForm((prev) => ({ ...prev, source_referral_doctor: e.target.value || null }))}
-                  placeholder="Dr. name who referred"
-                  className="mt-1.5"
-                />
-              </div>
-            )}
-
             <div>
               <Label>Facebook URL</Label>
               <Input

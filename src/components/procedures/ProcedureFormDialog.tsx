@@ -333,6 +333,41 @@ export function ProcedureFormDialog({
             ))}
           </div>
 
+          {/* Required Assets */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <Label className="text-base font-display font-semibold flex items-center gap-2">
+                <Wrench className="h-4 w-4" /> Required Assets
+              </Label>
+              <Button type="button" variant="outline" size="sm" onClick={addAsset}>
+                <Plus className="h-3 w-3 mr-1" /> Add Asset
+              </Button>
+            </div>
+            {procedureAssets.length === 0 && (
+              <p className="text-xs text-muted-foreground mb-2">No assets linked. Select a service to auto-populate or add manually.</p>
+            )}
+            {procedureAssets.map((asset, i) => (
+              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Asset {i + 1}</span>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeAsset(i)}>Remove</Button>
+                </div>
+                <Select value={asset.asset_id} onValueChange={(v) => updateAsset(i, "asset_id", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select asset" /></SelectTrigger>
+                  <SelectContent>
+                    {allAssets.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="Usage guideline" value={asset.usage_guideline} onChange={(e) => updateAsset(i, "usage_guideline", e.target.value)} />
+                  <Input type="number" placeholder="Time taken (mins)" value={asset.time_taken} onChange={(e) => updateAsset(i, "time_taken", e.target.value)} />
+                </div>
+              </div>
+            ))}
+          </div>
+
           <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!patientId || createMutation.isPending}>
             {createMutation.isPending ? "Saving..." : "Save Procedure"}
           </Button>

@@ -146,6 +146,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
   const handleClose = () => {
     setInitialized(false);
     setMedicines([]);
+    setAssetLinks([]);
     onClose();
   };
 

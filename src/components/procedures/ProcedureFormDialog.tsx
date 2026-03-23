@@ -24,6 +24,13 @@ interface PrescriptionInput {
   quantity: number;
 }
 
+interface AssetInput {
+  asset_id: string;
+  asset_name: string;
+  usage_guideline: string;
+  time_taken: string;
+}
+
 interface ProcedureFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

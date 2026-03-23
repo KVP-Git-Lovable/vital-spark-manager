@@ -342,7 +342,35 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
               ))}
             </div>
 
-            {/* Actions */}
+            {/* Assets */}
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-base font-display font-semibold flex items-center gap-2">
+                  <Wrench className="h-4 w-4" /> Required Assets
+                </Label>
+                <Button type="button" variant="outline" size="sm" onClick={addAssetLink}>
+                  <Plus className="h-3 w-3 mr-1" /> Add Asset
+                </Button>
+              </div>
+              {assetLinks.map((al, i) => (
+                <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Asset {i + 1}</span>
+                    <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeAssetLink(i)}>Remove</Button>
+                  </div>
+                  <Select value={al.asset_id} onValueChange={(v) => updateAssetLink(i, "asset_id", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select asset" /></SelectTrigger>
+                    <SelectContent>
+                      {allAssets.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="Usage guideline" value={al.usage_guideline} onChange={(e) => updateAssetLink(i, "usage_guideline", e.target.value)} />
+                    <Input type="number" placeholder="Time taken (mins)" value={al.time_taken} onChange={(e) => updateAssetLink(i, "time_taken", e.target.value)} />
+                  </div>
+                </div>
+              ))}
+            </div>
             <div className="flex gap-2 pt-4 border-t">
               <Button className="flex-1 gap-2" onClick={() => updateMutation.mutate()} disabled={!name || updateMutation.isPending}>
                 <Save className="h-4 w-4" /> {updateMutation.isPending ? "Saving..." : "Save Changes"}

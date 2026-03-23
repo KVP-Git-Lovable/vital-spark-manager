@@ -131,6 +131,18 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     }
   }, [serviceMeds, initialized]);
 
+  useEffect(() => {
+    if (serviceAssetLinks.length > 0 && initialized) {
+      setAssetLinks(serviceAssetLinks.map((a: any) => ({
+        id: a.id,
+        asset_id: a.asset_id,
+        asset_name: a.assets?.name || "",
+        usage_guideline: a.usage_guideline || "",
+        time_taken: a.time_taken ? String(a.time_taken) : "",
+      })));
+    }
+  }, [serviceAssetLinks, initialized]);
+
   const handleClose = () => {
     setInitialized(false);
     setMedicines([]);

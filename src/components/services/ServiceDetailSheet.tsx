@@ -206,6 +206,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
       queryClient.invalidateQueries({ queryKey: ["service-medicines"] });
+      queryClient.invalidateQueries({ queryKey: ["service-asset-links"] });
       toast.success("Service updated");
       handleClose();
     },

@@ -93,6 +93,15 @@ export function ProcedureFormDialog({
     },
   });
 
+  const { data: allAssets = [] } = useQuery({
+    queryKey: ["assets-lookup"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("assets").select("id, name").eq("status", "Active").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Auto-fill from service master
   const applyServiceData = async (svc: any, svcId: string) => {
     setServiceId(svcId);

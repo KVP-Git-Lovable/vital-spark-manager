@@ -127,6 +127,21 @@ export function ProcedureFormDialog({
         quantity: 1,
       })));
     }
+    // Load service assets
+    const { data: assetLinksData } = await supabase
+      .from("asset_service_links")
+      .select("*, assets(name)")
+      .eq("service_id", svcId);
+    if (assetLinksData && assetLinksData.length > 0) {
+      setProcedureAssets(assetLinksData.map((a: any) => ({
+        asset_id: a.asset_id,
+        asset_name: a.assets?.name || "",
+        usage_guideline: a.usage_guideline || "",
+        time_taken: a.time_taken ? String(a.time_taken) : "",
+      })));
+    } else {
+      setProcedureAssets([]);
+    }
     setAutoFilled(true);
     toast.info("Fields auto-filled from Service Master — you can edit them.");
   };

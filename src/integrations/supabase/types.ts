@@ -154,6 +154,8 @@ export type Database = {
           is_required: boolean | null
           notes: string | null
           service_id: string
+          time_taken: number | null
+          usage_guideline: string | null
         }
         Insert: {
           asset_id: string
@@ -162,6 +164,8 @@ export type Database = {
           is_required?: boolean | null
           notes?: string | null
           service_id: string
+          time_taken?: number | null
+          usage_guideline?: string | null
         }
         Update: {
           asset_id?: string
@@ -170,6 +174,8 @@ export type Database = {
           is_required?: boolean | null
           notes?: string | null
           service_id?: string
+          time_taken?: number | null
+          usage_guideline?: string | null
         }
         Relationships: [
           {

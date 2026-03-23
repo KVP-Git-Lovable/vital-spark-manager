@@ -216,12 +216,14 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
   const deleteMutation = useMutation({
     mutationFn: async () => {
       await supabase.from("service_medicines").delete().eq("service_id", serviceId!);
+      await supabase.from("asset_service_links").delete().eq("service_id", serviceId!);
       const { error } = await supabase.from("services").delete().eq("id", serviceId!);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
       queryClient.invalidateQueries({ queryKey: ["service-medicines"] });
+      queryClient.invalidateQueries({ queryKey: ["service-asset-links"] });
       toast.success("Service deleted");
       handleClose();
     },

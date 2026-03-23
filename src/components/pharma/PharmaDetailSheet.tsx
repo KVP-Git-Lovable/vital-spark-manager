@@ -165,6 +165,7 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
                         await supabase.from("pharma_products").update({ image_url: urlData.publicUrl } as any).eq("id", productId!);
                         queryClient.invalidateQueries({ queryKey: ["pharma-product", productId] });
                         queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
+                        queryClient.invalidateQueries({ queryKey: ["shop-products"] });
                         toast.success("Image updated");
                       }} />
                     </label>

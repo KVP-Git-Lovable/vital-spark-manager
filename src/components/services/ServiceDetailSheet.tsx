@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Save, Trash2, Plus, Pill, Sparkles, Loader2 } from "lucide-react";
+import { Save, Trash2, Plus, Pill, Sparkles, Loader2, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,14 @@ interface MedicineInput {
   instructions: string;
 }
 
+interface AssetLinkInput {
+  id?: string;
+  asset_id: string;
+  asset_name: string;
+  usage_guideline: string;
+  time_taken: string;
+}
+
 interface ServiceDetailSheetProps {
   serviceId: string | null;
   onClose: () => void;
@@ -39,6 +47,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [medicines, setMedicines] = useState<MedicineInput[]>([]);
+  const [assetLinks, setAssetLinks] = useState<AssetLinkInput[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [elaborating, setElaborating] = useState<string | null>(null);
 
@@ -74,6 +83,28 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     },
   });
 
+  const { data: allAssets = [] } = useQuery({
+    queryKey: ["assets-lookup"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("assets").select("id, name").eq("status", "Active").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: serviceAssetLinks = [] } = useQuery({
+    queryKey: ["service-asset-links", serviceId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("asset_service_links")
+        .select("*, assets(name)")
+        .eq("service_id", serviceId!);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!serviceId,
+  });
+
   useEffect(() => {
     if (service && !initialized) {
       setName(service.name);
@@ -100,9 +131,22 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     }
   }, [serviceMeds, initialized]);
 
+  useEffect(() => {
+    if (serviceAssetLinks.length > 0 && initialized) {
+      setAssetLinks(serviceAssetLinks.map((a: any) => ({
+        id: a.id,
+        asset_id: a.asset_id,
+        asset_name: a.assets?.name || "",
+        usage_guideline: a.usage_guideline || "",
+        time_taken: a.time_taken ? String(a.time_taken) : "",
+      })));
+    }
+  }, [serviceAssetLinks, initialized]);
+
   const handleClose = () => {
     setInitialized(false);
     setMedicines([]);
+    setAssetLinks([]);
     onClose();
   };
 
@@ -146,10 +190,23 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
         const { error: mErr } = await supabase.from("service_medicines").insert(rows);
         if (mErr) throw mErr;
       }
+
+      // Delete old asset links, re-insert
+      await supabase.from("asset_service_links").delete().eq("service_id", serviceId!);
+      const assetRows = assetLinks.filter((a) => a.asset_id).map((a) => ({
+        service_id: serviceId!, asset_id: a.asset_id,
+        usage_guideline: a.usage_guideline || null,
+        time_taken: a.time_taken ? parseInt(a.time_taken) : null,
+      }));
+      if (assetRows.length > 0) {
+        const { error: aErr } = await supabase.from("asset_service_links").insert(assetRows);
+        if (aErr) throw aErr;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
       queryClient.invalidateQueries({ queryKey: ["service-medicines"] });
+      queryClient.invalidateQueries({ queryKey: ["service-asset-links"] });
       toast.success("Service updated");
       handleClose();
     },
@@ -159,12 +216,14 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
   const deleteMutation = useMutation({
     mutationFn: async () => {
       await supabase.from("service_medicines").delete().eq("service_id", serviceId!);
+      await supabase.from("asset_service_links").delete().eq("service_id", serviceId!);
       const { error } = await supabase.from("services").delete().eq("id", serviceId!);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
       queryClient.invalidateQueries({ queryKey: ["service-medicines"] });
+      queryClient.invalidateQueries({ queryKey: ["service-asset-links"] });
       toast.success("Service deleted");
       handleClose();
     },
@@ -179,6 +238,15 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     setMedicines(updated);
   };
   const removeMedicine = (i: number) => setMedicines(medicines.filter((_, idx) => idx !== i));
+
+  const addAssetLink = () => setAssetLinks([...assetLinks, { asset_id: "", asset_name: "", usage_guideline: "", time_taken: "" }]);
+  const updateAssetLink = (i: number, field: keyof AssetLinkInput, value: string) => {
+    const updated = [...assetLinks];
+    (updated[i] as any)[field] = value;
+    if (field === "asset_id") { updated[i].asset_name = allAssets.find((a) => a.id === value)?.name || ""; }
+    setAssetLinks(updated);
+  };
+  const removeAssetLink = (i: number) => setAssetLinks(assetLinks.filter((_, idx) => idx !== i));
 
   return (
     <Sheet open={!!serviceId} onOpenChange={(open) => { if (!open) handleClose(); }}>
@@ -274,7 +342,35 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
               ))}
             </div>
 
-            {/* Actions */}
+            {/* Assets */}
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-base font-display font-semibold flex items-center gap-2">
+                  <Wrench className="h-4 w-4" /> Required Assets
+                </Label>
+                <Button type="button" variant="outline" size="sm" onClick={addAssetLink}>
+                  <Plus className="h-3 w-3 mr-1" /> Add Asset
+                </Button>
+              </div>
+              {assetLinks.map((al, i) => (
+                <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Asset {i + 1}</span>
+                    <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeAssetLink(i)}>Remove</Button>
+                  </div>
+                  <Select value={al.asset_id} onValueChange={(v) => updateAssetLink(i, "asset_id", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select asset" /></SelectTrigger>
+                    <SelectContent>
+                      {allAssets.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="Usage guideline" value={al.usage_guideline} onChange={(e) => updateAssetLink(i, "usage_guideline", e.target.value)} />
+                    <Input type="number" placeholder="Time taken (mins)" value={al.time_taken} onChange={(e) => updateAssetLink(i, "time_taken", e.target.value)} />
+                  </div>
+                </div>
+              ))}
+            </div>
             <div className="flex gap-2 pt-4 border-t">
               <Button className="flex-1 gap-2" onClick={() => updateMutation.mutate()} disabled={!name || updateMutation.isPending}>
                 <Save className="h-4 w-4" /> {updateMutation.isPending ? "Saving..." : "Save Changes"}

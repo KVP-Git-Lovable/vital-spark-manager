@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Pill } from "lucide-react";
+import { Plus, Pill, Wrench } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,13 @@ interface PrescriptionInput {
   duration: string;
   instructions: string;
   quantity: number;
+}
+
+interface AssetInput {
+  asset_id: string;
+  asset_name: string;
+  usage_guideline: string;
+  time_taken: string;
 }
 
 interface ProcedureFormDialogProps {
@@ -47,6 +54,7 @@ export function ProcedureFormDialog({
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
+  const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);
   const [autoFilled, setAutoFilled] = useState(false);
 
   const { data: patients = [] } = useQuery({
@@ -85,6 +93,15 @@ export function ProcedureFormDialog({
     },
   });
 
+  const { data: allAssets = [] } = useQuery({
+    queryKey: ["assets-lookup"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("assets").select("id, name").eq("status", "Active").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Auto-fill from service master
   const applyServiceData = async (svc: any, svcId: string) => {
     setServiceId(svcId);
@@ -109,6 +126,21 @@ export function ProcedureFormDialog({
         instructions: m.instructions || "",
         quantity: 1,
       })));
+    }
+    // Load service assets
+    const { data: assetLinksData } = await supabase
+      .from("asset_service_links")
+      .select("*, assets(name)")
+      .eq("service_id", svcId);
+    if (assetLinksData && assetLinksData.length > 0) {
+      setProcedureAssets(assetLinksData.map((a: any) => ({
+        asset_id: a.asset_id,
+        asset_name: a.assets?.name || "",
+        usage_guideline: a.usage_guideline || "",
+        time_taken: a.time_taken ? String(a.time_taken) : "",
+      })));
+    } else {
+      setProcedureAssets([]);
     }
     setAutoFilled(true);
     toast.info("Fields auto-filled from Service Master — you can edit them.");
@@ -193,6 +225,15 @@ export function ProcedureFormDialog({
   const removePrescription = (index: number) => {
     setPrescriptions(prescriptions.filter((_, i) => i !== index));
   };
+
+  const addAsset = () => setProcedureAssets([...procedureAssets, { asset_id: "", asset_name: "", usage_guideline: "", time_taken: "" }]);
+  const updateAsset = (index: number, field: keyof AssetInput, value: string) => {
+    const updated = [...procedureAssets];
+    (updated[index] as any)[field] = value;
+    if (field === "asset_id") { updated[index].asset_name = allAssets.find((a) => a.id === value)?.name || ""; }
+    setProcedureAssets(updated);
+  };
+  const removeAsset = (index: number) => setProcedureAssets(procedureAssets.filter((_, i) => i !== index));
 
   const isFromAppointment = !!defaultAppointmentId;
 
@@ -288,6 +329,41 @@ export function ProcedureFormDialog({
                   <Input type="number" placeholder="Qty" value={rx.quantity} onChange={(e) => updatePrescription(i, "quantity", parseInt(e.target.value) || 1)} />
                 </div>
                 <Input placeholder="Special instructions" value={rx.instructions} onChange={(e) => updatePrescription(i, "instructions", e.target.value)} />
+              </div>
+            ))}
+          </div>
+
+          {/* Required Assets */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <Label className="text-base font-display font-semibold flex items-center gap-2">
+                <Wrench className="h-4 w-4" /> Required Assets
+              </Label>
+              <Button type="button" variant="outline" size="sm" onClick={addAsset}>
+                <Plus className="h-3 w-3 mr-1" /> Add Asset
+              </Button>
+            </div>
+            {procedureAssets.length === 0 && (
+              <p className="text-xs text-muted-foreground mb-2">No assets linked. Select a service to auto-populate or add manually.</p>
+            )}
+            {procedureAssets.map((asset, i) => (
+              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Asset {i + 1}</span>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeAsset(i)}>Remove</Button>
+                </div>
+                <Select value={asset.asset_id} onValueChange={(v) => updateAsset(i, "asset_id", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select asset" /></SelectTrigger>
+                  <SelectContent>
+                    {allAssets.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="Usage guideline" value={asset.usage_guideline} onChange={(e) => updateAsset(i, "usage_guideline", e.target.value)} />
+                  <Input type="number" placeholder="Time taken (mins)" value={asset.time_taken} onChange={(e) => updateAsset(i, "time_taken", e.target.value)} />
+                </div>
               </div>
             ))}
           </div>

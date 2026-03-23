@@ -226,6 +226,15 @@ export function ProcedureFormDialog({
     setPrescriptions(prescriptions.filter((_, i) => i !== index));
   };
 
+  const addAsset = () => setProcedureAssets([...procedureAssets, { asset_id: "", asset_name: "", usage_guideline: "", time_taken: "" }]);
+  const updateAsset = (index: number, field: keyof AssetInput, value: string) => {
+    const updated = [...procedureAssets];
+    (updated[index] as any)[field] = value;
+    if (field === "asset_id") { updated[index].asset_name = allAssets.find((a) => a.id === value)?.name || ""; }
+    setProcedureAssets(updated);
+  };
+  const removeAsset = (index: number) => setProcedureAssets(procedureAssets.filter((_, i) => i !== index));
+
   const isFromAppointment = !!defaultAppointmentId;
 
   return (

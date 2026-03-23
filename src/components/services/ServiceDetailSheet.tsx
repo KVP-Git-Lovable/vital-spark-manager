@@ -24,6 +24,14 @@ interface MedicineInput {
   instructions: string;
 }
 
+interface AssetLinkInput {
+  id?: string;
+  asset_id: string;
+  asset_name: string;
+  usage_guideline: string;
+  time_taken: string;
+}
+
 interface ServiceDetailSheetProps {
   serviceId: string | null;
   onClose: () => void;

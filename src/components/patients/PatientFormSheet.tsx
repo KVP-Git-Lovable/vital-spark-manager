@@ -126,7 +126,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
     } else {
       setForm(emptyForm);
     }
-  }, [patient, open]);
+  }, [patient, open, allPatients]);
 
   const updateField = (field: keyof typeof form, value: string | null) => {
     setForm((prev) => ({ ...prev, [field]: value || null }));

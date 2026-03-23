@@ -47,6 +47,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [medicines, setMedicines] = useState<MedicineInput[]>([]);
+  const [assetLinks, setAssetLinks] = useState<AssetLinkInput[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [elaborating, setElaborating] = useState<string | null>(null);
 

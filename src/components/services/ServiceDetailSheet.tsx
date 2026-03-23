@@ -239,6 +239,15 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
   };
   const removeMedicine = (i: number) => setMedicines(medicines.filter((_, idx) => idx !== i));
 
+  const addAssetLink = () => setAssetLinks([...assetLinks, { asset_id: "", asset_name: "", usage_guideline: "", time_taken: "" }]);
+  const updateAssetLink = (i: number, field: keyof AssetLinkInput, value: string) => {
+    const updated = [...assetLinks];
+    (updated[i] as any)[field] = value;
+    if (field === "asset_id") { updated[i].asset_name = allAssets.find((a) => a.id === value)?.name || ""; }
+    setAssetLinks(updated);
+  };
+  const removeAssetLink = (i: number) => setAssetLinks(assetLinks.filter((_, idx) => idx !== i));
+
   return (
     <Sheet open={!!serviceId} onOpenChange={(open) => { if (!open) handleClose(); }}>
       <SheetContent className="sm:max-w-xl w-full overflow-y-auto">

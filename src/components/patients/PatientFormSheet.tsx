@@ -72,8 +72,19 @@ const emptyForm: TablesInsert<"patients"> = {
 export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: PatientFormSheetProps) {
   const [form, setForm] = useState<TablesInsert<"patients">>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [referralPatientSearch, setReferralPatientSearch] = useState("");
+  const [referralPopoverOpen, setReferralPopoverOpen] = useState(false);
+  const [selectedReferralPatientName, setSelectedReferralPatientName] = useState("");
   const { toast } = useToast();
   const isEditing = !!patient;
+
+  const { data: allPatients = [] } = useQuery({
+    queryKey: ["patients-lookup"],
+    queryFn: async () => {
+      const { data } = await supabase.from("patients").select("id, first_name, last_name").order("first_name");
+      return data || [];
+    },
+  });
 
   useEffect(() => {
     if (patient) {

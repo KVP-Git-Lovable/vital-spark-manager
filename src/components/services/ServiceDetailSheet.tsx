@@ -83,6 +83,28 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     },
   });
 
+  const { data: allAssets = [] } = useQuery({
+    queryKey: ["assets-lookup"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("assets").select("id, name").eq("status", "Active").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: serviceAssetLinks = [] } = useQuery({
+    queryKey: ["service-asset-links", serviceId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("asset_service_links")
+        .select("*, assets(name)")
+        .eq("service_id", serviceId!);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!serviceId,
+  });
+
   useEffect(() => {
     if (service && !initialized) {
       setName(service.name);

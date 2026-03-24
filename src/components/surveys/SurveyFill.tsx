@@ -141,7 +141,7 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
 
               {q.question_type === "single_choice" && (
                 <RadioGroup value={answers[q.id] || ""} onValueChange={(v) => updateAnswer(q.id, v)}>
-                  {(q.options as string[]).map((opt: string) => (
+                  {(Array.isArray(q.options) ? q.options : []).map((opt: string) => (
                     <div key={opt} className="flex items-center gap-2">
                       <RadioGroupItem value={opt} id={`${q.id}-${opt}`} />
                       <Label htmlFor={`${q.id}-${opt}`} className="font-normal cursor-pointer">{opt}</Label>

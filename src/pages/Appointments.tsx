@@ -703,6 +703,55 @@ const Appointments = () => {
                   </div>
                 </div>
 
+                {/* Problem Areas */}
+                <div>
+                  <Label className="flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5" /> Problem Areas
+                  </Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full mt-1.5 justify-start text-left font-normal", selectedProblemAreas.length === 0 && "text-muted-foreground")}>
+                        {selectedProblemAreas.length === 0
+                          ? "Select problem areas"
+                          : `${selectedProblemAreas.length} selected`}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-2" align="start">
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {problemAreasList.map((pa: any) => (
+                          <label key={pa.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                            <Checkbox
+                              checked={selectedProblemAreas.includes(pa.id)}
+                              onCheckedChange={(checked) => {
+                                setSelectedProblemAreas(prev =>
+                                  checked ? [...prev, pa.id] : prev.filter(id => id !== pa.id)
+                                );
+                              }}
+                            />
+                            {pa.name}
+                          </label>
+                        ))}
+                        {problemAreasList.length === 0 && (
+                          <p className="text-xs text-muted-foreground p-2">No problem areas defined</p>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  {selectedProblemAreas.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {selectedProblemAreas.map(id => {
+                        const pa = problemAreasList.find((p: any) => p.id === id);
+                        return pa ? (
+                          <Badge key={id} variant="secondary" className="text-xs gap-1">
+                            {pa.name}
+                            <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedProblemAreas(prev => prev.filter(i => i !== id))} />
+                          </Badge>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <Label>Date *</Label>
                   <Popover>

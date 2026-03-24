@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck } from "lucide-react";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -133,6 +133,20 @@ const PatientDetail = () => {
       const { data, error } = await supabase
         .from("procedure_attachments")
         .select("*, procedures(service_name)")
+        .eq("patient_id", id!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: surveyResponses = [] } = useQuery({
+    queryKey: ["patient-surveys", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("survey_responses")
+        .select("*, survey_templates(name, description, problem_areas(name), services(name)), appointments(start_time, service, staff(first_name, last_name))")
         .eq("patient_id", id!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -311,6 +325,7 @@ const PatientDetail = () => {
             <TabsTrigger value="procedures" className="gap-1 text-xs md:text-sm"><ClipboardList className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Procedures</span> ({procedures.length})</TabsTrigger>
             <TabsTrigger value="prescriptions" className="gap-1 text-xs md:text-sm"><Pill className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Rx</span> ({prescriptions.length})</TabsTrigger>
             <TabsTrigger value="family" className="gap-1 text-xs md:text-sm"><Users className="h-3.5 w-3.5" /> Family</TabsTrigger>
+            <TabsTrigger value="surveys" className="gap-1 text-xs md:text-sm"><ClipboardCheck className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Surveys</span> ({surveyResponses.length})</TabsTrigger>
             <TabsTrigger value="attachments" className="gap-1 text-xs md:text-sm"><Paperclip className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Attachments</span> ({attachments.length})</TabsTrigger>
           </TabsList>
         </div>
@@ -880,6 +895,93 @@ const PatientDetail = () => {
         <TabsContent value="family">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <FamilyMembers patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
+          </motion.div>
+        </TabsContent>
+
+        {/* Surveys Tab */}
+        <TabsContent value="surveys">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            {surveyResponses.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <ClipboardCheck className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No survey responses yet</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {surveyResponses.map((sr: any) => {
+                  const template = sr.survey_templates;
+                  const appt = sr.appointments;
+                  const aiRec = sr.ai_recommendation as any;
+                  const aiProducts = (sr.ai_products || []) as any[];
+                  const aiServices = (sr.ai_services || []) as any[];
+
+                  return (
+                    <div key={sr.id} className="stat-card p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="font-semibold text-sm">{template?.name || "Survey"}</h4>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {appt ? `${new Date(appt.start_time).toLocaleDateString()} — ${appt.service}` : new Date(sr.created_at).toLocaleDateString()}
+                            {appt?.staff && ` • Dr. ${appt.staff.first_name} ${appt.staff.last_name}`}
+                          </p>
+                        </div>
+                        <Badge variant={sr.dr_status === "approved" ? "default" : sr.dr_status === "modified" ? "secondary" : "outline"} className="text-[10px]">
+                          {sr.dr_status === "pending_review" ? "Pending Review" : sr.dr_status === "approved" ? "Approved" : "Modified"}
+                        </Badge>
+                      </div>
+
+                      {template?.problem_areas?.name && (
+                        <div className="flex gap-1.5 flex-wrap">
+                          <Badge variant="outline" className="text-[10px]">{template.problem_areas.name}</Badge>
+                          {template?.services?.name && <Badge variant="outline" className="text-[10px]">{template.services.name}</Badge>}
+                        </div>
+                      )}
+
+                      {aiRec?.recommendation && (
+                        <div className="bg-muted/50 rounded-lg p-3">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">AI Recommendation</p>
+                          <p className="text-sm">{aiRec.recommendation}</p>
+                        </div>
+                      )}
+
+                      {aiProducts.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1.5">Recommended Products</p>
+                          <div className="space-y-1">
+                            {aiProducts.map((p: any, i: number) => (
+                              <div key={i} className="flex items-start gap-2 text-sm">
+                                <Pill className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
+                                <span><strong>{p.product_name}</strong> — {p.advice}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {aiServices.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1.5">Recommended Services</p>
+                          <div className="space-y-1">
+                            {aiServices.map((s: any, i: number) => (
+                              <div key={i} className="flex items-start gap-2 text-sm">
+                                <ClipboardList className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
+                                <span><strong>{s.service_name}</strong> — {s.advice}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {sr.dr_notes && (
+                        <div className="border-t pt-2">
+                          <p className="text-xs text-muted-foreground"><strong>Dr. Notes:</strong> {sr.dr_notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </motion.div>
         </TabsContent>
 

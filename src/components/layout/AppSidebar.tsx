@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
-import clinicLogo from "@/assets/clinic-logo.png";
+import skinClinicLogo from "@/assets/skin-clinic-logo.png";
 import {
   Sidebar,
   SidebarContent,
@@ -72,11 +72,11 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <img src={clinicLogo} alt="Clinic Quickapp" className="h-9 w-9 rounded-lg shrink-0" />
+          <img src={skinClinicLogo} alt="The Skin Clinic" className="h-9 w-9 rounded-lg shrink-0 object-contain" />
           {!collapsed && (
             <div>
               <h2 className="font-display text-sm font-bold text-sidebar-accent-foreground">
-                Clinic Quickapp
+                The Skin Clinic
               </h2>
               <p className="text-xs text-sidebar-foreground">Clinic Manager</p>
             </div>

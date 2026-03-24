@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import clinicLogo from "@/assets/clinic-logo.png";
+import skinClinicLogo from "@/assets/skin-clinic-logo.png";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -60,7 +60,7 @@ export function InstallBanner() {
   return (
     <div className="fixed bottom-0 inset-x-0 z-50 p-3 md:p-4 animate-in slide-in-from-bottom duration-300">
       <div className="mx-auto max-w-lg bg-card border border-border rounded-2xl shadow-lg p-4 flex items-center gap-3">
-        <img src={clinicLogo} alt="Clinic Quickapp" className="h-12 w-12 rounded-xl shrink-0" />
+        <img src={skinClinicLogo} alt="The Skin Clinic" className="h-12 w-12 rounded-xl shrink-0 object-contain" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground font-display">Install this app for a better experience</p>
           {isIOS ? (

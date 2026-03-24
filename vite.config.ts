@@ -18,14 +18,14 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.png", "clinic-logo.png", "apple-touch-icon.png"],
+      includeAssets: ["favicon.png", "skin-clinic-logo.png", "apple-touch-icon.png"],
       workbox: {
         navigateFallbackDenylist: [/^\/~oauth/],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
       },
       manifest: {
-        name: "Clinic Quickapp",
-        short_name: "Quickapp",
+        name: "The Skin Clinic",
+        short_name: "Skin Clinic",
         description: "Clinic management made simple",
         theme_color: "#1e293b",
         background_color: "#f5f7fa",

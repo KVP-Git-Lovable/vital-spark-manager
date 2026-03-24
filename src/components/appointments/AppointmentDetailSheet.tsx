@@ -994,6 +994,38 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                   setFeedbackSubmitting={setFeedbackSubmitting}
                   queryClient={queryClient}
                 />
+
+                <TabsContent value="survey" className="p-6 space-y-4 mt-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+                      <ClipboardCheck className="h-4 w-4" /> Patient Survey
+                    </h3>
+                    {appointment.patient_id && surveyTemplates.length > 0 && (
+                      <Select onValueChange={(templateId) => {
+                        setSurveyFillOpen(true);
+                        // Store the selected template ID for the fill dialog
+                        (window as any).__selectedSurveyTemplateId = templateId;
+                      }}>
+                        <SelectTrigger className="w-48 h-8 text-xs">
+                          <SelectValue placeholder="Fill a survey..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {surveyTemplates.map((t: any) => (
+                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+
+                  {!appointment.patient_id ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No patient linked to this appointment.</p>
+                  ) : surveyTemplates.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No active survey templates available. Create one in the Surveys module.</p>
+                  ) : (
+                    <SurveyRecommendations appointmentId={appointmentId!} />
+                  )}
+                </TabsContent>
               </Tabs>
             </>
           )}

@@ -6,7 +6,6 @@ import {
   Receipt,
   BarChart3,
   Settings,
-  Heart,
   ClipboardList,
   Pill,
   Camera,
@@ -21,6 +20,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
+import clinicLogo from "@/assets/clinic-logo.png";
 import {
   Sidebar,
   SidebarContent,
@@ -72,13 +72,11 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
-            <Heart className="h-5 w-5 text-sidebar-primary-foreground" />
-          </div>
+          <img src={clinicLogo} alt="Clinic Quickapp" className="h-9 w-9 rounded-lg shrink-0" />
           {!collapsed && (
             <div>
               <h2 className="font-display text-sm font-bold text-sidebar-accent-foreground">
-                DermaCare
+                Clinic Quickapp
               </h2>
               <p className="text-xs text-sidebar-foreground">Clinic Manager</p>
             </div>

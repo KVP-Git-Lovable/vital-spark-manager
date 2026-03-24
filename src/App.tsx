@@ -10,6 +10,7 @@ import {
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { ShopLayout } from "@/components/shop/ShopLayout";
 import Index from "./pages/Index";
 import Patients from "./pages/Patients";
@@ -72,6 +73,7 @@ const App = () => (
       <AuthProvider>
         <Toaster />
         <Sonner />
+        <InstallBanner />
         <BrowserRouter>
           <Routes>
             {/* Marketing website */}

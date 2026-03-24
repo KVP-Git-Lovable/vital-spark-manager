@@ -336,7 +336,8 @@ const Appointments = () => {
           end_time: buildDateTime(startDate, endTime).toISOString(),
           is_recurring: false,
           source: patientSource,
-        });
+          problem_area_ids: selectedProblemAreas,
+        } as any);
         if (error) throw error;
       }
     },

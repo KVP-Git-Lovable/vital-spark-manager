@@ -141,6 +141,20 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
+  const { data: surveyResponses = [] } = useQuery({
+    queryKey: ["patient-surveys", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("survey_responses")
+        .select("*, survey_templates(name, description, problem_areas(name), services(name)), appointments(start_time, service, staff(first_name, last_name))")
+        .eq("patient_id", id!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
   const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !id) return;

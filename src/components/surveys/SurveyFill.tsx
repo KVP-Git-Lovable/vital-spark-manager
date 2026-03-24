@@ -152,7 +152,7 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
 
               {q.question_type === "multi_choice" && (
                 <div className="space-y-2">
-                  {(q.options as string[]).map((opt: string) => (
+                  {(Array.isArray(q.options) ? q.options : []).map((opt: string) => (
                     <div key={opt} className="flex items-center gap-2">
                       <Checkbox
                         checked={(answers[q.id] || []).includes(opt)}

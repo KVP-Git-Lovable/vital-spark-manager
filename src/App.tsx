@@ -39,6 +39,7 @@ import ShopCart from "./pages/shop/ShopCart";
 import ShopCheckout from "./pages/shop/ShopCheckout";
 import ShopOrders from "./pages/shop/ShopOrders";
 import Website from "./pages/Website";
+import ProblemAreas from "./pages/ProblemAreas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({

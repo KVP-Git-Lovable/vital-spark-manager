@@ -40,6 +40,7 @@ import ShopCheckout from "./pages/shop/ShopCheckout";
 import ShopOrders from "./pages/shop/ShopOrders";
 import Website from "./pages/Website";
 import ProblemAreas from "./pages/ProblemAreas";
+import SurveyTemplates from "./pages/SurveyTemplates";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -117,6 +118,7 @@ const App = () => (
                     <Route path="/staff" element={<StaffManagement />} />
                     <Route path="/staff/:id" element={<StaffDetail />} />
                     <Route path="/problem-areas" element={<ProblemAreas />} />
+                    <Route path="/survey-templates" element={<SurveyTemplates />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

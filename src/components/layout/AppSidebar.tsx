@@ -17,6 +17,7 @@ import {
   Wallet,
   UserCog,
   AlertCircle,
+  ClipboardCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -49,6 +50,7 @@ const mainItems = [
   { title: "Expenses", url: "/expenses", icon: Wallet },
   { title: "Staff", url: "/staff", icon: UserCog },
   { title: "Problem Areas", url: "/problem-areas", icon: AlertCircle },
+  { title: "Surveys", url: "/survey-templates", icon: ClipboardCheck },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart },
 ];

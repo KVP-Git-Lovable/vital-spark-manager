@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
-import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon } from "lucide-react";
+import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon, ClipboardCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,8 @@ import { SkinTracker } from "@/components/shared/SkinTracker";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
+import { SurveyFill } from "@/components/surveys/SurveyFill";
+import { SurveyRecommendations } from "@/components/surveys/SurveyRecommendations";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -234,6 +236,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [npsScore, setNpsScore] = useState<number | null>(null);
   const [serviceRating, setServiceRating] = useState<number | null>(null);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [surveyFillOpen, setSurveyFillOpen] = useState(false);
+  const [selectedSurveyTemplateId, setSelectedSurveyTemplateId] = useState<string | null>(null);
 
   // Fetch appointment
   const { data: appointment, isLoading } = useQuery({
@@ -249,6 +253,17 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
       return data;
     },
     enabled: !!appointmentId,
+  });
+
+  // Fetch matching survey templates
+  const { data: surveyTemplates = [] } = useQuery({
+    queryKey: ["survey-templates-for-appointment", appointment?.service],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("survey_templates").select("id, name").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!appointment,
   });
 
   // Editable fields
@@ -542,6 +557,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                   <TabsTrigger value="billing" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Billing</TabsTrigger>
                   <TabsTrigger value="photos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Photos</TabsTrigger>
                   <TabsTrigger value="feedback" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Feedback</TabsTrigger>
+                  <TabsTrigger value="survey" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Survey</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="details" className="p-6 space-y-4 mt-0">
@@ -979,6 +995,37 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                   setFeedbackSubmitting={setFeedbackSubmitting}
                   queryClient={queryClient}
                 />
+
+                <TabsContent value="survey" className="p-6 space-y-4 mt-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+                      <ClipboardCheck className="h-4 w-4" /> Patient Survey
+                    </h3>
+                    {appointment.patient_id && surveyTemplates.length > 0 && (
+                      <Select onValueChange={(templateId) => {
+                        setSelectedSurveyTemplateId(templateId);
+                        setSurveyFillOpen(true);
+                      }}>
+                        <SelectTrigger className="w-48 h-8 text-xs">
+                          <SelectValue placeholder="Fill a survey..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {surveyTemplates.map((t: any) => (
+                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+
+                  {!appointment.patient_id ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No patient linked to this appointment.</p>
+                  ) : surveyTemplates.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No active survey templates available. Create one in the Surveys module.</p>
+                  ) : (
+                    <SurveyRecommendations appointmentId={appointmentId!} />
+                  )}
+                </TabsContent>
               </Tabs>
             </>
           )}
@@ -1017,6 +1064,17 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
       )}
 
       <ProcedureDetailSheet procedureId={selectedProcId} onClose={() => setSelectedProcId(null)} />
+
+      {surveyFillOpen && appointment?.patient_id && selectedSurveyTemplateId && (
+        <SurveyFill
+          open={surveyFillOpen}
+          onOpenChange={(v) => { setSurveyFillOpen(v); if (!v) setSelectedSurveyTemplateId(null); }}
+          templateId={selectedSurveyTemplateId}
+          appointmentId={appointmentId!}
+          patientId={appointment.patient_id}
+          onComplete={() => queryClient.invalidateQueries({ queryKey: ["survey-responses", appointmentId] })}
+        />
+      )}
     </>
   );
 }

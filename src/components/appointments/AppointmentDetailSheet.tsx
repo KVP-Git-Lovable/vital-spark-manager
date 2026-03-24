@@ -237,6 +237,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [serviceRating, setServiceRating] = useState<number | null>(null);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [surveyFillOpen, setSurveyFillOpen] = useState(false);
+  const [selectedSurveyTemplateId, setSelectedSurveyTemplateId] = useState<string | null>(null);
 
   // Fetch appointment
   const { data: appointment, isLoading } = useQuery({

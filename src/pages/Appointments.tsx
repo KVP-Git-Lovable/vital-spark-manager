@@ -126,6 +126,15 @@ const Appointments = () => {
     },
   });
 
+  const { data: problemAreasList = [] } = useQuery({
+    queryKey: ["problem-areas"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("problem_areas").select("id, name").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments"],
     queryFn: async () => {

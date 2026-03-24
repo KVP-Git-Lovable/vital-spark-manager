@@ -321,8 +321,9 @@ const Appointments = () => {
           recurrence_pattern: recurrencePattern,
           recurrence_end_date: format(recurrenceEndDate, "yyyy-MM-dd"),
           source: patientSource,
+          problem_area_ids: selectedProblemAreas,
         }));
-        const { error } = await supabase.from("appointments").insert(rows);
+        const { error } = await supabase.from("appointments").insert(rows as any);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("appointments").insert({

@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
@@ -96,6 +97,7 @@ const Appointments = () => {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState("weekly");
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date>();
+  const [selectedProblemAreas, setSelectedProblemAreas] = useState<string[]>([]);
 
   // Queries
   const { data: patients = [] } = useQuery({
@@ -120,6 +122,15 @@ const Appointments = () => {
     queryKey: ["services-list"],
     queryFn: async () => {
       const { data, error } = await supabase.from("services").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: problemAreasList = [] } = useQuery({
+    queryKey: ["problem-areas"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("problem_areas").select("id, name").eq("is_active", true).order("name");
       if (error) throw error;
       return data;
     },
@@ -310,8 +321,9 @@ const Appointments = () => {
           recurrence_pattern: recurrencePattern,
           recurrence_end_date: format(recurrenceEndDate, "yyyy-MM-dd"),
           source: patientSource,
+          problem_area_ids: selectedProblemAreas,
         }));
-        const { error } = await supabase.from("appointments").insert(rows);
+        const { error } = await supabase.from("appointments").insert(rows as any);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("appointments").insert({
@@ -324,7 +336,8 @@ const Appointments = () => {
           end_time: buildDateTime(startDate, endTime).toISOString(),
           is_recurring: false,
           source: patientSource,
-        });
+          problem_area_ids: selectedProblemAreas,
+        } as any);
         if (error) throw error;
       }
     },
@@ -375,6 +388,7 @@ const Appointments = () => {
     setIsRecurring(false);
     setRecurrencePattern("weekly");
     setRecurrenceEndDate(undefined);
+    setSelectedProblemAreas([]);
   };
 
   // Calendar navigation
@@ -687,6 +701,55 @@ const Appointments = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                {/* Problem Areas */}
+                <div>
+                  <Label className="flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5" /> Problem Areas
+                  </Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full mt-1.5 justify-start text-left font-normal", selectedProblemAreas.length === 0 && "text-muted-foreground")}>
+                        {selectedProblemAreas.length === 0
+                          ? "Select problem areas"
+                          : `${selectedProblemAreas.length} selected`}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-2" align="start">
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {problemAreasList.map((pa: any) => (
+                          <label key={pa.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                            <Checkbox
+                              checked={selectedProblemAreas.includes(pa.id)}
+                              onCheckedChange={(checked) => {
+                                setSelectedProblemAreas(prev =>
+                                  checked ? [...prev, pa.id] : prev.filter(id => id !== pa.id)
+                                );
+                              }}
+                            />
+                            {pa.name}
+                          </label>
+                        ))}
+                        {problemAreasList.length === 0 && (
+                          <p className="text-xs text-muted-foreground p-2">No problem areas defined</p>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  {selectedProblemAreas.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {selectedProblemAreas.map(id => {
+                        const pa = problemAreasList.find((p: any) => p.id === id);
+                        return pa ? (
+                          <Badge key={id} variant="secondary" className="text-xs gap-1">
+                            {pa.name}
+                            <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedProblemAreas(prev => prev.filter(i => i !== id))} />
+                          </Badge>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div>

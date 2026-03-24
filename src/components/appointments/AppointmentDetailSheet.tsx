@@ -1003,9 +1003,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                     </h3>
                     {appointment.patient_id && surveyTemplates.length > 0 && (
                       <Select onValueChange={(templateId) => {
+                        setSelectedSurveyTemplateId(templateId);
                         setSurveyFillOpen(true);
-                        // Store the selected template ID for the fill dialog
-                        (window as any).__selectedSurveyTemplateId = templateId;
                       }}>
                         <SelectTrigger className="w-48 h-8 text-xs">
                           <SelectValue placeholder="Fill a survey..." />

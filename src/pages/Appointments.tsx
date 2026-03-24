@@ -388,6 +388,7 @@ const Appointments = () => {
     setIsRecurring(false);
     setRecurrencePattern("weekly");
     setRecurrenceEndDate(undefined);
+    setSelectedProblemAreas([]);
   };
 
   // Calendar navigation

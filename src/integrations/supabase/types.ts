@@ -30,6 +30,7 @@ export type Database = {
           staff_id: string | null
           start_time: string
           status: string
+          survey_template_id: string | null
           updated_at: string
         }
         Insert: {
@@ -47,6 +48,7 @@ export type Database = {
           staff_id?: string | null
           start_time: string
           status?: string
+          survey_template_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -64,6 +66,7 @@ export type Database = {
           staff_id?: string | null
           start_time?: string
           status?: string
+          survey_template_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -79,6 +82,13 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_survey_template_id_fkey"
+            columns: ["survey_template_id"]
+            isOneToOne: false
+            referencedRelation: "survey_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -2083,6 +2093,256 @@ export type Database = {
           permissions?: string[] | null
         }
         Relationships: []
+      }
+      survey_questions: {
+        Row: {
+          created_at: string
+          id: string
+          ideal_answer: Json | null
+          options: Json | null
+          question_text: string
+          question_type: string
+          sort_order: number
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ideal_answer?: Json | null
+          options?: Json | null
+          question_text: string
+          question_type?: string
+          sort_order?: number
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ideal_answer?: Json | null
+          options?: Json | null
+          question_text?: string
+          question_type?: string
+          sort_order?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_questions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "survey_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_responses: {
+        Row: {
+          ai_products: Json | null
+          ai_recommendation: Json | null
+          ai_services: Json | null
+          answers: Json | null
+          appointment_id: string | null
+          created_at: string
+          dr_notes: string | null
+          dr_status: string
+          id: string
+          patient_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          template_id: string
+        }
+        Insert: {
+          ai_products?: Json | null
+          ai_recommendation?: Json | null
+          ai_services?: Json | null
+          answers?: Json | null
+          appointment_id?: string | null
+          created_at?: string
+          dr_notes?: string | null
+          dr_status?: string
+          id?: string
+          patient_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          template_id: string
+        }
+        Update: {
+          ai_products?: Json | null
+          ai_recommendation?: Json | null
+          ai_services?: Json | null
+          answers?: Json | null
+          appointment_id?: string | null
+          created_at?: string
+          dr_notes?: string | null
+          dr_status?: string
+          id?: string
+          patient_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_responses_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_responses_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_responses_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_responses_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "survey_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_template_products: {
+        Row: {
+          advice_text: string | null
+          created_at: string
+          id: string
+          product_id: string
+          template_id: string
+        }
+        Insert: {
+          advice_text?: string | null
+          created_at?: string
+          id?: string
+          product_id: string
+          template_id: string
+        }
+        Update: {
+          advice_text?: string | null
+          created_at?: string
+          id?: string
+          product_id?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_template_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "pharma_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_template_products_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "survey_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_template_services: {
+        Row: {
+          advice_text: string | null
+          created_at: string
+          id: string
+          service_id: string
+          template_id: string
+        }
+        Insert: {
+          advice_text?: string | null
+          created_at?: string
+          id?: string
+          service_id: string
+          template_id: string
+        }
+        Update: {
+          advice_text?: string | null
+          created_at?: string
+          id?: string
+          service_id?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_template_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_template_services_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "survey_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_templates: {
+        Row: {
+          age_range_max: number | null
+          age_range_min: number | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          problem_area_id: string | null
+          service_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          age_range_max?: number | null
+          age_range_min?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          problem_area_id?: string | null
+          service_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          age_range_max?: number | null
+          age_range_min?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          problem_area_id?: string | null
+          service_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_templates_problem_area_id_fkey"
+            columns: ["problem_area_id"]
+            isOneToOne: false
+            referencedRelation: "problem_areas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_templates_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tax_master: {
         Row: {

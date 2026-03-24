@@ -6,7 +6,6 @@ import {
   Receipt,
   BarChart3,
   Settings,
-  Heart,
   ClipboardList,
   Pill,
   Camera,

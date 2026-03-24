@@ -1065,11 +1065,11 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
 
       <ProcedureDetailSheet procedureId={selectedProcId} onClose={() => setSelectedProcId(null)} />
 
-      {surveyFillOpen && appointment?.patient_id && (window as any).__selectedSurveyTemplateId && (
+      {surveyFillOpen && appointment?.patient_id && selectedSurveyTemplateId && (
         <SurveyFill
           open={surveyFillOpen}
-          onOpenChange={(v) => { setSurveyFillOpen(v); if (!v) delete (window as any).__selectedSurveyTemplateId; }}
-          templateId={(window as any).__selectedSurveyTemplateId}
+          onOpenChange={(v) => { setSurveyFillOpen(v); if (!v) setSelectedSurveyTemplateId(null); }}
+          templateId={selectedSurveyTemplateId}
           appointmentId={appointmentId!}
           patientId={appointment.patient_id}
           onComplete={() => queryClient.invalidateQueries({ queryKey: ["survey-responses", appointmentId] })}

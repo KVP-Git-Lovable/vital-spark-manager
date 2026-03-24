@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
-import clinicLogo from "@/assets/clinic-logo.png";
+import skinClinicLogo from "@/assets/skin-clinic-logo.png";
 import {
   Sidebar,
   SidebarContent,

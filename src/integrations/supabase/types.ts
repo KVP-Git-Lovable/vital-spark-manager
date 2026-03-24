@@ -22,6 +22,7 @@ export type Database = {
           is_recurring: boolean | null
           patient_id: string | null
           patient_name: string | null
+          problem_area_ids: string[] | null
           recurrence_end_date: string | null
           recurrence_pattern: string | null
           service: string
@@ -38,6 +39,7 @@ export type Database = {
           is_recurring?: boolean | null
           patient_id?: string | null
           patient_name?: string | null
+          problem_area_ids?: string[] | null
           recurrence_end_date?: string | null
           recurrence_pattern?: string | null
           service: string
@@ -54,6 +56,7 @@ export type Database = {
           is_recurring?: boolean | null
           patient_id?: string | null
           patient_name?: string | null
+          problem_area_ids?: string[] | null
           recurrence_end_date?: string | null
           recurrence_pattern?: string | null
           service?: string
@@ -1421,6 +1424,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      problem_areas: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
       }
       procedure_attachments: {
         Row: {

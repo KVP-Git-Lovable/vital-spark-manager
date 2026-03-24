@@ -236,6 +236,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [npsScore, setNpsScore] = useState<number | null>(null);
   const [serviceRating, setServiceRating] = useState<number | null>(null);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [surveyFillOpen, setSurveyFillOpen] = useState(false);
 
   // Fetch appointment
   const { data: appointment, isLoading } = useQuery({

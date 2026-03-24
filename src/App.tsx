@@ -40,6 +40,7 @@ import ShopCheckout from "./pages/shop/ShopCheckout";
 import ShopOrders from "./pages/shop/ShopOrders";
 import Website from "./pages/Website";
 import ProblemAreas from "./pages/ProblemAreas";
+import SurveyTemplates from "./pages/SurveyTemplates";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({

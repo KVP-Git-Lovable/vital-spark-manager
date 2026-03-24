@@ -97,6 +97,7 @@ const Appointments = () => {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState("weekly");
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date>();
+  const [selectedProblemAreas, setSelectedProblemAreas] = useState<string[]>([]);
 
   // Queries
   const { data: patients = [] } = useQuery({

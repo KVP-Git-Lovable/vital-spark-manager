@@ -254,6 +254,17 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     enabled: !!appointmentId,
   });
 
+  // Fetch matching survey templates
+  const { data: surveyTemplates = [] } = useQuery({
+    queryKey: ["survey-templates-for-appointment", appointment?.service],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("survey_templates").select("id, name").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!appointment,
+  });
+
   // Editable fields
   const [editService, setEditService] = useState("");
   const [editStatus, setEditStatus] = useState("");

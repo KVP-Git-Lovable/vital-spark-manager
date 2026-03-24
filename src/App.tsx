@@ -73,6 +73,7 @@ const App = () => (
       <AuthProvider>
         <Toaster />
         <Sonner />
+        <InstallBanner />
         <BrowserRouter>
           <Routes>
             {/* Marketing website */}

@@ -41,10 +41,8 @@ const Login = () => {
         className="w-full max-w-sm"
       >
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary text-primary-foreground mb-4 shadow-lg">
-            <Heart className="h-8 w-8" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground font-display">The Skin Clinic</h1>
+          <img src={clinicLogo} alt="Clinic Quickapp" className="h-16 w-16 rounded-2xl mb-4 shadow-lg" />
+          <h1 className="text-2xl font-bold text-foreground font-display">Clinic Quickapp</h1>
           <p className="text-muted-foreground text-sm mt-1">Sign in to your account</p>
         </div>
 

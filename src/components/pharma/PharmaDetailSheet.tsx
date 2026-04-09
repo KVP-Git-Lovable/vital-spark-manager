@@ -54,6 +54,28 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
     enabled: !!productId,
   });
 
+  const { data: inventoryItems = [] } = useQuery({
+    queryKey: ["product-inventory-stock", productId],
+    queryFn: async () => {
+      if (!productId) return [];
+      const { data, error } = await supabase.from("pharma_inventory").select("quantity").eq("product_id", productId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!productId,
+  });
+
+  const { data: prescriptionItems = [] } = useQuery({
+    queryKey: ["product-prescription-consumed", productId],
+    queryFn: async () => {
+      if (!productId) return [];
+      const { data, error } = await supabase.from("prescriptions").select("quantity").eq("product_id", productId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!productId,
+  });
+
   useEffect(() => {
     if (product) setForm({ ...product });
   }, [product]);

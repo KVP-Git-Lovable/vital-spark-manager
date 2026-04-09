@@ -148,7 +148,7 @@ function OrderDetailSheet({ order, onClose }: { order: any; onClose: () => void 
 
   const updateOrder = useMutation({
     mutationFn: async (updates: Record<string, any>) => {
-      const { error } = await supabase.from("portal_orders").update(updates).eq("id", order.id);
+      const { error } = await supabase.from("portal_orders").update(updates as any).eq("id", order.id);
       if (error) throw error;
     },
     onSuccess: () => {

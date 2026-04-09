@@ -224,7 +224,31 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
                 <Field label="Reorder Level" value={product.reorder_level} />
               </div>
 
-              {/* Roll-up pricing from active price */}
+              {/* Inventory Summary */}
+              {(() => {
+                const totalStock = inventoryItems.reduce((sum, item) => sum + Number(item.quantity), 0);
+                const consumedStock = prescriptionItems.reduce((sum, item) => sum + Number(item.quantity), 0);
+                const availableStock = totalStock - consumedStock;
+                const isLowStock = availableStock <= (product.reorder_level || 0);
+                return (
+                  <div className="space-y-2">
+                    <h3 className="font-display font-semibold text-sm">Inventory Summary</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border bg-muted/30 p-3 text-center">
+                        <Package className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                        <p className="text-xs text-muted-foreground">Total Stock</p>
+                        <p className="text-xl font-bold">{totalStock}</p>
+                      </div>
+                      <div className={`rounded-lg border p-3 text-center ${isLowStock ? "border-destructive bg-destructive/10" : "bg-muted/30"}`}>
+                        {isLowStock ? <AlertTriangle className="h-4 w-4 mx-auto text-destructive mb-1" /> : <Package className="h-4 w-4 mx-auto text-muted-foreground mb-1" />}
+                        <p className="text-xs text-muted-foreground">Available Stock</p>
+                        <p className={`text-xl font-bold ${isLowStock ? "text-destructive" : ""}`}>{availableStock}</p>
+                        {isLowStock && <Badge variant="destructive" className="text-[10px] mt-1">Low Stock</Badge>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
               {(() => {
                 const activePrice = prices.find((p: any) => p.is_active);
                 return (

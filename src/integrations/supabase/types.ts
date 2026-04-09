@@ -2371,6 +2371,41 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_contacts: {
+        Row: {
+          contact_name: string
+          created_at: string
+          email: string | null
+          id: string
+          phone: string | null
+          vendor_id: string
+        }
+        Insert: {
+          contact_name: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          phone?: string | null
+          vendor_id: string
+        }
+        Update: {
+          contact_name?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          phone?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_contacts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendors: {
         Row: {
           address: string | null
@@ -2387,6 +2422,7 @@ export type Database = {
           phone: string | null
           state: string | null
           updated_at: string
+          website: string | null
         }
         Insert: {
           address?: string | null
@@ -2403,6 +2439,7 @@ export type Database = {
           phone?: string | null
           state?: string | null
           updated_at?: string
+          website?: string | null
         }
         Update: {
           address?: string | null
@@ -2419,6 +2456,7 @@ export type Database = {
           phone?: string | null
           state?: string | null
           updated_at?: string
+          website?: string | null
         }
         Relationships: []
       }

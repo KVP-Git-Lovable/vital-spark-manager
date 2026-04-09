@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -617,7 +618,7 @@ const Expenses = () => {
               </div>
               <div>
                 <Label>Vendor</Label>
-                <Input value={editingExpense.vendor_name} onChange={e => setEditingExpense((p: any) => ({ ...p, vendor_name: e.target.value }))} placeholder="Vendor name" />
+                <VendorCombobox value={editingExpense.vendor_name || ""} onChange={v => setEditingExpense((p: any) => ({ ...p, vendor_name: v }))} placeholder="Select vendor..." />
               </div>
               <div>
                 <Label>Reference #</Label>

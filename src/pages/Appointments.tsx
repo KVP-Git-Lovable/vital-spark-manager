@@ -355,7 +355,7 @@ const Appointments = () => {
   const inlineUpdateMutation = useMutation({
     mutationFn: async (data: Record<string, any>) => {
       const { id, ...updates } = data;
-      const { error } = await supabase.from("appointments").update(updates).eq("id", id);
+      const { error } = await supabase.from("appointments").update(updates as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

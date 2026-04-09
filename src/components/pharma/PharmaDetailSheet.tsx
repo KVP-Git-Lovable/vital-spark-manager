@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -479,7 +480,7 @@ export function InventoryDetailSheet({ inventoryId, onClose, onClone, products }
                 <div><Label>Purchase Price (₹)</Label><Input type="number" className="mt-1" value={form.purchase_price || 0} onChange={(e) => setForm({ ...form, purchase_price: parseFloat(e.target.value) || 0 })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Supplier</Label><Input className="mt-1" value={form.supplier || ""} onChange={(e) => setForm({ ...form, supplier: e.target.value })} /></div>
+                <div><Label>Supplier</Label><div className="mt-1"><VendorCombobox value={form.supplier || ""} onChange={(v) => setForm({ ...form, supplier: v })} placeholder="Select supplier..." /></div></div>
                 <div><Label>Invoice No.</Label><Input className="mt-1" value={form.invoice_number || ""} onChange={(e) => setForm({ ...form, invoice_number: e.target.value })} /></div>
               </div>
               <div className="flex gap-2 pt-2">

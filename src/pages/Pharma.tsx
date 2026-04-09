@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { Plus, Search, Package, ShoppingCart, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -307,7 +308,7 @@ const Pharma = () => {
                   <div><Label>Purchase Price (₹)</Label><Input type="number" className="mt-1" value={stockForm.purchase_price} onChange={(e) => setStockForm({ ...stockForm, purchase_price: parseFloat(e.target.value) || 0 })} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Supplier</Label><Input className="mt-1" value={stockForm.supplier} onChange={(e) => setStockForm({ ...stockForm, supplier: e.target.value })} /></div>
+                  <div><Label>Supplier</Label><div className="mt-1"><VendorCombobox value={stockForm.supplier} onChange={(v) => setStockForm({ ...stockForm, supplier: v })} placeholder="Select supplier..." /></div></div>
                   <div><Label>Invoice No.</Label><Input className="mt-1" value={stockForm.invoice_number} onChange={(e) => setStockForm({ ...stockForm, invoice_number: e.target.value })} /></div>
                 </div>
                 <Button className="w-full" onClick={() => addStock.mutate()} disabled={!stockForm.product_id || !stockForm.batch_number || !stockForm.expiry_date || addStock.isPending}>

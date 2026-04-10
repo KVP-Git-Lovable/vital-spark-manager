@@ -722,8 +722,8 @@ const Appointments = () => {
                           : `${selectedProblemAreas.length} selected`}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-64 p-2" align="start">
-                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                    <PopoverContent className="w-64 p-2 max-h-60 overflow-y-auto" align="start">
+                      <div className="space-y-1">
                         {problemAreasList.map((pa: any) => (
                           <label key={pa.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
                             <Checkbox

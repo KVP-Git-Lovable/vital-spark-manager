@@ -47,6 +47,7 @@ const Services = () => {
   const [category, setCategory] = useState("");
   const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
+  const [symptoms, setSymptoms] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");

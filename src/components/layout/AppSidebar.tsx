@@ -57,6 +57,7 @@ const mainItems = [
 ];
 
 const masterDataItems = [
+  { title: "Doctor Master", url: "/doctors", icon: UserCog },
   { title: "Service Master", url: "/services", icon: Stethoscope },
   { title: "Vendor Master", url: "/vendors", icon: Building2 },
 ];

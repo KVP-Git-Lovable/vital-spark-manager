@@ -93,7 +93,7 @@ const Index = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
-        .select("*, patients(first_name, last_name), staff(first_name, last_name)")
+        .select("*, patients(first_name, last_name)")
         .gte("start_time", startISO)
         .lte("start_time", endISO)
         .order("start_time");

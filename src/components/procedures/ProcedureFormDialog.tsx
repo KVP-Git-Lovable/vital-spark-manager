@@ -170,13 +170,14 @@ export function ProcedureFormDialog({
         .insert({
           patient_id: patientId,
           staff_id: staffId || null,
+          assisted_by: assistedBy || null,
           appointment_id: appointmentId || null,
           service_name: serviceName || "Consultation",
           symptoms: symptoms || null,
           diagnosis,
           procedure_notes: procedureNotes,
           recommendations: recommendations || null,
-        })
+        } as any)
         .select()
         .single();
       if (error) throw error;
@@ -264,6 +265,17 @@ export function ProcedureFormDialog({
               <Label>Doctor</Label>
               <Select value={staffId} onValueChange={setStaffId}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                <SelectContent>
+                  {doctorsList.map((d: any) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Assisted By</Label>
+              <Select value={assistedBy} onValueChange={setAssistedBy}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select assistant doctor" /></SelectTrigger>
                 <SelectContent>
                   {doctorsList.map((d: any) => (
                     <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>

@@ -14,12 +14,13 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const fieldPrompts: Record<string, string> = {
+      symptoms: `You are a dermatology clinical assistant. Given the service/procedure name "${serviceName}" and the following brief symptom notes, elaborate them into a detailed, professional list of presenting symptoms a dermatologist would document. Keep it concise but thorough (3-5 sentences). Only return the elaborated text, no headers or labels.`,
       diagnosis: `You are a dermatology clinical assistant. Given the service/procedure name "${serviceName}" and the following brief diagnosis notes, elaborate them into a professional, detailed clinical diagnosis template that a dermatologist would use. Keep it concise but thorough (3-5 sentences). Only return the elaborated text, no headers or labels.`,
       procedure_notes: `You are a dermatology clinical assistant. Given the service/procedure name "${serviceName}" and the following brief procedure notes, elaborate them into detailed, step-by-step clinical procedure notes that a dermatologist would document. Include preparation, procedure steps, and post-procedure observations. Keep it professional and actionable (4-8 sentences). Only return the elaborated text, no headers or labels.`,
       recommendations: `You are a dermatology clinical assistant. Given the service/procedure name "${serviceName}" and the following brief recommendations, elaborate each into clear, patient-friendly post-procedure care instructions. Return one recommendation per line. Each should be a complete, actionable instruction (1-2 sentences each). Only return the recommendations, one per line, no numbering or bullets.`,
     };
 
-    const systemPrompt = fieldPrompts[fieldType] || fieldPrompts.diagnosis;
+    const systemPrompt = fieldPrompts[fieldType] || fieldPrompts.symptoms;
 
     const userMessage = currentText?.trim()
       ? `Here is the brief text to elaborate:\n\n${currentText}`

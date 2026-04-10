@@ -981,6 +981,7 @@ export type Database = {
           created_at: string
           current_medications: string | null
           date_of_birth: string | null
+          doctor_id: string | null
           email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
@@ -1015,6 +1016,7 @@ export type Database = {
           created_at?: string
           current_medications?: string | null
           date_of_birth?: string | null
+          doctor_id?: string | null
           email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
@@ -1049,6 +1051,7 @@ export type Database = {
           created_at?: string
           current_medications?: string | null
           date_of_birth?: string | null
+          doctor_id?: string | null
           email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
@@ -1074,7 +1077,15 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "patients_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pharma_bill_items: {
         Row: {
@@ -1550,6 +1561,7 @@ export type Database = {
       procedures: {
         Row: {
           appointment_id: string | null
+          assisted_by: string | null
           consultation_notes: string | null
           created_at: string
           diagnosis: string | null
@@ -1566,6 +1578,7 @@ export type Database = {
         }
         Insert: {
           appointment_id?: string | null
+          assisted_by?: string | null
           consultation_notes?: string | null
           created_at?: string
           diagnosis?: string | null
@@ -1582,6 +1595,7 @@ export type Database = {
         }
         Update: {
           appointment_id?: string | null
+          assisted_by?: string | null
           consultation_notes?: string | null
           created_at?: string
           diagnosis?: string | null
@@ -1602,6 +1616,13 @@ export type Database = {
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedures_assisted_by_fkey"
+            columns: ["assisted_by"]
+            isOneToOne: false
+            referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
           {

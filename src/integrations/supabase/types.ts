@@ -1528,6 +1528,7 @@ export type Database = {
           service_name: string
           staff_id: string | null
           status: string
+          symptoms: string | null
           updated_at: string
         }
         Insert: {
@@ -1543,6 +1544,7 @@ export type Database = {
           service_name: string
           staff_id?: string | null
           status?: string
+          symptoms?: string | null
           updated_at?: string
         }
         Update: {
@@ -1558,6 +1560,7 @@ export type Database = {
           service_name?: string
           staff_id?: string | null
           status?: string
+          symptoms?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1773,6 +1776,7 @@ export type Database = {
           price: number
           procedure_notes: string | null
           recommendations: string[] | null
+          symptoms: string | null
           updated_at: string
         }
         Insert: {
@@ -1785,6 +1789,7 @@ export type Database = {
           price?: number
           procedure_notes?: string | null
           recommendations?: string[] | null
+          symptoms?: string | null
           updated_at?: string
         }
         Update: {
@@ -1797,6 +1802,7 @@ export type Database = {
           price?: number
           procedure_notes?: string | null
           recommendations?: string[] | null
+          symptoms?: string | null
           updated_at?: string
         }
         Relationships: []

@@ -47,6 +47,7 @@ export function ProcedureFormDialog({
   const queryClient = useQueryClient();
   const [patientId, setPatientId] = useState(defaultPatientId || "");
   const [staffId, setStaffId] = useState(defaultStaffId || "");
+  const [assistedBy, setAssistedBy] = useState("");
   const [appointmentId] = useState(defaultAppointmentId || "");
   const [serviceId, setServiceId] = useState("");
   const [serviceName, setServiceName] = useState(defaultServiceName || "");

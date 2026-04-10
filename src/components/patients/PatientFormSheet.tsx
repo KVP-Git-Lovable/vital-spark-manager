@@ -86,6 +86,14 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
     },
   });
 
+  const { data: doctorsList = [] } = useQuery({
+    queryKey: ["doctors-list"],
+    queryFn: async () => {
+      const { data } = await supabase.from("doctors").select("id, name, status").eq("status", "Active").order("name");
+      return data || [];
+    },
+  });
+
   useEffect(() => {
     if (patient) {
       setForm({
@@ -412,6 +420,23 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
           </TabsContent>
 
           <TabsContent value="medical" className="space-y-4 mt-4">
+            <div>
+              <Label>Doctor</Label>
+              <Select
+                value={(form as any).doctor_id || ""}
+                onValueChange={(v) => setForm((prev) => ({ ...prev, doctor_id: v || null }))}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Select doctor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {doctorsList.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div>
               <Label>Blood Group</Label>
               <Select

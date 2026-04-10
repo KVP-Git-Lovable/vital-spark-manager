@@ -125,6 +125,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
         source: (patient as any).source || "Walk-in",
         source_ad_details: (patient as any).source_ad_details || null,
         source_referral_doctor: (patient as any).source_referral_doctor || null,
+        doctor_id: (patient as any).doctor_id || null,
       });
       // Set referral patient name if source is "Referred by Patient"
       if ((patient as any).source === "Referred by Patient" && (patient as any).source_referral_doctor) {

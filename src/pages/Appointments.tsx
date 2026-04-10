@@ -109,10 +109,10 @@ const Appointments = () => {
     },
   });
 
-  const { data: staffList = [] } = useQuery({
-    queryKey: ["staff-list"],
+  const { data: doctorsList = [] } = useQuery({
+    queryKey: ["doctors-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role").order("first_name");
+      const { data, error } = await supabase.from("doctors").select("id, name, specialization, status").eq("status", "Active").order("name");
       if (error) throw error;
       return data;
     },
@@ -139,7 +139,7 @@ const Appointments = () => {
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("appointments").select("*, patients(first_name, last_name, phone), staff(first_name, last_name)").order("start_time");
+      const { data, error } = await supabase.from("appointments").select("*, patients(first_name, last_name, phone), doctors:doctors!appointments_staff_id_fkey(name)").order("start_time");
       if (error) throw error;
       return data;
     },
@@ -212,8 +212,8 @@ const Appointments = () => {
           valB = (b.service || "").toLowerCase();
           break;
         case "doctor":
-          valA = (a.staff?.first_name || "").toLowerCase();
-          valB = (b.staff?.first_name || "").toLowerCase();
+          valA = (a.doctors?.name || "").toLowerCase();
+          valB = (b.doctors?.name || "").toLowerCase();
           break;
         case "status":
           valA = (a.status || "").toLowerCase();
@@ -460,7 +460,7 @@ const Appointments = () => {
   };
 
   const getDoctorName = (apt: any) => {
-    if (apt.staff) return `Dr. ${apt.staff.first_name}`;
+    if (apt.doctors) return apt.doctors.name;
     return "";
   };
 
@@ -672,11 +672,11 @@ const Appointments = () => {
                     })()}
                   </div>
                   <div>
-                    <Label>Doctor / Staff</Label>
+                    <Label>Doctor</Label>
                     <Select value={staffId} onValueChange={setStaffId}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
-                        {staffList.map((s) => <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>)}
+                        {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -856,7 +856,7 @@ const Appointments = () => {
               <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Doctors" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Doctors</SelectItem>
-                {staffList.map((s) => <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>)}
+                {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Popover>
@@ -880,13 +880,13 @@ const Appointments = () => {
         {view !== "table" && doctorColorMap.size > 0 && (
           <div className="flex flex-wrap items-center gap-2 mt-2">
             <span className="text-xs text-muted-foreground font-medium">Doctors:</span>
-            {staffList.filter(s => doctorColorMap.has(s.id)).map(s => {
-              const p = doctorColorMap.get(s.id)!;
-              const isSelected = filterDoctors.has(s.id);
+            {doctorsList.filter((d: any) => doctorColorMap.has(d.id)).map((d: any) => {
+              const p = doctorColorMap.get(d.id)!;
+              const isSelected = filterDoctors.has(d.id);
               const isFiltering = filterDoctors.size > 0;
               return (
                 <button
-                  key={s.id}
+                  key={d.id}
                   className={cn(
                     "flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border transition-all cursor-pointer",
                     isSelected
@@ -898,14 +898,14 @@ const Appointments = () => {
                   onClick={() => {
                     setFilterDoctors(prev => {
                       const next = new Set(prev);
-                      if (next.has(s.id)) next.delete(s.id);
-                      else next.add(s.id);
+                      if (next.has(d.id)) next.delete(d.id);
+                      else next.add(d.id);
                       return next;
                     });
                   }}
                 >
                   <span className={cn("w-2.5 h-2.5 rounded-full", p.dot)} />
-                  Dr. {s.first_name} {s.last_name}
+                  {d.name}
                 </button>
               );
             })}
@@ -1050,7 +1050,7 @@ const Appointments = () => {
                               <Select value={editValues.staff_id} onValueChange={(val) => setEditValues({ ...editValues, staff_id: val })}>
                                 <SelectTrigger className="h-8 text-xs w-36"><SelectValue placeholder="Select" /></SelectTrigger>
                                 <SelectContent>
-                                  {staffList.map((s) => <SelectItem key={s.id} value={s.id}>Dr. {s.first_name}</SelectItem>)}
+                                  {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                                 </SelectContent>
                               </Select>
                             </td>
@@ -1085,7 +1085,7 @@ const Appointments = () => {
                             {patientPhone ? <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span> : "—"}
                           </td>
                           <td className="p-3">{apt.service || "—"}</td>
-                          <td className="p-3 text-muted-foreground">{apt.staff ? `Dr. ${apt.staff.first_name} ${apt.staff.last_name}` : "—"}</td>
+                          <td className="p-3 text-muted-foreground">{apt.doctors?.name || "—"}</td>
                           <td className="p-3" onClick={(e) => e.stopPropagation()}>
                             <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({ id: apt.id, status: val })}>
                               <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">

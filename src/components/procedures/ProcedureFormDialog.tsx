@@ -67,10 +67,10 @@ export function ProcedureFormDialog({
     },
   });
 
-  const { data: staffList = [] } = useQuery({
-    queryKey: ["staff-list"],
+  const { data: doctorsList = [] } = useQuery({
+    queryKey: ["doctors-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role").order("first_name");
+      const { data, error } = await supabase.from("doctors").select("id, name, status").eq("status", "Active").order("name");
       if (error) throw error;
       return data;
     },
@@ -260,12 +260,12 @@ export function ProcedureFormDialog({
               </Select>
             </div>
             <div>
-              <Label>Doctor / Staff</Label>
+              <Label>Doctor</Label>
               <Select value={staffId} onValueChange={setStaffId}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
                 <SelectContent>
-                  {staffList.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>Dr. {s.first_name} {s.last_name}</SelectItem>
+                  {doctorsList.map((d: any) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

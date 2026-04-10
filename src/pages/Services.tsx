@@ -47,18 +47,19 @@ const Services = () => {
   const [category, setCategory] = useState("");
   const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
+  const [symptoms, setSymptoms] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [medicines, setMedicines] = useState<MedicineInput[]>([]);
   const [elaborating, setElaborating] = useState<string | null>(null);
 
-  const elaborate = async (fieldType: "diagnosis" | "procedure_notes" | "recommendations") => {
+  const elaborate = async (fieldType: "symptoms" | "diagnosis" | "procedure_notes" | "recommendations") => {
     if (!name.trim()) {
       toast.error("Enter a service name first");
       return;
     }
-    const currentText = fieldType === "diagnosis" ? diagnosis : fieldType === "procedure_notes" ? procedureNotes : recommendations;
+    const currentText = fieldType === "symptoms" ? symptoms : fieldType === "diagnosis" ? diagnosis : fieldType === "procedure_notes" ? procedureNotes : recommendations;
     setElaborating(fieldType);
     try {
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elaborate-text`, {
@@ -71,7 +72,8 @@ const Services = () => {
         throw new Error(err.error || "AI request failed");
       }
       const { text } = await res.json();
-      if (fieldType === "diagnosis") setDiagnosis(text);
+      if (fieldType === "symptoms") setSymptoms(text);
+      else if (fieldType === "diagnosis") setDiagnosis(text);
       else if (fieldType === "procedure_notes") setProcedureNotes(text);
       else setRecommendations(text);
       toast.success("Text elaborated — review and edit as needed");
@@ -127,6 +129,7 @@ const Services = () => {
           category: category || "General",
           duration: parseInt(duration) || 30,
           price: parseFloat(price) || 0,
+          symptoms: symptoms || null,
           diagnosis: diagnosis || null,
           procedure_notes: procedureNotes || null,
           recommendations: recs,
@@ -180,6 +183,7 @@ const Services = () => {
     setCategory("");
     setDuration("");
     setPrice("");
+    setSymptoms("");
     setDiagnosis("");
     setProcedureNotes("");
     setRecommendations("");
@@ -253,6 +257,18 @@ const Services = () => {
                 <Label>Price (₹)</Label>
                 <Input type="number" placeholder="3500" className="mt-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
               </div>
+              {/* Symptoms */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label>Symptoms</Label>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("symptoms")} disabled={elaborating !== null}>
+                    {elaborating === "symptoms" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    Elaborate AI
+                  </Button>
+                </div>
+                <Textarea placeholder="e.g. Redness, itching, dry patches..." className="mt-1.5" rows={2} value={symptoms} onChange={(e) => setSymptoms(e.target.value)} />
+              </div>
+              {/* Diagnosis */}
               <div>
                 <div className="flex items-center justify-between">
                   <Label>Diagnosis</Label>

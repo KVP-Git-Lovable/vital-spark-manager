@@ -50,6 +50,7 @@ export function ProcedureFormDialog({
   const [appointmentId] = useState(defaultAppointmentId || "");
   const [serviceId, setServiceId] = useState("");
   const [serviceName, setServiceName] = useState(defaultServiceName || "");
+  const [symptoms, setSymptoms] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
@@ -78,7 +79,7 @@ export function ProcedureFormDialog({
   const { data: services = [] } = useQuery({
     queryKey: ["services-lookup"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("services").select("id, name, diagnosis, procedure_notes, recommendations").order("name");
+      const { data, error } = await supabase.from("services").select("id, name, symptoms, diagnosis, procedure_notes, recommendations").order("name");
       if (error) throw error;
       return data;
     },
@@ -106,6 +107,7 @@ export function ProcedureFormDialog({
   const applyServiceData = async (svc: any, svcId: string) => {
     setServiceId(svcId);
     setServiceName(svc.name);
+    if (svc.symptoms) setSymptoms(svc.symptoms);
     if (svc.diagnosis) setDiagnosis(svc.diagnosis);
     if (svc.procedure_notes) setProcedureNotes(svc.procedure_notes);
     if (svc.recommendations) {
@@ -169,6 +171,7 @@ export function ProcedureFormDialog({
           staff_id: staffId || null,
           appointment_id: appointmentId || null,
           service_name: serviceName || "Consultation",
+          symptoms: symptoms || null,
           diagnosis,
           procedure_notes: procedureNotes,
           recommendations: recommendations || null,
@@ -279,6 +282,11 @@ export function ProcedureFormDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div>
+            <Label>Symptoms</Label>
+            <Textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)} placeholder="e.g. Redness, itching, dry patches..." className="mt-1.5" rows={2} />
           </div>
 
           <div>

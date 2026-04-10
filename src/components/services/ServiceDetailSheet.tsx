@@ -43,6 +43,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
   const [category, setCategory] = useState("");
   const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
+  const [symptoms, setSymptoms] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
@@ -111,6 +112,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
       setCategory(service.category);
       setDuration(String(service.duration));
       setPrice(String(service.price));
+      setSymptoms(service.symptoms || "");
       setDiagnosis(service.diagnosis || "");
       setProcedureNotes(service.procedure_notes || "");
       setRecommendations((service.recommendations || []).join("\n"));
@@ -150,9 +152,9 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     onClose();
   };
 
-  const elaborate = async (fieldType: "diagnosis" | "procedure_notes" | "recommendations") => {
+  const elaborate = async (fieldType: "symptoms" | "diagnosis" | "procedure_notes" | "recommendations") => {
     if (!name.trim()) { toast.error("Enter a service name first"); return; }
-    const currentText = fieldType === "diagnosis" ? diagnosis : fieldType === "procedure_notes" ? procedureNotes : recommendations;
+    const currentText = fieldType === "symptoms" ? symptoms : fieldType === "diagnosis" ? diagnosis : fieldType === "procedure_notes" ? procedureNotes : recommendations;
     setElaborating(fieldType);
     try {
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elaborate-text`, {
@@ -162,7 +164,8 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
       });
       if (!res.ok) { const err = await res.json().catch(() => ({ error: "AI request failed" })); throw new Error(err.error || "AI request failed"); }
       const { text } = await res.json();
-      if (fieldType === "diagnosis") setDiagnosis(text);
+      if (fieldType === "symptoms") setSymptoms(text);
+      else if (fieldType === "diagnosis") setDiagnosis(text);
       else if (fieldType === "procedure_notes") setProcedureNotes(text);
       else setRecommendations(text);
       toast.success("Text elaborated");
@@ -175,7 +178,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
       const recs = recommendations.split("\n").filter((r) => r.trim());
       const { error } = await supabase.from("services").update({
         name, category: category || "General", duration: parseInt(duration) || 30,
-        price: parseFloat(price) || 0, diagnosis: diagnosis || null,
+        price: parseFloat(price) || 0, symptoms: symptoms || null, diagnosis: diagnosis || null,
         procedure_notes: procedureNotes || null, recommendations: recs,
       }).eq("id", serviceId!);
       if (error) throw error;
@@ -276,6 +279,17 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
             <div>
               <Label>Price (₹)</Label>
               <Input type="number" className="mt-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
+            </div>
+
+            {/* Symptoms */}
+            <div>
+              <div className="flex items-center justify-between">
+                <Label>Symptoms</Label>
+                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("symptoms")} disabled={elaborating !== null}>
+                  {elaborating === "symptoms" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                </Button>
+              </div>
+              <Textarea className="mt-1.5" rows={2} placeholder="e.g. Redness, itching, dry patches..." value={symptoms} onChange={(e) => setSymptoms(e.target.value)} />
             </div>
 
             {/* Diagnosis */}

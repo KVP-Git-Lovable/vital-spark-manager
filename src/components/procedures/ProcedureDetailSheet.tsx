@@ -50,6 +50,7 @@ export function ProcedureDetailSheet({ procedureId, onClose }: ProcedureDetailSh
   // Editable fields
   const [editServiceName, setEditServiceName] = useState("");
   const [editStatus, setEditStatus] = useState("");
+  const [editSymptoms, setEditSymptoms] = useState("");
   const [editDiagnosis, setEditDiagnosis] = useState("");
   const [editProcedureNotes, setEditProcedureNotes] = useState("");
   const [editRecommendations, setEditRecommendations] = useState("");
@@ -118,6 +119,7 @@ export function ProcedureDetailSheet({ procedureId, onClose }: ProcedureDetailSh
   if (procedure && !initialized) {
     setEditServiceName(procedure.service_name || "");
     setEditStatus(procedure.status || "Completed");
+    setEditSymptoms(procedure.symptoms || "");
     setEditDiagnosis(procedure.diagnosis || "");
     setEditProcedureNotes(procedure.procedure_notes || "");
     setEditRecommendations(procedure.recommendations || "");
@@ -151,6 +153,7 @@ export function ProcedureDetailSheet({ procedureId, onClose }: ProcedureDetailSh
       const { error } = await supabase.from("procedures").update({
         service_name: editServiceName,
         status: editStatus,
+        symptoms: editSymptoms,
         diagnosis: editDiagnosis,
         procedure_notes: editProcedureNotes,
         recommendations: editRecommendations,
@@ -320,6 +323,11 @@ export function ProcedureDetailSheet({ procedureId, onClose }: ProcedureDetailSh
                       {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div>
+                  <Label>Symptoms</Label>
+                  <Textarea value={editSymptoms} onChange={(e) => setEditSymptoms(e.target.value)} className="mt-1.5" rows={2} placeholder="e.g. Redness, itching, dry patches..." />
                 </div>
 
                 <div>

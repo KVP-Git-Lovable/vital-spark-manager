@@ -43,6 +43,7 @@ import Website from "./pages/Website";
 import ProblemAreas from "./pages/ProblemAreas";
 import SurveyTemplates from "./pages/SurveyTemplates";
 import Vendors from "./pages/Vendors";
+import Doctors from "./pages/Doctors";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -123,6 +124,7 @@ const App = () => (
                     <Route path="/problem-areas" element={<ProblemAreas />} />
                     <Route path="/survey-templates" element={<SurveyTemplates />} />
                     <Route path="/vendors" element={<Vendors />} />
+                    <Route path="/doctors" element={<Doctors />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

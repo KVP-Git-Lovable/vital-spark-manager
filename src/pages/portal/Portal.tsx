@@ -172,9 +172,9 @@ const Portal = () => {
   });
 
   const { data: staff = [] } = useQuery({
-    queryKey: ["portal-staff"],
+    queryKey: ["portal-doctors"],
     queryFn: async () => {
-      const { data } = await supabase.from("staff").select("*").eq("role", "Doctor").order("first_name");
+      const { data } = await supabase.from("doctors").select("*").eq("status", "Active").order("name");
       return data || [];
     },
   });
@@ -361,10 +361,10 @@ const Portal = () => {
                       {staff.map((s: any) => (
                         <div key={s.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
                           <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                            {s.first_name[0]}{s.last_name[0]}
+                            {s.name?.[0] || "D"}
                           </div>
                           <div>
-                            <p className="text-sm font-medium">Dr. {s.first_name} {s.last_name}</p>
+                            <p className="text-sm font-medium">{s.name}</p>
                             {s.specialization && <p className="text-xs text-muted-foreground">{s.specialization}</p>}
                           </div>
                         </div>

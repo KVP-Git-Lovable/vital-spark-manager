@@ -71,9 +71,9 @@ const Index = () => {
 
   // Queries
   const { data: staffList = [] } = useQuery({
-    queryKey: ["dashboard-staff"],
+    queryKey: ["dashboard-doctors"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role");
+      const { data, error } = await supabase.from("doctors").select("id, name, specialization, status").eq("status", "Active").order("name");
       if (error) throw error;
       return data;
     },
@@ -93,7 +93,7 @@ const Index = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
-        .select("*, patients(first_name, last_name), staff(first_name, last_name)")
+        .select("*, patients(first_name, last_name)")
         .gte("start_time", startISO)
         .lte("start_time", endISO)
         .order("start_time");
@@ -173,8 +173,9 @@ const Index = () => {
 
     // Appointments by Dr
     const drApptMap: Record<string, number> = {};
+    const doctorLookup = new Map(staffList.map(d => [d.id, d.name]));
     filtered.forEach((a: any) => {
-      const name = a.staff ? `Dr. ${a.staff.first_name}` : "Unassigned";
+      const name = a.staff_id ? (doctorLookup.get(a.staff_id) || "Unassigned") : "Unassigned";
       drApptMap[name] = (drApptMap[name] || 0) + 1;
     });
     const appointmentsByDr = Object.entries(drApptMap).map(([name, value]) => ({ name, value }));
@@ -183,7 +184,7 @@ const Index = () => {
     const drBillMap: Record<string, number> = {};
     const apptStaffMap: Record<string, string> = {};
     filtered.forEach((a: any) => {
-      apptStaffMap[a.id] = a.staff ? `Dr. ${a.staff.first_name}` : "Unassigned";
+      apptStaffMap[a.id] = a.staff_id ? (doctorLookup.get(a.staff_id) || "Unassigned") : "Unassigned";
     });
     filteredInvoices.forEach((inv: any) => {
       const drName = inv.appointment_id ? (apptStaffMap[inv.appointment_id] || "Unassigned") : "Unassigned";
@@ -261,7 +262,7 @@ const Index = () => {
         <StatCard title={`Appointments`} value={filtered.length} change={`${completedCount} completed • ${dateLabel}`} changeType="neutral" icon={Calendar} iconColor="bg-info/10 text-info" delay={0} />
         <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.05} />
         <StatCard title={`Revenue`} value={`₹${totalRevenue.toLocaleString()}`} change={dateLabel} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.1} />
-        <StatCard title="Staff Present" value={`${checkedInStaff}/${staffList.length}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.15} />
+        <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.15} />
       </div>
 
       <DashboardCharts data={chartData} onChartClick={handleChartClick} />
@@ -293,7 +294,7 @@ const Index = () => {
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium text-sm truncate">{apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : apt.patient_name || "Walk-in"}</p>
-                      <p className="text-xs text-muted-foreground truncate">{apt.service}{apt.staff ? ` • Dr. ${apt.staff.first_name}` : ""}</p>
+                      <p className="text-xs text-muted-foreground truncate">{apt.service}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

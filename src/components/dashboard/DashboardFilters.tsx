@@ -1,10 +1,10 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-interface Staff {
+interface Doctor {
   id: string;
-  first_name: string;
-  last_name: string;
-  role: string;
+  name: string;
+  specialization: string;
+  status: string;
 }
 
 interface Service {
@@ -13,7 +13,7 @@ interface Service {
 }
 
 interface Props {
-  staffList: Staff[];
+  staffList: Doctor[];
   serviceList: Service[];
   selectedStaff: string;
   selectedDateRange: string;
@@ -44,8 +44,6 @@ export function DashboardFilters({
   onDateRangeChange,
   onServiceChange,
 }: Props) {
-  const doctors = staffList.filter((s) => s.role === "Doctor" || s.role === "Dermatologist");
-
   return (
     <div className="flex flex-wrap gap-2 mb-5">
       <Select value={selectedStaff} onValueChange={onStaffChange}>
@@ -54,9 +52,9 @@ export function DashboardFilters({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all" className="text-xs">All Doctors</SelectItem>
-          {doctors.map((s) => (
-            <SelectItem key={s.id} value={s.id} className="text-xs">
-              Dr. {s.first_name} {s.last_name}
+          {staffList.map((d) => (
+            <SelectItem key={d.id} value={d.id} className="text-xs">
+              {d.name}
             </SelectItem>
           ))}
         </SelectContent>

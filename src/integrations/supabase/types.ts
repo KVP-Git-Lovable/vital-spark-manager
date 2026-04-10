@@ -443,6 +443,39 @@ export type Database = {
         }
         Relationships: []
       }
+      doctors: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          specialization: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          specialization?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          specialization?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       expense_categories: {
         Row: {
           created_at: string

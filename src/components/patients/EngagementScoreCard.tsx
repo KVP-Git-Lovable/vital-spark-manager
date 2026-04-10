@@ -206,7 +206,7 @@ export const EngagementScoreCard = ({ patientId }: { patientId: string }) => {
           <div className="text-center flex-1">
             <div className="flex items-center justify-center gap-0.5">
               <IndianRupee className="h-3 w-3 text-muted-foreground" />
-              <p className="text-base font-bold">₹{lifetimeValue.toLocaleString('en-IN')}</p>
+              <p className="text-base font-bold">{lifetimeValue.toLocaleString('en-IN')}</p>
             </div>
             <p className="text-[10px] text-muted-foreground">Lifetime Value</p>
           </div>

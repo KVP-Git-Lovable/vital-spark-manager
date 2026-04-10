@@ -139,11 +139,18 @@ const Appointments = () => {
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("appointments").select("*, patients(first_name, last_name, phone), doctors:doctors!appointments_staff_id_fkey(name)").order("start_time");
+      const { data, error } = await supabase.from("appointments").select("*, patients(first_name, last_name, phone)").order("start_time");
       if (error) throw error;
       return data;
     },
   });
+
+  // Build a doctor lookup map from doctorsList
+  const doctorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    doctorsList.forEach((d: any) => map.set(d.id, d.name));
+    return map;
+  }, [doctorsList]);
 
   // Fetch invoices for bill amount in table view
   const { data: invoices = [] } = useQuery({
@@ -212,8 +219,8 @@ const Appointments = () => {
           valB = (b.service || "").toLowerCase();
           break;
         case "doctor":
-          valA = (a.doctors?.name || "").toLowerCase();
-          valB = (b.doctors?.name || "").toLowerCase();
+          valA = (doctorMap.get(a.staff_id) || "").toLowerCase();
+          valB = (doctorMap.get(b.staff_id) || "").toLowerCase();
           break;
         case "status":
           valA = (a.status || "").toLowerCase();
@@ -460,8 +467,7 @@ const Appointments = () => {
   };
 
   const getDoctorName = (apt: any) => {
-    if (apt.doctors) return apt.doctors.name;
-    return "";
+    return apt.staff_id ? (doctorMap.get(apt.staff_id) || "") : "";
   };
 
   const statusColor = (status: string) => {
@@ -1085,7 +1091,7 @@ const Appointments = () => {
                             {patientPhone ? <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span> : "—"}
                           </td>
                           <td className="p-3">{apt.service || "—"}</td>
-                          <td className="p-3 text-muted-foreground">{apt.doctors?.name || "—"}</td>
+                          <td className="p-3 text-muted-foreground">{apt.staff_id ? (doctorMap.get(apt.staff_id) || "—") : "—"}</td>
                           <td className="p-3" onClick={(e) => e.stopPropagation()}>
                             <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({ id: apt.id, status: val })}>
                               <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">

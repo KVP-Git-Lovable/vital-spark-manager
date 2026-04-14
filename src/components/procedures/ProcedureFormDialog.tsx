@@ -18,11 +18,15 @@ import { toast } from "sonner";
 interface PrescriptionInput {
   product_id: string;
   medicine_name: string;
-  dosage: string;
   frequency: string;
   duration: string;
   instructions: string;
   quantity: number;
+}
+
+interface StockInfo {
+  available: number;
+  loading: boolean;
 }
 
 interface AssetInput {

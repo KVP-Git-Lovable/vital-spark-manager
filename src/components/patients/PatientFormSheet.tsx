@@ -133,6 +133,14 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         const refPat = allPatients.find(p => p.id === (patient as any).source_referral_doctor);
         if (refPat) setSelectedReferralPatientName(`${refPat.first_name} ${refPat.last_name}`);
       }
+    } else if (defaultValues) {
+      setForm({
+        ...emptyForm,
+        first_name: defaultValues.first_name || "",
+        last_name: defaultValues.last_name || "",
+        phone: defaultValues.phone || null,
+        email: defaultValues.email || null,
+      });
     } else {
       setForm(emptyForm);
     }

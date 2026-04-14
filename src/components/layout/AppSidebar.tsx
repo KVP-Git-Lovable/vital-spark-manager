@@ -19,6 +19,8 @@ import {
   ClipboardCheck,
   Building2,
   Database,
+  Ruler,
+  Tags,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -60,6 +62,8 @@ const masterDataItems = [
   { title: "Doctor Master", url: "/doctors", icon: UserCog },
   { title: "Service Master", url: "/services", icon: Stethoscope },
   { title: "Vendor Master", url: "/vendors", icon: Building2 },
+  { title: "Unit Master", url: "/unit-master", icon: Ruler },
+  { title: "Category Master", url: "/category-master", icon: Tags },
 ];
 
 const settingsItems = [

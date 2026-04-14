@@ -615,14 +615,14 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                     </div>
                   </div>
                   <div>
-                    <Label>Doctor</Label>
+                    <Label>Staff</Label>
                     <Select value={editStaffId || "none"} onValueChange={(v) => setEditStaffId(v === "none" ? "" : v)}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select staff" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">No doctor assigned</SelectItem>
+                        <SelectItem value="none">No staff assigned</SelectItem>
                         {staffList.map((d: any) => (
                           <SelectItem key={d.id} value={d.id}>
-                            {d.name}
+                            {d.first_name} {d.last_name}
                           </SelectItem>
                         ))}
                       </SelectContent>

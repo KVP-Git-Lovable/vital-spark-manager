@@ -678,7 +678,7 @@ const Appointments = () => {
                     })()}
                   </div>
                   <div>
-                    <Label>Doctor</Label>
+                    <Label>Staff</Label>
                     <Select value={staffId} onValueChange={setStaffId}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
@@ -859,9 +859,9 @@ const Appointments = () => {
               if (v === "all") setFilterDoctors(new Set());
               else setFilterDoctors(new Set([v]));
             }}>
-              <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Doctors" /></SelectTrigger>
+              <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Staff" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Doctors</SelectItem>
+                <SelectItem value="all">All Staff</SelectItem>
                 {staffList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -911,7 +911,7 @@ const Appointments = () => {
                   }}
                 >
                   <span className={cn("w-2.5 h-2.5 rounded-full", p.dot)} />
-                  {d.name}
+                  {d.first_name} {d.last_name}
                 </button>
               );
             })}

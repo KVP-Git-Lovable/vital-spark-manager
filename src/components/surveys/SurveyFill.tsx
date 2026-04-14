@@ -124,65 +124,77 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
         )}
 
         <div className="space-y-6 mt-2">
-          {questions.map((q: any, i: number) => (
-            <div key={q.id} className="space-y-2">
-              <Label className="text-sm font-medium">
-                {i + 1}. {q.question_text}
-              </Label>
+          {questions.map((q: any, i: number) => {
+            // Normalize options: could be string[], { choices: string[] }, or other
+            const getOptions = (): string[] => {
+              if (Array.isArray(q.options)) return q.options;
+              if (q.options && Array.isArray(q.options.choices)) return q.options.choices;
+              return [];
+            };
+            const opts = getOptions();
+            const scaleMin = q.options?.min ?? 1;
+            const scaleMax = q.options?.max ?? 10;
 
-              {q.question_type === "text" && (
-                <Textarea
-                  value={answers[q.id] || ""}
-                  onChange={(e) => updateAnswer(q.id, e.target.value)}
-                  placeholder="Your answer..."
-                  rows={2}
-                />
-              )}
+            return (
+              <div key={q.id} className="space-y-2 p-3 rounded-lg border bg-muted/30">
+                <Label className="text-sm font-medium">
+                  {i + 1}. {q.question_text}
+                </Label>
 
-              {q.question_type === "single_choice" && (
-                <RadioGroup value={answers[q.id] || ""} onValueChange={(v) => updateAnswer(q.id, v)}>
-                  {(Array.isArray(q.options) ? q.options : []).map((opt: string) => (
-                    <div key={opt} className="flex items-center gap-2">
-                      <RadioGroupItem value={opt} id={`${q.id}-${opt}`} />
-                      <Label htmlFor={`${q.id}-${opt}`} className="font-normal cursor-pointer">{opt}</Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-              )}
-
-              {q.question_type === "multi_choice" && (
-                <div className="space-y-2">
-                  {(Array.isArray(q.options) ? q.options : []).map((opt: string) => (
-                    <div key={opt} className="flex items-center gap-2">
-                      <Checkbox
-                        checked={(answers[q.id] || []).includes(opt)}
-                        onCheckedChange={(checked) => {
-                          const current = answers[q.id] || [];
-                          updateAnswer(q.id, checked ? [...current, opt] : current.filter((o: string) => o !== opt));
-                        }}
-                      />
-                      <Label className="font-normal cursor-pointer">{opt}</Label>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {q.question_type === "scale" && (
-                <div className="space-y-2">
-                  <Slider
-                    value={[answers[q.id] || 5]}
-                    onValueChange={([v]) => updateAnswer(q.id, v)}
-                    min={1} max={10} step={1}
+                {q.question_type === "text" && (
+                  <Textarea
+                    value={answers[q.id] || ""}
+                    onChange={(e) => updateAnswer(q.id, e.target.value)}
+                    placeholder="Type your answer here..."
+                    rows={2}
                   />
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>1 - Poor</span>
-                    <Badge variant="outline">{answers[q.id] || 5}</Badge>
-                    <span>10 - Excellent</span>
+                )}
+
+                {q.question_type === "single_choice" && (
+                  <RadioGroup value={answers[q.id] || ""} onValueChange={(v) => updateAnswer(q.id, v)} className="pl-1">
+                    {opts.map((opt: string) => (
+                      <div key={opt} className="flex items-center gap-2">
+                        <RadioGroupItem value={opt} id={`${q.id}-${opt}`} />
+                        <Label htmlFor={`${q.id}-${opt}`} className="font-normal cursor-pointer">{opt}</Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                )}
+
+                {q.question_type === "multi_choice" && (
+                  <div className="space-y-2 pl-1">
+                    {opts.map((opt: string) => (
+                      <div key={opt} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={(answers[q.id] || []).includes(opt)}
+                          onCheckedChange={(checked) => {
+                            const current = answers[q.id] || [];
+                            updateAnswer(q.id, checked ? [...current, opt] : current.filter((o: string) => o !== opt));
+                          }}
+                        />
+                        <Label className="font-normal cursor-pointer">{opt}</Label>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+
+                {q.question_type === "scale" && (
+                  <div className="space-y-2 px-1">
+                    <Slider
+                      value={[answers[q.id] ?? Math.round((scaleMin + scaleMax) / 2)]}
+                      onValueChange={([v]) => updateAnswer(q.id, v)}
+                      min={scaleMin} max={scaleMax} step={1}
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{scaleMin} - Low</span>
+                      <Badge variant="outline">{answers[q.id] ?? Math.round((scaleMin + scaleMax) / 2)}</Badge>
+                      <span>{scaleMax} - High</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="flex justify-end gap-2 pt-4 border-t">

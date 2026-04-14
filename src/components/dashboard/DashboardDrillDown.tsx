@@ -63,7 +63,7 @@ export function DashboardDrillDown({ open, onOpenChange, title, records, type }:
               <TableRow>
                 <TableHead className="text-xs">Patient</TableHead>
                 <TableHead className="text-xs">Service</TableHead>
-                <TableHead className="text-xs">Doctor</TableHead>
+                <TableHead className="text-xs">Staff</TableHead>
                 <TableHead className="text-xs">Time</TableHead>
                 <TableHead className="text-xs">Status</TableHead>
               </TableRow>

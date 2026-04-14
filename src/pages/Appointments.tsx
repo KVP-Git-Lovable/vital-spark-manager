@@ -882,10 +882,10 @@ const Appointments = () => {
             <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
           </motion.div>
         )}
-        {/* Doctor color legend */}
+        {/* Staff color legend */}
         {view !== "table" && doctorColorMap.size > 0 && (
           <div className="flex flex-wrap items-center gap-2 mt-2">
-            <span className="text-xs text-muted-foreground font-medium">Doctors:</span>
+            <span className="text-xs text-muted-foreground font-medium">Staff:</span>
             {staffList.filter((d: any) => doctorColorMap.has(d.id)).map((d: any) => {
               const p = doctorColorMap.get(d.id)!;
               const isSelected = filterDoctors.has(d.id);

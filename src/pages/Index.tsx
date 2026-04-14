@@ -218,8 +218,8 @@ const Index = () => {
   const handleChartClick = (type: string) => {
     const titles: Record<string, string> = {
       appointment_status: "Appointments — Status Breakdown",
-      appointments_by_dr: "Appointments — By Doctor",
-      billing_by_dr: "Billing — By Doctor",
+      appointments_by_dr: "Appointments — By Staff",
+      billing_by_dr: "Billing — By Staff",
       revenue_by_date: "Revenue — Detail",
     };
     setDrillDown({ open: true, type, title: titles[type] || "Details" });

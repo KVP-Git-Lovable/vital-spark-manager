@@ -129,6 +129,18 @@ const Pharma = () => {
 
   const createBill = useMutation({
     mutationFn: async () => {
+      // Validate stock availability before creating bill
+      for (const item of billItems) {
+        if (!item.inventory_id) continue;
+        const inv = inventory.find((i: any) => i.id === item.inventory_id) as any;
+        if (!inv || inv.quantity <= 0) {
+          throw new Error(`Insufficient stock for ${item.product_name || "selected product"}`);
+        }
+        if (item.quantity > inv.quantity) {
+          throw new Error(`Insufficient stock for ${item.product_name}. Available: ${inv.quantity}, Requested: ${item.quantity}`);
+        }
+      }
+
       const totalAmount = billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
       const taxAmount = billItems.reduce((s, i) => s + (i.quantity * i.unit_price * i.gst_percent) / 100, 0);
       const netAmount = totalAmount + taxAmount - billDiscount;
@@ -195,7 +207,13 @@ const Pharma = () => {
         updated[idx].unit_price = prod?.selling_price || 0;
         updated[idx].available = inv.quantity;
         updated[idx].gst_percent = Number(prod?.gst_percent) || 0;
+        if (inv.quantity <= 0) {
+          toast.warning(`Insufficient stock for ${prod?.name || "this product"}`);
+        }
       }
+    }
+    if (field === "quantity" && updated[idx].available > 0 && value > updated[idx].available) {
+      toast.warning(`Only ${updated[idx].available} units available for ${updated[idx].product_name}`);
     }
     setBillItems(updated);
   };

@@ -229,22 +229,33 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
               {(() => {
                 const totalStock = inventoryItems.reduce((sum, item) => sum + Number(item.quantity), 0);
                 const consumedStock = prescriptionItems.reduce((sum, item) => sum + Number(item.quantity), 0);
-                const availableStock = totalStock - consumedStock;
-                const isLowStock = availableStock <= (product.reorder_level || 0);
+                const availableStock = Math.max(0, totalStock - consumedStock);
+                const isLowStock = availableStock > 0 && availableStock <= (product.reorder_level || 0);
+                const noStockAdded = totalStock === 0 && consumedStock > 0;
                 return (
                   <div className="space-y-2">
                     <h3 className="font-display font-semibold text-sm">Inventory Summary</h3>
+                    {noStockAdded && (
+                      <div className="flex items-start gap-2 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-3">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">No opening stock added</p>
+                          <p className="text-xs text-amber-700 dark:text-amber-400">Prescriptions have been created for this product but no stock has been added yet. Please add opening stock via Inward Stock.</p>
+                        </div>
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-lg border bg-muted/30 p-3 text-center">
                         <Package className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
                         <p className="text-xs text-muted-foreground">Total Stock</p>
                         <p className="text-xl font-bold">{totalStock}</p>
                       </div>
-                      <div className={`rounded-lg border p-3 text-center ${isLowStock ? "border-destructive bg-destructive/10" : "bg-muted/30"}`}>
-                        {isLowStock ? <AlertTriangle className="h-4 w-4 mx-auto text-destructive mb-1" /> : <Package className="h-4 w-4 mx-auto text-muted-foreground mb-1" />}
+                      <div className={`rounded-lg border p-3 text-center ${isLowStock || availableStock === 0 ? "border-destructive bg-destructive/10" : "bg-muted/30"}`}>
+                        {isLowStock || availableStock === 0 ? <AlertTriangle className="h-4 w-4 mx-auto text-destructive mb-1" /> : <Package className="h-4 w-4 mx-auto text-muted-foreground mb-1" />}
                         <p className="text-xs text-muted-foreground">Available Stock</p>
-                        <p className={`text-xl font-bold ${isLowStock ? "text-destructive" : ""}`}>{availableStock}</p>
+                        <p className={`text-xl font-bold ${isLowStock || availableStock === 0 ? "text-destructive" : ""}`}>{availableStock}</p>
                         {isLowStock && <Badge variant="destructive" className="text-[10px] mt-1">Low Stock</Badge>}
+                        {availableStock === 0 && <Badge variant="destructive" className="text-[10px] mt-1">Out of Stock</Badge>}
                       </div>
                     </div>
                   </div>

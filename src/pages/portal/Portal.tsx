@@ -670,6 +670,112 @@ const Portal = () => {
         </DialogContent>
       </Dialog>
 
+      {/* ─── Staff Detail Dialog ─── */}
+      <Dialog open={!!selectedStaff} onOpenChange={(open) => !open && setSelectedStaff(null)}>
+        <DialogContent className="max-w-sm mx-4 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Team Member</DialogTitle>
+          </DialogHeader>
+          {selectedStaff && (
+            <div className="space-y-4 pt-1">
+              <div className="flex items-center gap-4">
+                <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl">
+                  {selectedStaff.first_name?.[0] || "S"}
+                </div>
+                <div>
+                  <p className="font-semibold text-lg">{selectedStaff.first_name} {selectedStaff.last_name}</p>
+                  <Badge variant="secondary" className="mt-1">{selectedStaff.role}</Badge>
+                </div>
+              </div>
+              {selectedStaff.specialization && (
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-0.5">Specialization</p>
+                  <p className="text-sm font-medium">{selectedStaff.specialization}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Procedure Detail Dialog ─── */}
+      <Dialog open={!!selectedProcedure} onOpenChange={(open) => !open && setSelectedProcedure(null)}>
+        <DialogContent className="max-w-md mx-4 rounded-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Procedure Details</DialogTitle>
+          </DialogHeader>
+          {selectedProcedure && (
+            <div className="space-y-4 pt-1">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-semibold text-base">{selectedProcedure.service_name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {new Date(selectedProcedure.procedure_date).toLocaleDateString("en-IN", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                  </p>
+                </div>
+                <Badge variant="secondary">{selectedProcedure.status}</Badge>
+              </div>
+
+              {selectedProcedure.staff && (
+                <div className="bg-muted/50 rounded-lg p-3 flex items-center gap-3">
+                  <User className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Performed by</p>
+                    <p className="text-sm font-medium">Dr. {selectedProcedure.staff.first_name} {selectedProcedure.staff.last_name}</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedProcedure.symptoms && (
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Symptoms</p>
+                  <p className="text-sm">{selectedProcedure.symptoms}</p>
+                </div>
+              )}
+
+              {selectedProcedure.diagnosis && (
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Diagnosis</p>
+                  <p className="text-sm">{selectedProcedure.diagnosis}</p>
+                </div>
+              )}
+
+              {selectedProcedure.procedure_notes && (
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Procedure Notes</p>
+                  <p className="text-sm">{selectedProcedure.procedure_notes}</p>
+                </div>
+              )}
+
+              {selectedProcedure.recommendations && (
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Recommendations</p>
+                  <p className="text-sm">{selectedProcedure.recommendations}</p>
+                </div>
+              )}
+
+              {selectedProcedure.prescriptions && selectedProcedure.prescriptions.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Prescriptions</p>
+                  <div className="space-y-2">
+                    {selectedProcedure.prescriptions.map((rx: any) => (
+                      <div key={rx.id} className="bg-primary/5 border border-primary/10 rounded-lg p-3">
+                        <p className="font-medium text-sm">{rx.medicine_name}</p>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                          {rx.frequency && <span className="text-xs text-muted-foreground">Frequency: {rx.frequency}</span>}
+                          {rx.duration && <span className="text-xs text-muted-foreground">Duration: {rx.duration}</span>}
+                          {rx.quantity > 0 && <span className="text-xs text-muted-foreground">Qty: {rx.quantity}</span>}
+                        </div>
+                        {rx.instructions && <p className="text-xs text-muted-foreground mt-1 italic">{rx.instructions}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-card border-t safe-area-bottom z-50">
         <div className="max-w-lg mx-auto flex">

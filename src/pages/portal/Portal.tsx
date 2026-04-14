@@ -54,6 +54,8 @@ const Portal = () => {
   const [session, setSession] = useState<PortalSession | null>(null);
   const [apptOpen, setApptOpen] = useState(false);
   const [pharmaOpen, setPharmaOpen] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<any>(null);
+  const [selectedProcedure, setSelectedProcedure] = useState<any>(null);
 
   // Appointment request form
   const [apptService, setApptService] = useState("");
@@ -340,16 +342,18 @@ const Portal = () => {
 
                 {/* Doctor availability */}
                 <div className="bg-card rounded-xl border shadow-sm p-4">
-                  <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
                     <Stethoscope className="h-4 w-4 text-primary" /> Clinic Hours
                   </h3>
-                  <div className="space-y-2">
-                    {workingHours.map((wh: any) => (
-                      <div key={wh.id} className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">{dayNames[wh.day_of_week]}</span>
-                        <span className="font-medium">{wh.open_time?.slice(0, 5)} – {wh.close_time?.slice(0, 5)}</span>
-                      </div>
-                    ))}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Mon – Sat</span>
+                      <span className="font-medium">10:00 AM – 8:00 PM</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Sun</span>
+                      <span className="font-medium text-destructive">Closed</span>
+                    </div>
                   </div>
                 </div>
 
@@ -359,14 +363,15 @@ const Portal = () => {
                     <h3 className="font-semibold text-sm mb-3">Our Team</h3>
                     <div className="space-y-2">
                       {staff.map((s: any) => (
-                        <div key={s.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
+                        <div key={s.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors" onClick={() => setSelectedStaff(s)}>
                           <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
                             {s.first_name?.[0] || "S"}
                           </div>
-                          <div>
+                          <div className="flex-1">
                             <p className="text-sm font-medium">{s.first_name} {s.last_name}</p>
                             {s.specialization && <p className="text-xs text-muted-foreground">{s.specialization}</p>}
                           </div>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         </div>
                       ))}
                     </div>
@@ -475,8 +480,8 @@ const Portal = () => {
                     <p className="text-sm">No procedures recorded yet</p>
                   </div>
                 ) : procedures.map((p: any) => (
-                  <div key={p.id} className="bg-card rounded-xl border p-4 shadow-sm">
-                    <div className="flex items-start justify-between mb-2">
+                  <div key={p.id} className="bg-card rounded-xl border p-4 shadow-sm cursor-pointer hover:border-primary/30 transition-colors" onClick={() => setSelectedProcedure(p)}>
+                    <div className="flex items-start justify-between mb-1">
                       <div>
                         <p className="font-semibold text-sm">{p.service_name}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
@@ -484,33 +489,12 @@ const Portal = () => {
                           {p.staff && ` • Dr. ${p.staff.first_name} ${p.staff.last_name}`}
                         </p>
                       </div>
-                      <Badge variant="secondary" className="text-xs">{p.status}</Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="secondary" className="text-xs">{p.status}</Badge>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
                     </div>
-                    {p.diagnosis && (
-                      <div className="bg-muted/50 rounded-lg p-2 mb-2">
-                        <p className="text-xs text-muted-foreground">Diagnosis</p>
-                        <p className="text-sm">{p.diagnosis}</p>
-                      </div>
-                    )}
-                    {p.consultation_notes && (
-                      <div className="bg-muted/50 rounded-lg p-2 mb-2">
-                        <p className="text-xs text-muted-foreground">Consultation Notes</p>
-                        <p className="text-sm">{p.consultation_notes}</p>
-                      </div>
-                    )}
-                    {p.prescriptions && p.prescriptions.length > 0 && (
-                      <div className="mt-2">
-                        <p className="text-xs font-semibold text-muted-foreground mb-1">Prescriptions</p>
-                        <div className="space-y-1">
-                          {p.prescriptions.map((rx: any) => (
-                            <div key={rx.id} className="flex items-center justify-between text-sm bg-primary/5 rounded-lg px-3 py-1.5">
-                              <span className="font-medium">{rx.medicine_name}</span>
-                              <span className="text-xs text-muted-foreground">{rx.dosage} • {rx.frequency} • {rx.duration}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    {p.diagnosis && <p className="text-xs text-muted-foreground line-clamp-1">{p.diagnosis}</p>}
                   </div>
                 ))}
               </motion.div>

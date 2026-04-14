@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { ProductDetailSheet, InventoryDetailSheet, BillDetailSheet } from "@/components/pharma/PharmaDetailSheet";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", hsn_code: "", reorder_level: 10, vendor_id: "", mrp: 0, selling_price: 0, gst_percent: 0, expiry_date: "", qty_per_unit: 1 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", hsn_code: "", reorder_level: 10, vendor_id: "", mrp: 0, selling_price: 0, gst_percent: 0, expiry_date: "", qty_per_unit: 1, tablets_per_strip: 0 };
 const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {
@@ -267,6 +267,7 @@ const Pharma = () => {
       gst_percent: product.gst_percent || 0,
       expiry_date: product.expiry_date || "",
       qty_per_unit: product.qty_per_unit || 1,
+      tablets_per_strip: 0,
     });
     setProductOpen(true);
   };
@@ -353,11 +354,27 @@ const Pharma = () => {
                   <div><Label>Selling Price *</Label><Input type="number" className="mt-1" value={productForm.selling_price} onChange={(e) => setProductForm({ ...productForm, selling_price: parseFloat(e.target.value) || 0 })} /></div>
                   <div><Label>Tax (GST %)</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className={`grid ${productForm.unit === "Nos" ? "grid-cols-2" : "grid-cols-3"} gap-3`}>
                   <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
                   <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={productForm.reorder_level} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
-                  <div><Label>Qty per Unit</Label><Input type="number" className="mt-1" value={productForm.qty_per_unit} onChange={(e) => setProductForm({ ...productForm, qty_per_unit: parseInt(e.target.value) || 1 })} placeholder="e.g. tablets per strip" /></div>
+                  {productForm.unit !== "Nos" && productForm.unit !== "Box" && (() => {
+                    const selectedUnit = unitMaster.find((u: any) => u.name === productForm.unit);
+                    const label = productForm.unit === "Strip" ? "Tablets per Strip"
+                      : productForm.unit === "Sachet" ? "Qty per Sachet (e.g. 5gm)"
+                      : productForm.unit === "Tube" ? "Volume/Weight (e.g. 30gm)"
+                      : productForm.unit === "Bottle" ? "Volume per Bottle (e.g. 100ml)"
+                      : selectedUnit?.sub_unit_name ? `${selectedUnit.sub_unit_name} per ${productForm.unit}` : "Qty per Unit";
+                    return (
+                      <div><Label>{label}</Label><Input type="number" className="mt-1" value={productForm.qty_per_unit} onChange={(e) => setProductForm({ ...productForm, qty_per_unit: parseInt(e.target.value) || 1 })} placeholder={selectedUnit?.conversion_qty ? String(selectedUnit.conversion_qty) : "1"} /></div>
+                    );
+                  })()}
                 </div>
+                {productForm.unit === "Box" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Strips per Box</Label><Input type="number" className="mt-1" value={productForm.qty_per_unit} onChange={(e) => setProductForm({ ...productForm, qty_per_unit: parseInt(e.target.value) || 1 })} placeholder="e.g. 10" /></div>
+                    <div><Label>Tablets per Strip</Label><Input type="number" className="mt-1" value={productForm.tablets_per_strip || ""} onChange={(e) => setProductForm({ ...productForm, tablets_per_strip: parseInt(e.target.value) || 0 })} placeholder="e.g. 10" /></div>
+                  </div>
+                )}
                 <div>
                   <Label>Expiry Date</Label>
                   <Input type="date" className="mt-1" value={productForm.expiry_date} onChange={(e) => setProductForm({ ...productForm, expiry_date: e.target.value })} />

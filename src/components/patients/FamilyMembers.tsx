@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -31,10 +30,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Users, Star, ChevronDown, ChevronRight, Phone, LayoutGrid, List } from "lucide-react";
+import { Plus, Trash2, Users, Star, Phone, LayoutGrid, List, FileEdit, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { PatientFormSheet } from "./PatientFormSheet";
+import type { Tables } from "@/integrations/supabase/types";
 
 const RELATIONSHIPS = [
   "Spouse", "Father", "Mother", "Son", "Daughter",
@@ -47,17 +48,23 @@ interface FamilyMembersProps {
   patientName: string;
 }
 
+type Patient = Tables<"patients">;
+
 export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
   const [memberName, setMemberName] = useState("");
-  const [memberPhone, setMemberPhone] = useState("");
   const [relationship, setRelationship] = useState("");
-  const [isPrimary, setIsPrimary] = useState(false);
-  const [notes, setNotes] = useState("");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"tree" | "list">("tree");
+
+  // For opening PatientFormSheet to fill/edit details
+  const [formSheetOpen, setFormSheetOpen] = useState(false);
+  const [formSheetPatient, setFormSheetPatient] = useState<Patient | null>(null);
+  const [pendingMemberId, setPendingMemberId] = useState<string | null>(null);
+
+  // For viewing filled member details
+  const [viewingMember, setViewingMember] = useState<any>(null);
 
   const { data: familyMembers = [], isLoading } = useQuery({
     queryKey: ["family-members", patientId],
@@ -85,15 +92,31 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
     enabled: !!patientId,
   });
 
+  // Fetch linked patient details for members that have related_patient_id
+  const linkedPatientIds = familyMembers
+    .filter((m: any) => m.related_patient_id && !m._isReverse)
+    .map((m: any) => m.related_patient_id);
+
+  const { data: linkedPatients = [] } = useQuery({
+    queryKey: ["linked-patients", linkedPatientIds],
+    queryFn: async () => {
+      if (linkedPatientIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("patients")
+        .select("*")
+        .in("id", linkedPatientIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: linkedPatientIds.length > 0,
+  });
+
   const addMember = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("patient_family_members").insert({
         patient_id: patientId,
         name: memberName,
-        phone: memberPhone || null,
         relationship,
-        is_primary_contact: isPrimary,
-        notes: notes || null,
       });
       if (error) throw error;
     },
@@ -120,23 +143,129 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
 
   const resetForm = () => {
     setMemberName("");
-    setMemberPhone("");
     setRelationship("");
-    setIsPrimary(false);
-    setNotes("");
   };
 
   const getMemberDisplayName = (member: any): string => {
     if (member.name) return member.name;
-    if (member.related_patient) {
-      return `${member.related_patient.first_name} ${member.related_patient.last_name}`;
-    }
     return "Unknown";
   };
 
-  const handleMemberClick = (member: any) => {
-    if (member.related_patient_id && !member._isReverse) {
-      navigate(`/patients/${member.related_patient_id}`);
+  const hasDetails = (member: any): boolean => {
+    return !!member.related_patient_id;
+  };
+
+  const getLinkedPatient = (member: any): Patient | undefined => {
+    if (!member.related_patient_id) return undefined;
+    return linkedPatients.find((p: Patient) => p.id === member.related_patient_id);
+  };
+
+  const handleCardClick = (member: any) => {
+    if (member._isReverse) {
+      // Reverse members — navigate to their patient profile
+      navigate(`/patients/${member.patient_id}`);
+      return;
+    }
+
+    if (hasDetails(member)) {
+      // Has linked patient — show detail view
+      const linked = getLinkedPatient(member);
+      if (linked) {
+        setViewingMember({ ...member, linkedPatient: linked });
+      } else {
+        navigate(`/patients/${member.related_patient_id}`);
+      }
+    } else {
+      // No details yet — open patient form to create record
+      setPendingMemberId(member.id);
+      const nameParts = (member.name || "").trim().split(/\s+/);
+      const firstName = nameParts[0] || "";
+      const lastName = nameParts.slice(1).join(" ") || ".";
+      // Create a minimal "patient" object to pre-fill the form
+      setFormSheetPatient({
+        id: "",
+        first_name: firstName,
+        last_name: lastName,
+        created_at: "",
+        updated_at: "",
+        status: "Active",
+        date_of_birth: null,
+        gender: null,
+        phone: member.phone || null,
+        email: null,
+        address: null,
+        city: null,
+        state: null,
+        pincode: null,
+        emergency_contact_name: null,
+        emergency_contact_phone: null,
+        blood_group: null,
+        medical_history: null,
+        current_medications: null,
+        allergies: null,
+        skin_type: null,
+        skin_concerns: null,
+        previous_treatments: null,
+        notes: null,
+        doctor_id: null,
+        auth_user_id: null,
+        facebook_url: null,
+        instagram_url: null,
+        follows_facebook: null,
+        follows_instagram: null,
+        source: null,
+        source_ad_details: null,
+        source_referral_doctor: null,
+      } as Patient);
+      setFormSheetOpen(true);
+    }
+  };
+
+  const handleFormSuccess = async () => {
+    // After creating the patient via the form, link it to the family member
+    if (pendingMemberId) {
+      // Find the most recently created patient matching the name
+      const member = familyMembers.find((m: any) => m.id === pendingMemberId);
+      if (member) {
+        const nameParts = (member.name || "").trim().split(/\s+/);
+        const firstName = nameParts[0] || "";
+        const lastName = nameParts.slice(1).join(" ") || ".";
+
+        const { data: newPatient } = await supabase
+          .from("patients")
+          .select("id")
+          .eq("first_name", firstName)
+          .eq("last_name", lastName)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (newPatient) {
+          await supabase
+            .from("patient_family_members")
+            .update({ related_patient_id: newPatient.id })
+            .eq("id", pendingMemberId);
+        }
+      }
+      setPendingMemberId(null);
+    }
+    queryClient.invalidateQueries({ queryKey: ["family-members", patientId] });
+    queryClient.invalidateQueries({ queryKey: ["linked-patients"] });
+  };
+
+  const handleEditLinkedPatient = () => {
+    if (viewingMember?.linkedPatient) {
+      setFormSheetPatient(viewingMember.linkedPatient);
+      setPendingMemberId(null);
+      setViewingMember(null);
+      setFormSheetOpen(true);
+    }
+  };
+
+  const handleViewProfile = () => {
+    if (viewingMember?.related_patient_id) {
+      navigate(`/patients/${viewingMember.related_patient_id}`);
+      setViewingMember(null);
     }
   };
 
@@ -172,7 +301,7 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
                 <Plus className="h-3.5 w-3.5" /> Add Member
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-sm">
               <DialogHeader>
                 <DialogTitle className="font-display">Add Family Member</DialogTitle>
               </DialogHeader>
@@ -183,27 +312,17 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
                 </div>
 
                 <div>
-                  <Label>Family Member Name</Label>
+                  <Label>Name *</Label>
                   <Input
                     value={memberName}
                     onChange={(e) => setMemberName(e.target.value)}
-                    placeholder="Enter name..."
+                    placeholder="Enter full name..."
                     className="mt-1.5"
                   />
                 </div>
 
                 <div>
-                  <Label>Phone Number</Label>
-                  <Input
-                    value={memberPhone}
-                    onChange={(e) => setMemberPhone(e.target.value)}
-                    placeholder="Enter phone number..."
-                    className="mt-1.5"
-                  />
-                </div>
-
-                <div>
-                  <Label>Relationship</Label>
+                  <Label>Relationship *</Label>
                   <Select value={relationship} onValueChange={setRelationship}>
                     <SelectTrigger className="mt-1.5">
                       <SelectValue placeholder="Select relationship" />
@@ -216,34 +335,16 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
                   </Select>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="primary-contact"
-                    checked={isPrimary}
-                    onChange={(e) => setIsPrimary(e.target.checked)}
-                    className="rounded"
-                  />
-                  <Label htmlFor="primary-contact" className="text-sm cursor-pointer">Primary contact person</Label>
-                </div>
-
-                <div>
-                  <Label>Notes</Label>
-                  <Textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Optional notes..."
-                    className="mt-1.5"
-                    rows={2}
-                  />
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  You can fill in their complete details after adding.
+                </p>
 
                 <Button
                   className="w-full"
                   disabled={!memberName.trim() || !relationship || addMember.isPending}
                   onClick={() => addMember.mutate()}
                 >
-                  {addMember.isPending ? "Adding..." : "Add Family Member"}
+                  {addMember.isPending ? "Adding..." : "Add Member"}
                 </Button>
               </div>
             </DialogContent>
@@ -260,190 +361,315 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
           <p className="text-xs mt-1">Add family members to build the family tree.</p>
         </div>
       ) : viewMode === "list" ? (
-        /* List View */
-        <div className="data-table">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="text-left text-xs font-medium text-muted-foreground p-3">Name</th>
-                <th className="text-left text-xs font-medium text-muted-foreground p-3">Relationship</th>
-                <th className="text-left text-xs font-medium text-muted-foreground p-3 hidden sm:table-cell">Phone</th>
-                <th className="text-left text-xs font-medium text-muted-foreground p-3 hidden sm:table-cell">Primary</th>
-                <th className="text-right text-xs font-medium text-muted-foreground p-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {familyMembers.map((member: any) => {
-                const displayName = getMemberDisplayName(member);
-                return (
-                  <tr key={member.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="p-3">
-                      <button
-                        onClick={() => handleMemberClick(member)}
-                        className={`font-medium text-sm ${member.related_patient_id && !member._isReverse ? "text-primary hover:underline cursor-pointer" : ""}`}
-                      >
-                        {displayName}
-                      </button>
-                    </td>
-                    <td className="p-3">
-                      <Badge variant="outline" className="text-[10px]">{member.relationship}</Badge>
-                    </td>
-                    <td className="p-3 hidden sm:table-cell">
-                      {member.phone ? (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Phone className="h-3 w-3" /> {member.phone}
-                        </span>
-                      ) : <span className="text-xs text-muted-foreground">—</span>}
-                    </td>
-                    <td className="p-3 hidden sm:table-cell">
-                      {member.is_primary_contact && <Star className="h-3.5 w-3.5 text-warning fill-warning" />}
-                    </td>
-                    <td className="p-3 text-right">
-                      {!member._isReverse && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Remove family member?</AlertDialogTitle>
-                              <AlertDialogDescription>This will remove {displayName} from this patient's family.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => removeMember.mutate(member.id)}>Remove</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ListViewTable
+          familyMembers={familyMembers}
+          getMemberDisplayName={getMemberDisplayName}
+          hasDetails={hasDetails}
+          handleCardClick={handleCardClick}
+          removeMember={removeMember}
+        />
       ) : (
-        /* Org Tree View */
-        <div className="relative">
-          <div className="flex flex-col items-center mb-6">
-            <div className="bg-primary/10 border-2 border-primary rounded-xl px-6 py-3 text-center">
-              <p className="font-display font-bold text-primary">{patientName}</p>
-              <p className="text-xs text-muted-foreground">Current Patient</p>
+        <TreeView
+          patientName={patientName}
+          familyMembers={familyMembers}
+          getMemberDisplayName={getMemberDisplayName}
+          hasDetails={hasDetails}
+          handleCardClick={handleCardClick}
+          removeMember={removeMember}
+        />
+      )}
+
+      {/* Patient Form Sheet for filling/editing details */}
+      <PatientFormSheet
+        open={formSheetOpen}
+        onOpenChange={(open) => {
+          setFormSheetOpen(open);
+          if (!open) {
+            setFormSheetPatient(null);
+            setPendingMemberId(null);
+          }
+        }}
+        patient={formSheetPatient?.id ? formSheetPatient : null}
+        defaultValues={!formSheetPatient?.id ? formSheetPatient : undefined}
+        onSuccess={handleFormSuccess}
+      />
+
+      {/* Detail View Dialog for filled members */}
+      <Dialog open={!!viewingMember} onOpenChange={(open) => { if (!open) setViewingMember(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              {viewingMember?.linkedPatient
+                ? `${viewingMember.linkedPatient.first_name} ${viewingMember.linkedPatient.last_name}`
+                : getMemberDisplayName(viewingMember || {})}
+            </DialogTitle>
+          </DialogHeader>
+          {viewingMember?.linkedPatient && (
+            <MemberDetailView
+              patient={viewingMember.linkedPatient}
+              relationship={viewingMember.relationship}
+              onEdit={handleEditLinkedPatient}
+              onViewProfile={handleViewProfile}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/* ── Sub-components ── */
+
+function MemberDetailView({
+  patient,
+  relationship,
+  onEdit,
+  onViewProfile,
+}: {
+  patient: Patient;
+  relationship: string;
+  onEdit: () => void;
+  onViewProfile: () => void;
+}) {
+  const getAge = (dob: string | null) => {
+    if (!dob) return null;
+    return Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+  };
+
+  const fields = [
+    { label: "Relationship", value: relationship },
+    { label: "Gender", value: patient.gender },
+    { label: "Age", value: getAge(patient.date_of_birth) ? `${getAge(patient.date_of_birth)} years` : null },
+    { label: "Date of Birth", value: patient.date_of_birth },
+    { label: "Phone", value: patient.phone },
+    { label: "Email", value: patient.email },
+    { label: "Blood Group", value: patient.blood_group },
+    { label: "Address", value: [patient.address, patient.city, patient.state, patient.pincode].filter(Boolean).join(", ") || null },
+    { label: "Skin Type", value: patient.skin_type },
+    { label: "Skin Concerns", value: patient.skin_concerns },
+    { label: "Allergies", value: patient.allergies },
+    { label: "Medical History", value: patient.medical_history },
+    { label: "Current Medications", value: patient.current_medications },
+  ];
+
+  return (
+    <div className="space-y-4 mt-2">
+      <div className="grid grid-cols-2 gap-3">
+        {fields.map(({ label, value }) =>
+          value ? (
+            <div key={label} className="space-y-0.5">
+              <p className="text-xs text-muted-foreground">{label}</p>
+              <p className="text-sm font-medium">{value}</p>
             </div>
-            {familyMembers.length > 0 && <div className="w-px h-6 bg-border" />}
-          </div>
+          ) : null
+        )}
+      </div>
 
-          <div className="relative">
-            {familyMembers.length > 1 && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 h-px bg-border" style={{
-                width: `${Math.min(familyMembers.length * 200, 800)}px`,
-                maxWidth: '90%'
-              }} />
-            )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              <AnimatePresence>
-                {familyMembers.map((member: any) => {
-                  const displayName = getMemberDisplayName(member);
-                  const initials = displayName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
-                  const isExpanded = expandedId === member.id;
-                  const isClickable = member.related_patient_id && !member._isReverse;
+      <div className="flex gap-2 pt-3 border-t">
+        <Button size="sm" variant="outline" className="gap-1.5 flex-1" onClick={onViewProfile}>
+          <Eye className="h-3.5 w-3.5" /> View Full Profile
+        </Button>
+        <Button size="sm" className="gap-1.5 flex-1" onClick={onEdit}>
+          <FileEdit className="h-3.5 w-3.5" /> Edit Details
+        </Button>
+      </div>
+    </div>
+  );
+}
 
-                  return (
-                    <motion.div
-                      key={member.id}
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="stat-card p-0 overflow-hidden"
-                    >
-                      <div className="flex justify-center">
-                        <div className="w-px h-3 bg-border" />
-                      </div>
+function ListViewTable({
+  familyMembers,
+  getMemberDisplayName,
+  hasDetails,
+  handleCardClick,
+  removeMember,
+}: any) {
+  return (
+    <div className="data-table">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b bg-muted/50">
+            <th className="text-left text-xs font-medium text-muted-foreground p-3">Name</th>
+            <th className="text-left text-xs font-medium text-muted-foreground p-3">Relationship</th>
+            <th className="text-left text-xs font-medium text-muted-foreground p-3 hidden sm:table-cell">Status</th>
+            <th className="text-right text-xs font-medium text-muted-foreground p-3"></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {familyMembers.map((member: any) => {
+            const displayName = getMemberDisplayName(member);
+            const filled = hasDetails(member);
+            return (
+              <tr
+                key={member.id}
+                className="hover:bg-muted/30 transition-colors cursor-pointer"
+                onClick={() => handleCardClick(member)}
+              >
+                <td className="p-3">
+                  <span className="font-medium text-sm text-primary hover:underline">{displayName}</span>
+                </td>
+                <td className="p-3">
+                  <Badge variant="outline" className="text-[10px]">{member.relationship}</Badge>
+                </td>
+                <td className="p-3 hidden sm:table-cell">
+                  {filled ? (
+                    <Badge variant="secondary" className="text-[10px] bg-success/10 text-success">Details filled</Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-[10px] bg-warning/10 text-warning">Pending</Badge>
+                  )}
+                </td>
+                <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+                  {!member._isReverse && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remove family member?</AlertDialogTitle>
+                          <AlertDialogDescription>This will remove {displayName} from this patient's family.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => removeMember.mutate(member.id)}>Remove</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
-                      <div className="p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="h-10 w-10 rounded-full bg-accent/50 flex items-center justify-center text-sm font-bold text-foreground shrink-0">
-                            {initials}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                onClick={() => isClickable && handleMemberClick(member)}
-                                className={`font-medium text-sm truncate text-left ${isClickable ? "text-primary hover:underline cursor-pointer" : ""}`}
-                              >
-                                {displayName}
-                              </button>
-                              {member.is_primary_contact && (
-                                <Star className="h-3.5 w-3.5 text-warning fill-warning shrink-0" />
-                              )}
-                            </div>
-                            <Badge variant="outline" className="text-[10px] mt-1">
-                              {member.relationship}
-                            </Badge>
-                            {member.phone && (
-                              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                                <Phone className="h-3 w-3" /> {member.phone}
-                              </p>
-                            )}
-                          </div>
-                          {member.notes && (
-                            <button
-                              onClick={() => setExpandedId(isExpanded ? null : member.id)}
-                              className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
-                            >
-                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            </button>
-                          )}
-                        </div>
+function TreeView({
+  patientName,
+  familyMembers,
+  getMemberDisplayName,
+  hasDetails,
+  handleCardClick,
+  removeMember,
+}: any) {
+  return (
+    <div className="relative">
+      {/* Center patient node */}
+      <div className="flex flex-col items-center mb-8">
+        <div className="bg-primary/10 border-2 border-primary rounded-xl px-6 py-3 text-center shadow-sm">
+          <p className="font-display font-bold text-primary">{patientName}</p>
+          <p className="text-xs text-muted-foreground">Current Patient</p>
+        </div>
+        {familyMembers.length > 0 && <div className="w-px h-8 bg-border" />}
+      </div>
 
-                        <AnimatePresence>
-                          {isExpanded && member.notes && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="mt-3 pt-3 border-t">
-                                <p className="text-xs text-muted-foreground italic">{member.notes}</p>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-
-                        {!member._isReverse && (
-                          <div className="mt-3 pt-2 border-t">
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm" className="text-xs h-7 text-destructive hover:text-destructive w-full">
-                                  <Trash2 className="h-3 w-3 mr-1" /> Remove
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Remove family member?</AlertDialogTitle>
-                                  <AlertDialogDescription>This will remove {displayName} from this patient's family.</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => removeMember.mutate(member.id)}>Remove</AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-            </div>
-          </div>
+      {/* Horizontal connector line */}
+      {familyMembers.length > 1 && (
+        <div className="relative mb-0">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 h-px bg-border" style={{
+            width: `${Math.min(familyMembers.length * 220, 900)}px`,
+            maxWidth: '95%',
+          }} />
         </div>
       )}
+
+      {/* Member cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <AnimatePresence>
+          {familyMembers.map((member: any) => {
+            const displayName = getMemberDisplayName(member);
+            const initials = displayName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+            const filled = hasDetails(member);
+
+            return (
+              <motion.div
+                key={member.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="relative"
+              >
+                {/* Vertical connector */}
+                <div className="flex justify-center">
+                  <div className="w-px h-4 bg-border" />
+                </div>
+
+                {/* Card */}
+                <div
+                  onClick={() => handleCardClick(member)}
+                  className="stat-card p-4 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all group"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
+                      filled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                    }`}>
+                      {initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">
+                        {displayName}
+                      </p>
+                      <Badge variant="outline" className="text-[10px] mt-1">{member.relationship}</Badge>
+                      {member.phone && (
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                          <Phone className="h-3 w-3" /> {member.phone}
+                        </p>
+                      )}
+                    </div>
+                    {member.is_primary_contact && (
+                      <Star className="h-3.5 w-3.5 text-warning fill-warning shrink-0" />
+                    )}
+                  </div>
+
+                  {/* Status indicator */}
+                  {!filled && !member._isReverse && (
+                    <div className="mt-3 pt-2 border-t">
+                      <p className="text-xs text-warning font-medium flex items-center gap-1">
+                        <FileEdit className="h-3 w-3" /> Fill Details
+                      </p>
+                    </div>
+                  )}
+                  {filled && !member._isReverse && (
+                    <div className="mt-3 pt-2 border-t">
+                      <p className="text-xs text-success font-medium flex items-center gap-1">
+                        <Eye className="h-3 w-3" /> View Details
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Remove button */}
+                  {!member._isReverse && (
+                    <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="text-xs h-7 text-destructive hover:text-destructive w-full">
+                            <Trash2 className="h-3 w-3 mr-1" /> Remove
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove family member?</AlertDialogTitle>
+                            <AlertDialogDescription>This will remove {displayName} from this patient's family.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => removeMember.mutate(member.id)}>Remove</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

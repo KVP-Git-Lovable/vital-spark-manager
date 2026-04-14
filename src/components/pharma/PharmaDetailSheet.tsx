@@ -59,7 +59,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
     queryKey: ["product-inventory-stock", productId],
     queryFn: async () => {
       if (!productId) return [];
-      const { data, error } = await supabase.from("pharma_inventory").select("quantity").eq("product_id", productId);
+      const { data, error } = await supabase.from("pharma_inventory").select("*").eq("product_id", productId).order("expiry_date", { ascending: true });
       if (error) throw error;
       return data;
     },

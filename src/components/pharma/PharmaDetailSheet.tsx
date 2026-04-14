@@ -137,7 +137,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
       queryClient.invalidateQueries({ queryKey: ["pharma-product", productId] });
       toast.success("Price updated — previous prices preserved");
       setShowPriceForm(false);
-      setPriceForm({ mrp: 0, selling_price: 0, purchase_price: 0, gst_percent: 0, notes: "" });
+      setPriceForm({ mrp: 0, selling_price: 0, purchase_price: 0, gst_percent: 0, notes: "", effective_from: new Date().toISOString().split("T")[0] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -284,7 +284,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-display font-semibold text-sm">Price History</h3>
                   <Button size="sm" variant="outline" onClick={() => {
-                    setPriceForm({ mrp: Number(product.mrp), selling_price: Number(product.selling_price), purchase_price: 0, gst_percent: Number(product.gst_percent) || 0, notes: "" });
+                    setPriceForm({ mrp: Number(product.mrp), selling_price: Number(product.selling_price), purchase_price: 0, gst_percent: Number(product.gst_percent) || 0, notes: "", effective_from: new Date().toISOString().split("T")[0] });
                     setShowPriceForm(true);
                   }}><Plus className="h-3 w-3 mr-1" />New Price</Button>
                 </div>

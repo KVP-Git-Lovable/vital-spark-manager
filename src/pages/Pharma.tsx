@@ -571,6 +571,10 @@ const Pharma = () => {
         productId={selectedProductId}
         onClose={() => setSelectedProductId(null)}
         onClone={handleCloneProduct}
+        onAddStock={(pid) => {
+          setStockForm({ ...emptyStock, product_id: pid });
+          setStockOpen(true);
+        }}
       />
       <InventoryDetailSheet
         inventoryId={selectedInventoryId}

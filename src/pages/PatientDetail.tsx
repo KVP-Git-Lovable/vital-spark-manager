@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -23,10 +24,36 @@ import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { toast } from "sonner";
+import { SurveyFill } from "@/components/surveys/SurveyFill";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-const PatientDetail = () => {
+function SurveyAnswersView({ surveyId, answers, templateId }: { surveyId: string; answers: Record<string, any>; templateId: string }) {
+  const { data: questions = [] } = useQuery({
+    queryKey: ["survey-questions", templateId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("survey_questions").select("*").eq("template_id", templateId).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!templateId,
+  });
+  if (questions.length === 0) return <p className="text-sm text-muted-foreground">Loading questions...</p>;
+  return (
+    <div className="space-y-4 mt-2">
+      {questions.map((q: any, i: number) => (
+        <div key={q.id} className="space-y-1">
+          <p className="text-sm font-medium">{i + 1}. {q.question_text}</p>
+          <p className="text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+            {Array.isArray(answers[q.id]) ? answers[q.id].join(", ") : (answers[q.id] ?? "—")}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -44,6 +71,10 @@ const PatientDetail = () => {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [surveyTemplateSelectOpen, setSurveyTemplateSelectOpen] = useState(false);
+  const [selectedSurveyTemplateId, setSelectedSurveyTemplateId] = useState<string | null>(null);
+  const [surveyFillOpen, setSurveyFillOpen] = useState(false);
+  const [viewingSurveyId, setViewingSurveyId] = useState<string | null>(null);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],
@@ -153,6 +184,15 @@ const PatientDetail = () => {
       return data;
     },
     enabled: !!id,
+  });
+
+  const { data: surveyTemplates = [] } = useQuery({
+    queryKey: ["survey-templates-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("survey_templates").select("id, name").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
   });
 
   const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -901,7 +941,30 @@ const PatientDetail = () => {
         {/* Surveys Tab */}
         <TabsContent value="surveys">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
-            {surveyResponses.length === 0 ? (
+            <div className="flex justify-end mb-3 gap-2">
+              {!surveyTemplateSelectOpen ? (
+                <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setSurveyTemplateSelectOpen(true)}>
+                  <Plus className="h-3.5 w-3.5" /> Add Survey
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Select onValueChange={(val) => { setSelectedSurveyTemplateId(val); setSurveyFillOpen(true); setSurveyTemplateSelectOpen(false); }}>
+                    <SelectTrigger className="w-[220px] h-8 text-xs">
+                      <SelectValue placeholder="Select template..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {surveyTemplates.map((t: any) => (
+                        <SelectItem key={t.id} value={t.id} className="text-xs">{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSurveyTemplateSelectOpen(false)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            {surveyResponses.length === 0 && !surveyTemplateSelectOpen ? (
               <div className="text-center py-12 text-muted-foreground">
                 <ClipboardCheck className="h-10 w-10 mx-auto mb-2 opacity-40" />
                 <p className="text-sm">No survey responses yet</p>
@@ -925,9 +988,12 @@ const PatientDetail = () => {
                             {appt?.staff && ` • Dr. ${appt.staff.first_name} ${appt.staff.last_name}`}
                           </p>
                         </div>
-                        <Badge variant={sr.dr_status === "approved" ? "default" : sr.dr_status === "modified" ? "secondary" : "outline"} className="text-[10px]">
-                          {sr.dr_status === "pending_review" ? "Pending Review" : sr.dr_status === "approved" ? "Approved" : "Modified"}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setViewingSurveyId(sr.id)}>View</Button>
+                          <Badge variant={sr.dr_status === "approved" ? "default" : sr.dr_status === "modified" ? "secondary" : "outline"} className="text-[10px]">
+                            {sr.dr_status === "pending_review" ? "Pending Review" : sr.dr_status === "approved" ? "Approved" : "Modified"}
+                          </Badge>
+                        </div>
                       </div>
 
                       {template?.problem_areas?.name && (
@@ -1069,6 +1135,38 @@ const PatientDetail = () => {
           queryClient.invalidateQueries({ queryKey: ["patient-appointments", id] });
         }}
       />
+
+      {selectedSurveyTemplateId && (
+        <SurveyFill
+          open={surveyFillOpen}
+          onOpenChange={(open) => { setSurveyFillOpen(open); if (!open) setSelectedSurveyTemplateId(null); }}
+          templateId={selectedSurveyTemplateId}
+          appointmentId={appointments.length > 0 ? appointments[0].id : ""}
+          patientId={id!}
+          onComplete={() => queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] })}
+        />
+      )}
+
+      {/* Survey Detail View Dialog */}
+      {viewingSurveyId && (() => {
+        const sr = surveyResponses.find((s: any) => s.id === viewingSurveyId);
+        if (!sr) return null;
+        const answers = sr.answers as Record<string, any> || {};
+        return (
+          <Dialog open={!!viewingSurveyId} onOpenChange={(open) => { if (!open) setViewingSurveyId(null); }}>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <ClipboardCheck className="h-5 w-5" />
+                  {sr.survey_templates?.name || "Survey Response"}
+                </DialogTitle>
+              </DialogHeader>
+              <p className="text-xs text-muted-foreground">Filled on {new Date(sr.created_at).toLocaleDateString()}</p>
+              <SurveyAnswersView surveyId={viewingSurveyId} answers={answers} templateId={sr.template_id} />
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 };

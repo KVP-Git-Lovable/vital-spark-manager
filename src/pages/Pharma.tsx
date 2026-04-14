@@ -356,7 +356,19 @@ const Pharma = () => {
                 <div className="grid grid-cols-3 gap-3">
                   <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
                   <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={productForm.reorder_level} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
-                  <div><Label>Qty per Unit</Label><Input type="number" className="mt-1" value={productForm.qty_per_unit} onChange={(e) => setProductForm({ ...productForm, qty_per_unit: parseInt(e.target.value) || 1 })} placeholder="e.g. tablets per strip" /></div>
+                  {(() => {
+                    const selectedUnit = unitMaster.find((u: any) => u.name === productForm.unit);
+                    const unitName = productForm.unit;
+                    if (unitName === "Nos") return null;
+                    const label = unitName === "Strip" ? "Tablets per Strip"
+                      : unitName === "Sachet" ? "Qty per Sachet (e.g. 5gm)"
+                      : unitName === "Tube" ? "Volume/Weight (e.g. 30gm)"
+                      : unitName === "Bottle" ? "Volume per Bottle (e.g. 100ml)"
+                      : selectedUnit?.sub_unit_name ? `${selectedUnit.sub_unit_name} per ${unitName}` : "Qty per Unit";
+                    return (
+                      <div><Label>{label}</Label><Input type="number" className="mt-1" value={productForm.qty_per_unit} onChange={(e) => setProductForm({ ...productForm, qty_per_unit: parseInt(e.target.value) || 1 })} placeholder={selectedUnit?.conversion_qty ? String(selectedUnit.conversion_qty) : "1"} /></div>
+                    );
+                  })()}
                 </div>
                 <div>
                   <Label>Expiry Date</Label>

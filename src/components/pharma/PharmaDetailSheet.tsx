@@ -234,6 +234,14 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 const availableStock = Math.max(0, totalStock - consumedStock);
                 const isLowStock = availableStock > 0 && availableStock <= (product.reorder_level || 0);
                 const noStockAdded = totalStock === 0 && consumedStock > 0;
+                // Find nearest expiry from inventory batches
+                const nearestExpiry = inventoryItems.length > 0
+                  ? inventoryItems.reduce((nearest: any, item: any) => {
+                      if (!nearest || new Date(item.expiry_date) < new Date(nearest.expiry_date)) return item;
+                      return nearest;
+                    }, null)
+                  : null;
+                const nearestExpiryDays = nearestExpiry ? Math.ceil((new Date(nearestExpiry.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
                 return (
                   <div className="space-y-2">
                     <h3 className="font-display font-semibold text-sm">Inventory Summary</h3>
@@ -246,7 +254,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                         </div>
                       </div>
                     )}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className={`grid ${nearestExpiry ? "grid-cols-3" : "grid-cols-2"} gap-3`}>
                       <div className="rounded-lg border bg-muted/30 p-3 text-center">
                         <Package className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
                         <p className="text-xs text-muted-foreground">Total Stock</p>
@@ -259,6 +267,15 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                         {isLowStock && <Badge variant="destructive" className="text-[10px] mt-1">Low Stock</Badge>}
                         {availableStock === 0 && <Badge variant="destructive" className="text-[10px] mt-1">Out of Stock</Badge>}
                       </div>
+                      {nearestExpiry && (
+                        <div className={`rounded-lg border p-3 text-center ${nearestExpiryDays !== null && nearestExpiryDays <= 90 ? "border-amber-400 bg-amber-50 dark:bg-amber-950/30" : "bg-muted/30"}`}>
+                          <AlertTriangle className={`h-4 w-4 mx-auto mb-1 ${nearestExpiryDays !== null && nearestExpiryDays <= 0 ? "text-destructive" : nearestExpiryDays !== null && nearestExpiryDays <= 90 ? "text-amber-600" : "text-muted-foreground"}`} />
+                          <p className="text-xs text-muted-foreground">Nearest Expiry</p>
+                          <p className="text-sm font-bold">{format(new Date(nearestExpiry.expiry_date), "dd MMM yyyy")}</p>
+                          {nearestExpiryDays !== null && nearestExpiryDays <= 0 && <Badge variant="destructive" className="text-[10px] mt-1">Expired</Badge>}
+                          {nearestExpiryDays !== null && nearestExpiryDays > 0 && nearestExpiryDays <= 90 && <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] mt-1">Expiring Soon</Badge>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

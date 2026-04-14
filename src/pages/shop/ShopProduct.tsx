@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Package, ShoppingCart, Plus, Minus, Play, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Package, ShoppingCart, Plus, Minus, Play, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -192,8 +192,25 @@ const ShopProduct = () => {
               {product.hsn_code && <div className="bg-muted/50 rounded-lg p-3"><span className="text-muted-foreground">HSN:</span> {product.hsn_code}</div>}
             </div>
 
+            {/* Stock status badges */}
+            {isOutOfStock && settings.out_of_stock_behavior === "show_out_of_stock" && (
+              <Badge variant="destructive" className="w-fit">Out of Stock</Badge>
+            )}
+
+            {/* Backorder message */}
+            {isBackorder && (
+              <div className="flex items-start gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>Currently unavailable — we will deliver within 2-3 working days</span>
+              </div>
+            )}
+
             {/* Cart quantity or Add button */}
-            {cartQty === 0 ? (
+            {isDisabled ? (
+              <Button className="w-full h-12 text-base gap-2" disabled>
+                Out of Stock
+              </Button>
+            ) : cartQty === 0 ? (
               <Button className="w-full h-12 text-base gap-2" onClick={handleAdd}>
                 <ShoppingCart className="h-5 w-5" /> Add to Cart
               </Button>

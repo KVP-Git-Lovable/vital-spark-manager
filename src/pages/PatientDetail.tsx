@@ -963,9 +963,12 @@ const PatientDetail = () => {
                             {appt?.staff && ` • Dr. ${appt.staff.first_name} ${appt.staff.last_name}`}
                           </p>
                         </div>
-                        <Badge variant={sr.dr_status === "approved" ? "default" : sr.dr_status === "modified" ? "secondary" : "outline"} className="text-[10px]">
-                          {sr.dr_status === "pending_review" ? "Pending Review" : sr.dr_status === "approved" ? "Approved" : "Modified"}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setViewingSurveyId(sr.id)}>View</Button>
+                          <Badge variant={sr.dr_status === "approved" ? "default" : sr.dr_status === "modified" ? "secondary" : "outline"} className="text-[10px]">
+                            {sr.dr_status === "pending_review" ? "Pending Review" : sr.dr_status === "approved" ? "Approved" : "Modified"}
+                          </Badge>
+                        </div>
                       </div>
 
                       {template?.problem_areas?.name && (

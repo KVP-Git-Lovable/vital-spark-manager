@@ -1106,6 +1106,38 @@ const PatientDetail = () => {
           queryClient.invalidateQueries({ queryKey: ["patient-appointments", id] });
         }}
       />
+
+      {selectedSurveyTemplateId && (
+        <SurveyFill
+          open={surveyFillOpen}
+          onOpenChange={(open) => { setSurveyFillOpen(open); if (!open) setSelectedSurveyTemplateId(null); }}
+          templateId={selectedSurveyTemplateId}
+          appointmentId={appointments.length > 0 ? appointments[0].id : ""}
+          patientId={id!}
+          onComplete={() => queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] })}
+        />
+      )}
+
+      {/* Survey Detail View Dialog */}
+      {viewingSurveyId && (() => {
+        const sr = surveyResponses.find((s: any) => s.id === viewingSurveyId);
+        if (!sr) return null;
+        const answers = sr.answers as Record<string, any> || {};
+        return (
+          <Dialog open={!!viewingSurveyId} onOpenChange={(open) => { if (!open) setViewingSurveyId(null); }}>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <ClipboardCheck className="h-5 w-5" />
+                  {sr.survey_templates?.name || "Survey Response"}
+                </DialogTitle>
+              </DialogHeader>
+              <p className="text-xs text-muted-foreground">Filled on {new Date(sr.created_at).toLocaleDateString()}</p>
+              <SurveyAnswersView surveyId={viewingSurveyId} answers={answers} templateId={sr.template_id} />
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { Plus, Search, Package, ShoppingCart, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";

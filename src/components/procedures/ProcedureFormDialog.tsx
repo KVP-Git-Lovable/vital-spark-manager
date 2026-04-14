@@ -11,6 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { StaffCombobox } from "@/components/shared/StaffCombobox";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -274,26 +275,12 @@ export function ProcedureFormDialog({
               </Select>
             </div>
             <div>
-              <Label>Staff</Label>
-              <Select value={staffId} onValueChange={setStaffId}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select staff" /></SelectTrigger>
-                <SelectContent>
-                  {staffList.map((d: any) => (
-                    <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Doctor</Label>
+              <StaffCombobox value={staffId} onValueChange={setStaffId} placeholder="Select doctor" className="mt-1.5" />
             </div>
             <div>
               <Label>Assisted By</Label>
-              <Select value={assistedBy} onValueChange={setAssistedBy}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select assistant" /></SelectTrigger>
-                <SelectContent>
-                  {staffList.map((d: any) => (
-                    <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <StaffCombobox value={assistedBy} onValueChange={setAssistedBy} placeholder="Select assistant" allowNone noneLabel="No assistant" className="mt-1.5" />
             </div>
           </div>
 

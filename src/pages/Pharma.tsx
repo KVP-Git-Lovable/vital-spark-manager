@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
-import { Plus, Search, Package, ShoppingCart, AlertTriangle } from "lucide-react";
+import { Plus, Search, Package, ShoppingCart, AlertTriangle, Settings } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

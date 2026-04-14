@@ -35,6 +35,7 @@ interface PatientFormSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   patient?: Patient | null;
+  defaultValues?: Partial<Patient> | null;
   onSuccess: () => void;
 }
 
@@ -69,7 +70,7 @@ const emptyForm: TablesInsert<"patients"> = {
   source_referral_doctor: null,
 };
 
-export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: PatientFormSheetProps) {
+export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, onSuccess }: PatientFormSheetProps) {
   const [form, setForm] = useState<TablesInsert<"patients">>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [referralPatientSearch, setReferralPatientSearch] = useState("");
@@ -132,10 +133,18 @@ export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: Pat
         const refPat = allPatients.find(p => p.id === (patient as any).source_referral_doctor);
         if (refPat) setSelectedReferralPatientName(`${refPat.first_name} ${refPat.last_name}`);
       }
+    } else if (defaultValues) {
+      setForm({
+        ...emptyForm,
+        first_name: defaultValues.first_name || "",
+        last_name: defaultValues.last_name || "",
+        phone: defaultValues.phone || null,
+        email: defaultValues.email || null,
+      });
     } else {
       setForm(emptyForm);
     }
-  }, [patient, open, allPatients]);
+  }, [patient, defaultValues, open, allPatients]);
 
   const updateField = (field: keyof typeof form, value: string | null) => {
     setForm((prev) => ({ ...prev, [field]: value || null }));

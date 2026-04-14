@@ -94,6 +94,24 @@ const Pharma = () => {
     },
   });
 
+  const { data: unitMaster = [] } = useQuery({
+    queryKey: ["unit-master"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("unit_master").select("*").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: categoryMaster = [] } = useQuery({
+    queryKey: ["category-master"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("category_master").select("*").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // ─── Mutations ──────────────────────────────────
   const addProduct = useMutation({
     mutationFn: async () => {

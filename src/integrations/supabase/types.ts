@@ -2474,25 +2474,31 @@ export type Database = {
       }
       unit_master: {
         Row: {
+          conversion_qty: number | null
           created_at: string
           description: string | null
           id: string
           is_active: boolean
           name: string
+          sub_unit_name: string | null
         }
         Insert: {
+          conversion_qty?: number | null
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean
           name: string
+          sub_unit_name?: string | null
         }
         Update: {
+          conversion_qty?: number | null
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          sub_unit_name?: string | null
         }
         Relationships: []
       }

@@ -901,7 +901,30 @@ const PatientDetail = () => {
         {/* Surveys Tab */}
         <TabsContent value="surveys">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
-            {surveyResponses.length === 0 ? (
+            <div className="flex justify-end mb-3 gap-2">
+              {!surveyTemplateSelectOpen ? (
+                <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setSurveyTemplateSelectOpen(true)}>
+                  <Plus className="h-3.5 w-3.5" /> Add Survey
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Select onValueChange={(val) => { setSelectedSurveyTemplateId(val); setSurveyFillOpen(true); setSurveyTemplateSelectOpen(false); }}>
+                    <SelectTrigger className="w-[220px] h-8 text-xs">
+                      <SelectValue placeholder="Select template..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {surveyTemplates.map((t: any) => (
+                        <SelectItem key={t.id} value={t.id} className="text-xs">{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSurveyTemplateSelectOpen(false)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            {surveyResponses.length === 0 && !surveyTemplateSelectOpen ? (
               <div className="text-center py-12 text-muted-foreground">
                 <ClipboardCheck className="h-10 w-10 mx-auto mb-2 opacity-40" />
                 <p className="text-sm">No survey responses yet</p>

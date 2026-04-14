@@ -23,6 +23,7 @@ import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { toast } from "sonner";
+import { SurveyFill } from "@/components/surveys/SurveyFill";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -44,6 +45,10 @@ const PatientDetail = () => {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [surveyTemplateSelectOpen, setSurveyTemplateSelectOpen] = useState(false);
+  const [selectedSurveyTemplateId, setSelectedSurveyTemplateId] = useState<string | null>(null);
+  const [surveyFillOpen, setSurveyFillOpen] = useState(false);
+  const [viewingSurveyId, setViewingSurveyId] = useState<string | null>(null);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],

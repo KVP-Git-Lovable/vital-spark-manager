@@ -694,6 +694,80 @@ const Pharma = () => {
             </Table>
           </motion.div>
         </TabsContent>
+
+        <TabsContent value="settings">
+          <div className="max-w-2xl space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-display">Customer Portal Configuration</CardTitle>
+                <CardDescription>Control how products appear on the patient portal shop</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Shop Enabled */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-medium">Enable Shop</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Toggle the entire shop on/off for patients</p>
+                  </div>
+                  <Switch checked={settingsForm.shop_enabled} onCheckedChange={(v) => setSettingsForm({ ...settingsForm, shop_enabled: v })} />
+                </div>
+
+                <div className="border-t pt-4">
+                  <Label className="text-sm font-medium">When a product is Out of Stock</Label>
+                  <RadioGroup value={settingsForm.out_of_stock_behavior} onValueChange={(v) => setSettingsForm({ ...settingsForm, out_of_stock_behavior: v })} className="mt-3 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <RadioGroupItem value="hide" id="oos-hide" className="mt-0.5" />
+                      <div>
+                        <Label htmlFor="oos-hide" className="text-sm font-medium cursor-pointer">Hide product</Label>
+                        <p className="text-xs text-muted-foreground">Don't show the product on the portal at all</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <RadioGroupItem value="show_out_of_stock" id="oos-show" className="mt-0.5" />
+                      <div>
+                        <Label htmlFor="oos-show" className="text-sm font-medium cursor-pointer">Show as Out of Stock</Label>
+                        <p className="text-xs text-muted-foreground">Display with an "Out of Stock" badge and disable Add to Cart</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <RadioGroupItem value="accept_backorders" id="oos-backorder" className="mt-0.5" />
+                      <div>
+                        <Label htmlFor="oos-backorder" className="text-sm font-medium cursor-pointer">Accept backorders</Label>
+                        <p className="text-xs text-muted-foreground">Allow patients to order with a "Currently unavailable — we will deliver within 2-3 working days" message</p>
+                      </div>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-sm font-medium">Hide Expiring Products</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">Hide products with all batches expiring within {settingsForm.expiring_threshold_days} days</p>
+                    </div>
+                    <Switch checked={settingsForm.hide_expiring_products} onCheckedChange={(v) => setSettingsForm({ ...settingsForm, hide_expiring_products: v })} />
+                  </div>
+                  {settingsForm.hide_expiring_products && (
+                    <div className="mt-3">
+                      <Label className="text-xs">Expiry threshold (days)</Label>
+                      <Input type="number" className="mt-1 w-32" value={settingsForm.expiring_threshold_days} onChange={(e) => setSettingsForm({ ...settingsForm, expiring_threshold_days: parseInt(e.target.value) || 90 })} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t pt-4">
+                  <Label className="text-sm font-medium">Low Stock Threshold Override</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Override the per-product reorder level for "Low Stock" warnings. Leave empty to use each product's reorder level.</p>
+                  <Input type="number" className="mt-2 w-32" placeholder="Use reorder level" value={settingsForm.low_stock_threshold ?? ""} onChange={(e) => setSettingsForm({ ...settingsForm, low_stock_threshold: e.target.value ? parseInt(e.target.value) : null })} />
+                </div>
+
+                <Button className="w-full" onClick={() => saveSettings.mutate()} disabled={saveSettings.isPending}>
+                  {saveSettings.isPending ? "Saving..." : "Save Settings"}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
       </Tabs>
 
       {/* Detail Sheets */}

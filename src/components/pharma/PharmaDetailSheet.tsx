@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Pencil, Trash2, Copy, Plus, Check, X, AlertTriangle, Package } from "lucide-react";
+import { Pencil, Trash2, Copy, Plus, Check, X, AlertTriangle, Package, PackagePlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 // ─── Product Detail ──────────────────────────────────────
-export function ProductDetailSheet({ productId, onClose, onClone }: { productId: string | null; onClose: () => void; onClone?: (product: any) => void }) {
+export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: { productId: string | null; onClose: () => void; onClone?: (product: any) => void; onAddStock?: (productId: string) => void }) {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -163,7 +163,8 @@ export function ProductDetailSheet({ productId, onClose, onClone }: { productId:
 
           {!isEditing ? (
             <div className="mt-4 space-y-6">
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                <Button size="sm" variant="outline" onClick={() => { onAddStock?.(productId!); onClose(); }}><PackagePlus className="h-3 w-3 mr-1" />Inward Stock</Button>
                 <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}><Pencil className="h-3 w-3 mr-1" />Edit</Button>
                 <Button size="sm" variant="outline" onClick={() => { onClone?.(product); onClose(); }}><Copy className="h-3 w-3 mr-1" />Clone</Button>
                 <Button size="sm" variant="destructive" onClick={() => setDeleteOpen(true)}><Trash2 className="h-3 w-3 mr-1" />Delete</Button>

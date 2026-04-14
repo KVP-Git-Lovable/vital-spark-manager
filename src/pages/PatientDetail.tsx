@@ -177,7 +177,7 @@ const PatientDetail = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("survey_responses")
-        .select("*, survey_templates(name, description, problem_areas(name), services(name)), appointments(start_time, service, staff(first_name, last_name))")
+        .select("*, survey_templates(name, description), appointments(start_time, service)")
         .eq("patient_id", id!)
         .order("created_at", { ascending: false });
       if (error) throw error;

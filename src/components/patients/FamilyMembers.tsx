@@ -390,7 +390,7 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
           }
         }}
         patient={formSheetPatient?.id ? formSheetPatient : null}
-        defaultValues={!formSheetPatient?.id ? formSheetPatient : undefined}
+        defaultValues={formSheetPatient && !formSheetPatient.id ? formSheetPatient : undefined}
         onSuccess={handleFormSuccess}
       />
 

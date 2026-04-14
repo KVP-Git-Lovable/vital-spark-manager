@@ -121,6 +121,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
         purchase_price: priceForm.purchase_price,
         gst_percent: priceForm.gst_percent,
         notes: priceForm.notes,
+        effective_from: priceForm.effective_from,
         is_active: true,
       } as any);
       if (error) throw error;

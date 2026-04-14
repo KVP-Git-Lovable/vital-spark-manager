@@ -228,6 +228,12 @@ const Pharma = () => {
       unit: product.unit || "Nos",
       hsn_code: product.hsn_code || "",
       reorder_level: product.reorder_level || 10,
+      vendor_id: product.vendor_id || "",
+      mrp: product.mrp || 0,
+      selling_price: product.selling_price || 0,
+      gst_percent: product.gst_percent || 0,
+      expiry_date: product.expiry_date || "",
+      qty_per_unit: product.qty_per_unit || 1,
     });
     setProductOpen(true);
   };

@@ -620,7 +620,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">No doctor assigned</SelectItem>
-                        {doctorsList.map((d: any) => (
+                        {staffList.map((d: any) => (
                           <SelectItem key={d.id} value={d.id}>
                             {d.name}
                           </SelectItem>

@@ -278,7 +278,7 @@ export function ProcedureFormDialog({
               <Select value={staffId} onValueChange={setStaffId}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
                 <SelectContent>
-                  {doctorsList.map((d: any) => (
+                  {staffList.map((d: any) => (
                     <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -289,7 +289,7 @@ export function ProcedureFormDialog({
               <Select value={assistedBy} onValueChange={setAssistedBy}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select assistant doctor" /></SelectTrigger>
                 <SelectContent>
-                  {doctorsList.map((d: any) => (
+                  {staffList.map((d: any) => (
                     <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                   ))}
                 </SelectContent>

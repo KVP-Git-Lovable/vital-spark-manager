@@ -219,8 +219,8 @@ const Appointments = () => {
           valB = (b.service || "").toLowerCase();
           break;
         case "doctor":
-          valA = (doctorMap.get(a.staff_id) || "").toLowerCase();
-          valB = (doctorMap.get(b.staff_id) || "").toLowerCase();
+          valA = (staffMap.get(a.staff_id) || "").toLowerCase();
+          valB = (staffMap.get(b.staff_id) || "").toLowerCase();
           break;
         case "status":
           valA = (a.status || "").toLowerCase();
@@ -467,7 +467,7 @@ const Appointments = () => {
   };
 
   const getDoctorName = (apt: any) => {
-    return apt.staff_id ? (doctorMap.get(apt.staff_id) || "") : "";
+    return apt.staff_id ? (staffMap.get(apt.staff_id) || "") : "";
   };
 
   const statusColor = (status: string) => {
@@ -682,7 +682,7 @@ const Appointments = () => {
                     <Select value={staffId} onValueChange={setStaffId}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
-                        {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                        {staffList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -862,7 +862,7 @@ const Appointments = () => {
               <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Doctors" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Doctors</SelectItem>
-                {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                {staffList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Popover>
@@ -886,7 +886,7 @@ const Appointments = () => {
         {view !== "table" && doctorColorMap.size > 0 && (
           <div className="flex flex-wrap items-center gap-2 mt-2">
             <span className="text-xs text-muted-foreground font-medium">Doctors:</span>
-            {doctorsList.filter((d: any) => doctorColorMap.has(d.id)).map((d: any) => {
+            {staffList.filter((d: any) => doctorColorMap.has(d.id)).map((d: any) => {
               const p = doctorColorMap.get(d.id)!;
               const isSelected = filterDoctors.has(d.id);
               const isFiltering = filterDoctors.size > 0;
@@ -1056,7 +1056,7 @@ const Appointments = () => {
                               <Select value={editValues.staff_id} onValueChange={(val) => setEditValues({ ...editValues, staff_id: val })}>
                                 <SelectTrigger className="h-8 text-xs w-36"><SelectValue placeholder="Select" /></SelectTrigger>
                                 <SelectContent>
-                                  {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                  {staffList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
                                 </SelectContent>
                               </Select>
                             </td>
@@ -1091,7 +1091,7 @@ const Appointments = () => {
                             {patientPhone ? <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span> : "—"}
                           </td>
                           <td className="p-3">{apt.service || "—"}</td>
-                          <td className="p-3 text-muted-foreground">{apt.staff_id ? (doctorMap.get(apt.staff_id) || "—") : "—"}</td>
+                          <td className="p-3 text-muted-foreground">{apt.staff_id ? (staffMap.get(apt.staff_id) || "—") : "—"}</td>
                           <td className="p-3" onClick={(e) => e.stopPropagation()}>
                             <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({ id: apt.id, status: val })}>
                               <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">

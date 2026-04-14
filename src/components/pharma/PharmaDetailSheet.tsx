@@ -297,6 +297,39 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
 
               <Separator />
 
+              {/* Procurement History */}
+              {inventoryItems.length > 0 && (
+                <div>
+                  <h3 className="font-display font-semibold text-sm mb-3">Procurement History</h3>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Date</TableHead>
+                        <TableHead className="text-xs">Batch</TableHead>
+                        <TableHead className="text-xs">Qty</TableHead>
+                        <TableHead className="text-xs">Price</TableHead>
+                        <TableHead className="text-xs">Supplier</TableHead>
+                        <TableHead className="text-xs">Expiry</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {inventoryItems.map((inv: any) => (
+                        <TableRow key={inv.id}>
+                          <TableCell className="text-xs">{format(new Date(inv.received_date), "dd MMM yyyy")}</TableCell>
+                          <TableCell className="text-xs">{inv.batch_number}</TableCell>
+                          <TableCell className="text-xs">{inv.quantity}</TableCell>
+                          <TableCell className="text-xs">₹{Number(inv.purchase_price).toFixed(2)}</TableCell>
+                          <TableCell className="text-xs">{inv.supplier || "—"}</TableCell>
+                          <TableCell className="text-xs">{format(new Date(inv.expiry_date), "dd MMM yyyy")}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              <Separator />
+
               {/* Price History */}
               <div>
                 <div className="flex items-center justify-between mb-3">
@@ -317,9 +350,12 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                       <div><Label className="text-xs">Buy Price (₹)</Label><Input type="number" className="mt-1 h-8" value={priceForm.purchase_price} onChange={(e) => setPriceForm({ ...priceForm, purchase_price: parseFloat(e.target.value) || 0 })} /></div>
                       <div><Label className="text-xs">GST %</Label><Input type="number" className="mt-1 h-8" value={priceForm.gst_percent} onChange={(e) => setPriceForm({ ...priceForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
                     </div>
-                    <div><Label className="text-xs">Notes</Label><Input className="mt-1 h-8" value={priceForm.notes} onChange={(e) => setPriceForm({ ...priceForm, notes: e.target.value })} placeholder="Reason for price change" /></div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><Label className="text-xs">Effective From *</Label><Input type="date" className="mt-1 h-8" value={priceForm.effective_from} onChange={(e) => setPriceForm({ ...priceForm, effective_from: e.target.value })} required /></div>
+                      <div><Label className="text-xs">Notes</Label><Input className="mt-1 h-8" value={priceForm.notes} onChange={(e) => setPriceForm({ ...priceForm, notes: e.target.value })} placeholder="Reason for price change" /></div>
+                    </div>
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => addPrice.mutate()} disabled={addPrice.isPending}><Check className="h-3 w-3 mr-1" />{addPrice.isPending ? "Saving..." : "Save & Activate"}</Button>
+                      <Button size="sm" onClick={() => addPrice.mutate()} disabled={addPrice.isPending || !priceForm.effective_from}><Check className="h-3 w-3 mr-1" />{addPrice.isPending ? "Saving..." : "Save & Activate"}</Button>
                       <Button size="sm" variant="ghost" onClick={() => setShowPriceForm(false)}><X className="h-3 w-3 mr-1" />Cancel</Button>
                     </div>
                   </div>

@@ -1,33 +1,31 @@
 
 
-## Plan: Fix Negative Stock Display & Block Insufficient Stock Dispensing
+## Plan: Prescription Stock Validation & Dosage Removal
 
-### What We're Fixing
+### What changes
 
-Available Stock shows negative values because prescriptions consume stock that was never added. We need to clamp the display to 0, block dispensing when stock is insufficient, and alert staff to add opening stock.
+1. **Remove Dosage field** from the prescription form UI and data model
+   - Remove `dosage` from the `PrescriptionInput` interface
+   - Remove the dosage `<Input>` from the prescription grid (line 336)
+   - Remove `dosage` from the initial empty prescription object (line 220)
+   - Remove `dosage` from the insert payload (line 198)
+   - Change the medicine/qty grid layout from `grid-cols-2` to full-width for the medicine select
 
-### Changes
+2. **Add real-time stock display on medicine selection**
+   - Track stock per prescription index using a `stockMap` state (`Record<number, {available: number, loading: boolean}>`)
+   - When a medicine is selected (`updatePrescription` with `product_id`), fetch `pharma_inventory` totals and `prescriptions` consumed for that product, compute available stock
+   - Display below the medicine dropdown:
+     - If stock = 0 → amber/red warning: "⚠️ This medicine is currently out of stock"
+     - If stock > 0 → green info: "Available stock: X units"
+   - Message updates instantly on re-selection
 
-**File: `src/components/pharma/PharmaDetailSheet.tsx`** (Product detail panel)
+### Files to edit
 
-1. **Clamp Available Stock to 0 minimum**: Change `availableStock = totalStock - consumedStock` to `Math.max(0, totalStock - consumedStock)`
-2. **Add "No opening stock" banner**: When `totalStock === 0` and `consumedStock > 0`, show an amber alert banner prompting staff to add opening stock (e.g. "No stock has been added for this product. Please add opening stock via Inventory.")
-3. Keep existing Low Stock badge for when stock is positive but below reorder level
+- **`src/components/procedures/ProcedureFormDialog.tsx`** — all changes in this single file
 
-**File: `src/pages/Pharma.tsx`** (Outward billing)
+### Technical details
 
-4. **Block dispensing when insufficient stock**: In the `createBill` mutation, before inserting the bill, check each bill item's available stock. If any item has insufficient stock, show a toast error ("Insufficient stock for [product name]") and abort the mutation.
-5. **Validate on item add**: When adding an item to the bill, warn if the selected batch/inventory quantity is less than the requested quantity.
-
-**File: `src/components/procedures/ProcedureFormDialog.tsx`** (Prescription creation)
-
-6. **Stock check on prescription save**: Before inserting prescription rows, query available stock for each prescribed product. If available stock is 0, show a warning toast but still allow saving (prescriptions are clinical records — warn but don't block).
-
-### Summary
-
-| File | Change |
-|------|--------|
-| `PharmaDetailSheet.tsx` | Clamp to 0, add "add opening stock" banner |
-| `Pharma.tsx` | Block bill creation on insufficient stock |
-| `ProcedureFormDialog.tsx` | Warn on zero stock when prescribing |
+- Stock calculation reuses the same logic already in `createMutation`: `totalInward - totalConsumed`, clamped to 0
+- Stock fetch happens inside `updatePrescription` when `field === "product_id"`, stored in state keyed by prescription index
+- The dosage field in the DB insert can safely be set to empty string or omitted — existing `prescriptions` table column remains but won't receive new values
 

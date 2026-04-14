@@ -61,6 +61,7 @@ export function ProcedureFormDialog({
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
+  const [stockMap, setStockMap] = useState<Record<number, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);
   const [autoFilled, setAutoFilled] = useState(false);
 
@@ -198,7 +199,7 @@ export function ProcedureFormDialog({
             procedure_id: proc.id,
             product_id: rx.product_id || null,
             medicine_name: rx.medicine_name,
-            dosage: rx.dosage,
+            dosage: "",
             frequency: rx.frequency,
             duration: rx.duration,
             instructions: rx.instructions,
@@ -221,7 +222,18 @@ export function ProcedureFormDialog({
   });
 
   const addPrescription = () => {
-    setPrescriptions([...prescriptions, { product_id: "", medicine_name: "", dosage: "", frequency: "", duration: "", instructions: "", quantity: 1 }]);
+    setPrescriptions([...prescriptions, { product_id: "", medicine_name: "", frequency: "", duration: "", instructions: "", quantity: 1 }]);
+  };
+
+  const fetchStock = async (productId: string, index: number) => {
+    setStockMap((prev) => ({ ...prev, [index]: { available: 0, loading: true } }));
+    const [{ data: invData }, { data: billData }] = await Promise.all([
+      supabase.from("pharma_inventory").select("quantity").eq("product_id", productId),
+      supabase.from("pharma_bill_items").select("quantity").eq("product_id", productId),
+    ]);
+    const totalStock = (invData || []).reduce((s, i) => s + Number(i.quantity), 0);
+    const consumed = (billData || []).reduce((s, i) => s + Number(i.quantity), 0);
+    setStockMap((prev) => ({ ...prev, [index]: { available: Math.max(0, totalStock - consumed), loading: false } }));
   };
 
   const updatePrescription = (index: number, field: keyof PrescriptionInput, value: string | number) => {
@@ -230,6 +242,7 @@ export function ProcedureFormDialog({
       const prod = products.find((p) => p.id === value);
       updated[index].product_id = value as string;
       updated[index].medicine_name = prod?.name || "";
+      fetchStock(value as string, index);
     } else {
       (updated[index] as any)[field] = value;
     }
@@ -328,7 +341,7 @@ export function ProcedureFormDialog({
                   <span className="text-xs font-medium text-muted-foreground">Medicine {i + 1}</span>
                   <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removePrescription(i)}>Remove</Button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div>
                   <Select value={rx.product_id} onValueChange={(v) => updatePrescription(i, "product_id", v)}>
                     <SelectTrigger><SelectValue placeholder="Select medicine *" /></SelectTrigger>
                     <SelectContent>
@@ -337,7 +350,15 @@ export function ProcedureFormDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <Input placeholder="Dosage (e.g. 500mg)" value={rx.dosage} onChange={(e) => updatePrescription(i, "dosage", e.target.value)} />
+                  {rx.product_id && stockMap[i] && (
+                    stockMap[i].loading ? (
+                      <p className="text-xs text-muted-foreground mt-1">Checking stock...</p>
+                    ) : stockMap[i].available <= 0 ? (
+                      <p className="text-xs text-amber-600 mt-1">⚠️ This medicine is currently out of stock</p>
+                    ) : (
+                      <p className="text-xs text-green-600 mt-1">Available stock: {stockMap[i].available} units</p>
+                    )
+                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <Input placeholder="Frequency" value={rx.frequency} onChange={(e) => updatePrescription(i, "frequency", e.target.value)} />

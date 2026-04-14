@@ -28,7 +28,32 @@ import { SurveyFill } from "@/components/surveys/SurveyFill";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-const PatientDetail = () => {
+function SurveyAnswersView({ surveyId, answers, templateId }: { surveyId: string; answers: Record<string, any>; templateId: string }) {
+  const { data: questions = [] } = useQuery({
+    queryKey: ["survey-questions", templateId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("survey_questions").select("*").eq("template_id", templateId).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!templateId,
+  });
+  if (questions.length === 0) return <p className="text-sm text-muted-foreground">Loading questions...</p>;
+  return (
+    <div className="space-y-4 mt-2">
+      {questions.map((q: any, i: number) => (
+        <div key={q.id} className="space-y-1">
+          <p className="text-sm font-medium">{i + 1}. {q.question_text}</p>
+          <p className="text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+            {Array.isArray(answers[q.id]) ? answers[q.id].join(", ") : (answers[q.id] ?? "—")}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

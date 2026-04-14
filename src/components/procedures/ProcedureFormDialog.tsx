@@ -69,14 +69,6 @@ export function ProcedureFormDialog({
     },
   });
 
-  const { data: staffList = [] } = useQuery({
-    queryKey: ["staff-active-list"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).order("first_name");
-      if (error) throw error;
-      return data;
-    },
-  });
 
   const { data: services = [] } = useQuery({
     queryKey: ["services-lookup"],

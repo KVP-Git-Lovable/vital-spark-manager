@@ -173,7 +173,7 @@ const Index = () => {
 
     // Appointments by Dr
     const drApptMap: Record<string, number> = {};
-    const doctorLookup = new Map(staffList.map(d => [d.id, d.name]));
+    const doctorLookup = new Map(staffList.map(d => [d.id, `${d.first_name} ${d.last_name}`]));
     filtered.forEach((a: any) => {
       const name = a.staff_id ? (doctorLookup.get(a.staff_id) || "Unassigned") : "Unassigned";
       drApptMap[name] = (drApptMap[name] || 0) + 1;

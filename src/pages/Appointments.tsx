@@ -145,12 +145,12 @@ const Appointments = () => {
     },
   });
 
-  // Build a doctor lookup map from doctorsList
-  const doctorMap = useMemo(() => {
+  // Build a staff lookup map
+  const staffMap = useMemo(() => {
     const map = new Map<string, string>();
-    doctorsList.forEach((d: any) => map.set(d.id, d.name));
+    staffList.forEach((d: any) => map.set(d.id, `${d.first_name} ${d.last_name}`));
     return map;
-  }, [doctorsList]);
+  }, [staffList]);
 
   // Fetch invoices for bill amount in table view
   const { data: invoices = [] } = useQuery({

@@ -567,6 +567,7 @@ const Pharma = () => {
           <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
           <TabsTrigger value="bills">Bills</TabsTrigger>
+          <TabsTrigger value="settings" className="gap-1"><Settings className="h-3.5 w-3.5" /> Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="products">

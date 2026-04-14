@@ -398,6 +398,30 @@ export type Database = {
           },
         ]
       }
+      category_master: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
       clinic_settings: {
         Row: {
           address: string | null
@@ -1262,6 +1286,7 @@ export type Database = {
         Row: {
           category: string
           created_at: string
+          expiry_date: string | null
           generic_name: string | null
           gst_percent: number
           hsn_code: string | null
@@ -1270,14 +1295,17 @@ export type Database = {
           manufacturer: string | null
           mrp: number
           name: string
+          qty_per_unit: number | null
           reorder_level: number
           selling_price: number
           unit: string
           updated_at: string
+          vendor_id: string | null
         }
         Insert: {
           category?: string
           created_at?: string
+          expiry_date?: string | null
           generic_name?: string | null
           gst_percent?: number
           hsn_code?: string | null
@@ -1286,14 +1314,17 @@ export type Database = {
           manufacturer?: string | null
           mrp?: number
           name: string
+          qty_per_unit?: number | null
           reorder_level?: number
           selling_price?: number
           unit?: string
           updated_at?: string
+          vendor_id?: string | null
         }
         Update: {
           category?: string
           created_at?: string
+          expiry_date?: string | null
           generic_name?: string | null
           gst_percent?: number
           hsn_code?: string | null
@@ -1302,12 +1333,22 @@ export type Database = {
           manufacturer?: string | null
           mrp?: number
           name?: string
+          qty_per_unit?: number | null
           reorder_level?: number
           selling_price?: number
           unit?: string
           updated_at?: string
+          vendor_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pharma_products_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       portal_order_items: {
         Row: {
@@ -2428,6 +2469,30 @@ export type Database = {
           is_active?: boolean
           name?: string
           rate?: number
+        }
+        Relationships: []
+      }
+      unit_master: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
         }
         Relationships: []
       }

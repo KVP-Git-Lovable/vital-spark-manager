@@ -53,7 +53,7 @@ function SurveyAnswersView({ surveyId, answers, templateId }: { surveyId: string
   );
 }
 
-
+const PatientDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

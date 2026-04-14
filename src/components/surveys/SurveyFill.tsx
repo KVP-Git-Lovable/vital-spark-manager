@@ -89,7 +89,7 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
       // Save response
       const { error } = await supabase.from("survey_responses").insert({
         template_id: templateId,
-        appointment_id: appointmentId,
+        appointment_id: appointmentId || null,
         patient_id: patientId,
         answers,
         ai_recommendation: aiResult.recommendation ? { text: aiResult.recommendation } : {},

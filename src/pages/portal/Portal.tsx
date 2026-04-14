@@ -775,6 +775,7 @@ const Portal = () => {
             </div>
           )}
         </DialogContent>
+      </Dialog>
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-card border-t safe-area-bottom z-50">

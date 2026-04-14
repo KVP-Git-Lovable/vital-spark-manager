@@ -353,18 +353,18 @@ const Portal = () => {
                   </div>
                 </div>
 
-                {/* Doctors */}
+                {/* Staff */}
                 {staff.length > 0 && (
                   <div className="bg-card rounded-xl border shadow-sm p-4">
-                    <h3 className="font-semibold text-sm mb-3">Our Doctors</h3>
+                    <h3 className="font-semibold text-sm mb-3">Our Team</h3>
                     <div className="space-y-2">
                       {staff.map((s: any) => (
                         <div key={s.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
                           <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                            {s.name?.[0] || "D"}
+                            {s.first_name?.[0] || "S"}
                           </div>
                           <div>
-                            <p className="text-sm font-medium">{s.name}</p>
+                            <p className="text-sm font-medium">{s.first_name} {s.last_name}</p>
                             {s.specialization && <p className="text-xs text-muted-foreground">{s.specialization}</p>}
                           </div>
                         </div>

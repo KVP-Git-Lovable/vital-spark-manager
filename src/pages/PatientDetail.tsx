@@ -160,6 +160,15 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
+  const { data: surveyTemplates = [] } = useQuery({
+    queryKey: ["survey-templates-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("survey_templates").select("id, name").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !id) return;

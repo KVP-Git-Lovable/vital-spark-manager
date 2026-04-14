@@ -69,7 +69,7 @@ export function DashboardCharts({ data, onChartClick }: Props) {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => onChartClick("appointments_by_dr")}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Appointments by Doctor</CardTitle>
+            <CardTitle className="text-sm">Appointments by Staff</CardTitle>
           </CardHeader>
           <CardContent>
             {data.appointmentsByDr.length === 0 ? (
@@ -97,7 +97,7 @@ export function DashboardCharts({ data, onChartClick }: Props) {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => onChartClick("billing_by_dr")}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Billing by Doctor (₹)</CardTitle>
+            <CardTitle className="text-sm">Billing by Staff (₹)</CardTitle>
           </CardHeader>
           <CardContent>
             {data.billingByDr.length === 0 ? (

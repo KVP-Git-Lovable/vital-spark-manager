@@ -68,10 +68,10 @@ export function ProcedureFormDialog({
     },
   });
 
-  const { data: doctorsList = [] } = useQuery({
-    queryKey: ["doctors-list"],
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("doctors").select("id, name, status").eq("status", "Active").order("name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).order("first_name");
       if (error) throw error;
       return data;
     },
@@ -274,12 +274,12 @@ export function ProcedureFormDialog({
               </Select>
             </div>
             <div>
-              <Label>Doctor</Label>
+              <Label>Staff</Label>
               <Select value={staffId} onValueChange={setStaffId}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select staff" /></SelectTrigger>
                 <SelectContent>
-                  {doctorsList.map((d: any) => (
-                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  {staffList.map((d: any) => (
+                    <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -287,10 +287,10 @@ export function ProcedureFormDialog({
             <div>
               <Label>Assisted By</Label>
               <Select value={assistedBy} onValueChange={setAssistedBy}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select assistant doctor" /></SelectTrigger>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select assistant" /></SelectTrigger>
                 <SelectContent>
-                  {doctorsList.map((d: any) => (
-                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  {staffList.map((d: any) => (
+                    <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

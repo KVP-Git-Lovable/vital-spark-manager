@@ -71,9 +71,9 @@ const Index = () => {
 
   // Queries
   const { data: staffList = [] } = useQuery({
-    queryKey: ["dashboard-doctors"],
+    queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("doctors").select("id, name, specialization, status").eq("status", "Active").order("name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).order("first_name");
       if (error) throw error;
       return data;
     },
@@ -173,7 +173,7 @@ const Index = () => {
 
     // Appointments by Dr
     const drApptMap: Record<string, number> = {};
-    const doctorLookup = new Map(staffList.map(d => [d.id, d.name]));
+    const doctorLookup = new Map(staffList.map(d => [d.id, `${d.first_name} ${d.last_name}`]));
     filtered.forEach((a: any) => {
       const name = a.staff_id ? (doctorLookup.get(a.staff_id) || "Unassigned") : "Unassigned";
       drApptMap[name] = (drApptMap[name] || 0) + 1;
@@ -218,8 +218,8 @@ const Index = () => {
   const handleChartClick = (type: string) => {
     const titles: Record<string, string> = {
       appointment_status: "Appointments — Status Breakdown",
-      appointments_by_dr: "Appointments — By Doctor",
-      billing_by_dr: "Billing — By Doctor",
+      appointments_by_dr: "Appointments — By Staff",
+      billing_by_dr: "Billing — By Staff",
       revenue_by_date: "Revenue — Detail",
     };
     setDrillDown({ open: true, type, title: titles[type] || "Details" });

@@ -43,7 +43,7 @@ import Website from "./pages/Website";
 import ProblemAreas from "./pages/ProblemAreas";
 import SurveyTemplates from "./pages/SurveyTemplates";
 import Vendors from "./pages/Vendors";
-import Doctors from "./pages/Doctors";
+
 import UnitMaster from "./pages/UnitMaster";
 import CategoryMaster from "./pages/CategoryMaster";
 import NotFound from "./pages/NotFound";
@@ -126,7 +126,7 @@ const App = () => (
                     <Route path="/problem-areas" element={<ProblemAreas />} />
                     <Route path="/survey-templates" element={<SurveyTemplates />} />
                     <Route path="/vendors" element={<Vendors />} />
-                    <Route path="/doctors" element={<Doctors />} />
+                    
                     <Route path="/unit-master" element={<UnitMaster />} />
                     <Route path="/category-master" element={<CategoryMaster />} />
                     <Route path="/settings" element={<Settings />} />

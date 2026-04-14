@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { StaffCombobox } from "@/components/shared/StaffCombobox";
 import { X, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,13 +88,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     },
   });
 
-  const { data: doctorsList = [] } = useQuery({
-    queryKey: ["doctors-list"],
-    queryFn: async () => {
-      const { data } = await supabase.from("doctors").select("id, name, status").eq("status", "Active").order("name");
-      return data || [];
-    },
-  });
 
   useEffect(() => {
     if (patient) {
@@ -431,20 +425,16 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
 
           <TabsContent value="medical" className="space-y-4 mt-4">
             <div>
-              <Label>Doctor</Label>
-              <Select
-                value={(form as any).doctor_id || ""}
-                onValueChange={(v) => setForm((prev) => ({ ...prev, doctor_id: v || null }))}
-              >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="Select doctor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {doctorsList.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Doctor / Staff</Label>
+              <div className="mt-1.5">
+                <StaffCombobox
+                  value={(form as any).doctor_id || ""}
+                  onValueChange={(v) => setForm((prev) => ({ ...prev, doctor_id: v || null }))}
+                  placeholder="Select staff member"
+                  allowNone
+                  noneLabel="No staff assigned"
+                />
+              </div>
             </div>
 
             <div>

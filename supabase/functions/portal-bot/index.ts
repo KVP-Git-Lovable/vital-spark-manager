@@ -170,8 +170,8 @@ const tools = [
 async function executeTool(sb: any, toolName: string, args: any, patientId: string, patientName: string) {
   switch (toolName) {
     case "list_doctors": {
-      const { data } = await sb.from("doctors").select("id, name, specialization, status").eq("status", "Active").order("name");
-      return JSON.stringify({ doctors: (data || []).map((d: any) => ({ id: d.id, name: d.name, specialization: d.specialization })) });
+      const { data } = await sb.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).order("first_name");
+      return JSON.stringify({ doctors: (data || []).map((d: any) => ({ id: d.id, name: `${d.first_name} ${d.last_name}`, specialization: d.specialization || d.role })) });
     }
 
     case "check_doctor_availability": {
@@ -214,8 +214,8 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
         return JSON.stringify({ available: false, reason: "Doctor already has an appointment at this time.", booked_slots_on_this_day: bookedTimes });
       }
 
-      const { data: doctorInfo } = await sb.from("doctors").select("name").eq("id", doctor_id).single();
-      return JSON.stringify({ available: true, doctor_name: doctorInfo ? doctorInfo.name : "Doctor", date, time });
+      const { data: staffInfo } = await sb.from("staff").select("first_name, last_name").eq("id", doctor_id).single();
+      return JSON.stringify({ available: true, doctor_name: staffInfo ? `${staffInfo.first_name} ${staffInfo.last_name}` : "Staff", date, time });
     }
 
     case "book_appointment": {
@@ -231,12 +231,12 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
 
       if (error) return JSON.stringify({ success: false, error: error.message });
 
-      const { data: doctorInfo } = await sb.from("doctors").select("name").eq("id", doctor_id).single();
+      const { data: staffInfo } = await sb.from("staff").select("first_name, last_name").eq("id", doctor_id).single();
       return JSON.stringify({
         success: true,
         appointment: {
           id: appt.id,
-          doctor: doctorInfo ? doctorInfo.name : "Doctor",
+          doctor: staffInfo ? `${staffInfo.first_name} ${staffInfo.last_name}` : "Staff",
           date: new Date(appt.start_time).toLocaleDateString("en-IN"),
           time: new Date(appt.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
           service: appt.service, status: appt.status,
@@ -304,13 +304,13 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
 
       if (error) return JSON.stringify({ success: false, error: error.message });
 
-      const { data: doctorInfo } = await sb.from("doctors").select("name").eq("id", appt.staff_id).single();
+      const { data: staffInfo } = await sb.from("staff").select("first_name, last_name").eq("id", appt.staff_id).single();
       return JSON.stringify({
         success: true,
         rescheduled_appointment: {
           id: appt.id,
           service: appt.service,
-          doctor: doctorInfo ? doctorInfo.name : "Doctor",
+          doctor: staffInfo ? `${staffInfo.first_name} ${staffInfo.last_name}` : "Staff",
           new_date: newStart.toLocaleDateString("en-IN"),
           new_time: newStart.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
         },

@@ -70,7 +70,7 @@ const emptyForm: TablesInsert<"patients"> = {
   source_referral_doctor: null,
 };
 
-export function PatientFormSheet({ open, onOpenChange, patient, onSuccess }: PatientFormSheetProps) {
+export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, onSuccess }: PatientFormSheetProps) {
   const [form, setForm] = useState<TablesInsert<"patients">>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [referralPatientSearch, setReferralPatientSearch] = useState("");

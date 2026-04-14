@@ -115,6 +115,49 @@ const Pharma = () => {
     },
   });
 
+  // ─── Portal Settings ────────────────────────────
+  const { data: portalSettings } = useQuery({
+    queryKey: ["portal-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("portal_settings").select("*").limit(1).single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const [settingsForm, setSettingsForm] = useState({
+    out_of_stock_behavior: "show_out_of_stock",
+    hide_expiring_products: false,
+    expiring_threshold_days: 90,
+    shop_enabled: true,
+    low_stock_threshold: null as number | null,
+  });
+
+  useEffect(() => {
+    if (portalSettings) {
+      setSettingsForm({
+        out_of_stock_behavior: portalSettings.out_of_stock_behavior,
+        hide_expiring_products: portalSettings.hide_expiring_products,
+        expiring_threshold_days: portalSettings.expiring_threshold_days,
+        shop_enabled: portalSettings.shop_enabled,
+        low_stock_threshold: portalSettings.low_stock_threshold,
+      });
+    }
+  }, [portalSettings]);
+
+  const saveSettings = useMutation({
+    mutationFn: async () => {
+      if (!portalSettings?.id) throw new Error("Settings not found");
+      const { error } = await supabase.from("portal_settings").update(settingsForm).eq("id", portalSettings.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["portal-settings"] });
+      toast.success("Portal settings saved");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   // ─── Mutations ──────────────────────────────────
   const addProduct = useMutation({
     mutationFn: async () => {

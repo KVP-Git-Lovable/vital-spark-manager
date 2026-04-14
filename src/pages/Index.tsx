@@ -71,9 +71,9 @@ const Index = () => {
 
   // Queries
   const { data: staffList = [] } = useQuery({
-    queryKey: ["dashboard-doctors"],
+    queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("doctors").select("id, name, specialization, status").eq("status", "Active").order("name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).order("first_name");
       if (error) throw error;
       return data;
     },

@@ -68,10 +68,10 @@ export function ProcedureFormDialog({
     },
   });
 
-  const { data: doctorsList = [] } = useQuery({
-    queryKey: ["doctors-list"],
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("doctors").select("id, name, status").eq("status", "Active").order("name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).order("first_name");
       if (error) throw error;
       return data;
     },

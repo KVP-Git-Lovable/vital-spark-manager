@@ -274,12 +274,11 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [editStaffId, setEditStaffId] = useState("");
   const [initialized, setInitialized] = useState(false);
 
-  // Initialize form when appointment loads
-  // Fetch doctors list for doctor dropdown
-  const { data: doctorsList = [] } = useQuery({
-    queryKey: ["doctors-list"],
+  // Fetch staff list for dropdown
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("doctors").select("id, name, status").eq("status", "Active").order("name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).order("first_name");
       if (error) throw error;
       return data;
     },

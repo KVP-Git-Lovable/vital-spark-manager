@@ -172,9 +172,9 @@ const Portal = () => {
   });
 
   const { data: staff = [] } = useQuery({
-    queryKey: ["portal-doctors"],
+    queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data } = await supabase.from("doctors").select("*").eq("status", "Active").order("name");
+      const { data } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).order("first_name");
       return data || [];
     },
   });

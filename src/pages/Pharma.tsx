@@ -305,21 +305,48 @@ const Pharma = () => {
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader><DialogTitle className="font-display">Add Product</DialogTitle></DialogHeader>
-              <div className="space-y-3 pt-2">
+              <div className="space-y-3 pt-2 max-h-[70vh] overflow-y-auto pr-1">
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Product Name *</Label><Input className="mt-1" value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} /></div>
                   <div><Label>Generic Name</Label><Input className="mt-1" value={productForm.generic_name} onChange={(e) => setProductForm({ ...productForm, generic_name: e.target.value })} /></div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><Label>Category</Label><Input className="mt-1" value={productForm.category} onChange={(e) => setProductForm({ ...productForm, category: e.target.value })} /></div>
-                  <div><Label>Unit</Label><Input className="mt-1" value={productForm.unit} onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })} /></div>
+                  <div>
+                    <Label>Category</Label>
+                    <Select value={productForm.category} onValueChange={(v) => setProductForm({ ...productForm, category: v })}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select category" /></SelectTrigger>
+                      <SelectContent>{categoryMaster.map((c: any) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Unit</Label>
+                    <Select value={productForm.unit} onValueChange={(v) => setProductForm({ ...productForm, unit: v })}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select unit" /></SelectTrigger>
+                      <SelectContent>{unitMaster.map((u: any) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
                   <div><Label>Manufacturer</Label><Input className="mt-1" value={productForm.manufacturer} onChange={(e) => setProductForm({ ...productForm, manufacturer: e.target.value })} /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Vendor</Label>
+                  <div className="mt-1">
+                    <VendorCombobox value={productForm.vendor_id} onChange={(v) => setProductForm({ ...productForm, vendor_id: v })} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><Label>MRP *</Label><Input type="number" className="mt-1" value={productForm.mrp} onChange={(e) => setProductForm({ ...productForm, mrp: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>Selling Price *</Label><Input type="number" className="mt-1" value={productForm.selling_price} onChange={(e) => setProductForm({ ...productForm, selling_price: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>Tax (GST %)</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
                   <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
                   <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={productForm.reorder_level} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
+                  <div><Label>Qty per Unit</Label><Input type="number" className="mt-1" value={productForm.qty_per_unit} onChange={(e) => setProductForm({ ...productForm, qty_per_unit: parseInt(e.target.value) || 1 })} placeholder="e.g. tablets per strip" /></div>
                 </div>
-                <p className="text-xs text-muted-foreground italic">MRP, Selling Price & GST% are managed via Price History after saving the product.</p>
+                <div>
+                  <Label>Expiry Date</Label>
+                  <Input type="date" className="mt-1" value={productForm.expiry_date} onChange={(e) => setProductForm({ ...productForm, expiry_date: e.target.value })} />
+                </div>
                 <Button className="w-full" onClick={() => addProduct.mutate()} disabled={!productForm.name || addProduct.isPending}>
                   {addProduct.isPending ? "Saving..." : "Add Product"}
                 </Button>

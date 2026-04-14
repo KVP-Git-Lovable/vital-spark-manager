@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Package, ShoppingCart, Plus, Minus, Check } from "lucide-react";
+import { Search, Package, ShoppingCart, Plus, Minus, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,14 @@ const ShopHome = () => {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
+  const { data: portalSettings } = useQuery({
+    queryKey: ["portal-settings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("portal_settings").select("*").limit(1).single();
+      return data;
+    },
+  });
+
   const { data: products = [] } = useQuery({
     queryKey: ["shop-products"],
     queryFn: async () => {
@@ -45,11 +53,93 @@ const ShopHome = () => {
     },
   });
 
+  const { data: inventoryData = [] } = useQuery({
+    queryKey: ["shop-inventory-stock"],
+    queryFn: async () => {
+      const { data } = await supabase.from("pharma_inventory").select("product_id, quantity, expiry_date");
+      return data || [];
+    },
+  });
+
+  const { data: billItemsData = [] } = useQuery({
+    queryKey: ["shop-bill-items-consumed"],
+    queryFn: async () => {
+      const { data } = await supabase.from("pharma_bill_items").select("product_id, quantity");
+      return data || [];
+    },
+  });
+
+  // Compute stock per product
+  const stockMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const inv of inventoryData) {
+      if (inv.product_id) map[inv.product_id] = (map[inv.product_id] || 0) + Number(inv.quantity);
+    }
+    for (const item of billItemsData) {
+      if (item.product_id) map[item.product_id] = (map[item.product_id] || 0) - Number(item.quantity);
+    }
+    // Clamp to 0
+    for (const k of Object.keys(map)) {
+      if (map[k] < 0) map[k] = 0;
+    }
+    return map;
+  }, [inventoryData, billItemsData]);
+
+  // Compute earliest expiry per product
+  const expiryMap = useMemo(() => {
+    const map: Record<string, Date | null> = {};
+    for (const inv of inventoryData) {
+      if (!inv.product_id || Number(inv.quantity) <= 0) continue;
+      const exp = new Date(inv.expiry_date);
+      if (!map[inv.product_id] || exp < map[inv.product_id]!) {
+        map[inv.product_id] = exp;
+      }
+    }
+    return map;
+  }, [inventoryData]);
+
+  const settings = portalSettings || {
+    out_of_stock_behavior: "show_out_of_stock",
+    hide_expiring_products: false,
+    expiring_threshold_days: 90,
+    shop_enabled: true,
+    low_stock_threshold: null,
+  };
+
+  // If shop disabled
+  if (settings.shop_enabled === false) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 text-center px-4">
+        <Package className="h-16 w-16 text-muted-foreground/30 mb-4" />
+        <h2 className="text-xl font-semibold text-foreground mb-2">Shop is currently unavailable</h2>
+        <p className="text-muted-foreground">Please check back later.</p>
+      </div>
+    );
+  }
+
   const categories = ["all", ...Array.from(new Set(products.map((p: any) => p.category)))];
+
+  // Apply filters
   const filtered = products.filter((p: any) => {
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.generic_name || "").toLowerCase().includes(search.toLowerCase());
     const matchCat = categoryFilter === "all" || p.category === categoryFilter;
-    return matchSearch && matchCat;
+    if (!matchSearch || !matchCat) return false;
+
+    const stock = stockMap[p.id] || 0;
+
+    // Hide out-of-stock products if behavior is 'hide'
+    if (stock <= 0 && settings.out_of_stock_behavior === "hide") return false;
+
+    // Hide expiring products
+    if (settings.hide_expiring_products) {
+      const earliest = expiryMap[p.id];
+      if (earliest) {
+        const daysLeft = Math.ceil((earliest.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        if (daysLeft <= (settings.expiring_threshold_days || 90) && daysLeft > 0) return false;
+      }
+    }
+
+    return true;
   });
 
   const getCartQty = (productId: string) => {
@@ -138,15 +228,27 @@ const ShopHome = () => {
             {filtered.map((product: any, idx: number) => {
               const qty = getCartQty(product.id);
               const imgSrc = product.image_url || getSampleImage(product.name, idx);
+              const stock = stockMap[product.id] || 0;
+              const isOutOfStock = stock <= 0;
+              const isBackorder = isOutOfStock && settings.out_of_stock_behavior === "accept_backorders";
+              const isDisabled = isOutOfStock && settings.out_of_stock_behavior === "show_out_of_stock";
+
               return (
                 <motion.div
                   key={product.id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="bg-card rounded-xl border shadow-sm overflow-hidden hover:shadow-md transition-shadow group cursor-pointer"
+                  className={`bg-card rounded-xl border shadow-sm overflow-hidden hover:shadow-md transition-shadow group cursor-pointer ${isDisabled ? "opacity-75" : ""}`}
                   onClick={() => navigate(`/shop/product/${product.id}`)}
                 >
-                  <img src={imgSrc} alt={product.name} className="h-32 md:h-40 w-full object-cover" />
+                  <div className="relative">
+                    <img src={imgSrc} alt={product.name} className="h-32 md:h-40 w-full object-cover" />
+                    {isOutOfStock && settings.out_of_stock_behavior === "show_out_of_stock" && (
+                      <div className="absolute top-2 right-2">
+                        <Badge variant="destructive" className="text-[10px]">Out of Stock</Badge>
+                      </div>
+                    )}
+                  </div>
                   <div className="p-3">
                     <div className="flex items-center gap-1 mb-1">
                       <Badge variant="secondary" className="text-[10px]">{product.category}</Badge>
@@ -164,9 +266,22 @@ const ShopHome = () => {
                         )}
                       </div>
                     </div>
+
+                    {/* Backorder message */}
+                    {isBackorder && (
+                      <div className="mt-1.5 flex items-start gap-1 text-[10px] text-amber-600 bg-amber-50 dark:bg-amber-950/30 rounded px-1.5 py-1">
+                        <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                        <span>Currently unavailable — we will deliver within 2-3 working days</span>
+                      </div>
+                    )}
+
                     {/* Quantity controls */}
                     <div className="mt-2" onClick={e => e.stopPropagation()}>
-                      {qty === 0 ? (
+                      {isDisabled ? (
+                        <Button size="sm" variant="outline" className="w-full h-8 text-xs gap-1" disabled>
+                          Out of Stock
+                        </Button>
+                      ) : qty === 0 ? (
                         <Button
                           size="sm"
                           variant="outline"

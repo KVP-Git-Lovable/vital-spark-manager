@@ -1466,6 +1466,39 @@ export type Database = {
           },
         ]
       }
+      portal_settings: {
+        Row: {
+          created_at: string
+          expiring_threshold_days: number
+          hide_expiring_products: boolean
+          id: string
+          low_stock_threshold: number | null
+          out_of_stock_behavior: string
+          shop_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expiring_threshold_days?: number
+          hide_expiring_products?: boolean
+          id?: string
+          low_stock_threshold?: number | null
+          out_of_stock_behavior?: string
+          shop_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expiring_threshold_days?: number
+          hide_expiring_products?: boolean
+          id?: string
+          low_stock_threshold?: number | null
+          out_of_stock_behavior?: string
+          shop_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       prescriptions: {
         Row: {
           created_at: string

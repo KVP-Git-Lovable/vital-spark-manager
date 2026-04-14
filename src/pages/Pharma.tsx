@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { ProductDetailSheet, InventoryDetailSheet, BillDetailSheet } from "@/components/pharma/PharmaDetailSheet";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", hsn_code: "", reorder_level: 10, vendor_id: "", mrp: 0, selling_price: 0, gst_percent: 0, expiry_date: "", qty_per_unit: 1 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", hsn_code: "", reorder_level: 10, vendor_id: "", mrp: 0, selling_price: 0, gst_percent: 0, expiry_date: "", qty_per_unit: 1, tablets_per_strip: 0 };
 const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {

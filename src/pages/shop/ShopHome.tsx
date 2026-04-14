@@ -259,10 +259,15 @@ const ShopHome = () => {
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{product.generic_name}</p>
                     )}
                     <div className="flex items-center justify-between mt-2">
-                      <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-sm font-bold text-primary">₹{product.selling_price}</span>
                         {product.mrp > product.selling_price && (
-                          <span className="text-xs line-through text-muted-foreground ml-1">₹{product.mrp}</span>
+                          <>
+                            <span className="text-xs line-through text-muted-foreground">₹{product.mrp}</span>
+                            <Badge className="bg-[hsl(var(--chart-2))]/10 text-[hsl(var(--chart-2))] text-[9px] px-1.5 py-0">
+                              {Math.round((1 - product.selling_price / product.mrp) * 100)}% off
+                            </Badge>
+                          </>
                         )}
                       </div>
                     </div>

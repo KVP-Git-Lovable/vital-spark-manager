@@ -65,6 +65,54 @@ const ShopProduct = () => {
     enabled: !!id,
   });
 
+  const { data: portalSettings } = useQuery({
+    queryKey: ["portal-settings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("portal_settings").select("*").limit(1).single();
+      return data;
+    },
+  });
+
+  const { data: inventoryData = [] } = useQuery({
+    queryKey: ["shop-inventory-stock"],
+    queryFn: async () => {
+      const { data } = await supabase.from("pharma_inventory").select("product_id, quantity, expiry_date");
+      return data || [];
+    },
+  });
+
+  const { data: billItemsData = [] } = useQuery({
+    queryKey: ["shop-bill-items-consumed"],
+    queryFn: async () => {
+      const { data } = await supabase.from("pharma_bill_items").select("product_id, quantity");
+      return data || [];
+    },
+  });
+
+  const stock = useMemo(() => {
+    if (!id) return 0;
+    let total = 0;
+    for (const inv of inventoryData) {
+      if (inv.product_id === id) total += Number(inv.quantity);
+    }
+    for (const item of billItemsData) {
+      if (item.product_id === id) total -= Number(item.quantity);
+    }
+    return Math.max(total, 0);
+  }, [id, inventoryData, billItemsData]);
+
+  const settings = portalSettings || {
+    out_of_stock_behavior: "show_out_of_stock",
+    hide_expiring_products: false,
+    expiring_threshold_days: 90,
+    shop_enabled: true,
+    low_stock_threshold: null,
+  };
+
+  const isOutOfStock = stock <= 0;
+  const isBackorder = isOutOfStock && settings.out_of_stock_behavior === "accept_backorders";
+  const isDisabled = isOutOfStock && settings.out_of_stock_behavior === "show_out_of_stock";
+
   const { data: similarProducts = [] } = useQuery({
     queryKey: ["similar-products", product?.category, id],
     queryFn: async () => {

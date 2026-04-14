@@ -207,7 +207,13 @@ const Pharma = () => {
         updated[idx].unit_price = prod?.selling_price || 0;
         updated[idx].available = inv.quantity;
         updated[idx].gst_percent = Number(prod?.gst_percent) || 0;
+        if (inv.quantity <= 0) {
+          toast.warning(`Insufficient stock for ${prod?.name || "this product"}`);
+        }
       }
+    }
+    if (field === "quantity" && updated[idx].available > 0 && value > updated[idx].available) {
+      toast.warning(`Only ${updated[idx].available} units available for ${updated[idx].product_name}`);
     }
     setBillItems(updated);
   };

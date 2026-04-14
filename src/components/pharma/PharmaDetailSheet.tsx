@@ -30,7 +30,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
   const [isEditing, setIsEditing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [form, setForm] = useState<any>({});
-  const [priceForm, setPriceForm] = useState({ mrp: 0, selling_price: 0, purchase_price: 0, gst_percent: 0, notes: "" });
+  const [priceForm, setPriceForm] = useState({ mrp: 0, selling_price: 0, purchase_price: 0, gst_percent: 0, notes: "", effective_from: new Date().toISOString().split("T")[0] });
   const [showPriceForm, setShowPriceForm] = useState(false);
 
   const { data: product } = useQuery({
@@ -59,7 +59,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
     queryKey: ["product-inventory-stock", productId],
     queryFn: async () => {
       if (!productId) return [];
-      const { data, error } = await supabase.from("pharma_inventory").select("quantity").eq("product_id", productId);
+      const { data, error } = await supabase.from("pharma_inventory").select("*").eq("product_id", productId).order("expiry_date", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -121,6 +121,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
         purchase_price: priceForm.purchase_price,
         gst_percent: priceForm.gst_percent,
         notes: priceForm.notes,
+        effective_from: priceForm.effective_from,
         is_active: true,
       } as any);
       if (error) throw error;
@@ -137,7 +138,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
       queryClient.invalidateQueries({ queryKey: ["pharma-product", productId] });
       toast.success("Price updated — previous prices preserved");
       setShowPriceForm(false);
-      setPriceForm({ mrp: 0, selling_price: 0, purchase_price: 0, gst_percent: 0, notes: "" });
+      setPriceForm({ mrp: 0, selling_price: 0, purchase_price: 0, gst_percent: 0, notes: "", effective_from: new Date().toISOString().split("T")[0] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -233,6 +234,14 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 const availableStock = Math.max(0, totalStock - consumedStock);
                 const isLowStock = availableStock > 0 && availableStock <= (product.reorder_level || 0);
                 const noStockAdded = totalStock === 0 && consumedStock > 0;
+                // Find nearest expiry from inventory batches
+                const nearestExpiry = inventoryItems.length > 0
+                  ? inventoryItems.reduce((nearest: any, item: any) => {
+                      if (!nearest || new Date(item.expiry_date) < new Date(nearest.expiry_date)) return item;
+                      return nearest;
+                    }, null)
+                  : null;
+                const nearestExpiryDays = nearestExpiry ? Math.ceil((new Date(nearestExpiry.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
                 return (
                   <div className="space-y-2">
                     <h3 className="font-display font-semibold text-sm">Inventory Summary</h3>
@@ -245,7 +254,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                         </div>
                       </div>
                     )}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className={`grid ${nearestExpiry ? "grid-cols-3" : "grid-cols-2"} gap-3`}>
                       <div className="rounded-lg border bg-muted/30 p-3 text-center">
                         <Package className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
                         <p className="text-xs text-muted-foreground">Total Stock</p>
@@ -258,6 +267,15 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                         {isLowStock && <Badge variant="destructive" className="text-[10px] mt-1">Low Stock</Badge>}
                         {availableStock === 0 && <Badge variant="destructive" className="text-[10px] mt-1">Out of Stock</Badge>}
                       </div>
+                      {nearestExpiry && (
+                        <div className={`rounded-lg border p-3 text-center ${nearestExpiryDays !== null && nearestExpiryDays <= 90 ? "border-amber-400 bg-amber-50 dark:bg-amber-950/30" : "bg-muted/30"}`}>
+                          <AlertTriangle className={`h-4 w-4 mx-auto mb-1 ${nearestExpiryDays !== null && nearestExpiryDays <= 0 ? "text-destructive" : nearestExpiryDays !== null && nearestExpiryDays <= 90 ? "text-amber-600" : "text-muted-foreground"}`} />
+                          <p className="text-xs text-muted-foreground">Nearest Expiry</p>
+                          <p className="text-sm font-bold">{format(new Date(nearestExpiry.expiry_date), "dd MMM yyyy")}</p>
+                          {nearestExpiryDays !== null && nearestExpiryDays <= 0 && <Badge variant="destructive" className="text-[10px] mt-1">Expired</Badge>}
+                          {nearestExpiryDays !== null && nearestExpiryDays > 0 && nearestExpiryDays <= 90 && <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] mt-1">Expiring Soon</Badge>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -279,12 +297,45 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
 
               <Separator />
 
+              {/* Procurement History */}
+              {inventoryItems.length > 0 && (
+                <div>
+                  <h3 className="font-display font-semibold text-sm mb-3">Procurement History</h3>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Date</TableHead>
+                        <TableHead className="text-xs">Batch</TableHead>
+                        <TableHead className="text-xs">Qty</TableHead>
+                        <TableHead className="text-xs">Price</TableHead>
+                        <TableHead className="text-xs">Supplier</TableHead>
+                        <TableHead className="text-xs">Expiry</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {inventoryItems.map((inv: any) => (
+                        <TableRow key={inv.id}>
+                          <TableCell className="text-xs">{format(new Date(inv.received_date), "dd MMM yyyy")}</TableCell>
+                          <TableCell className="text-xs">{inv.batch_number}</TableCell>
+                          <TableCell className="text-xs">{inv.quantity}</TableCell>
+                          <TableCell className="text-xs">₹{Number(inv.purchase_price).toFixed(2)}</TableCell>
+                          <TableCell className="text-xs">{inv.supplier || "—"}</TableCell>
+                          <TableCell className="text-xs">{format(new Date(inv.expiry_date), "dd MMM yyyy")}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              <Separator />
+
               {/* Price History */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-display font-semibold text-sm">Price History</h3>
                   <Button size="sm" variant="outline" onClick={() => {
-                    setPriceForm({ mrp: Number(product.mrp), selling_price: Number(product.selling_price), purchase_price: 0, gst_percent: Number(product.gst_percent) || 0, notes: "" });
+                    setPriceForm({ mrp: Number(product.mrp), selling_price: Number(product.selling_price), purchase_price: 0, gst_percent: Number(product.gst_percent) || 0, notes: "", effective_from: new Date().toISOString().split("T")[0] });
                     setShowPriceForm(true);
                   }}><Plus className="h-3 w-3 mr-1" />New Price</Button>
                 </div>
@@ -299,9 +350,12 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                       <div><Label className="text-xs">Buy Price (₹)</Label><Input type="number" className="mt-1 h-8" value={priceForm.purchase_price} onChange={(e) => setPriceForm({ ...priceForm, purchase_price: parseFloat(e.target.value) || 0 })} /></div>
                       <div><Label className="text-xs">GST %</Label><Input type="number" className="mt-1 h-8" value={priceForm.gst_percent} onChange={(e) => setPriceForm({ ...priceForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
                     </div>
-                    <div><Label className="text-xs">Notes</Label><Input className="mt-1 h-8" value={priceForm.notes} onChange={(e) => setPriceForm({ ...priceForm, notes: e.target.value })} placeholder="Reason for price change" /></div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><Label className="text-xs">Effective From *</Label><Input type="date" className="mt-1 h-8" value={priceForm.effective_from} onChange={(e) => setPriceForm({ ...priceForm, effective_from: e.target.value })} required /></div>
+                      <div><Label className="text-xs">Notes</Label><Input className="mt-1 h-8" value={priceForm.notes} onChange={(e) => setPriceForm({ ...priceForm, notes: e.target.value })} placeholder="Reason for price change" /></div>
+                    </div>
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => addPrice.mutate()} disabled={addPrice.isPending}><Check className="h-3 w-3 mr-1" />{addPrice.isPending ? "Saving..." : "Save & Activate"}</Button>
+                      <Button size="sm" onClick={() => addPrice.mutate()} disabled={addPrice.isPending || !priceForm.effective_from}><Check className="h-3 w-3 mr-1" />{addPrice.isPending ? "Saving..." : "Save & Activate"}</Button>
                       <Button size="sm" variant="ghost" onClick={() => setShowPriceForm(false)}><X className="h-3 w-3 mr-1" />Cancel</Button>
                     </div>
                   </div>

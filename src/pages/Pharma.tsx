@@ -267,6 +267,7 @@ const Pharma = () => {
       gst_percent: product.gst_percent || 0,
       expiry_date: product.expiry_date || "",
       qty_per_unit: product.qty_per_unit || 1,
+      tablets_per_strip: 0,
     });
     setProductOpen(true);
   };

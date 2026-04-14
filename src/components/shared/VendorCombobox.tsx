@@ -29,7 +29,7 @@ export function VendorCombobox({ value, onChange, placeholder = "Select vendor..
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
-          {value || <span className="text-muted-foreground">{placeholder}</span>}
+          {vendors.find((v) => v.id === value)?.name || <span className="text-muted-foreground">{placeholder}</span>}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>

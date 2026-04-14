@@ -35,6 +35,7 @@ interface PatientFormSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   patient?: Patient | null;
+  defaultValues?: Partial<Patient> | null;
   onSuccess: () => void;
 }
 

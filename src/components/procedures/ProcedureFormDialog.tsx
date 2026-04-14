@@ -165,6 +165,18 @@ export function ProcedureFormDialog({
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      // Warn about zero stock for prescribed medicines (don't block)
+      for (const rx of prescriptions) {
+        if (!rx.product_id) continue;
+        const { data: invData } = await supabase.from("pharma_inventory").select("quantity").eq("product_id", rx.product_id);
+        const { data: rxData } = await supabase.from("prescriptions").select("quantity").eq("product_id", rx.product_id);
+        const totalStock = (invData || []).reduce((s, i) => s + Number(i.quantity), 0);
+        const consumed = (rxData || []).reduce((s, i) => s + Number(i.quantity), 0);
+        if (Math.max(0, totalStock - consumed) === 0) {
+          toast.warning(`Insufficient stock for ${rx.medicine_name}. Please add stock.`);
+        }
+      }
+
       const { data: proc, error } = await supabase
         .from("procedures")
         .insert({

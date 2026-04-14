@@ -54,6 +54,8 @@ const Portal = () => {
   const [session, setSession] = useState<PortalSession | null>(null);
   const [apptOpen, setApptOpen] = useState(false);
   const [pharmaOpen, setPharmaOpen] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<any>(null);
+  const [selectedProcedure, setSelectedProcedure] = useState<any>(null);
 
   // Appointment request form
   const [apptService, setApptService] = useState("");
@@ -340,16 +342,18 @@ const Portal = () => {
 
                 {/* Doctor availability */}
                 <div className="bg-card rounded-xl border shadow-sm p-4">
-                  <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
                     <Stethoscope className="h-4 w-4 text-primary" /> Clinic Hours
                   </h3>
-                  <div className="space-y-2">
-                    {workingHours.map((wh: any) => (
-                      <div key={wh.id} className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">{dayNames[wh.day_of_week]}</span>
-                        <span className="font-medium">{wh.open_time?.slice(0, 5)} – {wh.close_time?.slice(0, 5)}</span>
-                      </div>
-                    ))}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Mon – Sat</span>
+                      <span className="font-medium">10:00 AM – 8:00 PM</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Sun</span>
+                      <span className="font-medium text-destructive">Closed</span>
+                    </div>
                   </div>
                 </div>
 
@@ -359,14 +363,15 @@ const Portal = () => {
                     <h3 className="font-semibold text-sm mb-3">Our Team</h3>
                     <div className="space-y-2">
                       {staff.map((s: any) => (
-                        <div key={s.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
+                        <div key={s.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors" onClick={() => setSelectedStaff(s)}>
                           <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
                             {s.first_name?.[0] || "S"}
                           </div>
-                          <div>
+                          <div className="flex-1">
                             <p className="text-sm font-medium">{s.first_name} {s.last_name}</p>
                             {s.specialization && <p className="text-xs text-muted-foreground">{s.specialization}</p>}
                           </div>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         </div>
                       ))}
                     </div>
@@ -475,8 +480,8 @@ const Portal = () => {
                     <p className="text-sm">No procedures recorded yet</p>
                   </div>
                 ) : procedures.map((p: any) => (
-                  <div key={p.id} className="bg-card rounded-xl border p-4 shadow-sm">
-                    <div className="flex items-start justify-between mb-2">
+                  <div key={p.id} className="bg-card rounded-xl border p-4 shadow-sm cursor-pointer hover:border-primary/30 transition-colors" onClick={() => setSelectedProcedure(p)}>
+                    <div className="flex items-start justify-between mb-1">
                       <div>
                         <p className="font-semibold text-sm">{p.service_name}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
@@ -484,33 +489,12 @@ const Portal = () => {
                           {p.staff && ` • Dr. ${p.staff.first_name} ${p.staff.last_name}`}
                         </p>
                       </div>
-                      <Badge variant="secondary" className="text-xs">{p.status}</Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="secondary" className="text-xs">{p.status}</Badge>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
                     </div>
-                    {p.diagnosis && (
-                      <div className="bg-muted/50 rounded-lg p-2 mb-2">
-                        <p className="text-xs text-muted-foreground">Diagnosis</p>
-                        <p className="text-sm">{p.diagnosis}</p>
-                      </div>
-                    )}
-                    {p.consultation_notes && (
-                      <div className="bg-muted/50 rounded-lg p-2 mb-2">
-                        <p className="text-xs text-muted-foreground">Consultation Notes</p>
-                        <p className="text-sm">{p.consultation_notes}</p>
-                      </div>
-                    )}
-                    {p.prescriptions && p.prescriptions.length > 0 && (
-                      <div className="mt-2">
-                        <p className="text-xs font-semibold text-muted-foreground mb-1">Prescriptions</p>
-                        <div className="space-y-1">
-                          {p.prescriptions.map((rx: any) => (
-                            <div key={rx.id} className="flex items-center justify-between text-sm bg-primary/5 rounded-lg px-3 py-1.5">
-                              <span className="font-medium">{rx.medicine_name}</span>
-                              <span className="text-xs text-muted-foreground">{rx.dosage} • {rx.frequency} • {rx.duration}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    {p.diagnosis && <p className="text-xs text-muted-foreground line-clamp-1">{p.diagnosis}</p>}
                   </div>
                 ))}
               </motion.div>
@@ -683,6 +667,113 @@ const Portal = () => {
               The clinic will process your request and contact you.
             </p>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Staff Detail Dialog ─── */}
+      <Dialog open={!!selectedStaff} onOpenChange={(open) => !open && setSelectedStaff(null)}>
+        <DialogContent className="max-w-sm mx-4 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Team Member</DialogTitle>
+          </DialogHeader>
+          {selectedStaff && (
+            <div className="space-y-4 pt-1">
+              <div className="flex items-center gap-4">
+                <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl">
+                  {selectedStaff.first_name?.[0] || "S"}
+                </div>
+                <div>
+                  <p className="font-semibold text-lg">{selectedStaff.first_name} {selectedStaff.last_name}</p>
+                  <Badge variant="secondary" className="mt-1">{selectedStaff.role}</Badge>
+                </div>
+              </div>
+              {selectedStaff.specialization && (
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-0.5">Specialization</p>
+                  <p className="text-sm font-medium">{selectedStaff.specialization}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Procedure Detail Dialog ─── */}
+      <Dialog open={!!selectedProcedure} onOpenChange={(open) => !open && setSelectedProcedure(null)}>
+        <DialogContent className="max-w-md mx-4 rounded-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Procedure Details</DialogTitle>
+          </DialogHeader>
+          {selectedProcedure && (
+            <div className="space-y-4 pt-1">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-semibold text-base">{selectedProcedure.service_name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {new Date(selectedProcedure.procedure_date).toLocaleDateString("en-IN", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                  </p>
+                </div>
+                <Badge variant="secondary">{selectedProcedure.status}</Badge>
+              </div>
+
+              {selectedProcedure.staff && (
+                <div className="bg-muted/50 rounded-lg p-3 flex items-center gap-3">
+                  <User className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Performed by</p>
+                    <p className="text-sm font-medium">Dr. {selectedProcedure.staff.first_name} {selectedProcedure.staff.last_name}</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedProcedure.symptoms && (
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Symptoms</p>
+                  <p className="text-sm">{selectedProcedure.symptoms}</p>
+                </div>
+              )}
+
+              {selectedProcedure.diagnosis && (
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Diagnosis</p>
+                  <p className="text-sm">{selectedProcedure.diagnosis}</p>
+                </div>
+              )}
+
+              {selectedProcedure.procedure_notes && (
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Procedure Notes</p>
+                  <p className="text-sm">{selectedProcedure.procedure_notes}</p>
+                </div>
+              )}
+
+              {selectedProcedure.recommendations && (
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Recommendations</p>
+                  <p className="text-sm">{selectedProcedure.recommendations}</p>
+                </div>
+              )}
+
+              {selectedProcedure.prescriptions && selectedProcedure.prescriptions.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Prescriptions</p>
+                  <div className="space-y-2">
+                    {selectedProcedure.prescriptions.map((rx: any) => (
+                      <div key={rx.id} className="bg-primary/5 border border-primary/10 rounded-lg p-3">
+                        <p className="font-medium text-sm">{rx.medicine_name}</p>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                          {rx.frequency && <span className="text-xs text-muted-foreground">Frequency: {rx.frequency}</span>}
+                          {rx.duration && <span className="text-xs text-muted-foreground">Duration: {rx.duration}</span>}
+                          {rx.quantity > 0 && <span className="text-xs text-muted-foreground">Qty: {rx.quantity}</span>}
+                        </div>
+                        {rx.instructions && <p className="text-xs text-muted-foreground mt-1 italic">{rx.instructions}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -181,8 +181,13 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
   };
 
   const getLinkedPatient = (member: any): Patient | undefined => {
-    if (!member.related_patient_id) return undefined;
-    return linkedPatients.find((p: Patient) => p.id === member.related_patient_id);
+    const targetId = member._isReverse ? member.patient_id : member.related_patient_id;
+    if (!targetId) return undefined;
+    return linkedPatients.find((p: Patient) => p.id === targetId);
+  };
+
+  const getLinkedPatientId = (member: any): string | null => {
+    return member._isReverse ? member.patient_id : member.related_patient_id;
   };
 
   const handleCardClick = (member: any) => {

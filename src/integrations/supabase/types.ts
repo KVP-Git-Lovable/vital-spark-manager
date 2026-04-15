@@ -2002,6 +2002,7 @@ export type Database = {
           phone: string | null
           photo_url: string | null
           role: string
+          role_id: string | null
           specialization: string | null
           updated_at: string
           work_end_time: string | null
@@ -2017,6 +2018,7 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           role: string
+          role_id?: string | null
           specialization?: string | null
           updated_at?: string
           work_end_time?: string | null
@@ -2032,12 +2034,21 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           role?: string
+          role_id?: string | null
           specialization?: string | null
           updated_at?: string
           work_end_time?: string | null
           work_start_time?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "staff_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "user_roles_config"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staff_aspirations: {
         Row: {

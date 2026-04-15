@@ -191,64 +191,54 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
   };
 
   const handleCardClick = (member: any) => {
-    if (member._isReverse) {
-      // Reverse members — navigate to their patient profile
-      navigate(`/patients/${member.patient_id}`);
+    const linkedId = getLinkedPatientId(member);
+    if (linkedId) {
+      // Has linked patient — navigate directly to their profile
+      navigate(`/patients/${linkedId}`);
       return;
     }
 
-    if (hasDetails(member)) {
-      // Has linked patient — show detail view
-      const linked = getLinkedPatient(member);
-      if (linked) {
-        setViewingMember({ ...member, linkedPatient: linked });
-      } else {
-        navigate(`/patients/${member.related_patient_id}`);
-      }
-    } else {
-      // No details yet — open patient form to create record
-      setPendingMemberId(member.id);
-      const nameParts = (member.name || "").trim().split(/\s+/);
-      const firstName = nameParts[0] || "";
-      const lastName = nameParts.slice(1).join(" ") || ".";
-      // Create a minimal "patient" object to pre-fill the form
-      setFormSheetPatient({
-        id: "",
-        first_name: firstName,
-        last_name: lastName,
-        created_at: "",
-        updated_at: "",
-        status: "Active",
-        date_of_birth: null,
-        gender: null,
-        phone: member.phone || null,
-        email: null,
-        address: null,
-        city: null,
-        state: null,
-        pincode: null,
-        emergency_contact_name: null,
-        emergency_contact_phone: null,
-        blood_group: null,
-        medical_history: null,
-        current_medications: null,
-        allergies: null,
-        skin_type: null,
-        skin_concerns: null,
-        previous_treatments: null,
-        notes: null,
-        doctor_id: null,
-        auth_user_id: null,
-        facebook_url: null,
-        instagram_url: null,
-        follows_facebook: null,
-        follows_instagram: null,
-        source: null,
-        source_ad_details: null,
-        source_referral_doctor: null,
-      } as Patient);
-      setFormSheetOpen(true);
-    }
+    // No details yet — open patient form to create record
+    setPendingMemberId(member.id);
+    const nameParts = (member.name || "").trim().split(/\s+/);
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || ".";
+    setFormSheetPatient({
+      id: "",
+      first_name: firstName,
+      last_name: lastName,
+      created_at: "",
+      updated_at: "",
+      status: "Active",
+      date_of_birth: null,
+      gender: null,
+      phone: member.phone || null,
+      email: null,
+      address: null,
+      city: null,
+      state: null,
+      pincode: null,
+      emergency_contact_name: null,
+      emergency_contact_phone: null,
+      blood_group: null,
+      medical_history: null,
+      current_medications: null,
+      allergies: null,
+      skin_type: null,
+      skin_concerns: null,
+      previous_treatments: null,
+      notes: null,
+      doctor_id: null,
+      auth_user_id: null,
+      facebook_url: null,
+      instagram_url: null,
+      follows_facebook: null,
+      follows_instagram: null,
+      source: null,
+      source_ad_details: null,
+      source_referral_doctor: null,
+    } as Patient);
+    setFormSheetOpen(true);
   };
 
   const handleFormSuccess = async () => {

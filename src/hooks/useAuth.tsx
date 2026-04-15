@@ -13,7 +13,7 @@ interface StaffProfile {
   initials: string;
 }
 
-type PermMap = Record<string, { can_view: boolean; can_edit: boolean }>;
+type PermMap = Record<string, { can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }>;
 
 interface AuthContextType {
   session: Session | null;

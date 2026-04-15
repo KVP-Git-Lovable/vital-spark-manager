@@ -902,12 +902,12 @@ const PatientDetail = () => {
                 <div className="flex gap-2 justify-end">
                   <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAddRxOpen(false)}>Cancel</Button>
                   <Button size="sm" className="h-7 text-xs" onClick={async () => {
-                    if (!rxForm.procedure_id || !rxForm.medicine_name.trim()) {
-                      toast.error("Procedure and medicine name are required");
+                    if (!rxForm.medicine_name.trim()) {
+                      toast.error("Medicine name is required");
                       return;
                     }
                     const { error } = await supabase.from("prescriptions").insert({
-                      procedure_id: rxForm.procedure_id,
+                      procedure_id: rxForm.procedure_id || null,
                       medicine_name: rxForm.medicine_name,
                       dosage: rxForm.dosage || null,
                       frequency: rxForm.frequency || null,

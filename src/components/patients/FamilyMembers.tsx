@@ -664,11 +664,15 @@ function ListViewTable({
                   )}
                 </td>
                 <td className="p-3 text-right flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                  {linkedId && (
+                  {linkedId ? (
                     <Button variant="ghost" size="sm" className="text-xs h-7 gap-1 text-primary" onClick={() => navigate(`/patients/${linkedId}`)}>
-                      <Eye className="h-3 w-3" /> View
+                      <Eye className="h-3 w-3" /> View Patient
                     </Button>
-                  )}
+                  ) : !member._isReverse ? (
+                    <Button variant="ghost" size="sm" className="text-xs h-7 gap-1 text-primary" onClick={() => convertToPatient.mutate(member)} disabled={convertToPatient.isPending}>
+                      <Users className="h-3 w-3" /> Convert to Patient
+                    </Button>
+                  ) : null}
                   {!member._isReverse && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -708,6 +712,7 @@ function TreeView({
   getLinkedPatientId,
   visitStats,
   navigate,
+  convertToPatient,
 }: any) {
   return (
     <div className="relative">
@@ -803,12 +808,18 @@ function TreeView({
                         className="text-xs h-7 gap-1 flex-1"
                         onClick={(e) => { e.stopPropagation(); navigate(`/patients/${linkedId}`); }}
                       >
-                        <Eye className="h-3 w-3" /> View Details
+                        <Eye className="h-3 w-3" /> View Patient
                       </Button>
                     ) : !member._isReverse ? (
-                      <p className="text-xs text-warning font-medium flex items-center gap-1 flex-1">
-                        <FileEdit className="h-3 w-3" /> Fill Details
-                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7 gap-1 flex-1"
+                        disabled={convertToPatient.isPending}
+                        onClick={(e) => { e.stopPropagation(); convertToPatient.mutate(member); }}
+                      >
+                        <Users className="h-3 w-3" /> Convert to Patient
+                      </Button>
                     ) : null}
                     {!member._isReverse && (
                       <div onClick={(e) => e.stopPropagation()}>

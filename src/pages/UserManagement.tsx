@@ -63,6 +63,8 @@ export default function UserManagement() {
   const [resetPwMode, setResetPwMode] = useState<"auto" | "manual">("auto");
   const [resetPwValue, setResetPwValue] = useState("");
   const [resetPwConfirm, setResetPwConfirm] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteStaff, setDeleteStaff] = useState<any>(null);
 
   // Fetch roles
   const { data: roles = [] } = useQuery({

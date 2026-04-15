@@ -232,6 +232,7 @@ export default function UserManagement() {
     },
   });
 
+  const togglePerm = (moduleKey: string, field: "can_view" | "can_create" | "can_edit" | "can_delete" | "all") => {
     const current = dirtyPerms ?? { ...permMap };
     const mod = current[moduleKey] ?? { can_view: false, can_create: false, can_edit: false, can_delete: false };
     if (field === "all") {

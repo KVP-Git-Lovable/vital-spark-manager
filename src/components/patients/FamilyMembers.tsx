@@ -56,6 +56,10 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
   const [addOpen, setAddOpen] = useState(false);
   const [memberName, setMemberName] = useState("");
   const [relationship, setRelationship] = useState("");
+  const [memberPhone, setMemberPhone] = useState("");
+  const [memberEmail, setMemberEmail] = useState("");
+  const [memberCity, setMemberCity] = useState("");
+  const [memberState, setMemberState] = useState("");
   const [viewMode, setViewMode] = useState<"tree" | "list">("tree");
 
   // For opening PatientFormSheet to fill/edit details
@@ -142,6 +146,10 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
         patient_id: patientId,
         name: memberName,
         relationship,
+        phone: memberPhone || null,
+        email: memberEmail || null,
+        city: memberCity || null,
+        state: memberState || null,
       });
       if (error) throw error;
     },
@@ -169,7 +177,58 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
   const resetForm = () => {
     setMemberName("");
     setRelationship("");
+    setMemberPhone("");
+    setMemberEmail("");
+    setMemberCity("");
+    setMemberState("");
   };
+
+  const convertToPatient = useMutation({
+    mutationFn: async (member: any) => {
+      const nameParts = (member.name || "").trim().split(/\s+/);
+      const firstName = nameParts[0] || "";
+      const lastName = nameParts.slice(1).join(" ") || ".";
+
+      const { data: newPatient, error: patientError } = await supabase
+        .from("patients")
+        .insert({
+          first_name: firstName,
+          last_name: lastName,
+          phone: member.phone || null,
+          email: member.email || null,
+          city: member.city || null,
+          state: member.state || null,
+          status: "Active",
+        })
+        .select("id")
+        .single();
+      if (patientError) throw patientError;
+
+      // Link forward: current member → new patient
+      const { error: linkError } = await supabase
+        .from("patient_family_members")
+        .update({ related_patient_id: newPatient.id })
+        .eq("id", member.id);
+      if (linkError) throw linkError;
+
+      // Create reverse link: new patient → current patient
+      const inverseRel = getInverseRelationship(member.relationship);
+      await supabase.from("patient_family_members").insert({
+        patient_id: newPatient.id,
+        related_patient_id: patientId,
+        relationship: inverseRel,
+        name: patientName,
+      });
+
+      return newPatient.id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["family-members", patientId] });
+      queryClient.invalidateQueries({ queryKey: ["linked-patients"] });
+      toast.success("Patient record created and linked successfully");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
 
   const getMemberDisplayName = (member: any): string => {
     // For reverse members, show the linked patient's name from the patients table
@@ -365,9 +424,47 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
                   </Select>
                 </div>
 
-                <p className="text-xs text-muted-foreground">
-                  You can fill in their complete details after adding.
-                </p>
+                <div>
+                  <Label>Phone Number</Label>
+                  <Input
+                    value={memberPhone}
+                    onChange={(e) => setMemberPhone(e.target.value)}
+                    placeholder="Enter phone number..."
+                    className="mt-1.5"
+                  />
+                </div>
+
+                <div>
+                  <Label>Email Address</Label>
+                  <Input
+                    value={memberEmail}
+                    onChange={(e) => setMemberEmail(e.target.value)}
+                    placeholder="Enter email..."
+                    type="email"
+                    className="mt-1.5"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>City</Label>
+                    <Input
+                      value={memberCity}
+                      onChange={(e) => setMemberCity(e.target.value)}
+                      placeholder="City"
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label>State</Label>
+                    <Input
+                      value={memberState}
+                      onChange={(e) => setMemberState(e.target.value)}
+                      placeholder="State"
+                      className="mt-1.5"
+                    />
+                  </div>
+                </div>
 
                 <Button
                   className="w-full"
@@ -400,6 +497,7 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
           getLinkedPatientId={getLinkedPatientId}
           visitStats={visitStats}
           navigate={navigate}
+          convertToPatient={convertToPatient}
         />
       ) : (
         <TreeView
@@ -412,6 +510,7 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
           getLinkedPatientId={getLinkedPatientId}
           visitStats={visitStats}
           navigate={navigate}
+          convertToPatient={convertToPatient}
         />
       )}
 
@@ -523,6 +622,7 @@ function ListViewTable({
   getLinkedPatientId,
   visitStats,
   navigate,
+  convertToPatient,
 }: any) {
   return (
     <div className="data-table">
@@ -565,11 +665,15 @@ function ListViewTable({
                   )}
                 </td>
                 <td className="p-3 text-right flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                  {linkedId && (
+                  {linkedId ? (
                     <Button variant="ghost" size="sm" className="text-xs h-7 gap-1 text-primary" onClick={() => navigate(`/patients/${linkedId}`)}>
-                      <Eye className="h-3 w-3" /> View
+                      <Eye className="h-3 w-3" /> View Patient
                     </Button>
-                  )}
+                  ) : !member._isReverse ? (
+                    <Button variant="ghost" size="sm" className="text-xs h-7 gap-1 text-primary" onClick={() => convertToPatient.mutate(member)} disabled={convertToPatient.isPending}>
+                      <Users className="h-3 w-3" /> Convert to Patient
+                    </Button>
+                  ) : null}
                   {!member._isReverse && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -609,6 +713,7 @@ function TreeView({
   getLinkedPatientId,
   visitStats,
   navigate,
+  convertToPatient,
 }: any) {
   return (
     <div className="relative">
@@ -704,12 +809,18 @@ function TreeView({
                         className="text-xs h-7 gap-1 flex-1"
                         onClick={(e) => { e.stopPropagation(); navigate(`/patients/${linkedId}`); }}
                       >
-                        <Eye className="h-3 w-3" /> View Details
+                        <Eye className="h-3 w-3" /> View Patient
                       </Button>
                     ) : !member._isReverse ? (
-                      <p className="text-xs text-warning font-medium flex items-center gap-1 flex-1">
-                        <FileEdit className="h-3 w-3" /> Fill Details
-                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7 gap-1 flex-1"
+                        disabled={convertToPatient.isPending}
+                        onClick={(e) => { e.stopPropagation(); convertToPatient.mutate(member); }}
+                      >
+                        <Users className="h-3 w-3" /> Convert to Patient
+                      </Button>
                     ) : null}
                     {!member._isReverse && (
                       <div onClick={(e) => e.stopPropagation()}>

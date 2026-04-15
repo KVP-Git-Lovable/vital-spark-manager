@@ -769,7 +769,9 @@ export type Database = {
       }
       patient_family_members: {
         Row: {
+          city: string | null
           created_at: string
+          email: string | null
           id: string
           is_primary_contact: boolean | null
           name: string | null
@@ -778,9 +780,12 @@ export type Database = {
           phone: string | null
           related_patient_id: string | null
           relationship: string
+          state: string | null
         }
         Insert: {
+          city?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           is_primary_contact?: boolean | null
           name?: string | null
@@ -789,9 +794,12 @@ export type Database = {
           phone?: string | null
           related_patient_id?: string | null
           relationship: string
+          state?: string | null
         }
         Update: {
+          city?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           is_primary_contact?: boolean | null
           name?: string | null
@@ -800,6 +808,7 @@ export type Database = {
           phone?: string | null
           related_patient_id?: string | null
           relationship?: string
+          state?: string | null
         }
         Relationships: [
           {

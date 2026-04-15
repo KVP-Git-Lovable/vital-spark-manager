@@ -360,6 +360,13 @@ export default function UserManagement() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <CreateUserDialog
+        open={createUserOpen}
+        onOpenChange={setCreateUserOpen}
+        staffList={staff}
+        roles={roles}
+      />
     </div>
   );
 }

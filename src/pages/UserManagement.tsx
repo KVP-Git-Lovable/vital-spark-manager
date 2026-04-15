@@ -43,7 +43,7 @@ const ALL_MODULES = [
   { key: "user_management", label: "User Management" },
 ];
 
-type PermMap = Record<string, { can_view: boolean; can_edit: boolean }>;
+type PermMap = Record<string, { can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }>;
 
 export default function UserManagement() {
   const queryClient = useQueryClient();

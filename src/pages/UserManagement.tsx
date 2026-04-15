@@ -132,7 +132,9 @@ export default function UserManagement() {
         role_id: selectedRoleId,
         module_key: m.key,
         can_view: dirtyPerms[m.key]?.can_view ?? false,
+        can_create: dirtyPerms[m.key]?.can_create ?? false,
         can_edit: dirtyPerms[m.key]?.can_edit ?? false,
+        can_delete: dirtyPerms[m.key]?.can_delete ?? false,
       }));
       const { error } = await supabase.from("role_module_permissions").insert(rows);
       if (error) throw error;

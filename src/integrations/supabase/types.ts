@@ -1508,9 +1508,10 @@ export type Database = {
           id: string
           instructions: string | null
           medicine_name: string
-          procedure_id: string
+          procedure_id: string | null
           product_id: string | null
           quantity: number
+          survey_response_id: string | null
         }
         Insert: {
           created_at?: string
@@ -1520,9 +1521,10 @@ export type Database = {
           id?: string
           instructions?: string | null
           medicine_name: string
-          procedure_id: string
+          procedure_id?: string | null
           product_id?: string | null
           quantity?: number
+          survey_response_id?: string | null
         }
         Update: {
           created_at?: string
@@ -1532,9 +1534,10 @@ export type Database = {
           id?: string
           instructions?: string | null
           medicine_name?: string
-          procedure_id?: string
+          procedure_id?: string | null
           product_id?: string | null
           quantity?: number
+          survey_response_id?: string | null
         }
         Relationships: [
           {
@@ -1549,6 +1552,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "pharma_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescriptions_survey_response_id_fkey"
+            columns: ["survey_response_id"]
+            isOneToOne: false
+            referencedRelation: "survey_responses"
             referencedColumns: ["id"]
           },
         ]

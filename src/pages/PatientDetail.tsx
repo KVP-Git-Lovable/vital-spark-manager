@@ -105,16 +105,35 @@ const PatientDetail = () => {
     queryKey: ["patient-prescriptions", id],
     queryFn: async () => {
       const procIds = procedures.map((p) => p.id);
-      if (procIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("prescriptions")
-        .select("*, procedures(service_name, procedure_date)")
-        .in("procedure_id", procIds)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
+      // Fetch prescriptions linked to procedures OR to survey responses for this patient
+      const queries = [];
+      if (procIds.length > 0) {
+        queries.push(
+          supabase
+            .from("prescriptions")
+            .select("*, procedures(service_name, procedure_date)")
+            .in("procedure_id", procIds)
+        );
+      }
+      // Also fetch survey-linked prescriptions
+      const surveyIds = (surveyResponses || []).map((s: any) => s.id);
+      if (surveyIds.length > 0) {
+        queries.push(
+          supabase
+            .from("prescriptions")
+            .select("*, procedures(service_name, procedure_date)")
+            .in("survey_response_id", surveyIds)
+            .is("procedure_id", null)
+        );
+      }
+      const results = await Promise.all(queries);
+      const allRx = results.flatMap(r => r.data || []);
+      // Deduplicate by id
+      const seen = new Set<string>();
+      return allRx.filter((rx: any) => { if (seen.has(rx.id)) return false; seen.add(rx.id); return true; })
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     },
-    enabled: procedures.length > 0,
+    enabled: !!id,
   });
 
   const { data: appointments = [] } = useQuery({

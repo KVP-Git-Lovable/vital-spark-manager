@@ -1000,21 +1000,87 @@ const PatientDetail = () => {
 
                   return (
                     <div key={sr.id} className="stat-card p-4 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-semibold text-sm">{template?.name || "Survey"}</h4>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {appt ? `${new Date(appt.start_time).toLocaleDateString()} — ${appt.service}` : new Date(sr.created_at).toLocaleDateString()}
-                            {appt?.staff && ` • Dr. ${appt.staff.first_name} ${appt.staff.last_name}`}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="font-semibold text-sm">{template?.name || "Survey"}</h4>
+                        <div className="flex items-center gap-2 shrink-0">
                           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setViewingSurveyId(sr.id)}>View</Button>
-                          <Badge variant={sr.dr_status === "approved" ? "default" : sr.dr_status === "modified" ? "secondary" : "outline"} className="text-[10px]">
-                            {sr.dr_status === "pending_review" ? "Pending Review" : sr.dr_status === "approved" ? "Approved" : "Modified"}
-                          </Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant={sr.dr_status === "approved" ? "default" : sr.dr_status === "reviewed" ? "secondary" : "outline"}
+                                size="sm"
+                                className="h-7 text-xs gap-1"
+                              >
+                                {sr.dr_status === "pending_review" ? "⏳ Pending Review" : sr.dr_status === "reviewed" ? "👁 Reviewed" : sr.dr_status === "approved" ? "✅ Approved" : sr.dr_status === "modified" ? "✏️ Modified" : "⏳ Pending Review"}
+                                <ChevronDown className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                className="text-xs"
+                                onClick={async () => {
+                                  const { error } = await supabase.from("survey_responses").update({ dr_status: "pending_review" }).eq("id", sr.id);
+                                  if (error) { toast.error(error.message); return; }
+                                  queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+                                  toast.success("Status set to Pending Review");
+                                }}
+                              >
+                                ⏳ Pending Review
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-xs"
+                                onClick={async () => {
+                                  const { error } = await supabase.from("survey_responses").update({ dr_status: "reviewed" }).eq("id", sr.id);
+                                  if (error) { toast.error(error.message); return; }
+                                  queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+                                  toast.success("Status set to Reviewed");
+                                }}
+                              >
+                                👁 Reviewed
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-xs"
+                                onClick={async () => {
+                                  // Set status to approved
+                                  const { error } = await supabase.from("survey_responses").update({ dr_status: "approved" }).eq("id", sr.id);
+                                  if (error) { toast.error(error.message); return; }
+
+                                  // Auto-create prescriptions from AI recommended products
+                                  if (aiProducts.length > 0) {
+                                    const rxEntries = aiProducts.map((p: any) => ({
+                                      procedure_id: null,
+                                      survey_response_id: sr.id,
+                                      medicine_name: p.product_name || p.name || "Unknown",
+                                      dosage: p.dosage || null,
+                                      frequency: p.frequency || null,
+                                      duration: p.duration || null,
+                                      quantity: p.quantity || 1,
+                                      instructions: p.advice || p.instructions || null,
+                                      product_id: p.product_id || null,
+                                    }));
+                                    const { error: rxError } = await supabase.from("prescriptions").insert(rxEntries);
+                                    if (rxError) {
+                                      toast.error("Approved but failed to create Rx: " + rxError.message);
+                                    } else {
+                                      toast.success(`Approved — ${rxEntries.length} medicine(s) added to Rx`);
+                                      queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", id] });
+                                    }
+                                  } else {
+                                    toast.success("Status set to Approved");
+                                  }
+                                  queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+                                }}
+                              >
+                                ✅ Approved
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
+                      <p className="text-xs text-muted-foreground">
+                        {appt ? `${new Date(appt.start_time).toLocaleDateString()} — ${appt.service}` : new Date(sr.created_at).toLocaleDateString()}
+                        {appt?.staff && ` • Dr. ${appt.staff.first_name} ${appt.staff.last_name}`}
+                      </p>
 
                       {template?.problem_areas?.name && (
                         <div className="flex gap-1.5 flex-wrap">

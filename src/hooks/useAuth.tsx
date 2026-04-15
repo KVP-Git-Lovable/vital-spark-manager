@@ -2,11 +2,27 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { supabase } from "@/integrations/supabase/client";
 import { Session, User } from "@supabase/supabase-js";
 
+interface StaffProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  roleName: string | null;
+  roleId: string | null;
+  initials: string;
+}
+
+type PermMap = Record<string, { can_view: boolean; can_edit: boolean }>;
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   patientId: string | null;
   patientName: string | null;
+  staffProfile: StaffProfile | null;
+  permissions: PermMap;
+  isAdmin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -16,21 +32,33 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   patientId: null,
   patientName: null,
+  staffProfile: null,
+  permissions: {},
+  isAdmin: false,
   loading: true,
   signOut: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
+function getInitials(first: string, last: string, email?: string | null): string {
+  if (first && last) return `${first[0]}${last[0]}`.toUpperCase();
+  if (first) return first.slice(0, 2).toUpperCase();
+  if (email) return email.slice(0, 2).toUpperCase();
+  return "U";
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [patientId, setPatientId] = useState<string | null>(null);
   const [patientName, setPatientName] = useState<string | null>(null);
+  const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
+  const [permissions, setPermissions] = useState<PermMap>({});
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadPatientProfile = async (u: User) => {
-    // Find patient linked to this auth user
     const { data, error } = await supabase
       .from("patients")
       .select("id, first_name, last_name")
@@ -45,7 +73,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Try to link by email match
     const email = u.email;
     if (email) {
       const { data: byEmail } = await supabase
@@ -67,37 +94,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Create new patient record
-    const meta = u.user_metadata || {};
-    const firstName = meta.first_name || email?.split("@")[0] || "User";
-    const lastName = meta.last_name || "";
-    const { data: newPatient, error: insertError } = await supabase
-      .from("patients")
-      .insert({
-        first_name: firstName,
-        last_name: lastName || ".",
-        email: email,
-        phone: meta.phone || null,
-        auth_user_id: u.id,
-      })
-      .select("id, first_name, last_name")
-      .single();
+    // Don't auto-create patient for staff users
+  };
 
-    if (insertError) throw insertError;
+  const loadStaffProfile = async (u: User) => {
+    const { data: staffData } = await supabase
+      .from("staff")
+      .select("id, first_name, last_name, email, phone, role_id, user_roles_config(id, name)")
+      .eq("auth_user_id", u.id)
+      .maybeSingle();
 
-    if (newPatient) {
-      setPatientId(newPatient.id);
-      setPatientName(`${newPatient.first_name} ${newPatient.last_name}`);
+    if (!staffData) {
+      setStaffProfile(null);
+      setPermissions({});
+      setIsAdmin(false);
+      return;
+    }
+
+    const role = staffData.user_roles_config as any;
+    const roleName = role?.name || null;
+    const profile: StaffProfile = {
+      id: staffData.id,
+      firstName: staffData.first_name,
+      lastName: staffData.last_name,
+      email: staffData.email,
+      phone: staffData.phone,
+      roleName,
+      roleId: staffData.role_id,
+      initials: getInitials(staffData.first_name, staffData.last_name, staffData.email),
+    };
+    setStaffProfile(profile);
+
+    const admin = roleName?.toLowerCase() === "admin";
+    setIsAdmin(admin);
+
+    if (admin) {
+      // Admin has full access
+      setPermissions({});
+      return;
+    }
+
+    if (staffData.role_id) {
+      const { data: perms } = await supabase
+        .from("role_module_permissions")
+        .select("module_key, can_view, can_edit")
+        .eq("role_id", staffData.role_id);
+
+      if (perms) {
+        const map: PermMap = {};
+        perms.forEach((p: any) => {
+          map[p.module_key] = { can_view: p.can_view, can_edit: p.can_edit };
+        });
+        setPermissions(map);
+      }
     }
   };
 
   useEffect(() => {
     let isMounted = true;
 
-    const clearPatient = () => {
+    const clearAll = () => {
       if (!isMounted) return;
       setPatientId(null);
       setPatientName(null);
+      setStaffProfile(null);
+      setPermissions({});
+      setIsAdmin(false);
     };
 
     const syncSessionState = async (sess: Session | null) => {
@@ -107,16 +169,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(sess?.user ?? null);
 
       if (!sess?.user) {
-        clearPatient();
+        clearAll();
         setLoading(false);
         return;
       }
 
       try {
-        await loadPatientProfile(sess.user);
+        await Promise.all([
+          loadPatientProfile(sess.user).catch(console.error),
+          loadStaffProfile(sess.user).catch(console.error),
+        ]);
       } catch (error) {
-        console.error("Failed to load patient profile:", error);
-        clearPatient();
+        console.error("Failed to load profiles:", error);
+        clearAll();
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -144,10 +209,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setPatientId(null);
     setPatientName(null);
+    setStaffProfile(null);
+    setPermissions({});
+    setIsAdmin(false);
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, patientId, patientName, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, patientId, patientName, staffProfile, permissions, isAdmin, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

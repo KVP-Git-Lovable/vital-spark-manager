@@ -65,10 +65,14 @@ export default function UserManagement() {
     queryKey: ["staff-with-roles"],
     queryFn: async () => {
       const { data } = await supabase
-        .from("doctors")
-        .select("id, name, email, phone, status, role_id, user_roles_config(id, name)")
-        .order("name");
-      return data || [];
+        .from("staff")
+        .select("id, first_name, last_name, email, phone, is_active, role_id, user_roles_config(id, name)")
+        .order("first_name");
+      return (data || []).map((s: any) => ({
+        ...s,
+        name: `${s.first_name} ${s.last_name}`.trim(),
+        status: s.is_active ? "Active" : "Inactive",
+      }));
     },
   });
 

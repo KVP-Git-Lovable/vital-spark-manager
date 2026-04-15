@@ -487,6 +487,15 @@ export function InventoryDetailSheet({ inventoryId, onClose, onClone, products }
     enabled: !!inventoryId,
   });
 
+  const { data: vendors = [] } = useQuery({
+    queryKey: ["vendors-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vendors").select("id, name").order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   useEffect(() => {
     if (record) setForm({ ...record });
   }, [record]);

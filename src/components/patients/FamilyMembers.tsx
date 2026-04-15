@@ -510,6 +510,9 @@ function ListViewTable({
   hasDetails,
   handleCardClick,
   removeMember,
+  getLinkedPatientId,
+  visitStats,
+  navigate,
 }: any) {
   return (
     <div className="data-table">
@@ -518,6 +521,7 @@ function ListViewTable({
           <tr className="border-b bg-muted/50">
             <th className="text-left text-xs font-medium text-muted-foreground p-3">Name</th>
             <th className="text-left text-xs font-medium text-muted-foreground p-3">Relationship</th>
+            <th className="text-left text-xs font-medium text-muted-foreground p-3 hidden sm:table-cell">Visits</th>
             <th className="text-left text-xs font-medium text-muted-foreground p-3 hidden sm:table-cell">Status</th>
             <th className="text-right text-xs font-medium text-muted-foreground p-3"></th>
           </tr>
@@ -526,6 +530,8 @@ function ListViewTable({
           {familyMembers.map((member: any) => {
             const displayName = getMemberDisplayName(member);
             const filled = hasDetails(member);
+            const linkedId = getLinkedPatientId(member);
+            const stats = linkedId ? visitStats[linkedId] : null;
             return (
               <tr
                 key={member.id}
@@ -539,13 +545,21 @@ function ListViewTable({
                   <Badge variant="outline" className="text-[10px]">{member.relationship}</Badge>
                 </td>
                 <td className="p-3 hidden sm:table-cell">
+                  <span className="text-xs text-muted-foreground">{stats ? stats.totalVisits : "—"}</span>
+                </td>
+                <td className="p-3 hidden sm:table-cell">
                   {filled ? (
-                    <Badge variant="secondary" className="text-[10px] bg-success/10 text-success">Details filled</Badge>
+                    <Badge variant="secondary" className="text-[10px] bg-success/10 text-success">Linked</Badge>
                   ) : (
                     <Badge variant="secondary" className="text-[10px] bg-warning/10 text-warning">Pending</Badge>
                   )}
                 </td>
-                <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+                <td className="p-3 text-right flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                  {linkedId && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7 gap-1 text-primary" onClick={() => navigate(`/patients/${linkedId}`)}>
+                      <Eye className="h-3 w-3" /> View
+                    </Button>
+                  )}
                   {!member._isReverse && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>

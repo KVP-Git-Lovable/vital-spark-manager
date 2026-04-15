@@ -106,7 +106,7 @@ export default function UserManagement() {
   // Assign role mutation
   const assignRole = useMutation({
     mutationFn: async ({ staffId, roleId }: { staffId: string; roleId: string | null }) => {
-      const { error } = await supabase.from("doctors").update({ role_id: roleId }).eq("id", staffId);
+      const { error } = await supabase.from("staff").update({ role_id: roleId } as any).eq("id", staffId);
       if (error) throw error;
     },
     onSuccess: () => {

@@ -13,7 +13,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ShieldCheck, Plus, Save, Search } from "lucide-react";
+import { ShieldCheck, Plus, Save, Search, UserPlus } from "lucide-react";
+import CreateUserDialog from "@/components/users/CreateUserDialog";
 
 const ALL_MODULES = [
   { key: "dashboard", label: "Dashboard" },
@@ -50,6 +51,7 @@ export default function UserManagement() {
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleDesc, setNewRoleDesc] = useState("");
+  const [createUserOpen, setCreateUserOpen] = useState(false);
 
   // Fetch roles
   const { data: roles = [] } = useQuery({
@@ -202,14 +204,19 @@ export default function UserManagement() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">Staff Users</CardTitle>
-                <div className="relative w-64">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search staff..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-8"
-                  />
+                <div className="flex items-center gap-2">
+                  <div className="relative w-64">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search staff..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                  <Button size="sm" onClick={() => setCreateUserOpen(true)}>
+                    <UserPlus className="h-4 w-4 mr-1" />Create User
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -353,6 +360,13 @@ export default function UserManagement() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <CreateUserDialog
+        open={createUserOpen}
+        onOpenChange={setCreateUserOpen}
+        staffList={staff}
+        roles={roles}
+      />
     </div>
   );
 }

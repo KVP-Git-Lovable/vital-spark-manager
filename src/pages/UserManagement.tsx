@@ -310,7 +310,7 @@ export default function UserManagement() {
                       </TableCell>
                       {isAdmin && (
                         <TableCell>
-                          {s.auth_user_id && (
+                          {(
                             <Button
                               variant="ghost"
                               size="icon"

@@ -16,7 +16,40 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { staff_id, email, password, role_id, full_name, phone, send_email, force_password_change } = await req.json();
+    const body = await req.json();
+    const { action } = body;
+
+    // Reset password action
+    if (action === "reset_password") {
+      const { auth_user_id, password } = body;
+      if (!auth_user_id) {
+        return new Response(JSON.stringify({ error: "auth_user_id is required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const newPassword = password || crypto.randomUUID().slice(0, 12) + "A1!";
+
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(auth_user_id, {
+        password: newPassword,
+      });
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, password_was_auto: !password }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Default: create user account
+    const { staff_id, email, password, role_id, full_name, phone, send_email, force_password_change } = body;
 
     if (!email || !full_name) {
       return new Response(JSON.stringify({ error: "Email and full name are required" }), {
@@ -25,10 +58,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Generate password if not provided
     const userPassword = password || crypto.randomUUID().slice(0, 12) + "A1!";
 
-    // Create auth user
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: userPassword,
@@ -45,7 +76,6 @@ Deno.serve(async (req) => {
 
     const authUserId = authData.user.id;
 
-    // Update staff record if staff_id provided
     if (staff_id) {
       await supabaseAdmin.from("staff").update({
         auth_user_id: authUserId,

@@ -49,23 +49,24 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useAuth } from "@/hooks/useAuth";
 
 const mainItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Patients", url: "/patients", icon: Users },
-  { title: "Appointments", url: "/appointments", icon: Calendar },
-  { title: "Procedures", url: "/procedures", icon: ClipboardList },
-  { title: "Photos", url: "/photos", icon: Camera },
-  { title: "Pharmacy", url: "/pharma", icon: Pill },
-  { title: "Billing", url: "/billing", icon: Receipt },
-  { title: "Leave", url: "/leave", icon: CalendarDays },
-  { title: "Assets", url: "/assets", icon: Package },
-  { title: "Portal Orders", url: "/orders", icon: ShoppingBag },
-  { title: "Expenses", url: "/expenses", icon: Wallet },
-  { title: "Staff", url: "/staff", icon: UserCog },
-  { title: "Problem Areas", url: "/problem-areas", icon: AlertCircle },
-  { title: "Reports", url: "/reports", icon: BarChart3 },
-  { title: "Report Builder", url: "/report-builder", icon: FileBarChart },
+  { title: "Dashboard", url: "/", icon: LayoutDashboard, moduleKey: "dashboard" },
+  { title: "Patients", url: "/patients", icon: Users, moduleKey: "patients" },
+  { title: "Appointments", url: "/appointments", icon: Calendar, moduleKey: "appointments" },
+  { title: "Procedures", url: "/procedures", icon: ClipboardList, moduleKey: "procedures" },
+  { title: "Photos", url: "/photos", icon: Camera, moduleKey: "photos" },
+  { title: "Pharmacy", url: "/pharma", icon: Pill, moduleKey: "pharmacy" },
+  { title: "Billing", url: "/billing", icon: Receipt, moduleKey: "billing" },
+  { title: "Leave", url: "/leave", icon: CalendarDays, moduleKey: "leave" },
+  { title: "Assets", url: "/assets", icon: Package, moduleKey: "assets" },
+  { title: "Portal Orders", url: "/orders", icon: ShoppingBag, moduleKey: "portal_orders" },
+  { title: "Expenses", url: "/expenses", icon: Wallet, moduleKey: "expenses" },
+  { title: "Staff", url: "/staff", icon: UserCog, moduleKey: "staff" },
+  { title: "Problem Areas", url: "/problem-areas", icon: AlertCircle, moduleKey: "problem_areas" },
+  { title: "Reports", url: "/reports", icon: BarChart3, moduleKey: "reports" },
+  { title: "Report Builder", url: "/report-builder", icon: FileBarChart, moduleKey: "report_builder" },
 ];
 
 const surveySubItems = [
@@ -74,15 +75,15 @@ const surveySubItems = [
 ];
 
 const masterDataItems = [
-  { title: "Service Master", url: "/services", icon: Stethoscope },
-  { title: "Vendor Master", url: "/vendors", icon: Building2 },
-  { title: "Unit Master", url: "/unit-master", icon: Ruler },
-  { title: "Category Master", url: "/category-master", icon: Tags },
-  { title: "User Management", url: "/user-management", icon: ShieldCheck },
+  { title: "Service Master", url: "/services", icon: Stethoscope, moduleKey: "services" },
+  { title: "Vendor Master", url: "/vendors", icon: Building2, moduleKey: "vendors" },
+  { title: "Unit Master", url: "/unit-master", icon: Ruler, moduleKey: "unit_master" },
+  { title: "Category Master", url: "/category-master", icon: Tags, moduleKey: "category_master" },
+  { title: "User Management", url: "/user-management", icon: ShieldCheck, moduleKey: "user_management" },
 ];
 
 const settingsItems = [
-  { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Settings", url: "/settings", icon: Settings, moduleKey: "settings" },
 ];
 
 export function AppSidebar() {
@@ -90,9 +91,19 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const currentPath = location.pathname;
+  const { isAdmin, permissions } = useAuth();
 
   const isActive = (path: string) =>
     path === "/" ? currentPath === "/" : currentPath.startsWith(path);
+
+  const canView = (moduleKey: string) => {
+    if (isAdmin) return true;
+    return permissions[moduleKey]?.can_view ?? false;
+  };
+
+  const filteredMain = mainItems.filter((i) => canView(i.moduleKey));
+  const filteredMaster = masterDataItems.filter((i) => canView(i.moduleKey));
+  const showSurveys = canView("surveys");
 
   return (
     <Sidebar collapsible="icon">
@@ -115,7 +126,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Main Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainItems.map((item) => (
+              {filteredMain.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)}>
                     <NavLink
@@ -131,74 +142,78 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               ))}
 
-              {/* Collapsible Surveys */}
-              <Collapsible
-                defaultOpen={currentPath.startsWith("/survey-templates") || currentPath.startsWith("/all-surveys")}
-                className="group/collapsible"
-              >
-                <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton
-                      tooltip="Surveys"
-                      isActive={currentPath.startsWith("/survey-templates") || currentPath.startsWith("/all-surveys")}
-                    >
-                      <ClipboardCheck className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>Surveys</span>}
-                      {!collapsed && (
-                        <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                      )}
+              {showSurveys && (
+                <Collapsible
+                  defaultOpen={currentPath.startsWith("/survey-templates") || currentPath.startsWith("/all-surveys")}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip="Surveys"
+                        isActive={currentPath.startsWith("/survey-templates") || currentPath.startsWith("/all-surveys")}
+                      >
+                        <ClipboardCheck className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>Surveys</span>}
+                        {!collapsed && (
+                          <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                        )}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {surveySubItems.map((sub) => (
+                          <SidebarMenuSubItem key={sub.url}>
+                            <SidebarMenuSubButton
+                              asChild
+                              isActive={isActive(sub.url)}
+                            >
+                              <Link to={sub.url}>
+                                <sub.icon className="mr-2 h-3.5 w-3.5" />
+                                <span>{sub.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {filteredMaster.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Master Data</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {filteredMaster.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                      <NavLink
+                        to={item.url}
+                        className="hover:bg-sidebar-accent"
+                        activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      >
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
                     </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {surveySubItems.map((sub) => (
-                        <SidebarMenuSubItem key={sub.url}>
-                          <SidebarMenuSubButton
-                            asChild
-                            isActive={isActive(sub.url)}
-                          >
-                            <Link to={sub.url}>
-                              <sub.icon className="mr-2 h-3.5 w-3.5" />
-                              <span>{sub.title}</span>
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </SidebarMenuItem>
-              </Collapsible>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Master Data</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {masterDataItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <NavLink
-                      to={item.url}
-                      className="hover:bg-sidebar-accent"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
-                    >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {settingsItems.map((item) => (
+              {settingsItems.filter((i) => canView(i.moduleKey)).map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)}>
                     <NavLink

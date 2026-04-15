@@ -43,7 +43,7 @@ const ALL_MODULES = [
   { key: "user_management", label: "User Management" },
 ];
 
-type PermMap = Record<string, { can_view: boolean; can_edit: boolean }>;
+type PermMap = Record<string, { can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }>;
 
 export default function UserManagement() {
   const queryClient = useQueryClient();
@@ -109,7 +109,7 @@ export default function UserManagement() {
   const permMap: PermMap = dirtyPerms ?? Object.fromEntries(
     ALL_MODULES.map((m) => {
       const p = permissions.find((p: any) => p.module_key === m.key);
-      return [m.key, { can_view: p?.can_view ?? false, can_edit: p?.can_edit ?? false }];
+      return [m.key, { can_view: p?.can_view ?? false, can_create: p?.can_create ?? false, can_edit: p?.can_edit ?? false, can_delete: p?.can_delete ?? false }];
     })
   );
 
@@ -132,7 +132,9 @@ export default function UserManagement() {
         role_id: selectedRoleId,
         module_key: m.key,
         can_view: dirtyPerms[m.key]?.can_view ?? false,
+        can_create: dirtyPerms[m.key]?.can_create ?? false,
         can_edit: dirtyPerms[m.key]?.can_edit ?? false,
+        can_delete: dirtyPerms[m.key]?.can_delete ?? false,
       }));
       const { error } = await supabase.from("role_module_permissions").insert(rows);
       if (error) throw error;
@@ -156,7 +158,9 @@ export default function UserManagement() {
         role_id: data.id,
         module_key: m.key,
         can_view: false,
+        can_create: false,
         can_edit: false,
+        can_delete: false,
       }));
       await supabase.from("role_module_permissions").insert(rows);
       return data;
@@ -201,12 +205,24 @@ export default function UserManagement() {
     },
   });
 
-  const togglePerm = (moduleKey: string, field: "can_view" | "can_edit") => {
+  const togglePerm = (moduleKey: string, field: "can_view" | "can_create" | "can_edit" | "can_delete" | "all") => {
     const current = dirtyPerms ?? { ...permMap };
-    const mod = current[moduleKey] ?? { can_view: false, can_edit: false };
+    const mod = current[moduleKey] ?? { can_view: false, can_create: false, can_edit: false, can_delete: false };
+    if (field === "all") {
+      const allChecked = mod.can_view && mod.can_create && mod.can_edit && mod.can_delete;
+      const val = !allChecked;
+      setDirtyPerms({ ...current, [moduleKey]: { can_view: val, can_create: val, can_edit: val, can_delete: val } });
+      return;
+    }
     const updated = { ...mod, [field]: !mod[field] };
-    if (field === "can_view" && !updated.can_view) updated.can_edit = false;
-    if (field === "can_edit" && updated.can_edit) updated.can_view = true;
+    if (field === "can_view" && !updated.can_view) {
+      updated.can_create = false;
+      updated.can_edit = false;
+      updated.can_delete = false;
+    }
+    if ((field === "can_create" || field === "can_edit" || field === "can_delete") && updated[field]) {
+      updated.can_view = true;
+    }
     setDirtyPerms({ ...current, [moduleKey]: updated });
   };
 
@@ -294,7 +310,7 @@ export default function UserManagement() {
                       </TableCell>
                       {isAdmin && (
                         <TableCell>
-                          {s.auth_user_id && (
+                          {(
                             <Button
                               variant="ghost"
                               size="icon"
@@ -380,32 +396,48 @@ export default function UserManagement() {
               )}
             </CardHeader>
             <CardContent>
+              {selectedRole?.name?.toLowerCase() === "admin" && (
+                <div className="mb-4 p-3 bg-muted rounded-md text-sm text-muted-foreground">
+                  System Administrator has all permissions granted automatically and cannot be modified.
+                </div>
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Module</TableHead>
-                    <TableHead className="text-center w-24">View</TableHead>
-                    <TableHead className="text-center w-24">Edit</TableHead>
+                    <TableHead className="text-center w-20">View</TableHead>
+                    <TableHead className="text-center w-20">Create</TableHead>
+                    <TableHead className="text-center w-20">Edit</TableHead>
+                    <TableHead className="text-center w-20">Delete</TableHead>
+                    <TableHead className="text-center w-20">All</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ALL_MODULES.map((m) => (
-                    <TableRow key={m.key}>
-                      <TableCell>{m.label}</TableCell>
-                      <TableCell className="text-center">
-                        <Checkbox
-                          checked={permMap[m.key]?.can_view ?? false}
-                          onCheckedChange={() => togglePerm(m.key, "can_view")}
-                        />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Checkbox
-                          checked={permMap[m.key]?.can_edit ?? false}
-                          onCheckedChange={() => togglePerm(m.key, "can_edit")}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {ALL_MODULES.map((m) => {
+                    const isAdminRole = selectedRole?.name?.toLowerCase() === "admin";
+                    const mod = permMap[m.key] ?? { can_view: false, can_create: false, can_edit: false, can_delete: false };
+                    const allChecked = mod.can_view && mod.can_create && mod.can_edit && mod.can_delete;
+                    return (
+                      <TableRow key={m.key}>
+                        <TableCell>{m.label}</TableCell>
+                        <TableCell className="text-center">
+                          <Checkbox checked={isAdminRole || mod.can_view} disabled={isAdminRole} onCheckedChange={() => togglePerm(m.key, "can_view")} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Checkbox checked={isAdminRole || mod.can_create} disabled={isAdminRole} onCheckedChange={() => togglePerm(m.key, "can_create")} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Checkbox checked={isAdminRole || mod.can_edit} disabled={isAdminRole} onCheckedChange={() => togglePerm(m.key, "can_edit")} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Checkbox checked={isAdminRole || mod.can_delete} disabled={isAdminRole} onCheckedChange={() => togglePerm(m.key, "can_delete")} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Checkbox checked={isAdminRole || allChecked} disabled={isAdminRole} onCheckedChange={() => togglePerm(m.key, "all")} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>

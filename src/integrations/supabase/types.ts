@@ -1821,6 +1821,8 @@ export type Database = {
       }
       role_module_permissions: {
         Row: {
+          can_create: boolean
+          can_delete: boolean
           can_edit: boolean
           can_view: boolean
           created_at: string
@@ -1829,6 +1831,8 @@ export type Database = {
           role_id: string
         }
         Insert: {
+          can_create?: boolean
+          can_delete?: boolean
           can_edit?: boolean
           can_view?: boolean
           created_at?: string
@@ -1837,6 +1841,8 @@ export type Database = {
           role_id: string
         }
         Update: {
+          can_create?: boolean
+          can_delete?: boolean
           can_edit?: boolean
           can_view?: boolean
           created_at?: string

@@ -23,6 +23,7 @@ import {
   ChevronDown,
   FileText,
   ListChecks,
+  ShieldCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -77,6 +78,7 @@ const masterDataItems = [
   { title: "Vendor Master", url: "/vendors", icon: Building2 },
   { title: "Unit Master", url: "/unit-master", icon: Ruler },
   { title: "Category Master", url: "/category-master", icon: Tags },
+  { title: "User Management", url: "/user-management", icon: ShieldCheck },
 ];
 
 const settingsItems = [

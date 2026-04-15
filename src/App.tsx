@@ -44,7 +44,7 @@ import ProblemAreas from "./pages/ProblemAreas";
 import SurveyTemplates from "./pages/SurveyTemplates";
 import AllSurveys from "./pages/AllSurveys";
 import Vendors from "./pages/Vendors";
-
+import UserManagement from "./pages/UserManagement";
 import UnitMaster from "./pages/UnitMaster";
 import CategoryMaster from "./pages/CategoryMaster";
 import NotFound from "./pages/NotFound";
@@ -131,6 +131,7 @@ const App = () => (
                     
                     <Route path="/unit-master" element={<UnitMaster />} />
                     <Route path="/category-master" element={<CategoryMaster />} />
+                    <Route path="/user-management" element={<UserManagement />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

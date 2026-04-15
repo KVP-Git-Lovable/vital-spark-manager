@@ -55,6 +55,15 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
     enabled: !!productId,
   });
 
+  const { data: vendors = [] } = useQuery({
+    queryKey: ["vendors-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vendors").select("id, name").order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: inventoryItems = [] } = useQuery({
     queryKey: ["product-inventory-stock", productId],
     queryFn: async () => {
@@ -295,45 +304,72 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 );
               })()}
 
-              <Separator />
 
-              {/* Procurement History */}
-              {inventoryItems.length > 0 && (
-                <div>
-                  <h3 className="font-display font-semibold text-sm mb-3">Procurement History</h3>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-xs">Date</TableHead>
-                        <TableHead className="text-xs">Batch</TableHead>
-                        <TableHead className="text-xs">Qty</TableHead>
-                        <TableHead className="text-xs">Price</TableHead>
-                        <TableHead className="text-xs">Supplier</TableHead>
-                        <TableHead className="text-xs">Expiry</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {inventoryItems.map((inv: any) => (
-                        <TableRow key={inv.id}>
-                          <TableCell className="text-xs">{format(new Date(inv.received_date), "dd MMM yyyy")}</TableCell>
-                          <TableCell className="text-xs">{inv.batch_number}</TableCell>
-                          <TableCell className="text-xs">{inv.quantity}</TableCell>
-                          <TableCell className="text-xs">₹{Number(inv.purchase_price).toFixed(2)}</TableCell>
-                          <TableCell className="text-xs">{inv.supplier || "—"}</TableCell>
-                          <TableCell className="text-xs">{format(new Date(inv.expiry_date), "dd MMM yyyy")}</TableCell>
+
+
+              {/* Purchase Info */}
+              <div>
+                <h3 className="font-display font-semibold text-sm mb-3">Purchase Info</h3>
+                {inventoryItems.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-4 text-center">No purchase batches recorded yet</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Date</TableHead>
+                          <TableHead className="text-xs">Batch</TableHead>
+                          <TableHead className="text-xs">Supplier</TableHead>
+                          <TableHead className="text-xs">Qty</TableHead>
+                          <TableHead className="text-xs">Buy ₹</TableHead>
+                          <TableHead className="text-xs">MRP ₹</TableHead>
+                          <TableHead className="text-xs">Sell ₹</TableHead>
+                          <TableHead className="text-xs">GST%</TableHead>
+                          <TableHead className="text-xs">Expiry</TableHead>
+                          <TableHead className="text-xs">Status</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+                      </TableHeader>
+                      <TableBody>
+                        {inventoryItems.map((inv: any) => {
+                          const daysLeft = Math.ceil((new Date(inv.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                          const isExpired = daysLeft <= 0;
+                          const isLow = !isExpired && Number(inv.quantity) > 0 && Number(inv.quantity) < 10;
+                          const supplierName = (() => {
+                            if (!inv.supplier) return "—";
+                            const vendor = vendors.find((v: any) => v.id === inv.supplier);
+                            return vendor ? vendor.name : inv.supplier;
+                          })();
+                          return (
+                            <TableRow key={inv.id}>
+                              <TableCell className="text-xs">{format(new Date(inv.received_date), "dd MMM yyyy")}</TableCell>
+                              <TableCell className="text-xs">{inv.batch_number}</TableCell>
+                              <TableCell className="text-xs">{supplierName}</TableCell>
+                              <TableCell className="text-xs">{inv.quantity}</TableCell>
+                              <TableCell className="text-xs">₹{Number(inv.purchase_price).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">₹{Number(product.mrp).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">₹{Number(product.selling_price).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">{product.gst_percent ? `${product.gst_percent}%` : "—"}</TableCell>
+                              <TableCell className="text-xs">{format(new Date(inv.expiry_date), "dd MMM yyyy")}</TableCell>
+                              <TableCell>
+                                {isExpired ? <Badge variant="destructive" className="text-[10px]">Expired</Badge>
+                                  : isLow ? <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px]">Low Stock</Badge>
+                                  : <Badge className="bg-success/20 text-success border-success/30 text-[10px]">Active</Badge>}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
 
               <Separator />
 
-              {/* Price History */}
+              {/* Sales Info */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-display font-semibold text-sm">Price History</h3>
+                  <h3 className="font-display font-semibold text-sm">Sales Info</h3>
                   <Button size="sm" variant="outline" onClick={() => {
                     setPriceForm({ mrp: Number(product.mrp), selling_price: Number(product.selling_price), purchase_price: 0, gst_percent: Number(product.gst_percent) || 0, notes: "", effective_from: new Date().toISOString().split("T")[0] });
                     setShowPriceForm(true);
@@ -451,6 +487,15 @@ export function InventoryDetailSheet({ inventoryId, onClose, onClone, products }
     enabled: !!inventoryId,
   });
 
+  const { data: vendors = [] } = useQuery({
+    queryKey: ["vendors-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vendors").select("id, name").order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   useEffect(() => {
     if (record) setForm({ ...record });
   }, [record]);
@@ -521,7 +566,11 @@ export function InventoryDetailSheet({ inventoryId, onClose, onClone, products }
                 <Field label="Purchase Price" value={`₹${Number(record.purchase_price).toFixed(2)}`} />
                 <Field label="Expiry Date" value={format(exp, "dd MMM yyyy")} />
                 <Field label="Days to Expiry" value={daysLeft <= 0 ? "Expired" : `${daysLeft} days`} />
-                <Field label="Supplier" value={record.supplier} />
+                <Field label="Supplier" value={(() => {
+                  if (!record.supplier) return "—";
+                  const v = vendors.find((v: any) => v.id === record.supplier);
+                  return v ? v.name : record.supplier;
+                })()} />
                 <Field label="Invoice No." value={record.invoice_number} />
                 <Field label="Received Date" value={format(new Date(record.received_date), "dd MMM yyyy")} />
               </div>

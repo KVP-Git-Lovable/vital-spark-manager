@@ -928,22 +928,43 @@ const PatientDetail = () => {
               {prescriptions.length === 0 && !addRxOpen ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">No prescriptions found</div>
               ) : prescriptions.map((rx: any) => (
-                <div key={rx.id} className="stat-card p-3 md:p-4 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => rx.procedure_id && setSelectedProcedureId(rx.procedure_id)}>
+                <div key={rx.id} className="stat-card p-3 md:p-4 hover:bg-muted/30 transition-colors">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
-                    <div className="min-w-0">
-                      <p className="font-medium">{rx.medicine_name}</p>
+                    <div className="min-w-0 cursor-pointer flex-1" onClick={() => rx.procedure_id && setSelectedProcedureId(rx.procedure_id)}>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{rx.medicine_name}</p>
+                        {rx.survey_response_id && !rx.procedure_id && (
+                          <Badge variant="secondary" className="text-[10px]">From Survey</Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {[rx.dosage, rx.frequency, rx.duration].filter(Boolean).join(" · ")}
                         {rx.quantity > 1 && ` · Qty: ${rx.quantity}`}
                       </p>
                       {rx.instructions && <p className="text-xs text-muted-foreground italic mt-1">{rx.instructions}</p>}
                     </div>
-                    {rx.procedures && (
-                      <div className="text-left sm:text-right text-xs text-muted-foreground shrink-0">
-                        <p>{rx.procedures.service_name}</p>
-                        <p>{new Date(rx.procedures.procedure_date).toLocaleDateString()}</p>
-                      </div>
-                    )}
+                    <div className="flex items-start gap-2 shrink-0">
+                      {rx.procedures && (
+                        <div className="text-left sm:text-right text-xs text-muted-foreground">
+                          <p>{rx.procedures.service_name}</p>
+                          <p>{new Date(rx.procedures.procedure_date).toLocaleDateString()}</p>
+                        </div>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const { error } = await supabase.from("prescriptions").delete().eq("id", rx.id);
+                          if (error) { toast.error(error.message); return; }
+                          toast.success("Prescription removed");
+                          queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", id] });
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}

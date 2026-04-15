@@ -109,7 +109,7 @@ export default function UserManagement() {
   const permMap: PermMap = dirtyPerms ?? Object.fromEntries(
     ALL_MODULES.map((m) => {
       const p = permissions.find((p: any) => p.module_key === m.key);
-      return [m.key, { can_view: p?.can_view ?? false, can_edit: p?.can_edit ?? false }];
+      return [m.key, { can_view: p?.can_view ?? false, can_create: p?.can_create ?? false, can_edit: p?.can_edit ?? false, can_delete: p?.can_delete ?? false }];
     })
   );
 

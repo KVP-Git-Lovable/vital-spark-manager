@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ShieldCheck, Plus, Save, Search, UserPlus, KeyRound } from "lucide-react";
+import { ShieldCheck, Plus, Save, Search, UserPlus, KeyRound, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import CreateUserDialog from "@/components/users/CreateUserDialog";
 
 const ALL_MODULES = [
@@ -62,6 +63,8 @@ export default function UserManagement() {
   const [resetPwMode, setResetPwMode] = useState<"auto" | "manual">("auto");
   const [resetPwValue, setResetPwValue] = useState("");
   const [resetPwConfirm, setResetPwConfirm] = useState("");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteStaff, setDeleteStaff] = useState<any>(null);
 
   // Fetch roles
   const { data: roles = [] } = useQuery({
@@ -205,6 +208,30 @@ export default function UserManagement() {
     },
   });
 
+  const deleteUser = useMutation({
+    mutationFn: async () => {
+      if (!deleteStaff) throw new Error("No user selected");
+      const { data, error } = await supabase.functions.invoke("create-user-account", {
+        body: {
+          action: "delete_user",
+          staff_id: deleteStaff.id,
+          auth_user_id: deleteStaff.auth_user_id || null,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-with-roles"] });
+      toast({ title: "User deleted successfully" });
+      setDeleteConfirmOpen(false);
+      setDeleteStaff(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
   const togglePerm = (moduleKey: string, field: "can_view" | "can_create" | "can_edit" | "can_delete" | "all") => {
     const current = dirtyPerms ?? { ...permMap };
     const mod = current[moduleKey] ?? { can_view: false, can_create: false, can_edit: false, can_delete: false };
@@ -309,23 +336,33 @@ export default function UserManagement() {
                         </Select>
                       </TableCell>
                       {isAdmin && (
-                        <TableCell>
-                          {(
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Reset Password"
-                              onClick={() => {
-                                setResetPwStaff(s);
-                                setResetPwMode("auto");
-                                setResetPwValue("");
-                                setResetPwConfirm("");
-                                setResetPwOpen(true);
-                              }}
-                            >
-                              <KeyRound className="h-4 w-4" />
-                            </Button>
-                          )}
+                        <TableCell className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Reset Password"
+                            onClick={() => {
+                              setResetPwStaff(s);
+                              setResetPwMode("auto");
+                              setResetPwValue("");
+                              setResetPwConfirm("");
+                              setResetPwOpen(true);
+                            }}
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Delete User"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => {
+                              setDeleteStaff(s);
+                              setDeleteConfirmOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       )}
                     </TableRow>
@@ -493,6 +530,27 @@ export default function UserManagement() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete User Confirmation */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{deleteStaff?.name}</strong>? This will remove their staff record and authentication account permanently. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteUser.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteUser.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

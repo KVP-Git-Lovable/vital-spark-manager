@@ -48,6 +48,38 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Delete user action
+    if (action === "delete_user") {
+      const { staff_id, auth_user_id } = body;
+
+      // Delete auth user if exists
+      if (auth_user_id) {
+        const { error } = await supabaseAdmin.auth.admin.deleteUser(auth_user_id);
+        if (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // Delete staff record
+      if (staff_id) {
+        const { error } = await supabaseAdmin.from("staff").delete().eq("id", staff_id);
+        if (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Default: create user account
     const { staff_id, email, password, role_id, full_name, phone, send_email, force_password_change } = body;
 

@@ -13,7 +13,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ShieldCheck, Plus, Save, Search } from "lucide-react";
+import { ShieldCheck, Plus, Save, Search, UserPlus } from "lucide-react";
+import CreateUserDialog from "@/components/users/CreateUserDialog";
 
 const ALL_MODULES = [
   { key: "dashboard", label: "Dashboard" },

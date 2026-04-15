@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Pencil, Trash2, Copy, Plus, Check, X, AlertTriangle, Package, PackagePlus } from "lucide-react";
+import { Pencil, Trash2, Copy, Plus, Check, X, AlertTriangle, Package, PackagePlus, Stethoscope, ShoppingBag, TrendingUp, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -80,6 +80,17 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
     queryFn: async () => {
       if (!productId) return [];
       const { data, error } = await supabase.from("prescriptions").select("quantity").eq("product_id", productId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!productId,
+  });
+
+  const { data: portalSalesItems = [] } = useQuery({
+    queryKey: ["product-portal-sales", productId],
+    queryFn: async () => {
+      if (!productId) return [];
+      const { data, error } = await supabase.from("portal_order_items").select("quantity, total_price").eq("product_id", productId);
       if (error) throw error;
       return data;
     },
@@ -367,9 +378,59 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
               <Separator />
 
               {/* Sales Info */}
+              {(() => {
+                const clinicUnits = prescriptionItems.reduce((sum, item) => sum + Number(item.quantity), 0);
+                const clinicRevenue = clinicUnits * Number(product.selling_price);
+                const portalUnits = portalSalesItems.reduce((sum, item) => sum + Number(item.quantity), 0);
+                const portalRevenue = portalSalesItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
+                const totalUnits = clinicUnits + portalUnits;
+                const totalRevenue = clinicRevenue + portalRevenue;
+                return (
+                  <div className="space-y-3">
+                    <h3 className="font-display font-semibold text-sm">Sales Info</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg border bg-muted/30 p-3 text-center">
+                        <TrendingUp className="h-4 w-4 mx-auto text-primary mb-1" />
+                        <p className="text-xs text-muted-foreground">Total Units Sold</p>
+                        <p className="text-xl font-bold">{totalUnits}</p>
+                      </div>
+                      <div className="rounded-lg border bg-muted/30 p-3 text-center">
+                        <DollarSign className="h-4 w-4 mx-auto text-success mb-1" />
+                        <p className="text-xs text-muted-foreground">Total Revenue</p>
+                        <p className="text-xl font-bold">₹{totalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      </div>
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Source</TableHead>
+                          <TableHead className="text-xs text-right">Units Sold</TableHead>
+                          <TableHead className="text-xs text-right">Revenue</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell className="text-xs"><span className="inline-flex items-center gap-1.5"><Stethoscope className="h-3.5 w-3.5 text-primary" />Clinic Procedures</span></TableCell>
+                          <TableCell className="text-xs text-right">{clinicUnits}</TableCell>
+                          <TableCell className="text-xs text-right">₹{clinicRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell className="text-xs"><span className="inline-flex items-center gap-1.5"><ShoppingBag className="h-3.5 w-3.5 text-accent-foreground" />Portal Orders</span></TableCell>
+                          <TableCell className="text-xs text-right">{portalUnits}</TableCell>
+                          <TableCell className="text-xs text-right">₹{portalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                );
+              })()}
+
+              <Separator />
+
+              {/* Price Management */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-display font-semibold text-sm">Sales Info</h3>
+                  <h3 className="font-display font-semibold text-sm">Price Management</h3>
                   <Button size="sm" variant="outline" onClick={() => {
                     setPriceForm({ mrp: Number(product.mrp), selling_price: Number(product.selling_price), purchase_price: 0, gst_percent: Number(product.gst_percent) || 0, notes: "", effective_from: new Date().toISOString().split("T")[0] });
                     setShowPriceForm(true);
@@ -396,35 +457,6 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                     </div>
                   </div>
                 )}
-
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-xs">Status</TableHead>
-                      <TableHead className="text-xs">MRP</TableHead>
-                      <TableHead className="text-xs">Sell</TableHead>
-                      <TableHead className="text-xs">Buy</TableHead>
-                      <TableHead className="text-xs">GST%</TableHead>
-                      <TableHead className="text-xs">From</TableHead>
-                      <TableHead className="text-xs">Notes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {prices.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} className="text-center text-xs text-muted-foreground py-4">No price history — add a new price to start tracking</TableCell></TableRow>
-                    ) : prices.map((p: any) => (
-                      <TableRow key={p.id}>
-                        <TableCell>{p.is_active ? <Badge className="bg-success/20 text-success border-success/30 text-xs">Active</Badge> : <Badge variant="secondary" className="text-xs">Inactive</Badge>}</TableCell>
-                        <TableCell className="text-xs">₹{Number(p.mrp).toFixed(2)}</TableCell>
-                        <TableCell className="text-xs">₹{Number(p.selling_price).toFixed(2)}</TableCell>
-                        <TableCell className="text-xs">₹{Number(p.purchase_price).toFixed(2)}</TableCell>
-                        <TableCell className="text-xs">{p.gst_percent != null ? `${p.gst_percent}%` : "—"}</TableCell>
-                        <TableCell className="text-xs">{format(new Date(p.effective_from), "dd MMM yyyy")}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{p.notes || "—"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
               </div>
             </div>
           ) : (

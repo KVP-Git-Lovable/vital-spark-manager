@@ -304,40 +304,8 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 );
               })()}
 
-              <Separator />
 
-              {/* Procurement History */}
-              {inventoryItems.length > 0 && (
-                <div>
-                  <h3 className="font-display font-semibold text-sm mb-3">Procurement History</h3>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-xs">Date</TableHead>
-                        <TableHead className="text-xs">Batch</TableHead>
-                        <TableHead className="text-xs">Qty</TableHead>
-                        <TableHead className="text-xs">Price</TableHead>
-                        <TableHead className="text-xs">Supplier</TableHead>
-                        <TableHead className="text-xs">Expiry</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {inventoryItems.map((inv: any) => (
-                        <TableRow key={inv.id}>
-                          <TableCell className="text-xs">{format(new Date(inv.received_date), "dd MMM yyyy")}</TableCell>
-                          <TableCell className="text-xs">{inv.batch_number}</TableCell>
-                          <TableCell className="text-xs">{inv.quantity}</TableCell>
-                          <TableCell className="text-xs">₹{Number(inv.purchase_price).toFixed(2)}</TableCell>
-                          <TableCell className="text-xs">{inv.supplier || "—"}</TableCell>
-                          <TableCell className="text-xs">{format(new Date(inv.expiry_date), "dd MMM yyyy")}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
 
-              <Separator />
 
               {/* Purchase Info */}
               <div>

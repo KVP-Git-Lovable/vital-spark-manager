@@ -1,67 +1,53 @@
 
 
-## Plan: User Management Module
+## Plan: Add "Create User" Modal to User Management
 
 ### Overview
-Create a new "User Management" page with two tabs (Users, Roles & Permissions), add it to the sidebar under Master Data, and back it with two new database tables for roles and role-module permissions.
+Add a "+ Create User" button next to the search bar in the Users tab. It opens a modal with Personal Info, Access Info, and Security sections. On save, the staff member's `role_id` is updated and a success toast is shown.
+
+### Scope Limitation
+Since this project uses Lovable Cloud authentication and we cannot create auth users programmatically from the client side (no admin API access), the "Create User" flow will:
+- Link an existing staff member (or create a new staff record) with a role assignment
+- Store the password preference and force-change flag for future backend integration
+- The actual auth account creation and email sending would require a backend function (edge function) — this plan includes creating that edge function
 
 ### Database Changes
+**Add columns to `staff` table:**
+- `auth_user_id` (uuid, nullable) — links to the auth user once created
+- `force_password_change` (boolean, default true)
 
-**Table 1: `user_roles_config`** — stores the role definitions
-- `id` (uuid, PK)
-- `name` (text, unique, not null) — e.g. "Admin", "Doctor"
-- `description` (text, nullable)
-- `is_system` (boolean, default false) — true for pre-built roles
-- `created_at` (timestamptz, default now())
+### Edge Function: `create-user-account`
+Creates an auth user via Supabase Admin API (service role), updates the staff record with the auth user ID and role, and optionally sends credentials via email. Accepts: `staff_id`, `email`, `password` (optional — auto-generate if not provided), `role_id`, `full_name`, `phone`, `send_email`, `force_password_change`.
 
-**Table 2: `role_module_permissions`** — stores which modules each role can access
-- `id` (uuid, PK)
-- `role_id` (uuid, references user_roles_config)
-- `module_key` (text, not null) — e.g. "dashboard", "patients", "pharmacy"
-- `can_view` (boolean, default false)
-- `can_edit` (boolean, default false)
-- `created_at` (timestamptz, default now())
-- Unique constraint on (role_id, module_key)
+### UI Changes — `src/pages/UserManagement.tsx`
 
-**Table 3: Add `role_id` column to `doctors` (staff) table** — assigns a role to each staff member
-- `role_id` (uuid, nullable, references user_roles_config)
+**New state & dialog:**
+- `createUserOpen` state toggle
+- Modal with three sections:
 
-**Seed data** — insert 4 default roles (Admin, Doctor, Receptionist, Pharmacist) with their module permission rows pre-configured per the spec.
+**Personal Info:**
+- "Link to Staff Member" — searchable Select dropdown from staff query. On select, auto-fills name/email/phone. Toggle to allow manual entry if no match.
+- Full Name (text, required)
+- Email (text, required)
+- Phone (text, optional)
 
-RLS: open policies matching existing pattern (anon + authenticated full access).
+**Access Info:**
+- Role dropdown (from `user_roles_config`)
+- Status: Active/Inactive toggle (default Active)
 
-### Module List for Permissions Grid
-The permission grid will list all sidebar modules as toggleable rows:
-Dashboard, Patients, Appointments, Procedures, Photos, Pharmacy, Billing, Leave, Assets, Portal Orders, Expenses, Staff, Problem Areas, Reports, Report Builder, Surveys, Services, Vendors, Unit Master, Category Master, Settings, User Management.
+**Security:**
+- Password mode toggle: "Auto-generate & send via email" (default) / "Set manually"
+- If manual: password + confirm password fields
+- Force password change on first login: checkbox (default ON)
 
-Each module row has two checkboxes: "View" and "Edit".
-
-### UI Implementation
-
-**File: `src/pages/UserManagement.tsx`**
-
-**Tab 1 — Users:**
-- Fetch staff from `doctors` table (existing staff registry) joined with `user_roles_config` via `role_id`
-- Table columns: Name, Email, Phone, Current Role (badge), Status
-- Each row has a role dropdown (Select) to assign/change the role — updates `doctors.role_id`
-
-**Tab 2 — Roles & Permissions:**
-- Left: role selector dropdown (from `user_roles_config`) + "Add Role" button
-- Below: permission grid table — rows = modules, columns = Module Name | View | Edit (checkboxes)
-- Save button appears when changes are dirty
-- Pre-built roles are editable but not deletable
-
-### Sidebar Change
-**File: `src/components/layout/AppSidebar.tsx`**
-- Add `{ title: "User Management", url: "/user-management", icon: ShieldCheck }` to `masterDataItems` array after Category Master
-
-### Routing Change
-**File: `src/App.tsx`**
-- Import and add route: `<Route path="/user-management" element={<UserManagement />} />`
+**On save:**
+- Call the `create-user-account` edge function
+- Update staff record's `role_id`
+- Show success toast
+- Refresh the staff list
 
 ### Files Changed
-1. `src/pages/UserManagement.tsx` — new file (main page with both tabs)
-2. `src/components/layout/AppSidebar.tsx` — add sidebar link
-3. `src/App.tsx` — add route
-4. Database migration — create tables, seed default roles and permissions, add `role_id` to doctors
+1. Database migration — add `auth_user_id` and `force_password_change` to `staff`
+2. `supabase/functions/create-user-account/index.ts` — new edge function
+3. `src/pages/UserManagement.tsx` — add Create User button and modal
 

@@ -339,10 +339,69 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
 
               <Separator />
 
-              {/* Price History */}
+              {/* Purchase Info */}
+              <div>
+                <h3 className="font-display font-semibold text-sm mb-3">Purchase Info</h3>
+                {inventoryItems.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-4 text-center">No purchase batches recorded yet</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Date</TableHead>
+                          <TableHead className="text-xs">Batch</TableHead>
+                          <TableHead className="text-xs">Supplier</TableHead>
+                          <TableHead className="text-xs">Qty</TableHead>
+                          <TableHead className="text-xs">Buy ₹</TableHead>
+                          <TableHead className="text-xs">MRP ₹</TableHead>
+                          <TableHead className="text-xs">Sell ₹</TableHead>
+                          <TableHead className="text-xs">GST%</TableHead>
+                          <TableHead className="text-xs">Expiry</TableHead>
+                          <TableHead className="text-xs">Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {inventoryItems.map((inv: any) => {
+                          const daysLeft = Math.ceil((new Date(inv.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                          const isExpired = daysLeft <= 0;
+                          const isLow = !isExpired && Number(inv.quantity) > 0 && Number(inv.quantity) < 10;
+                          const supplierName = (() => {
+                            if (!inv.supplier) return "—";
+                            const vendor = vendors.find((v: any) => v.id === inv.supplier);
+                            return vendor ? vendor.name : inv.supplier;
+                          })();
+                          return (
+                            <TableRow key={inv.id}>
+                              <TableCell className="text-xs">{format(new Date(inv.received_date), "dd MMM yyyy")}</TableCell>
+                              <TableCell className="text-xs">{inv.batch_number}</TableCell>
+                              <TableCell className="text-xs">{supplierName}</TableCell>
+                              <TableCell className="text-xs">{inv.quantity}</TableCell>
+                              <TableCell className="text-xs">₹{Number(inv.purchase_price).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">₹{Number(product.mrp).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">₹{Number(product.selling_price).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">{product.gst_percent ? `${product.gst_percent}%` : "—"}</TableCell>
+                              <TableCell className="text-xs">{format(new Date(inv.expiry_date), "dd MMM yyyy")}</TableCell>
+                              <TableCell>
+                                {isExpired ? <Badge variant="destructive" className="text-[10px]">Expired</Badge>
+                                  : isLow ? <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px]">Low Stock</Badge>
+                                  : <Badge className="bg-success/20 text-success border-success/30 text-[10px]">Active</Badge>}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Sales Info */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-display font-semibold text-sm">Price History</h3>
+                  <h3 className="font-display font-semibold text-sm">Sales Info</h3>
                   <Button size="sm" variant="outline" onClick={() => {
                     setPriceForm({ mrp: Number(product.mrp), selling_price: Number(product.selling_price), purchase_price: 0, gst_percent: Number(product.gst_percent) || 0, notes: "", effective_from: new Date().toISOString().split("T")[0] });
                     setShowPriceForm(true);

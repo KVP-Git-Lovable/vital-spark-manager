@@ -56,6 +56,10 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
   const [addOpen, setAddOpen] = useState(false);
   const [memberName, setMemberName] = useState("");
   const [relationship, setRelationship] = useState("");
+  const [memberPhone, setMemberPhone] = useState("");
+  const [memberEmail, setMemberEmail] = useState("");
+  const [memberCity, setMemberCity] = useState("");
+  const [memberState, setMemberState] = useState("");
   const [viewMode, setViewMode] = useState<"tree" | "list">("tree");
 
   // For opening PatientFormSheet to fill/edit details
@@ -142,6 +146,10 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
         patient_id: patientId,
         name: memberName,
         relationship,
+        phone: memberPhone || null,
+        email: memberEmail || null,
+        city: memberCity || null,
+        state: memberState || null,
       });
       if (error) throw error;
     },
@@ -169,7 +177,58 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
   const resetForm = () => {
     setMemberName("");
     setRelationship("");
+    setMemberPhone("");
+    setMemberEmail("");
+    setMemberCity("");
+    setMemberState("");
   };
+
+  const convertToPatient = useMutation({
+    mutationFn: async (member: any) => {
+      const nameParts = (member.name || "").trim().split(/\s+/);
+      const firstName = nameParts[0] || "";
+      const lastName = nameParts.slice(1).join(" ") || ".";
+
+      const { data: newPatient, error: patientError } = await supabase
+        .from("patients")
+        .insert({
+          first_name: firstName,
+          last_name: lastName,
+          phone: member.phone || null,
+          email: member.email || null,
+          city: member.city || null,
+          state: member.state || null,
+          status: "Active",
+        })
+        .select("id")
+        .single();
+      if (patientError) throw patientError;
+
+      // Link forward: current member → new patient
+      const { error: linkError } = await supabase
+        .from("patient_family_members")
+        .update({ related_patient_id: newPatient.id })
+        .eq("id", member.id);
+      if (linkError) throw linkError;
+
+      // Create reverse link: new patient → current patient
+      const inverseRel = getInverseRelationship(member.relationship);
+      await supabase.from("patient_family_members").insert({
+        patient_id: newPatient.id,
+        related_patient_id: patientId,
+        relationship: inverseRel,
+        name: patientName,
+      });
+
+      return newPatient.id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["family-members", patientId] });
+      queryClient.invalidateQueries({ queryKey: ["linked-patients"] });
+      toast.success("Patient record created and linked successfully");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
 
   const getMemberDisplayName = (member: any): string => {
     // For reverse members, show the linked patient's name from the patients table

@@ -59,6 +59,7 @@ export function ProcedureFormDialog({
   const [patientId, setPatientId] = useState(defaultPatientId || "");
   const [staffId, setStaffId] = useState(defaultStaffId || "");
   const [assistedBy, setAssistedBy] = useState("");
+  const [selectedProblemAreas, setSelectedProblemAreas] = useState<string[]>([]);
   const [appointmentId] = useState(defaultAppointmentId || "");
   const [serviceId, setServiceId] = useState("");
   const [serviceName, setServiceName] = useState(defaultServiceName || "");
@@ -75,6 +76,15 @@ export function ProcedureFormDialog({
     queryKey: ["patients-list"],
     queryFn: async () => {
       const { data, error } = await supabase.from("patients").select("id, first_name, last_name").order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: problemAreas = [] } = useQuery({
+    queryKey: ["problem-areas-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("problem_areas").select("id, name").eq("is_active", true).order("name");
       if (error) throw error;
       return data;
     },
@@ -296,6 +306,42 @@ export function ProcedureFormDialog({
             <div>
               <Label>Assisted By</Label>
               <StaffCombobox value={assistedBy} onValueChange={setAssistedBy} placeholder="Select assistant" allowNone noneLabel="No assistant" className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Problem Areas</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full mt-1.5 justify-start font-normal h-10">
+                    {selectedProblemAreas.length === 0
+                      ? <span className="text-muted-foreground">Select problem areas</span>
+                      : <span className="truncate">{selectedProblemAreas.map(id => problemAreas.find(pa => pa.id === id)?.name).filter(Boolean).join(", ")}</span>
+                    }
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search..." />
+                    <CommandList>
+                      <CommandEmpty>No problem areas found</CommandEmpty>
+                      <CommandGroup>
+                        {problemAreas.map((pa) => (
+                          <CommandItem
+                            key={pa.id}
+                            onSelect={() => {
+                              setSelectedProblemAreas(prev =>
+                                prev.includes(pa.id) ? prev.filter(id => id !== pa.id) : [...prev, pa.id]
+                              );
+                            }}
+                          >
+                            <Check className={`mr-2 h-4 w-4 ${selectedProblemAreas.includes(pa.id) ? "opacity-100" : "opacity-0"}`} />
+                            {pa.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 

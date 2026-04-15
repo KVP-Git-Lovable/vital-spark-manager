@@ -172,12 +172,22 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
   };
 
   const getMemberDisplayName = (member: any): string => {
+    // For reverse members, show the linked patient's name from the patients table
+    if (member._isReverse) {
+      const linked = linkedPatients.find((p: Patient) => p.id === member.patient_id);
+      if (linked) return `${linked.first_name} ${linked.last_name}`;
+    }
+    // For forward members with linked patient, show that patient's name
+    if (member.related_patient_id) {
+      const linked = linkedPatients.find((p: Patient) => p.id === member.related_patient_id);
+      if (linked) return `${linked.first_name} ${linked.last_name}`;
+    }
     if (member.name) return member.name;
     return "Unknown";
   };
 
   const hasDetails = (member: any): boolean => {
-    return !!member.related_patient_id;
+    return !!(member.related_patient_id || member._isReverse);
   };
 
   const getLinkedPatient = (member: any): Patient | undefined => {

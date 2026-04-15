@@ -92,23 +92,48 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
     enabled: !!patientId,
   });
 
-  // Fetch linked patient details for members that have related_patient_id
-  const linkedPatientIds = familyMembers
-    .filter((m: any) => m.related_patient_id && !m._isReverse)
-    .map((m: any) => m.related_patient_id);
+  // Fetch linked patient details for ALL members (forward: related_patient_id, reverse: patient_id)
+  const allLinkedPatientIds = familyMembers
+    .map((m: any) => m._isReverse ? m.patient_id : m.related_patient_id)
+    .filter(Boolean);
+  const uniqueLinkedIds = [...new Set(allLinkedPatientIds)] as string[];
 
   const { data: linkedPatients = [] } = useQuery({
-    queryKey: ["linked-patients", linkedPatientIds],
+    queryKey: ["linked-patients", uniqueLinkedIds],
     queryFn: async () => {
-      if (linkedPatientIds.length === 0) return [];
+      if (uniqueLinkedIds.length === 0) return [];
       const { data, error } = await supabase
         .from("patients")
         .select("*")
-        .in("id", linkedPatientIds);
+        .in("id", uniqueLinkedIds);
       if (error) throw error;
       return data || [];
     },
-    enabled: linkedPatientIds.length > 0,
+    enabled: uniqueLinkedIds.length > 0,
+  });
+
+  // Fetch visit stats (appointment counts & last visit) for linked patients
+  const { data: visitStats = {} } = useQuery({
+    queryKey: ["family-visit-stats", uniqueLinkedIds],
+    queryFn: async () => {
+      if (uniqueLinkedIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("patient_id, start_time")
+        .in("patient_id", uniqueLinkedIds)
+        .order("start_time", { ascending: false });
+      if (error) throw error;
+      const stats: Record<string, { totalVisits: number; lastVisit: string | null }> = {};
+      for (const apt of data || []) {
+        if (!apt.patient_id) continue;
+        if (!stats[apt.patient_id]) {
+          stats[apt.patient_id] = { totalVisits: 0, lastVisit: apt.start_time };
+        }
+        stats[apt.patient_id].totalVisits++;
+      }
+      return stats;
+    },
+    enabled: uniqueLinkedIds.length > 0,
   });
 
   const addMember = useMutation({

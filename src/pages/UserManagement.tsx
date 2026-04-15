@@ -208,7 +208,30 @@ export default function UserManagement() {
     },
   });
 
-  const togglePerm = (moduleKey: string, field: "can_view" | "can_create" | "can_edit" | "can_delete" | "all") => {
+  const deleteUser = useMutation({
+    mutationFn: async () => {
+      if (!deleteStaff) throw new Error("No user selected");
+      const { data, error } = await supabase.functions.invoke("create-user-account", {
+        body: {
+          action: "delete_user",
+          staff_id: deleteStaff.id,
+          auth_user_id: deleteStaff.auth_user_id || null,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-with-roles"] });
+      toast({ title: "User deleted successfully" });
+      setDeleteConfirmOpen(false);
+      setDeleteStaff(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
     const current = dirtyPerms ?? { ...permMap };
     const mod = current[moduleKey] ?? { can_view: false, can_create: false, can_edit: false, can_delete: false };
     if (field === "all") {

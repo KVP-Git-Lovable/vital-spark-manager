@@ -18,12 +18,14 @@ import {
   AlertCircle,
   ClipboardCheck,
   Building2,
-  Database,
   Ruler,
   Tags,
+  ChevronDown,
+  FileText,
+  ListChecks,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import skinClinicLogo from "@/assets/skin-clinic-logo.png";
 import {
   Sidebar,
@@ -34,10 +36,18 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarHeader,
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -53,9 +63,13 @@ const mainItems = [
   { title: "Expenses", url: "/expenses", icon: Wallet },
   { title: "Staff", url: "/staff", icon: UserCog },
   { title: "Problem Areas", url: "/problem-areas", icon: AlertCircle },
-  { title: "Surveys", url: "/survey-templates", icon: ClipboardCheck },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart },
+];
+
+const surveySubItems = [
+  { title: "Survey Templates", url: "/survey-templates", icon: FileText },
+  { title: "All Surveys", url: "/all-surveys", icon: ListChecks },
 ];
 
 const masterDataItems = [
@@ -114,6 +128,44 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              {/* Collapsible Surveys */}
+              <Collapsible
+                defaultOpen={currentPath.startsWith("/survey-templates") || currentPath.startsWith("/all-surveys")}
+                className="group/collapsible"
+              >
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      tooltip="Surveys"
+                      isActive={currentPath.startsWith("/survey-templates") || currentPath.startsWith("/all-surveys")}
+                    >
+                      <ClipboardCheck className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>Surveys</span>}
+                      {!collapsed && (
+                        <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                      )}
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {surveySubItems.map((sub) => (
+                        <SidebarMenuSubItem key={sub.url}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={isActive(sub.url)}
+                          >
+                            <Link to={sub.url}>
+                              <sub.icon className="mr-2 h-3.5 w-3.5" />
+                              <span>{sub.title}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

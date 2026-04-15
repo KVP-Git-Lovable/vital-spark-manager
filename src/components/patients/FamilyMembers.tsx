@@ -424,9 +424,47 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
                   </Select>
                 </div>
 
-                <p className="text-xs text-muted-foreground">
-                  You can fill in their complete details after adding.
-                </p>
+                <div>
+                  <Label>Phone Number</Label>
+                  <Input
+                    value={memberPhone}
+                    onChange={(e) => setMemberPhone(e.target.value)}
+                    placeholder="Enter phone number..."
+                    className="mt-1.5"
+                  />
+                </div>
+
+                <div>
+                  <Label>Email Address</Label>
+                  <Input
+                    value={memberEmail}
+                    onChange={(e) => setMemberEmail(e.target.value)}
+                    placeholder="Enter email..."
+                    type="email"
+                    className="mt-1.5"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>City</Label>
+                    <Input
+                      value={memberCity}
+                      onChange={(e) => setMemberCity(e.target.value)}
+                      placeholder="City"
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label>State</Label>
+                    <Input
+                      value={memberState}
+                      onChange={(e) => setMemberState(e.target.value)}
+                      placeholder="State"
+                      className="mt-1.5"
+                    />
+                  </div>
+                </div>
 
                 <Button
                   className="w-full"
@@ -459,6 +497,7 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
           getLinkedPatientId={getLinkedPatientId}
           visitStats={visitStats}
           navigate={navigate}
+          convertToPatient={convertToPatient}
         />
       ) : (
         <TreeView
@@ -471,6 +510,7 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
           getLinkedPatientId={getLinkedPatientId}
           visitStats={visitStats}
           navigate={navigate}
+          convertToPatient={convertToPatient}
         />
       )}
 

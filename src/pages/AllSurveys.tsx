@@ -45,7 +45,7 @@ export default function AllSurveys() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("survey_responses")
-        .select("*, survey_templates(name, questions), patients(id, first_name, last_name)")
+        .select("*, survey_templates(name), patients(id, first_name, last_name)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -321,14 +321,12 @@ export default function AllSurveys() {
                   <p className="font-medium mb-2">Answers</p>
                   <div className="space-y-3">
                     {(() => {
-                      const questions = selectedResponse.survey_templates?.questions as any[] || [];
                       const answers = selectedResponse.answers as Record<string, any> || {};
                       return Object.entries(answers).map(([qId, answer], idx) => {
-                        const q = questions.find((qq: any) => qq.id === qId);
                         return (
                           <div key={qId} className="bg-muted/50 rounded-lg p-3">
                             <p className="text-sm font-medium">
-                              {q?.question_text || `Question ${idx + 1}`}
+                              Question {idx + 1}
                             </p>
                             <p className="text-sm text-muted-foreground mt-1">
                               {typeof answer === "object" ? JSON.stringify(answer) : String(answer)}

@@ -622,6 +622,7 @@ function ListViewTable({
   getLinkedPatientId,
   visitStats,
   navigate,
+  convertToPatient,
 }: any) {
   return (
     <div className="data-table">

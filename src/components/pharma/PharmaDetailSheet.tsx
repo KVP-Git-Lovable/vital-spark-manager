@@ -566,7 +566,11 @@ export function InventoryDetailSheet({ inventoryId, onClose, onClone, products }
                 <Field label="Purchase Price" value={`₹${Number(record.purchase_price).toFixed(2)}`} />
                 <Field label="Expiry Date" value={format(exp, "dd MMM yyyy")} />
                 <Field label="Days to Expiry" value={daysLeft <= 0 ? "Expired" : `${daysLeft} days`} />
-                <Field label="Supplier" value={record.supplier} />
+                <Field label="Supplier" value={(() => {
+                  if (!record.supplier) return "—";
+                  const v = vendors.find((v: any) => v.id === record.supplier);
+                  return v ? v.name : record.supplier;
+                })()} />
                 <Field label="Invoice No." value={record.invoice_number} />
                 <Field label="Received Date" value={format(new Date(record.received_date), "dd MMM yyyy")} />
               </div>

@@ -474,6 +474,7 @@ export type Database = {
           id: string
           name: string
           phone: string | null
+          role_id: string | null
           specialization: string | null
           status: string
           updated_at: string
@@ -484,6 +485,7 @@ export type Database = {
           id?: string
           name: string
           phone?: string | null
+          role_id?: string | null
           specialization?: string | null
           status?: string
           updated_at?: string
@@ -494,11 +496,20 @@ export type Database = {
           id?: string
           name?: string
           phone?: string | null
+          role_id?: string | null
           specialization?: string | null
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "doctors_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "user_roles_config"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       expense_categories: {
         Row: {
@@ -1799,6 +1810,41 @@ export type Database = {
         }
         Relationships: []
       }
+      role_module_permissions: {
+        Row: {
+          can_edit: boolean
+          can_view: boolean
+          created_at: string
+          id: string
+          module_key: string
+          role_id: string
+        }
+        Insert: {
+          can_edit?: boolean
+          can_view?: boolean
+          created_at?: string
+          id?: string
+          module_key: string
+          role_id: string
+        }
+        Update: {
+          can_edit?: boolean
+          can_view?: boolean
+          created_at?: string
+          id?: string
+          module_key?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_module_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "user_roles_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_reports: {
         Row: {
           chart_type: string
@@ -2542,6 +2588,30 @@ export type Database = {
           is_active?: boolean
           name?: string
           sub_unit_name?: string | null
+        }
+        Relationships: []
+      }
+      user_roles_config: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name?: string
         }
         Relationships: []
       }

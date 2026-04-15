@@ -60,6 +60,8 @@ Deno.serve(async (req) => {
 
     const userPassword = password || crypto.randomUUID().slice(0, 12) + "A1!";
 
+    let authUserId: string;
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: userPassword,
@@ -68,13 +70,31 @@ Deno.serve(async (req) => {
     });
 
     if (authError) {
-      return new Response(JSON.stringify({ error: authError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // If user already exists, look them up and link instead of failing
+      if (authError.message?.includes("already been registered")) {
+        const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
+        const existing = listData?.users?.find((u: any) => u.email === email);
+        if (!existing) {
+          return new Response(JSON.stringify({ error: "User exists but could not be found" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        authUserId = existing.id;
+        // Update password if provided
+        await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+          password: userPassword,
+          user_metadata: { full_name, phone },
+        });
+      } else {
+        return new Response(JSON.stringify({ error: authError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      authUserId = authData.user.id;
     }
-
-    const authUserId = authData.user.id;
 
     if (staff_id) {
       await supabaseAdmin.from("staff").update({

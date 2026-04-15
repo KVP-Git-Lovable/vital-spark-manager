@@ -30,7 +30,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Users, Star, Phone, LayoutGrid, List, FileEdit, Eye } from "lucide-react";
+import { Plus, Trash2, Users, Star, Phone, LayoutGrid, List, FileEdit, Eye, Calendar, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";

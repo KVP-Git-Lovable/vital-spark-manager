@@ -128,6 +128,44 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              {/* Collapsible Surveys */}
+              <Collapsible
+                defaultOpen={currentPath.startsWith("/survey-templates") || currentPath.startsWith("/all-surveys")}
+                className="group/collapsible"
+              >
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      tooltip="Surveys"
+                      isActive={currentPath.startsWith("/survey-templates") || currentPath.startsWith("/all-surveys")}
+                    >
+                      <ClipboardCheck className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>Surveys</span>}
+                      {!collapsed && (
+                        <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                      )}
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {surveySubItems.map((sub) => (
+                        <SidebarMenuSubItem key={sub.url}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={isActive(sub.url)}
+                          >
+                            <Link to={sub.url}>
+                              <sub.icon className="mr-2 h-3.5 w-3.5" />
+                              <span>{sub.title}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

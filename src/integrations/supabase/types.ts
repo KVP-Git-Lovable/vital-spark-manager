@@ -1993,9 +1993,11 @@ export type Database = {
       }
       staff: {
         Row: {
+          auth_user_id: string | null
           created_at: string
           email: string | null
           first_name: string
+          force_password_change: boolean | null
           id: string
           is_active: boolean | null
           last_name: string
@@ -2009,9 +2011,11 @@ export type Database = {
           work_start_time: string | null
         }
         Insert: {
+          auth_user_id?: string | null
           created_at?: string
           email?: string | null
           first_name: string
+          force_password_change?: boolean | null
           id?: string
           is_active?: boolean | null
           last_name: string
@@ -2025,9 +2029,11 @@ export type Database = {
           work_start_time?: string | null
         }
         Update: {
+          auth_user_id?: string | null
           created_at?: string
           email?: string | null
           first_name?: string
+          force_password_change?: boolean | null
           id?: string
           is_active?: boolean | null
           last_name?: string

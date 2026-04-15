@@ -201,12 +201,24 @@ export default function UserManagement() {
     },
   });
 
-  const togglePerm = (moduleKey: string, field: "can_view" | "can_edit") => {
+  const togglePerm = (moduleKey: string, field: "can_view" | "can_create" | "can_edit" | "can_delete" | "all") => {
     const current = dirtyPerms ?? { ...permMap };
-    const mod = current[moduleKey] ?? { can_view: false, can_edit: false };
+    const mod = current[moduleKey] ?? { can_view: false, can_create: false, can_edit: false, can_delete: false };
+    if (field === "all") {
+      const allChecked = mod.can_view && mod.can_create && mod.can_edit && mod.can_delete;
+      const val = !allChecked;
+      setDirtyPerms({ ...current, [moduleKey]: { can_view: val, can_create: val, can_edit: val, can_delete: val } });
+      return;
+    }
     const updated = { ...mod, [field]: !mod[field] };
-    if (field === "can_view" && !updated.can_view) updated.can_edit = false;
-    if (field === "can_edit" && updated.can_edit) updated.can_view = true;
+    if (field === "can_view" && !updated.can_view) {
+      updated.can_create = false;
+      updated.can_edit = false;
+      updated.can_delete = false;
+    }
+    if ((field === "can_create" || field === "can_edit" || field === "can_delete") && updated[field]) {
+      updated.can_view = true;
+    }
     setDirtyPerms({ ...current, [moduleKey]: updated });
   };
 

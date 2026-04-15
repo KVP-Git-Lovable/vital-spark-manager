@@ -30,7 +30,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Users, Star, Phone, LayoutGrid, List, FileEdit, Eye } from "lucide-react";
+import { Plus, Trash2, Users, Star, Phone, LayoutGrid, List, FileEdit, Eye, Calendar, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -92,23 +92,48 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
     enabled: !!patientId,
   });
 
-  // Fetch linked patient details for members that have related_patient_id
-  const linkedPatientIds = familyMembers
-    .filter((m: any) => m.related_patient_id && !m._isReverse)
-    .map((m: any) => m.related_patient_id);
+  // Fetch linked patient details for ALL members (forward: related_patient_id, reverse: patient_id)
+  const allLinkedPatientIds = familyMembers
+    .map((m: any) => m._isReverse ? m.patient_id : m.related_patient_id)
+    .filter(Boolean);
+  const uniqueLinkedIds = [...new Set(allLinkedPatientIds)] as string[];
 
   const { data: linkedPatients = [] } = useQuery({
-    queryKey: ["linked-patients", linkedPatientIds],
+    queryKey: ["linked-patients", uniqueLinkedIds],
     queryFn: async () => {
-      if (linkedPatientIds.length === 0) return [];
+      if (uniqueLinkedIds.length === 0) return [];
       const { data, error } = await supabase
         .from("patients")
         .select("*")
-        .in("id", linkedPatientIds);
+        .in("id", uniqueLinkedIds);
       if (error) throw error;
       return data || [];
     },
-    enabled: linkedPatientIds.length > 0,
+    enabled: uniqueLinkedIds.length > 0,
+  });
+
+  // Fetch visit stats (appointment counts & last visit) for linked patients
+  const { data: visitStats = {} } = useQuery({
+    queryKey: ["family-visit-stats", uniqueLinkedIds],
+    queryFn: async () => {
+      if (uniqueLinkedIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("patient_id, start_time")
+        .in("patient_id", uniqueLinkedIds)
+        .order("start_time", { ascending: false });
+      if (error) throw error;
+      const stats: Record<string, { totalVisits: number; lastVisit: string | null }> = {};
+      for (const apt of data || []) {
+        if (!apt.patient_id) continue;
+        if (!stats[apt.patient_id]) {
+          stats[apt.patient_id] = { totalVisits: 0, lastVisit: apt.start_time };
+        }
+        stats[apt.patient_id].totalVisits++;
+      }
+      return stats;
+    },
+    enabled: uniqueLinkedIds.length > 0,
   });
 
   const addMember = useMutation({
@@ -147,78 +172,83 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
   };
 
   const getMemberDisplayName = (member: any): string => {
+    // For reverse members, show the linked patient's name from the patients table
+    if (member._isReverse) {
+      const linked = linkedPatients.find((p: Patient) => p.id === member.patient_id);
+      if (linked) return `${linked.first_name} ${linked.last_name}`;
+    }
+    // For forward members with linked patient, show that patient's name
+    if (member.related_patient_id) {
+      const linked = linkedPatients.find((p: Patient) => p.id === member.related_patient_id);
+      if (linked) return `${linked.first_name} ${linked.last_name}`;
+    }
     if (member.name) return member.name;
     return "Unknown";
   };
 
   const hasDetails = (member: any): boolean => {
-    return !!member.related_patient_id;
+    return !!(member.related_patient_id || member._isReverse);
   };
 
   const getLinkedPatient = (member: any): Patient | undefined => {
-    if (!member.related_patient_id) return undefined;
-    return linkedPatients.find((p: Patient) => p.id === member.related_patient_id);
+    const targetId = member._isReverse ? member.patient_id : member.related_patient_id;
+    if (!targetId) return undefined;
+    return linkedPatients.find((p: Patient) => p.id === targetId);
+  };
+
+  const getLinkedPatientId = (member: any): string | null => {
+    return member._isReverse ? member.patient_id : member.related_patient_id;
   };
 
   const handleCardClick = (member: any) => {
-    if (member._isReverse) {
-      // Reverse members — navigate to their patient profile
-      navigate(`/patients/${member.patient_id}`);
+    const linkedId = getLinkedPatientId(member);
+    if (linkedId) {
+      // Has linked patient — navigate directly to their profile
+      navigate(`/patients/${linkedId}`);
       return;
     }
 
-    if (hasDetails(member)) {
-      // Has linked patient — show detail view
-      const linked = getLinkedPatient(member);
-      if (linked) {
-        setViewingMember({ ...member, linkedPatient: linked });
-      } else {
-        navigate(`/patients/${member.related_patient_id}`);
-      }
-    } else {
-      // No details yet — open patient form to create record
-      setPendingMemberId(member.id);
-      const nameParts = (member.name || "").trim().split(/\s+/);
-      const firstName = nameParts[0] || "";
-      const lastName = nameParts.slice(1).join(" ") || ".";
-      // Create a minimal "patient" object to pre-fill the form
-      setFormSheetPatient({
-        id: "",
-        first_name: firstName,
-        last_name: lastName,
-        created_at: "",
-        updated_at: "",
-        status: "Active",
-        date_of_birth: null,
-        gender: null,
-        phone: member.phone || null,
-        email: null,
-        address: null,
-        city: null,
-        state: null,
-        pincode: null,
-        emergency_contact_name: null,
-        emergency_contact_phone: null,
-        blood_group: null,
-        medical_history: null,
-        current_medications: null,
-        allergies: null,
-        skin_type: null,
-        skin_concerns: null,
-        previous_treatments: null,
-        notes: null,
-        doctor_id: null,
-        auth_user_id: null,
-        facebook_url: null,
-        instagram_url: null,
-        follows_facebook: null,
-        follows_instagram: null,
-        source: null,
-        source_ad_details: null,
-        source_referral_doctor: null,
-      } as Patient);
-      setFormSheetOpen(true);
-    }
+    // No details yet — open patient form to create record
+    setPendingMemberId(member.id);
+    const nameParts = (member.name || "").trim().split(/\s+/);
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || ".";
+    setFormSheetPatient({
+      id: "",
+      first_name: firstName,
+      last_name: lastName,
+      created_at: "",
+      updated_at: "",
+      status: "Active",
+      date_of_birth: null,
+      gender: null,
+      phone: member.phone || null,
+      email: null,
+      address: null,
+      city: null,
+      state: null,
+      pincode: null,
+      emergency_contact_name: null,
+      emergency_contact_phone: null,
+      blood_group: null,
+      medical_history: null,
+      current_medications: null,
+      allergies: null,
+      skin_type: null,
+      skin_concerns: null,
+      previous_treatments: null,
+      notes: null,
+      doctor_id: null,
+      auth_user_id: null,
+      facebook_url: null,
+      instagram_url: null,
+      follows_facebook: null,
+      follows_instagram: null,
+      source: null,
+      source_ad_details: null,
+      source_referral_doctor: null,
+    } as Patient);
+    setFormSheetOpen(true);
   };
 
   const handleFormSuccess = async () => {
@@ -367,6 +397,9 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
           hasDetails={hasDetails}
           handleCardClick={handleCardClick}
           removeMember={removeMember}
+          getLinkedPatientId={getLinkedPatientId}
+          visitStats={visitStats}
+          navigate={navigate}
         />
       ) : (
         <TreeView
@@ -376,6 +409,9 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
           hasDetails={hasDetails}
           handleCardClick={handleCardClick}
           removeMember={removeMember}
+          getLinkedPatientId={getLinkedPatientId}
+          visitStats={visitStats}
+          navigate={navigate}
         />
       )}
 
@@ -484,6 +520,9 @@ function ListViewTable({
   hasDetails,
   handleCardClick,
   removeMember,
+  getLinkedPatientId,
+  visitStats,
+  navigate,
 }: any) {
   return (
     <div className="data-table">
@@ -492,6 +531,7 @@ function ListViewTable({
           <tr className="border-b bg-muted/50">
             <th className="text-left text-xs font-medium text-muted-foreground p-3">Name</th>
             <th className="text-left text-xs font-medium text-muted-foreground p-3">Relationship</th>
+            <th className="text-left text-xs font-medium text-muted-foreground p-3 hidden sm:table-cell">Visits</th>
             <th className="text-left text-xs font-medium text-muted-foreground p-3 hidden sm:table-cell">Status</th>
             <th className="text-right text-xs font-medium text-muted-foreground p-3"></th>
           </tr>
@@ -500,6 +540,8 @@ function ListViewTable({
           {familyMembers.map((member: any) => {
             const displayName = getMemberDisplayName(member);
             const filled = hasDetails(member);
+            const linkedId = getLinkedPatientId(member);
+            const stats = linkedId ? visitStats[linkedId] : null;
             return (
               <tr
                 key={member.id}
@@ -513,13 +555,21 @@ function ListViewTable({
                   <Badge variant="outline" className="text-[10px]">{member.relationship}</Badge>
                 </td>
                 <td className="p-3 hidden sm:table-cell">
+                  <span className="text-xs text-muted-foreground">{stats ? stats.totalVisits : "—"}</span>
+                </td>
+                <td className="p-3 hidden sm:table-cell">
                   {filled ? (
-                    <Badge variant="secondary" className="text-[10px] bg-success/10 text-success">Details filled</Badge>
+                    <Badge variant="secondary" className="text-[10px] bg-success/10 text-success">Linked</Badge>
                   ) : (
                     <Badge variant="secondary" className="text-[10px] bg-warning/10 text-warning">Pending</Badge>
                   )}
                 </td>
-                <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+                <td className="p-3 text-right flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                  {linkedId && (
+                    <Button variant="ghost" size="sm" className="text-xs h-7 gap-1 text-primary" onClick={() => navigate(`/patients/${linkedId}`)}>
+                      <Eye className="h-3 w-3" /> View
+                    </Button>
+                  )}
                   {!member._isReverse && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -556,6 +606,9 @@ function TreeView({
   hasDetails,
   handleCardClick,
   removeMember,
+  getLinkedPatientId,
+  visitStats,
+  navigate,
 }: any) {
   return (
     <div className="relative">
@@ -585,6 +638,8 @@ function TreeView({
             const displayName = getMemberDisplayName(member);
             const initials = displayName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
             const filled = hasDetails(member);
+            const linkedId = getLinkedPatientId(member);
+            const stats = linkedId ? visitStats[linkedId] : null;
 
             return (
               <motion.div
@@ -626,44 +681,58 @@ function TreeView({
                     )}
                   </div>
 
-                  {/* Status indicator */}
-                  {!filled && !member._isReverse && (
-                    <div className="mt-3 pt-2 border-t">
-                      <p className="text-xs text-warning font-medium flex items-center gap-1">
-                        <FileEdit className="h-3 w-3" /> Fill Details
-                      </p>
-                    </div>
-                  )}
-                  {filled && !member._isReverse && (
-                    <div className="mt-3 pt-2 border-t">
-                      <p className="text-xs text-success font-medium flex items-center gap-1">
-                        <Eye className="h-3 w-3" /> View Details
-                      </p>
+                  {/* Quick stats */}
+                  {linkedId && (
+                    <div className="mt-3 pt-2 border-t grid grid-cols-2 gap-2">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Activity className="h-3 w-3" />
+                        <span>{stats?.totalVisits ?? 0} visits</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>{stats?.lastVisit ? new Date(stats.lastVisit).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "No visits"}</span>
+                      </div>
                     </div>
                   )}
 
-                  {/* Remove button */}
-                  {!member._isReverse && (
-                    <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" className="text-xs h-7 text-destructive hover:text-destructive w-full">
-                            <Trash2 className="h-3 w-3 mr-1" /> Remove
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remove family member?</AlertDialogTitle>
-                            <AlertDialogDescription>This will remove {displayName} from this patient's family.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => removeMember.mutate(member.id)}>Remove</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  )}
+                  {/* Action row */}
+                  <div className="mt-3 pt-2 border-t flex items-center gap-2">
+                    {linkedId ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7 gap-1 flex-1"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/patients/${linkedId}`); }}
+                      >
+                        <Eye className="h-3 w-3" /> View Details
+                      </Button>
+                    ) : !member._isReverse ? (
+                      <p className="text-xs text-warning font-medium flex items-center gap-1 flex-1">
+                        <FileEdit className="h-3 w-3" /> Fill Details
+                      </p>
+                    ) : null}
+                    {!member._isReverse && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remove family member?</AlertDialogTitle>
+                              <AlertDialogDescription>This will remove {displayName} from this patient's family.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => removeMember.mutate(member.id)}>Remove</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             );
@@ -688,6 +757,7 @@ function getInverseRelationship(rel: string): string {
     Uncle: "Nephew/Niece",
     Aunt: "Nephew/Niece",
     Cousin: "Cousin",
+    Friend: "Friend",
     "In-Law": "In-Law",
   };
   return inverses[rel] || rel;

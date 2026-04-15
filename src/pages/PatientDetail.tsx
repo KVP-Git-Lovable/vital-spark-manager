@@ -1043,6 +1043,7 @@ const PatientDetail = () => {
                                   const { error } = await supabase.from("survey_responses").update({ dr_status: "pending_review" }).eq("id", sr.id);
                                   if (error) { toast.error(error.message); return; }
                                   queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+                                  queryClient.invalidateQueries({ queryKey: ["all-survey-responses"] });
                                   toast.success("Status set to Pending Review");
                                 }}
                               >
@@ -1054,6 +1055,7 @@ const PatientDetail = () => {
                                   const { error } = await supabase.from("survey_responses").update({ dr_status: "reviewed" }).eq("id", sr.id);
                                   if (error) { toast.error(error.message); return; }
                                   queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+                                  queryClient.invalidateQueries({ queryKey: ["all-survey-responses"] });
                                   toast.success("Status set to Reviewed");
                                 }}
                               >
@@ -1090,6 +1092,7 @@ const PatientDetail = () => {
                                     toast.success("Status set to Approved");
                                   }
                                   queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+                                  queryClient.invalidateQueries({ queryKey: ["all-survey-responses"] });
                                 }}
                               >
                                 ✅ Approved

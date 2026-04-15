@@ -45,7 +45,7 @@ export default function AllSurveys() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("survey_responses")
-        .select("*, survey_templates(name, questions), patients(id, first_name, last_name)")
+        .select("*, survey_templates(name), patients(id, first_name, last_name)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];

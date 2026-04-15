@@ -8,7 +8,7 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { ShopLayout } from "@/components/shop/ShopLayout";
@@ -47,7 +47,10 @@ import Vendors from "./pages/Vendors";
 import UserManagement from "./pages/UserManagement";
 import UnitMaster from "./pages/UnitMaster";
 import CategoryMaster from "./pages/CategoryMaster";
+import Profile from "./pages/Profile";
+import AccessDenied from "./pages/AccessDenied";
 import NotFound from "./pages/NotFound";
+import { ReactNode } from "react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,6 +74,16 @@ const queryClient = new QueryClient({
     },
   }),
 });
+
+function ProtectedRoute({ moduleKey, children }: { moduleKey: string; children: ReactNode }) {
+  const { isAdmin, permissions, loading } = useAuth();
+  if (loading) return null;
+  if (isAdmin) return <>{children}</>;
+  if (permissions[moduleKey]?.can_view) return <>{children}</>;
+  // If no permissions loaded at all (no staff profile / not logged in as staff), allow access
+  if (Object.keys(permissions).length === 0) return <>{children}</>;
+  return <AccessDenied />;
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -107,32 +120,32 @@ const App = () => (
               element={
                 <AppLayout>
                   <Routes>
-                    <Route path="/" element={<Index />} />
-                    <Route path="/patients" element={<Patients />} />
-                    <Route path="/patients/:id" element={<PatientDetail />} />
-                    <Route path="/leave" element={<LeaveManagement />} />
-                    <Route path="/appointments" element={<Appointments />} />
-                    <Route path="/services" element={<Services />} />
-                    <Route path="/billing" element={<Billing />} />
-                    <Route path="/reports" element={<Reports />} />
-                    <Route path="/report-builder" element={<ReportConfigurator />} />
-                    <Route path="/procedures" element={<Procedures />} />
-                    <Route path="/pharma" element={<Pharma />} />
-                    <Route path="/photos" element={<Photos />} />
-                    <Route path="/assets" element={<Assets />} />
-                    <Route path="/orders" element={<Orders />} />
-                    <Route path="/expenses" element={<Expenses />} />
-                    <Route path="/staff" element={<StaffManagement />} />
-                    <Route path="/staff/:id" element={<StaffDetail />} />
-                    <Route path="/problem-areas" element={<ProblemAreas />} />
-                    <Route path="/survey-templates" element={<SurveyTemplates />} />
-                    <Route path="/all-surveys" element={<AllSurveys />} />
-                    <Route path="/vendors" element={<Vendors />} />
-                    
-                    <Route path="/unit-master" element={<UnitMaster />} />
-                    <Route path="/category-master" element={<CategoryMaster />} />
-                    <Route path="/user-management" element={<UserManagement />} />
-                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/" element={<ProtectedRoute moduleKey="dashboard"><Index /></ProtectedRoute>} />
+                    <Route path="/patients" element={<ProtectedRoute moduleKey="patients"><Patients /></ProtectedRoute>} />
+                    <Route path="/patients/:id" element={<ProtectedRoute moduleKey="patients"><PatientDetail /></ProtectedRoute>} />
+                    <Route path="/leave" element={<ProtectedRoute moduleKey="leave"><LeaveManagement /></ProtectedRoute>} />
+                    <Route path="/appointments" element={<ProtectedRoute moduleKey="appointments"><Appointments /></ProtectedRoute>} />
+                    <Route path="/services" element={<ProtectedRoute moduleKey="services"><Services /></ProtectedRoute>} />
+                    <Route path="/billing" element={<ProtectedRoute moduleKey="billing"><Billing /></ProtectedRoute>} />
+                    <Route path="/reports" element={<ProtectedRoute moduleKey="reports"><Reports /></ProtectedRoute>} />
+                    <Route path="/report-builder" element={<ProtectedRoute moduleKey="report_builder"><ReportConfigurator /></ProtectedRoute>} />
+                    <Route path="/procedures" element={<ProtectedRoute moduleKey="procedures"><Procedures /></ProtectedRoute>} />
+                    <Route path="/pharma" element={<ProtectedRoute moduleKey="pharmacy"><Pharma /></ProtectedRoute>} />
+                    <Route path="/photos" element={<ProtectedRoute moduleKey="photos"><Photos /></ProtectedRoute>} />
+                    <Route path="/assets" element={<ProtectedRoute moduleKey="assets"><Assets /></ProtectedRoute>} />
+                    <Route path="/orders" element={<ProtectedRoute moduleKey="portal_orders"><Orders /></ProtectedRoute>} />
+                    <Route path="/expenses" element={<ProtectedRoute moduleKey="expenses"><Expenses /></ProtectedRoute>} />
+                    <Route path="/staff" element={<ProtectedRoute moduleKey="staff"><StaffManagement /></ProtectedRoute>} />
+                    <Route path="/staff/:id" element={<ProtectedRoute moduleKey="staff"><StaffDetail /></ProtectedRoute>} />
+                    <Route path="/problem-areas" element={<ProtectedRoute moduleKey="problem_areas"><ProblemAreas /></ProtectedRoute>} />
+                    <Route path="/survey-templates" element={<ProtectedRoute moduleKey="surveys"><SurveyTemplates /></ProtectedRoute>} />
+                    <Route path="/all-surveys" element={<ProtectedRoute moduleKey="surveys"><AllSurveys /></ProtectedRoute>} />
+                    <Route path="/vendors" element={<ProtectedRoute moduleKey="vendors"><Vendors /></ProtectedRoute>} />
+                    <Route path="/unit-master" element={<ProtectedRoute moduleKey="unit_master"><UnitMaster /></ProtectedRoute>} />
+                    <Route path="/category-master" element={<ProtectedRoute moduleKey="category_master"><CategoryMaster /></ProtectedRoute>} />
+                    <Route path="/user-management" element={<ProtectedRoute moduleKey="user_management"><UserManagement /></ProtectedRoute>} />
+                    <Route path="/settings" element={<ProtectedRoute moduleKey="settings"><Settings /></ProtectedRoute>} />
+                    <Route path="/profile" element={<Profile />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </AppLayout>

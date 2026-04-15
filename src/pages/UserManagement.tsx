@@ -51,6 +51,7 @@ export default function UserManagement() {
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleDesc, setNewRoleDesc] = useState("");
+  const [createUserOpen, setCreateUserOpen] = useState(false);
 
   // Fetch roles
   const { data: roles = [] } = useQuery({

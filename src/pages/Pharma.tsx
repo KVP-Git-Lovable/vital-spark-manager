@@ -70,6 +70,15 @@ const Pharma = () => {
     },
   });
 
+  const { data: vendors = [] } = useQuery({
+    queryKey: ["vendors-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vendors").select("id, name").order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: inventory = [] } = useQuery({
     queryKey: ["pharma-inventory"],
     queryFn: async () => {
@@ -646,7 +655,11 @@ const Pharma = () => {
                       <TableCell>{i.quantity}</TableCell>
                       <TableCell>₹{Number(i.purchase_price).toFixed(2)}</TableCell>
                       <TableCell>{exp.toLocaleDateString()}</TableCell>
-                      <TableCell className="text-muted-foreground">{i.supplier || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{(() => {
+                        if (!i.supplier) return "—";
+                        const vendor = vendors.find((v: any) => v.id === i.supplier);
+                        return vendor ? vendor.name : i.supplier;
+                      })()}</TableCell>
                       <TableCell>
                         {isExpired ? <Badge variant="destructive" className="text-xs">Expired</Badge>
                           : isNear ? <Badge className="bg-warning/20 text-warning border-warning/30 text-xs">Expiring Soon</Badge>

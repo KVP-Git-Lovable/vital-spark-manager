@@ -137,13 +137,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (staffData.role_id) {
       const { data: perms } = await supabase
         .from("role_module_permissions")
-        .select("module_key, can_view, can_edit")
+        .select("module_key, can_view, can_create, can_edit, can_delete")
         .eq("role_id", staffData.role_id);
 
       if (perms) {
         const map: PermMap = {};
         perms.forEach((p: any) => {
-          map[p.module_key] = { can_view: p.can_view, can_edit: p.can_edit };
+          map[p.module_key] = { can_view: p.can_view, can_create: p.can_create ?? false, can_edit: p.can_edit, can_delete: p.can_delete ?? false };
         });
         setPermissions(map);
       }

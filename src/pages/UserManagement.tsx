@@ -396,32 +396,48 @@ export default function UserManagement() {
               )}
             </CardHeader>
             <CardContent>
+              {selectedRole?.name?.toLowerCase() === "admin" && (
+                <div className="mb-4 p-3 bg-muted rounded-md text-sm text-muted-foreground">
+                  System Administrator has all permissions granted automatically and cannot be modified.
+                </div>
+              )}
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Module</TableHead>
-                    <TableHead className="text-center w-24">View</TableHead>
-                    <TableHead className="text-center w-24">Edit</TableHead>
+                    <TableHead className="text-center w-20">View</TableHead>
+                    <TableHead className="text-center w-20">Create</TableHead>
+                    <TableHead className="text-center w-20">Edit</TableHead>
+                    <TableHead className="text-center w-20">Delete</TableHead>
+                    <TableHead className="text-center w-20">All</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ALL_MODULES.map((m) => (
-                    <TableRow key={m.key}>
-                      <TableCell>{m.label}</TableCell>
-                      <TableCell className="text-center">
-                        <Checkbox
-                          checked={permMap[m.key]?.can_view ?? false}
-                          onCheckedChange={() => togglePerm(m.key, "can_view")}
-                        />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Checkbox
-                          checked={permMap[m.key]?.can_edit ?? false}
-                          onCheckedChange={() => togglePerm(m.key, "can_edit")}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {ALL_MODULES.map((m) => {
+                    const isAdminRole = selectedRole?.name?.toLowerCase() === "admin";
+                    const mod = permMap[m.key] ?? { can_view: false, can_create: false, can_edit: false, can_delete: false };
+                    const allChecked = mod.can_view && mod.can_create && mod.can_edit && mod.can_delete;
+                    return (
+                      <TableRow key={m.key}>
+                        <TableCell>{m.label}</TableCell>
+                        <TableCell className="text-center">
+                          <Checkbox checked={isAdminRole || mod.can_view} disabled={isAdminRole} onCheckedChange={() => togglePerm(m.key, "can_view")} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Checkbox checked={isAdminRole || mod.can_create} disabled={isAdminRole} onCheckedChange={() => togglePerm(m.key, "can_create")} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Checkbox checked={isAdminRole || mod.can_edit} disabled={isAdminRole} onCheckedChange={() => togglePerm(m.key, "can_edit")} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Checkbox checked={isAdminRole || mod.can_delete} disabled={isAdminRole} onCheckedChange={() => togglePerm(m.key, "can_delete")} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Checkbox checked={isAdminRole || allChecked} disabled={isAdminRole} onCheckedChange={() => togglePerm(m.key, "all")} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>

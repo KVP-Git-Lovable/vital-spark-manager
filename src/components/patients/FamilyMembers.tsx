@@ -596,6 +596,9 @@ function TreeView({
   hasDetails,
   handleCardClick,
   removeMember,
+  getLinkedPatientId,
+  visitStats,
+  navigate,
 }: any) {
   return (
     <div className="relative">
@@ -625,6 +628,8 @@ function TreeView({
             const displayName = getMemberDisplayName(member);
             const initials = displayName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
             const filled = hasDetails(member);
+            const linkedId = getLinkedPatientId(member);
+            const stats = linkedId ? visitStats[linkedId] : null;
 
             return (
               <motion.div
@@ -666,44 +671,58 @@ function TreeView({
                     )}
                   </div>
 
-                  {/* Status indicator */}
-                  {!filled && !member._isReverse && (
-                    <div className="mt-3 pt-2 border-t">
-                      <p className="text-xs text-warning font-medium flex items-center gap-1">
-                        <FileEdit className="h-3 w-3" /> Fill Details
-                      </p>
-                    </div>
-                  )}
-                  {filled && !member._isReverse && (
-                    <div className="mt-3 pt-2 border-t">
-                      <p className="text-xs text-success font-medium flex items-center gap-1">
-                        <Eye className="h-3 w-3" /> View Details
-                      </p>
+                  {/* Quick stats */}
+                  {linkedId && (
+                    <div className="mt-3 pt-2 border-t grid grid-cols-2 gap-2">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Activity className="h-3 w-3" />
+                        <span>{stats?.totalVisits ?? 0} visits</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>{stats?.lastVisit ? new Date(stats.lastVisit).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "No visits"}</span>
+                      </div>
                     </div>
                   )}
 
-                  {/* Remove button */}
-                  {!member._isReverse && (
-                    <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" className="text-xs h-7 text-destructive hover:text-destructive w-full">
-                            <Trash2 className="h-3 w-3 mr-1" /> Remove
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remove family member?</AlertDialogTitle>
-                            <AlertDialogDescription>This will remove {displayName} from this patient's family.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => removeMember.mutate(member.id)}>Remove</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  )}
+                  {/* Action row */}
+                  <div className="mt-3 pt-2 border-t flex items-center gap-2">
+                    {linkedId ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7 gap-1 flex-1"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/patients/${linkedId}`); }}
+                      >
+                        <Eye className="h-3 w-3" /> View Details
+                      </Button>
+                    ) : !member._isReverse ? (
+                      <p className="text-xs text-warning font-medium flex items-center gap-1 flex-1">
+                        <FileEdit className="h-3 w-3" /> Fill Details
+                      </p>
+                    ) : null}
+                    {!member._isReverse && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remove family member?</AlertDialogTitle>
+                              <AlertDialogDescription>This will remove {displayName} from this patient's family.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => removeMember.mutate(member.id)}>Remove</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             );

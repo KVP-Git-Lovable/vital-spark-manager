@@ -747,6 +747,7 @@ function getInverseRelationship(rel: string): string {
     Uncle: "Nephew/Niece",
     Aunt: "Nephew/Niece",
     Cousin: "Cousin",
+    Friend: "Friend",
     "In-Law": "In-Law",
   };
   return inverses[rel] || rel;

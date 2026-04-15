@@ -158,7 +158,9 @@ export default function UserManagement() {
         role_id: data.id,
         module_key: m.key,
         can_view: false,
+        can_create: false,
         can_edit: false,
+        can_delete: false,
       }));
       await supabase.from("role_module_permissions").insert(rows);
       return data;

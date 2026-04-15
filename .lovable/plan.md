@@ -1,101 +1,56 @@
 
 
-## Plan: User Profile Avatar, Role-Based Access Control & Admin Password Reset
+## Plan: Expand Permissions to View/Create/Edit/Delete/All + Show Reset Password for All Users
 
 ### Overview
-Replace the static "DC" avatar with a dynamic user profile dropdown, enforce role-based access control (RBAC) across the app after login, and add admin password reset for other users.
+Update the permissions system from 2 columns (View, Edit) to 5 columns (View, Create, Edit, Delete, All) matching the reference app. Also show the Reset Password button for all staff users, not just those with `auth_user_id`.
 
-### 1. Extend Auth Context (`src/hooks/useAuth.tsx`)
+### 1. Database Migration
+Add `can_create` and `can_delete` boolean columns to `role_module_permissions`:
+```sql
+ALTER TABLE public.role_module_permissions 
+  ADD COLUMN can_create boolean NOT NULL DEFAULT false,
+  ADD COLUMN can_delete boolean NOT NULL DEFAULT false;
 
-Add staff profile loading alongside the existing patient profile logic:
-- After auth session is established, query `staff` table by `auth_user_id` to get: `id`, `first_name`, `last_name`, `email`, `phone`, `role_id`, and join `user_roles_config(id, name)`
-- Then query `role_module_permissions` for that `role_id` to get the full permissions map
-- Expose new fields in context: `staffProfile` (name, email, phone, role name, initials), `permissions` (map of module_key → { can_view, can_edit }), `isAdmin` (boolean)
+-- Update Admin role to have all permissions
+UPDATE public.role_module_permissions 
+SET can_create = true, can_delete = true 
+WHERE role_id = 'a0000000-0000-0000-0000-000000000001';
 
-### 2. User Avatar Dropdown (`src/components/layout/AppLayout.tsx`)
+-- Update Doctor permissions (create/delete for their modules)
+UPDATE public.role_module_permissions 
+SET can_create = can_edit, can_delete = can_edit 
+WHERE role_id = 'a0000000-0000-0000-0000-000000000002';
 
-Replace the hardcoded "DC" div with a `Popover` or `DropdownMenu`:
-- **Trigger**: Circle avatar showing logged-in user's initials (from staffProfile or user email fallback)
-- **Dropdown content**:
-  - Profile header: initials avatar, full name, role badge, email (non-clickable)
-  - "My Profile" → navigates to `/profile` (new page)
-  - "Log Out" → opens AlertDialog confirmation → calls `signOut()` → redirects to `/login`
-
-### 3. My Profile Page (`src/pages/Profile.tsx`)
-
-New page at `/profile` route with:
-- Editable fields: Name, Email, Phone
-- Change Password section (current password + new password + confirm)
-- Save updates staff record and calls `supabase.auth.updateUser()` for password changes
-
-### 4. Role-Based Sidebar Filtering (`src/components/layout/AppSidebar.tsx`)
-
-- Import `useAuth` to get `permissions` and `isAdmin`
-- Map each sidebar item to its module_key (e.g., `{ url: "/patients", moduleKey: "patients" }`)
-- Filter out items where `can_view` is false (unless user is Admin)
-- Apply same filtering to Master Data items and Survey sub-items
-
-### 5. Route Guard / Access Denied (`src/App.tsx`)
-
-- Create a `<ProtectedRoute moduleKey="patients">` wrapper component
-- Checks permissions from auth context; if no `can_view`, renders an "Access Denied" page
-- Wrap each clinic route with the appropriate moduleKey
-- Admin bypasses all checks
-
-### 6. Edit Permission Enforcement
-
-- Create a `useCanEdit(moduleKey)` hook that returns boolean
-- Components that have Create/Edit/Delete buttons check this hook and disable/hide buttons when `can_edit` is false
-
-### 7. Admin Password Reset in User Management (`src/pages/UserManagement.tsx`)
-
-- Add a "Reset Password" button (key icon) in each user row, visible only to Admin users
-- Clicking opens a dialog with two options: auto-generate or set manually (similar to Create User)
-- Calls a new action in the `create-user-account` edge function (or a new endpoint) that uses `supabaseAdmin.auth.admin.updateUserById()` to set the new password
-
-### 8. Edge Function Update (`supabase/functions/create-user-account/index.ts`)
-
-Add a `reset_password` action path:
-- Accepts `auth_user_id` and `password` (optional, auto-generate if not provided)
-- Calls `supabaseAdmin.auth.admin.updateUserById(auth_user_id, { password })`
-- Returns success/failure
-
-### Module Key Mapping
-```text
-URL Path          → Module Key
-/                 → dashboard
-/patients         → patients
-/appointments     → appointments
-/procedures       → procedures
-/photos           → photos
-/pharma           → pharmacy
-/billing          → billing
-/leave            → leave
-/assets           → assets
-/orders           → portal_orders
-/expenses         → expenses
-/staff            → staff
-/problem-areas    → problem_areas
-/reports          → reports
-/report-builder   → report_builder
-/survey-templates → surveys
-/all-surveys      → surveys
-/services         → services
-/vendors          → vendors
-/unit-master      → unit_master
-/category-master  → category_master
-/settings         → settings
-/user-management  → user_management
+-- Same for Receptionist and Pharmacist
+UPDATE public.role_module_permissions 
+SET can_create = can_edit, can_delete = can_edit 
+WHERE role_id IN ('a0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000004');
 ```
 
+### 2. Update Permissions UI (`src/pages/UserManagement.tsx`)
+- Change `PermMap` type to include `can_create`, `can_delete`
+- Add "Create", "Delete", and "All" column headers to the permissions table
+- Add checkboxes for each new field
+- "All" checkbox toggles all 4 permissions (view/create/edit/delete) for a module
+- Update `togglePerm` logic: unchecking View unchecks all; "All" checks/unchecks everything
+- Show info banner for Admin system role: "System Administrator has all permissions granted automatically and cannot be modified."
+- Update `savePerms` mutation to include `can_create` and `can_delete`
+
+### 3. Update Auth Context (`src/hooks/useAuth.tsx`)
+- Expand `PermMap` type to include `can_create` and `can_delete` fields
+- Fetch and expose the new permission fields
+
+### 4. Update `useCanEdit` Hook
+- Create additional hooks or expand to cover `can_create` and `can_delete` checks
+
+### 5. Reset Password for All Users
+- Remove the `s.auth_user_id` condition — show the Reset Password button for every staff user
+- If user has no `auth_user_id`, the edge function will return an appropriate error
+
 ### Files Changed
-1. `src/hooks/useAuth.tsx` — add staff profile, permissions, isAdmin to context
-2. `src/components/layout/AppLayout.tsx` — avatar dropdown with profile header, My Profile link, Log Out
-3. `src/pages/Profile.tsx` — new profile edit page
-4. `src/components/layout/AppSidebar.tsx` — filter sidebar items by permissions
-5. `src/App.tsx` — add ProtectedRoute wrapper, /profile route
-6. `src/pages/UserManagement.tsx` — add Reset Password button per user row
-7. `supabase/functions/create-user-account/index.ts` — add reset_password action
-8. `src/pages/AccessDenied.tsx` — new "Access Denied" page
-9. `src/hooks/useCanEdit.ts` — new hook for edit permission checks
+1. Database migration — add `can_create`, `can_delete` columns
+2. `src/pages/UserManagement.tsx` — 5-column permissions table, All toggle, reset button for all
+3. `src/hooks/useAuth.tsx` — expand PermMap type
+4. `src/hooks/useCanEdit.ts` — expand for create/delete checks
 

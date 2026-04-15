@@ -40,7 +40,7 @@ import type { Tables } from "@/integrations/supabase/types";
 const RELATIONSHIPS = [
   "Spouse", "Father", "Mother", "Son", "Daughter",
   "Brother", "Sister", "Grandfather", "Grandmother",
-  "Uncle", "Aunt", "Cousin", "In-Law", "Other",
+  "Uncle", "Aunt", "Cousin", "Friend", "In-Law", "Other",
 ];
 
 interface FamilyMembersProps {

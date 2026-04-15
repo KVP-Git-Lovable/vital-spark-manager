@@ -387,6 +387,9 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
           hasDetails={hasDetails}
           handleCardClick={handleCardClick}
           removeMember={removeMember}
+          getLinkedPatientId={getLinkedPatientId}
+          visitStats={visitStats}
+          navigate={navigate}
         />
       ) : (
         <TreeView
@@ -396,6 +399,9 @@ export function FamilyMembers({ patientId, patientName }: FamilyMembersProps) {
           hasDetails={hasDetails}
           handleCardClick={handleCardClick}
           removeMember={removeMember}
+          getLinkedPatientId={getLinkedPatientId}
+          visitStats={visitStats}
+          navigate={navigate}
         />
       )}
 

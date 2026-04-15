@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown } from "lucide-react";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -104,16 +105,35 @@ const PatientDetail = () => {
     queryKey: ["patient-prescriptions", id],
     queryFn: async () => {
       const procIds = procedures.map((p) => p.id);
-      if (procIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("prescriptions")
-        .select("*, procedures(service_name, procedure_date)")
-        .in("procedure_id", procIds)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
+      // Fetch prescriptions linked to procedures OR to survey responses for this patient
+      const queries = [];
+      if (procIds.length > 0) {
+        queries.push(
+          supabase
+            .from("prescriptions")
+            .select("*, procedures(service_name, procedure_date)")
+            .in("procedure_id", procIds)
+        );
+      }
+      // Also fetch survey-linked prescriptions
+      const surveyIds = (surveyResponses || []).map((s: any) => s.id);
+      if (surveyIds.length > 0) {
+        queries.push(
+          supabase
+            .from("prescriptions")
+            .select("*, procedures(service_name, procedure_date)")
+            .in("survey_response_id", surveyIds)
+            .is("procedure_id", null)
+        );
+      }
+      const results = await Promise.all(queries);
+      const allRx = results.flatMap(r => r.data || []);
+      // Deduplicate by id
+      const seen = new Set<string>();
+      return allRx.filter((rx: any) => { if (seen.has(rx.id)) return false; seen.add(rx.id); return true; })
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     },
-    enabled: procedures.length > 0,
+    enabled: !!id,
   });
 
   const { data: appointments = [] } = useQuery({
@@ -882,12 +902,12 @@ const PatientDetail = () => {
                 <div className="flex gap-2 justify-end">
                   <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAddRxOpen(false)}>Cancel</Button>
                   <Button size="sm" className="h-7 text-xs" onClick={async () => {
-                    if (!rxForm.procedure_id || !rxForm.medicine_name.trim()) {
-                      toast.error("Procedure and medicine name are required");
+                    if (!rxForm.medicine_name.trim()) {
+                      toast.error("Medicine name is required");
                       return;
                     }
                     const { error } = await supabase.from("prescriptions").insert({
-                      procedure_id: rxForm.procedure_id,
+                      procedure_id: rxForm.procedure_id || null,
                       medicine_name: rxForm.medicine_name,
                       dosage: rxForm.dosage || null,
                       frequency: rxForm.frequency || null,
@@ -908,22 +928,43 @@ const PatientDetail = () => {
               {prescriptions.length === 0 && !addRxOpen ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">No prescriptions found</div>
               ) : prescriptions.map((rx: any) => (
-                <div key={rx.id} className="stat-card p-3 md:p-4 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => rx.procedure_id && setSelectedProcedureId(rx.procedure_id)}>
+                <div key={rx.id} className="stat-card p-3 md:p-4 hover:bg-muted/30 transition-colors">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
-                    <div className="min-w-0">
-                      <p className="font-medium">{rx.medicine_name}</p>
+                    <div className="min-w-0 cursor-pointer flex-1" onClick={() => rx.procedure_id && setSelectedProcedureId(rx.procedure_id)}>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{rx.medicine_name}</p>
+                        {rx.survey_response_id && !rx.procedure_id && (
+                          <Badge variant="secondary" className="text-[10px]">From Survey</Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {[rx.dosage, rx.frequency, rx.duration].filter(Boolean).join(" · ")}
                         {rx.quantity > 1 && ` · Qty: ${rx.quantity}`}
                       </p>
                       {rx.instructions && <p className="text-xs text-muted-foreground italic mt-1">{rx.instructions}</p>}
                     </div>
-                    {rx.procedures && (
-                      <div className="text-left sm:text-right text-xs text-muted-foreground shrink-0">
-                        <p>{rx.procedures.service_name}</p>
-                        <p>{new Date(rx.procedures.procedure_date).toLocaleDateString()}</p>
-                      </div>
-                    )}
+                    <div className="flex items-start gap-2 shrink-0">
+                      {rx.procedures && (
+                        <div className="text-left sm:text-right text-xs text-muted-foreground">
+                          <p>{rx.procedures.service_name}</p>
+                          <p>{new Date(rx.procedures.procedure_date).toLocaleDateString()}</p>
+                        </div>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const { error } = await supabase.from("prescriptions").delete().eq("id", rx.id);
+                          if (error) { toast.error(error.message); return; }
+                          toast.success("Prescription removed");
+                          queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", id] });
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -980,21 +1021,87 @@ const PatientDetail = () => {
 
                   return (
                     <div key={sr.id} className="stat-card p-4 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-semibold text-sm">{template?.name || "Survey"}</h4>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {appt ? `${new Date(appt.start_time).toLocaleDateString()} — ${appt.service}` : new Date(sr.created_at).toLocaleDateString()}
-                            {appt?.staff && ` • Dr. ${appt.staff.first_name} ${appt.staff.last_name}`}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="font-semibold text-sm">{template?.name || "Survey"}</h4>
+                        <div className="flex items-center gap-2 shrink-0">
                           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setViewingSurveyId(sr.id)}>View</Button>
-                          <Badge variant={sr.dr_status === "approved" ? "default" : sr.dr_status === "modified" ? "secondary" : "outline"} className="text-[10px]">
-                            {sr.dr_status === "pending_review" ? "Pending Review" : sr.dr_status === "approved" ? "Approved" : "Modified"}
-                          </Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant={sr.dr_status === "approved" ? "default" : sr.dr_status === "reviewed" ? "secondary" : "outline"}
+                                size="sm"
+                                className="h-7 text-xs gap-1"
+                              >
+                                {sr.dr_status === "pending_review" ? "⏳ Pending Review" : sr.dr_status === "reviewed" ? "👁 Reviewed" : sr.dr_status === "approved" ? "✅ Approved" : sr.dr_status === "modified" ? "✏️ Modified" : "⏳ Pending Review"}
+                                <ChevronDown className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                className="text-xs"
+                                onClick={async () => {
+                                  const { error } = await supabase.from("survey_responses").update({ dr_status: "pending_review" }).eq("id", sr.id);
+                                  if (error) { toast.error(error.message); return; }
+                                  queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+                                  toast.success("Status set to Pending Review");
+                                }}
+                              >
+                                ⏳ Pending Review
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-xs"
+                                onClick={async () => {
+                                  const { error } = await supabase.from("survey_responses").update({ dr_status: "reviewed" }).eq("id", sr.id);
+                                  if (error) { toast.error(error.message); return; }
+                                  queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+                                  toast.success("Status set to Reviewed");
+                                }}
+                              >
+                                👁 Reviewed
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-xs"
+                                onClick={async () => {
+                                  // Set status to approved
+                                  const { error } = await supabase.from("survey_responses").update({ dr_status: "approved" }).eq("id", sr.id);
+                                  if (error) { toast.error(error.message); return; }
+
+                                  // Auto-create prescriptions from AI recommended products
+                                  if (aiProducts.length > 0) {
+                                    const rxEntries = aiProducts.map((p: any) => ({
+                                      procedure_id: null,
+                                      survey_response_id: sr.id,
+                                      medicine_name: p.product_name || p.name || "Unknown",
+                                      dosage: p.dosage || null,
+                                      frequency: p.frequency || null,
+                                      duration: p.duration || null,
+                                      quantity: p.quantity || 1,
+                                      instructions: p.advice || p.instructions || null,
+                                      product_id: p.product_id || null,
+                                    }));
+                                    const { error: rxError } = await supabase.from("prescriptions").insert(rxEntries);
+                                    if (rxError) {
+                                      toast.error("Approved but failed to create Rx: " + rxError.message);
+                                    } else {
+                                      toast.success(`Approved — ${rxEntries.length} medicine(s) added to Rx`);
+                                      queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", id] });
+                                    }
+                                  } else {
+                                    toast.success("Status set to Approved");
+                                  }
+                                  queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+                                }}
+                              >
+                                ✅ Approved
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
+                      <p className="text-xs text-muted-foreground">
+                        {appt ? `${new Date(appt.start_time).toLocaleDateString()} — ${appt.service}` : new Date(sr.created_at).toLocaleDateString()}
+                        {appt?.staff && ` • Dr. ${appt.staff.first_name} ${appt.staff.last_name}`}
+                      </p>
 
                       {template?.problem_areas?.name && (
                         <div className="flex gap-1.5 flex-wrap">

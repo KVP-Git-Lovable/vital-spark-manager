@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,7 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ShieldCheck, Plus, Save, Search, UserPlus } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ShieldCheck, Plus, Save, Search, UserPlus, KeyRound } from "lucide-react";
 import CreateUserDialog from "@/components/users/CreateUserDialog";
 
 const ALL_MODULES = [
@@ -45,6 +47,7 @@ type PermMap = Record<string, { can_view: boolean; can_edit: boolean }>;
 
 export default function UserManagement() {
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
   const [search, setSearch] = useState("");
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
   const [dirtyPerms, setDirtyPerms] = useState<PermMap | null>(null);
@@ -52,6 +55,13 @@ export default function UserManagement() {
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleDesc, setNewRoleDesc] = useState("");
   const [createUserOpen, setCreateUserOpen] = useState(false);
+
+  // Reset password state
+  const [resetPwOpen, setResetPwOpen] = useState(false);
+  const [resetPwStaff, setResetPwStaff] = useState<any>(null);
+  const [resetPwMode, setResetPwMode] = useState<"auto" | "manual">("auto");
+  const [resetPwValue, setResetPwValue] = useState("");
+  const [resetPwConfirm, setResetPwConfirm] = useState("");
 
   // Fetch roles
   const { data: roles = [] } = useQuery({
@@ -68,7 +78,7 @@ export default function UserManagement() {
     queryFn: async () => {
       const { data } = await supabase
         .from("staff")
-        .select("id, first_name, last_name, email, phone, is_active, role_id, user_roles_config(id, name)")
+        .select("id, first_name, last_name, email, phone, is_active, role_id, auth_user_id, user_roles_config(id, name)")
         .order("first_name");
       return (data || []).map((s: any) => ({
         ...s,
@@ -92,12 +102,10 @@ export default function UserManagement() {
     enabled: !!selectedRoleId,
   });
 
-  // Set initial selected role
   if (roles.length > 0 && !selectedRoleId) {
     setSelectedRoleId(roles[0].id);
   }
 
-  // Build perm map
   const permMap: PermMap = dirtyPerms ?? Object.fromEntries(
     ALL_MODULES.map((m) => {
       const p = permissions.find((p: any) => p.module_key === m.key);
@@ -105,7 +113,6 @@ export default function UserManagement() {
     })
   );
 
-  // Assign role mutation
   const assignRole = useMutation({
     mutationFn: async ({ staffId, roleId }: { staffId: string; roleId: string | null }) => {
       const { error } = await supabase.from("staff").update({ role_id: roleId } as any).eq("id", staffId);
@@ -117,11 +124,9 @@ export default function UserManagement() {
     },
   });
 
-  // Save permissions mutation
   const savePerms = useMutation({
     mutationFn: async () => {
       if (!dirtyPerms || !selectedRoleId) return;
-      // Delete existing then re-insert
       await supabase.from("role_module_permissions").delete().eq("role_id", selectedRoleId);
       const rows = ALL_MODULES.map((m) => ({
         role_id: selectedRoleId,
@@ -139,7 +144,6 @@ export default function UserManagement() {
     },
   });
 
-  // Add role mutation
   const addRole = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase
@@ -148,7 +152,6 @@ export default function UserManagement() {
         .select()
         .single();
       if (error) throw error;
-      // Insert all modules with false/false
       const rows = ALL_MODULES.map((m) => ({
         role_id: data.id,
         module_key: m.key,
@@ -168,13 +171,41 @@ export default function UserManagement() {
     },
   });
 
+  const resetPassword = useMutation({
+    mutationFn: async () => {
+      if (!resetPwStaff?.auth_user_id) throw new Error("User has no auth account");
+      if (resetPwMode === "manual") {
+        if (resetPwValue !== resetPwConfirm) throw new Error("Passwords don't match");
+        if (resetPwValue.length < 6) throw new Error("Password must be at least 6 characters");
+      }
+      const { data, error } = await supabase.functions.invoke("create-user-account", {
+        body: {
+          action: "reset_password",
+          auth_user_id: resetPwStaff.auth_user_id,
+          password: resetPwMode === "manual" ? resetPwValue : undefined,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      toast({ title: "Password reset successfully" });
+      setResetPwOpen(false);
+      setResetPwStaff(null);
+      setResetPwValue("");
+      setResetPwConfirm("");
+      setResetPwMode("auto");
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
   const togglePerm = (moduleKey: string, field: "can_view" | "can_edit") => {
     const current = dirtyPerms ?? { ...permMap };
     const mod = current[moduleKey] ?? { can_view: false, can_edit: false };
     const updated = { ...mod, [field]: !mod[field] };
-    // If turning off view, also turn off edit
     if (field === "can_view" && !updated.can_view) updated.can_edit = false;
-    // If turning on edit, also turn on view
     if (field === "can_edit" && updated.can_edit) updated.can_view = true;
     setDirtyPerms({ ...current, [moduleKey]: updated });
   };
@@ -229,6 +260,7 @@ export default function UserManagement() {
                     <TableHead>Phone</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Role</TableHead>
+                    {isAdmin && <TableHead className="w-20">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -260,11 +292,31 @@ export default function UserManagement() {
                           </SelectContent>
                         </Select>
                       </TableCell>
+                      {isAdmin && (
+                        <TableCell>
+                          {s.auth_user_id && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Reset Password"
+                              onClick={() => {
+                                setResetPwStaff(s);
+                                setResetPwMode("auto");
+                                setResetPwValue("");
+                                setResetPwConfirm("");
+                                setResetPwOpen(true);
+                              }}
+                            >
+                              <KeyRound className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                   {filteredStaff.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={isAdmin ? 6 : 5} className="text-center text-muted-foreground py-8">
                         No staff found
                       </TableCell>
                     </TableRow>
@@ -367,6 +419,48 @@ export default function UserManagement() {
         staffList={staff}
         roles={roles}
       />
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetPwOpen} onOpenChange={setResetPwOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password for {resetPwStaff?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <RadioGroup value={resetPwMode} onValueChange={(v) => setResetPwMode(v as "auto" | "manual")}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="auto" id="reset-auto" />
+                <Label htmlFor="reset-auto">Auto-generate new password</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="manual" id="reset-manual" />
+                <Label htmlFor="reset-manual">Set password manually</Label>
+              </div>
+            </RadioGroup>
+
+            {resetPwMode === "manual" && (
+              <div className="space-y-3">
+                <div>
+                  <Label>New Password</Label>
+                  <Input type="password" value={resetPwValue} onChange={(e) => setResetPwValue(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Confirm Password</Label>
+                  <Input type="password" value={resetPwConfirm} onChange={(e) => setResetPwConfirm(e.target.value)} />
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={() => resetPassword.mutate()}
+              disabled={resetPassword.isPending}
+              className="w-full"
+            >
+              {resetPassword.isPending ? "Resetting..." : "Reset Password"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

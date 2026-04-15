@@ -336,23 +336,33 @@ export default function UserManagement() {
                         </Select>
                       </TableCell>
                       {isAdmin && (
-                        <TableCell>
-                          {(
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Reset Password"
-                              onClick={() => {
-                                setResetPwStaff(s);
-                                setResetPwMode("auto");
-                                setResetPwValue("");
-                                setResetPwConfirm("");
-                                setResetPwOpen(true);
-                              }}
-                            >
-                              <KeyRound className="h-4 w-4" />
-                            </Button>
-                          )}
+                        <TableCell className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Reset Password"
+                            onClick={() => {
+                              setResetPwStaff(s);
+                              setResetPwMode("auto");
+                              setResetPwValue("");
+                              setResetPwConfirm("");
+                              setResetPwOpen(true);
+                            }}
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Delete User"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => {
+                              setDeleteStaff(s);
+                              setDeleteConfirmOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       )}
                     </TableRow>

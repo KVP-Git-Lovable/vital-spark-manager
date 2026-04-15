@@ -55,6 +55,15 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
     enabled: !!productId,
   });
 
+  const { data: vendors = [] } = useQuery({
+    queryKey: ["vendors-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("vendors").select("id, name").order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: inventoryItems = [] } = useQuery({
     queryKey: ["product-inventory-stock", productId],
     queryFn: async () => {

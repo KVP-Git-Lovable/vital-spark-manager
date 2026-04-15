@@ -86,6 +86,17 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
     enabled: !!productId,
   });
 
+  const { data: portalSalesItems = [] } = useQuery({
+    queryKey: ["product-portal-sales", productId],
+    queryFn: async () => {
+      if (!productId) return [];
+      const { data, error } = await supabase.from("portal_order_items").select("quantity, total_price").eq("product_id", productId);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!productId,
+  });
+
   useEffect(() => {
     if (product) setForm({ ...product });
   }, [product]);

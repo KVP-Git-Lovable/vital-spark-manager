@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ShieldCheck, Plus, Save, Search, UserPlus, KeyRound } from "lucide-react";
+import { ShieldCheck, Plus, Save, Search, UserPlus, KeyRound, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import CreateUserDialog from "@/components/users/CreateUserDialog";
 
 const ALL_MODULES = [

@@ -119,6 +119,13 @@ const PortalLogin = () => {
         <p className="text-center text-xs text-muted-foreground mt-6">
           Enter your registered phone number to access your health records.
         </p>
+        <button
+          type="button"
+          onClick={() => navigate("/portal")}
+          className="mt-3 block w-full text-center text-sm text-primary hover:underline"
+        >
+          ← Back to Portal
+        </button>
       </motion.div>
     </div>
   );

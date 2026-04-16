@@ -44,8 +44,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   if (!user) {
-    navigate("/login", { replace: true });
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   const initials = staffProfile?.initials || (user?.email?.slice(0, 2).toUpperCase() ?? "U");

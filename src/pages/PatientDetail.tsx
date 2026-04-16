@@ -209,7 +209,7 @@ const PatientDetail = () => {
   const { data: surveyTemplates = [] } = useQuery({
     queryKey: ["survey-templates-active"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("survey_templates").select("id, name").eq("is_active", true).order("name");
+      const { data, error } = await supabase.from("survey_templates").select("id, name").eq("is_active", true).eq("approval_status", "approved").order("name");
       if (error) throw error;
       return data;
     },

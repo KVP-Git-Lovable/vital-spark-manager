@@ -334,6 +334,7 @@ const Pharma = () => {
       expiry_date: "",
       quantity: inv.quantity || 0,
       purchase_price: inv.purchase_price || 0,
+      mrp: 0,
       supplier: inv.supplier || "",
       invoice_number: "",
     });

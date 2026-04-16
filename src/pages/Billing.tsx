@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from "react";
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths } from "date-fns";
 import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Input } from "@/components/ui/input";
@@ -46,6 +46,7 @@ const statusStyles: Record<string, string> = {
   Paid: "bg-success/10 text-success",
   Partial: "bg-warning/10 text-warning",
   Pending: "bg-destructive/10 text-destructive",
+  Overdue: "bg-destructive/10 text-destructive",
 };
 
 // ─── PDF Generation ───────────────────────────────
@@ -194,6 +195,8 @@ const Billing = () => {
   const [recurringAmount, setRecurringAmount] = useState(0);
   const [recurringCollected, setRecurringCollected] = useState<number[]>([0]);
   const [recurringTotalAmount, setRecurringTotalAmount] = useState(0);
+  const [recurringDueDates, setRecurringDueDates] = useState<Date[]>([new Date()]);
+  const [recurringStatuses, setRecurringStatuses] = useState<string[]>(["Pending"]);
   const [serviceSearchOpen, setServiceSearchOpen] = useState<number | null>(null);
 
   const handleRecurringCountChange = (count: number) => {
@@ -202,6 +205,17 @@ const Billing = () => {
     setRecurringCollected((prev) => {
       const arr = [...prev];
       while (arr.length < c) arr.push(0);
+      return arr.slice(0, c);
+    });
+    setRecurringDueDates((prev) => {
+      const arr = [...prev];
+      const baseDate = arr[0] || new Date();
+      while (arr.length < c) arr.push(addMonths(baseDate, arr.length));
+      return arr.slice(0, c);
+    });
+    setRecurringStatuses((prev) => {
+      const arr = [...prev];
+      while (arr.length < c) arr.push("Pending");
       return arr.slice(0, c);
     });
     if (recurringTotalAmount > 0) {
@@ -365,9 +379,12 @@ const Billing = () => {
         const totalPerInst = recurringAmount + taxPerInst;
         const rows = Array.from({ length: recurringCount }, (_, i) => {
           const collected = recurringCollected[i] || 0;
-          let status = "Pending";
+          const instStatus = recurringStatuses[i] || "Pending";
+          let status = instStatus;
+          // Auto-override if collected amount dictates
           if (collected >= totalPerInst && totalPerInst > 0) status = "Paid";
-          else if (collected > 0) status = "Partial";
+          else if (collected > 0 && instStatus === "Pending") status = "Partial";
+          const dueDate = recurringDueDates[i] || addMonths(new Date(), i);
           return {
             invoice_number: `INV-${baseNum}-R${i + 1}`,
             patient_id: patientId || null,
@@ -378,7 +395,7 @@ const Billing = () => {
             status,
             payment_type: "Recurring",
             payment_mode: paymentMode,
-            notes: `Installment ${i + 1} of ${recurringCount}${notes ? ` — ${notes}` : ""}`,
+            notes: `Installment ${i + 1} of ${recurringCount} | Due: ${format(dueDate, "dd MMM yyyy")}${notes ? ` — ${notes}` : ""}`,
             tax_id: selectedTaxId || null,
             tax_rate: taxRate,
             tax_amount: taxPerInst,
@@ -474,6 +491,18 @@ const Billing = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const updateInvoiceStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase.from("invoices").update({ status }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success("Status updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const deleteInvoice = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("invoices").delete().eq("id", id);
@@ -532,6 +561,8 @@ const Billing = () => {
     setRecurringAmount(0);
     setRecurringCollected([0]);
     setRecurringTotalAmount(0);
+    setRecurringDueDates([new Date()]);
+    setRecurringStatuses(["Pending"]);
     setServiceSearchOpen(null);
   };
 
@@ -907,20 +938,55 @@ const Billing = () => {
                     </div>
                   </div>
                   {recurringCount > 0 && (
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {Array.from({ length: recurringCount }, (_, i) => (
-                        <div key={i} className="flex items-center gap-3 border rounded-lg p-2 bg-muted/30">
-                          <span className="text-xs font-medium text-muted-foreground w-24 shrink-0">Inst. {i + 1}</span>
-                          <div className="flex-1 text-xs text-right text-muted-foreground">₹{recurringAmount.toLocaleString()}</div>
-                          <div className="w-28">
-                            <Input type="number" className="h-7 text-xs" placeholder="Collected" value={recurringCollected[i] || 0} onChange={(e) => {
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      <div className="grid grid-cols-[3rem_1fr_5rem_5rem_5rem] gap-2 text-xs font-medium text-muted-foreground px-2">
+                        <span>Inst.</span>
+                        <span>Due Date</span>
+                        <span className="text-right">Amount</span>
+                        <span>Status</span>
+                        <span className="text-right">Paid</span>
+                      </div>
+                      {Array.from({ length: recurringCount }, (_, i) => {
+                        const dueDate = recurringDueDates[i] || addMonths(new Date(), i);
+                        const instStatus = recurringStatuses[i] || "Pending";
+                        return (
+                          <div key={i} className="grid grid-cols-[3rem_1fr_5rem_5rem_5rem] gap-2 items-center border rounded-lg p-2 bg-muted/30">
+                            <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" size="sm" className="h-7 text-xs justify-start font-normal w-full">
+                                  {format(dueDate, "dd MMM yyyy")}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar mode="single" selected={dueDate} onSelect={(d) => {
+                                  if (d) {
+                                    const updated = [...recurringDueDates];
+                                    updated[i] = d;
+                                    setRecurringDueDates(updated);
+                                  }
+                                }} className="p-3 pointer-events-auto" />
+                              </PopoverContent>
+                            </Popover>
+                            <span className="text-xs text-right">₹{recurringAmount.toLocaleString()}</span>
+                            <Select value={instStatus} onValueChange={(v) => {
+                              const updated = [...recurringStatuses];
+                              updated[i] = v;
+                              setRecurringStatuses(updated);
+                            }}>
+                              <SelectTrigger className="h-7 text-xs px-1.5"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {["Pending", "Paid", "Partial", "Overdue"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Input type="number" className="h-7 text-xs" placeholder="0" value={recurringCollected[i] || 0} onChange={(e) => {
                               const updated = [...recurringCollected];
                               updated[i] = parseFloat(e.target.value) || 0;
                               setRecurringCollected(updated);
                             }} />
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                   <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
@@ -1136,10 +1202,17 @@ const Billing = () => {
                         <p className="text-xs text-muted-foreground">Paid: ₹{Number(inv.paid_amount).toLocaleString()}</p>
                       )}
                     </td>
-                    <td className="p-4">
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[inv.status] || ""}`}>
-                        {inv.status}
-                      </span>
+                    <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                      <Select value={inv.status} onValueChange={(v) => updateInvoiceStatus.mutate({ id: inv.id, status: v })}>
+                        <SelectTrigger className={`h-auto border-0 p-0 shadow-none w-auto gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[inv.status] || ""}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["Pending", "Paid", "Partial", "Overdue"].map(s => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </td>
                     <td className="p-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-1">

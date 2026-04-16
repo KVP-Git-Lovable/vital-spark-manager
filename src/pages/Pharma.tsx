@@ -26,7 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 // ─── Form Defaults ────────────────────────────────
 const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", reorder_level: 10, vendor_ids: [] as string[], qty_per_unit: 1, tablets_per_strip: 0 };
-const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, supplier: "", invoice_number: "" };
+const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {
   product_id: string;
@@ -194,15 +194,25 @@ const Pharma = () => {
 
   const addStock = useMutation({
     mutationFn: async () => {
+      const { product_id, mrp, ...rest } = stockForm;
       const { error } = await supabase.from("pharma_inventory").insert({
-        ...stockForm,
-        quantity: Number(stockForm.quantity),
-        purchase_price: Number(stockForm.purchase_price),
+        product_id,
+        batch_number: rest.batch_number,
+        expiry_date: rest.expiry_date,
+        quantity: Number(rest.quantity),
+        purchase_price: Number(rest.purchase_price),
+        supplier: rest.supplier || null,
+        invoice_number: rest.invoice_number || null,
       });
       if (error) throw error;
+      // Update product MRP if provided
+      if (mrp > 0) {
+        await supabase.from("pharma_products").update({ mrp: Number(mrp) }).eq("id", product_id);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharma-inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
       toast.success("Stock added");
       setStockForm({ ...emptyStock });
       setStockOpen(false);
@@ -450,9 +460,10 @@ const Pharma = () => {
                   <div><Label>Batch No. *</Label><Input className="mt-1" value={stockForm.batch_number} onChange={(e) => setStockForm({ ...stockForm, batch_number: e.target.value })} /></div>
                   <div><Label>Expiry Date *</Label><Input type="date" className="mt-1" value={stockForm.expiry_date} onChange={(e) => setStockForm({ ...stockForm, expiry_date: e.target.value })} /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div><Label>Quantity *</Label><Input type="number" className="mt-1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: parseInt(e.target.value) || 0 })} /></div>
                   <div><Label>Purchase Price (₹)</Label><Input type="number" className="mt-1" value={stockForm.purchase_price} onChange={(e) => setStockForm({ ...stockForm, purchase_price: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>MRP (₹)</Label><Input type="number" className="mt-1" value={stockForm.mrp} onChange={(e) => setStockForm({ ...stockForm, mrp: parseFloat(e.target.value) || 0 })} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Supplier</Label><div className="mt-1"><VendorCombobox value={stockForm.supplier} onChange={(v) => setStockForm({ ...stockForm, supplier: v })} placeholder="Select supplier..." /></div></div>

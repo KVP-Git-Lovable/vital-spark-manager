@@ -1,48 +1,33 @@
 
 
-## Plan: Enhanced Survey System — Approval Workflow, Selective Recommendations, and UI Improvements
+## Plan: Clickable Sales Rows + Revenue Calculation Fix
 
-### Overview
-Three major improvements: (1) Add an approval workflow to survey templates, (2) Allow selective approval of AI-recommended products/services in the Surveys page, (3) Improve the Surveys page UI to match the Survey Templates card-based design.
+### Problem Analysis
 
-### Database Migration
+**1. Sales rows not clickable**: "Clinic Procedures" and "Portal Orders" in the Sales Info table are static rows with no drill-down.
 
-Add an `approval_status` column to `survey_templates`:
-```sql
-ALTER TABLE survey_templates ADD COLUMN approval_status text NOT NULL DEFAULT 'draft';
--- Values: 'draft', 'pending_approval', 'approved'
-```
+**2. Revenue calculation issue**: Clinic revenue is estimated as `clinicUnits × selling_price` (current product selling price), which is inaccurate — it should use the actual sell price at time of sale. However, the `prescriptions` table has no price column, so this is the best available estimate. The real issue may be that revenue shows ₹0 or wrong values because the selling_price on the product is 0 or outdated.
 
-Add `selected_products` and `selected_services` JSONB columns to `survey_responses` to track which AI recommendations were selectively approved:
-```sql
-ALTER TABLE survey_responses ADD COLUMN selected_products jsonb DEFAULT '[]'::jsonb;
-ALTER TABLE survey_responses ADD COLUMN selected_services jsonb DEFAULT '[]'::jsonb;
-```
+### Changes — Single File: `src/components/pharma/PharmaDetailSheet.tsx`
 
-### Changes
+**Step 1: Enhance data queries**
+- Update the prescriptions query to fetch `quantity, created_at, procedure_id` and join to procedures to get `patient_id`, then to patients to get patient name.
+- Update the portal sales query to fetch full details including order info (patient_name, date) via `portal_order_items` joined with `portal_orders`.
 
-#### 1. Survey Templates — Approval Workflow (`SurveyTemplateForm.tsx`, `SurveyTemplates.tsx`)
-- Add "Save as New Template" button alongside existing Save — clones the current template (with modified products/services) as a new template with `approval_status = 'draft'`
-- Add "Send for Approval" button that sets `approval_status = 'pending_approval'`
-- On the templates list page, show approval status badge (Draft / Pending Approval / Approved) on each card
-- Admin users see an "Approve" button on pending templates, setting `approval_status = 'approved'`
+**Step 2: Add clickable rows with modals**
+- Add two new state variables: `showClinicSales` and `showPortalSales` (booleans).
+- Make the "Clinic Procedures" row clickable → opens a Dialog showing a table with columns: Patient Name, Date, Qty, Sell Price, Total.
+- Make the "Portal Orders" row clickable → opens a similar Dialog.
+- Add cursor-pointer styling and an Eye icon to indicate clickability.
 
-#### 2. All Surveys Page — UI Upgrade + Selective Approval (`AllSurveys.tsx`)
-- Replace the table layout with a card-based grid matching the Survey Templates page style
-- Each card shows: patient name, template name, date, status badge, and action buttons
-- In the detail dialog, show AI-recommended products and services with checkboxes for selective approval
-- Add "Approve All" toggle to select/deselect all products and services at once
-- When approving, only the selected (checked) products/services get saved to `selected_products`/`selected_services` and create prescriptions
-- Filter: Only show surveys from templates that are both `is_active = true` AND `approval_status = 'approved'`
+**Step 3: Fix revenue calculation**
+- For clinic sales: use the product's selling price × quantity (current approach, but ensure selling_price is correctly read as a number).
+- For portal sales: already using `total_price` from `portal_order_items` which is accurate.
+- Add a tooltip or note if selling_price is 0 to flag potential data issues.
 
-#### 3. Survey Templates Filtering
-- In the Surveys page, template filter dropdown only lists templates with `approval_status = 'approved'` and `is_active = true`
-- The survey fill flow (when assigning surveys to appointments) also restricts to approved + active templates only
+### Technical Details
 
-### Files Changed
-1. **Database migration** — add `approval_status` to `survey_templates`, add `selected_products`/`selected_services` to `survey_responses`
-2. **`src/pages/AllSurveys.tsx`** — card-based UI, selective product/service checkboxes in detail dialog, approve all toggle, filter by approved templates
-3. **`src/pages/SurveyTemplates.tsx`** — show approval status badge, approve button for admins on pending templates
-4. **`src/components/surveys/SurveyTemplateForm.tsx`** — "Save as New Template" button, "Send for Approval" button
-5. **`src/components/surveys/SurveyFill.tsx`** — filter template list to approved + active only
+- Prescriptions query changes to: `supabase.from("prescriptions").select("quantity, created_at, procedure_id, procedures(patient_id, patients(first_name, last_name))").eq("product_id", productId)` — but since there are no foreign keys, we'll need a two-step fetch: get prescriptions, then get procedure IDs, then fetch procedures with patient info.
+- Portal query: fetch `portal_order_items` with product_id filter, then fetch parent `portal_orders` for patient_name and date.
+- Two new `<Dialog>` components for the drill-down modals.
 

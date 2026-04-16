@@ -149,8 +149,8 @@ interface PharmaLineItem {
 }
 
 const getDrName = (inv: any) => {
-  if (inv.appointments?.staff) {
-    return `Dr. ${inv.appointments.staff.first_name} ${inv.appointments.staff.last_name}`;
+  if (inv.appointments?.doctors) {
+    return `Dr. ${inv.appointments.doctors.name}`;
   }
   return "";
 };

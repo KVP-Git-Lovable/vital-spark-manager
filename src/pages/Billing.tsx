@@ -338,14 +338,33 @@ const Billing = () => {
     setPharmaItems([...pharmaItems, { inventory_id: "", product_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0 }]);
   };
 
+  // Get unique products from inventory
+  const pharmaProductOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const i of pharmaInventory as any[]) {
+      if (i.quantity > 0 && new Date(i.expiry_date) > new Date() && i.pharma_products?.name) {
+        map.set(i.product_id, i.pharma_products.name);
+      }
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [pharmaInventory]);
+
   const updatePharmaItem = (idx: number, field: string, value: any) => {
     const updated = [...pharmaItems];
     (updated[idx] as any)[field] = value;
+    if (field === "product_id") {
+      // Reset batch when product changes
+      updated[idx].product_id = value;
+      const prod = pharmaProductOptions.find(p => p.id === value);
+      updated[idx].product_name = prod?.name || "";
+      updated[idx].inventory_id = "";
+      updated[idx].batch_number = "";
+      updated[idx].unit_price = 0;
+      updated[idx].available = 0;
+    }
     if (field === "inventory_id") {
       const inv = pharmaInventory.find((i: any) => i.id === value) as any;
       if (inv) {
-        updated[idx].product_id = inv.product_id;
-        updated[idx].product_name = inv.pharma_products?.name || "";
         updated[idx].batch_number = inv.batch_number;
         updated[idx].unit_price = inv.pharma_products?.selling_price || 0;
         updated[idx].available = inv.quantity;
@@ -803,18 +822,37 @@ const Billing = () => {
                 )}
                 {pharmaItems.map((item, idx) => (
                   <div key={idx} className="border rounded-lg p-3 mb-2 space-y-2 bg-muted/30">
-                    <div>
-                      <Label className="text-xs">Product (Batch)</Label>
-                      <Select value={item.inventory_id || "placeholder"} onValueChange={(v) => updatePharmaItem(idx, "inventory_id", v === "placeholder" ? "" : v)}>
-                        <SelectTrigger className="mt-1"><SelectValue placeholder="Select product & batch" /></SelectTrigger>
-                        <SelectContent>
-                          {pharmaInventory.filter((i: any) => i.quantity > 0 && new Date(i.expiry_date) > new Date()).map((i: any) => (
-                            <SelectItem key={i.id} value={i.id}>
-                              {i.pharma_products?.name} — Batch: {i.batch_number} (Qty: {i.quantity})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Product</Label>
+                        <Select value={item.product_id || "placeholder"} onValueChange={(v) => updatePharmaItem(idx, "product_id", v === "placeholder" ? "" : v)}>
+                          <SelectTrigger className="mt-1"><SelectValue placeholder="Select product" /></SelectTrigger>
+                          <SelectContent>
+                            {pharmaProductOptions.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Batch</Label>
+                        <Select
+                          value={item.inventory_id || "placeholder"}
+                          onValueChange={(v) => updatePharmaItem(idx, "inventory_id", v === "placeholder" ? "" : v)}
+                          disabled={!item.product_id}
+                        >
+                          <SelectTrigger className="mt-1"><SelectValue placeholder={item.product_id ? "Select batch" : "Select product first"} /></SelectTrigger>
+                          <SelectContent>
+                            {(pharmaInventory as any[])
+                              .filter((i: any) => i.product_id === item.product_id && i.quantity > 0 && new Date(i.expiry_date) > new Date())
+                              .map((i: any) => (
+                                <SelectItem key={i.id} value={i.id}>
+                                  {i.batch_number} | Qty: {i.quantity} | Exp: {new Date(i.expiry_date).toLocaleDateString("en-IN", { month: "2-digit", year: "numeric" })}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       <div>

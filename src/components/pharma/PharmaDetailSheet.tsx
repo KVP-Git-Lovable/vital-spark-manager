@@ -444,7 +444,8 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
               {/* Sales Info */}
               {(() => {
                 const clinicUnits = prescriptionItems.reduce((sum, item) => sum + Number(item.quantity), 0);
-                const clinicRevenue = clinicUnits * Number(product.selling_price);
+                const sellingPrice = Number(product.selling_price) || 0;
+                const clinicRevenue = clinicUnits * sellingPrice;
                 const portalUnits = portalSalesItems.reduce((sum, item) => sum + Number(item.quantity), 0);
                 const portalRevenue = portalSalesItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
                 const totalUnits = clinicUnits + portalUnits;
@@ -462,6 +463,9 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                         <DollarSign className="h-4 w-4 mx-auto text-success mb-1" />
                         <p className="text-xs text-muted-foreground">Total Revenue</p>
                         <p className="text-xl font-bold">₹{totalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        {sellingPrice === 0 && clinicUnits > 0 && (
+                          <p className="text-[10px] text-amber-600 mt-1">Clinic revenue estimated at ₹0 — selling price not set</p>
+                        )}
                       </div>
                     </div>
                     <Table>
@@ -473,13 +477,13 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        <TableRow>
-                          <TableCell className="text-xs"><span className="inline-flex items-center gap-1.5"><Stethoscope className="h-3.5 w-3.5 text-primary" />Clinic Procedures</span></TableCell>
+                        <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setShowClinicSales(true)}>
+                          <TableCell className="text-xs"><span className="inline-flex items-center gap-1.5"><Stethoscope className="h-3.5 w-3.5 text-primary" />Clinic Procedures <Eye className="h-3 w-3 text-muted-foreground" /></span></TableCell>
                           <TableCell className="text-xs text-right">{clinicUnits}</TableCell>
                           <TableCell className="text-xs text-right">₹{clinicRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                         </TableRow>
-                        <TableRow>
-                          <TableCell className="text-xs"><span className="inline-flex items-center gap-1.5"><ShoppingBag className="h-3.5 w-3.5 text-accent-foreground" />Portal Orders</span></TableCell>
+                        <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setShowPortalSales(true)}>
+                          <TableCell className="text-xs"><span className="inline-flex items-center gap-1.5"><ShoppingBag className="h-3.5 w-3.5 text-accent-foreground" />Portal Orders <Eye className="h-3 w-3 text-muted-foreground" /></span></TableCell>
                           <TableCell className="text-xs text-right">{portalUnits}</TableCell>
                           <TableCell className="text-xs text-right">₹{portalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                         </TableRow>
@@ -488,6 +492,80 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                   </div>
                 );
               })()}
+
+              {/* Clinic Sales Drill-down */}
+              <Dialog open={showClinicSales} onOpenChange={setShowClinicSales}>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader><DialogTitle className="font-display">Clinic Procedure Sales</DialogTitle></DialogHeader>
+                  {prescriptionItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No clinic sales recorded</p>
+                  ) : (
+                    <div className="max-h-80 overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs">Patient</TableHead>
+                            <TableHead className="text-xs">Date</TableHead>
+                            <TableHead className="text-xs text-right">Qty</TableHead>
+                            <TableHead className="text-xs text-right">Sell Price</TableHead>
+                            <TableHead className="text-xs text-right">Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {prescriptionItems.map((item: any, idx: number) => {
+                            const sp = Number(product?.selling_price) || 0;
+                            const qty = Number(item.quantity);
+                            return (
+                              <TableRow key={idx}>
+                                <TableCell className="text-xs">{item.patient_name}</TableCell>
+                                <TableCell className="text-xs">{item.date ? format(new Date(item.date), "dd MMM yyyy") : "—"}</TableCell>
+                                <TableCell className="text-xs text-right">{qty}</TableCell>
+                                <TableCell className="text-xs text-right">₹{sp.toFixed(2)}</TableCell>
+                                <TableCell className="text-xs text-right">₹{(qty * sp).toFixed(2)}</TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
+
+              {/* Portal Sales Drill-down */}
+              <Dialog open={showPortalSales} onOpenChange={setShowPortalSales}>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader><DialogTitle className="font-display">Portal Order Sales</DialogTitle></DialogHeader>
+                  {portalSalesItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No portal sales recorded</p>
+                  ) : (
+                    <div className="max-h-80 overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs">Patient</TableHead>
+                            <TableHead className="text-xs">Date</TableHead>
+                            <TableHead className="text-xs text-right">Qty</TableHead>
+                            <TableHead className="text-xs text-right">Sell Price</TableHead>
+                            <TableHead className="text-xs text-right">Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {portalSalesItems.map((item: any, idx: number) => (
+                            <TableRow key={idx}>
+                              <TableCell className="text-xs">{item.patient_name}</TableCell>
+                              <TableCell className="text-xs">{item.date ? format(new Date(item.date), "dd MMM yyyy") : "—"}</TableCell>
+                              <TableCell className="text-xs text-right">{Number(item.quantity)}</TableCell>
+                              <TableCell className="text-xs text-right">₹{Number(item.unit_price || 0).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs text-right">₹{Number(item.total_price || 0).toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
 
               <Separator />
 

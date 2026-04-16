@@ -353,7 +353,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                             return vendor ? vendor.name : inv.supplier;
                           })();
                           return (
-                            <TableRow key={inv.id}>
+                            <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedBatch({ ...inv, supplierName, product })}>
                               <TableCell className="text-xs">{format(new Date(inv.received_date), "dd MMM yyyy")}</TableCell>
                               <TableCell className="text-xs">{inv.batch_number}</TableCell>
                               <TableCell className="text-xs">{supplierName}</TableCell>
@@ -376,6 +376,39 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                   </div>
                 )}
               </div>
+
+              {/* Batch Detail Modal */}
+              <Dialog open={!!selectedBatch} onOpenChange={(open) => !open && setSelectedBatch(null)}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader><DialogTitle className="font-display">Batch Details</DialogTitle></DialogHeader>
+                  {selectedBatch && (() => {
+                    const daysLeft = Math.ceil((new Date(selectedBatch.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                    const isExpired = daysLeft <= 0;
+                    const isLow = !isExpired && Number(selectedBatch.quantity) > 0 && Number(selectedBatch.quantity) < 10;
+                    return (
+                      <div className="space-y-4 pt-2">
+                        <div className="flex justify-end">
+                          {isExpired ? <Badge variant="destructive">Expired</Badge>
+                            : isLow ? <Badge className="bg-amber-100 text-amber-800 border-amber-300">Low Stock</Badge>
+                            : <Badge className="bg-success/20 text-success border-success/30">Active</Badge>}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="Received Date" value={format(new Date(selectedBatch.received_date), "dd MMM yyyy")} />
+                          <Field label="Batch Number" value={selectedBatch.batch_number} />
+                          <Field label="Supplier" value={selectedBatch.supplierName} />
+                          <Field label="Quantity" value={selectedBatch.quantity} />
+                          <Field label="Buy Price" value={`₹${Number(selectedBatch.purchase_price).toFixed(2)}`} />
+                          <Field label="MRP" value={selectedBatch.product ? `₹${Number(selectedBatch.product.mrp).toFixed(2)}` : "—"} />
+                          <Field label="Selling Price" value={selectedBatch.product ? `₹${Number(selectedBatch.product.selling_price).toFixed(2)}` : "—"} />
+                          <Field label="GST %" value={selectedBatch.product?.gst_percent ? `${selectedBatch.product.gst_percent}%` : "—"} />
+                          <Field label="Expiry Date" value={format(new Date(selectedBatch.expiry_date), "dd MMM yyyy")} />
+                          <Field label="Invoice Number" value={selectedBatch.invoice_number} />
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </DialogContent>
+              </Dialog>
 
               <Separator />
 

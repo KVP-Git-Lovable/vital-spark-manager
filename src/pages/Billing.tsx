@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
-import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown } from "lucide-react";
+import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 const statusStyles: Record<string, string> = {
   Paid: "bg-success/10 text-success",
@@ -192,6 +193,8 @@ const Billing = () => {
   const [recurringCount, setRecurringCount] = useState(1);
   const [recurringAmount, setRecurringAmount] = useState(0);
   const [recurringCollected, setRecurringCollected] = useState<number[]>([0]);
+  const [recurringTotalAmount, setRecurringTotalAmount] = useState(0);
+  const [serviceSearchOpen, setServiceSearchOpen] = useState<number | null>(null);
 
   const handleRecurringCountChange = (count: number) => {
     const c = Math.max(1, count);
@@ -201,6 +204,16 @@ const Billing = () => {
       while (arr.length < c) arr.push(0);
       return arr.slice(0, c);
     });
+    if (recurringTotalAmount > 0) {
+      setRecurringAmount(Math.round((recurringTotalAmount / c) * 100) / 100);
+    }
+  };
+
+  const handleRecurringTotalChange = (total: number) => {
+    setRecurringTotalAmount(total);
+    if (recurringCount > 0) {
+      setRecurringAmount(Math.round((total / recurringCount) * 100) / 100);
+    }
   };
 
   const { data: invoices = [] } = useQuery({
@@ -237,6 +250,15 @@ const Billing = () => {
     queryKey: ["pharma-products-billing"],
     queryFn: async () => {
       const { data, error } = await supabase.from("pharma_products").select("*").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: serviceMaster = [] } = useQuery({
+    queryKey: ["services-master-billing"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("services").select("id, name, price").order("name");
       if (error) throw error;
       return data;
     },
@@ -509,6 +531,8 @@ const Billing = () => {
     setRecurringCount(1);
     setRecurringAmount(0);
     setRecurringCollected([0]);
+    setRecurringTotalAmount(0);
+    setServiceSearchOpen(null);
   };
 
   const addServiceInput = () => setServiceInputs([...serviceInputs, ""]);
@@ -683,7 +707,31 @@ const Billing = () => {
                 </div>
                 {serviceInputs.map((s, i) => (
                   <div key={i} className="flex gap-2 mb-2">
-                    <Input placeholder="Service name" value={s} onChange={(e) => updateServiceInput(i, e.target.value)} />
+                    <Popover open={serviceSearchOpen === i} onOpenChange={(open) => setServiceSearchOpen(open ? i : null)}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" role="combobox" className="w-full justify-between font-normal h-10">
+                          {s || <span className="text-muted-foreground">Select service...</span>}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search services..." />
+                          <CommandList>
+                            <CommandEmpty>No service found.</CommandEmpty>
+                            <CommandGroup>
+                              {serviceMaster.map((svc: any) => (
+                                <CommandItem key={svc.id} value={svc.name} onSelect={() => { updateServiceInput(i, svc.name); setServiceSearchOpen(null); }}>
+                                  <Check className={cn("mr-2 h-4 w-4", s === svc.name ? "opacity-100" : "opacity-0")} />
+                                  <span>{svc.name}</span>
+                                  <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                     {serviceInputs.length > 1 && (
                       <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" onClick={() => removeServiceInput(i)}>✕</Button>
                     )}
@@ -750,7 +798,7 @@ const Billing = () => {
                   <Select value={paymentType} onValueChange={setPaymentType}>
                     <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {["One-time", "Staged", "Recurring"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      {["One-time", "Recurring"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -844,6 +892,10 @@ const Billing = () => {
               {paymentType === "Recurring" && (
                 <div className="border-t pt-4 space-y-3">
                   <Label className="font-display font-semibold">Recurring Installments</Label>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Total Amount (₹) *</Label>
+                    <Input type="number" className="mt-1" value={recurringTotalAmount} onChange={(e) => handleRecurringTotalChange(parseFloat(e.target.value) || 0)} />
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs text-muted-foreground"># of Installments *</Label>

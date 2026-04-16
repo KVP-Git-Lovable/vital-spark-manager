@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Trash2, GripVertical, Search } from "lucide-react";
+import { Plus, Trash2, GripVertical, Search, Copy, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -164,26 +164,28 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
     setTemplateServices([...templateServices, { service_id: svcId, service_name: svc?.name, advice_text: "" }]);
   };
 
-  const handleSave = async () => {
-    if (!name.trim()) { toast.error("Template name is required"); return; }
+  const saveTemplate = async (targetId: string | null, approvalStatus?: string) => {
+    if (!name.trim()) { toast.error("Template name is required"); return null; }
     setSaving(true);
     try {
-      let tplId = templateId;
-      const templateData = {
+      let tplId = targetId;
+      const templateData: any = {
         name, description, age_range_min: ageMin, age_range_max: ageMax,
         problem_area_id: problemAreaId || null, service_id: serviceId || null, is_active: isActive,
       };
+      if (approvalStatus) templateData.approval_status = approvalStatus;
 
       if (tplId) {
         const { error } = await supabase.from("survey_templates").update(templateData).eq("id", tplId);
         if (error) throw error;
       } else {
+        if (!approvalStatus) templateData.approval_status = "draft";
         const { data, error } = await supabase.from("survey_templates").insert(templateData).select("id").single();
         if (error) throw error;
         tplId = data.id;
       }
 
-      // Sync questions: delete all then re-insert
+      // Sync questions
       await supabase.from("survey_questions").delete().eq("template_id", tplId!);
       if (questions.length > 0) {
         const qRows = questions.map((q, i) => ({
@@ -215,12 +217,38 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
       }
 
       queryClient.invalidateQueries({ queryKey: ["survey-templates"] });
-      toast.success(templateId ? "Template updated" : "Template created");
-      onOpenChange(false);
+      return tplId;
     } catch (e: any) {
       toast.error(e.message);
+      return null;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    const result = await saveTemplate(templateId);
+    if (result) {
+      toast.success(templateId ? "Template updated" : "Template created");
+      onOpenChange(false);
+    }
+  };
+
+  const handleSaveAsNew = async () => {
+    const cloneName = name.trim() + " (Copy)";
+    setName(cloneName);
+    const result = await saveTemplate(null, "draft");
+    if (result) {
+      toast.success("Saved as new template (Draft)");
+      onOpenChange(false);
+    }
+  };
+
+  const handleSendForApproval = async () => {
+    const result = await saveTemplate(templateId, "pending_approval");
+    if (result) {
+      toast.success("Template sent for approval");
+      onOpenChange(false);
     }
   };
 
@@ -456,8 +484,18 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
           </TabsContent>
         </Tabs>
 
-        <div className="flex justify-end gap-2 pt-4 border-t">
+        <div className="flex flex-wrap justify-end gap-2 pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          {templateId && (
+            <>
+              <Button variant="outline" onClick={handleSaveAsNew} disabled={saving} className="gap-1.5">
+                <Copy className="h-3.5 w-3.5" /> Save as New
+              </Button>
+              <Button variant="outline" onClick={handleSendForApproval} disabled={saving} className="gap-1.5">
+                <Send className="h-3.5 w-3.5" /> Send for Approval
+              </Button>
+            </>
+          )}
           <Button onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : templateId ? "Update Template" : "Create Template"}
           </Button>

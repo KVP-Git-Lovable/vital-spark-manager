@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Plus, Search, Camera } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,33 @@ import { useQuery } from "@tanstack/react-query";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
+import { toast } from "sonner";
 
 const Procedures = () => {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [cameraProc, setCameraProc] = useState<any>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | HTMLDivElement | null>>({});
+
+  const handleProcedureSaved = useCallback((savedId: string) => {
+    setHighlightedId(savedId);
+    // Scroll to the row after a short delay to let the sheet close
+    setTimeout(() => {
+      rowRefs.current[savedId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+    toast.success("Procedure saved", {
+      description: "View Record",
+      action: {
+        label: "View Record",
+        onClick: () => setSelectedId(savedId),
+      },
+      duration: 6000,
+    });
+    // Clear highlight after 3 seconds
+    setTimeout(() => setHighlightedId(null), 3000);
+  }, []);
 
   const { data: procedures = [], isLoading } = useQuery({
     queryKey: ["procedures"],

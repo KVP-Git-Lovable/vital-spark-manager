@@ -159,6 +159,7 @@ const getDrName = (inv: any) => {
 
 const Billing = () => {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [paymentInv, setPaymentInv] = useState<any>(null);

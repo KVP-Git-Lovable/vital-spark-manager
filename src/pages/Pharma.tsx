@@ -25,7 +25,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", hsn_code: "", reorder_level: 10, vendor_id: "", mrp: 0, selling_price: 0, gst_percent: 0, expiry_date: "", qty_per_unit: 1, tablets_per_strip: 0 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", reorder_level: 10, vendor_ids: [] as string[], qty_per_unit: 1, tablets_per_strip: 0 };
 const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {

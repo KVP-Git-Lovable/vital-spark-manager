@@ -207,6 +207,17 @@ const Billing = () => {
       while (arr.length < c) arr.push(0);
       return arr.slice(0, c);
     });
+    setRecurringDueDates((prev) => {
+      const arr = [...prev];
+      const baseDate = arr[0] || new Date();
+      while (arr.length < c) arr.push(addMonths(baseDate, arr.length));
+      return arr.slice(0, c);
+    });
+    setRecurringStatuses((prev) => {
+      const arr = [...prev];
+      while (arr.length < c) arr.push("Pending");
+      return arr.slice(0, c);
+    });
     if (recurringTotalAmount > 0) {
       setRecurringAmount(Math.round((recurringTotalAmount / c) * 100) / 100);
     }

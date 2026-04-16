@@ -176,13 +176,8 @@ const Pharma = () => {
         category: productForm.category,
         manufacturer: productForm.manufacturer || null,
         unit: productForm.unit,
-        hsn_code: productForm.hsn_code || null,
         reorder_level: productForm.reorder_level,
-        mrp: productForm.mrp,
-        selling_price: productForm.selling_price,
-        gst_percent: productForm.gst_percent,
-        vendor_id: productForm.vendor_id || null,
-        expiry_date: productForm.expiry_date || null,
+        vendor_id: productForm.vendor_ids.length > 0 ? productForm.vendor_ids[0] : null,
         qty_per_unit: productForm.qty_per_unit || 1,
       };
       const { error } = await supabase.from("pharma_products").insert(payload);

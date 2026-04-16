@@ -354,9 +354,24 @@ export default function AllSurveys() {
                   <div>
                     <p className="font-medium mb-1">AI Recommendation</p>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {typeof selectedResponse.ai_recommendation === "object"
-                        ? (selectedResponse.ai_recommendation as any).text || JSON.stringify(selectedResponse.ai_recommendation, null, 2)
-                        : String(selectedResponse.ai_recommendation)}
+                      {(() => {
+                        const raw = selectedResponse.ai_recommendation;
+                        if (!raw) return "—";
+                        // If it's an object, extract .recommendation or .text
+                        if (typeof raw === "object") {
+                          return (raw as any).recommendation || (raw as any).text || JSON.stringify(raw, null, 2);
+                        }
+                        // If it's a string that looks like JSON, try to parse and extract
+                        if (typeof raw === "string") {
+                          try {
+                            const parsed = JSON.parse(raw);
+                            if (typeof parsed === "object" && parsed !== null) {
+                              return parsed.recommendation || parsed.text || raw;
+                            }
+                          } catch { /* not JSON, use as-is */ }
+                        }
+                        return String(raw);
+                      })()}
                     </p>
                   </div>
                 )}

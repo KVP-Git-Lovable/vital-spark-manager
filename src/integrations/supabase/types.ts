@@ -2371,6 +2371,8 @@ export type Database = {
           patient_id: string
           reviewed_at: string | null
           reviewed_by: string | null
+          selected_products: Json | null
+          selected_services: Json | null
           template_id: string
         }
         Insert: {
@@ -2386,6 +2388,8 @@ export type Database = {
           patient_id: string
           reviewed_at?: string | null
           reviewed_by?: string | null
+          selected_products?: Json | null
+          selected_services?: Json | null
           template_id: string
         }
         Update: {
@@ -2401,6 +2405,8 @@ export type Database = {
           patient_id?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
+          selected_products?: Json | null
+          selected_services?: Json | null
           template_id?: string
         }
         Relationships: [
@@ -2516,6 +2522,7 @@ export type Database = {
         Row: {
           age_range_max: number | null
           age_range_min: number | null
+          approval_status: string
           created_at: string
           description: string | null
           id: string
@@ -2528,6 +2535,7 @@ export type Database = {
         Insert: {
           age_range_max?: number | null
           age_range_min?: number | null
+          approval_status?: string
           created_at?: string
           description?: string | null
           id?: string
@@ -2540,6 +2548,7 @@ export type Database = {
         Update: {
           age_range_max?: number | null
           age_range_min?: number | null
+          approval_status?: string
           created_at?: string
           description?: string | null
           id?: string

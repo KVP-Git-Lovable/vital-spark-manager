@@ -39,9 +39,10 @@ interface PrescriptionRow {
 interface ProcedureDetailSheetProps {
   procedureId: string | null;
   onClose: () => void;
+  onSaved?: (id: string) => void;
 }
 
-export function ProcedureDetailSheet({ procedureId, onClose }: ProcedureDetailSheetProps) {
+export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: ProcedureDetailSheetProps) {
   const queryClient = useQueryClient();
   const [cameraOpen, setCameraOpen] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -197,7 +198,9 @@ export function ProcedureDetailSheet({ procedureId, onClose }: ProcedureDetailSh
       queryClient.invalidateQueries({ queryKey: ["procedure-detail", procedureId] });
       queryClient.invalidateQueries({ queryKey: ["procedure-prescriptions", procedureId] });
       queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
-      toast.success("Procedure updated");
+      const savedId = procedureId!;
+      handleClose();
+      onSaved?.(savedId);
     },
     onError: (e: Error) => toast.error(e.message),
   });

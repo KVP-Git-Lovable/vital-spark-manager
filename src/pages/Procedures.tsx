@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Plus, Search, Camera } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,33 @@ import { useQuery } from "@tanstack/react-query";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
+import { toast } from "sonner";
 
 const Procedures = () => {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [cameraProc, setCameraProc] = useState<any>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLTableRowElement | HTMLDivElement | null>>({});
+
+  const handleProcedureSaved = useCallback((savedId: string) => {
+    setHighlightedId(savedId);
+    // Scroll to the row after a short delay to let the sheet close
+    setTimeout(() => {
+      rowRefs.current[savedId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+    toast.success("Procedure saved", {
+      description: "View Record",
+      action: {
+        label: "View Record",
+        onClick: () => setSelectedId(savedId),
+      },
+      duration: 6000,
+    });
+    // Clear highlight after 3 seconds
+    setTimeout(() => setHighlightedId(null), 3000);
+  }, []);
 
   const { data: procedures = [], isLoading } = useQuery({
     queryKey: ["procedures"],
@@ -64,9 +85,10 @@ const Procedures = () => {
           filtered.map((proc: any) => (
             <motion.div
               key={proc.id}
+              ref={(el) => { rowRefs.current[proc.id] = el; }}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="stat-card p-3 cursor-pointer active:scale-[0.98] transition-transform"
+              className={`stat-card p-3 cursor-pointer active:scale-[0.98] transition-all duration-500 ${highlightedId === proc.id ? "ring-2 ring-primary bg-primary/5" : ""}`}
               onClick={() => setSelectedId(proc.id)}
             >
               <div className="flex items-start justify-between gap-2">
@@ -110,7 +132,7 @@ const Procedures = () => {
               <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No procedures found</TableCell></TableRow>
             ) : (
               filtered.map((proc: any) => (
-                <TableRow key={proc.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedId(proc.id)}>
+                <TableRow key={proc.id} ref={(el) => { rowRefs.current[proc.id] = el; }} className={`cursor-pointer hover:bg-muted/50 transition-all duration-500 ${highlightedId === proc.id ? "ring-2 ring-primary bg-primary/5" : ""}`} onClick={() => setSelectedId(proc.id)}>
                   <TableCell className="text-sm">{new Date(proc.procedure_date).toLocaleDateString()}</TableCell>
                   <TableCell className="font-medium">{proc.patients?.first_name} {proc.patients?.last_name}</TableCell>
                   <TableCell>{proc.service_name}</TableCell>
@@ -136,7 +158,7 @@ const Procedures = () => {
         <ProcedureFormDialog open={createOpen} onOpenChange={setCreateOpen} />
       )}
 
-      <ProcedureDetailSheet procedureId={selectedId} onClose={() => setSelectedId(null)} />
+      <ProcedureDetailSheet procedureId={selectedId} onClose={() => setSelectedId(null)} onSaved={handleProcedureSaved} />
 
       {cameraProc && (
         <CameraCapture

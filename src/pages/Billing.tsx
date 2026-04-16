@@ -195,6 +195,8 @@ const Billing = () => {
   const [recurringAmount, setRecurringAmount] = useState(0);
   const [recurringCollected, setRecurringCollected] = useState<number[]>([0]);
   const [recurringTotalAmount, setRecurringTotalAmount] = useState(0);
+  const [recurringDueDates, setRecurringDueDates] = useState<Date[]>([new Date()]);
+  const [recurringStatuses, setRecurringStatuses] = useState<string[]>(["Pending"]);
   const [serviceSearchOpen, setServiceSearchOpen] = useState<number | null>(null);
 
   const handleRecurringCountChange = (count: number) => {

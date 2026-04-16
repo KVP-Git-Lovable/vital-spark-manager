@@ -379,9 +379,12 @@ const Billing = () => {
         const totalPerInst = recurringAmount + taxPerInst;
         const rows = Array.from({ length: recurringCount }, (_, i) => {
           const collected = recurringCollected[i] || 0;
-          let status = "Pending";
+          const instStatus = recurringStatuses[i] || "Pending";
+          let status = instStatus;
+          // Auto-override if collected amount dictates
           if (collected >= totalPerInst && totalPerInst > 0) status = "Paid";
-          else if (collected > 0) status = "Partial";
+          else if (collected > 0 && instStatus === "Pending") status = "Partial";
+          const dueDate = recurringDueDates[i] || addMonths(new Date(), i);
           return {
             invoice_number: `INV-${baseNum}-R${i + 1}`,
             patient_id: patientId || null,
@@ -392,7 +395,7 @@ const Billing = () => {
             status,
             payment_type: "Recurring",
             payment_mode: paymentMode,
-            notes: `Installment ${i + 1} of ${recurringCount}${notes ? ` — ${notes}` : ""}`,
+            notes: `Installment ${i + 1} of ${recurringCount} | Due: ${format(dueDate, "dd MMM yyyy")}${notes ? ` — ${notes}` : ""}`,
             tax_id: selectedTaxId || null,
             tax_rate: taxRate,
             tax_amount: taxPerInst,

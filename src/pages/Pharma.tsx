@@ -452,7 +452,10 @@ const Pharma = () => {
               <div className="space-y-3 pt-2">
                 <div>
                   <Label>Product *</Label>
-                  <Select value={stockForm.product_id} onValueChange={(v) => setStockForm({ ...stockForm, product_id: v })}>
+                  <Select value={stockForm.product_id} onValueChange={(v) => {
+                    const prod = products.find((p: any) => p.id === v);
+                    setStockForm({ ...stockForm, product_id: v, mrp: prod?.mrp || 0 });
+                  }}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select product" /></SelectTrigger>
                     <SelectContent>{products.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
                   </Select>

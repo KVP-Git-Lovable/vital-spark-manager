@@ -921,20 +921,55 @@ const Billing = () => {
                     </div>
                   </div>
                   {recurringCount > 0 && (
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {Array.from({ length: recurringCount }, (_, i) => (
-                        <div key={i} className="flex items-center gap-3 border rounded-lg p-2 bg-muted/30">
-                          <span className="text-xs font-medium text-muted-foreground w-24 shrink-0">Inst. {i + 1}</span>
-                          <div className="flex-1 text-xs text-right text-muted-foreground">₹{recurringAmount.toLocaleString()}</div>
-                          <div className="w-28">
-                            <Input type="number" className="h-7 text-xs" placeholder="Collected" value={recurringCollected[i] || 0} onChange={(e) => {
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      <div className="grid grid-cols-[3rem_1fr_5rem_5rem_5rem] gap-2 text-xs font-medium text-muted-foreground px-2">
+                        <span>Inst.</span>
+                        <span>Due Date</span>
+                        <span className="text-right">Amount</span>
+                        <span>Status</span>
+                        <span className="text-right">Paid</span>
+                      </div>
+                      {Array.from({ length: recurringCount }, (_, i) => {
+                        const dueDate = recurringDueDates[i] || addMonths(new Date(), i);
+                        const instStatus = recurringStatuses[i] || "Pending";
+                        return (
+                          <div key={i} className="grid grid-cols-[3rem_1fr_5rem_5rem_5rem] gap-2 items-center border rounded-lg p-2 bg-muted/30">
+                            <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" size="sm" className="h-7 text-xs justify-start font-normal w-full">
+                                  {format(dueDate, "dd MMM yyyy")}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar mode="single" selected={dueDate} onSelect={(d) => {
+                                  if (d) {
+                                    const updated = [...recurringDueDates];
+                                    updated[i] = d;
+                                    setRecurringDueDates(updated);
+                                  }
+                                }} className="p-3 pointer-events-auto" />
+                              </PopoverContent>
+                            </Popover>
+                            <span className="text-xs text-right">₹{recurringAmount.toLocaleString()}</span>
+                            <Select value={instStatus} onValueChange={(v) => {
+                              const updated = [...recurringStatuses];
+                              updated[i] = v;
+                              setRecurringStatuses(updated);
+                            }}>
+                              <SelectTrigger className="h-7 text-xs px-1.5"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {["Pending", "Paid", "Partial", "Overdue"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Input type="number" className="h-7 text-xs" placeholder="0" value={recurringCollected[i] || 0} onChange={(e) => {
                               const updated = [...recurringCollected];
                               updated[i] = parseFloat(e.target.value) || 0;
                               setRecurringCollected(updated);
                             }} />
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                   <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">

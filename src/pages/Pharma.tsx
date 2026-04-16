@@ -392,7 +392,7 @@ const Pharma = () => {
                   <Label>Vendor(s)</Label>
                   <div className="mt-1 space-y-2">
                     <div className="flex flex-wrap gap-1">
-                      {productForm.vendor_ids.map((vid) => {
+                      {(productForm.vendor_ids || []).map((vid) => {
                         const v = vendors.find((vn: any) => vn.id === vid);
                         return v ? (
                           <Badge key={vid} variant="secondary" className="gap-1">

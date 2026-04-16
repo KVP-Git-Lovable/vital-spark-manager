@@ -42,6 +42,7 @@ import ShopOrders from "./pages/shop/ShopOrders";
 import Website from "./pages/Website";
 import ProblemAreas from "./pages/ProblemAreas";
 import SurveyTemplates from "./pages/SurveyTemplates";
+import SurveyTemplateDetail from "./pages/SurveyTemplateDetail";
 import AllSurveys from "./pages/AllSurveys";
 import Vendors from "./pages/Vendors";
 import UserManagement from "./pages/UserManagement";
@@ -139,6 +140,7 @@ const App = () => (
                     <Route path="/staff/:id" element={<ProtectedRoute moduleKey="staff"><StaffDetail /></ProtectedRoute>} />
                     <Route path="/problem-areas" element={<ProtectedRoute moduleKey="problem_areas"><ProblemAreas /></ProtectedRoute>} />
                     <Route path="/survey-templates" element={<ProtectedRoute moduleKey="surveys"><SurveyTemplates /></ProtectedRoute>} />
+                    <Route path="/survey-templates/:id" element={<ProtectedRoute moduleKey="surveys"><SurveyTemplateDetail /></ProtectedRoute>} />
                     <Route path="/all-surveys" element={<ProtectedRoute moduleKey="surveys"><AllSurveys /></ProtectedRoute>} />
                     <Route path="/vendors" element={<ProtectedRoute moduleKey="vendors"><Vendors /></ProtectedRoute>} />
                     <Route path="/unit-master" element={<ProtectedRoute moduleKey="unit_master"><UnitMaster /></ProtectedRoute>} />

@@ -319,8 +319,9 @@ const Appointments = () => {
       const patientSource = (patient as any)?.source || "Walk-in";
       const selectedService = services.find((s) => s.id === serviceId);
       const serviceName = selectedService?.name || "";
-      if (isRecurring && recurrenceEndDate) {
-        const dates = generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate);
+      const wasRecurring = isRecurring && !!recurrenceEndDate;
+      if (wasRecurring) {
+        const dates = generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate!);
         const rows = dates.map((d) => ({
           patient_id: patientId || null,
           patient_name: patientName,
@@ -331,7 +332,7 @@ const Appointments = () => {
           end_time: buildDateTime(d, endTime).toISOString(),
           is_recurring: true,
           recurrence_pattern: recurrencePattern,
-          recurrence_end_date: format(recurrenceEndDate, "yyyy-MM-dd"),
+          recurrence_end_date: format(recurrenceEndDate!, "yyyy-MM-dd"),
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
         }));
@@ -352,20 +353,19 @@ const Appointments = () => {
         } as any);
         if (error) throw error;
       }
+      return { wasRecurring, capturedPatientId: patientId, capturedServiceName: serviceName, phone: patient?.phone };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       toast.success("Appointment(s) created");
-      const patient = patients.find((p) => p.id === patientId);
-      if (patient?.phone) toast.info(`Patient phone: ${patient.phone}`, { duration: 6000 });
-      if (isRecurring) {
-        const selectedService = services.find((s) => s.id === serviceId);
-        setLastCreatedPatientId(patientId);
-        setLastCreatedService(selectedService?.name || "");
-        setShowBillingPrompt(true);
-      }
+      if (data.phone) toast.info(`Patient phone: ${data.phone}`, { duration: 6000 });
       resetForm();
       setOpen(false);
+      if (data.wasRecurring) {
+        setLastCreatedPatientId(data.capturedPatientId);
+        setLastCreatedService(data.capturedServiceName);
+        setShowBillingPrompt(true);
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });

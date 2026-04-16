@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye } from "lucide-react";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";

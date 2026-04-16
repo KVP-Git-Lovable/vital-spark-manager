@@ -83,9 +83,26 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
     queryKey: ["product-prescription-consumed", productId],
     queryFn: async () => {
       if (!productId) return [];
-      const { data, error } = await supabase.from("prescriptions").select("quantity").eq("product_id", productId);
+      const { data, error } = await supabase.from("prescriptions").select("quantity, created_at, procedure_id").eq("product_id", productId);
       if (error) throw error;
-      return data;
+      // Fetch procedure+patient details for each prescription
+      const procedureIds = [...new Set((data || []).map((p: any) => p.procedure_id).filter(Boolean))];
+      let procedureMap: Record<string, any> = {};
+      if (procedureIds.length > 0) {
+        const { data: procs } = await supabase.from("procedures").select("id, patient_id, procedure_date").in("id", procedureIds);
+        const patientIds = [...new Set((procs || []).map((p: any) => p.patient_id).filter(Boolean))];
+        let patientMap: Record<string, string> = {};
+        if (patientIds.length > 0) {
+          const { data: patients } = await supabase.from("patients").select("id, first_name, last_name").in("id", patientIds);
+          (patients || []).forEach((p: any) => { patientMap[p.id] = `${p.first_name} ${p.last_name}`; });
+        }
+        (procs || []).forEach((p: any) => { procedureMap[p.id] = { ...p, patient_name: patientMap[p.patient_id] || "Unknown" }; });
+      }
+      return (data || []).map((item: any) => ({
+        ...item,
+        patient_name: item.procedure_id ? (procedureMap[item.procedure_id]?.patient_name || "Unknown") : "Unknown",
+        date: item.procedure_id ? (procedureMap[item.procedure_id]?.procedure_date || item.created_at) : item.created_at,
+      }));
     },
     enabled: !!productId,
   });
@@ -94,9 +111,19 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
     queryKey: ["product-portal-sales", productId],
     queryFn: async () => {
       if (!productId) return [];
-      const { data, error } = await supabase.from("portal_order_items").select("quantity, total_price").eq("product_id", productId);
+      const { data, error } = await supabase.from("portal_order_items").select("quantity, total_price, unit_price, order_id").eq("product_id", productId);
       if (error) throw error;
-      return data;
+      const orderIds = [...new Set((data || []).map((i: any) => i.order_id).filter(Boolean))];
+      let orderMap: Record<string, any> = {};
+      if (orderIds.length > 0) {
+        const { data: orders } = await supabase.from("portal_orders").select("id, patient_name, created_at").in("id", orderIds);
+        (orders || []).forEach((o: any) => { orderMap[o.id] = o; });
+      }
+      return (data || []).map((item: any) => ({
+        ...item,
+        patient_name: orderMap[item.order_id]?.patient_name || "Unknown",
+        date: orderMap[item.order_id]?.created_at || "",
+      }));
     },
     enabled: !!productId,
   });

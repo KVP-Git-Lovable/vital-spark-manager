@@ -33,6 +33,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
   const [form, setForm] = useState<any>({});
   const [priceForm, setPriceForm] = useState({ mrp: 0, selling_price: 0, purchase_price: 0, gst_percent: 0, notes: "", effective_from: new Date().toISOString().split("T")[0] });
   const [showPriceForm, setShowPriceForm] = useState(false);
+  const [selectedBatch, setSelectedBatch] = useState<any>(null);
 
   const { data: product } = useQuery({
     queryKey: ["pharma-product", productId],

@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye } from "lucide-react";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1016,9 +1016,11 @@ const PatientDetail = () => {
                   const template = sr.survey_templates;
                   return (
                     <div key={sr.id} className="stat-card p-3 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex items-center gap-1.5">
                         <p className="font-medium text-sm truncate">{template?.name || "Survey"}</p>
-                        <p className="text-xs text-muted-foreground">{new Date(sr.created_at).toLocaleDateString()}</p>
+                        <button onClick={() => setViewingSurveyId(sr.id)} className="text-muted-foreground hover:text-primary transition-colors shrink-0" title="View survey details">
+                          <Eye className="h-4 w-4" />
+                        </button>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <Badge
@@ -1027,7 +1029,7 @@ const PatientDetail = () => {
                         >
                           {sr.dr_status === "approved" ? "Approved" : sr.dr_status === "reviewed" ? "Reviewed" : "Pending"}
                         </Badge>
-                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setViewingSurveyId(sr.id)}>View</Button>
+                        <p className="text-xs text-muted-foreground">{new Date(sr.created_at).toLocaleDateString()}</p>
                       </div>
                     </div>
                   );

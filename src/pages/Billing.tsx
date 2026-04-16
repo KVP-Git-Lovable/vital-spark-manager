@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths } from "date-fns";
 import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
@@ -158,6 +159,7 @@ const getDrName = (inv: any) => {
 
 const Billing = () => {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [paymentInv, setPaymentInv] = useState<any>(null);
@@ -289,6 +291,24 @@ const Billing = () => {
       return data;
     },
   });
+
+  // Pre-fill from Appointments flow
+  useEffect(() => {
+    const prefillPatient = searchParams.get("prefillPatient");
+    const prefillService = searchParams.get("prefillService");
+    if (prefillPatient || prefillService) {
+      if (prefillPatient) setPatientId(prefillPatient);
+      if (prefillService) {
+        setServiceInputs([prefillService]);
+        // Auto-fill price from service master
+        const svc = serviceMaster.find((s: any) => s.name === prefillService);
+        if (svc) setTotalAmount(svc.price || 0);
+      }
+      setPaymentType("Recurring");
+      setOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, serviceMaster]);
 
   // Unique doctors and services for filter dropdowns
   const uniqueDoctors = useMemo(() => {

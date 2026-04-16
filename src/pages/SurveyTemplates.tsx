@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Plus, Search, ClipboardCheck, Pencil, Trash2, ChevronRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Search, ClipboardCheck, Pencil, Trash2, Eye, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,7 @@ import {
 
 const SurveyTemplates = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -96,6 +98,9 @@ const SurveyTemplates = () => {
               </div>
               <div className="flex items-center justify-between pt-2 border-t">
                 <div className="flex gap-1">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => navigate(`/survey-templates/${t.id}`)}>
+                    <Eye className="h-3 w-3" /> View
+                  </Button>
                   <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => { setEditingId(t.id); setFormOpen(true); }}>
                     <Pencil className="h-3 w-3" /> Edit
                   </Button>

@@ -85,9 +85,10 @@ const Procedures = () => {
           filtered.map((proc: any) => (
             <motion.div
               key={proc.id}
+              ref={(el) => { rowRefs.current[proc.id] = el; }}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="stat-card p-3 cursor-pointer active:scale-[0.98] transition-transform"
+              className={`stat-card p-3 cursor-pointer active:scale-[0.98] transition-all duration-500 ${highlightedId === proc.id ? "ring-2 ring-primary bg-primary/5" : ""}`}
               onClick={() => setSelectedId(proc.id)}
             >
               <div className="flex items-start justify-between gap-2">
@@ -131,7 +132,7 @@ const Procedures = () => {
               <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No procedures found</TableCell></TableRow>
             ) : (
               filtered.map((proc: any) => (
-                <TableRow key={proc.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedId(proc.id)}>
+                <TableRow key={proc.id} ref={(el) => { rowRefs.current[proc.id] = el; }} className={`cursor-pointer hover:bg-muted/50 transition-all duration-500 ${highlightedId === proc.id ? "ring-2 ring-primary bg-primary/5" : ""}`} onClick={() => setSelectedId(proc.id)}>
                   <TableCell className="text-sm">{new Date(proc.procedure_date).toLocaleDateString()}</TableCell>
                   <TableCell className="font-medium">{proc.patients?.first_name} {proc.patients?.last_name}</TableCell>
                   <TableCell>{proc.service_name}</TableCell>
@@ -157,7 +158,7 @@ const Procedures = () => {
         <ProcedureFormDialog open={createOpen} onOpenChange={setCreateOpen} />
       )}
 
-      <ProcedureDetailSheet procedureId={selectedId} onClose={() => setSelectedId(null)} />
+      <ProcedureDetailSheet procedureId={selectedId} onClose={() => setSelectedId(null)} onSaved={handleProcedureSaved} />
 
       {cameraProc && (
         <CameraCapture

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, Phone, Loader2, ArrowRight } from "lucide-react";
+import { Phone, Loader2, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import clinicLogo from "@/assets/skin-clinic-logo.png";
 
 const PortalLogin = () => {
   const navigate = useNavigate();
@@ -21,7 +22,6 @@ const PortalLogin = () => {
 
     setLoading(true);
     try {
-      // Find patient by phone number (skip OTP for now)
       const cleanInput = phone.replace(/\D/g, "").slice(-10);
       
       const { data: patients, error } = await supabase
@@ -35,7 +35,6 @@ const PortalLogin = () => {
         return;
       }
 
-      // Find matching patient by phone
       const patient = patients?.find(p => {
         const cleanStored = p.phone?.replace(/\D/g, "").slice(-10);
         return cleanStored === cleanInput;
@@ -47,7 +46,6 @@ const PortalLogin = () => {
         return;
       }
 
-      // Store session in localStorage (simplified - no OTP)
       const session = {
         patientId: patient.id,
         sessionToken: crypto.randomUUID(),
@@ -75,11 +73,9 @@ const PortalLogin = () => {
       >
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary text-primary-foreground mb-4 shadow-lg">
-            <Heart className="h-8 w-8" />
-          </div>
+          <img src={clinicLogo} alt="The Skin Clinic" className="h-16 w-16 mx-auto rounded-2xl object-contain shadow-lg mb-4" />
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            DermaCare Portal
+            The Skin Clinic
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Access your health records securely

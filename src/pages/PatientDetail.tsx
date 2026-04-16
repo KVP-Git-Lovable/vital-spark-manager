@@ -372,7 +372,7 @@ const PatientDetail = () => {
             size="sm"
             className="gap-1 shrink-0"
             onClick={() => {
-              navigator.clipboard.writeText(`Access your DermaCare portal: ${window.location.origin}/portal\nPhone: ${patient.phone}\nAccess Code: ${otpCode}`);
+              navigator.clipboard.writeText(`Access your The Skin Clinic portal: ${window.location.origin}/portal\nPhone: ${patient.phone}\nAccess Code: ${otpCode}`);
               setOtpCopied(true);
               toast.success("Copied to clipboard!");
               setTimeout(() => setOtpCopied(false), 2000);

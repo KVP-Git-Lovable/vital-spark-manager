@@ -39,17 +39,30 @@ function SurveyAnswersView({ surveyId, answers, templateId }: { surveyId: string
     },
     enabled: !!templateId,
   });
+
+  // Match answers: try by question ID first, then fall back to sort-order matching
+  const answerKeys = Object.keys(answers);
+  const getAnswer = (q: any, idx: number) => {
+    if (answers[q.id] !== undefined) return answers[q.id];
+    // Fallback: match by position if IDs don't match (seeded data)
+    if (answerKeys.length > 0 && answerKeys[idx] !== undefined) return answers[answerKeys[idx]];
+    return null;
+  };
+
   if (questions.length === 0) return <p className="text-sm text-muted-foreground">Loading questions...</p>;
   return (
     <div className="space-y-4 mt-2">
-      {questions.map((q: any, i: number) => (
-        <div key={q.id} className="space-y-1">
-          <p className="text-sm font-medium">{i + 1}. {q.question_text}</p>
-          <p className="text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
-            {Array.isArray(answers[q.id]) ? answers[q.id].join(", ") : (answers[q.id] ?? "—")}
-          </p>
-        </div>
-      ))}
+      {questions.map((q: any, i: number) => {
+        const answer = getAnswer(q, i);
+        return (
+          <div key={q.id} className="space-y-1">
+            <p className="text-sm font-medium">{i + 1}. {q.question_text}</p>
+            <p className="text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+              {answer == null ? "—" : Array.isArray(answer) ? answer.join(", ") : (answer ?? "—")}
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 }

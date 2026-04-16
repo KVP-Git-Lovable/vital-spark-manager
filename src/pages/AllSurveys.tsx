@@ -33,6 +33,60 @@ function getStatusDisplay(status: string | null) {
   return STATUS_OPTIONS.find(s => s.value === status) || STATUS_OPTIONS[0];
 }
 
+
+function SurveyAnswersSection({ templateId, answers }: { templateId: string; answers: Record<string, any> }) {
+  const { data: questions = [] } = useQuery({
+    queryKey: ["survey-questions", templateId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("survey_questions").select("*").eq("template_id", templateId).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!templateId,
+  });
+
+  // Match answers: try by question ID first, then fall back to sort-order matching
+  const answerKeys = Object.keys(answers);
+  const getAnswer = (q: any, idx: number) => {
+    if (answers[q.id] !== undefined) return answers[q.id];
+    // Fallback: match by position if IDs don't match (seeded data)
+    if (answerKeys.length > 0 && answerKeys[idx] !== undefined) return answers[answerKeys[idx]];
+    return null;
+  };
+
+  if (questions.length === 0) {
+    // Fallback: show raw answers if questions can't be loaded
+    return (
+      <div className="space-y-2">
+        {Object.entries(answers).map(([qId, answer], idx) => (
+          <div key={qId} className="bg-muted/50 rounded-lg p-3">
+            <p className="text-sm font-medium">Question {idx + 1}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {Array.isArray(answer) ? answer.join(", ") : (typeof answer === "object" ? JSON.stringify(answer) : String(answer))}
+            </p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {questions.map((q: any, i: number) => {
+        const answer = getAnswer(q, i);
+        return (
+          <div key={q.id} className="bg-muted/50 rounded-lg p-3">
+            <p className="text-sm font-medium">{i + 1}. {q.question_text}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {answer == null ? "—" : Array.isArray(answer) ? answer.join(", ") : (typeof answer === "object" ? JSON.stringify(answer) : String(answer))}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function AllSurveys() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");

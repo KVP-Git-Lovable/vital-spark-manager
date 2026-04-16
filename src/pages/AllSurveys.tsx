@@ -4,9 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -17,8 +18,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, ClipboardCheck, ChevronDown, Filter, X } from "lucide-react";
-import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { Search, ClipboardCheck, ChevronDown, Filter, X, Eye, Package, Stethoscope } from "lucide-react";
+import { format, subDays, startOfDay } from "date-fns";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -40,32 +41,33 @@ export default function AllSurveys() {
   const [dateFilter, setDateFilter] = useState("all");
   const [selectedResponse, setSelectedResponse] = useState<any>(null);
 
+  // Selective approval state
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+
   const { data: responses = [], isLoading } = useQuery({
     queryKey: ["all-survey-responses"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("survey_responses")
-        .select("*, survey_templates(name), patients(id, first_name, last_name)")
+        .select("*, survey_templates(name, approval_status, is_active), patients(id, first_name, last_name, phone)")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []).filter((r: any) =>
+        r.survey_templates?.is_active === true && r.survey_templates?.approval_status === "approved"
+      );
     },
   });
 
-  // Get unique template names for filter
   const templateNames = [...new Set(responses.map((r: any) => r.survey_templates?.name).filter(Boolean))].sort();
 
-  // Filter logic
   const filtered = responses.filter((r: any) => {
     const q = search.toLowerCase();
     const patientName = r.patients ? `${r.patients.first_name} ${r.patients.last_name}`.toLowerCase() : "";
     const templateName = r.survey_templates?.name?.toLowerCase() || "";
     if (q && !patientName.includes(q) && !templateName.includes(q)) return false;
-
     if (statusFilter !== "all" && (r.dr_status || "pending_review") !== statusFilter) return false;
-
     if (templateFilter !== "all" && r.survey_templates?.name !== templateFilter) return false;
-
     if (dateFilter !== "all") {
       const created = new Date(r.created_at);
       const now = new Date();
@@ -73,20 +75,48 @@ export default function AllSurveys() {
       if (dateFilter === "7days" && created < startOfDay(subDays(now, 7))) return false;
       if (dateFilter === "30days" && created < startOfDay(subDays(now, 30))) return false;
     }
-
     return true;
   });
 
-  const handleStatusChange = async (response: any, newStatus: string) => {
-    const { error } = await supabase.from("survey_responses").update({ dr_status: newStatus }).eq("id", response.id);
-    if (error) { toast.error(error.message); return; }
+  const openDetail = (r: any) => {
+    setSelectedResponse(r);
+    // Pre-select already saved selections or all AI recommendations
+    const aiProducts = (r.ai_products || []) as any[];
+    const aiServices = (r.ai_services || []) as any[];
+    const savedProducts = r.selected_products as any[];
+    const savedServices = r.selected_services as any[];
 
-    // Auto-create prescriptions when approved
+    if (savedProducts && savedProducts.length > 0) {
+      setSelectedProducts(savedProducts.map((p: any) => typeof p === "string" ? p : (p.product_id || p.name)));
+    } else {
+      setSelectedProducts(aiProducts.map((_: any, i: number) => String(i)));
+    }
+    if (savedServices && savedServices.length > 0) {
+      setSelectedServices(savedServices.map((s: any) => typeof s === "string" ? s : (s.service_id || s.name)));
+    } else {
+      setSelectedServices(aiServices.map((_: any, i: number) => String(i)));
+    }
+  };
+
+  const handleStatusChange = async (response: any, newStatus: string) => {
     if (newStatus === "approved") {
-      const aiRec = response.ai_recommendation as any;
-      const aiProducts = (aiRec?.products || []) as any[];
-      if (aiProducts.length > 0) {
-        const rxEntries = aiProducts.map((p: any) => ({
+      // Use selective products/services
+      const aiProducts = (response.ai_products || []) as any[];
+      const aiServices = (response.ai_services || []) as any[];
+
+      const chosenProducts = aiProducts.filter((_: any, i: number) => selectedProducts.includes(String(i)));
+      const chosenServices = aiServices.filter((_: any, i: number) => selectedServices.includes(String(i)));
+
+      const { error } = await supabase.from("survey_responses").update({
+        dr_status: newStatus,
+        selected_products: chosenProducts,
+        selected_services: chosenServices,
+      }).eq("id", response.id);
+      if (error) { toast.error(error.message); return; }
+
+      // Create prescriptions only for selected products
+      if (chosenProducts.length > 0) {
+        const rxEntries = chosenProducts.map((p: any) => ({
           procedure_id: null,
           survey_response_id: response.id,
           medicine_name: p.product_name || p.name || "Unknown",
@@ -101,41 +131,52 @@ export default function AllSurveys() {
         if (rxError) {
           toast.error("Approved but failed to create Rx: " + rxError.message);
         } else {
-          toast.success(`Approved — ${rxEntries.length} medicine(s) added to Rx`);
+          toast.success(`Approved — ${rxEntries.length} product(s), ${chosenServices.length} service(s) selected`);
         }
       } else {
-        toast.success("Status set to Approved");
+        toast.success(`Approved — ${chosenServices.length} service(s) selected`);
       }
-      // Invalidate patient prescriptions
+
       if (response.patients?.id) {
         queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", response.patients.id] });
       }
     } else {
+      const { error } = await supabase.from("survey_responses").update({ dr_status: newStatus }).eq("id", response.id);
+      if (error) { toast.error(error.message); return; }
       toast.success(`Status set to ${getStatusDisplay(newStatus).label}`);
     }
 
-    // Bidirectional sync: invalidate both global and patient-specific queries
     queryClient.invalidateQueries({ queryKey: ["all-survey-responses"] });
     if (response.patients?.id) {
       queryClient.invalidateQueries({ queryKey: ["patient-surveys", response.patients.id] });
     }
+    setSelectedResponse(null);
   };
 
   const hasActiveFilters = statusFilter !== "all" || templateFilter !== "all" || dateFilter !== "all" || search;
 
   const clearFilters = () => {
-    setSearch("");
-    setStatusFilter("all");
-    setTemplateFilter("all");
-    setDateFilter("all");
+    setSearch(""); setStatusFilter("all"); setTemplateFilter("all"); setDateFilter("all");
+  };
+
+  const toggleAllProducts = (checked: boolean) => {
+    if (!selectedResponse) return;
+    const aiProducts = (selectedResponse.ai_products || []) as any[];
+    setSelectedProducts(checked ? aiProducts.map((_: any, i: number) => String(i)) : []);
+  };
+
+  const toggleAllServices = (checked: boolean) => {
+    if (!selectedResponse) return;
+    const aiServices = (selectedResponse.ai_services || []) as any[];
+    setSelectedServices(checked ? aiServices.map((_: any, i: number) => String(i)) : []);
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">All Surveys</h1>
-          <p className="text-muted-foreground">Survey responses across all patients</p>
+          <h1 className="text-2xl font-display font-bold text-foreground">All Surveys</h1>
+          <p className="text-sm text-muted-foreground">Survey responses across all patients</p>
         </div>
         {hasActiveFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1.5 text-xs">
@@ -149,17 +190,10 @@ export default function AllSurveys() {
         <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
         <div className="relative flex-1 min-w-[180px] max-w-[250px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search patient…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-8 text-xs"
-          />
+          <Input placeholder="Search patient…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 text-xs" />
         </div>
         <Select value={dateFilter} onValueChange={setDateFilter}>
-          <SelectTrigger className="h-8 text-xs w-[140px]">
-            <SelectValue placeholder="Date range" />
-          </SelectTrigger>
+          <SelectTrigger className="h-8 text-xs w-[140px]"><SelectValue placeholder="Date range" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all" className="text-xs">All Time</SelectItem>
             <SelectItem value="today" className="text-xs">Today</SelectItem>
@@ -168,9 +202,7 @@ export default function AllSurveys() {
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="h-8 text-xs w-[160px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
+          <SelectTrigger className="h-8 text-xs w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
             {STATUS_OPTIONS.map(s => (
@@ -179,9 +211,7 @@ export default function AllSurveys() {
           </SelectContent>
         </Select>
         <Select value={templateFilter} onValueChange={setTemplateFilter}>
-          <SelectTrigger className="h-8 text-xs w-[180px]">
-            <SelectValue placeholder="Template" />
-          </SelectTrigger>
+          <SelectTrigger className="h-8 text-xs w-[180px]"><SelectValue placeholder="Template" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all" className="text-xs">All Templates</SelectItem>
             {templateNames.map(t => (
@@ -191,87 +221,80 @@ export default function AllSurveys() {
         </Select>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Patient Name</TableHead>
-              <TableHead>Survey Template</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Loading…</TableCell>
-              </TableRow>
-            ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No survey responses found</TableCell>
-              </TableRow>
-            ) : (
-              filtered.map((r: any) => {
-                const status = getStatusDisplay(r.dr_status);
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell
-                      className="cursor-pointer"
-                      onClick={() => setSelectedResponse(r)}
-                    >
-                      {format(new Date(r.created_at), "dd MMM yyyy, hh:mm a")}
-                    </TableCell>
-                    <TableCell>
+      {/* Card Grid */}
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground text-center py-12">Loading…</p>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 space-y-3">
+          <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground/40" />
+          <p className="text-muted-foreground">No survey responses found</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((r: any) => {
+            const status = getStatusDisplay(r.dr_status);
+            const patientName = r.patients ? `${r.patients.first_name} ${r.patients.last_name}` : "—";
+            const aiProducts = (r.ai_products || []) as any[];
+            const aiServices = (r.ai_services || []) as any[];
+            return (
+              <Card key={r.id} className="p-4 space-y-3 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <h3 className="font-semibold text-sm truncate">
                       {r.patients ? (
-                        <Link
-                          to={`/patients/${r.patients.id}`}
-                          className="text-primary hover:underline font-medium"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {r.patients.first_name} {r.patients.last_name}
+                        <Link to={`/patients/${r.patients.id}`} className="text-primary hover:underline">
+                          {patientName}
                         </Link>
                       ) : "—"}
-                    </TableCell>
-                    <TableCell
-                      className="cursor-pointer"
-                      onClick={() => setSelectedResponse(r)}
-                    >
-                      {r.survey_templates?.name || "—"}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant={status.variant}
-                            size="sm"
-                            className="h-7 text-xs gap-1"
-                          >
-                            {status.label}
-                            <ChevronDown className="h-3 w-3" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {STATUS_OPTIONS.map(opt => (
-                            <DropdownMenuItem
-                              key={opt.value}
-                              className="text-xs"
-                              onClick={() => handleStatusChange(r, opt.value)}
-                            >
-                              {opt.label}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                    </h3>
+                    <p className="text-xs text-muted-foreground">{r.survey_templates?.name || "—"}</p>
+                    <p className="text-[10px] text-muted-foreground">{format(new Date(r.created_at), "dd MMM yyyy, hh:mm a")}</p>
+                  </div>
+                  <Badge variant={status.variant} className="text-[10px] ml-2 shrink-0">
+                    {status.label}
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {r.patients?.phone && (
+                    <Badge variant="outline" className="text-[10px]">{r.patients.phone}</Badge>
+                  )}
+                  {aiProducts.length > 0 && (
+                    <Badge variant="outline" className="text-[10px] gap-1">
+                      <Package className="h-2.5 w-2.5" /> {aiProducts.length} Products
+                    </Badge>
+                  )}
+                  {aiServices.length > 0 && (
+                    <Badge variant="outline" className="text-[10px] gap-1">
+                      <Stethoscope className="h-2.5 w-2.5" /> {aiServices.length} Services
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => openDetail(r)}>
+                    <Eye className="h-3 w-3" /> View & Review
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
+                        Status <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {STATUS_OPTIONS.filter(o => o.value !== "approved").map(opt => (
+                        <DropdownMenuItem key={opt.value} className="text-xs" onClick={() => handleStatusChange(r, opt.value)}>
+                          {opt.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Detail Dialog */}
+      {/* Detail Dialog with selective approval */}
       <Dialog open={!!selectedResponse} onOpenChange={() => setSelectedResponse(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -281,7 +304,7 @@ export default function AllSurveys() {
             </DialogTitle>
           </DialogHeader>
           {selectedResponse && (
-            <ScrollArea className="max-h-[60vh]">
+            <ScrollArea className="max-h-[65vh]">
               <div className="space-y-4 pr-4">
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
@@ -298,9 +321,7 @@ export default function AllSurveys() {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Date</p>
-                    <p className="font-medium">
-                      {format(new Date(selectedResponse.created_at), "dd MMM yyyy, hh:mm a")}
-                    </p>
+                    <p className="font-medium">{format(new Date(selectedResponse.created_at), "dd MMM yyyy, hh:mm a")}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Status</p>
@@ -310,42 +331,118 @@ export default function AllSurveys() {
                   </div>
                 </div>
 
-                {selectedResponse.dr_notes && (
-                  <div>
-                    <p className="text-muted-foreground text-sm">Doctor Notes</p>
-                    <p className="text-sm mt-1">{selectedResponse.dr_notes}</p>
-                  </div>
-                )}
-
+                {/* Answers */}
                 <div>
                   <p className="font-medium mb-2">Answers</p>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {(() => {
                       const answers = selectedResponse.answers as Record<string, any> || {};
-                      return Object.entries(answers).map(([qId, answer], idx) => {
-                        return (
-                          <div key={qId} className="bg-muted/50 rounded-lg p-3">
-                            <p className="text-sm font-medium">
-                              Question {idx + 1}
-                            </p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {typeof answer === "object" ? JSON.stringify(answer) : String(answer)}
-                            </p>
-                          </div>
-                        );
-                      });
+                      return Object.entries(answers).map(([qId, answer], idx) => (
+                        <div key={qId} className="bg-muted/50 rounded-lg p-3">
+                          <p className="text-sm font-medium">Question {idx + 1}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {typeof answer === "object" ? JSON.stringify(answer) : String(answer)}
+                          </p>
+                        </div>
+                      ));
                     })()}
                   </div>
                 </div>
 
+                {/* AI Recommendation text */}
                 {selectedResponse.ai_recommendation && (
                   <div>
                     <p className="font-medium mb-1">AI Recommendation</p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                       {typeof selectedResponse.ai_recommendation === "object"
-                        ? JSON.stringify(selectedResponse.ai_recommendation, null, 2)
+                        ? (selectedResponse.ai_recommendation as any).text || JSON.stringify(selectedResponse.ai_recommendation, null, 2)
                         : String(selectedResponse.ai_recommendation)}
                     </p>
+                  </div>
+                )}
+
+                {/* Selectable Products */}
+                {(() => {
+                  const aiProducts = (selectedResponse.ai_products || []) as any[];
+                  if (aiProducts.length === 0) return null;
+                  const allSelected = aiProducts.every((_: any, i: number) => selectedProducts.includes(String(i)));
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium flex items-center gap-1.5">
+                          <Package className="h-4 w-4" /> Recommended Products ({aiProducts.length})
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground">Select All</Label>
+                          <Switch checked={allSelected} onCheckedChange={toggleAllProducts} />
+                        </div>
+                      </div>
+                      {aiProducts.map((p: any, i: number) => (
+                        <div key={i} className="flex items-start gap-2 border rounded-lg p-2.5 bg-muted/30">
+                          <Checkbox
+                            checked={selectedProducts.includes(String(i))}
+                            onCheckedChange={(checked) => {
+                              setSelectedProducts(prev =>
+                                checked ? [...prev, String(i)] : prev.filter(x => x !== String(i))
+                              );
+                            }}
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{p.product_name || p.name || "Product"}</p>
+                            {p.advice && <p className="text-xs text-muted-foreground">{p.advice}</p>}
+                            {p.dosage && <p className="text-xs text-muted-foreground">Dosage: {p.dosage}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* Selectable Services */}
+                {(() => {
+                  const aiServices = (selectedResponse.ai_services || []) as any[];
+                  if (aiServices.length === 0) return null;
+                  const allSelected = aiServices.every((_: any, i: number) => selectedServices.includes(String(i)));
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium flex items-center gap-1.5">
+                          <Stethoscope className="h-4 w-4" /> Recommended Services ({aiServices.length})
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground">Select All</Label>
+                          <Switch checked={allSelected} onCheckedChange={toggleAllServices} />
+                        </div>
+                      </div>
+                      {aiServices.map((s: any, i: number) => (
+                        <div key={i} className="flex items-start gap-2 border rounded-lg p-2.5 bg-muted/30">
+                          <Checkbox
+                            checked={selectedServices.includes(String(i))}
+                            onCheckedChange={(checked) => {
+                              setSelectedServices(prev =>
+                                checked ? [...prev, String(i)] : prev.filter(x => x !== String(i))
+                              );
+                            }}
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{s.service_name || s.name || "Service"}</p>
+                            {s.advice && <p className="text-xs text-muted-foreground">{s.advice}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* Approve button in dialog */}
+                {(selectedResponse.dr_status || "pending_review") !== "approved" && (
+                  <div className="flex justify-end gap-2 pt-3 border-t">
+                    <Button variant="outline" onClick={() => setSelectedResponse(null)}>Close</Button>
+                    <Button onClick={() => handleStatusChange(selectedResponse, "approved")} className="gap-1.5">
+                      ✅ Approve Selected
+                    </Button>
                   </div>
                 )}
               </div>

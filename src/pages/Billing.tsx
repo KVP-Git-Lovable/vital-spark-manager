@@ -491,7 +491,18 @@ const Billing = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const deleteInvoice = useMutation({
+  const updateInvoiceStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase.from("invoices").update({ status }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast.success("Status updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("invoices").delete().eq("id", id);
       if (error) throw error;

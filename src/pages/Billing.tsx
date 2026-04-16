@@ -46,6 +46,7 @@ const statusStyles: Record<string, string> = {
   Paid: "bg-success/10 text-success",
   Partial: "bg-warning/10 text-warning",
   Pending: "bg-destructive/10 text-destructive",
+  Overdue: "bg-destructive/10 text-destructive",
 };
 
 // ─── PDF Generation ───────────────────────────────

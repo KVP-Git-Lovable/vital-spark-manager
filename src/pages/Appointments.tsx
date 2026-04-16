@@ -1304,6 +1304,22 @@ const Appointments = () => {
         appointmentId={selectedAppointmentId}
         onClose={() => setSelectedAppointmentId(null)}
       />
+
+      <Dialog open={showBillingPrompt} onOpenChange={setShowBillingPrompt}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Billing Plan?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Would you like to create a billing plan for these recurring appointments?</p>
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="outline" onClick={() => setShowBillingPrompt(false)}>Skip</Button>
+            <Button onClick={() => {
+              setShowBillingPrompt(false);
+              routerNavigate(`/billing?prefillPatient=${encodeURIComponent(lastCreatedPatientId)}&prefillService=${encodeURIComponent(lastCreatedService)}`);
+            }}>Yes, Create Invoice</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

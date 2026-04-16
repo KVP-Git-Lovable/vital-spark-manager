@@ -292,6 +292,24 @@ const Billing = () => {
     },
   });
 
+  // Pre-fill from Appointments flow
+  useEffect(() => {
+    const prefillPatient = searchParams.get("prefillPatient");
+    const prefillService = searchParams.get("prefillService");
+    if (prefillPatient || prefillService) {
+      if (prefillPatient) setPatientId(prefillPatient);
+      if (prefillService) {
+        setServiceInputs([prefillService]);
+        // Auto-fill price from service master
+        const svc = serviceMaster.find((s: any) => s.name === prefillService);
+        if (svc) setTotalAmount(svc.price || 0);
+      }
+      setPaymentType("Recurring");
+      setOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, serviceMaster]);
+
   // Unique doctors and services for filter dropdowns
   const uniqueDoctors = useMemo(() => {
     const docs = new Map<string, string>();

@@ -57,7 +57,7 @@ const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancell
 
 const Appointments = () => {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const routerNavigate = useNavigate();
   const [showBillingPrompt, setShowBillingPrompt] = useState(false);
   const [lastCreatedPatientId, setLastCreatedPatientId] = useState("");
   const [lastCreatedService, setLastCreatedService] = useState("");

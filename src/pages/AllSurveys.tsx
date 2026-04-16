@@ -334,19 +334,7 @@ export default function AllSurveys() {
                 {/* Answers */}
                 <div>
                   <p className="font-medium mb-2">Answers</p>
-                  <div className="space-y-2">
-                    {(() => {
-                      const answers = selectedResponse.answers as Record<string, any> || {};
-                      return Object.entries(answers).map(([qId, answer], idx) => (
-                        <div key={qId} className="bg-muted/50 rounded-lg p-3">
-                          <p className="text-sm font-medium">Question {idx + 1}</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {typeof answer === "object" ? JSON.stringify(answer) : String(answer)}
-                          </p>
-                        </div>
-                      ));
-                    })()}
-                  </div>
+                  <SurveyAnswersSection templateId={selectedResponse.template_id} answers={selectedResponse.answers as Record<string, any> || {}} />
                 </div>
 
                 {/* AI Recommendation text */}

@@ -221,7 +221,7 @@ const Billing = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")
-        .select("*, appointments(id, service, start_time, staff_id, staff(first_name, last_name))")
+        .select("*, appointments(id, service, start_time, staff_id, doctors:staff_id(name))")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;

@@ -30,6 +30,7 @@ import Orders from "./pages/Orders";
 import Expenses from "./pages/Expenses";
 import StaffManagement from "./pages/StaffManagement";
 import StaffDetail from "./pages/StaffDetail";
+import PortalLanding from "./pages/portal/PortalLanding";
 import PortalLogin from "./pages/portal/PortalLogin";
 import Portal from "./pages/portal/Portal";
 import Login from "./pages/auth/Login";
@@ -112,7 +113,8 @@ const App = () => (
             </Route>
 
             {/* Patient Portal — outside clinic layout */}
-            <Route path="/portal" element={<PortalLogin />} />
+            <Route path="/portal" element={<PortalLanding />} />
+            <Route path="/portal/login" element={<PortalLogin />} />
             <Route path="/portal/dashboard" element={<Portal />} />
 
             {/* Clinic app — inside sidebar layout */}

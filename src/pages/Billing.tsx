@@ -503,6 +503,7 @@ const Billing = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deleteInvoice = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("invoices").delete().eq("id", id);
       if (error) throw error;

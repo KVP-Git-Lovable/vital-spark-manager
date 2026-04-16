@@ -1172,12 +1172,6 @@ const PatientDetail = () => {
                   )}
                 </div>
 
-                {template?.problem_areas?.name && (
-                  <div className="flex gap-1.5 flex-wrap">
-                    <Badge variant="outline" className="text-[10px]">{template.problem_areas.name}</Badge>
-                    {template?.services?.name && <Badge variant="outline" className="text-[10px]">{template.services.name}</Badge>}
-                  </div>
-                )}
 
                 {/* Questions & Answers */}
                 <div>

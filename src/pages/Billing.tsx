@@ -847,7 +847,7 @@ const Billing = () => {
                               .filter((i: any) => i.product_id === item.product_id && i.quantity > 0 && new Date(i.expiry_date) > new Date())
                               .map((i: any) => (
                                 <SelectItem key={i.id} value={i.id}>
-                                  {i.batch_number} | Qty: {i.quantity} | Exp: {new Date(i.expiry_date).toLocaleDateString("en-IN", { month: "2-digit", year: "numeric" })}
+                                  {i.batch_number}
                                 </SelectItem>
                               ))}
                           </SelectContent>

@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,10 @@ const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancell
 
 const Appointments = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [showBillingPrompt, setShowBillingPrompt] = useState(false);
+  const [lastCreatedPatientId, setLastCreatedPatientId] = useState("");
+  const [lastCreatedService, setLastCreatedService] = useState("");
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
   const [view, setView] = useState<"week" | "day" | "month" | "table">(isMobile ? "day" : "week");
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -353,6 +358,12 @@ const Appointments = () => {
       toast.success("Appointment(s) created");
       const patient = patients.find((p) => p.id === patientId);
       if (patient?.phone) toast.info(`Patient phone: ${patient.phone}`, { duration: 6000 });
+      if (isRecurring) {
+        const selectedService = services.find((s) => s.id === serviceId);
+        setLastCreatedPatientId(patientId);
+        setLastCreatedService(selectedService?.name || "");
+        setShowBillingPrompt(true);
+      }
       resetForm();
       setOpen(false);
     },

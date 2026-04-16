@@ -1011,148 +1011,24 @@ const PatientDetail = () => {
                 <p className="text-sm">No survey responses yet</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {surveyResponses.map((sr: any) => {
                   const template = sr.survey_templates;
-                  const appt = sr.appointments;
-                  const aiRec = sr.ai_recommendation as any;
-                  const aiProducts = (sr.ai_products || []) as any[];
-                  const aiServices = (sr.ai_services || []) as any[];
-
                   return (
-                    <div key={sr.id} className="stat-card p-4 space-y-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <h4 className="font-semibold text-sm">{template?.name || "Survey"}</h4>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setViewingSurveyId(sr.id)}>View</Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant={sr.dr_status === "approved" ? "default" : sr.dr_status === "reviewed" ? "secondary" : "outline"}
-                                size="sm"
-                                className="h-7 text-xs gap-1"
-                              >
-                                {sr.dr_status === "pending_review" ? "⏳ Pending Review" : sr.dr_status === "reviewed" ? "👁 Reviewed" : sr.dr_status === "approved" ? "✅ Approved" : sr.dr_status === "modified" ? "✏️ Modified" : "⏳ Pending Review"}
-                                <ChevronDown className="h-3 w-3" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                className="text-xs"
-                                onClick={async () => {
-                                  const { error } = await supabase.from("survey_responses").update({ dr_status: "pending_review" }).eq("id", sr.id);
-                                  if (error) { toast.error(error.message); return; }
-                                  queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
-                                  queryClient.invalidateQueries({ queryKey: ["all-survey-responses"] });
-                                  toast.success("Status set to Pending Review");
-                                }}
-                              >
-                                ⏳ Pending Review
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-xs"
-                                onClick={async () => {
-                                  const { error } = await supabase.from("survey_responses").update({ dr_status: "reviewed" }).eq("id", sr.id);
-                                  if (error) { toast.error(error.message); return; }
-                                  queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
-                                  queryClient.invalidateQueries({ queryKey: ["all-survey-responses"] });
-                                  toast.success("Status set to Reviewed");
-                                }}
-                              >
-                                👁 Reviewed
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-xs"
-                                onClick={async () => {
-                                  // Set status to approved
-                                  const { error } = await supabase.from("survey_responses").update({ dr_status: "approved" }).eq("id", sr.id);
-                                  if (error) { toast.error(error.message); return; }
-
-                                  // Auto-create prescriptions from AI recommended products
-                                  if (aiProducts.length > 0) {
-                                    const rxEntries = aiProducts.map((p: any) => ({
-                                      procedure_id: null,
-                                      survey_response_id: sr.id,
-                                      medicine_name: p.product_name || p.name || "Unknown",
-                                      dosage: p.dosage || null,
-                                      frequency: p.frequency || null,
-                                      duration: p.duration || null,
-                                      quantity: p.quantity || 1,
-                                      instructions: p.advice || p.instructions || null,
-                                      product_id: p.product_id || null,
-                                    }));
-                                    const { error: rxError } = await supabase.from("prescriptions").insert(rxEntries);
-                                    if (rxError) {
-                                      toast.error("Approved but failed to create Rx: " + rxError.message);
-                                    } else {
-                                      toast.success(`Approved — ${rxEntries.length} medicine(s) added to Rx`);
-                                      queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", id] });
-                                    }
-                                  } else {
-                                    toast.success("Status set to Approved");
-                                  }
-                                  queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
-                                  queryClient.invalidateQueries({ queryKey: ["all-survey-responses"] });
-                                }}
-                              >
-                                ✅ Approved
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                    <div key={sr.id} className="stat-card p-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{template?.name || "Survey"}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(sr.created_at).toLocaleDateString()}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {appt ? `${new Date(appt.start_time).toLocaleDateString()} — ${appt.service}` : new Date(sr.created_at).toLocaleDateString()}
-                        {appt?.staff && ` • Dr. ${appt.staff.first_name} ${appt.staff.last_name}`}
-                      </p>
-
-                      {template?.problem_areas?.name && (
-                        <div className="flex gap-1.5 flex-wrap">
-                          <Badge variant="outline" className="text-[10px]">{template.problem_areas.name}</Badge>
-                          {template?.services?.name && <Badge variant="outline" className="text-[10px]">{template.services.name}</Badge>}
-                        </div>
-                      )}
-
-                      {aiRec?.recommendation && (
-                        <div className="bg-muted/50 rounded-lg p-3">
-                          <p className="text-xs font-medium text-muted-foreground mb-1">AI Recommendation</p>
-                          <p className="text-sm">{aiRec.recommendation}</p>
-                        </div>
-                      )}
-
-                      {aiProducts.length > 0 && (
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-1.5">Recommended Products</p>
-                          <div className="space-y-1">
-                            {aiProducts.map((p: any, i: number) => (
-                              <div key={i} className="flex items-start gap-2 text-sm">
-                                <Pill className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
-                                <span><strong>{p.product_name}</strong> — {p.advice}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {aiServices.length > 0 && (
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-1.5">Recommended Services</p>
-                          <div className="space-y-1">
-                            {aiServices.map((s: any, i: number) => (
-                              <div key={i} className="flex items-start gap-2 text-sm">
-                                <ClipboardList className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
-                                <span><strong>{s.service_name}</strong> — {s.advice}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {sr.dr_notes && (
-                        <div className="border-t pt-2">
-                          <p className="text-xs text-muted-foreground"><strong>Dr. Notes:</strong> {sr.dr_notes}</p>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge
+                          variant={sr.dr_status === "approved" ? "default" : "secondary"}
+                          className="text-[10px]"
+                        >
+                          {sr.dr_status === "approved" ? "Approved" : sr.dr_status === "reviewed" ? "Reviewed" : "Pending"}
+                        </Badge>
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setViewingSurveyId(sr.id)}>View</Button>
+                      </div>
                     </div>
                   );
                 })}
@@ -1262,17 +1138,144 @@ const PatientDetail = () => {
         const sr = surveyResponses.find((s: any) => s.id === viewingSurveyId);
         if (!sr) return null;
         const answers = sr.answers as Record<string, any> || {};
+        const template = sr.survey_templates;
+        const appt = sr.appointments;
+        const aiRec = sr.ai_recommendation as any;
+        const aiProducts = (sr.ai_products || []) as any[];
+        const aiServices = (sr.ai_services || []) as any[];
         return (
           <Dialog open={!!viewingSurveyId} onOpenChange={(open) => { if (!open) setViewingSurveyId(null); }}>
             <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <ClipboardCheck className="h-5 w-5" />
-                  {sr.survey_templates?.name || "Survey Response"}
+                  {template?.name || "Survey Response"}
                 </DialogTitle>
               </DialogHeader>
-              <p className="text-xs text-muted-foreground">Filled on {new Date(sr.created_at).toLocaleDateString()}</p>
-              <SurveyAnswersView surveyId={viewingSurveyId} answers={answers} templateId={sr.template_id} />
+
+              <div className="space-y-4">
+                {/* Meta info */}
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground text-xs">Submitted</span>
+                    <p className="font-medium text-xs">{new Date(sr.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">Status</span>
+                    <p><Badge variant={sr.dr_status === "approved" ? "default" : "secondary"} className="text-[10px]">{sr.dr_status}</Badge></p>
+                  </div>
+                  {appt && (
+                    <div>
+                      <span className="text-muted-foreground text-xs">Appointment</span>
+                      <p className="font-medium text-xs">{appt.service}</p>
+                    </div>
+                  )}
+                </div>
+
+                {template?.problem_areas?.name && (
+                  <div className="flex gap-1.5 flex-wrap">
+                    <Badge variant="outline" className="text-[10px]">{template.problem_areas.name}</Badge>
+                    {template?.services?.name && <Badge variant="outline" className="text-[10px]">{template.services.name}</Badge>}
+                  </div>
+                )}
+
+                {/* Questions & Answers */}
+                <div>
+                  <h4 className="text-sm font-semibold mb-2">Answers</h4>
+                  <SurveyAnswersView surveyId={viewingSurveyId} answers={answers} templateId={sr.template_id} />
+                </div>
+
+                {/* AI Recommendation */}
+                {aiRec?.recommendation && (
+                  <div className="bg-muted/50 rounded-lg p-3">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">AI Recommendation</p>
+                    <p className="text-sm">{aiRec.recommendation}</p>
+                  </div>
+                )}
+
+                {/* Recommended Products */}
+                {aiProducts.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1.5">Recommended Products</p>
+                    <div className="space-y-1">
+                      {aiProducts.map((p: any, i: number) => (
+                        <div key={i} className="flex items-start gap-2 text-sm">
+                          <Pill className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
+                          <span><strong>{p.product_name}</strong> — {p.advice}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recommended Services */}
+                {aiServices.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1.5">Recommended Services</p>
+                    <div className="space-y-1">
+                      {aiServices.map((s: any, i: number) => (
+                        <div key={i} className="flex items-start gap-2 text-sm">
+                          <ClipboardList className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
+                          <span><strong>{s.service_name}</strong> — {s.advice}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Doctor Notes */}
+                {sr.dr_notes && (
+                  <div className="border-t pt-2">
+                    <p className="text-xs text-muted-foreground"><strong>Dr. Notes:</strong> {sr.dr_notes}</p>
+                  </div>
+                )}
+
+                {/* Status Actions */}
+                <div className="border-t pt-3 flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Set status:</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant={sr.dr_status === "approved" ? "default" : sr.dr_status === "reviewed" ? "secondary" : "outline"}
+                        size="sm"
+                        className="h-7 text-xs gap-1"
+                      >
+                        {sr.dr_status === "pending_review" ? "⏳ Pending" : sr.dr_status === "reviewed" ? "👁 Reviewed" : sr.dr_status === "approved" ? "✅ Approved" : "⏳ Pending"}
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem className="text-xs" onClick={async () => {
+                        await supabase.from("survey_responses").update({ dr_status: "pending_review" }).eq("id", sr.id);
+                        queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+                        toast.success("Status set to Pending Review");
+                      }}>⏳ Pending Review</DropdownMenuItem>
+                      <DropdownMenuItem className="text-xs" onClick={async () => {
+                        await supabase.from("survey_responses").update({ dr_status: "reviewed" }).eq("id", sr.id);
+                        queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+                        toast.success("Status set to Reviewed");
+                      }}>👁 Reviewed</DropdownMenuItem>
+                      <DropdownMenuItem className="text-xs" onClick={async () => {
+                        await supabase.from("survey_responses").update({ dr_status: "approved" }).eq("id", sr.id);
+                        if (aiProducts.length > 0) {
+                          const rxEntries = aiProducts.map((p: any) => ({
+                            procedure_id: null, survey_response_id: sr.id,
+                            medicine_name: p.product_name || p.name || "Unknown",
+                            dosage: p.dosage || null, frequency: p.frequency || null,
+                            duration: p.duration || null, quantity: p.quantity || 1,
+                            instructions: p.advice || p.instructions || null,
+                            product_id: p.product_id || null,
+                          }));
+                          await supabase.from("prescriptions").insert(rxEntries);
+                          queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", id] });
+                        }
+                        queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+                        toast.success("Approved");
+                      }}>✅ Approved</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
             </DialogContent>
           </Dialog>
         );

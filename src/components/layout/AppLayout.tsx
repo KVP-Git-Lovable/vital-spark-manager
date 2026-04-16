@@ -30,9 +30,23 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { staffProfile, user, signOut } = useAuth();
+  const { staffProfile, user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const [logoutOpen, setLogoutOpen] = useState(false);
+
+  // Redirect to login if not authenticated
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    navigate("/login", { replace: true });
+    return null;
+  }
 
   const initials = staffProfile?.initials || (user?.email?.slice(0, 2).toUpperCase() ?? "U");
   const fullName = staffProfile

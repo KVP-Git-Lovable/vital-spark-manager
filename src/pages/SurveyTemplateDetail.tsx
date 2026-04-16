@@ -72,11 +72,21 @@ const SurveyTemplateDetail = () => {
     return name.includes(search.toLowerCase()) || phone.includes(search.toLowerCase());
   });
 
+  // answers can be {question_id: answer_value} object or array
+  const normalizeAnswers = (answers: any): { question_id: string; answer: any }[] => {
+    if (!answers) return [];
+    if (Array.isArray(answers)) return answers;
+    if (typeof answers === "object") {
+      return Object.entries(answers).map(([qId, ans]) => ({ question_id: qId, answer: ans }));
+    }
+    return [];
+  };
+
   const getScore = (response: any) => {
-    if (!response.answers || !Array.isArray(response.answers)) return "—";
-    const scaleAnswers = response.answers.filter((a: any) => typeof a.answer === "number");
+    const entries = normalizeAnswers(response.answers);
+    const scaleAnswers = entries.filter((a) => typeof a.answer === "number" || (!isNaN(Number(a.answer)) && a.answer !== ""));
     if (scaleAnswers.length === 0) return "—";
-    const avg = scaleAnswers.reduce((s: number, a: any) => s + a.answer, 0) / scaleAnswers.length;
+    const avg = scaleAnswers.reduce((s, a) => s + Number(a.answer), 0) / scaleAnswers.length;
     return avg.toFixed(1);
   };
 
@@ -276,8 +286,10 @@ const SurveyTemplateDetail = () => {
 
               <div className="space-y-3">
                 <h4 className="text-sm font-semibold">Answers</h4>
-                {Array.isArray(viewingResponse.answers) && viewingResponse.answers.length > 0 ? (
-                  viewingResponse.answers.map((ans: any, i: number) => {
+                {(() => {
+                  const entries = normalizeAnswers(viewingResponse.answers);
+                  if (entries.length === 0) return <p className="text-sm text-muted-foreground">No answers recorded.</p>;
+                  return entries.map((ans: any, i: number) => {
                     const q = questions.find((qu: any) => qu.id === ans.question_id);
                     return (
                       <div key={i} className="p-3 rounded-lg bg-muted/30 space-y-1">
@@ -287,10 +299,8 @@ const SurveyTemplateDetail = () => {
                         </p>
                       </div>
                     );
-                  })
-                ) : (
-                  <p className="text-sm text-muted-foreground">No answers recorded.</p>
-                )}
+                  });
+                })()}
               </div>
 
               {viewingResponse.dr_notes && (

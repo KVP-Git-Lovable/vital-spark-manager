@@ -113,8 +113,8 @@ export default function SurveyResponseEdit() {
       const { error } = await supabase
         .from("survey_responses")
         .update({
-          selected_products: products,
-          selected_services: services,
+          selected_products: products as any,
+          selected_services: services as any,
         })
         .eq("id", id);
       if (error) throw error;

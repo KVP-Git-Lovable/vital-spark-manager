@@ -20,7 +20,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, ClipboardCheck, ChevronDown, Filter, X, Eye, Package, Stethoscope } from "lucide-react";
 import { format, subDays, startOfDay } from "date-fns";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 const STATUS_OPTIONS = [
@@ -89,6 +89,7 @@ function SurveyAnswersSection({ templateId, answers }: { templateId: string; ans
 
 export default function AllSurveys() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [templateFilter, setTemplateFilter] = useState("all");
@@ -291,12 +292,12 @@ export default function AllSurveys() {
             const aiProducts = (r.ai_products || []) as any[];
             const aiServices = (r.ai_services || []) as any[];
             return (
-              <Card key={r.id} className="p-4 space-y-3 hover:shadow-md transition-shadow">
+              <Card key={r.id} className="p-4 space-y-3 hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/surveys/${r.id}`)}>
                 <div className="flex items-start justify-between">
                   <div className="space-y-1 flex-1 min-w-0">
                     <h3 className="font-semibold text-sm truncate">
                       {r.patients ? (
-                        <Link to={`/patients/${r.patients.id}`} className="text-primary hover:underline">
+                        <Link to={`/patients/${r.patients.id}`} onClick={(e) => e.stopPropagation()} className="text-primary hover:underline">
                           {patientName}
                         </Link>
                       ) : "—"}
@@ -323,9 +324,9 @@ export default function AllSurveys() {
                     </Badge>
                   )}
                 </div>
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => openDetail(r)}>
-                    <Eye className="h-3 w-3" /> View & Review
+                <div className="flex items-center justify-between pt-2 border-t" onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => navigate(`/surveys/${r.id}`)}>
+                    <Eye className="h-3 w-3" /> View Details
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

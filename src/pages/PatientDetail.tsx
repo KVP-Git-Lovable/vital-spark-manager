@@ -88,7 +88,7 @@ const PatientDetail = () => {
   const [surveyTemplateSelectOpen, setSurveyTemplateSelectOpen] = useState(false);
   const [selectedSurveyTemplateId, setSelectedSurveyTemplateId] = useState<string | null>(null);
   const [surveyFillOpen, setSurveyFillOpen] = useState(false);
-  const [viewingSurveyId, setViewingSurveyId] = useState<string | null>(null);
+  
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],
@@ -1028,12 +1028,14 @@ const PatientDetail = () => {
                 {surveyResponses.map((sr: any) => {
                   const template = sr.survey_templates;
                   return (
-                    <div key={sr.id} className="stat-card p-3 flex items-center justify-between gap-3">
+                    <div
+                      key={sr.id}
+                      className="stat-card p-3 flex items-center justify-between gap-3 cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => navigate(`/surveys/${sr.id}`)}
+                    >
                       <div className="min-w-0 flex items-center gap-1.5">
                         <p className="font-medium text-sm truncate">{template?.name || "Survey"}</p>
-                        <button onClick={() => setViewingSurveyId(sr.id)} className="text-muted-foreground hover:text-primary transition-colors shrink-0" title="View survey details">
-                          <Eye className="h-4 w-4" />
-                        </button>
+                        <Eye className="h-4 w-4 text-muted-foreground shrink-0" />
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <Badge
@@ -1148,147 +1150,7 @@ const PatientDetail = () => {
         />
       )}
 
-      {/* Survey Detail View Dialog */}
-      {viewingSurveyId && (() => {
-        const sr = surveyResponses.find((s: any) => s.id === viewingSurveyId);
-        if (!sr) return null;
-        const answers = sr.answers as Record<string, any> || {};
-        const template = sr.survey_templates;
-        const appt = sr.appointments;
-        const aiRec = sr.ai_recommendation as any;
-        const aiProducts = (sr.ai_products || []) as any[];
-        const aiServices = (sr.ai_services || []) as any[];
-        return (
-          <Dialog open={!!viewingSurveyId} onOpenChange={(open) => { if (!open) setViewingSurveyId(null); }}>
-            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <ClipboardCheck className="h-5 w-5" />
-                  {template?.name || "Survey Response"}
-                </DialogTitle>
-              </DialogHeader>
-
-              <div className="space-y-4">
-                {/* Meta info */}
-                <div className="flex flex-wrap gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground text-xs">Submitted</span>
-                    <p className="font-medium text-xs">{new Date(sr.created_at).toLocaleDateString()}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">Status</span>
-                    <p><Badge variant={sr.dr_status === "approved" ? "default" : "secondary"} className="text-[10px]">{sr.dr_status}</Badge></p>
-                  </div>
-                  {appt && (
-                    <div>
-                      <span className="text-muted-foreground text-xs">Appointment</span>
-                      <p className="font-medium text-xs">{appt.service}</p>
-                    </div>
-                  )}
-                </div>
-
-
-                {/* Questions & Answers */}
-                <div>
-                  <h4 className="text-sm font-semibold mb-2">Answers</h4>
-                  <SurveyAnswersView surveyId={viewingSurveyId} answers={answers} templateId={sr.template_id} />
-                </div>
-
-                {/* AI Recommendation */}
-                {aiRec?.recommendation && (
-                  <div className="bg-muted/50 rounded-lg p-3">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">AI Recommendation</p>
-                    <p className="text-sm">{aiRec.recommendation}</p>
-                  </div>
-                )}
-
-                {/* Recommended Products */}
-                {aiProducts.length > 0 && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1.5">Recommended Products</p>
-                    <div className="space-y-1">
-                      {aiProducts.map((p: any, i: number) => (
-                        <div key={i} className="flex items-start gap-2 text-sm">
-                          <Pill className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
-                          <span><strong>{p.product_name}</strong> — {p.advice}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Recommended Services */}
-                {aiServices.length > 0 && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1.5">Recommended Services</p>
-                    <div className="space-y-1">
-                      {aiServices.map((s: any, i: number) => (
-                        <div key={i} className="flex items-start gap-2 text-sm">
-                          <ClipboardList className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
-                          <span><strong>{s.service_name}</strong> — {s.advice}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Doctor Notes */}
-                {sr.dr_notes && (
-                  <div className="border-t pt-2">
-                    <p className="text-xs text-muted-foreground"><strong>Dr. Notes:</strong> {sr.dr_notes}</p>
-                  </div>
-                )}
-
-                {/* Status Actions */}
-                <div className="border-t pt-3 flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Set status:</span>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant={sr.dr_status === "approved" ? "default" : sr.dr_status === "reviewed" ? "secondary" : "outline"}
-                        size="sm"
-                        className="h-7 text-xs gap-1"
-                      >
-                        {sr.dr_status === "pending_review" ? "⏳ Pending" : sr.dr_status === "reviewed" ? "👁 Reviewed" : sr.dr_status === "approved" ? "✅ Approved" : "⏳ Pending"}
-                        <ChevronDown className="h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem className="text-xs" onClick={async () => {
-                        await supabase.from("survey_responses").update({ dr_status: "pending_review" }).eq("id", sr.id);
-                        queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
-                        toast.success("Status set to Pending Review");
-                      }}>⏳ Pending Review</DropdownMenuItem>
-                      <DropdownMenuItem className="text-xs" onClick={async () => {
-                        await supabase.from("survey_responses").update({ dr_status: "reviewed" }).eq("id", sr.id);
-                        queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
-                        toast.success("Status set to Reviewed");
-                      }}>👁 Reviewed</DropdownMenuItem>
-                      <DropdownMenuItem className="text-xs" onClick={async () => {
-                        await supabase.from("survey_responses").update({ dr_status: "approved" }).eq("id", sr.id);
-                        if (aiProducts.length > 0) {
-                          const rxEntries = aiProducts.map((p: any) => ({
-                            procedure_id: null, survey_response_id: sr.id,
-                            medicine_name: p.product_name || p.name || "Unknown",
-                            dosage: p.dosage || null, frequency: p.frequency || null,
-                            duration: p.duration || null, quantity: p.quantity || 1,
-                            instructions: p.advice || p.instructions || null,
-                            product_id: p.product_id || null,
-                          }));
-                          await supabase.from("prescriptions").insert(rxEntries);
-                          queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", id] });
-                        }
-                        queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
-                        toast.success("Approved");
-                      }}>✅ Approved</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        );
-      })()}
+      {/* Survey detail moved to dedicated /surveys/:id route */}
     </div>
   );
 };

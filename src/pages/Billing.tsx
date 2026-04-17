@@ -454,7 +454,7 @@ const Billing = () => {
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
       } else {
-        const combinedSubtotal = totalAmount + pharmaSubtotal;
+        const combinedSubtotal = servicesSubtotal + pharmaSubtotal;
         const t = splitTax(combinedSubtotal);
         const grandTotal = combinedSubtotal + t.tax_amount;
         let status = "Pending";

@@ -1,40 +1,46 @@
 
-## Plan: Full-Page Survey View
 
-Replace modal/popup survey views with a dedicated full page at `/surveys/:id`.
+## Plan: Premium Portal Landing Page Redesign
 
-### Exploration findings
-- `AllSurveys.tsx` — currently opens survey detail in a modal/dialog when card clicked
-- `PatientDetail.tsx` — Surveys tab has eye icon that opens a popup
-- `SurveyTemplateDetail.tsx` already shows a similar pattern (Dialog for response details) — we'll reference its data shape
-- Existing `survey_responses` table has `answers`, `dr_status`, `dr_notes`, plus joins to `patients`, `survey_templates`, `survey_questions`
-- `SurveyRecommendations.tsx` exists for AI recommendations + approved products/services display
+### Issues from screenshot
+1. **Login button invisible** — uses `border-white/50 bg-white/10 text-white` on light teal background → low contrast, text barely readable
+2. Layout feels basic — empty right side, decorative blobs too subtle, no imagery
+3. Feature cards below fold are plain
+4. URL is long preview URL
 
-### What changes
+### Changes
 
-**1. New file: `src/pages/SurveyResponseDetail.tsx`**
-Full page route showing:
-- Header: Back button (uses `navigate(-1)`) + survey template name + status badge
-- **Patient info card**: name (link to patient profile), phone, age/gender
-- **Template info card**: template name, problem area, service, submitted date, status
-- **Answers section**: all questions + answers from `survey_responses.answers` joined with `survey_questions`
-- **AI Recommendation section**: pulls from existing recommendation data (reuse `SurveyRecommendations` component or its display logic)
-- **Approved products & services**: list of approved items linked from response
-- **Doctor notes** (if present)
+**1. `src/pages/portal/PortalLanding.tsx` — full redesign**
 
-**2. `src/App.tsx`**
-- Add route: `/surveys/:id` → `SurveyResponseDetail`
+**Hero fixes:**
+- **Login button**: Solid white background with teal text (mirror Get Started but as outline/ghost variant with strong border) — OR make Get Started solid white + Login as solid darker teal (`bg-[hsl(174,70%,25%)]`) with white text & white border. Both clearly visible.
+- **Heading**: Larger (`text-5xl md:text-7xl lg:text-8xl`), tighter tracking, gradient text accent on "Anytime"
+- **Add hero visual**: Right-side floating UI mockup card showing a sample appointment/prescription preview (glassmorphism card with mock content) to fill empty space
+- **Trust strip**: Below CTAs add small row "Trusted by 10,000+ patients · HIPAA-ready · 24/7 access" with check icons
+- **Stronger gradient**: Deeper teal-to-emerald with subtle noise/grain overlay
 
-**3. `src/pages/AllSurveys.tsx`**
-- Remove modal/dialog open logic on card click
-- Replace with `navigate(\`/surveys/\${response.id}\`)`
+**Feature cards section:**
+- Add section heading "Everything you need, in one place"
+- Cards: gradient border-top, larger icons in gradient circles, hover lift + glow shadow, subtle background pattern
+- Add a 4th value-prop row OR stats band (10k+ patients, 50k+ prescriptions, 4.9★ rating)
 
-**4. `src/pages/PatientDetail.tsx` (Surveys tab)**
-- Eye icon / row click → `navigate(\`/surveys/\${response.id}\`)` instead of opening popup
-- Remove the popup/dialog component for survey view
+**New sections to add:**
+- **"How it works" 3-step strip** (Login → Browse → Order) with numbered circles
+- **Testimonial card** — single patient quote with avatar (stock-style)
+- **Final CTA band** — gradient background, "Ready to take control of your skin health?" + button
+
+**Footer:** Slightly richer — 2-column layout (contact left, quick links right), brand strip on top
+
+**2. Custom domain note**
+The project already has custom domain `https://clinic.quickapp.ai` configured (visible in project URLs). Portal will be accessible at `https://clinic.quickapp.ai/portal`. No code change needed — just inform user.
 
 ### Files modified
-- `src/pages/SurveyResponseDetail.tsx` (new)
-- `src/App.tsx`
-- `src/pages/AllSurveys.tsx`
-- `src/pages/PatientDetail.tsx`
+- `src/pages/portal/PortalLanding.tsx` (full rewrite)
+
+### Technical notes
+- Keep mint/teal palette per brand memory
+- Plus Jakarta Sans for headings (already in use)
+- Framer Motion already imported — extend animations to new sections
+- All icons from lucide-react
+- No new dependencies
+

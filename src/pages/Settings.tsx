@@ -53,6 +53,7 @@ const Settings = () => {
   const [roleDesc, setRoleDesc] = useState("");
   const [rolePerms, setRolePerms] = useState("");
   const [taxOpen, setTaxOpen] = useState(false);
+  const [taxEditId, setTaxEditId] = useState<string | null>(null);
   const [taxName, setTaxName] = useState("");
   const [taxCgst, setTaxCgst] = useState<string>("");
   const [taxSgst, setTaxSgst] = useState<string>("");

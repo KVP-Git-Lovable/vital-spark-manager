@@ -2444,21 +2444,33 @@ export type Database = {
         Row: {
           advice_text: string | null
           created_at: string
+          dosage: string | null
+          duration: string | null
+          frequency: string | null
           id: string
+          instructions: string | null
           product_id: string
           template_id: string
         }
         Insert: {
           advice_text?: string | null
           created_at?: string
+          dosage?: string | null
+          duration?: string | null
+          frequency?: string | null
           id?: string
+          instructions?: string | null
           product_id: string
           template_id: string
         }
         Update: {
           advice_text?: string | null
           created_at?: string
+          dosage?: string | null
+          duration?: string | null
+          frequency?: string | null
           id?: string
+          instructions?: string | null
           product_id?: string
           template_id?: string
         }

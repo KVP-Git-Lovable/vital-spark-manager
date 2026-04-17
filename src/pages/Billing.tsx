@@ -1367,7 +1367,16 @@ const Billing = () => {
               <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Total Amount</span><span className="font-semibold">₹{Number(viewInvoice.total_amount).toLocaleString()}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Paid Amount</span><span>₹{Number(viewInvoice.paid_amount).toLocaleString()}</span></div>
-                {viewInvoice.tax_rate > 0 && (
+                {Number(viewInvoice.cgst_amount) > 0 && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{Number(viewInvoice.cgst_amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                )}
+                {Number(viewInvoice.sgst_amount) > 0 && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>₹{Number(viewInvoice.sgst_amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                )}
+                {Number(viewInvoice.igst_amount) > 0 && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{Number(viewInvoice.igst_amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                )}
+                {!Number(viewInvoice.cgst_amount) && !Number(viewInvoice.sgst_amount) && !Number(viewInvoice.igst_amount) && viewInvoice.tax_rate > 0 && (
                   <div className="flex justify-between"><span className="text-muted-foreground">Tax ({viewInvoice.tax_rate}%)</span><span>₹{Number(viewInvoice.tax_amount || 0).toLocaleString()}</span></div>
                 )}
                 <div className="flex justify-between font-semibold text-primary border-t pt-2"><span>Balance Due</span><span>₹{(Number(viewInvoice.total_amount) - Number(viewInvoice.paid_amount)).toLocaleString()}</span></div>

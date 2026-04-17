@@ -183,8 +183,7 @@ const Billing = () => {
 
   // Form state
   const [patientId, setPatientId] = useState("");
-  const [serviceInputs, setServiceInputs] = useState<string[]>([""]);
-  const [totalAmount, setTotalAmount] = useState(0);
+  const [serviceInputs, setServiceInputs] = useState<{ name: string; price: number }[]>([{ name: "", price: 0 }]);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentType, setPaymentType] = useState("One-time");
   const [paymentMode, setPaymentMode] = useState("Cash");
@@ -299,10 +298,8 @@ const Billing = () => {
     if (prefillPatient || prefillService) {
       if (prefillPatient) setPatientId(prefillPatient);
       if (prefillService) {
-        setServiceInputs([prefillService]);
-        // Auto-fill price from service master
         const svc = serviceMaster.find((s: any) => s.name === prefillService);
-        if (svc) setTotalAmount(svc.price || 0);
+        setServiceInputs([{ name: prefillService, price: svc?.price || 0 }]);
       }
       setPaymentType("Recurring");
       setOpen(true);
@@ -341,6 +338,7 @@ const Billing = () => {
   };
 
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+  const servicesSubtotal = useMemo(() => serviceInputs.reduce((sum, s) => sum + (Number(s.price) || 0), 0), [serviceInputs]);
 
   const addPharmaItem = () => {
     setPharmaItems([...pharmaItems, { inventory_id: "", product_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0 }]);
@@ -385,7 +383,7 @@ const Billing = () => {
 
   const createInvoice = useMutation({
     mutationFn: async () => {
-      const services = serviceInputs.filter((s) => s.trim());
+      const services = serviceInputs.filter((s) => s.name.trim()).map((s) => s.name);
       const pharmaServiceNames = pharmaItems.filter(i => i.product_name).map(i => `${i.product_name} x${i.quantity}`);
       const allServices = [...services, ...pharmaServiceNames];
       if (allServices.length === 0) throw new Error("Add at least one service or product");
@@ -456,7 +454,7 @@ const Billing = () => {
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
       } else {
-        const combinedSubtotal = totalAmount + pharmaSubtotal;
+        const combinedSubtotal = servicesSubtotal + pharmaSubtotal;
         const t = splitTax(combinedSubtotal);
         const grandTotal = combinedSubtotal + t.tax_amount;
         let status = "Pending";
@@ -600,8 +598,7 @@ const Billing = () => {
 
   const resetForm = () => {
     setPatientId("");
-    setServiceInputs([""]);
-    setTotalAmount(0);
+    setServiceInputs([{ name: "", price: 0 }]);
     setPaidAmount(0);
     setPaymentType("One-time");
     setPaymentMode("Cash");
@@ -618,10 +615,10 @@ const Billing = () => {
     setServiceSearchOpen(null);
   };
 
-  const addServiceInput = () => setServiceInputs([...serviceInputs, ""]);
-  const updateServiceInput = (i: number, val: string) => {
+  const addServiceInput = () => setServiceInputs([...serviceInputs, { name: "", price: 0 }]);
+  const updateServiceInput = (i: number, name: string, price: number) => {
     const updated = [...serviceInputs];
-    updated[i] = val;
+    updated[i] = { name, price };
     setServiceInputs(updated);
   };
   const removeServiceInput = (i: number) => setServiceInputs(serviceInputs.filter((_, idx) => idx !== i));
@@ -635,13 +632,13 @@ const Billing = () => {
   const removeStage = (i: number) => setStages(stages.filter((_, idx) => idx !== i));
 
   const canCreateInvoice = () => {
-    const hasServices = serviceInputs.some(s => s.trim());
+    const hasServices = serviceInputs.some(s => s.name.trim());
     const hasPharma = pharmaItems.some(i => i.inventory_id && i.quantity > 0);
     const hasLineItems = hasServices || hasPharma;
     if (!hasLineItems) return false;
     if (paymentType === "Staged") return stages.some((s) => s.amount > 0);
     if (paymentType === "Recurring") return recurringCount > 0 && recurringAmount > 0;
-    return (totalAmount + pharmaSubtotal) > 0;
+    return (servicesSubtotal + pharmaSubtotal) > 0;
   };
 
   const totalRevenue = invoices.reduce((s: number, inv: any) => s + Number(inv.paid_amount), 0);
@@ -789,11 +786,11 @@ const Billing = () => {
                   </Button>
                 </div>
                 {serviceInputs.map((s, i) => (
-                  <div key={i} className="flex gap-2 mb-2">
+                  <div key={i} className="flex gap-2 mb-2 items-center">
                     <Popover open={serviceSearchOpen === i} onOpenChange={(open) => setServiceSearchOpen(open ? i : null)}>
                       <PopoverTrigger asChild>
                         <Button variant="outline" role="combobox" className="w-full justify-between font-normal h-10">
-                          {s || <span className="text-muted-foreground">Select service...</span>}
+                          {s.name || <span className="text-muted-foreground">Select service...</span>}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
@@ -804,8 +801,8 @@ const Billing = () => {
                             <CommandEmpty>No service found.</CommandEmpty>
                             <CommandGroup>
                               {serviceMaster.map((svc: any) => (
-                                <CommandItem key={svc.id} value={svc.name} onSelect={() => { updateServiceInput(i, svc.name); setServiceSearchOpen(null); }}>
-                                  <Check className={cn("mr-2 h-4 w-4", s === svc.name ? "opacity-100" : "opacity-0")} />
+                                <CommandItem key={svc.id} value={svc.name} onSelect={() => { updateServiceInput(i, svc.name, Number(svc.price) || 0); setServiceSearchOpen(null); }}>
+                                  <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
                                   <span>{svc.name}</span>
                                   <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>
                                 </CommandItem>
@@ -815,6 +812,9 @@ const Billing = () => {
                         </Command>
                       </PopoverContent>
                     </Popover>
+                    {s.price > 0 && (
+                      <span className="text-sm text-muted-foreground shrink-0 w-20 text-right">₹{s.price.toLocaleString()}</span>
+                    )}
                     {serviceInputs.length > 1 && (
                       <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" onClick={() => removeServiceInput(i)}>✕</Button>
                     )}
@@ -935,16 +935,16 @@ const Billing = () => {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Services Subtotal (₹) {pharmaItems.length === 0 ? "*" : ""}</Label>
-                      <Input type="number" className="mt-1.5" value={totalAmount} onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)} />
+                      <Label>Services Subtotal (₹)</Label>
+                      <Input type="number" className="mt-1.5 bg-muted" value={servicesSubtotal} readOnly />
                     </div>
                     <div>
                       <Label>Paid Amount (₹)</Label>
                       <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
-                  {((totalAmount + pharmaSubtotal) > 0) && (() => {
-                    const subtotal = totalAmount + pharmaSubtotal;
+                  {((servicesSubtotal + pharmaSubtotal) > 0) && (() => {
+                    const subtotal = servicesSubtotal + pharmaSubtotal;
                     const { cgst, sgst, igst } = getTaxComponents(getSelectedTax());
                     const cgstAmt = (subtotal * cgst) / 100;
                     const sgstAmt = (subtotal * sgst) / 100;
@@ -952,7 +952,7 @@ const Billing = () => {
                     const taxApplied = selectedTaxId && selectedTaxId !== "none";
                     return (
                       <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-                        {totalAmount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{totalAmount.toLocaleString()}</span></div>}
+                        {servicesSubtotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>}
                         {pharmaSubtotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>}
                         <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
                         {taxApplied && cgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST ({cgst}%)</span><span>₹{cgstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}

@@ -88,7 +88,7 @@ const PatientDetail = () => {
   const [surveyTemplateSelectOpen, setSurveyTemplateSelectOpen] = useState(false);
   const [selectedSurveyTemplateId, setSelectedSurveyTemplateId] = useState<string | null>(null);
   const [surveyFillOpen, setSurveyFillOpen] = useState(false);
-  const [viewingSurveyId, setViewingSurveyId] = useState<string | null>(null);
+  
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],

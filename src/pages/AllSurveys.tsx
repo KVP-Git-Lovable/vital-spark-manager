@@ -20,7 +20,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, ClipboardCheck, ChevronDown, Filter, X, Eye, Package, Stethoscope } from "lucide-react";
 import { format, subDays, startOfDay } from "date-fns";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 const STATUS_OPTIONS = [
@@ -89,6 +89,7 @@ function SurveyAnswersSection({ templateId, answers }: { templateId: string; ans
 
 export default function AllSurveys() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [templateFilter, setTemplateFilter] = useState("all");

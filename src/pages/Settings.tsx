@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt, X } from "lucide-react";
+import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt, X, Pencil } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -53,6 +53,7 @@ const Settings = () => {
   const [roleDesc, setRoleDesc] = useState("");
   const [rolePerms, setRolePerms] = useState("");
   const [taxOpen, setTaxOpen] = useState(false);
+  const [taxEditId, setTaxEditId] = useState<string | null>(null);
   const [taxName, setTaxName] = useState("");
   const [taxCgst, setTaxCgst] = useState<string>("");
   const [taxSgst, setTaxSgst] = useState<string>("");
@@ -209,6 +210,7 @@ const Settings = () => {
   });
 
   const resetTaxForm = () => {
+    setTaxEditId(null);
     setTaxName("");
     setTaxCgst("");
     setTaxSgst("");
@@ -217,33 +219,51 @@ const Settings = () => {
     setTaxProductIds([]);
   };
 
-  const createTax = useMutation({
+  const openEditTax = (tax: any) => {
+    setTaxEditId(tax.id);
+    setTaxName(tax.name || "");
+    setTaxCgst(tax.cgst != null ? String(tax.cgst) : "");
+    setTaxSgst(tax.sgst != null ? String(tax.sgst) : "");
+    setTaxIgst(tax.igst != null ? String(tax.igst) : "");
+    setTaxDesc(tax.description || "");
+    setTaxProductIds((tax.tax_master_products || []).map((l: any) => l.product_id).filter(Boolean));
+    setTaxOpen(true);
+  };
+
+  const saveTax = useMutation({
     mutationFn: async () => {
       const cgst = parseFloat(taxCgst) || 0;
       const sgst = parseFloat(taxSgst) || 0;
       const igst = parseFloat(taxIgst) || 0;
-      const { data: inserted, error } = await supabase
-        .from("tax_master")
-        .insert({
-          name: taxName,
-          cgst,
-          sgst,
-          igst,
-          rate: cgst + sgst + igst, // keep legacy field in sync
-          description: taxDesc || null,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      if (inserted && taxProductIds.length > 0) {
-        const links = taxProductIds.map((pid) => ({ tax_id: inserted.id, product_id: pid }));
+      const payload = {
+        name: taxName,
+        cgst,
+        sgst,
+        igst,
+        rate: cgst + sgst + igst,
+        description: taxDesc || null,
+      };
+      let taxId = taxEditId;
+      if (taxEditId) {
+        const { error } = await supabase.from("tax_master").update(payload).eq("id", taxEditId);
+        if (error) throw error;
+        // Replace product links
+        const { error: delErr } = await supabase.from("tax_master_products").delete().eq("tax_id", taxEditId);
+        if (delErr) throw delErr;
+      } else {
+        const { data: inserted, error } = await supabase.from("tax_master").insert(payload).select().single();
+        if (error) throw error;
+        taxId = inserted.id;
+      }
+      if (taxId && taxProductIds.length > 0) {
+        const links = taxProductIds.map((pid) => ({ tax_id: taxId!, product_id: pid }));
         const { error: linkErr } = await supabase.from("tax_master_products").insert(links);
         if (linkErr) throw linkErr;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tax-master"] });
-      toast.success("Tax rate created");
+      toast.success(taxEditId ? "Tax rate updated" : "Tax rate created");
       resetTaxForm();
       setTaxOpen(false);
     },
@@ -520,7 +540,7 @@ const Settings = () => {
                 <Button variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Add Tax Rate</Button>
               </DialogTrigger>
               <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-                <DialogHeader><DialogTitle className="font-display">New Tax Rate</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle className="font-display">{taxEditId ? "Edit Tax Rate" : "New Tax Rate"}</DialogTitle></DialogHeader>
                 <div className="space-y-4 pt-2">
                   <div>
                     <Label>Tax Name *</Label>
@@ -597,8 +617,8 @@ const Settings = () => {
                       </div>
                     )}
                   </div>
-                  <Button className="w-full" onClick={() => createTax.mutate()} disabled={!taxName || createTax.isPending}>
-                    {createTax.isPending ? "Creating..." : "Create Tax Rate"}
+                  <Button className="w-full" onClick={() => saveTax.mutate()} disabled={!taxName || saveTax.isPending}>
+                    {saveTax.isPending ? "Saving..." : taxEditId ? "Update Tax Rate" : "Create Tax Rate"}
                   </Button>
                 </div>
               </DialogContent>
@@ -615,7 +635,7 @@ const Settings = () => {
                   <TableHead>IGST</TableHead>
                   <TableHead>Products</TableHead>
                   <TableHead className="w-20">Active</TableHead>
-                  <TableHead className="w-16"></TableHead>
+                  <TableHead className="w-24"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -647,14 +667,28 @@ const Settings = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive"
-                          onClick={() => deleteTax.mutate(tax.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => openEditTax(tax)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive"
+                            onClick={() => {
+                              if (confirm(`Delete tax rate "${tax.name}"? Existing invoices will keep their recorded tax amounts.`)) {
+                                deleteTax.mutate(tax.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

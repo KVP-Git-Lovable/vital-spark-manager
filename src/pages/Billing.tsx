@@ -786,11 +786,11 @@ const Billing = () => {
                   </Button>
                 </div>
                 {serviceInputs.map((s, i) => (
-                  <div key={i} className="flex gap-2 mb-2">
+                  <div key={i} className="flex gap-2 mb-2 items-center">
                     <Popover open={serviceSearchOpen === i} onOpenChange={(open) => setServiceSearchOpen(open ? i : null)}>
                       <PopoverTrigger asChild>
                         <Button variant="outline" role="combobox" className="w-full justify-between font-normal h-10">
-                          {s || <span className="text-muted-foreground">Select service...</span>}
+                          {s.name || <span className="text-muted-foreground">Select service...</span>}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
@@ -801,8 +801,8 @@ const Billing = () => {
                             <CommandEmpty>No service found.</CommandEmpty>
                             <CommandGroup>
                               {serviceMaster.map((svc: any) => (
-                                <CommandItem key={svc.id} value={svc.name} onSelect={() => { updateServiceInput(i, svc.name); setServiceSearchOpen(null); }}>
-                                  <Check className={cn("mr-2 h-4 w-4", s === svc.name ? "opacity-100" : "opacity-0")} />
+                                <CommandItem key={svc.id} value={svc.name} onSelect={() => { updateServiceInput(i, svc.name, Number(svc.price) || 0); setServiceSearchOpen(null); }}>
+                                  <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
                                   <span>{svc.name}</span>
                                   <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>
                                 </CommandItem>
@@ -812,6 +812,9 @@ const Billing = () => {
                         </Command>
                       </PopoverContent>
                     </Popover>
+                    {s.price > 0 && (
+                      <span className="text-sm text-muted-foreground shrink-0 w-20 text-right">₹{s.price.toLocaleString()}</span>
+                    )}
                     {serviceInputs.length > 1 && (
                       <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" onClick={() => removeServiceInput(i)}>✕</Button>
                     )}

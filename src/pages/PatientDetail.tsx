@@ -372,7 +372,7 @@ const PatientDetail = () => {
             <p className="text-xs font-semibold text-primary">Portal Access Code</p>
             <p className="text-xl md:text-2xl font-mono font-bold tracking-widest mt-1">{otpCode}</p>
             <p className="text-xs text-muted-foreground mt-1 truncate">
-              Portal: <span className="font-medium">{window.location.origin}/portal</span>
+              Portal: <span className="font-medium">https://clinic.quickapp.ai/portal</span>
             </p>
             <p className="text-xs text-muted-foreground">Expires in 24 hours</p>
           </div>
@@ -381,7 +381,7 @@ const PatientDetail = () => {
             size="sm"
             className="gap-1 shrink-0"
             onClick={() => {
-              navigator.clipboard.writeText(`Access your The Skin Clinic portal: ${window.location.origin}/portal\nPhone: ${patient.phone}\nAccess Code: ${otpCode}`);
+              navigator.clipboard.writeText(`Access your The Skin Clinic portal: https://clinic.quickapp.ai/portal\nPhone: ${patient.phone}\nAccess Code: ${otpCode}`);
               setOtpCopied(true);
               toast.success("Copied to clipboard!");
               setTimeout(() => setOtpCopied(false), 2000);

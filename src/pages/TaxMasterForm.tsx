@@ -534,6 +534,115 @@ const TaxMasterForm = () => {
               </div>
             )}
           </div>
+
+          {/* Mapped Services */}
+          <div className="rounded-xl border bg-card p-6 space-y-4">
+            <div>
+              <h3 className="font-display font-semibold">Mapped Services</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Toggle inactive to free a service for another tax rate
+              </p>
+            </div>
+            <Popover open={servicePickerOpen} onOpenChange={setServicePickerOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                  {serviceLinks.length > 0 ? `${serviceLinks.length} service(s) selected` : "Add services..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search services..." />
+                  <CommandList>
+                    <CommandEmpty>No services found.</CommandEmpty>
+                    <CommandGroup>
+                      {servicesList.map((s: any) => {
+                        const checked = linkedServiceIds.has(s.id);
+                        const claim = serviceClaimMap.get(s.id);
+                        const disabled = !!claim && !checked;
+
+                        const item = (
+                          <CommandItem
+                            key={s.id}
+                            value={s.name}
+                            disabled={disabled}
+                            onSelect={() => {
+                              if (disabled) return;
+                              toggleService(s.id);
+                            }}
+                            className={cn(disabled && "opacity-50 cursor-not-allowed")}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")} />
+                            <span className="flex-1">{s.name}</span>
+                            {claim && (
+                              <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                {claim.taxName}
+                              </span>
+                            )}
+                          </CommandItem>
+                        );
+
+                        if (disabled) {
+                          return (
+                            <Tooltip key={s.id}>
+                              <TooltipTrigger asChild>
+                                <div>{item}</div>
+                              </TooltipTrigger>
+                              <TooltipContent side="left">
+                                Already mapped to {claim!.taxName} {claim!.rate}% — deactivate there first
+                              </TooltipContent>
+                            </Tooltip>
+                          );
+                        }
+                        return item;
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {serviceLinks.length > 0 && (
+              <div className="space-y-1.5">
+                {serviceLinks.map((l) => (
+                  <div
+                    key={l.service_id}
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-lg border px-3 py-2",
+                      !l.is_active && "opacity-60 bg-muted/40",
+                    )}
+                  >
+                    <span className={cn("text-sm flex-1 truncate", !l.is_active && "line-through")}>
+                      {serviceMap.get(l.service_id) || l.service_id}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <Switch
+                              checked={l.is_active}
+                              onCheckedChange={(v) => setServiceLinkActive(l.service_id, v)}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          {l.is_active ? "Active — used for billing" : "Inactive — available for other tax rates"}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => removeServiceLink(l.service_id)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </motion.div>
 

@@ -933,18 +933,18 @@ const Billing = () => {
 
               {paymentType === "One-time" && (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div class-name="grid grid-cols-2 gap-4" className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Services Subtotal (₹) {pharmaItems.length === 0 ? "*" : ""}</Label>
-                      <Input type="number" className="mt-1.5" value={totalAmount} onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)} />
+                      <Label>Services Subtotal (₹)</Label>
+                      <Input type="number" className="mt-1.5 bg-muted" value={servicesSubtotal} readOnly />
                     </div>
                     <div>
                       <Label>Paid Amount (₹)</Label>
                       <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
-                  {((totalAmount + pharmaSubtotal) > 0) && (() => {
-                    const subtotal = totalAmount + pharmaSubtotal;
+                  {((servicesSubtotal + pharmaSubtotal) > 0) && (() => {
+                    const subtotal = servicesSubtotal + pharmaSubtotal;
                     const { cgst, sgst, igst } = getTaxComponents(getSelectedTax());
                     const cgstAmt = (subtotal * cgst) / 100;
                     const sgstAmt = (subtotal * sgst) / 100;
@@ -952,7 +952,7 @@ const Billing = () => {
                     const taxApplied = selectedTaxId && selectedTaxId !== "none";
                     return (
                       <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-                        {totalAmount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{totalAmount.toLocaleString()}</span></div>}
+                        {servicesSubtotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>}
                         {pharmaSubtotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>}
                         <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
                         {taxApplied && cgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST ({cgst}%)</span><span>₹{cgstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}

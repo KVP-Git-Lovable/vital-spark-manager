@@ -394,12 +394,18 @@ const Billing = () => {
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
       const baseNum = Date.now().toString().slice(-6);
       const tax = getSelectedTax();
-      const taxRate = tax?.rate || 0;
+      const { cgst: cgstPct, sgst: sgstPct, igst: igstPct, total: taxRate } = getTaxComponents(tax);
+      const splitTax = (base: number) => ({
+        cgst_amount: (base * cgstPct) / 100,
+        sgst_amount: (base * sgstPct) / 100,
+        igst_amount: (base * igstPct) / 100,
+        tax_amount: (base * taxRate) / 100,
+      });
 
       if (paymentType === "Staged") {
         const rows = stages.map((stage, i) => {
-          const stageTax = stage.amount * taxRate / 100;
-          const stageTotal = stage.amount + stageTax;
+          const t = splitTax(stage.amount);
+          const stageTotal = stage.amount + t.tax_amount;
           let status = "Pending";
           if (stage.paid >= stageTotal && stageTotal > 0) status = "Paid";
           else if (stage.paid > 0) status = "Partial";
@@ -416,19 +422,18 @@ const Billing = () => {
             notes: `${stage.label}${notes ? ` — ${notes}` : ""}`,
             tax_id: selectedTaxId || null,
             tax_rate: taxRate,
-            tax_amount: stageTax,
+            ...t,
           };
         });
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
       } else if (paymentType === "Recurring") {
-        const taxPerInst = recurringAmount * taxRate / 100;
-        const totalPerInst = recurringAmount + taxPerInst;
+        const t = splitTax(recurringAmount);
+        const totalPerInst = recurringAmount + t.tax_amount;
         const rows = Array.from({ length: recurringCount }, (_, i) => {
           const collected = recurringCollected[i] || 0;
           const instStatus = recurringStatuses[i] || "Pending";
           let status = instStatus;
-          // Auto-override if collected amount dictates
           if (collected >= totalPerInst && totalPerInst > 0) status = "Paid";
           else if (collected > 0 && instStatus === "Pending") status = "Partial";
           const dueDate = recurringDueDates[i] || addMonths(new Date(), i);
@@ -445,15 +450,15 @@ const Billing = () => {
             notes: `Installment ${i + 1} of ${recurringCount} | Due: ${format(dueDate, "dd MMM yyyy")}${notes ? ` — ${notes}` : ""}`,
             tax_id: selectedTaxId || null,
             tax_rate: taxRate,
-            tax_amount: taxPerInst,
+            ...t,
           };
         });
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
       } else {
         const combinedSubtotal = totalAmount + pharmaSubtotal;
-        const taxAmt = combinedSubtotal * taxRate / 100;
-        const grandTotal = combinedSubtotal + taxAmt;
+        const t = splitTax(combinedSubtotal);
+        const grandTotal = combinedSubtotal + t.tax_amount;
         let status = "Pending";
         if (paidAmount >= grandTotal && grandTotal > 0) status = "Paid";
         else if (paidAmount > 0) status = "Partial";
@@ -471,7 +476,7 @@ const Billing = () => {
           notes: notes || null,
           tax_id: selectedTaxId || null,
           tax_rate: taxRate,
-          tax_amount: taxAmt,
+          ...t,
         });
         if (error) throw error;
       }

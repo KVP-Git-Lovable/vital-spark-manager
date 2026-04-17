@@ -385,6 +385,14 @@ const Billing = () => {
       updated[idx].batch_number = "";
       updated[idx].unit_price = 0;
       updated[idx].available = 0;
+      // Auto-populate tax from product mapping (only if no tax currently selected, or always override?
+      // Per spec: auto-populate; user can override. Set whenever product changes.
+      const mappedTaxId = productTaxMap.get(value);
+      if (mappedTaxId) {
+        setSelectedTaxId(mappedTaxId);
+      } else {
+        setSelectedTaxId("");
+      }
     }
     if (field === "inventory_id") {
       const inv = pharmaInventory.find((i: any) => i.id === value) as any;

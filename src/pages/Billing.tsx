@@ -598,8 +598,7 @@ const Billing = () => {
 
   const resetForm = () => {
     setPatientId("");
-    setServiceInputs([""]);
-    setTotalAmount(0);
+    setServiceInputs([{ name: "", price: 0 }]);
     setPaidAmount(0);
     setPaymentType("One-time");
     setPaymentMode("Cash");

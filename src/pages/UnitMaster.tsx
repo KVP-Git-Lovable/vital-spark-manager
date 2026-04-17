@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Ruler } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-const emptyForm = { name: "", sub_unit_name: "", conversion_qty: 1, is_active: true };
+const emptyForm = { name: "", sub_unit_name: "", is_active: true };
 
 const UnitMaster = () => {
   const queryClient = useQueryClient();
@@ -39,7 +39,7 @@ const UnitMaster = () => {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!form.name.trim()) throw new Error("Unit name is required");
-      const payload = { ...form, conversion_qty: Number(form.conversion_qty) || 1 };
+      const payload = { name: form.name, sub_unit_name: form.sub_unit_name, is_active: form.is_active };
       if (editingId) {
         const { error } = await supabase.from("unit_master").update(payload).eq("id", editingId);
         if (error) throw error;
@@ -73,7 +73,7 @@ const UnitMaster = () => {
   const resetForm = () => { setForm(emptyForm); setEditingId(null); setOpen(false); };
 
   const startEdit = (unit: any) => {
-    setForm({ name: unit.name, sub_unit_name: unit.sub_unit_name || "", conversion_qty: unit.conversion_qty || 1, is_active: unit.is_active });
+    setForm({ name: unit.name, sub_unit_name: unit.sub_unit_name || "", is_active: unit.is_active });
     setEditingId(unit.id);
     setOpen(true);
   };
@@ -92,12 +92,8 @@ const UnitMaster = () => {
           <DialogContent>
             <DialogHeader><DialogTitle className="font-display">{editingId ? "Edit Unit" : "Add Unit"}</DialogTitle></DialogHeader>
             <div className="space-y-4 pt-2">
-              <div><Label>Unit Name *</Label><Input className="mt-1" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Strip" /></div>
-              <div><Label>Sub-unit Name</Label><Input className="mt-1" value={form.sub_unit_name} onChange={(e) => setForm({ ...form, sub_unit_name: e.target.value })} placeholder="e.g. Tablet" /></div>
-              <div><Label>Conversion Qty</Label><Input type="number" className="mt-1" value={form.conversion_qty} onChange={(e) => setForm({ ...form, conversion_qty: parseInt(e.target.value) || 1 })} placeholder="e.g. 10 (1 Strip = 10 Tablets)" /></div>
-              {form.sub_unit_name && form.conversion_qty > 0 && (
-                <p className="text-sm text-muted-foreground">1 {form.name || "Unit"} = {form.conversion_qty} {form.sub_unit_name}</p>
-              )}
+              <div><Label>Unit Name *</Label><Input className="mt-1" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Strip, Bottle, Box" /></div>
+              <div><Label>Sub-unit (optional)</Label><Input className="mt-1" value={form.sub_unit_name} onChange={(e) => setForm({ ...form, sub_unit_name: e.target.value })} placeholder="e.g. Tablet, ml" /></div>
               <div className="flex items-center gap-2">
                 <Switch checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
                 <Label>Active</Label>
@@ -116,21 +112,19 @@ const UnitMaster = () => {
             <TableRow>
               <TableHead>Unit Name</TableHead>
               <TableHead>Sub-unit</TableHead>
-              <TableHead>Conversion</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : units.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No units added yet</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No units added yet</TableCell></TableRow>
             ) : units.map((u: any) => (
               <TableRow key={u.id}>
                 <TableCell className="font-medium">{u.name}</TableCell>
                 <TableCell>{u.sub_unit_name || "—"}</TableCell>
-                <TableCell>{u.sub_unit_name ? `1 ${u.name} = ${u.conversion_qty} ${u.sub_unit_name}` : "—"}</TableCell>
                 <TableCell><Badge variant={u.is_active ? "default" : "secondary"}>{u.is_active ? "Active" : "Inactive"}</Badge></TableCell>
                 <TableCell className="text-right">
                   <Button size="sm" variant="ghost" onClick={() => startEdit(u)}><Pencil className="h-3 w-3" /></Button>

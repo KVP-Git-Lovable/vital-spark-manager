@@ -360,7 +360,7 @@ const TaxMasterForm = () => {
               {isNew ? "New Tax Rate" : "Edit Tax Rate"}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Define tax components and map to pharmacy products
+              Define tax components and map to products and services
             </p>
           </div>
         </div>

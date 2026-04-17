@@ -327,9 +327,17 @@ const Billing = () => {
   }, [invoices]);
 
   const getSelectedTax = () => taxes.find((t: any) => t.id === selectedTaxId);
+  const getTaxComponents = (tax: any) => {
+    if (!tax) return { cgst: 0, sgst: 0, igst: 0, total: 0 };
+    const cgst = Number(tax.cgst) || 0;
+    const sgst = Number(tax.sgst) || 0;
+    const igst = Number(tax.igst) || 0;
+    const total = cgst + sgst + igst || Number(tax.rate) || 0;
+    return { cgst, sgst, igst, total };
+  };
   const calcTaxAmount = (amount: number) => {
-    const tax = getSelectedTax();
-    return tax ? (amount * tax.rate / 100) : 0;
+    const { total } = getTaxComponents(getSelectedTax());
+    return (amount * total) / 100;
   };
 
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);

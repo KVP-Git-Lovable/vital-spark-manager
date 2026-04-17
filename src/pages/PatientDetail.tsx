@@ -898,7 +898,17 @@ const PatientDetail = () => {
                   </div>
                   <div>
                     <Label className="text-xs">Medicine Name *</Label>
-                    <Input value={rxForm.medicine_name} onChange={(e) => setRxForm(p => ({ ...p, medicine_name: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="Medicine name" />
+                    <Select
+                      value={rxForm.medicine_name}
+                      onValueChange={(v) => setRxForm(p => ({ ...p, medicine_name: v }))}
+                    >
+                      <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select medicine" /></SelectTrigger>
+                      <SelectContent>
+                        {pharmaProducts.map((prod: any) => (
+                          <SelectItem key={prod.id} value={prod.name}>{prod.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label className="text-xs">Dosage</Label>

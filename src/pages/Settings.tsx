@@ -635,7 +635,7 @@ const Settings = () => {
                   <TableHead>IGST</TableHead>
                   <TableHead>Products</TableHead>
                   <TableHead className="w-20">Active</TableHead>
-                  <TableHead className="w-16"></TableHead>
+                  <TableHead className="w-24"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

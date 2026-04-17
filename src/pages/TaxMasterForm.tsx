@@ -27,6 +27,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 type ProductLink = { product_id: string; is_active: boolean };
+type ServiceLink = { service_id: string; is_active: boolean };
 
 const TaxMasterForm = () => {
   const { id } = useParams<{ id: string }>();
@@ -42,8 +43,10 @@ const TaxMasterForm = () => {
   const [isActive, setIsActive] = useState(true);
   const [productLinks, setProductLinks] = useState<ProductLink[]>([]);
   const [originalActiveProductIds, setOriginalActiveProductIds] = useState<string[]>([]);
+  const [serviceLinks, setServiceLinks] = useState<ServiceLink[]>([]);
   const [originalRate, setOriginalRate] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [warningOpen, setWarningOpen] = useState(false);
   const [pickerSpecificOpen, setPickerSpecificOpen] = useState(false);
@@ -56,7 +59,7 @@ const TaxMasterForm = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tax_master" as any)
-        .select("*, tax_master_products(product_id, is_active)")
+        .select("*, tax_master_products(product_id, is_active), tax_master_services(service_id, is_active)")
         .eq("id", id)
         .single();
       if (error) throw error;
@@ -86,6 +89,65 @@ const TaxMasterForm = () => {
     },
   });
 
+  // All services for picker
+  const { data: servicesList = [] } = useQuery({
+    queryKey: ["services-for-tax"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("services").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Cross-tax claim map for services
+  const { data: serviceClaims = [] } = useQuery({
+    queryKey: ["tax-service-claims", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tax_master_services" as any)
+        .select("service_id, tax_id, is_active, tax_master!inner(id, name, rate, is_active)");
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+
+  const serviceClaimMap = useMemo(() => {
+    const m = new Map<string, { taxId: string; taxName: string; rate: number }>();
+    serviceClaims.forEach((c: any) => {
+      if (!c.is_active) return;
+      if (!c.tax_master?.is_active) return;
+      if (!isNew && c.tax_id === id) return;
+      m.set(c.service_id, {
+        taxId: c.tax_id,
+        taxName: c.tax_master.name,
+        rate: Number(c.tax_master.rate || 0),
+      });
+    });
+    return m;
+  }, [serviceClaims, id, isNew]);
+
+  const serviceMap = useMemo(() => {
+    const m = new Map<string, string>();
+    servicesList.forEach((s: any) => m.set(s.id, s.name));
+    return m;
+  }, [servicesList]);
+
+  const linkedServiceIds = useMemo(() => new Set(serviceLinks.map((l) => l.service_id)), [serviceLinks]);
+
+  const toggleService = (sid: string) => {
+    setServiceLinks((prev) =>
+      prev.find((l) => l.service_id === sid)
+        ? prev.filter((l) => l.service_id !== sid)
+        : [...prev, { service_id: sid, is_active: true }],
+    );
+  };
+  const setServiceLinkActive = (sid: string, active: boolean) => {
+    setServiceLinks((prev) => prev.map((l) => (l.service_id === sid ? { ...l, is_active: active } : l)));
+  };
+  const removeServiceLink = (sid: string) => {
+    setServiceLinks((prev) => prev.filter((l) => l.service_id !== sid));
+  };
+
   const claimMap = useMemo(() => {
     const m = new Map<string, { taxId: string; taxName: string; rate: number }>();
     claims.forEach((c: any) => {
@@ -114,6 +176,10 @@ const TaxMasterForm = () => {
         .map((l: any) => ({ product_id: l.product_id, is_active: l.is_active ?? true }));
       setProductLinks(links);
       setOriginalActiveProductIds(links.filter((l) => l.is_active).map((l) => l.product_id));
+      const sLinks: ServiceLink[] = (existing.tax_master_services || [])
+        .filter((l: any) => l.service_id)
+        .map((l: any) => ({ service_id: l.service_id, is_active: l.is_active ?? true }));
+      setServiceLinks(sLinks);
       setOriginalRate(Number(existing.rate || 0));
     }
   }, [existing]);

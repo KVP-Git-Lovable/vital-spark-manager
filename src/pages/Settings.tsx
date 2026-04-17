@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt, X, Pencil } from "lucide-react";
 import {
   Popover,
@@ -47,20 +48,15 @@ const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", 
 
 const Settings = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") || "profile";
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [roleOpen, setRoleOpen] = useState(false);
   const [roleName, setRoleName] = useState("");
   const [roleDesc, setRoleDesc] = useState("");
   const [rolePerms, setRolePerms] = useState("");
-  const [taxOpen, setTaxOpen] = useState(false);
-  const [taxEditId, setTaxEditId] = useState<string | null>(null);
-  const [taxName, setTaxName] = useState("");
-  const [taxCgst, setTaxCgst] = useState<string>("");
-  const [taxSgst, setTaxSgst] = useState<string>("");
-  const [taxIgst, setTaxIgst] = useState<string>("");
-  const [taxDesc, setTaxDesc] = useState("");
-  const [taxProductIds, setTaxProductIds] = useState<string[]>([]);
-  const [productSearchOpen, setProductSearchOpen] = useState(false);
+  const [showInactiveTax, setShowInactiveTax] = useState(false);
 
   // Clinic settings
   const { data: clinic, isLoading: clinicLoading } = useQuery({
@@ -197,78 +193,7 @@ const Settings = () => {
     },
   });
 
-  const { data: pharmaProducts = [] } = useQuery({
-    queryKey: ["pharma-products-for-tax"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pharma_products")
-        .select("id, name")
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const resetTaxForm = () => {
-    setTaxEditId(null);
-    setTaxName("");
-    setTaxCgst("");
-    setTaxSgst("");
-    setTaxIgst("");
-    setTaxDesc("");
-    setTaxProductIds([]);
-  };
-
-  const openEditTax = (tax: any) => {
-    setTaxEditId(tax.id);
-    setTaxName(tax.name || "");
-    setTaxCgst(tax.cgst != null ? String(tax.cgst) : "");
-    setTaxSgst(tax.sgst != null ? String(tax.sgst) : "");
-    setTaxIgst(tax.igst != null ? String(tax.igst) : "");
-    setTaxDesc(tax.description || "");
-    setTaxProductIds((tax.tax_master_products || []).map((l: any) => l.product_id).filter(Boolean));
-    setTaxOpen(true);
-  };
-
-  const saveTax = useMutation({
-    mutationFn: async () => {
-      const cgst = parseFloat(taxCgst) || 0;
-      const sgst = parseFloat(taxSgst) || 0;
-      const igst = parseFloat(taxIgst) || 0;
-      const payload = {
-        name: taxName,
-        cgst,
-        sgst,
-        igst,
-        rate: cgst + sgst + igst,
-        description: taxDesc || null,
-      };
-      let taxId = taxEditId;
-      if (taxEditId) {
-        const { error } = await supabase.from("tax_master").update(payload).eq("id", taxEditId);
-        if (error) throw error;
-        // Replace product links
-        const { error: delErr } = await supabase.from("tax_master_products").delete().eq("tax_id", taxEditId);
-        if (delErr) throw delErr;
-      } else {
-        const { data: inserted, error } = await supabase.from("tax_master").insert(payload).select().single();
-        if (error) throw error;
-        taxId = inserted.id;
-      }
-      if (taxId && taxProductIds.length > 0) {
-        const links = taxProductIds.map((pid) => ({ tax_id: taxId!, product_id: pid }));
-        const { error: linkErr } = await supabase.from("tax_master_products").insert(links);
-        if (linkErr) throw linkErr;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tax-master"] });
-      toast.success(taxEditId ? "Tax rate updated" : "Tax rate created");
-      resetTaxForm();
-      setTaxOpen(false);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  // (Tax form moved to dedicated /settings/tax-master page)
 
   const toggleTax = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {

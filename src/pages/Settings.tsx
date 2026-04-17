@@ -187,25 +187,65 @@ const Settings = () => {
   const { data: taxes = [] } = useQuery({
     queryKey: ["tax-master"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("tax_master").select("*").order("rate");
+      const { data, error } = await supabase
+        .from("tax_master")
+        .select("*, tax_master_products(product_id, pharma_products(id, name))")
+        .order("created_at");
       if (error) throw error;
       return data;
     },
   });
 
+  const { data: pharmaProducts = [] } = useQuery({
+    queryKey: ["pharma-products-for-tax"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pharma_products")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const resetTaxForm = () => {
+    setTaxName("");
+    setTaxCgst("");
+    setTaxSgst("");
+    setTaxIgst("");
+    setTaxDesc("");
+    setTaxProductIds([]);
+  };
+
   const createTax = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("tax_master").insert({
-        name: taxName,
-        rate: taxRate,
-        description: taxDesc || null,
-      });
+      const cgst = parseFloat(taxCgst) || 0;
+      const sgst = parseFloat(taxSgst) || 0;
+      const igst = parseFloat(taxIgst) || 0;
+      const { data: inserted, error } = await supabase
+        .from("tax_master")
+        .insert({
+          name: taxName,
+          cgst,
+          sgst,
+          igst,
+          rate: cgst + sgst + igst, // keep legacy field in sync
+          description: taxDesc || null,
+        })
+        .select()
+        .single();
       if (error) throw error;
+      if (inserted && taxProductIds.length > 0) {
+        const links = taxProductIds.map((pid) => ({ tax_id: inserted.id, product_id: pid }));
+        const { error: linkErr } = await supabase.from("tax_master_products").insert(links);
+        if (linkErr) throw linkErr;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tax-master"] });
       toast.success("Tax rate created");
-      setTaxName(""); setTaxRate(0); setTaxDesc(""); setTaxOpen(false);
+      resetTaxForm();
+      setTaxOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });

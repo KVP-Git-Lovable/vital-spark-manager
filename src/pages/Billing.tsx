@@ -298,10 +298,8 @@ const Billing = () => {
     if (prefillPatient || prefillService) {
       if (prefillPatient) setPatientId(prefillPatient);
       if (prefillService) {
-        setServiceInputs([prefillService]);
-        // Auto-fill price from service master
         const svc = serviceMaster.find((s: any) => s.name === prefillService);
-        if (svc) setTotalAmount(svc.price || 0);
+        setServiceInputs([{ name: prefillService, price: svc?.price || 0 }]);
       }
       setPaymentType("Recurring");
       setOpen(true);

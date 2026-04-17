@@ -163,6 +163,15 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
+  const { data: pharmaProducts = [] } = useQuery({
+    queryKey: ["pharma-products-lookup-rx"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("pharma_products").select("id, name").order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: invoices = [] } = useQuery({
     queryKey: ["patient-invoices", id],
     queryFn: async () => {
@@ -889,7 +898,17 @@ const PatientDetail = () => {
                   </div>
                   <div>
                     <Label className="text-xs">Medicine Name *</Label>
-                    <Input value={rxForm.medicine_name} onChange={(e) => setRxForm(p => ({ ...p, medicine_name: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="Medicine name" />
+                    <Select
+                      value={rxForm.medicine_name}
+                      onValueChange={(v) => setRxForm(p => ({ ...p, medicine_name: v }))}
+                    >
+                      <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select medicine" /></SelectTrigger>
+                      <SelectContent>
+                        {pharmaProducts.map((prod: any) => (
+                          <SelectItem key={prod.id} value={prod.name}>{prod.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label className="text-xs">Dosage</Label>
@@ -941,9 +960,12 @@ const PatientDetail = () => {
               {prescriptions.length === 0 && !addRxOpen ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">No prescriptions found</div>
               ) : prescriptions.map((rx: any) => (
-                <div key={rx.id} className="stat-card p-3 md:p-4 hover:bg-muted/30 transition-colors">
+                <div key={rx.id} className="stat-card p-3 md:p-4 hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => {
+                  if (rx.procedure_id) setSelectedProcedureId(rx.procedure_id);
+                  else if (rx.survey_response_id) navigate(`/surveys/${rx.survey_response_id}`);
+                }}>
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
-                    <div className="min-w-0 cursor-pointer flex-1" onClick={() => rx.procedure_id && setSelectedProcedureId(rx.procedure_id)}>
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="font-medium">{rx.medicine_name}</p>
                         {rx.survey_response_id && !rx.procedure_id && (

@@ -374,22 +374,40 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                           <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeRx(realIdx)}>Remove</Button>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                          <Select value={rx.product_id} onValueChange={(v) => updateRx(realIdx, "product_id", v)}>
-                            <SelectTrigger><SelectValue placeholder="Select medicine *" /></SelectTrigger>
-                            <SelectContent>
-                              {products.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Input placeholder="Dosage" value={rx.dosage} onChange={(e) => updateRx(realIdx, "dosage", e.target.value)} />
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Medicine *</Label>
+                            <Select value={rx.product_id} onValueChange={(v) => updateRx(realIdx, "product_id", v)}>
+                              <SelectTrigger className="mt-1"><SelectValue placeholder="Select medicine" /></SelectTrigger>
+                              <SelectContent>
+                                {products.map((p) => (
+                                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Dosage</Label>
+                            <Input className="mt-1" placeholder="e.g. 500mg" value={rx.dosage} onChange={(e) => updateRx(realIdx, "dosage", e.target.value)} />
+                          </div>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
-                          <Input placeholder="Frequency" value={rx.frequency} onChange={(e) => updateRx(realIdx, "frequency", e.target.value)} />
-                          <Input placeholder="Duration" value={rx.duration} onChange={(e) => updateRx(realIdx, "duration", e.target.value)} />
-                          <Input type="number" placeholder="Qty" value={rx.quantity} onChange={(e) => updateRx(realIdx, "quantity", parseInt(e.target.value) || 1)} />
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Frequency</Label>
+                            <Input className="mt-1" placeholder="e.g. Twice daily" value={rx.frequency} onChange={(e) => updateRx(realIdx, "frequency", e.target.value)} />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Duration</Label>
+                            <Input className="mt-1" placeholder="e.g. 7 days" value={rx.duration} onChange={(e) => updateRx(realIdx, "duration", e.target.value)} />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Quantity</Label>
+                            <Input className="mt-1" type="number" placeholder="1" value={rx.quantity} onChange={(e) => updateRx(realIdx, "quantity", parseInt(e.target.value) || 1)} />
+                          </div>
                         </div>
-                        <Input placeholder="Special instructions" value={rx.instructions} onChange={(e) => updateRx(realIdx, "instructions", e.target.value)} />
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Special Instructions</Label>
+                          <Input className="mt-1" placeholder="e.g. After meals" value={rx.instructions} onChange={(e) => updateRx(realIdx, "instructions", e.target.value)} />
+                        </div>
                       </div>
                     );
                   }) : (

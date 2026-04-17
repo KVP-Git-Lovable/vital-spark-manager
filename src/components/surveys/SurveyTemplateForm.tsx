@@ -31,6 +31,10 @@ interface TemplateProduct {
   product_id: string;
   product_name?: string;
   advice_text: string;
+  dosage?: string;
+  frequency?: string;
+  duration?: string;
+  instructions?: string;
 }
 
 interface TemplateService {
@@ -128,6 +132,7 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
     const { data: prods } = await supabase.from("survey_template_products").select("*, pharma_products(name)").eq("template_id", templateId!);
     setTemplateProducts((prods || []).map((p: any) => ({
       id: p.id, product_id: p.product_id, product_name: p.pharma_products?.name, advice_text: p.advice_text || "",
+      dosage: p.dosage || "", frequency: p.frequency || "", duration: p.duration || "", instructions: p.instructions || "",
     })));
 
     const { data: svcs } = await supabase.from("survey_template_services").select("*, services(name)").eq("template_id", templateId!);
@@ -155,7 +160,7 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
   const addProduct = (productId: string) => {
     if (templateProducts.some(p => p.product_id === productId)) return;
     const prod = products.find((p: any) => p.id === productId);
-    setTemplateProducts([...templateProducts, { product_id: productId, product_name: prod?.name, advice_text: "" }]);
+    setTemplateProducts([...templateProducts, { product_id: productId, product_name: prod?.name, advice_text: "", dosage: "", frequency: "", duration: "", instructions: "" }]);
   };
 
   const addService = (svcId: string) => {
@@ -201,6 +206,7 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
       if (templateProducts.length > 0) {
         const pRows = templateProducts.map(p => ({
           template_id: tplId!, product_id: p.product_id, advice_text: p.advice_text,
+          dosage: p.dosage || null, frequency: p.frequency || null, duration: p.duration || null, instructions: p.instructions || null,
         }));
         const { error } = await supabase.from("survey_template_products").insert(pRows);
         if (error) throw error;
@@ -419,25 +425,66 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
               <p className="text-sm text-muted-foreground text-center py-6">No products added yet. Search above to add.</p>
             ) : (
               <div className="space-y-3">
-                {templateProducts.map((tp, i) => (
-                  <div key={i} className="border rounded-lg p-3 space-y-2 bg-muted/20">
-                    <div className="flex items-center justify-between">
-                      <Badge variant="outline">{tp.product_name || tp.product_id}</Badge>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setTemplateProducts(templateProducts.filter((_, j) => j !== i))}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                {templateProducts.map((tp, i) => {
+                  const updateField = (field: keyof TemplateProduct, value: string) => {
+                    const updated = [...templateProducts];
+                    (updated[i] as any)[field] = value;
+                    setTemplateProducts(updated);
+                  };
+                  return (
+                    <div key={i} className="border rounded-lg p-3 space-y-2 bg-muted/20">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline">{tp.product_name || tp.product_id}</Badge>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setTemplateProducts(templateProducts.filter((_, j) => j !== i))}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <Input
+                        value={tp.advice_text}
+                        onChange={(e) => updateField("advice_text", e.target.value)}
+                        placeholder="Advice text for this product..."
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Dosage</Label>
+                          <Input
+                            value={tp.dosage || ""}
+                            onChange={(e) => updateField("dosage", e.target.value)}
+                            placeholder="e.g. 1 tablet"
+                            className="mt-1 h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Frequency</Label>
+                          <Input
+                            value={tp.frequency || ""}
+                            onChange={(e) => updateField("frequency", e.target.value)}
+                            placeholder="e.g. Twice daily"
+                            className="mt-1 h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Duration</Label>
+                          <Input
+                            value={tp.duration || ""}
+                            onChange={(e) => updateField("duration", e.target.value)}
+                            placeholder="e.g. 7 days"
+                            className="mt-1 h-8 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">Special Instructions</Label>
+                          <Input
+                            value={tp.instructions || ""}
+                            onChange={(e) => updateField("instructions", e.target.value)}
+                            placeholder="e.g. After meals"
+                            className="mt-1 h-8 text-xs"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <Input
-                      value={tp.advice_text}
-                      onChange={(e) => {
-                        const updated = [...templateProducts];
-                        updated[i].advice_text = e.target.value;
-                        setTemplateProducts(updated);
-                      }}
-                      placeholder="Advice text for this product..."
-                    />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </TabsContent>

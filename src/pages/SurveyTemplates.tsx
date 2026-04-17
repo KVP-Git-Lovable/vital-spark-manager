@@ -99,7 +99,11 @@ const SurveyTemplates = () => {
           {filtered.map((t: any) => {
             const approvalInfo = APPROVAL_BADGE[t.approval_status] || APPROVAL_BADGE.draft;
             return (
-              <Card key={t.id} className="p-4 space-y-3 hover:shadow-md transition-shadow">
+              <Card
+                key={t.id}
+                className="p-4 space-y-3 hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => navigate(`/survey-templates/${t.id}`)}
+              >
                 <div className="flex items-start justify-between">
                   <div className="space-y-1 flex-1 min-w-0">
                     <h3 className="font-semibold text-sm truncate">{t.name}</h3>
@@ -123,7 +127,7 @@ const SurveyTemplates = () => {
                   )}
                   <Badge variant="outline" className="text-[10px]">Age: {t.age_range_min}-{t.age_range_max}</Badge>
                 </div>
-                <div className="flex items-center justify-between pt-2 border-t">
+                <div className="flex items-center justify-between pt-2 border-t" onClick={(e) => e.stopPropagation()}>
                   <div className="flex gap-1 flex-wrap">
                     <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => navigate(`/survey-templates/${t.id}`)}>
                       <Eye className="h-3 w-3" /> View
@@ -142,7 +146,7 @@ const SurveyTemplates = () => {
                           <Trash2 className="h-3 w-3" /> Delete
                         </Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent>
+                      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Delete template?</AlertDialogTitle>
                           <AlertDialogDescription>This will permanently remove this survey template and all its questions.</AlertDialogDescription>

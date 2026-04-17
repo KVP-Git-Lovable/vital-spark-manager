@@ -18,7 +18,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, ClipboardCheck, ChevronDown, Filter, X, Eye, Package, Stethoscope } from "lucide-react";
+import { Search, ClipboardCheck, ChevronDown, Filter, X, Eye, Package, Stethoscope, Pencil } from "lucide-react";
 import { format, subDays, startOfDay } from "date-fns";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -325,9 +325,14 @@ export default function AllSurveys() {
                   )}
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => navigate(`/surveys/${r.id}`)}>
-                    <Eye className="h-3 w-3" /> View Details
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => navigate(`/surveys/${r.id}`)}>
+                      <Eye className="h-3 w-3" /> View
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => navigate(`/surveys/${r.id}/edit`)}>
+                      <Pencil className="h-3 w-3" /> Edit
+                    </Button>
+                  </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">

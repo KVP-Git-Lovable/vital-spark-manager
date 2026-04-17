@@ -617,8 +617,8 @@ const Settings = () => {
                       </div>
                     )}
                   </div>
-                  <Button className="w-full" onClick={() => createTax.mutate()} disabled={!taxName || createTax.isPending}>
-                    {createTax.isPending ? "Creating..." : "Create Tax Rate"}
+                  <Button className="w-full" onClick={() => saveTax.mutate()} disabled={!taxName || saveTax.isPending}>
+                    {saveTax.isPending ? "Saving..." : taxEditId ? "Update Tax Rate" : "Create Tax Rate"}
                   </Button>
                 </div>
               </DialogContent>

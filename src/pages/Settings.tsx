@@ -540,7 +540,7 @@ const Settings = () => {
                 <Button variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Add Tax Rate</Button>
               </DialogTrigger>
               <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-                <DialogHeader><DialogTitle className="font-display">New Tax Rate</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle className="font-display">{taxEditId ? "Edit Tax Rate" : "New Tax Rate"}</DialogTitle></DialogHeader>
                 <div className="space-y-4 pt-2">
                   <div>
                     <Label>Tax Name *</Label>

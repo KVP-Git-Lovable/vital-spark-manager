@@ -210,6 +210,7 @@ const Settings = () => {
   });
 
   const resetTaxForm = () => {
+    setTaxEditId(null);
     setTaxName("");
     setTaxCgst("");
     setTaxSgst("");
@@ -218,33 +219,51 @@ const Settings = () => {
     setTaxProductIds([]);
   };
 
-  const createTax = useMutation({
+  const openEditTax = (tax: any) => {
+    setTaxEditId(tax.id);
+    setTaxName(tax.name || "");
+    setTaxCgst(tax.cgst != null ? String(tax.cgst) : "");
+    setTaxSgst(tax.sgst != null ? String(tax.sgst) : "");
+    setTaxIgst(tax.igst != null ? String(tax.igst) : "");
+    setTaxDesc(tax.description || "");
+    setTaxProductIds((tax.tax_master_products || []).map((l: any) => l.product_id).filter(Boolean));
+    setTaxOpen(true);
+  };
+
+  const saveTax = useMutation({
     mutationFn: async () => {
       const cgst = parseFloat(taxCgst) || 0;
       const sgst = parseFloat(taxSgst) || 0;
       const igst = parseFloat(taxIgst) || 0;
-      const { data: inserted, error } = await supabase
-        .from("tax_master")
-        .insert({
-          name: taxName,
-          cgst,
-          sgst,
-          igst,
-          rate: cgst + sgst + igst, // keep legacy field in sync
-          description: taxDesc || null,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      if (inserted && taxProductIds.length > 0) {
-        const links = taxProductIds.map((pid) => ({ tax_id: inserted.id, product_id: pid }));
+      const payload = {
+        name: taxName,
+        cgst,
+        sgst,
+        igst,
+        rate: cgst + sgst + igst,
+        description: taxDesc || null,
+      };
+      let taxId = taxEditId;
+      if (taxEditId) {
+        const { error } = await supabase.from("tax_master").update(payload).eq("id", taxEditId);
+        if (error) throw error;
+        // Replace product links
+        const { error: delErr } = await supabase.from("tax_master_products").delete().eq("tax_id", taxEditId);
+        if (delErr) throw delErr;
+      } else {
+        const { data: inserted, error } = await supabase.from("tax_master").insert(payload).select().single();
+        if (error) throw error;
+        taxId = inserted.id;
+      }
+      if (taxId && taxProductIds.length > 0) {
+        const links = taxProductIds.map((pid) => ({ tax_id: taxId!, product_id: pid }));
         const { error: linkErr } = await supabase.from("tax_master_products").insert(links);
         if (linkErr) throw linkErr;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tax-master"] });
-      toast.success("Tax rate created");
+      toast.success(taxEditId ? "Tax rate updated" : "Tax rate created");
       resetTaxForm();
       setTaxOpen(false);
     },

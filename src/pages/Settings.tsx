@@ -234,7 +234,7 @@ const Settings = () => {
         <p className="page-subtitle">Manage clinic profile, working hours, and staff roles</p>
       </div>
 
-      <Tabs defaultValue="profile">
+      <Tabs defaultValue={initialTab}>
         <TabsList>
           <TabsTrigger value="profile" className="gap-1.5"><Building2 className="h-3.5 w-3.5" /> Clinic Profile</TabsTrigger>
           <TabsTrigger value="hours" className="gap-1.5"><Clock className="h-3.5 w-3.5" /> Working Hours</TabsTrigger>

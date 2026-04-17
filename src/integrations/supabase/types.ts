@@ -597,8 +597,10 @@ export type Database = {
       invoices: {
         Row: {
           appointment_id: string | null
+          cgst_amount: number | null
           created_at: string
           id: string
+          igst_amount: number | null
           invoice_number: string
           notes: string | null
           paid_amount: number
@@ -607,6 +609,7 @@ export type Database = {
           payment_mode: string | null
           payment_type: string
           services: string[]
+          sgst_amount: number | null
           status: string
           tax_amount: number | null
           tax_id: string | null
@@ -616,8 +619,10 @@ export type Database = {
         }
         Insert: {
           appointment_id?: string | null
+          cgst_amount?: number | null
           created_at?: string
           id?: string
+          igst_amount?: number | null
           invoice_number: string
           notes?: string | null
           paid_amount?: number
@@ -626,6 +631,7 @@ export type Database = {
           payment_mode?: string | null
           payment_type?: string
           services?: string[]
+          sgst_amount?: number | null
           status?: string
           tax_amount?: number | null
           tax_id?: string | null
@@ -635,8 +641,10 @@ export type Database = {
         }
         Update: {
           appointment_id?: string | null
+          cgst_amount?: number | null
           created_at?: string
           id?: string
+          igst_amount?: number | null
           invoice_number?: string
           notes?: string | null
           paid_amount?: number
@@ -645,6 +653,7 @@ export type Database = {
           payment_mode?: string | null
           payment_type?: string
           services?: string[]
+          sgst_amount?: number | null
           status?: string
           tax_amount?: number | null
           tax_id?: string | null
@@ -1195,13 +1204,16 @@ export type Database = {
       pharma_bills: {
         Row: {
           bill_number: string
+          cgst_amount: number | null
           created_at: string
           discount: number
           id: string
+          igst_amount: number | null
           net_amount: number
           patient_id: string | null
           patient_name: string | null
           payment_mode: string
+          sgst_amount: number | null
           status: string
           tax_amount: number | null
           tax_id: string | null
@@ -1210,13 +1222,16 @@ export type Database = {
         }
         Insert: {
           bill_number: string
+          cgst_amount?: number | null
           created_at?: string
           discount?: number
           id?: string
+          igst_amount?: number | null
           net_amount?: number
           patient_id?: string | null
           patient_name?: string | null
           payment_mode?: string
+          sgst_amount?: number | null
           status?: string
           tax_amount?: number | null
           tax_id?: string | null
@@ -1225,13 +1240,16 @@ export type Database = {
         }
         Update: {
           bill_number?: string
+          cgst_amount?: number | null
           created_at?: string
           discount?: number
           id?: string
+          igst_amount?: number | null
           net_amount?: number
           patient_id?: string | null
           patient_name?: string | null
           payment_mode?: string
+          sgst_amount?: number | null
           status?: string
           tax_amount?: number | null
           tax_id?: string | null
@@ -2589,30 +2607,75 @@ export type Database = {
       }
       tax_master: {
         Row: {
+          cgst: number | null
           created_at: string
           description: string | null
           id: string
+          igst: number | null
           is_active: boolean
           name: string
-          rate: number
+          rate: number | null
+          sgst: number | null
+        }
+        Insert: {
+          cgst?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          igst?: number | null
+          is_active?: boolean
+          name: string
+          rate?: number | null
+          sgst?: number | null
+        }
+        Update: {
+          cgst?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          igst?: number | null
+          is_active?: boolean
+          name?: string
+          rate?: number | null
+          sgst?: number | null
+        }
+        Relationships: []
+      }
+      tax_master_products: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          tax_id: string
         }
         Insert: {
           created_at?: string
-          description?: string | null
           id?: string
-          is_active?: boolean
-          name: string
-          rate?: number
+          product_id: string
+          tax_id: string
         }
         Update: {
           created_at?: string
-          description?: string | null
           id?: string
-          is_active?: boolean
-          name?: string
-          rate?: number
+          product_id?: string
+          tax_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tax_master_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "pharma_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tax_master_products_tax_id_fkey"
+            columns: ["tax_id"]
+            isOneToOne: false
+            referencedRelation: "tax_master"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       unit_master: {
         Row: {

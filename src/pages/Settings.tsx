@@ -1,5 +1,20 @@
 import { useState, useRef } from "react";
-import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt } from "lucide-react";
+import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt, X } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -39,8 +54,12 @@ const Settings = () => {
   const [rolePerms, setRolePerms] = useState("");
   const [taxOpen, setTaxOpen] = useState(false);
   const [taxName, setTaxName] = useState("");
-  const [taxRate, setTaxRate] = useState(0);
+  const [taxCgst, setTaxCgst] = useState<string>("");
+  const [taxSgst, setTaxSgst] = useState<string>("");
+  const [taxIgst, setTaxIgst] = useState<string>("");
   const [taxDesc, setTaxDesc] = useState("");
+  const [taxProductIds, setTaxProductIds] = useState<string[]>([]);
+  const [productSearchOpen, setProductSearchOpen] = useState(false);
 
   // Clinic settings
   const { data: clinic, isLoading: clinicLoading } = useQuery({
@@ -168,25 +187,65 @@ const Settings = () => {
   const { data: taxes = [] } = useQuery({
     queryKey: ["tax-master"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("tax_master").select("*").order("rate");
+      const { data, error } = await supabase
+        .from("tax_master")
+        .select("*, tax_master_products(product_id, pharma_products(id, name))")
+        .order("created_at");
       if (error) throw error;
       return data;
     },
   });
 
+  const { data: pharmaProducts = [] } = useQuery({
+    queryKey: ["pharma-products-for-tax"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pharma_products")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const resetTaxForm = () => {
+    setTaxName("");
+    setTaxCgst("");
+    setTaxSgst("");
+    setTaxIgst("");
+    setTaxDesc("");
+    setTaxProductIds([]);
+  };
+
   const createTax = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("tax_master").insert({
-        name: taxName,
-        rate: taxRate,
-        description: taxDesc || null,
-      });
+      const cgst = parseFloat(taxCgst) || 0;
+      const sgst = parseFloat(taxSgst) || 0;
+      const igst = parseFloat(taxIgst) || 0;
+      const { data: inserted, error } = await supabase
+        .from("tax_master")
+        .insert({
+          name: taxName,
+          cgst,
+          sgst,
+          igst,
+          rate: cgst + sgst + igst, // keep legacy field in sync
+          description: taxDesc || null,
+        })
+        .select()
+        .single();
       if (error) throw error;
+      if (inserted && taxProductIds.length > 0) {
+        const links = taxProductIds.map((pid) => ({ tax_id: inserted.id, product_id: pid }));
+        const { error: linkErr } = await supabase.from("tax_master_products").insert(links);
+        if (linkErr) throw linkErr;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tax-master"] });
       toast.success("Tax rate created");
-      setTaxName(""); setTaxRate(0); setTaxDesc(""); setTaxOpen(false);
+      resetTaxForm();
+      setTaxOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -456,24 +515,87 @@ const Settings = () => {
         {/* Tax Master */}
         <TabsContent value="tax">
           <div className="flex justify-end mt-4 mb-4">
-            <Dialog open={taxOpen} onOpenChange={setTaxOpen}>
+            <Dialog open={taxOpen} onOpenChange={(o) => { setTaxOpen(o); if (!o) resetTaxForm(); }}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Add Tax Rate</Button>
               </DialogTrigger>
-              <DialogContent className="max-w-sm">
+              <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle className="font-display">New Tax Rate</DialogTitle></DialogHeader>
                 <div className="space-y-4 pt-2">
                   <div>
                     <Label>Tax Name *</Label>
                     <Input className="mt-1.5" placeholder="e.g. GST 18%" value={taxName} onChange={(e) => setTaxName(e.target.value)} />
                   </div>
-                  <div>
-                    <Label>Rate (%) *</Label>
-                    <Input type="number" className="mt-1.5" placeholder="18" value={taxRate} onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)} />
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label>CGST (%)</Label>
+                      <Input type="number" step="0.01" className="mt-1.5" placeholder="0" value={taxCgst} onChange={(e) => setTaxCgst(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label>SGST (%)</Label>
+                      <Input type="number" step="0.01" className="mt-1.5" placeholder="0" value={taxSgst} onChange={(e) => setTaxSgst(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label>IGST (%)</Label>
+                      <Input type="number" step="0.01" className="mt-1.5" placeholder="0" value={taxIgst} onChange={(e) => setTaxIgst(e.target.value)} />
+                    </div>
                   </div>
+                  <p className="text-xs text-muted-foreground -mt-2">All tax fields are optional. Total: {((parseFloat(taxCgst) || 0) + (parseFloat(taxSgst) || 0) + (parseFloat(taxIgst) || 0)).toFixed(2)}%</p>
                   <div>
                     <Label>Description</Label>
                     <Input className="mt-1.5" placeholder="Optional description" value={taxDesc} onChange={(e) => setTaxDesc(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Apply to Products</Label>
+                    <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" role="combobox" className="w-full mt-1.5 justify-between font-normal">
+                          {taxProductIds.length > 0 ? `${taxProductIds.length} product(s) selected` : "Select products..."}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search products..." />
+                          <CommandList>
+                            <CommandEmpty>No products found.</CommandEmpty>
+                            <CommandGroup>
+                              {pharmaProducts.map((p: any) => {
+                                const checked = taxProductIds.includes(p.id);
+                                return (
+                                  <CommandItem
+                                    key={p.id}
+                                    value={p.name}
+                                    onSelect={() => {
+                                      setTaxProductIds((prev) => checked ? prev.filter((x) => x !== p.id) : [...prev, p.id]);
+                                    }}
+                                  >
+                                    <Check className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")} />
+                                    {p.name}
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    {taxProductIds.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {taxProductIds.map((pid) => {
+                          const p = pharmaProducts.find((x: any) => x.id === pid);
+                          if (!p) return null;
+                          return (
+                            <Badge key={pid} variant="secondary" className="gap-1">
+                              {p.name}
+                              <button onClick={() => setTaxProductIds((prev) => prev.filter((x) => x !== pid))}>
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   <Button className="w-full" onClick={() => createTax.mutate()} disabled={!taxName || createTax.isPending}>
                     {createTax.isPending ? "Creating..." : "Create Tax Rate"}
@@ -488,38 +610,55 @@ const Settings = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Tax Name</TableHead>
-                  <TableHead>Rate (%)</TableHead>
-                  <TableHead>Description</TableHead>
+                  <TableHead>CGST</TableHead>
+                  <TableHead>SGST</TableHead>
+                  <TableHead>IGST</TableHead>
+                  <TableHead>Products</TableHead>
                   <TableHead className="w-20">Active</TableHead>
                   <TableHead className="w-16"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {taxes.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No tax rates defined</TableCell></TableRow>
-                ) : taxes.map((tax: any) => (
-                  <TableRow key={tax.id}>
-                    <TableCell className="font-medium">{tax.name}</TableCell>
-                    <TableCell>{tax.rate}%</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{tax.description || "—"}</TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={tax.is_active}
-                        onCheckedChange={(checked) => toggleTax.mutate({ id: tax.id, is_active: checked })}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive"
-                        onClick={() => deleteTax.mutate(tax.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No tax rates defined</TableCell></TableRow>
+                ) : taxes.map((tax: any) => {
+                  const linkedProducts = (tax.tax_master_products || []).map((l: any) => l.pharma_products?.name).filter(Boolean);
+                  return (
+                    <TableRow key={tax.id}>
+                      <TableCell className="font-medium">
+                        {tax.name}
+                        {tax.description && <div className="text-xs text-muted-foreground">{tax.description}</div>}
+                      </TableCell>
+                      <TableCell>{Number(tax.cgst || 0)}%</TableCell>
+                      <TableCell>{Number(tax.sgst || 0)}%</TableCell>
+                      <TableCell>{Number(tax.igst || 0)}%</TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-xs">
+                        {linkedProducts.length === 0 ? "—" : (
+                          <div className="flex flex-wrap gap-1">
+                            {linkedProducts.slice(0, 3).map((n: string, i: number) => <Badge key={i} variant="secondary" className="text-xs">{n}</Badge>)}
+                            {linkedProducts.length > 3 && <Badge variant="outline" className="text-xs">+{linkedProducts.length - 3}</Badge>}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={tax.is_active}
+                          onCheckedChange={(checked) => toggleTax.mutate({ id: tax.id, is_active: checked })}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => deleteTax.mutate(tax.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </motion.div>

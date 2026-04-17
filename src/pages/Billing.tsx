@@ -327,9 +327,17 @@ const Billing = () => {
   }, [invoices]);
 
   const getSelectedTax = () => taxes.find((t: any) => t.id === selectedTaxId);
+  const getTaxComponents = (tax: any) => {
+    if (!tax) return { cgst: 0, sgst: 0, igst: 0, total: 0 };
+    const cgst = Number(tax.cgst) || 0;
+    const sgst = Number(tax.sgst) || 0;
+    const igst = Number(tax.igst) || 0;
+    const total = cgst + sgst + igst || Number(tax.rate) || 0;
+    return { cgst, sgst, igst, total };
+  };
   const calcTaxAmount = (amount: number) => {
-    const tax = getSelectedTax();
-    return tax ? (amount * tax.rate / 100) : 0;
+    const { total } = getTaxComponents(getSelectedTax());
+    return (amount * total) / 100;
   };
 
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
@@ -386,12 +394,18 @@ const Billing = () => {
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
       const baseNum = Date.now().toString().slice(-6);
       const tax = getSelectedTax();
-      const taxRate = tax?.rate || 0;
+      const { cgst: cgstPct, sgst: sgstPct, igst: igstPct, total: taxRate } = getTaxComponents(tax);
+      const splitTax = (base: number) => ({
+        cgst_amount: (base * cgstPct) / 100,
+        sgst_amount: (base * sgstPct) / 100,
+        igst_amount: (base * igstPct) / 100,
+        tax_amount: (base * taxRate) / 100,
+      });
 
       if (paymentType === "Staged") {
         const rows = stages.map((stage, i) => {
-          const stageTax = stage.amount * taxRate / 100;
-          const stageTotal = stage.amount + stageTax;
+          const t = splitTax(stage.amount);
+          const stageTotal = stage.amount + t.tax_amount;
           let status = "Pending";
           if (stage.paid >= stageTotal && stageTotal > 0) status = "Paid";
           else if (stage.paid > 0) status = "Partial";
@@ -408,19 +422,18 @@ const Billing = () => {
             notes: `${stage.label}${notes ? ` — ${notes}` : ""}`,
             tax_id: selectedTaxId || null,
             tax_rate: taxRate,
-            tax_amount: stageTax,
+            ...t,
           };
         });
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
       } else if (paymentType === "Recurring") {
-        const taxPerInst = recurringAmount * taxRate / 100;
-        const totalPerInst = recurringAmount + taxPerInst;
+        const t = splitTax(recurringAmount);
+        const totalPerInst = recurringAmount + t.tax_amount;
         const rows = Array.from({ length: recurringCount }, (_, i) => {
           const collected = recurringCollected[i] || 0;
           const instStatus = recurringStatuses[i] || "Pending";
           let status = instStatus;
-          // Auto-override if collected amount dictates
           if (collected >= totalPerInst && totalPerInst > 0) status = "Paid";
           else if (collected > 0 && instStatus === "Pending") status = "Partial";
           const dueDate = recurringDueDates[i] || addMonths(new Date(), i);
@@ -437,15 +450,15 @@ const Billing = () => {
             notes: `Installment ${i + 1} of ${recurringCount} | Due: ${format(dueDate, "dd MMM yyyy")}${notes ? ` — ${notes}` : ""}`,
             tax_id: selectedTaxId || null,
             tax_rate: taxRate,
-            tax_amount: taxPerInst,
+            ...t,
           };
         });
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
       } else {
         const combinedSubtotal = totalAmount + pharmaSubtotal;
-        const taxAmt = combinedSubtotal * taxRate / 100;
-        const grandTotal = combinedSubtotal + taxAmt;
+        const t = splitTax(combinedSubtotal);
+        const grandTotal = combinedSubtotal + t.tax_amount;
         let status = "Pending";
         if (paidAmount >= grandTotal && grandTotal > 0) status = "Paid";
         else if (paidAmount > 0) status = "Partial";
@@ -463,7 +476,7 @@ const Billing = () => {
           notes: notes || null,
           tax_id: selectedTaxId || null,
           tax_rate: taxRate,
-          tax_amount: taxAmt,
+          ...t,
         });
         if (error) throw error;
       }
@@ -903,14 +916,17 @@ const Billing = () => {
               </div>
 
               <div>
-                <Label>Tax</Label>
+                <Label>Tax Configuration</Label>
                 <Select value={selectedTaxId || "none"} onValueChange={(v) => setSelectedTaxId(v === "none" ? "" : v)}>
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="No tax" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No Tax</SelectItem>
-                    {taxes.map((t: any) => (
-                      <SelectItem key={t.id} value={t.id}>{t.name} ({t.rate}%)</SelectItem>
-                    ))}
+                    {taxes.map((t: any) => {
+                      const { total } = getTaxComponents(t);
+                      return (
+                        <SelectItem key={t.id} value={t.id}>{t.name} ({total}%)</SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -927,17 +943,25 @@ const Billing = () => {
                       <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
-                  {((totalAmount + pharmaSubtotal) > 0) && (
-                    <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-                      {totalAmount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{totalAmount.toLocaleString()}</span></div>}
-                      {pharmaSubtotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>}
-                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{(totalAmount + pharmaSubtotal).toLocaleString()}</span></div>
-                      {selectedTaxId && selectedTaxId !== "none" && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Tax ({getSelectedTax()?.name})</span><span>₹{calcTaxAmount(totalAmount + pharmaSubtotal).toLocaleString()}</span></div>
-                      )}
-                      <div className="flex justify-between font-semibold text-primary"><span>Grand Total</span><span>₹{(totalAmount + pharmaSubtotal + calcTaxAmount(totalAmount + pharmaSubtotal)).toLocaleString()}</span></div>
-                    </div>
-                  )}
+                  {((totalAmount + pharmaSubtotal) > 0) && (() => {
+                    const subtotal = totalAmount + pharmaSubtotal;
+                    const { cgst, sgst, igst } = getTaxComponents(getSelectedTax());
+                    const cgstAmt = (subtotal * cgst) / 100;
+                    const sgstAmt = (subtotal * sgst) / 100;
+                    const igstAmt = (subtotal * igst) / 100;
+                    const taxApplied = selectedTaxId && selectedTaxId !== "none";
+                    return (
+                      <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+                        {totalAmount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{totalAmount.toLocaleString()}</span></div>}
+                        {pharmaSubtotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>}
+                        <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
+                        {taxApplied && cgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST ({cgst}%)</span><span>₹{cgstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
+                        {taxApplied && sgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST ({sgst}%)</span><span>₹{sgstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
+                        {taxApplied && igst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST ({igst}%)</span><span>₹{igstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
+                        <div className="flex justify-between font-semibold text-primary"><span>Grand Total</span><span>₹{(subtotal + cgstAmt + sgstAmt + igstAmt).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1343,7 +1367,16 @@ const Billing = () => {
               <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Total Amount</span><span className="font-semibold">₹{Number(viewInvoice.total_amount).toLocaleString()}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Paid Amount</span><span>₹{Number(viewInvoice.paid_amount).toLocaleString()}</span></div>
-                {viewInvoice.tax_rate > 0 && (
+                {Number(viewInvoice.cgst_amount) > 0 && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{Number(viewInvoice.cgst_amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                )}
+                {Number(viewInvoice.sgst_amount) > 0 && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>₹{Number(viewInvoice.sgst_amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                )}
+                {Number(viewInvoice.igst_amount) > 0 && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{Number(viewInvoice.igst_amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                )}
+                {!Number(viewInvoice.cgst_amount) && !Number(viewInvoice.sgst_amount) && !Number(viewInvoice.igst_amount) && viewInvoice.tax_rate > 0 && (
                   <div className="flex justify-between"><span className="text-muted-foreground">Tax ({viewInvoice.tax_rate}%)</span><span>₹{Number(viewInvoice.tax_amount || 0).toLocaleString()}</span></div>
                 )}
                 <div className="flex justify-between font-semibold text-primary border-t pt-2"><span>Balance Due</span><span>₹{(Number(viewInvoice.total_amount) - Number(viewInvoice.paid_amount)).toLocaleString()}</span></div>

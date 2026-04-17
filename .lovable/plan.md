@@ -1,46 +1,40 @@
 
 
-## Plan: Convert Tax Master to Full-Page Add/Edit with Versioning
+## Plan: Enforce single-active tax mapping per product
 
-### 1. Routing (`src/App.tsx`)
-Add two new protected routes inside `AppLayout`:
-- `/settings/tax-master/new` → `TaxMasterForm`
-- `/settings/tax-master/:id` → `TaxMasterForm`
+### Schema change (migration)
+Add `is_active` (boolean, default true) column to `tax_master_products` to track per-product active status within a tax rate.
 
-### 2. New file: `src/pages/TaxMasterForm.tsx`
-Full-page form (mobile-friendly, matches existing Master Data page style — header with Back button, sticky Save) containing:
-- **Fields**: Tax Name, Description, CGST %, SGST %, IGST % (computed total displayed), Active/Inactive toggle
-- **Mapped Products** section: searchable multi-select (reuse existing Popover+Command pattern from Settings.tsx) listing `pharma_products`, with chips + remove (X)
-- **Back** button (top-left) → `navigate("/settings?tab=tax")`
-- **Save** button (top-right + bottom)
-- On edit, loads `tax_master` row + `tax_master_products` links + each linked product's current `gst_percent`
+### TaxMasterForm.tsx changes
 
-### 3. Versioning behavior on Save (when editing existing tax with mapped products and rate changed)
-Show `AlertDialog` with warning **"This will affect all mapped products."** and two actions:
-- **Update All** — apply new rate to every mapped product
-- **Update Specific** — opens a checklist of mapped products; user picks which receive the new rate
+**1. Load all active mappings across tax rates**
+New query fetches every `tax_master_products` row joined with `tax_master` (only active tax + active mapping), excluding the current tax id being edited. Build a `Map<product_id, { taxId, taxName, rate }>` of "claimed" products.
 
-Save flow when rate changed AND products selected to update:
-1. Mark old `tax_master` row `is_active = false` (preserved for history; invoices already snapshot `tax_rate`/`tax_amount` so old invoices remain unaffected)
-2. Insert NEW `tax_master` row with new CGST/SGST/IGST/rate, `is_active = true`, same name (or name + version suffix)
-3. For selected products: re-link in `tax_master_products` to NEW tax id and update `pharma_products.gst_percent` to new total rate
-4. Unselected products remain linked to OLD (now inactive) tax row
+**2. Product picker — disable already-mapped products**
+- In the Command list, each product item checks the claim map.
+- If claimed: render with `opacity-50 pointer-events-none` style, disable selection, wrap in Tooltip showing `Already mapped to {taxName} {rate}% — deactivate there first`.
+- If currently selected on this tax: always selectable (toggle off allowed).
 
-If only metadata (name/description/products list) changed without rate change → simple in-place UPDATE (current behavior).
+**3. Mapped products list — per-row Active toggle**
+Replace the current chip-only view with a structured list. Each row shows:
+- Product name (greyed when inactive)
+- Switch (Active/Inactive) — toggles `tax_master_products.is_active` for this link
+- Remove (X) button
 
-If creating new tax OR editing tax with no mapped products → no warning, plain insert/update.
+State shape changes: `productIds: string[]` becomes `productLinks: { product_id: string; is_active: boolean }[]`.
 
-### 4. Update `src/pages/Settings.tsx` (Tax Master tab)
-- Remove the existing Add/Edit Dialog and all related state/mutations (`taxOpen`, `openEditTax`, `saveTax`, form fields, product picker)
-- Keep the list table + active toggle + delete
-- Replace **+ Add Tax Rate** button → `navigate("/settings/tax-master/new")`
-- Make table rows clickable + pencil icon → `navigate("/settings/tax-master/{id}")`
-- Optionally filter list to show Active by default with an "Include inactive (history)" toggle
+**4. Save logic updates**
+- When inserting/updating `tax_master_products` rows, include `is_active` per row.
+- A product marked inactive in this tax becomes selectable in other tax rates (because the cross-tax claim map filters by `tax_master_products.is_active = true`).
+- Keep existing versioning flow intact — old invoices retain snapshot rates (already handled via `invoices.tax_rate`/`tax_amount`).
 
-### 5. Historical preservation
-Already supported — `invoices.tax_rate`, `invoices.tax_amount`, `pharma_bills.tax_rate`, `pharma_bills.tax_amount` are snapshot columns. No DB migration required. Inactive tax rows remain in `tax_master` for reference.
+**5. Removing vs deactivating**
+- **Remove (X)** → deletes the link row entirely (product becomes free).
+- **Inactive toggle** → keeps row for history, frees product for mapping elsewhere, greys it visually.
 
 ### Files
-- New: `src/pages/TaxMasterForm.tsx`
-- Modified: `src/App.tsx` (2 routes), `src/pages/Settings.tsx` (remove dialog, add navigation)
+- New migration: `ALTER TABLE tax_master_products ADD COLUMN is_active boolean NOT NULL DEFAULT true;`
+- Modified: `src/pages/TaxMasterForm.tsx` (claim map query, picker disable + tooltip, per-row toggle UI, updated save payload)
+
+No changes to invoice/billing tables — historical immutability already enforced by snapshot columns.
 

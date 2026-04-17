@@ -1,5 +1,20 @@
 import { useState, useRef } from "react";
-import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt } from "lucide-react";
+import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt, X } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -39,8 +54,12 @@ const Settings = () => {
   const [rolePerms, setRolePerms] = useState("");
   const [taxOpen, setTaxOpen] = useState(false);
   const [taxName, setTaxName] = useState("");
-  const [taxRate, setTaxRate] = useState(0);
+  const [taxCgst, setTaxCgst] = useState<string>("");
+  const [taxSgst, setTaxSgst] = useState<string>("");
+  const [taxIgst, setTaxIgst] = useState<string>("");
   const [taxDesc, setTaxDesc] = useState("");
+  const [taxProductIds, setTaxProductIds] = useState<string[]>([]);
+  const [productSearchOpen, setProductSearchOpen] = useState(false);
 
   // Clinic settings
   const { data: clinic, isLoading: clinicLoading } = useQuery({

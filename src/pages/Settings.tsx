@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt, X } from "lucide-react";
+import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt, X, Pencil } from "lucide-react";
 import {
   Popover,
   PopoverContent,

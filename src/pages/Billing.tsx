@@ -933,7 +933,7 @@ const Billing = () => {
 
               {paymentType === "One-time" && (
                 <div className="space-y-3">
-                  <div class-name="grid grid-cols-2 gap-4" className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Services Subtotal (₹)</Label>
                       <Input type="number" className="mt-1.5 bg-muted" value={servicesSubtotal} readOnly />

@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +26,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+type ProductLink = { product_id: string; is_active: boolean };
+
 const TaxMasterForm = () => {
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === "new";
@@ -38,8 +40,8 @@ const TaxMasterForm = () => {
   const [sgst, setSgst] = useState("");
   const [igst, setIgst] = useState("");
   const [isActive, setIsActive] = useState(true);
-  const [productIds, setProductIds] = useState<string[]>([]);
-  const [originalProductIds, setOriginalProductIds] = useState<string[]>([]);
+  const [productLinks, setProductLinks] = useState<ProductLink[]>([]);
+  const [originalActiveProductIds, setOriginalActiveProductIds] = useState<string[]>([]);
   const [originalRate, setOriginalRate] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -47,14 +49,14 @@ const TaxMasterForm = () => {
   const [pickerSpecificOpen, setPickerSpecificOpen] = useState(false);
   const [selectedToUpdate, setSelectedToUpdate] = useState<string[]>([]);
 
-  // Load existing tax
+  // Load existing tax + its product links (with is_active)
   const { data: existing, isLoading } = useQuery({
     queryKey: ["tax-master", id],
     enabled: !isNew,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tax_master" as any)
-        .select("*, tax_master_products(product_id, pharma_products(id, name))")
+        .select("*, tax_master_products(product_id, is_active)")
         .eq("id", id)
         .single();
       if (error) throw error;
@@ -72,6 +74,33 @@ const TaxMasterForm = () => {
     },
   });
 
+  // Cross-tax claim map: products already actively mapped to OTHER active tax rates
+  const { data: claims = [] } = useQuery({
+    queryKey: ["tax-product-claims", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tax_master_products" as any)
+        .select("product_id, tax_id, is_active, tax_master!inner(id, name, rate, is_active)");
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+
+  const claimMap = useMemo(() => {
+    const m = new Map<string, { taxId: string; taxName: string; rate: number }>();
+    claims.forEach((c: any) => {
+      if (!c.is_active) return;
+      if (!c.tax_master?.is_active) return;
+      if (!isNew && c.tax_id === id) return; // exclude current tax
+      m.set(c.product_id, {
+        taxId: c.tax_id,
+        taxName: c.tax_master.name,
+        rate: Number(c.tax_master.rate || 0),
+      });
+    });
+    return m;
+  }, [claims, id, isNew]);
+
   useEffect(() => {
     if (existing) {
       setName(existing.name || "");
@@ -80,9 +109,11 @@ const TaxMasterForm = () => {
       setSgst(existing.sgst != null ? String(existing.sgst) : "");
       setIgst(existing.igst != null ? String(existing.igst) : "");
       setIsActive(existing.is_active ?? true);
-      const linked = (existing.tax_master_products || []).map((l: any) => l.product_id).filter(Boolean);
-      setProductIds(linked);
-      setOriginalProductIds(linked);
+      const links: ProductLink[] = (existing.tax_master_products || [])
+        .filter((l: any) => l.product_id)
+        .map((l: any) => ({ product_id: l.product_id, is_active: l.is_active ?? true }));
+      setProductLinks(links);
+      setOriginalActiveProductIds(links.filter((l) => l.is_active).map((l) => l.product_id));
       setOriginalRate(Number(existing.rate || 0));
     }
   }, [existing]);
@@ -99,6 +130,24 @@ const TaxMasterForm = () => {
     return m;
   }, [pharmaProducts]);
 
+  const linkedIds = useMemo(() => new Set(productLinks.map((l) => l.product_id)), [productLinks]);
+
+  const toggleProduct = (pid: string) => {
+    setProductLinks((prev) =>
+      prev.find((l) => l.product_id === pid)
+        ? prev.filter((l) => l.product_id !== pid)
+        : [...prev, { product_id: pid, is_active: true }],
+    );
+  };
+
+  const setLinkActive = (pid: string, active: boolean) => {
+    setProductLinks((prev) => prev.map((l) => (l.product_id === pid ? { ...l, is_active: active } : l)));
+  };
+
+  const removeLink = (pid: string) => {
+    setProductLinks((prev) => prev.filter((l) => l.product_id !== pid));
+  };
+
   const performSave = async (updateProductIds: string[] | null) => {
     setSaving(true);
     try {
@@ -112,20 +161,23 @@ const TaxMasterForm = () => {
         is_active: isActive,
       };
 
+      const activeLinkIds = productLinks.filter((l) => l.is_active).map((l) => l.product_id);
+
       if (isNew) {
         const { data: inserted, error } = await supabase.from("tax_master" as any).insert(payload).select().single();
         if (error) throw error;
         const newTaxId = (inserted as any).id;
-        if (productIds.length > 0) {
-          const links = productIds.map((pid) => ({ tax_id: newTaxId, product_id: pid }));
+        if (productLinks.length > 0) {
+          const links = productLinks.map((l) => ({ tax_id: newTaxId, product_id: l.product_id, is_active: l.is_active }));
           const { error: linkErr } = await supabase.from("tax_master_products" as any).insert(links);
           if (linkErr) throw linkErr;
-          // Update product gst_percent
-          await supabase.from("pharma_products").update({ gst_percent: totalRate }).in("id", productIds);
+          if (activeLinkIds.length > 0) {
+            await supabase.from("pharma_products").update({ gst_percent: totalRate }).in("id", activeLinkIds);
+          }
         }
         toast.success("Tax rate created");
-      } else if (rateChanged && originalProductIds.length > 0 && updateProductIds !== null) {
-        // Versioning: deactivate old, insert new, re-link selected products
+      } else if (rateChanged && originalActiveProductIds.length > 0 && updateProductIds !== null) {
+        // Versioning path
         const { error: deactErr } = await supabase
           .from("tax_master" as any)
           .update({ is_active: false })
@@ -140,36 +192,31 @@ const TaxMasterForm = () => {
         if (insErr) throw insErr;
         const newTaxId = (inserted as any).id;
 
-        // Remaining products stay on old tax (already linked). Move selected to new tax.
         if (updateProductIds.length > 0) {
-          // Remove old links for selected
           const { error: delErr } = await supabase
             .from("tax_master_products" as any)
             .delete()
             .eq("tax_id", id)
             .in("product_id", updateProductIds);
           if (delErr) throw delErr;
-          // Insert new links
-          const links = updateProductIds.map((pid) => ({ tax_id: newTaxId, product_id: pid }));
+          const links = updateProductIds.map((pid) => ({ tax_id: newTaxId, product_id: pid, is_active: true }));
           const { error: linkErr } = await supabase.from("tax_master_products" as any).insert(links);
           if (linkErr) throw linkErr;
-          // Update product gst_percent
           await supabase.from("pharma_products").update({ gst_percent: totalRate }).in("id", updateProductIds);
         }
         toast.success("New tax version created. Previous version archived.");
       } else {
-        // Plain in-place update (no rate change OR no mapped products to worry about)
+        // In-place update + sync links (preserves is_active flag per row)
         const { error } = await supabase.from("tax_master" as any).update(payload).eq("id", id);
         if (error) throw error;
-        // Sync product links
         const { error: delErr } = await supabase.from("tax_master_products" as any).delete().eq("tax_id", id);
         if (delErr) throw delErr;
-        if (productIds.length > 0) {
-          const links = productIds.map((pid) => ({ tax_id: id!, product_id: pid }));
+        if (productLinks.length > 0) {
+          const links = productLinks.map((l) => ({ tax_id: id!, product_id: l.product_id, is_active: l.is_active }));
           const { error: linkErr } = await supabase.from("tax_master_products" as any).insert(links);
           if (linkErr) throw linkErr;
-          if (rateChanged) {
-            await supabase.from("pharma_products").update({ gst_percent: totalRate }).in("id", productIds);
+          if (rateChanged && activeLinkIds.length > 0) {
+            await supabase.from("pharma_products").update({ gst_percent: totalRate }).in("id", activeLinkIds);
           }
         }
         toast.success("Tax rate updated");
@@ -177,6 +224,7 @@ const TaxMasterForm = () => {
 
       queryClient.invalidateQueries({ queryKey: ["tax-master"] });
       queryClient.invalidateQueries({ queryKey: ["pharma-products-for-tax"] });
+      queryClient.invalidateQueries({ queryKey: ["tax-product-claims"] });
       navigate("/settings?tab=tax");
     } catch (e: any) {
       toast.error(e.message || "Failed to save");
@@ -192,9 +240,8 @@ const TaxMasterForm = () => {
       toast.error("Tax name is required");
       return;
     }
-    // Show warning when editing existing tax with mapped products and rate changed
-    if (!isNew && rateChanged && originalProductIds.length > 0) {
-      setSelectedToUpdate(originalProductIds);
+    if (!isNew && rateChanged && originalActiveProductIds.length > 0) {
+      setSelectedToUpdate(originalActiveProductIds);
       setWarningOpen(true);
       return;
     }
@@ -210,6 +257,7 @@ const TaxMasterForm = () => {
   }
 
   return (
+    <TooltipProvider delayDuration={150}>
     <div className="space-y-6 pb-24">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
@@ -293,13 +341,13 @@ const TaxMasterForm = () => {
             <div>
               <h3 className="font-display font-semibold">Mapped Products</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Products that use this tax rate
+                Toggle inactive to free a product for another tax rate
               </p>
             </div>
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
-                  {productIds.length > 0 ? `${productIds.length} product(s) selected` : "Add products..."}
+                  {productLinks.length > 0 ? `${productLinks.length} product(s) selected` : "Add products..."}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -310,34 +358,88 @@ const TaxMasterForm = () => {
                     <CommandEmpty>No products found.</CommandEmpty>
                     <CommandGroup>
                       {pharmaProducts.map((p: any) => {
-                        const checked = productIds.includes(p.id);
-                        return (
+                        const checked = linkedIds.has(p.id);
+                        const claim = claimMap.get(p.id);
+                        const disabled = !!claim && !checked;
+
+                        const item = (
                           <CommandItem
                             key={p.id}
                             value={p.name}
+                            disabled={disabled}
                             onSelect={() => {
-                              setProductIds((prev) => checked ? prev.filter((x) => x !== p.id) : [...prev, p.id]);
+                              if (disabled) return;
+                              toggleProduct(p.id);
                             }}
+                            className={cn(disabled && "opacity-50 cursor-not-allowed")}
                           >
                             <Check className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")} />
-                            {p.name}
+                            <span className="flex-1">{p.name}</span>
+                            {claim && (
+                              <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                {claim.taxName}
+                              </span>
+                            )}
                           </CommandItem>
                         );
+
+                        if (disabled) {
+                          return (
+                            <Tooltip key={p.id}>
+                              <TooltipTrigger asChild>
+                                <div>{item}</div>
+                              </TooltipTrigger>
+                              <TooltipContent side="left">
+                                Already mapped to {claim!.taxName} {claim!.rate}% — deactivate there first
+                              </TooltipContent>
+                            </Tooltip>
+                          );
+                        }
+                        return item;
                       })}
                     </CommandGroup>
                   </CommandList>
                 </Command>
               </PopoverContent>
             </Popover>
-            {productIds.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {productIds.map((pid) => (
-                  <Badge key={pid} variant="secondary" className="gap-1">
-                    {productMap.get(pid) || pid}
-                    <button onClick={() => setProductIds((prev) => prev.filter((x) => x !== pid))}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
+
+            {productLinks.length > 0 && (
+              <div className="space-y-1.5">
+                {productLinks.map((l) => (
+                  <div
+                    key={l.product_id}
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-lg border px-3 py-2",
+                      !l.is_active && "opacity-60 bg-muted/40",
+                    )}
+                  >
+                    <span className={cn("text-sm flex-1 truncate", !l.is_active && "line-through")}>
+                      {productMap.get(l.product_id) || l.product_id}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <Switch
+                              checked={l.is_active}
+                              onCheckedChange={(v) => setLinkActive(l.product_id, v)}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          {l.is_active ? "Active — used for billing" : "Inactive — available for other tax rates"}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => removeLink(l.product_id)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -360,13 +462,13 @@ const TaxMasterForm = () => {
               variant="outline"
               onClick={() => {
                 setWarningOpen(false);
-                setSelectedToUpdate(originalProductIds);
+                setSelectedToUpdate(originalActiveProductIds);
                 setPickerSpecificOpen(true);
               }}
             >
               Update Specific
             </Button>
-            <AlertDialogAction onClick={() => performSave(originalProductIds)}>
+            <AlertDialogAction onClick={() => performSave(originalActiveProductIds)}>
               Update All
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -383,7 +485,7 @@ const TaxMasterForm = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="max-h-72 overflow-y-auto space-y-2 py-2">
-            {originalProductIds.map((pid) => {
+            {originalActiveProductIds.map((pid) => {
               const checked = selectedToUpdate.includes(pid);
               return (
                 <label
@@ -394,7 +496,7 @@ const TaxMasterForm = () => {
                     checked={checked}
                     onCheckedChange={(v) => {
                       setSelectedToUpdate((prev) =>
-                        v ? [...prev, pid] : prev.filter((x) => x !== pid)
+                        v ? [...prev, pid] : prev.filter((x) => x !== pid),
                       );
                     }}
                   />
@@ -412,6 +514,7 @@ const TaxMasterForm = () => {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </TooltipProvider>
   );
 };
 

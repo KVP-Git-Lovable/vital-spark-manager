@@ -261,6 +261,24 @@ const Billing = () => {
     },
   });
 
+  const { data: taxProductLinks = [] } = useQuery({
+    queryKey: ["tax-master-products-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tax_master_products")
+        .select("product_id, tax_id, is_active, tax_master!inner(is_active)")
+        .eq("is_active", true);
+      if (error) throw error;
+      return (data || []).filter((r: any) => r.tax_master?.is_active);
+    },
+  });
+
+  const productTaxMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (taxProductLinks as any[]).forEach((r) => m.set(r.product_id, r.tax_id));
+    return m;
+  }, [taxProductLinks]);
+
   const { data: pharmaProducts = [] } = useQuery({
     queryKey: ["pharma-products-billing"],
     queryFn: async () => {

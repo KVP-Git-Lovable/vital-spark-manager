@@ -1,26 +1,46 @@
 
 
-## Plan
+## Plan: Convert Tax Master to Full-Page Add/Edit with Versioning
 
-### 1. Landing page not loading on clinic.quickapp.ai/portal
-The code at `src/pages/portal/PortalLanding.tsx` already contains the new redesigned landing page (hero, stats band, features, how-it-works, testimonial, CTA band). The screenshot shows the old "DermaCare Portal" phone-login UI — meaning the **published build on the custom domain is stale**. Action: after the changes below, the user needs to **Publish** again from the top-right of Lovable. No code change is required to make the route render — `<Route path="/portal" element={<PortalLanding />} />` is already correct in `App.tsx`.
+### 1. Routing (`src/App.tsx`)
+Add two new protected routes inside `AppLayout`:
+- `/settings/tax-master/new` → `TaxMasterForm`
+- `/settings/tax-master/:id` → `TaxMasterForm`
 
-### 2. Remove dummy data from `PortalLanding.tsx`
-The hero's right-side mockup currently shows fake patient data: "Priya Sharma", "Acne Follow-up · Dr. Mehta", "Tretinoin 0.025%", "Vitamin C Serum", "Order Delivered 2 hours ago", "4.9 Rating · From 2.4k reviews", and a fake testimonial from "Ananya Kapoor".
+### 2. New file: `src/pages/TaxMasterForm.tsx`
+Full-page form (mobile-friendly, matches existing Master Data page style — header with Back button, sticky Save) containing:
+- **Fields**: Tax Name, Description, CGST %, SGST %, IGST % (computed total displayed), Active/Inactive toggle
+- **Mapped Products** section: searchable multi-select (reuse existing Popover+Command pattern from Settings.tsx) listing `pharma_products`, with chips + remove (X)
+- **Back** button (top-left) → `navigate("/settings?tab=tax")`
+- **Save** button (top-right + bottom)
+- On edit, loads `tax_master` row + `tax_master_products` links + each linked product's current `gst_percent`
 
-Changes:
-- **Hero mockup card**: Replace the "Priya Sharma" personalised card with a **generic, label-style preview** (no names, no real-looking prescriptions). E.g. show abstract section labels: "Your Next Appointment", "Your Active Prescriptions" with empty/placeholder rows ("Login to view") and a generic "Skin Score" tile labelled as illustrative.
-- **Floating chips** ("Order Delivered 2 hours ago", "4.9 Rating From 2.4k reviews"): replace with neutral feature chips ("Secure & Private", "24/7 Access").
-- **Stats band** (10k+, 50k+, 4.9★, 24/7): keep only `24/7 Access` and `Secure` style neutral indicators (remove fabricated patient/prescription counts).
-- **Testimonial section "Ananya Kapoor"**: remove the entire testimonial section (no real testimonial yet).
+### 3. Versioning behavior on Save (when editing existing tax with mapped products and rate changed)
+Show `AlertDialog` with warning **"This will affect all mapped products."** and two actions:
+- **Update All** — apply new rate to every mapped product
+- **Update Specific** — opens a checklist of mapped products; user picks which receive the new rate
 
-### 3. Hardcode portal URL to `https://clinic.quickapp.ai/portal`
-In `src/pages/PatientDetail.tsx` (lines ~370–386), the portal access code panel uses `${window.location.origin}/portal` — when staff are on the preview/staging URL this generates the wrong link. Replace both occurrences with the hardcoded constant `https://clinic.quickapp.ai/portal`.
+Save flow when rate changed AND products selected to update:
+1. Mark old `tax_master` row `is_active = false` (preserved for history; invoices already snapshot `tax_rate`/`tax_amount` so old invoices remain unaffected)
+2. Insert NEW `tax_master` row with new CGST/SGST/IGST/rate, `is_active = true`, same name (or name + version suffix)
+3. For selected products: re-link in `tax_master_products` to NEW tax id and update `pharma_products.gst_percent` to new total rate
+4. Unselected products remain linked to OLD (now inactive) tax row
 
-### Files modified
-- `src/pages/portal/PortalLanding.tsx` — remove all dummy/personal data, keep premium look with generic content
-- `src/pages/PatientDetail.tsx` — hardcode portal URL in 2 places (display + clipboard copy)
+If only metadata (name/description/products list) changed without rate change → simple in-place UPDATE (current behavior).
 
-### After implementation
-The user should click **Publish** in Lovable to push the new landing page to `clinic.quickapp.ai`.
+If creating new tax OR editing tax with no mapped products → no warning, plain insert/update.
+
+### 4. Update `src/pages/Settings.tsx` (Tax Master tab)
+- Remove the existing Add/Edit Dialog and all related state/mutations (`taxOpen`, `openEditTax`, `saveTax`, form fields, product picker)
+- Keep the list table + active toggle + delete
+- Replace **+ Add Tax Rate** button → `navigate("/settings/tax-master/new")`
+- Make table rows clickable + pencil icon → `navigate("/settings/tax-master/{id}")`
+- Optionally filter list to show Active by default with an "Include inactive (history)" toggle
+
+### 5. Historical preservation
+Already supported — `invoices.tax_rate`, `invoices.tax_amount`, `pharma_bills.tax_rate`, `pharma_bills.tax_amount` are snapshot columns. No DB migration required. Inactive tax rows remain in `tax_master` for reference.
+
+### Files
+- New: `src/pages/TaxMasterForm.tsx`
+- Modified: `src/App.tsx` (2 routes), `src/pages/Settings.tsx` (remove dialog, add navigation)
 

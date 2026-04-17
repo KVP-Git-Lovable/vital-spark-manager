@@ -241,6 +241,11 @@ const TaxMasterForm = () => {
             await supabase.from("pharma_products").update({ gst_percent: totalRate }).in("id", activeLinkIds);
           }
         }
+        if (serviceLinks.length > 0) {
+          const sLinks = serviceLinks.map((l) => ({ tax_id: newTaxId, service_id: l.service_id, is_active: l.is_active }));
+          const { error: sErr } = await supabase.from("tax_master_services" as any).insert(sLinks);
+          if (sErr) throw sErr;
+        }
         toast.success("Tax rate created");
       } else if (rateChanged && originalActiveProductIds.length > 0 && updateProductIds !== null) {
         // Versioning path
@@ -270,6 +275,14 @@ const TaxMasterForm = () => {
           if (linkErr) throw linkErr;
           await supabase.from("pharma_products").update({ gst_percent: totalRate }).in("id", updateProductIds);
         }
+        // Carry service links to new tax version (active ones move; inactive stay archived on old)
+        const activeServiceIds = serviceLinks.filter((l) => l.is_active).map((l) => l.service_id);
+        if (activeServiceIds.length > 0) {
+          await supabase.from("tax_master_services" as any).delete().eq("tax_id", id).in("service_id", activeServiceIds);
+          const sLinks = activeServiceIds.map((sid) => ({ tax_id: newTaxId, service_id: sid, is_active: true }));
+          const { error: sErr } = await supabase.from("tax_master_services" as any).insert(sLinks);
+          if (sErr) throw sErr;
+        }
         toast.success("New tax version created. Previous version archived.");
       } else {
         // In-place update + sync links (preserves is_active flag per row)
@@ -285,12 +298,23 @@ const TaxMasterForm = () => {
             await supabase.from("pharma_products").update({ gst_percent: totalRate }).in("id", activeLinkIds);
           }
         }
+        // Sync service links
+        const { error: sDelErr } = await supabase.from("tax_master_services" as any).delete().eq("tax_id", id);
+        if (sDelErr) throw sDelErr;
+        if (serviceLinks.length > 0) {
+          const sLinks = serviceLinks.map((l) => ({ tax_id: id!, service_id: l.service_id, is_active: l.is_active }));
+          const { error: sErr } = await supabase.from("tax_master_services" as any).insert(sLinks);
+          if (sErr) throw sErr;
+        }
         toast.success("Tax rate updated");
       }
 
       queryClient.invalidateQueries({ queryKey: ["tax-master"] });
       queryClient.invalidateQueries({ queryKey: ["pharma-products-for-tax"] });
       queryClient.invalidateQueries({ queryKey: ["tax-product-claims"] });
+      queryClient.invalidateQueries({ queryKey: ["services-for-tax"] });
+      queryClient.invalidateQueries({ queryKey: ["tax-service-claims"] });
+      queryClient.invalidateQueries({ queryKey: ["tax-master-services-active"] });
       navigate("/settings?tab=tax");
     } catch (e: any) {
       toast.error(e.message || "Failed to save");

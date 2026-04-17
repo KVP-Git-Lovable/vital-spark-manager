@@ -12,7 +12,6 @@ import {
   LogIn,
   Search,
   PackageCheck,
-  Quote,
   Phone,
   Mail,
   MapPin,
@@ -45,10 +44,10 @@ const features = [
 ];
 
 const stats = [
-  { value: "10k+", label: "Happy Patients" },
-  { value: "50k+", label: "Prescriptions" },
-  { value: "4.9★", label: "Patient Rating" },
   { value: "24/7", label: "Portal Access" },
+  { value: "Secure", label: "HIPAA-ready" },
+  { value: "Instant", label: "Reorders" },
+  { value: "All-in-One", label: "Your Records" },
 ];
 
 const steps = [
@@ -115,7 +114,7 @@ const PortalLanding = () => {
           >
             <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur border border-white/25 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider mb-6">
               <span className="h-2 w-2 rounded-full bg-[hsl(140,80%,65%)] animate-pulse" />
-              Trusted by 10,000+ patients
+              The Skin Clinic Patient Portal
             </div>
             <h1
               className="text-5xl font-extrabold leading-[1.05] tracking-tight md:text-7xl lg:text-8xl"
@@ -152,16 +151,16 @@ const PortalLanding = () => {
             {/* Trust strip */}
             <div className="mt-10 flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/85">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-[hsl(140,80%,75%)]" />
-                <span>10,000+ patients</span>
-              </div>
-              <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-[hsl(140,80%,75%)]" />
-                <span>HIPAA-ready security</span>
+                <span>Secure & private</span>
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-[hsl(140,80%,75%)]" />
                 <span>24/7 access</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-[hsl(140,80%,75%)]" />
+                <span>All your records, one place</span>
               </div>
             </div>
           </motion.div>
@@ -181,51 +180,45 @@ const PortalLanding = () => {
               <div className="relative rounded-3xl bg-white/95 backdrop-blur-xl shadow-2xl shadow-black/30 p-6 border border-white/40 text-foreground">
                 <div className="flex items-center justify-between mb-5">
                   <div>
-                    <p className="text-xs text-muted-foreground font-medium">Welcome back</p>
-                    <p className="font-bold text-base" style={heading}>Priya Sharma</p>
+                    <p className="text-xs text-muted-foreground font-medium">Patient Portal</p>
+                    <p className="font-bold text-base" style={heading}>Your dashboard preview</p>
                   </div>
-                  <div className="h-11 w-11 rounded-full bg-gradient-to-br from-[hsl(174,62%,40%)] to-[hsl(160,55%,45%)] flex items-center justify-center text-white font-bold text-sm shadow-md">
-                    PS
+                  <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-[hsl(174,62%,40%)] to-[hsl(160,55%,45%)] flex items-center justify-center text-white shadow-md">
+                    <Sparkles className="h-5 w-5" />
                   </div>
                 </div>
 
-                {/* Next appointment */}
+                {/* Next appointment placeholder */}
                 <div className="rounded-2xl bg-gradient-to-br from-[hsl(174,62%,95%)] to-[hsl(160,55%,93%)] p-4 border border-[hsl(174,62%,85%)]">
                   <div className="flex items-center gap-2 text-xs font-semibold text-[hsl(174,70%,28%)] uppercase tracking-wider mb-2">
                     <Calendar className="h-3.5 w-3.5" />
-                    Next Appointment
+                    Your Next Appointment
                   </div>
-                  <p className="font-bold text-foreground" style={heading}>Acne Follow-up</p>
-                  <p className="text-sm text-muted-foreground mt-0.5">Dr. Mehta · Tomorrow, 11:30 AM</p>
+                  <p className="font-bold text-foreground" style={heading}>Login to view</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">See upcoming visits & reminders</p>
                 </div>
 
-                {/* Prescription row */}
+                {/* Prescription placeholder */}
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Prescriptions</p>
-                  {[
-                    { name: "Tretinoin 0.025%", sub: "Once daily, night" },
-                    { name: "Vitamin C Serum", sub: "Morning routine" },
-                  ].map((m) => (
-                    <div key={m.name} className="flex items-center gap-3 rounded-xl bg-muted/40 p-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Your Active Prescriptions</p>
+                  {[0, 1].map((i) => (
+                    <div key={i} className="flex items-center gap-3 rounded-xl bg-muted/40 p-3">
                       <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[hsl(174,62%,40%)] to-[hsl(160,55%,45%)] flex items-center justify-center">
                         <Pill className="h-4 w-4 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{m.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{m.sub}</p>
+                        <p className="text-sm font-semibold text-foreground truncate">Login to view</p>
+                        <p className="text-xs text-muted-foreground truncate">Your medicines & dosage</p>
                       </div>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs text-[hsl(174,70%,28%)] font-semibold hover:bg-[hsl(174,62%,92%)]">
-                        Reorder
-                      </Button>
                     </div>
                   ))}
                 </div>
 
-                {/* Mini stat */}
+                {/* Mini info tile */}
                 <div className="mt-4 flex items-center justify-between rounded-xl bg-gradient-to-r from-[hsl(174,70%,28%)] to-[hsl(160,55%,40%)] p-3 text-white">
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider opacity-80 font-semibold">Skin Score</p>
-                    <p className="text-xl font-bold" style={heading}>+18% improvement</p>
+                    <p className="text-[10px] uppercase tracking-wider opacity-80 font-semibold">Your Skin Journey</p>
+                    <p className="text-base font-bold" style={heading}>Track progress over time</p>
                   </div>
                   <Sparkles className="h-6 w-6 opacity-90" />
                 </div>
@@ -239,11 +232,11 @@ const PortalLanding = () => {
                 className="absolute -left-6 top-20 bg-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-2.5 border border-white/60"
               >
                 <div className="h-9 w-9 rounded-full bg-[hsl(140,70%,90%)] flex items-center justify-center">
-                  <CheckCircle2 className="h-5 w-5 text-[hsl(140,70%,40%)]" />
+                  <ShieldCheck className="h-5 w-5 text-[hsl(140,70%,40%)]" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-foreground">Order Delivered</p>
-                  <p className="text-[10px] text-muted-foreground">2 hours ago</p>
+                  <p className="text-xs font-bold text-foreground">Secure & Private</p>
+                  <p className="text-[10px] text-muted-foreground">Your data stays yours</p>
                 </div>
               </motion.div>
 
@@ -253,10 +246,12 @@ const PortalLanding = () => {
                 transition={{ delay: 0.8 }}
                 className="absolute -right-4 -bottom-4 bg-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-2.5 border border-white/60"
               >
-                <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                <div className="h-9 w-9 rounded-full bg-[hsl(174,62%,92%)] flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-[hsl(174,70%,28%)]" />
+                </div>
                 <div>
-                  <p className="text-xs font-bold text-foreground">4.9 Rating</p>
-                  <p className="text-[10px] text-muted-foreground">From 2.4k reviews</p>
+                  <p className="text-xs font-bold text-foreground">24/7 Access</p>
+                  <p className="text-[10px] text-muted-foreground">Anytime, anywhere</p>
                 </div>
               </motion.div>
             </div>
@@ -363,35 +358,6 @@ const PortalLanding = () => {
         </div>
       </section>
 
-      {/* ── Testimonial ── */}
-      <section className="py-24 px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="mx-auto max-w-4xl relative rounded-3xl bg-gradient-to-br from-[hsl(174,40%,97%)] to-[hsl(160,40%,96%)] p-10 md:p-14 border border-[hsl(174,62%,90%)] shadow-xl shadow-[hsl(174,62%,40%)]/10"
-        >
-          <Quote className="absolute top-8 right-8 h-16 w-16 text-[hsl(174,62%,85%)]" />
-          <div className="flex items-center gap-1 mb-5">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-            ))}
-          </div>
-          <p className="text-xl md:text-2xl leading-relaxed text-foreground font-medium" style={heading}>
-            "The portal has completely changed how I manage my skincare. Reordering medicines takes seconds, and I never miss an appointment. It feels like having my dermatologist in my pocket."
-          </p>
-          <div className="mt-7 flex items-center gap-4">
-            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-[hsl(174,62%,40%)] to-[hsl(160,55%,45%)] flex items-center justify-center text-white font-bold shadow-md">
-              AK
-            </div>
-            <div>
-              <p className="font-bold text-foreground">Ananya Kapoor</p>
-              <p className="text-sm text-muted-foreground">Patient since 2023</p>
-            </div>
-          </div>
-        </motion.div>
-      </section>
-
       {/* ── Final CTA ── */}
       <section className="px-6 pb-24">
         <motion.div
@@ -416,7 +382,7 @@ const PortalLanding = () => {
               Ready to take control of your skin health?
             </h2>
             <p className="mt-5 text-white/85 text-lg max-w-2xl mx-auto">
-              Join thousands of patients managing their skincare journey with The Skin Clinic Portal.
+              Manage your skincare journey with The Skin Clinic Portal — appointments, prescriptions, and orders in one place.
             </p>
             <div className="mt-9 flex flex-wrap justify-center gap-4">
               <Button

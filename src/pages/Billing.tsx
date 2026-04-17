@@ -383,7 +383,7 @@ const Billing = () => {
 
   const createInvoice = useMutation({
     mutationFn: async () => {
-      const services = serviceInputs.filter((s) => s.trim());
+      const services = serviceInputs.filter((s) => s.name.trim()).map((s) => s.name);
       const pharmaServiceNames = pharmaItems.filter(i => i.product_name).map(i => `${i.product_name} x${i.quantity}`);
       const allServices = [...services, ...pharmaServiceNames];
       if (allServices.length === 0) throw new Error("Add at least one service or product");

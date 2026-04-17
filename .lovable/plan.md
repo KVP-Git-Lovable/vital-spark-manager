@@ -1,40 +1,43 @@
 
 
-## Plan: Enforce single-active tax mapping per product
+## Plan: Auto-include Services fee in Invoice total
 
-### Schema change (migration)
-Add `is_active` (boolean, default true) column to `tax_master_products` to track per-product active status within a tax rate.
+### Root cause
+In `src/pages/Billing.tsx`, when a service is picked from the dropdown, `updateServiceInput` only stores the name. The Services Subtotal field stays at 0 unless the user manually types an amount. So Services fee is excluded from Subtotal/GST/Grand Total, while Pharma products are auto-summed (because pharma items track their own qty × price).
 
-### TaxMasterForm.tsx changes
+### Fix
+Make Services behave like Pharma — auto-sum from picked service prices.
 
-**1. Load all active mappings across tax rates**
-New query fetches every `tax_master_products` row joined with `tax_master` (only active tax + active mapping), excluding the current tax id being edited. Build a `Map<product_id, { taxId, taxName, rate }>` of "claimed" products.
+**1. Track per-row price**
+Change `serviceInputs` from `string[]` (just names) to `{ name: string; price: number }[]`. Update `addServiceInput`, `removeServiceInput`, and the prefill effect (line 295–305) accordingly.
 
-**2. Product picker — disable already-mapped products**
-- In the Command list, each product item checks the claim map.
-- If claimed: render with `opacity-50 pointer-events-none` style, disable selection, wrap in Tooltip showing `Already mapped to {taxName} {rate}% — deactivate there first`.
-- If currently selected on this tax: always selectable (toggle off allowed).
+**2. Auto-fill price on selection**
+In the service Popover `onSelect` (line 807), pass both name and `svc.price` to `updateServiceInput`, which sets `{ name: svc.name, price: svc.price || 0 }` for that row.
 
-**3. Mapped products list — per-row Active toggle**
-Replace the current chip-only view with a structured list. Each row shows:
-- Product name (greyed when inactive)
-- Switch (Active/Inactive) — toggles `tax_master_products.is_active` for this link
-- Remove (X) button
+**3. Derive Services Subtotal automatically**
+Replace the editable `totalAmount` state with a memo:
+```ts
+const servicesSubtotal = useMemo(
+  () => serviceInputs.reduce((sum, s) => sum + (s.price || 0), 0),
+  [serviceInputs]
+);
+```
+Show each service's price next to its row (small muted label, like pharma rows show line totals) and a "Services subtotal: ₹X" line under the list — mirroring the pharma section.
 
-State shape changes: `productIds: string[]` becomes `productLinks: { product_id: string; is_active: boolean }[]`.
+**4. Services Subtotal field**
+Convert the "Services Subtotal (₹)" Input (line 939) to a read-only display showing the auto-computed total, OR keep it editable as an override (default = computed value). Recommended: read-only display + small "Edit" toggle for manual override (rarely needed).
 
-**4. Save logic updates**
-- When inserting/updating `tax_master_products` rows, include `is_active` per row.
-- A product marked inactive in this tax becomes selectable in other tax rates (because the cross-tax claim map filters by `tax_master_products.is_active = true`).
-- Keep existing versioning flow intact — old invoices retain snapshot rates (already handled via `invoices.tax_rate`/`tax_amount`).
+**5. Update everywhere `totalAmount` is read**
+- One-time grand-total calc (line 947): `subtotal = servicesSubtotal + pharmaSubtotal`
+- `createInvoice` mutation One-time branch (line ~471): use `servicesSubtotal` instead of `totalAmount`
+- `resetForm` and Staged/Recurring reset
+- `canCreateInvoice` (no logic change needed)
 
-**5. Removing vs deactivating**
-- **Remove (X)** → deletes the link row entirely (product becomes free).
-- **Inactive toggle** → keeps row for history, frees product for mapping elsewhere, greys it visually.
+**6. Existing services in `serviceInputs` array passed to invoice**
+`allServices` (line 390) — extract `.name` from objects: `serviceInputs.filter(s => s.name.trim()).map(s => s.name)`.
 
 ### Files
-- New migration: `ALTER TABLE tax_master_products ADD COLUMN is_active boolean NOT NULL DEFAULT true;`
-- Modified: `src/pages/TaxMasterForm.tsx` (claim map query, picker disable + tooltip, per-row toggle UI, updated save payload)
+- Modified: `src/pages/Billing.tsx`
 
-No changes to invoice/billing tables — historical immutability already enforced by snapshot columns.
+No DB migration. No changes to pharma logic. Tax (GST) calculation already uses `subtotal = totalAmount + pharmaSubtotal`, so it will correctly include services once `totalAmount` reflects the picked services.
 

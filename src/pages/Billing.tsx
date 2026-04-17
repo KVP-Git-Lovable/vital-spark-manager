@@ -615,10 +615,10 @@ const Billing = () => {
     setServiceSearchOpen(null);
   };
 
-  const addServiceInput = () => setServiceInputs([...serviceInputs, ""]);
-  const updateServiceInput = (i: number, val: string) => {
+  const addServiceInput = () => setServiceInputs([...serviceInputs, { name: "", price: 0 }]);
+  const updateServiceInput = (i: number, name: string, price: number) => {
     const updated = [...serviceInputs];
-    updated[i] = val;
+    updated[i] = { name, price };
     setServiceInputs(updated);
   };
   const removeServiceInput = (i: number) => setServiceInputs(serviceInputs.filter((_, idx) => idx !== i));

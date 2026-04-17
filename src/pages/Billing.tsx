@@ -183,8 +183,8 @@ const Billing = () => {
 
   // Form state
   const [patientId, setPatientId] = useState("");
-  const [serviceInputs, setServiceInputs] = useState<string[]>([""]);
-  const [totalAmount, setTotalAmount] = useState(0);
+  const [serviceInputs, setServiceInputs] = useState<{ name: string; price: number }[]>([{ name: "", price: 0 }]);
+  const [paidAmount0, _unused] = useState(0); // placeholder to keep line numbers — not used
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentType, setPaymentType] = useState("One-time");
   const [paymentMode, setPaymentMode] = useState("Cash");

@@ -261,6 +261,24 @@ const Billing = () => {
     },
   });
 
+  const { data: taxProductLinks = [] } = useQuery({
+    queryKey: ["tax-master-products-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tax_master_products")
+        .select("product_id, tax_id, is_active, tax_master!inner(is_active)")
+        .eq("is_active", true);
+      if (error) throw error;
+      return (data || []).filter((r: any) => r.tax_master?.is_active);
+    },
+  });
+
+  const productTaxMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (taxProductLinks as any[]).forEach((r) => m.set(r.product_id, r.tax_id));
+    return m;
+  }, [taxProductLinks]);
+
   const { data: pharmaProducts = [] } = useQuery({
     queryKey: ["pharma-products-billing"],
     queryFn: async () => {
@@ -367,6 +385,14 @@ const Billing = () => {
       updated[idx].batch_number = "";
       updated[idx].unit_price = 0;
       updated[idx].available = 0;
+      // Auto-populate tax from product mapping (only if no tax currently selected, or always override?
+      // Per spec: auto-populate; user can override. Set whenever product changes.
+      const mappedTaxId = productTaxMap.get(value);
+      if (mappedTaxId) {
+        setSelectedTaxId(mappedTaxId);
+      } else {
+        setSelectedTaxId("");
+      }
     }
     if (field === "inventory_id") {
       const inv = pharmaInventory.find((i: any) => i.id === value) as any;

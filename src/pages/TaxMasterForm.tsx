@@ -27,6 +27,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 type ProductLink = { product_id: string; is_active: boolean };
+type ServiceLink = { service_id: string; is_active: boolean };
 
 const TaxMasterForm = () => {
   const { id } = useParams<{ id: string }>();
@@ -42,8 +43,10 @@ const TaxMasterForm = () => {
   const [isActive, setIsActive] = useState(true);
   const [productLinks, setProductLinks] = useState<ProductLink[]>([]);
   const [originalActiveProductIds, setOriginalActiveProductIds] = useState<string[]>([]);
+  const [serviceLinks, setServiceLinks] = useState<ServiceLink[]>([]);
   const [originalRate, setOriginalRate] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [warningOpen, setWarningOpen] = useState(false);
   const [pickerSpecificOpen, setPickerSpecificOpen] = useState(false);
@@ -56,7 +59,7 @@ const TaxMasterForm = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tax_master" as any)
-        .select("*, tax_master_products(product_id, is_active)")
+        .select("*, tax_master_products(product_id, is_active), tax_master_services(service_id, is_active)")
         .eq("id", id)
         .single();
       if (error) throw error;
@@ -86,6 +89,65 @@ const TaxMasterForm = () => {
     },
   });
 
+  // All services for picker
+  const { data: servicesList = [] } = useQuery({
+    queryKey: ["services-for-tax"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("services").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Cross-tax claim map for services
+  const { data: serviceClaims = [] } = useQuery({
+    queryKey: ["tax-service-claims", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tax_master_services" as any)
+        .select("service_id, tax_id, is_active, tax_master!inner(id, name, rate, is_active)");
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+
+  const serviceClaimMap = useMemo(() => {
+    const m = new Map<string, { taxId: string; taxName: string; rate: number }>();
+    serviceClaims.forEach((c: any) => {
+      if (!c.is_active) return;
+      if (!c.tax_master?.is_active) return;
+      if (!isNew && c.tax_id === id) return;
+      m.set(c.service_id, {
+        taxId: c.tax_id,
+        taxName: c.tax_master.name,
+        rate: Number(c.tax_master.rate || 0),
+      });
+    });
+    return m;
+  }, [serviceClaims, id, isNew]);
+
+  const serviceMap = useMemo(() => {
+    const m = new Map<string, string>();
+    servicesList.forEach((s: any) => m.set(s.id, s.name));
+    return m;
+  }, [servicesList]);
+
+  const linkedServiceIds = useMemo(() => new Set(serviceLinks.map((l) => l.service_id)), [serviceLinks]);
+
+  const toggleService = (sid: string) => {
+    setServiceLinks((prev) =>
+      prev.find((l) => l.service_id === sid)
+        ? prev.filter((l) => l.service_id !== sid)
+        : [...prev, { service_id: sid, is_active: true }],
+    );
+  };
+  const setServiceLinkActive = (sid: string, active: boolean) => {
+    setServiceLinks((prev) => prev.map((l) => (l.service_id === sid ? { ...l, is_active: active } : l)));
+  };
+  const removeServiceLink = (sid: string) => {
+    setServiceLinks((prev) => prev.filter((l) => l.service_id !== sid));
+  };
+
   const claimMap = useMemo(() => {
     const m = new Map<string, { taxId: string; taxName: string; rate: number }>();
     claims.forEach((c: any) => {
@@ -114,6 +176,10 @@ const TaxMasterForm = () => {
         .map((l: any) => ({ product_id: l.product_id, is_active: l.is_active ?? true }));
       setProductLinks(links);
       setOriginalActiveProductIds(links.filter((l) => l.is_active).map((l) => l.product_id));
+      const sLinks: ServiceLink[] = (existing.tax_master_services || [])
+        .filter((l: any) => l.service_id)
+        .map((l: any) => ({ service_id: l.service_id, is_active: l.is_active ?? true }));
+      setServiceLinks(sLinks);
       setOriginalRate(Number(existing.rate || 0));
     }
   }, [existing]);
@@ -175,6 +241,11 @@ const TaxMasterForm = () => {
             await supabase.from("pharma_products").update({ gst_percent: totalRate }).in("id", activeLinkIds);
           }
         }
+        if (serviceLinks.length > 0) {
+          const sLinks = serviceLinks.map((l) => ({ tax_id: newTaxId, service_id: l.service_id, is_active: l.is_active }));
+          const { error: sErr } = await supabase.from("tax_master_services" as any).insert(sLinks);
+          if (sErr) throw sErr;
+        }
         toast.success("Tax rate created");
       } else if (rateChanged && originalActiveProductIds.length > 0 && updateProductIds !== null) {
         // Versioning path
@@ -204,6 +275,14 @@ const TaxMasterForm = () => {
           if (linkErr) throw linkErr;
           await supabase.from("pharma_products").update({ gst_percent: totalRate }).in("id", updateProductIds);
         }
+        // Carry service links to new tax version (active ones move; inactive stay archived on old)
+        const activeServiceIds = serviceLinks.filter((l) => l.is_active).map((l) => l.service_id);
+        if (activeServiceIds.length > 0) {
+          await supabase.from("tax_master_services" as any).delete().eq("tax_id", id).in("service_id", activeServiceIds);
+          const sLinks = activeServiceIds.map((sid) => ({ tax_id: newTaxId, service_id: sid, is_active: true }));
+          const { error: sErr } = await supabase.from("tax_master_services" as any).insert(sLinks);
+          if (sErr) throw sErr;
+        }
         toast.success("New tax version created. Previous version archived.");
       } else {
         // In-place update + sync links (preserves is_active flag per row)
@@ -219,12 +298,23 @@ const TaxMasterForm = () => {
             await supabase.from("pharma_products").update({ gst_percent: totalRate }).in("id", activeLinkIds);
           }
         }
+        // Sync service links
+        const { error: sDelErr } = await supabase.from("tax_master_services" as any).delete().eq("tax_id", id);
+        if (sDelErr) throw sDelErr;
+        if (serviceLinks.length > 0) {
+          const sLinks = serviceLinks.map((l) => ({ tax_id: id!, service_id: l.service_id, is_active: l.is_active }));
+          const { error: sErr } = await supabase.from("tax_master_services" as any).insert(sLinks);
+          if (sErr) throw sErr;
+        }
         toast.success("Tax rate updated");
       }
 
       queryClient.invalidateQueries({ queryKey: ["tax-master"] });
       queryClient.invalidateQueries({ queryKey: ["pharma-products-for-tax"] });
       queryClient.invalidateQueries({ queryKey: ["tax-product-claims"] });
+      queryClient.invalidateQueries({ queryKey: ["services-for-tax"] });
+      queryClient.invalidateQueries({ queryKey: ["tax-service-claims"] });
+      queryClient.invalidateQueries({ queryKey: ["tax-master-services-active"] });
       navigate("/settings?tab=tax");
     } catch (e: any) {
       toast.error(e.message || "Failed to save");
@@ -270,7 +360,7 @@ const TaxMasterForm = () => {
               {isNew ? "New Tax Rate" : "Edit Tax Rate"}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Define tax components and map to pharmacy products
+              Define tax components and map to products and services
             </p>
           </div>
         </div>
@@ -435,6 +525,115 @@ const TaxMasterForm = () => {
                         size="icon"
                         className="h-7 w-7"
                         onClick={() => removeLink(l.product_id)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Mapped Services */}
+          <div className="rounded-xl border bg-card p-6 space-y-4">
+            <div>
+              <h3 className="font-display font-semibold">Mapped Services</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Toggle inactive to free a service for another tax rate
+              </p>
+            </div>
+            <Popover open={servicePickerOpen} onOpenChange={setServicePickerOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                  {serviceLinks.length > 0 ? `${serviceLinks.length} service(s) selected` : "Add services..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search services..." />
+                  <CommandList>
+                    <CommandEmpty>No services found.</CommandEmpty>
+                    <CommandGroup>
+                      {servicesList.map((s: any) => {
+                        const checked = linkedServiceIds.has(s.id);
+                        const claim = serviceClaimMap.get(s.id);
+                        const disabled = !!claim && !checked;
+
+                        const item = (
+                          <CommandItem
+                            key={s.id}
+                            value={s.name}
+                            disabled={disabled}
+                            onSelect={() => {
+                              if (disabled) return;
+                              toggleService(s.id);
+                            }}
+                            className={cn(disabled && "opacity-50 cursor-not-allowed")}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", checked ? "opacity-100" : "opacity-0")} />
+                            <span className="flex-1">{s.name}</span>
+                            {claim && (
+                              <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                {claim.taxName}
+                              </span>
+                            )}
+                          </CommandItem>
+                        );
+
+                        if (disabled) {
+                          return (
+                            <Tooltip key={s.id}>
+                              <TooltipTrigger asChild>
+                                <div>{item}</div>
+                              </TooltipTrigger>
+                              <TooltipContent side="left">
+                                Already mapped to {claim!.taxName} {claim!.rate}% — deactivate there first
+                              </TooltipContent>
+                            </Tooltip>
+                          );
+                        }
+                        return item;
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {serviceLinks.length > 0 && (
+              <div className="space-y-1.5">
+                {serviceLinks.map((l) => (
+                  <div
+                    key={l.service_id}
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-lg border px-3 py-2",
+                      !l.is_active && "opacity-60 bg-muted/40",
+                    )}
+                  >
+                    <span className={cn("text-sm flex-1 truncate", !l.is_active && "line-through")}>
+                      {serviceMap.get(l.service_id) || l.service_id}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <Switch
+                              checked={l.is_active}
+                              onCheckedChange={(v) => setServiceLinkActive(l.service_id, v)}
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          {l.is_active ? "Active — used for billing" : "Inactive — available for other tax rates"}
+                        </TooltipContent>
+                      </Tooltip>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => removeServiceLink(l.service_id)}
                       >
                         <X className="h-3.5 w-3.5" />
                       </Button>

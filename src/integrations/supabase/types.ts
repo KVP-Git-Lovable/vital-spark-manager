@@ -2680,6 +2680,30 @@ export type Database = {
           },
         ]
       }
+      tax_master_services: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          service_id: string
+          tax_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          service_id: string
+          tax_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          service_id?: string
+          tax_id?: string
+        }
+        Relationships: []
+      }
       unit_master: {
         Row: {
           conversion_qty: number | null

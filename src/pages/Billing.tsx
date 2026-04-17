@@ -279,6 +279,24 @@ const Billing = () => {
     return m;
   }, [taxProductLinks]);
 
+  const { data: taxServiceLinks = [] } = useQuery({
+    queryKey: ["tax-master-services-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tax_master_services" as any)
+        .select("service_id, tax_id, is_active, tax_master!inner(is_active)")
+        .eq("is_active", true);
+      if (error) throw error;
+      return (data || []).filter((r: any) => r.tax_master?.is_active);
+    },
+  });
+
+  const serviceTaxMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (taxServiceLinks as any[]).forEach((r) => m.set(r.service_id, r.tax_id));
+    return m;
+  }, [taxServiceLinks]);
+
   const { data: pharmaProducts = [] } = useQuery({
     queryKey: ["pharma-products-billing"],
     queryFn: async () => {
@@ -827,7 +845,12 @@ const Billing = () => {
                             <CommandEmpty>No service found.</CommandEmpty>
                             <CommandGroup>
                               {serviceMaster.map((svc: any) => (
-                                <CommandItem key={svc.id} value={svc.name} onSelect={() => { updateServiceInput(i, svc.name, Number(svc.price) || 0); setServiceSearchOpen(null); }}>
+                                <CommandItem key={svc.id} value={svc.name} onSelect={() => {
+                                  updateServiceInput(i, svc.name, Number(svc.price) || 0);
+                                  const mappedTaxId = serviceTaxMap.get(svc.id);
+                                  if (mappedTaxId) setSelectedTaxId(mappedTaxId);
+                                  setServiceSearchOpen(null);
+                                }}>
                                   <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
                                   <span>{svc.name}</span>
                                   <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>

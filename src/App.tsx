@@ -26,6 +26,7 @@ import Photos from "./pages/Photos";
 import LeaveManagement from "./pages/LeaveManagement";
 import Assets from "./pages/Assets";
 import Settings from "./pages/Settings";
+import TaxMasterForm from "./pages/TaxMasterForm";
 import Orders from "./pages/Orders";
 import Expenses from "./pages/Expenses";
 import StaffManagement from "./pages/StaffManagement";
@@ -153,6 +154,8 @@ const App = () => (
                     <Route path="/category-master" element={<ProtectedRoute moduleKey="category_master"><CategoryMaster /></ProtectedRoute>} />
                     <Route path="/user-management" element={<ProtectedRoute moduleKey="user_management"><UserManagement /></ProtectedRoute>} />
                     <Route path="/settings" element={<ProtectedRoute moduleKey="settings"><Settings /></ProtectedRoute>} />
+                    <Route path="/settings/tax-master/new" element={<ProtectedRoute moduleKey="settings"><TaxMasterForm /></ProtectedRoute>} />
+                    <Route path="/settings/tax-master/:id" element={<ProtectedRoute moduleKey="settings"><TaxMasterForm /></ProtectedRoute>} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

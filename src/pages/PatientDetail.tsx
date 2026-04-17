@@ -163,6 +163,15 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
+  const { data: pharmaProducts = [] } = useQuery({
+    queryKey: ["pharma-products-lookup-rx"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("pharma_products").select("id, name").order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: invoices = [] } = useQuery({
     queryKey: ["patient-invoices", id],
     queryFn: async () => {

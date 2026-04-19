@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt, Pencil } from "lucide-react";
+import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt, Pencil, Ruler } from "lucide-react";
+import UnitMaster from "./UnitMaster";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -225,6 +226,7 @@ const Settings = () => {
           <TabsTrigger value="hours" className="gap-1.5"><Clock className="h-3.5 w-3.5" /> Working Hours</TabsTrigger>
           <TabsTrigger value="roles" className="gap-1.5"><Users className="h-3.5 w-3.5" /> Staff Roles</TabsTrigger>
           <TabsTrigger value="tax" className="gap-1.5"><Receipt className="h-3.5 w-3.5" /> Tax Master</TabsTrigger>
+          <TabsTrigger value="units" className="gap-1.5"><Ruler className="h-3.5 w-3.5" /> Unit Master</TabsTrigger>
         </TabsList>
 
         {/* Clinic Profile */}
@@ -540,6 +542,13 @@ const Settings = () => {
               </TableBody>
             </Table>
           </motion.div>
+        </TabsContent>
+
+        {/* Unit Master */}
+        <TabsContent value="units">
+          <div className="mt-4">
+            <UnitMaster />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

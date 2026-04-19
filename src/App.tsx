@@ -7,7 +7,7 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
@@ -151,6 +151,7 @@ const App = () => (
                     <Route path="/surveys/:id/edit" element={<ProtectedRoute moduleKey="surveys"><SurveyResponseEdit /></ProtectedRoute>} />
                     <Route path="/vendors" element={<ProtectedRoute moduleKey="vendors"><Vendors /></ProtectedRoute>} />
                     <Route path="/unit-master" element={<ProtectedRoute moduleKey="unit_master"><UnitMaster /></ProtectedRoute>} />
+                    <Route path="/Unit-master" element={<Navigate to="/unit-master" replace />} />
                     <Route path="/category-master" element={<ProtectedRoute moduleKey="category_master"><CategoryMaster /></ProtectedRoute>} />
                     <Route path="/user-management" element={<ProtectedRoute moduleKey="user_management"><UserManagement /></ProtectedRoute>} />
                     <Route path="/settings" element={<ProtectedRoute moduleKey="settings"><Settings /></ProtectedRoute>} />

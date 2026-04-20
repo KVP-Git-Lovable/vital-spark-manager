@@ -1,41 +1,63 @@
 
 
-## Plan: Per-product unit conversion in Product Master
+## Plan: Move pricing to Inventory (per batch) + auto sub-unit price
 
-### Concept
-Unit Master stays as a flat list of unit names (Bottle, Box, ml, Tablet, etc.) — no conversion logic baked in. Each product declares its own Base Unit + Sub Unit + how many sub-units make one base unit.
+### Current state
+- `pharma_products` holds `selling_price`, `mrp`, `gst_percent` (product-level pricing).
+- `pharma_inventory` only has `purchase_price` per batch — no MRP, no selling price.
+- Billing/Shop reads pricing from `pharma_products`.
 
-### Schema (migration on `pharma_products`)
-Add three columns:
-- `base_unit` text — the larger sellable unit (e.g. Bottle, Box, Strip)
-- `sub_unit` text — the smaller dispensable unit (e.g. ml, Tablet, Capsule). Nullable.
-- `conversion_value` numeric — how many sub-units per 1 base unit (e.g. 100). Default 1.
+### Target
+Pricing lives **per batch** in inventory. Product Master keeps only catalog info (name, units, conversion, HSN, GST%). Sub-unit price is auto-derived = `base price ÷ conversion_value`.
 
-Backfill: copy existing `unit` → `base_unit`, copy existing `qty_per_unit` → `conversion_value`. Keep `unit` and `qty_per_unit` columns for now (read-only fallback) so nothing breaks elsewhere; new code reads/writes the new fields.
+### 1. Schema migration (`pharma_inventory`)
+Add:
+- `mrp` numeric default 0 — MRP per base unit for this batch
+- `selling_price` numeric default 0 — selling price per base unit (optional override; defaults to MRP if blank)
 
-### Unit Master (`src/pages/UnitMaster.tsx`)
-Already a flat list with name + optional sub-unit + active flag. **Drop the `sub_unit_name` field from this screen** — units are now just names. Keep name + active toggle. Sub-units come from the same unit list (any unit can be picked as a sub-unit on a product).
+Backfill existing inventory rows: copy `pharma_products.mrp` → `pharma_inventory.mrp`, `pharma_products.selling_price` → `pharma_inventory.selling_price` for each batch's product.
 
-### Product form (`src/components/pharma/...` — Add/Edit Product)
-Replace the current single "Unit" + "Volume per Bottle" pair with:
-- **Base Unit** (Searchable Select from Unit Master active list) — required
-- **Sub Unit** (Searchable Select from Unit Master active list) — optional
-- **Units per Base Unit** (number input) — label dynamically reads e.g. "ml per Bottle" once both units are picked, otherwise "Units per Base Unit". Required when Sub Unit is set, default 1.
+Keep `pharma_products.mrp` / `selling_price` columns for now (read-only fallback) — remove from Add/Edit Product UI but don't drop yet, so existing displays don't break.
 
-Helper text below: *"e.g. 1 Bottle = 100 ml, 1 Box = 100 Tablets"*
+### 2. Product Form (`Pharma.tsx` Add/Edit)
+Remove pricing fields: **MRP**, **Selling Price** (and any "Volume per Bottle" leftovers). Keep:
+- Name, Generic, Manufacturer, Category, Vendor
+- Base Unit / Sub Unit / Conversion Value (already added)
+- HSN, GST %
+- Reorder level, Image
 
-### Display (Pharma list, Detail sheet, Shop, Billing pickers)
-Where today shows `unit` / `Volume per Bottle`:
-- Show as `Base Unit (Conversion × Sub Unit)` — e.g. `Bottle (100 ml)` or `Box (100 Tablets)`.
-- If no sub-unit: show just `Bottle`.
+Helper note above where price used to be: *"Pricing is captured per batch in Inventory."*
 
-Files touched for display: `src/pages/Pharma.tsx`, `src/components/pharma/PharmaDetailSheet.tsx`, `src/pages/Billing.tsx` (pharma picker), `src/components/portal/PortalShop.tsx`, `src/pages/shop/ShopProduct.tsx`. Read from new fields with fallback to legacy (`base_unit ?? unit`, `conversion_value ?? qty_per_unit`).
+### 3. Inventory Form (Inward Stock — `Pharma.tsx` inventory tab / dialog)
+Replace current minimal form with:
+- **Product** (searchable select) — required
+- *Read-only display once product picked:* `Base Unit: Bottle` and `Conversion: 1 Bottle = 100 ml` (via `formatProductUnit`)
+- **Batch No** — required
+- **Expiry Date** — required
+- **Quantity (in {base_unit})** — label dynamic, required
+- **Purchase Price (per {base_unit})** — required
+- **MRP (per {base_unit})** — required
+- **Selling Price (per {base_unit})** — optional, defaults to MRP
+- **Supplier**, **Invoice No**
 
-### Files
-- New migration: add `base_unit`, `sub_unit`, `conversion_value` to `pharma_products` + backfill
-- Modified: `src/pages/UnitMaster.tsx` (remove sub_unit_name field)
-- Modified: `src/components/pharma/` product form (new 3-field block, dynamic label)
-- Modified: pharma display surfaces listed above (label rendering helper)
+Below MRP/SP, show live derived sub-unit price when sub-unit exists:
+> *"= ₹2.00 per ml"* (calculated as `mrp / conversion_value`)
 
-No changes to invoice/billing math — pricing remains per base unit as before.
+### 4. Display surfaces — pricing source
+Switch reads from product to **latest active batch** (non-expired, qty > 0, most recent `received_date`):
+- **Pharma list / Detail sheet**: show batch MRP + derived sub-unit price. If no batch → "Not in stock".
+- **Billing pharma picker** (`Billing.tsx`): use batch `selling_price` (fallback MRP) for `unit_price`.
+- **Portal Shop / Public Shop** (`PortalShop.tsx`, `ShopProduct.tsx`, `ShopHome.tsx`): same — show batch MRP, derived per-sub-unit price as secondary line.
+
+Helper: new `src/lib/productPricing.ts` exporting `getActiveBatchPrice(product, inventoryRows)` → `{ mrp, sellingPrice, subUnitPrice | null }` with fallback to legacy `pharma_products.mrp/selling_price` when no batch exists.
+
+### 5. Files
+- New migration: add `mrp`, `selling_price` to `pharma_inventory` + backfill
+- New: `src/lib/productPricing.ts` (batch-price resolver + sub-unit math)
+- Modified: `src/pages/Pharma.tsx` — strip price fields from product form; expand inward-stock form with new fields, read-only unit/conversion display, derived sub-unit price hint
+- Modified: `src/components/pharma/PharmaDetailSheet.tsx` — show batch pricing
+- Modified: `src/pages/Billing.tsx` — pharma picker reads batch price
+- Modified: `src/components/portal/PortalShop.tsx`, `src/pages/shop/ShopHome.tsx`, `src/pages/shop/ShopProduct.tsx` — batch pricing + sub-unit line
+
+No invoice math changes — `unit_price` is still per base unit, just sourced from batch.
 

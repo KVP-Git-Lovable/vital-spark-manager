@@ -372,6 +372,9 @@ const Billing = () => {
     const { total } = getTaxComponents(getSelectedTax());
     return (amount * total) / 100;
   };
+  const currentTaxRate = getTaxComponents(getSelectedTax()).total;
+  const taxApplied = !!selectedTaxId && selectedTaxId !== "none";
+  const lineTaxAmount = (amount: number) => (amount * currentTaxRate) / 100;
 
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
   const servicesSubtotal = useMemo(() => serviceInputs.reduce((sum, s) => sum + (Number(s.price) || 0), 0), [serviceInputs]);

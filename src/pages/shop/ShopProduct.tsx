@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
+import { formatProductUnit } from "@/lib/unitDisplay";
 import { motion } from "framer-motion";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 

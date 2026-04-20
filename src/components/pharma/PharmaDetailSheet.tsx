@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatProductUnit } from "@/lib/unitDisplay";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -272,7 +273,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 <Field label="Name" value={product.name} />
                 <Field label="Generic Name" value={product.generic_name} />
                 <Field label="Category" value={product.category} />
-                <Field label="Unit" value={product.unit} />
+                <Field label="Unit" value={formatProductUnit(product)} />
                 <Field label="Manufacturer" value={product.manufacturer} />
                 <Field label="HSN Code" value={product.hsn_code} />
                 <Field label="Reorder Level" value={product.reorder_level} />
@@ -608,10 +609,17 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 <div><Label>Name *</Label><Input className="mt-1" value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
                 <div><Label>Generic Name</Label><Input className="mt-1" value={form.generic_name || ""} onChange={(e) => setForm({ ...form, generic_name: e.target.value })} /></div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div><Label>Category</Label><Input className="mt-1" value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
-                <div><Label>Unit</Label><Input className="mt-1" value={form.unit || ""} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></div>
                 <div><Label>Manufacturer</Label><Input className="mt-1" value={form.manufacturer || ""} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} /></div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div><Label>Base Unit</Label><Input className="mt-1" value={form.base_unit || form.unit || ""} onChange={(e) => setForm({ ...form, base_unit: e.target.value, unit: e.target.value })} placeholder="Bottle, Box" /></div>
+                <div><Label>Sub Unit</Label><Input className="mt-1" value={form.sub_unit || ""} onChange={(e) => setForm({ ...form, sub_unit: e.target.value })} placeholder="ml, Tablet" /></div>
+                <div>
+                  <Label>{form.sub_unit && (form.base_unit || form.unit) ? `${form.sub_unit} per ${form.base_unit || form.unit}` : "Units per Base Unit"}</Label>
+                  <Input type="number" className="mt-1" value={form.conversion_value ?? form.qty_per_unit ?? 1} onChange={(e) => { const v = parseFloat(e.target.value) || 1; setForm({ ...form, conversion_value: v, qty_per_unit: v }); }} disabled={!form.sub_unit} />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>HSN Code</Label><Input className="mt-1" value={form.hsn_code || ""} onChange={(e) => setForm({ ...form, hsn_code: e.target.value })} /></div>

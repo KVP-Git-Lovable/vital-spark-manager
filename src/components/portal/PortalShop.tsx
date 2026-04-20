@@ -191,7 +191,7 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
               )}
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="bg-muted/50 rounded-lg p-2"><span className="text-muted-foreground">Unit:</span> {selectedProduct.unit}</div>
+              <div className="bg-muted/50 rounded-lg p-2"><span className="text-muted-foreground">Unit:</span> {formatProductUnit(selectedProduct)}</div>
               {selectedProduct.hsn_code && <div className="bg-muted/50 rounded-lg p-2"><span className="text-muted-foreground">HSN:</span> {selectedProduct.hsn_code}</div>}
             </div>
             <Button className="w-full gap-2" onClick={() => { addToCart(selectedProduct); }}>

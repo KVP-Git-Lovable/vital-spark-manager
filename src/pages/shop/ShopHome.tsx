@@ -252,7 +252,7 @@ const ShopHome = () => {
                   <div className="p-3">
                     <div className="flex items-center gap-1 mb-1">
                       <Badge variant="secondary" className="text-[10px]">{product.category}</Badge>
-                      <span className="text-[10px] text-muted-foreground ml-auto">{product.unit}</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto">{formatProductUnit(product)}</span>
                     </div>
                     <h3 className="text-sm font-semibold text-foreground line-clamp-2 leading-tight">{product.name}</h3>
                     {product.generic_name && (

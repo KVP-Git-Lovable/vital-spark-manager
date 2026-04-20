@@ -427,7 +427,8 @@ const Billing = () => {
       const inv = pharmaInventory.find((i: any) => i.id === value) as any;
       if (inv) {
         updated[idx].batch_number = inv.batch_number;
-        updated[idx].unit_price = inv.pharma_products?.selling_price || 0;
+        // Per-batch pricing: prefer batch selling_price → batch mrp → legacy product price
+        updated[idx].unit_price = Number(inv.selling_price) || Number(inv.mrp) || Number(inv.pharma_products?.selling_price) || 0;
         updated[idx].available = inv.quantity;
       }
     }

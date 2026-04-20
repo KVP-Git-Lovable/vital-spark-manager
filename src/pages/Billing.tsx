@@ -372,6 +372,9 @@ const Billing = () => {
     const { total } = getTaxComponents(getSelectedTax());
     return (amount * total) / 100;
   };
+  const currentTaxRate = getTaxComponents(getSelectedTax()).total;
+  const taxApplied = !!selectedTaxId && selectedTaxId !== "none";
+  const lineTaxAmount = (amount: number) => (amount * currentTaxRate) / 100;
 
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
   const servicesSubtotal = useMemo(() => serviceInputs.reduce((sum, s) => sum + (Number(s.price) || 0), 0), [serviceInputs]);
@@ -830,42 +833,51 @@ const Billing = () => {
                   </Button>
                 </div>
                 {serviceInputs.map((s, i) => (
-                  <div key={i} className="flex gap-2 mb-2 items-center">
-                    <Popover open={serviceSearchOpen === i} onOpenChange={(open) => setServiceSearchOpen(open ? i : null)}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" role="combobox" className="w-full justify-between font-normal h-10">
-                          {s.name || <span className="text-muted-foreground">Select service...</span>}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                        <Command>
-                          <CommandInput placeholder="Search services..." />
-                          <CommandList>
-                            <CommandEmpty>No service found.</CommandEmpty>
-                            <CommandGroup>
-                              {serviceMaster.map((svc: any) => (
-                                <CommandItem key={svc.id} value={svc.name} onSelect={() => {
-                                  updateServiceInput(i, svc.name, Number(svc.price) || 0);
-                                  const mappedTaxId = serviceTaxMap.get(svc.id);
-                                  if (mappedTaxId) setSelectedTaxId(mappedTaxId);
-                                  setServiceSearchOpen(null);
-                                }}>
-                                  <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
-                                  <span>{svc.name}</span>
-                                  <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                  <div key={i} className="mb-2">
+                    <div className="flex gap-2 items-center">
+                      <Popover open={serviceSearchOpen === i} onOpenChange={(open) => setServiceSearchOpen(open ? i : null)}>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" role="combobox" className="w-full justify-between font-normal h-10">
+                            {s.name || <span className="text-muted-foreground">Select service...</span>}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search services..." />
+                            <CommandList>
+                              <CommandEmpty>No service found.</CommandEmpty>
+                              <CommandGroup>
+                                {serviceMaster.map((svc: any) => (
+                                  <CommandItem key={svc.id} value={svc.name} onSelect={() => {
+                                    updateServiceInput(i, svc.name, Number(svc.price) || 0);
+                                    const mappedTaxId = serviceTaxMap.get(svc.id);
+                                    if (mappedTaxId) setSelectedTaxId(mappedTaxId);
+                                    setServiceSearchOpen(null);
+                                  }}>
+                                    <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
+                                    <span>{svc.name}</span>
+                                    <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      {s.price > 0 && (
+                        <span className="text-sm text-muted-foreground shrink-0 w-20 text-right">₹{s.price.toLocaleString()}</span>
+                      )}
+                      {serviceInputs.length > 1 && (
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" onClick={() => removeServiceInput(i)}>✕</Button>
+                      )}
+                    </div>
                     {s.price > 0 && (
-                      <span className="text-sm text-muted-foreground shrink-0 w-20 text-right">₹{s.price.toLocaleString()}</span>
-                    )}
-                    {serviceInputs.length > 1 && (
-                      <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" onClick={() => removeServiceInput(i)}>✕</Button>
+                      <div className="text-xs text-muted-foreground text-right pr-7 mt-0.5">
+                        {taxApplied
+                          ? `Tax (${currentTaxRate}%): ₹${lineTaxAmount(s.price).toFixed(2)}`
+                          : "No tax"}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -925,12 +937,19 @@ const Billing = () => {
                         <Label className="text-xs">Price (₹)</Label>
                         <Input type="number" className="mt-1 h-8" value={item.unit_price} onChange={(e) => updatePharmaItem(idx, "unit_price", parseFloat(e.target.value) || 0)} />
                       </div>
-                      <div className="flex items-end">
-                        <div className="flex items-center gap-2 h-8">
-                          <span className="text-sm font-medium">₹{(item.quantity * item.unit_price).toFixed(2)}</span>
-                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removePharmaItem(idx)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                      <div className="flex items-end justify-end">
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">₹{(item.quantity * item.unit_price).toFixed(2)}</span>
+                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removePharmaItem(idx)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                          <span className="text-xs text-muted-foreground mt-0.5 pr-9">
+                            {taxApplied
+                              ? `Tax (${currentTaxRate}%): ₹${lineTaxAmount(item.quantity * item.unit_price).toFixed(2)}`
+                              : "No tax"}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -995,15 +1014,29 @@ const Billing = () => {
                   {((servicesSubtotal + pharmaSubtotal) > 0) && (() => {
                     const subtotal = servicesSubtotal + pharmaSubtotal;
                     const { cgst, sgst, igst } = getTaxComponents(getSelectedTax());
+                    const servicesTax = lineTaxAmount(servicesSubtotal);
+                    const pharmaTax = lineTaxAmount(pharmaSubtotal);
                     const cgstAmt = (subtotal * cgst) / 100;
                     const sgstAmt = (subtotal * sgst) / 100;
                     const igstAmt = (subtotal * igst) / 100;
-                    const taxApplied = selectedTaxId && selectedTaxId !== "none";
                     return (
                       <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-                        {servicesSubtotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>}
-                        {pharmaSubtotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>}
+                        {servicesSubtotal > 0 && (
+                          <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
+                        )}
+                        {servicesSubtotal > 0 && taxApplied && (
+                          <div className="flex justify-between text-xs"><span className="text-muted-foreground pl-3">Services Tax ({currentTaxRate}%)</span><span className="text-muted-foreground">₹{servicesTax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        )}
+                        {pharmaSubtotal > 0 && (
+                          <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
+                        )}
+                        {pharmaSubtotal > 0 && taxApplied && (
+                          <div className="flex justify-between text-xs"><span className="text-muted-foreground pl-3">Products Tax ({currentTaxRate}%)</span><span className="text-muted-foreground">₹{pharmaTax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        )}
                         <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
+                        {taxApplied && (
+                          <div className="text-[10px] text-muted-foreground italic">Tax derived from line items</div>
+                        )}
                         {taxApplied && cgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST ({cgst}%)</span><span>₹{cgstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
                         {taxApplied && sgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST ({sgst}%)</span><span>₹{sgstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
                         {taxApplied && igst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST ({igst}%)</span><span>₹{igstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}

@@ -24,10 +24,11 @@ import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatProductUnit } from "@/lib/unitDisplay";
+import { getActiveBatchPrice } from "@/lib/productPricing";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", sub_unit: "", conversion_value: 1, reorder_level: 10, vendor_ids: [] as string[] };
-const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, supplier: "", invoice_number: "" };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", sub_unit: "", conversion_value: 1, reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0 };
+const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {
   product_id: string;
@@ -183,6 +184,8 @@ const Pharma = () => {
         reorder_level: productForm.reorder_level,
         vendor_id: productForm.vendor_ids.length > 0 ? productForm.vendor_ids[0] : null,
         qty_per_unit: productForm.conversion_value || 1, // legacy fallback
+        hsn_code: productForm.hsn_code || null,
+        gst_percent: Number(productForm.gst_percent) || 0,
       };
       const { error } = await supabase.from("pharma_products").insert(payload);
       if (error) throw error;
@@ -198,21 +201,20 @@ const Pharma = () => {
 
   const addStock = useMutation({
     mutationFn: async () => {
-      const { product_id, mrp, ...rest } = stockForm;
+      const mrp = Number(stockForm.mrp) || 0;
+      const sp = Number(stockForm.selling_price) || mrp;
       const { error } = await supabase.from("pharma_inventory").insert({
-        product_id,
-        batch_number: rest.batch_number,
-        expiry_date: rest.expiry_date,
-        quantity: Number(rest.quantity),
-        purchase_price: Number(rest.purchase_price),
-        supplier: rest.supplier || null,
-        invoice_number: rest.invoice_number || null,
-      });
+        product_id: stockForm.product_id,
+        batch_number: stockForm.batch_number,
+        expiry_date: stockForm.expiry_date,
+        quantity: Number(stockForm.quantity),
+        purchase_price: Number(stockForm.purchase_price),
+        mrp,
+        selling_price: sp,
+        supplier: stockForm.supplier || null,
+        invoice_number: stockForm.invoice_number || null,
+      } as any);
       if (error) throw error;
-      // Update product MRP if provided
-      if (mrp > 0) {
-        await supabase.from("pharma_products").update({ mrp: Number(mrp) }).eq("id", product_id);
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharma-inventory"] });
@@ -301,7 +303,8 @@ const Pharma = () => {
         updated[idx].product_id = inv.product_id;
         updated[idx].product_name = prod?.name || "";
         updated[idx].batch_number = inv.batch_number;
-        updated[idx].unit_price = prod?.selling_price || 0;
+        // Prefer batch selling_price → batch mrp → legacy product fields
+        updated[idx].unit_price = Number(inv.selling_price) || Number(inv.mrp) || Number(prod?.selling_price) || Number(prod?.mrp) || 0;
         updated[idx].available = inv.quantity;
         updated[idx].gst_percent = Number(prod?.gst_percent) || 0;
         if (inv.quantity <= 0) {
@@ -327,6 +330,8 @@ const Pharma = () => {
       conversion_value: Number(product.conversion_value ?? product.qty_per_unit ?? 1) || 1,
       reorder_level: product.reorder_level || 10,
       vendor_ids: product.vendor_id ? [product.vendor_id] : [],
+      hsn_code: product.hsn_code || "",
+      gst_percent: Number(product.gst_percent) || 0,
     });
     setProductOpen(true);
   };
@@ -338,7 +343,8 @@ const Pharma = () => {
       expiry_date: "",
       quantity: inv.quantity || 0,
       purchase_price: inv.purchase_price || 0,
-      mrp: 0,
+      mrp: Number(inv.mrp) || 0,
+      selling_price: Number(inv.selling_price) || 0,
       supplier: inv.supplier || "",
       invoice_number: "",
     });
@@ -438,6 +444,13 @@ const Pharma = () => {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground -mt-1">e.g. 1 Bottle = 100 ml, 1 Box = 100 Tablets</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
+                  <div><Label>GST %</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                </div>
+                <div className="rounded-md bg-muted/50 border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                  💡 Pricing (MRP / Selling Price) is captured per batch in <strong>Inward Stock</strong>.
+                </div>
                 <Button className="w-full" onClick={() => addProduct.mutate()} disabled={!productForm.name || addProduct.isPending}>
                   {addProduct.isPending ? "Saving..." : "Add Product"}
                 </Button>
@@ -455,27 +468,65 @@ const Pharma = () => {
                 <div>
                   <Label>Product *</Label>
                   <Select value={stockForm.product_id} onValueChange={(v) => {
-                    const prod = products.find((p: any) => p.id === v);
-                    setStockForm({ ...stockForm, product_id: v, mrp: prod?.mrp || 0 });
+                    setStockForm({ ...stockForm, product_id: v });
                   }}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select product" /></SelectTrigger>
                     <SelectContent>{products.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
+                {(() => {
+                  const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
+                  if (!sp) return null;
+                  const baseUnit = sp.base_unit || sp.unit || "unit";
+                  const sub = sp.sub_unit;
+                  const conv = Number(sp.conversion_value ?? sp.qty_per_unit ?? 1) || 1;
+                  return (
+                    <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground space-y-0.5">
+                      <div><strong>Base Unit:</strong> {baseUnit}</div>
+                      {sub && conv > 1 && <div><strong>Conversion:</strong> 1 {baseUnit} = {conv} {sub}</div>}
+                    </div>
+                  );
+                })()}
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Batch No. *</Label><Input className="mt-1" value={stockForm.batch_number} onChange={(e) => setStockForm({ ...stockForm, batch_number: e.target.value })} /></div>
                   <div><Label>Expiry Date *</Label><Input type="date" className="mt-1" value={stockForm.expiry_date} onChange={(e) => setStockForm({ ...stockForm, expiry_date: e.target.value })} /></div>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div><Label>Quantity *</Label><Input type="number" className="mt-1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: parseInt(e.target.value) || 0 })} /></div>
-                  <div><Label>Purchase Price (₹)</Label><Input type="number" className="mt-1" value={stockForm.purchase_price} onChange={(e) => setStockForm({ ...stockForm, purchase_price: parseFloat(e.target.value) || 0 })} /></div>
-                  <div><Label>MRP (₹)</Label><Input type="number" className="mt-1" value={stockForm.mrp} onChange={(e) => setStockForm({ ...stockForm, mrp: parseFloat(e.target.value) || 0 })} /></div>
-                </div>
+                {(() => {
+                  const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
+                  const baseUnit = sp?.base_unit || sp?.unit || "";
+                  const sub = sp?.sub_unit;
+                  const conv = Number(sp?.conversion_value ?? sp?.qty_per_unit ?? 1) || 1;
+                  const perBase = baseUnit ? ` (per ${baseUnit})` : "";
+                  const subHint = (price: number) => (sub && conv > 1 && price > 0)
+                    ? `= ₹${(price / conv).toFixed(2)} per ${sub}` : "";
+                  return (
+                    <>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div><Label>Quantity{baseUnit ? ` (${baseUnit})` : ""} *</Label><Input type="number" className="mt-1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: parseInt(e.target.value) || 0 })} /></div>
+                        <div>
+                          <Label>Purchase Price{perBase}</Label>
+                          <Input type="number" className="mt-1" value={stockForm.purchase_price} onChange={(e) => setStockForm({ ...stockForm, purchase_price: parseFloat(e.target.value) || 0 })} />
+                          {subHint(stockForm.purchase_price) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.purchase_price)}</p>}
+                        </div>
+                        <div>
+                          <Label>MRP{perBase} *</Label>
+                          <Input type="number" className="mt-1" value={stockForm.mrp} onChange={(e) => setStockForm({ ...stockForm, mrp: parseFloat(e.target.value) || 0 })} />
+                          {subHint(stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.mrp)}</p>}
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Selling Price{perBase} <span className="text-muted-foreground text-xs">(optional, defaults to MRP)</span></Label>
+                        <Input type="number" className="mt-1" value={stockForm.selling_price} onChange={(e) => setStockForm({ ...stockForm, selling_price: parseFloat(e.target.value) || 0 })} placeholder={stockForm.mrp ? `${stockForm.mrp}` : ""} />
+                        {subHint(stockForm.selling_price || stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.selling_price || stockForm.mrp)}</p>}
+                      </div>
+                    </>
+                  );
+                })()}
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Supplier</Label><div className="mt-1"><VendorCombobox value={stockForm.supplier} onChange={(v) => setStockForm({ ...stockForm, supplier: v })} placeholder="Select supplier..." /></div></div>
                   <div><Label>Invoice No.</Label><Input className="mt-1" value={stockForm.invoice_number} onChange={(e) => setStockForm({ ...stockForm, invoice_number: e.target.value })} /></div>
                 </div>
-                <Button className="w-full" onClick={() => addStock.mutate()} disabled={!stockForm.product_id || !stockForm.batch_number || !stockForm.expiry_date || addStock.isPending}>
+                <Button className="w-full" onClick={() => addStock.mutate()} disabled={!stockForm.product_id || !stockForm.batch_number || !stockForm.expiry_date || !stockForm.mrp || addStock.isPending}>
                   {addStock.isPending ? "Saving..." : "Add Stock"}
                 </Button>
               </div>
@@ -609,7 +660,9 @@ const Pharma = () => {
               <TableBody>
                 {filteredProducts.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No products found</TableCell></TableRow>
-                ) : filteredProducts.map((p: any) => (
+                ) : filteredProducts.map((p: any) => {
+                  const price = getActiveBatchPrice(p, inventory as any);
+                  return (
                   <TableRow key={p.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setSelectedProductId(p.id)}>
                     <TableCell>
                       {p.image_url ? (
@@ -622,13 +675,19 @@ const Pharma = () => {
                     </TableCell>
                     <TableCell className="font-medium">{p.name}<br /><span className="text-xs text-muted-foreground">{p.generic_name}</span></TableCell>
                     <TableCell><Badge variant="secondary" className="text-xs">{p.category}</Badge></TableCell>
-                    <TableCell>₹{Number(p.mrp).toFixed(2)}</TableCell>
-                    <TableCell>₹{Number(p.selling_price).toFixed(2)}</TableCell>
+                    <TableCell>
+                      {price.hasBatch || price.mrp > 0 ? `₹${price.mrp.toFixed(2)}` : <span className="text-xs text-muted-foreground">No batch</span>}
+                      {price.subUnitPrice && <div className="text-[11px] text-muted-foreground">₹{price.subUnitPrice.toFixed(2)}/{price.subUnit}</div>}
+                    </TableCell>
+                    <TableCell>
+                      {price.hasBatch || price.sellingPrice > 0 ? `₹${price.sellingPrice.toFixed(2)}` : "—"}
+                    </TableCell>
                     <TableCell>{Number(p.gst_percent)}%</TableCell>
                     <TableCell>{formatProductUnit(p)}</TableCell>
                     <TableCell>{p.reorder_level}</TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </motion.div>
@@ -642,7 +701,9 @@ const Pharma = () => {
                   <TableHead>Product</TableHead>
                   <TableHead>Batch</TableHead>
                   <TableHead>Qty</TableHead>
-                  <TableHead>Purchase Price</TableHead>
+                  <TableHead>Purchase</TableHead>
+                  <TableHead>MRP</TableHead>
+                  <TableHead>Selling</TableHead>
                   <TableHead>Expiry</TableHead>
                   <TableHead>Supplier</TableHead>
                   <TableHead>Status</TableHead>
@@ -650,7 +711,7 @@ const Pharma = () => {
               </TableHeader>
               <TableBody>
                 {inventory.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No inventory records</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No inventory records</TableCell></TableRow>
                 ) : inventory.map((i: any) => {
                   const exp = new Date(i.expiry_date);
                   const daysLeft = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -662,6 +723,8 @@ const Pharma = () => {
                       <TableCell>{i.batch_number}</TableCell>
                       <TableCell>{i.quantity}</TableCell>
                       <TableCell>₹{Number(i.purchase_price).toFixed(2)}</TableCell>
+                      <TableCell>₹{Number(i.mrp || 0).toFixed(2)}</TableCell>
+                      <TableCell>₹{Number(i.selling_price || i.mrp || 0).toFixed(2)}</TableCell>
                       <TableCell>{exp.toLocaleDateString()}</TableCell>
                       <TableCell className="text-muted-foreground">{(() => {
                         if (!i.supplier) return "—";

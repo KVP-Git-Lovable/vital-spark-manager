@@ -15,6 +15,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatProductUnit } from "@/lib/unitDisplay";
+import { getActiveBatchPrice } from "@/lib/productPricing";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -333,16 +334,22 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 );
               })()}
               {(() => {
-                const activePrice = prices.find((p: any) => p.is_active);
+                const resolved = getActiveBatchPrice(product, inventoryItems as any);
                 return (
                   <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-                    <h3 className="font-display font-semibold text-sm mb-2">Current Pricing (Roll-up)</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Current MRP" value={product.mrp ? `₹${Number(product.mrp).toFixed(2)}` : "—"} />
-                      <Field label="Current Selling Price" value={product.selling_price ? `₹${Number(product.selling_price).toFixed(2)}` : "—"} />
-                      <Field label="GST %" value={product.gst_percent ? `${product.gst_percent}%` : "—"} />
-                      <Field label="Effective From" value={activePrice ? format(new Date(activePrice.effective_from), "dd MMM yyyy") : "—"} />
-                    </div>
+                    <h3 className="font-display font-semibold text-sm mb-2">Current Pricing (Latest Batch)</h3>
+                    {!resolved.hasBatch && resolved.mrp === 0 ? (
+                      <p className="text-xs text-muted-foreground">No active batch — add Inward Stock to set pricing.</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="MRP" value={`₹${resolved.mrp.toFixed(2)}`} />
+                        <Field label="Selling Price" value={`₹${resolved.sellingPrice.toFixed(2)}`} />
+                        <Field label="GST %" value={product.gst_percent ? `${product.gst_percent}%` : "—"} />
+                        {resolved.subUnitPrice && (
+                          <Field label={`Per ${resolved.subUnit}`} value={`₹${resolved.subUnitPrice.toFixed(2)}`} />
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -389,8 +396,8 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                               <TableCell className="text-xs">{supplierName}</TableCell>
                               <TableCell className="text-xs">{inv.quantity}</TableCell>
                               <TableCell className="text-xs">₹{Number(inv.purchase_price).toFixed(2)}</TableCell>
-                              <TableCell className="text-xs">₹{Number(product.mrp).toFixed(2)}</TableCell>
-                              <TableCell className="text-xs">₹{Number(product.selling_price).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">₹{Number(inv.mrp || 0).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">₹{Number(inv.selling_price || inv.mrp || 0).toFixed(2)}</TableCell>
                               <TableCell className="text-xs">{product.gst_percent ? `${product.gst_percent}%` : "—"}</TableCell>
                               <TableCell className="text-xs">{format(new Date(inv.expiry_date), "dd MMM yyyy")}</TableCell>
                               <TableCell>
@@ -428,8 +435,8 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                           <Field label="Supplier" value={selectedBatch.supplierName} />
                           <Field label="Quantity" value={selectedBatch.quantity} />
                           <Field label="Buy Price" value={`₹${Number(selectedBatch.purchase_price).toFixed(2)}`} />
-                          <Field label="MRP" value={selectedBatch.product ? `₹${Number(selectedBatch.product.mrp).toFixed(2)}` : "—"} />
-                          <Field label="Selling Price" value={selectedBatch.product ? `₹${Number(selectedBatch.product.selling_price).toFixed(2)}` : "—"} />
+                          <Field label="MRP" value={`₹${Number(selectedBatch.mrp || 0).toFixed(2)}`} />
+                          <Field label="Selling Price" value={`₹${Number(selectedBatch.selling_price || selectedBatch.mrp || 0).toFixed(2)}`} />
                           <Field label="GST %" value={selectedBatch.product?.gst_percent ? `${selectedBatch.product.gst_percent}%` : "—"} />
                           <Field label="Expiry Date" value={format(new Date(selectedBatch.expiry_date), "dd MMM yyyy")} />
                           <Field label="Invoice Number" value={selectedBatch.invoice_number} />

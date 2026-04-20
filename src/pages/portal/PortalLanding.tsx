@@ -13,7 +13,6 @@ import {
   Search,
   PackageCheck,
   Phone,
-  Mail,
   MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -418,13 +417,13 @@ const PortalLanding = () => {
           </div>
           <div className="md:text-right space-y-2 text-sm text-muted-foreground">
             <div className="flex items-center gap-2 md:justify-end">
-              <Phone className="h-4 w-4 text-[hsl(174,70%,28%)]" /> +91 98765 43210
+              <Clock className="h-4 w-4 text-[hsl(174,70%,28%)]" /> Mon – Sat: 10 AM to 8 PM
             </div>
             <div className="flex items-center gap-2 md:justify-end">
-              <Mail className="h-4 w-4 text-[hsl(174,70%,28%)]" /> care@theskinclinic.in
+              <Phone className="h-4 w-4 text-[hsl(174,70%,28%)]" /> 096201 23030
             </div>
             <div className="flex items-center gap-2 md:justify-end">
-              <MapPin className="h-4 w-4 text-[hsl(174,70%,28%)]" /> Hyderabad, India
+              <MapPin className="h-4 w-4 text-[hsl(174,70%,28%)]" /> Kadri, Mangalore
             </div>
           </div>
         </div>

@@ -892,13 +892,16 @@ const Billing = () => {
                         <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" onClick={() => removeServiceInput(i)}>✕</Button>
                       )}
                     </div>
-                    {s.price > 0 && (
-                      <div className="text-xs text-muted-foreground text-right pr-7 mt-0.5">
-                        {taxApplied
-                          ? `Tax (${currentTaxRate}%): ₹${lineTaxAmount(s.price).toFixed(2)}`
-                          : "No tax"}
-                      </div>
-                    )}
+                    {s.price > 0 && (() => {
+                      const lineTax = getLineTax(getServiceTaxId(s.name), s.price);
+                      return (
+                        <div className="text-xs text-muted-foreground text-right pr-7 mt-0.5">
+                          {lineTax.rate > 0
+                            ? `Tax (${lineTax.rate}%): ₹${lineTax.taxAmount.toFixed(2)}`
+                            : "No tax"}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -965,11 +968,16 @@ const Billing = () => {
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
-                          <span className="text-xs text-muted-foreground mt-0.5 pr-9">
-                            {taxApplied
-                              ? `Tax (${currentTaxRate}%): ₹${lineTaxAmount(item.quantity * item.unit_price).toFixed(2)}`
-                              : "No tax"}
-                          </span>
+                          {(() => {
+                            const lineTax = getLineTax(getProductTaxId(item.product_id), item.quantity * item.unit_price);
+                            return (
+                              <span className="text-xs text-muted-foreground mt-0.5 pr-9">
+                                {lineTax.rate > 0
+                                  ? `Tax (${lineTax.rate}%): ₹${lineTax.taxAmount.toFixed(2)}`
+                                  : "No tax"}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -1003,21 +1011,7 @@ const Billing = () => {
                 </div>
               </div>
 
-              <div>
-                <Label>Tax Configuration</Label>
-                <Select value={selectedTaxId || "none"} onValueChange={(v) => setSelectedTaxId(v === "none" ? "" : v)}>
-                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="No tax" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Tax</SelectItem>
-                    {taxes.map((t: any) => {
-                      const { total } = getTaxComponents(t);
-                      return (
-                        <SelectItem key={t.id} value={t.id}>{t.name} ({total}%)</SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Tax is auto-applied per item from Tax Master mappings — no manual selector */}
 
               {paymentType === "One-time" && (
                 <div className="space-y-3">
@@ -1033,34 +1027,33 @@ const Billing = () => {
                   </div>
                   {((servicesSubtotal + pharmaSubtotal) > 0) && (() => {
                     const subtotal = servicesSubtotal + pharmaSubtotal;
-                    const { cgst, sgst, igst } = getTaxComponents(getSelectedTax());
-                    const servicesTax = lineTaxAmount(servicesSubtotal);
-                    const pharmaTax = lineTaxAmount(pharmaSubtotal);
-                    const cgstAmt = (subtotal * cgst) / 100;
-                    const sgstAmt = (subtotal * sgst) / 100;
-                    const igstAmt = (subtotal * igst) / 100;
+                    // Sum per-line tax across services and pharma
+                    let totalCgst = 0, totalSgst = 0, totalIgst = 0;
+                    serviceInputs.forEach((s) => {
+                      if (!s.name.trim() || !s.price) return;
+                      const lt = getLineTax(getServiceTaxId(s.name), s.price);
+                      totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
+                    });
+                    pharmaItems.forEach((p) => {
+                      const amt = p.quantity * p.unit_price;
+                      if (!p.product_id || !amt) return;
+                      const lt = getLineTax(getProductTaxId(p.product_id), amt);
+                      totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
+                    });
+                    const totalTax = totalCgst + totalSgst + totalIgst;
                     return (
                       <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
                         {servicesSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
-                        )}
-                        {servicesSubtotal > 0 && taxApplied && (
-                          <div className="flex justify-between text-xs"><span className="text-muted-foreground pl-3">Services Tax ({currentTaxRate}%)</span><span className="text-muted-foreground">₹{servicesTax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
                         )}
                         {pharmaSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
-                        )}
-                        {pharmaSubtotal > 0 && taxApplied && (
-                          <div className="flex justify-between text-xs"><span className="text-muted-foreground pl-3">Products Tax ({currentTaxRate}%)</span><span className="text-muted-foreground">₹{pharmaTax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Products Subtotal</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
                         )}
                         <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
-                        {taxApplied && (
-                          <div className="text-[10px] text-muted-foreground italic">Tax derived from line items</div>
-                        )}
-                        {taxApplied && cgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST ({cgst}%)</span><span>₹{cgstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                        {taxApplied && sgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST ({sgst}%)</span><span>₹{sgstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                        {taxApplied && igst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST ({igst}%)</span><span>₹{igstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                        <div className="flex justify-between font-semibold text-primary"><span>Grand Total</span><span>₹{(subtotal + cgstAmt + sgstAmt + igstAmt).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        {totalCgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{totalCgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
+                        {totalSgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>₹{totalSgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
+                        {totalIgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{totalIgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
+                        <div className="flex justify-between font-semibold text-primary border-t pt-1 mt-1"><span>Grand Total</span><span>₹{(subtotal + totalTax).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
                       </div>
                     );
                   })()}

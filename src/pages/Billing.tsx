@@ -446,14 +446,28 @@ const Billing = () => {
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
       const baseNum = Date.now().toString().slice(-6);
-      const tax = getSelectedTax();
-      const { cgst: cgstPct, sgst: sgstPct, igst: igstPct, total: taxRate } = getTaxComponents(tax);
-      const splitTax = (base: number) => ({
-        cgst_amount: (base * cgstPct) / 100,
-        sgst_amount: (base * sgstPct) / 100,
-        igst_amount: (base * igstPct) / 100,
-        tax_amount: (base * taxRate) / 100,
-      });
+      // Per-line tax aggregation: sum cgst/sgst/igst from each service & pharma line by its own mapped rate
+      const aggregateLineTax = (svcAmounts: { name: string; price: number }[], pharma: PharmaLineItem[], scale: number) => {
+        let cgstAmount = 0, sgstAmount = 0, igstAmount = 0;
+        svcAmounts.forEach((s) => {
+          if (!s.name.trim() || !s.price) return;
+          const t = getLineTax(getServiceTaxId(s.name), s.price * scale);
+          cgstAmount += t.cgst; sgstAmount += t.sgst; igstAmount += t.igst;
+        });
+        pharma.forEach((p) => {
+          const amt = p.quantity * p.unit_price;
+          if (!p.product_id || !amt) return;
+          const t = getLineTax(getProductTaxId(p.product_id), amt * scale);
+          cgstAmount += t.cgst; sgstAmount += t.sgst; igstAmount += t.igst;
+        });
+        return { cgst_amount: cgstAmount, sgst_amount: sgstAmount, igst_amount: igstAmount, tax_amount: cgstAmount + sgstAmount + igstAmount };
+      };
+      // For staged/recurring (which split a single user-typed amount), allocate proportionally to subtotal
+      const baseSubtotal = servicesSubtotal + pharmaSubtotal;
+      const splitTax = (base: number) => {
+        const scale = baseSubtotal > 0 ? base / baseSubtotal : 0;
+        return aggregateLineTax(serviceInputs, pharmaItems, scale);
+      };
 
       if (paymentType === "Staged") {
         const rows = stages.map((stage, i) => {
@@ -473,14 +487,8 @@ const Billing = () => {
             payment_type: "Staged",
             payment_mode: paymentMode,
             notes: `${stage.label}${notes ? ` — ${notes}` : ""}`,
-            tax_id: selectedTaxId || null,
-            tax_rate: taxRate,
-            ...t,
-          };
-        });
-        const { error } = await supabase.from("invoices").insert(rows);
-        if (error) throw error;
-      } else if (paymentType === "Recurring") {
+            tax_id: null,
+            tax_rate: null,
         const t = splitTax(recurringAmount);
         const totalPerInst = recurringAmount + t.tax_amount;
         const rows = Array.from({ length: recurringCount }, (_, i) => {

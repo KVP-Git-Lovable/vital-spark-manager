@@ -660,7 +660,9 @@ const Pharma = () => {
               <TableBody>
                 {filteredProducts.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No products found</TableCell></TableRow>
-                ) : filteredProducts.map((p: any) => (
+                ) : filteredProducts.map((p: any) => {
+                  const price = getActiveBatchPrice(p, inventory as any);
+                  return (
                   <TableRow key={p.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setSelectedProductId(p.id)}>
                     <TableCell>
                       {p.image_url ? (
@@ -673,13 +675,19 @@ const Pharma = () => {
                     </TableCell>
                     <TableCell className="font-medium">{p.name}<br /><span className="text-xs text-muted-foreground">{p.generic_name}</span></TableCell>
                     <TableCell><Badge variant="secondary" className="text-xs">{p.category}</Badge></TableCell>
-                    <TableCell>₹{Number(p.mrp).toFixed(2)}</TableCell>
-                    <TableCell>₹{Number(p.selling_price).toFixed(2)}</TableCell>
+                    <TableCell>
+                      {price.hasBatch || price.mrp > 0 ? `₹${price.mrp.toFixed(2)}` : <span className="text-xs text-muted-foreground">No batch</span>}
+                      {price.subUnitPrice && <div className="text-[11px] text-muted-foreground">₹{price.subUnitPrice.toFixed(2)}/{price.subUnit}</div>}
+                    </TableCell>
+                    <TableCell>
+                      {price.hasBatch || price.sellingPrice > 0 ? `₹${price.sellingPrice.toFixed(2)}` : "—"}
+                    </TableCell>
                     <TableCell>{Number(p.gst_percent)}%</TableCell>
                     <TableCell>{formatProductUnit(p)}</TableCell>
                     <TableCell>{p.reorder_level}</TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </motion.div>

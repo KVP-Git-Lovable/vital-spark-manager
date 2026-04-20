@@ -23,9 +23,10 @@ import { ProductDetailSheet, InventoryDetailSheet, BillDetailSheet } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatProductUnit } from "@/lib/unitDisplay";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", reorder_level: 10, vendor_ids: [] as string[], qty_per_unit: 1, tablets_per_strip: 0 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", sub_unit: "", conversion_value: 1, reorder_level: 10, vendor_ids: [] as string[] };
 const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {
@@ -175,10 +176,13 @@ const Pharma = () => {
         generic_name: productForm.generic_name || null,
         category: productForm.category,
         manufacturer: productForm.manufacturer || null,
-        unit: productForm.unit,
+        base_unit: productForm.base_unit || null,
+        sub_unit: productForm.sub_unit || null,
+        conversion_value: productForm.conversion_value || 1,
+        unit: productForm.base_unit || "Nos", // legacy fallback
         reorder_level: productForm.reorder_level,
         vendor_id: productForm.vendor_ids.length > 0 ? productForm.vendor_ids[0] : null,
-        qty_per_unit: productForm.qty_per_unit || 1,
+        qty_per_unit: productForm.conversion_value || 1, // legacy fallback
       };
       const { error } = await supabase.from("pharma_products").insert(payload);
       if (error) throw error;
@@ -318,11 +322,11 @@ const Pharma = () => {
       generic_name: product.generic_name || "",
       category: product.category || "General",
       manufacturer: product.manufacturer || "",
-      unit: product.unit || "Nos",
+      base_unit: product.base_unit || product.unit || "",
+      sub_unit: product.sub_unit || "",
+      conversion_value: Number(product.conversion_value ?? product.qty_per_unit ?? 1) || 1,
       reorder_level: product.reorder_level || 10,
       vendor_ids: product.vendor_id ? [product.vendor_id] : [],
-      qty_per_unit: product.qty_per_unit || 1,
-      tablets_per_strip: 0,
     });
     setProductOpen(true);
   };
@@ -391,9 +395,9 @@ const Pharma = () => {
                     </Select>
                   </div>
                   <div>
-                    <Label>Unit</Label>
-                    <Select value={productForm.unit} onValueChange={(v) => setProductForm({ ...productForm, unit: v })}>
-                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select unit" /></SelectTrigger>
+                    <Label>Base Unit *</Label>
+                    <Select value={productForm.base_unit} onValueChange={(v) => setProductForm({ ...productForm, base_unit: v })}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. Bottle, Box" /></SelectTrigger>
                       <SelectContent>{unitMaster.map((u: any) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
@@ -416,26 +420,24 @@ const Pharma = () => {
                     <VendorCombobox value="" onChange={(v) => { if (v && !productForm.vendor_ids.includes(v)) setProductForm({ ...productForm, vendor_ids: [...productForm.vendor_ids, v] }); }} placeholder="Add vendor..." />
                   </div>
                 </div>
-                <div className={`grid ${productForm.unit === "Nos" || productForm.unit === "Box" ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+                <div className="grid grid-cols-3 gap-3">
                   <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={productForm.reorder_level} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
-                  {productForm.unit !== "Nos" && productForm.unit !== "Box" && (() => {
-                    const selectedUnit = unitMaster.find((u: any) => u.name === productForm.unit);
-                    const label = productForm.unit === "Strip" ? "Tablets per Strip"
-                      : productForm.unit === "Sachet" ? "Qty per Sachet (e.g. 5gm)"
-                      : productForm.unit === "Tube" ? "Volume/Weight (e.g. 30gm)"
-                      : productForm.unit === "Bottle" ? "Volume per Bottle (e.g. 100ml)"
-                      : selectedUnit?.sub_unit_name ? `${selectedUnit.sub_unit_name} per ${productForm.unit}` : "Qty per Unit";
-                    return (
-                      <div><Label>{label}</Label><Input type="number" className="mt-1" value={productForm.qty_per_unit} onChange={(e) => setProductForm({ ...productForm, qty_per_unit: parseInt(e.target.value) || 1 })} placeholder={selectedUnit?.conversion_qty ? String(selectedUnit.conversion_qty) : "1"} /></div>
-                    );
-                  })()}
-                </div>
-                {productForm.unit === "Box" && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Strips per Box</Label><Input type="number" className="mt-1" value={productForm.qty_per_unit} onChange={(e) => setProductForm({ ...productForm, qty_per_unit: parseInt(e.target.value) || 1 })} placeholder="e.g. 10" /></div>
-                    <div><Label>Tablets per Strip</Label><Input type="number" className="mt-1" value={productForm.tablets_per_strip || ""} onChange={(e) => setProductForm({ ...productForm, tablets_per_strip: parseInt(e.target.value) || 0 })} placeholder="e.g. 10" /></div>
+                  <div>
+                    <Label>Sub Unit</Label>
+                    <Select value={productForm.sub_unit || "__none__"} onValueChange={(v) => setProductForm({ ...productForm, sub_unit: v === "__none__" ? "" : v })}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. ml, Tablet" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— None —</SelectItem>
+                        {unitMaster.map((u: any) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
+                  <div>
+                    <Label>{productForm.sub_unit && productForm.base_unit ? `${productForm.sub_unit} per ${productForm.base_unit}` : "Units per Base Unit"}</Label>
+                    <Input type="number" className="mt-1" value={productForm.conversion_value} onChange={(e) => setProductForm({ ...productForm, conversion_value: parseFloat(e.target.value) || 1 })} placeholder="e.g. 100" disabled={!productForm.sub_unit} />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground -mt-1">e.g. 1 Bottle = 100 ml, 1 Box = 100 Tablets</p>
                 <Button className="w-full" onClick={() => addProduct.mutate()} disabled={!productForm.name || addProduct.isPending}>
                   {addProduct.isPending ? "Saving..." : "Add Product"}
                 </Button>
@@ -623,7 +625,7 @@ const Pharma = () => {
                     <TableCell>₹{Number(p.mrp).toFixed(2)}</TableCell>
                     <TableCell>₹{Number(p.selling_price).toFixed(2)}</TableCell>
                     <TableCell>{Number(p.gst_percent)}%</TableCell>
-                    <TableCell>{p.unit}</TableCell>
+                    <TableCell>{formatProductUnit(p)}</TableCell>
                     <TableCell>{p.reorder_level}</TableCell>
                   </TableRow>
                 ))}

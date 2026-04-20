@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
+import { formatProductUnit } from "@/lib/unitDisplay";
 import { motion } from "framer-motion";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
@@ -168,7 +169,7 @@ const ShopProduct = () => {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Badge variant="secondary">{product.category}</Badge>
-                <span className="text-xs text-muted-foreground">UOM: {product.unit}</span>
+                <span className="text-xs text-muted-foreground">UOM: {formatProductUnit(product)}</span>
               </div>
               <h1 className="text-xl md:text-2xl font-display font-bold text-foreground">{product.name}</h1>
               {product.generic_name && <p className="text-sm text-muted-foreground mt-1">{product.generic_name}</p>}
@@ -188,7 +189,7 @@ const ShopProduct = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="bg-muted/50 rounded-lg p-3"><span className="text-muted-foreground">Unit:</span> {product.unit}</div>
+              <div className="bg-muted/50 rounded-lg p-3"><span className="text-muted-foreground">Unit:</span> {formatProductUnit(product)}</div>
               {product.hsn_code && <div className="bg-muted/50 rounded-lg p-3"><span className="text-muted-foreground">HSN:</span> {product.hsn_code}</div>}
             </div>
 
@@ -297,7 +298,7 @@ const ShopProduct = () => {
                 >
                   <img src={spImg} alt={sp.name} className="h-28 md:h-32 w-full object-cover" />
                   <div className="p-2.5">
-                    <p className="text-xs text-muted-foreground">{sp.unit}</p>
+                    <p className="text-xs text-muted-foreground">{formatProductUnit(sp)}</p>
                     <h3 className="text-sm font-semibold text-foreground line-clamp-1">{sp.name}</h3>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-sm font-bold text-primary">₹{sp.selling_price}</span>

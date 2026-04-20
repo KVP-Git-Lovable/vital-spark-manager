@@ -1014,15 +1014,29 @@ const Billing = () => {
                   {((servicesSubtotal + pharmaSubtotal) > 0) && (() => {
                     const subtotal = servicesSubtotal + pharmaSubtotal;
                     const { cgst, sgst, igst } = getTaxComponents(getSelectedTax());
+                    const servicesTax = lineTaxAmount(servicesSubtotal);
+                    const pharmaTax = lineTaxAmount(pharmaSubtotal);
                     const cgstAmt = (subtotal * cgst) / 100;
                     const sgstAmt = (subtotal * sgst) / 100;
                     const igstAmt = (subtotal * igst) / 100;
-                    const taxApplied = selectedTaxId && selectedTaxId !== "none";
                     return (
                       <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-                        {servicesSubtotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>}
-                        {pharmaSubtotal > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>}
+                        {servicesSubtotal > 0 && (
+                          <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
+                        )}
+                        {servicesSubtotal > 0 && taxApplied && (
+                          <div className="flex justify-between text-xs"><span className="text-muted-foreground pl-3">Services Tax ({currentTaxRate}%)</span><span className="text-muted-foreground">₹{servicesTax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        )}
+                        {pharmaSubtotal > 0 && (
+                          <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
+                        )}
+                        {pharmaSubtotal > 0 && taxApplied && (
+                          <div className="flex justify-between text-xs"><span className="text-muted-foreground pl-3">Products Tax ({currentTaxRate}%)</span><span className="text-muted-foreground">₹{pharmaTax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        )}
                         <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
+                        {taxApplied && (
+                          <div className="text-[10px] text-muted-foreground italic">Tax derived from line items</div>
+                        )}
                         {taxApplied && cgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST ({cgst}%)</span><span>₹{cgstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
                         {taxApplied && sgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST ({sgst}%)</span><span>₹{sgstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
                         {taxApplied && igst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST ({igst}%)</span><span>₹{igstAmt.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}

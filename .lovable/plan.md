@@ -1,72 +1,41 @@
 
 
-## Plan: Per-line auto-tax in Create Invoice (remove manual tax selector, fix double-counting)
+## Plan: Per-product unit conversion in Product Master
 
-### Problems today
-1. A single Tax Configuration dropdown overrides per-item mappings — user has to pick one rate for the whole invoice.
-2. Summary shows "Services Tax + Products Tax" AND "CGST + SGST" — both derived from the same total, so the visual reads like double tax even though the grand total math is fine.
-3. Tax rate is uniform across lines, ignoring that each product/service can map to a different rate in Tax Master.
+### Concept
+Unit Master stays as a flat list of unit names (Bottle, Box, ml, Tablet, etc.) — no conversion logic baked in. Each product declares its own Base Unit + Sub Unit + how many sub-units make one base unit.
 
-### Goal
-- Each line item resolves its own tax rate from Tax Master mapping (`tax_master_products` for pharma, `tax_master_services` for services).
-- No manual Tax Configuration dropdown.
-- Summary shows CGST + SGST breakdown only (single representation), derived by summing per-line tax. Grand Total = Subtotal + (CGST + SGST).
+### Schema (migration on `pharma_products`)
+Add three columns:
+- `base_unit` text — the larger sellable unit (e.g. Bottle, Box, Strip)
+- `sub_unit` text — the smaller dispensable unit (e.g. ml, Tablet, Capsule). Nullable.
+- `conversion_value` numeric — how many sub-units per 1 base unit (e.g. 100). Default 1.
 
-### Changes — `src/pages/Billing.tsx`
+Backfill: copy existing `unit` → `base_unit`, copy existing `qty_per_unit` → `conversion_value`. Keep `unit` and `qty_per_unit` columns for now (read-only fallback) so nothing breaks elsewhere; new code reads/writes the new fields.
 
-**1. Build per-item tax lookup maps (replace the single `selectedTaxId` model)**
-- New query: fetch all active `tax_master` rows once, build `taxById: Map<tax_id, { rate, cgst, sgst, igst, name }>`.
-- Reuse existing `tax-master-services-active` and product mappings to build:
-  - `serviceTaxRateById: Map<service_id, tax_id>`
-  - `productTaxRateById: Map<product_id, tax_id>` (already exists in some form via pharma flow).
-- Helper `getLineTax(taxId, amount)` → `{ rate, cgst, sgst, igst, taxAmount }`. If `taxId` missing → all zeros (No Tax).
+### Unit Master (`src/pages/UnitMaster.tsx`)
+Already a flat list with name + optional sub-unit + active flag. **Drop the `sub_unit_name` field from this screen** — units are now just names. Keep name + active toggle. Sub-units come from the same unit list (any unit can be picked as a sub-unit on a product).
 
-**2. Remove Tax Configuration UI block**
-- Delete the `<Select>` for `selectedTaxId` (around the summary card area).
-- Delete `selectedTaxId` state, `getSelectedTax`, `currentTaxRate`, and the `lineTaxAmount(amount)` helper that depended on it.
-- Remove the auto-population effects that set `selectedTaxId` when picking a service/product (no longer needed).
+### Product form (`src/components/pharma/...` — Add/Edit Product)
+Replace the current single "Unit" + "Volume per Bottle" pair with:
+- **Base Unit** (Searchable Select from Unit Master active list) — required
+- **Sub Unit** (Searchable Select from Unit Master active list) — optional
+- **Units per Base Unit** (number input) — label dynamically reads e.g. "ml per Bottle" once both units are picked, otherwise "Units per Base Unit". Required when Sub Unit is set, default 1.
 
-**3. Service row UI** (around the per-service price line)
-- Resolve `taxId = serviceTaxRateById.get(svc.id)` → compute line tax from its own rate.
-- Below price show: `Tax (18%): ₹X.XX` or `No tax` — same compact muted style, but **per-line rate**, not invoice-wide.
+Helper text below: *"e.g. 1 Bottle = 100 ml, 1 Box = 100 Tablets"*
 
-**4. Pharma row UI** (line-total cell)
-- Resolve `taxId = productTaxRateById.get(item.product_id)`.
-- Stack: line subtotal on top, `Tax (12%): ₹Y.YY` (or `No tax`) underneath, right-aligned.
+### Display (Pharma list, Detail sheet, Shop, Billing pickers)
+Where today shows `unit` / `Volume per Bottle`:
+- Show as `Base Unit (Conversion × Sub Unit)` — e.g. `Bottle (100 ml)` or `Box (100 Tablets)`.
+- If no sub-unit: show just `Bottle`.
 
-**5. Summary block — single representation**
-Compute by aggregation across all lines:
-```
-totalCgst = Σ line.cgst
-totalSgst = Σ line.sgst
-totalIgst = Σ line.igst   (if any line uses IGST)
-totalTax  = totalCgst + totalSgst + totalIgst
-```
-Display:
-- Services Subtotal: ₹X
-- Products Subtotal: ₹Y
-- Subtotal: ₹(X+Y)
-- **CGST: ₹A**
-- **SGST: ₹B**
-- (IGST: ₹C — only if any line is IGST)
-- **Grand Total = Subtotal + CGST + SGST (+ IGST)**
-
-Remove the "Services Tax / Products Tax" rows entirely. Remove the "Tax derived from line items" note (now self-evident). No double display.
-
-**6. Invoice persistence**
-The `invoices` table currently snapshots `tax_id`, `tax_rate`, `tax_amount`. With multi-rate lines there's no single `tax_id`/`tax_rate` to store. Approach:
-- `tax_id` → `null`
-- `tax_rate` → `null` (or weighted effective rate; nullable is cleaner)
-- `tax_amount` → `totalTax` (sum across lines) — preserves grand total integrity for existing invoice list/PDF.
-- Invoice items already store per-line price/qty; line tax is recomputable on view from current mappings, and the aggregate is preserved on `invoices.tax_amount`. No schema change needed.
-
-**7. Edge cases**
-- Mixed: some lines mapped, some not → unmapped lines contribute 0 tax, summary still correct.
-- All lines unmapped → CGST/SGST rows hidden, Grand Total = Subtotal.
-- Installments / staged billing: same per-line resolution applied to the items belonging to each stage (existing stage logic untouched, just swap the tax computation).
+Files touched for display: `src/pages/Pharma.tsx`, `src/components/pharma/PharmaDetailSheet.tsx`, `src/pages/Billing.tsx` (pharma picker), `src/components/portal/PortalShop.tsx`, `src/pages/shop/ShopProduct.tsx`. Read from new fields with fallback to legacy (`base_unit ?? unit`, `conversion_value ?? qty_per_unit`).
 
 ### Files
-- Modified: `src/pages/Billing.tsx` (remove dropdown + state, add per-line tax resolver, update Service & Pharma row UI, rewrite summary, adjust mutation payload).
+- New migration: add `base_unit`, `sub_unit`, `conversion_value` to `pharma_products` + backfill
+- Modified: `src/pages/UnitMaster.tsx` (remove sub_unit_name field)
+- Modified: `src/components/pharma/` product form (new 3-field block, dynamic label)
+- Modified: pharma display surfaces listed above (label rendering helper)
 
-No DB migration. No changes to other modules (PDF/invoice list read `tax_amount` which still holds the correct aggregate).
+No changes to invoice/billing math — pricing remains per base unit as before.
 

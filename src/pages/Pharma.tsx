@@ -444,6 +444,13 @@ const Pharma = () => {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground -mt-1">e.g. 1 Bottle = 100 ml, 1 Box = 100 Tablets</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
+                  <div><Label>GST %</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                </div>
+                <div className="rounded-md bg-muted/50 border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                  💡 Pricing (MRP / Selling Price) is captured per batch in <strong>Inward Stock</strong>.
+                </div>
                 <Button className="w-full" onClick={() => addProduct.mutate()} disabled={!productForm.name || addProduct.isPending}>
                   {addProduct.isPending ? "Saving..." : "Add Product"}
                 </Button>
@@ -461,27 +468,65 @@ const Pharma = () => {
                 <div>
                   <Label>Product *</Label>
                   <Select value={stockForm.product_id} onValueChange={(v) => {
-                    const prod = products.find((p: any) => p.id === v);
-                    setStockForm({ ...stockForm, product_id: v, mrp: prod?.mrp || 0 });
+                    setStockForm({ ...stockForm, product_id: v });
                   }}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select product" /></SelectTrigger>
                     <SelectContent>{products.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
+                {(() => {
+                  const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
+                  if (!sp) return null;
+                  const baseUnit = sp.base_unit || sp.unit || "unit";
+                  const sub = sp.sub_unit;
+                  const conv = Number(sp.conversion_value ?? sp.qty_per_unit ?? 1) || 1;
+                  return (
+                    <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground space-y-0.5">
+                      <div><strong>Base Unit:</strong> {baseUnit}</div>
+                      {sub && conv > 1 && <div><strong>Conversion:</strong> 1 {baseUnit} = {conv} {sub}</div>}
+                    </div>
+                  );
+                })()}
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Batch No. *</Label><Input className="mt-1" value={stockForm.batch_number} onChange={(e) => setStockForm({ ...stockForm, batch_number: e.target.value })} /></div>
                   <div><Label>Expiry Date *</Label><Input type="date" className="mt-1" value={stockForm.expiry_date} onChange={(e) => setStockForm({ ...stockForm, expiry_date: e.target.value })} /></div>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div><Label>Quantity *</Label><Input type="number" className="mt-1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: parseInt(e.target.value) || 0 })} /></div>
-                  <div><Label>Purchase Price (₹)</Label><Input type="number" className="mt-1" value={stockForm.purchase_price} onChange={(e) => setStockForm({ ...stockForm, purchase_price: parseFloat(e.target.value) || 0 })} /></div>
-                  <div><Label>MRP (₹)</Label><Input type="number" className="mt-1" value={stockForm.mrp} onChange={(e) => setStockForm({ ...stockForm, mrp: parseFloat(e.target.value) || 0 })} /></div>
-                </div>
+                {(() => {
+                  const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
+                  const baseUnit = sp?.base_unit || sp?.unit || "";
+                  const sub = sp?.sub_unit;
+                  const conv = Number(sp?.conversion_value ?? sp?.qty_per_unit ?? 1) || 1;
+                  const perBase = baseUnit ? ` (per ${baseUnit})` : "";
+                  const subHint = (price: number) => (sub && conv > 1 && price > 0)
+                    ? `= ₹${(price / conv).toFixed(2)} per ${sub}` : "";
+                  return (
+                    <>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div><Label>Quantity{baseUnit ? ` (${baseUnit})` : ""} *</Label><Input type="number" className="mt-1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: parseInt(e.target.value) || 0 })} /></div>
+                        <div>
+                          <Label>Purchase Price{perBase}</Label>
+                          <Input type="number" className="mt-1" value={stockForm.purchase_price} onChange={(e) => setStockForm({ ...stockForm, purchase_price: parseFloat(e.target.value) || 0 })} />
+                          {subHint(stockForm.purchase_price) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.purchase_price)}</p>}
+                        </div>
+                        <div>
+                          <Label>MRP{perBase} *</Label>
+                          <Input type="number" className="mt-1" value={stockForm.mrp} onChange={(e) => setStockForm({ ...stockForm, mrp: parseFloat(e.target.value) || 0 })} />
+                          {subHint(stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.mrp)}</p>}
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Selling Price{perBase} <span className="text-muted-foreground text-xs">(optional, defaults to MRP)</span></Label>
+                        <Input type="number" className="mt-1" value={stockForm.selling_price} onChange={(e) => setStockForm({ ...stockForm, selling_price: parseFloat(e.target.value) || 0 })} placeholder={stockForm.mrp ? `${stockForm.mrp}` : ""} />
+                        {subHint(stockForm.selling_price || stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.selling_price || stockForm.mrp)}</p>}
+                      </div>
+                    </>
+                  );
+                })()}
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Supplier</Label><div className="mt-1"><VendorCombobox value={stockForm.supplier} onChange={(v) => setStockForm({ ...stockForm, supplier: v })} placeholder="Select supplier..." /></div></div>
                   <div><Label>Invoice No.</Label><Input className="mt-1" value={stockForm.invoice_number} onChange={(e) => setStockForm({ ...stockForm, invoice_number: e.target.value })} /></div>
                 </div>
-                <Button className="w-full" onClick={() => addStock.mutate()} disabled={!stockForm.product_id || !stockForm.batch_number || !stockForm.expiry_date || addStock.isPending}>
+                <Button className="w-full" onClick={() => addStock.mutate()} disabled={!stockForm.product_id || !stockForm.batch_number || !stockForm.expiry_date || !stockForm.mrp || addStock.isPending}>
                   {addStock.isPending ? "Saving..." : "Add Stock"}
                 </Button>
               </div>

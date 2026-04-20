@@ -70,6 +70,15 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
     },
   });
 
+  const { data: unitMaster = [] } = useQuery({
+    queryKey: ["unit-master"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("unit_master").select("*").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: inventoryItems = [] } = useQuery({
     queryKey: ["product-inventory-stock", productId],
     queryFn: async () => {
@@ -621,8 +630,23 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 <div><Label>Manufacturer</Label><Input className="mt-1" value={form.manufacturer || ""} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <div><Label>Base Unit</Label><Input className="mt-1" value={form.base_unit || form.unit || ""} onChange={(e) => setForm({ ...form, base_unit: e.target.value, unit: e.target.value })} placeholder="Bottle, Box" /></div>
-                <div><Label>Sub Unit</Label><Input className="mt-1" value={form.sub_unit || ""} onChange={(e) => setForm({ ...form, sub_unit: e.target.value })} placeholder="ml, Tablet" /></div>
+                <div>
+                  <Label>Base Unit</Label>
+                  <Select value={form.base_unit || form.unit || ""} onValueChange={(v) => setForm({ ...form, base_unit: v, unit: v })}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. Bottle, Box" /></SelectTrigger>
+                    <SelectContent>{unitMaster.map((u: any) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Sub Unit</Label>
+                  <Select value={form.sub_unit || "__none__"} onValueChange={(v) => setForm({ ...form, sub_unit: v === "__none__" ? "" : v })}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. ml, Tablet" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— None —</SelectItem>
+                      {unitMaster.map((u: any) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <Label>{form.sub_unit && (form.base_unit || form.unit) ? `${form.sub_unit} per ${form.base_unit || form.unit}` : "Units per Base Unit"}</Label>
                   <Input type="number" className="mt-1" value={form.conversion_value ?? form.qty_per_unit ?? 1} onChange={(e) => { const v = parseFloat(e.target.value) || 1; setForm({ ...form, conversion_value: v, qty_per_unit: v }); }} disabled={!form.sub_unit} />

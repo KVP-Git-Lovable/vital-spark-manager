@@ -1322,7 +1322,9 @@ export type Database = {
       }
       pharma_products: {
         Row: {
+          base_unit: string | null
           category: string
+          conversion_value: number
           created_at: string
           expiry_date: string | null
           generic_name: string | null
@@ -1336,12 +1338,15 @@ export type Database = {
           qty_per_unit: number | null
           reorder_level: number
           selling_price: number
+          sub_unit: string | null
           unit: string
           updated_at: string
           vendor_id: string | null
         }
         Insert: {
+          base_unit?: string | null
           category?: string
+          conversion_value?: number
           created_at?: string
           expiry_date?: string | null
           generic_name?: string | null
@@ -1355,12 +1360,15 @@ export type Database = {
           qty_per_unit?: number | null
           reorder_level?: number
           selling_price?: number
+          sub_unit?: string | null
           unit?: string
           updated_at?: string
           vendor_id?: string | null
         }
         Update: {
+          base_unit?: string | null
           category?: string
+          conversion_value?: number
           created_at?: string
           expiry_date?: string | null
           generic_name?: string | null
@@ -1374,6 +1382,7 @@ export type Database = {
           qty_per_unit?: number | null
           reorder_level?: number
           selling_price?: number
+          sub_unit?: string | null
           unit?: string
           updated_at?: string
           vendor_id?: string | null

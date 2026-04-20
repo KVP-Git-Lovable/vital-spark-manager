@@ -937,12 +937,19 @@ const Billing = () => {
                         <Label className="text-xs">Price (₹)</Label>
                         <Input type="number" className="mt-1 h-8" value={item.unit_price} onChange={(e) => updatePharmaItem(idx, "unit_price", parseFloat(e.target.value) || 0)} />
                       </div>
-                      <div className="flex items-end">
-                        <div className="flex items-center gap-2 h-8">
-                          <span className="text-sm font-medium">₹{(item.quantity * item.unit_price).toFixed(2)}</span>
-                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removePharmaItem(idx)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                      <div className="flex items-end justify-end">
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">₹{(item.quantity * item.unit_price).toFixed(2)}</span>
+                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removePharmaItem(idx)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                          <span className="text-xs text-muted-foreground mt-0.5 pr-9">
+                            {taxApplied
+                              ? `Tax (${currentTaxRate}%): ₹${lineTaxAmount(item.quantity * item.unit_price).toFixed(2)}`
+                              : "No tax"}
+                          </span>
                         </div>
                       </div>
                     </div>

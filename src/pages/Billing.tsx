@@ -359,7 +359,6 @@ const Billing = () => {
     return Array.from(svcs).sort();
   }, [invoices]);
 
-  const getSelectedTax = () => taxes.find((t: any) => t.id === selectedTaxId);
   const getTaxComponents = (tax: any) => {
     if (!tax) return { cgst: 0, sgst: 0, igst: 0, total: 0 };
     const cgst = Number(tax.cgst) || 0;
@@ -368,13 +367,30 @@ const Billing = () => {
     const total = cgst + sgst + igst || Number(tax.rate) || 0;
     return { cgst, sgst, igst, total };
   };
-  const calcTaxAmount = (amount: number) => {
-    const { total } = getTaxComponents(getSelectedTax());
-    return (amount * total) / 100;
+
+  // Per-line tax resolver: looks up the tax mapping for a service/product id and returns its components
+  const taxById = useMemo(() => {
+    const m = new Map<string, any>();
+    (taxes as any[]).forEach((t) => m.set(t.id, t));
+    return m;
+  }, [taxes]);
+
+  const getLineTax = (taxId: string | undefined, amount: number) => {
+    if (!taxId) return { rate: 0, cgst: 0, sgst: 0, igst: 0, taxAmount: 0 };
+    const tax = taxById.get(taxId);
+    const { cgst, sgst, igst, total } = getTaxComponents(tax);
+    const cgstAmt = (amount * cgst) / 100;
+    const sgstAmt = (amount * sgst) / 100;
+    const igstAmt = (amount * igst) / 100;
+    return { rate: total, cgst: cgstAmt, sgst: sgstAmt, igst: igstAmt, taxAmount: cgstAmt + sgstAmt + igstAmt };
   };
-  const currentTaxRate = getTaxComponents(getSelectedTax()).total;
-  const taxApplied = !!selectedTaxId && selectedTaxId !== "none";
-  const lineTaxAmount = (amount: number) => (amount * currentTaxRate) / 100;
+
+  // Resolve tax id for a service line (by name → service master → mapping)
+  const getServiceTaxId = (serviceName: string): string | undefined => {
+    const svc = (serviceMaster as any[]).find((s) => s.name === serviceName);
+    return svc ? serviceTaxMap.get(svc.id) : undefined;
+  };
+  const getProductTaxId = (productId: string): string | undefined => productTaxMap.get(productId);
 
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
   const servicesSubtotal = useMemo(() => serviceInputs.reduce((sum, s) => sum + (Number(s.price) || 0), 0), [serviceInputs]);

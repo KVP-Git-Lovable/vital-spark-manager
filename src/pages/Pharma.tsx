@@ -23,6 +23,7 @@ import { ProductDetailSheet, InventoryDetailSheet, BillDetailSheet } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatProductUnit } from "@/lib/unitDisplay";
 
 // ─── Form Defaults ────────────────────────────────
 const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", sub_unit: "", conversion_value: 1, reorder_level: 10, vendor_ids: [] as string[] };
@@ -624,7 +625,7 @@ const Pharma = () => {
                     <TableCell>₹{Number(p.mrp).toFixed(2)}</TableCell>
                     <TableCell>₹{Number(p.selling_price).toFixed(2)}</TableCell>
                     <TableCell>{Number(p.gst_percent)}%</TableCell>
-                    <TableCell>{p.unit}</TableCell>
+                    <TableCell>{formatProductUnit(p)}</TableCell>
                     <TableCell>{p.reorder_level}</TableCell>
                   </TableRow>
                 ))}

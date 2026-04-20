@@ -701,7 +701,9 @@ const Pharma = () => {
                   <TableHead>Product</TableHead>
                   <TableHead>Batch</TableHead>
                   <TableHead>Qty</TableHead>
-                  <TableHead>Purchase Price</TableHead>
+                  <TableHead>Purchase</TableHead>
+                  <TableHead>MRP</TableHead>
+                  <TableHead>Selling</TableHead>
                   <TableHead>Expiry</TableHead>
                   <TableHead>Supplier</TableHead>
                   <TableHead>Status</TableHead>
@@ -709,7 +711,7 @@ const Pharma = () => {
               </TableHeader>
               <TableBody>
                 {inventory.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No inventory records</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No inventory records</TableCell></TableRow>
                 ) : inventory.map((i: any) => {
                   const exp = new Date(i.expiry_date);
                   const daysLeft = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -721,6 +723,8 @@ const Pharma = () => {
                       <TableCell>{i.batch_number}</TableCell>
                       <TableCell>{i.quantity}</TableCell>
                       <TableCell>₹{Number(i.purchase_price).toFixed(2)}</TableCell>
+                      <TableCell>₹{Number(i.mrp || 0).toFixed(2)}</TableCell>
+                      <TableCell>₹{Number(i.selling_price || i.mrp || 0).toFixed(2)}</TableCell>
                       <TableCell>{exp.toLocaleDateString()}</TableCell>
                       <TableCell className="text-muted-foreground">{(() => {
                         if (!i.supplier) return "—";

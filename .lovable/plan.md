@@ -1,40 +1,42 @@
 
 
-## Plan: Service-to-Tax mapping in Tax Master + auto-tax in Billing
+## Plan: Per-line tax display in Create Invoice
 
-### 1. Schema migration
-New table `tax_master_services` (mirrors `tax_master_products`):
-```sql
-CREATE TABLE public.tax_master_services (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tax_id uuid NOT NULL,
-  service_id uuid NOT NULL,
-  is_active boolean NOT NULL DEFAULT true,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(tax_id, service_id)
-);
-ALTER TABLE public.tax_master_services ENABLE ROW LEVEL SECURITY;
--- anon + authenticated full-access policies (matching tax_master_products pattern)
-```
+### Goal
+Show the applicable tax % and tax amount on every Service and Pharma Product row. Keep the overall summary, but compute it from per-line taxes (so totals always reconcile with the line items shown).
 
-### 2. `src/pages/TaxMasterForm.tsx` — add Mapped Services section
-- Add `ServiceLink = { service_id: string; is_active: boolean }` state `serviceLinks`, plus `originalActiveServiceIds`.
-- New queries: `services` list (`id, name, price`) and `tax-service-claims` (cross-tax claim map for services), parallel to product versions.
-- Build `serviceClaimMap` (excludes current tax id, only active mapping + active tax).
-- Load existing `tax_master_services` in the main `existing` query (extend select to include `tax_master_services(service_id, is_active)`).
-- Render a new "Mapped Services" card directly under "Mapped Products" in the right panel, with same UI: searchable Popover/Command picker (disable already-claimed services with Tooltip "Already mapped to {taxName} {rate}% — deactivate there first"), per-row Active/Inactive Switch, Remove (X).
-- `performSave`: replicate all three branches (insert / version / in-place) for services — insert/delete `tax_master_services` rows alongside `tax_master_products`. No `gst_percent` write-back (services table has no tax column; tax is resolved at billing time via mapping).
+### Approach
 
-### 3. `src/pages/Billing.tsx` — auto-populate tax for services
-- New query `tax-master-services-active`: fetches `tax_master_services` (active mappings on active tax) joined with service id and tax id.
-- Build `serviceTaxMap: Map<service_name, tax_id>` (use name because `serviceInputs` rows hold names, and the existing service master query already has `id, name, price`; cross-reference via service_id → name).
-- Extend `updateServiceInput` (or the service Popover `onSelect` in line ~829): when a service is picked, if `serviceTaxMap.has(svc.name)` and current `selectedTaxId` is empty (don't override an existing pharma-driven selection unless they match), set `selectedTaxId` to the mapped tax id; else leave as-is.
-- Decision rule when both a product AND a service map to different tax rates: **last selected wins** (simple, matches existing pharma behavior). Same fallback to "" (No Tax) if service has no mapping and no product mapping is active.
+Single tax configuration is shared across the invoice (existing behavior — auto-populated from product/service mapping, manually overridable). Each line item simply applies that selected tax rate to its own line subtotal.
 
-### 4. Files
-- New migration: `tax_master_services` table + RLS policies
-- Modified: `src/pages/TaxMasterForm.tsx` (parallel services section + save logic)
-- Modified: `src/pages/Billing.tsx` (service→tax lookup + auto-select on service pick)
+### Changes in `src/pages/Billing.tsx`
 
-No changes to invoice schema — `invoices.tax_id/tax_rate/tax_amount` snapshot already preserves history.
+**1. Helper (near line 374)**
+Add `lineTaxAmount(amount)` that returns `amount * totalRate / 100` using the currently selected tax — and `currentTaxRate` memo for the effective % to display.
+
+**2. Service row UI (around line 832–871)**
+Below each picked service price, render a small muted label:
+- If tax selected: `Tax (18%): ₹X.XX`
+- If no tax: `No tax`
+
+Place it as a thin line under the row (not beside, to keep the row uncluttered on mobile width 1021px and below).
+
+**3. Pharma row UI (around line 919–937)**
+In the third column (currently shows line total `₹{qty*price}`), stack the line total on top and a smaller `Tax (18%): ₹X.XX` underneath, right-aligned. Mirrors the services treatment.
+
+**4. Subtotals reconciliation (around line 939–1013)**
+- Compute `servicesTax = lineTaxAmount(servicesSubtotal)` and `pharmaTax = lineTaxAmount(pharmaSubtotal)` (mathematically identical to applying rate to combined subtotal — totals always match line-by-line sums).
+- Update the One-time summary block to show:
+  - Services ₹X  +  Services Tax ₹Y (if tax)
+  - Products ₹X  +  Products Tax ₹Y (if tax)
+  - Subtotal, CGST/SGST/IGST breakdown (unchanged), Grand Total (unchanged formula)
+- Add a one-line note below subtotal: "Tax derived from line items"
+
+**5. No DB / mutation changes**
+Storage of `tax_rate` / `tax_amount` on `invoices` already snapshots the total — line-level display is purely UI. Grand total math is unchanged.
+
+### Files
+- Modified: `src/pages/Billing.tsx` (helpers + service row + pharma row + summary copy)
+
+No migration. No changes to PDF, invoice list, or other modules.
 

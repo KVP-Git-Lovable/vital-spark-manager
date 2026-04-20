@@ -24,10 +24,11 @@ import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatProductUnit } from "@/lib/unitDisplay";
+import { getActiveBatchPrice } from "@/lib/productPricing";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", sub_unit: "", conversion_value: 1, reorder_level: 10, vendor_ids: [] as string[] };
-const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, supplier: "", invoice_number: "" };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", sub_unit: "", conversion_value: 1, reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0 };
+const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {
   product_id: string;
@@ -183,6 +184,8 @@ const Pharma = () => {
         reorder_level: productForm.reorder_level,
         vendor_id: productForm.vendor_ids.length > 0 ? productForm.vendor_ids[0] : null,
         qty_per_unit: productForm.conversion_value || 1, // legacy fallback
+        hsn_code: productForm.hsn_code || null,
+        gst_percent: Number(productForm.gst_percent) || 0,
       };
       const { error } = await supabase.from("pharma_products").insert(payload);
       if (error) throw error;
@@ -198,21 +201,20 @@ const Pharma = () => {
 
   const addStock = useMutation({
     mutationFn: async () => {
-      const { product_id, mrp, ...rest } = stockForm;
+      const mrp = Number(stockForm.mrp) || 0;
+      const sp = Number(stockForm.selling_price) || mrp;
       const { error } = await supabase.from("pharma_inventory").insert({
-        product_id,
-        batch_number: rest.batch_number,
-        expiry_date: rest.expiry_date,
-        quantity: Number(rest.quantity),
-        purchase_price: Number(rest.purchase_price),
-        supplier: rest.supplier || null,
-        invoice_number: rest.invoice_number || null,
-      });
+        product_id: stockForm.product_id,
+        batch_number: stockForm.batch_number,
+        expiry_date: stockForm.expiry_date,
+        quantity: Number(stockForm.quantity),
+        purchase_price: Number(stockForm.purchase_price),
+        mrp,
+        selling_price: sp,
+        supplier: stockForm.supplier || null,
+        invoice_number: stockForm.invoice_number || null,
+      } as any);
       if (error) throw error;
-      // Update product MRP if provided
-      if (mrp > 0) {
-        await supabase.from("pharma_products").update({ mrp: Number(mrp) }).eq("id", product_id);
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharma-inventory"] });
@@ -301,7 +303,8 @@ const Pharma = () => {
         updated[idx].product_id = inv.product_id;
         updated[idx].product_name = prod?.name || "";
         updated[idx].batch_number = inv.batch_number;
-        updated[idx].unit_price = prod?.selling_price || 0;
+        // Prefer batch selling_price → batch mrp → legacy product fields
+        updated[idx].unit_price = Number(inv.selling_price) || Number(inv.mrp) || Number(prod?.selling_price) || Number(prod?.mrp) || 0;
         updated[idx].available = inv.quantity;
         updated[idx].gst_percent = Number(prod?.gst_percent) || 0;
         if (inv.quantity <= 0) {
@@ -327,6 +330,8 @@ const Pharma = () => {
       conversion_value: Number(product.conversion_value ?? product.qty_per_unit ?? 1) || 1,
       reorder_level: product.reorder_level || 10,
       vendor_ids: product.vendor_id ? [product.vendor_id] : [],
+      hsn_code: product.hsn_code || "",
+      gst_percent: Number(product.gst_percent) || 0,
     });
     setProductOpen(true);
   };
@@ -338,7 +343,8 @@ const Pharma = () => {
       expiry_date: "",
       quantity: inv.quantity || 0,
       purchase_price: inv.purchase_price || 0,
-      mrp: 0,
+      mrp: Number(inv.mrp) || 0,
+      selling_price: Number(inv.selling_price) || 0,
       supplier: inv.supplier || "",
       invoice_number: "",
     });

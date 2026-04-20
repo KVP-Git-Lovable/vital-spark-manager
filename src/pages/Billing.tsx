@@ -188,7 +188,7 @@ const Billing = () => {
   const [paymentType, setPaymentType] = useState("One-time");
   const [paymentMode, setPaymentMode] = useState("Cash");
   const [notes, setNotes] = useState("");
-  const [selectedTaxId, setSelectedTaxId] = useState("");
+  // Tax is now resolved per-line from Tax Master mappings (no manual selector)
   const [pharmaItems, setPharmaItems] = useState<PharmaLineItem[]>([]);
 
   const [stages, setStages] = useState<StageRow[]>([{ label: "Stage 1", amount: 0, paid: 0 }]);
@@ -422,14 +422,6 @@ const Billing = () => {
       updated[idx].batch_number = "";
       updated[idx].unit_price = 0;
       updated[idx].available = 0;
-      // Auto-populate tax from product mapping (only if no tax currently selected, or always override?
-      // Per spec: auto-populate; user can override. Set whenever product changes.
-      const mappedTaxId = productTaxMap.get(value);
-      if (mappedTaxId) {
-        setSelectedTaxId(mappedTaxId);
-      } else {
-        setSelectedTaxId("");
-      }
     }
     if (field === "inventory_id") {
       const inv = pharmaInventory.find((i: any) => i.id === value) as any;
@@ -666,7 +658,7 @@ const Billing = () => {
     setPaymentType("One-time");
     setPaymentMode("Cash");
     setNotes("");
-    setSelectedTaxId("");
+    // tax is per-line, nothing to reset
     setPharmaItems([]);
     setStages([{ label: "Stage 1", amount: 0, paid: 0 }]);
     setRecurringCount(1);
@@ -867,8 +859,6 @@ const Billing = () => {
                                 {serviceMaster.map((svc: any) => (
                                   <CommandItem key={svc.id} value={svc.name} onSelect={() => {
                                     updateServiceInput(i, svc.name, Number(svc.price) || 0);
-                                    const mappedTaxId = serviceTaxMap.get(svc.id);
-                                    if (mappedTaxId) setSelectedTaxId(mappedTaxId);
                                     setServiceSearchOpen(null);
                                   }}>
                                     <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />

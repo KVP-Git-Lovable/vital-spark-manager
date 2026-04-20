@@ -25,7 +25,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", unit: "Nos", reorder_level: 10, vendor_ids: [] as string[], qty_per_unit: 1, tablets_per_strip: 0 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", sub_unit: "", conversion_value: 1, reorder_level: 10, vendor_ids: [] as string[] };
 const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {
@@ -175,10 +175,13 @@ const Pharma = () => {
         generic_name: productForm.generic_name || null,
         category: productForm.category,
         manufacturer: productForm.manufacturer || null,
-        unit: productForm.unit,
+        base_unit: productForm.base_unit || null,
+        sub_unit: productForm.sub_unit || null,
+        conversion_value: productForm.conversion_value || 1,
+        unit: productForm.base_unit || "Nos", // legacy fallback
         reorder_level: productForm.reorder_level,
         vendor_id: productForm.vendor_ids.length > 0 ? productForm.vendor_ids[0] : null,
-        qty_per_unit: productForm.qty_per_unit || 1,
+        qty_per_unit: productForm.conversion_value || 1, // legacy fallback
       };
       const { error } = await supabase.from("pharma_products").insert(payload);
       if (error) throw error;
@@ -318,11 +321,11 @@ const Pharma = () => {
       generic_name: product.generic_name || "",
       category: product.category || "General",
       manufacturer: product.manufacturer || "",
-      unit: product.unit || "Nos",
+      base_unit: product.base_unit || product.unit || "",
+      sub_unit: product.sub_unit || "",
+      conversion_value: Number(product.conversion_value ?? product.qty_per_unit ?? 1) || 1,
       reorder_level: product.reorder_level || 10,
       vendor_ids: product.vendor_id ? [product.vendor_id] : [],
-      qty_per_unit: product.qty_per_unit || 1,
-      tablets_per_strip: 0,
     });
     setProductOpen(true);
   };

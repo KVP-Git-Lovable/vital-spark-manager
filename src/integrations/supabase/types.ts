@@ -1280,10 +1280,12 @@ export type Database = {
           expiry_date: string
           id: string
           invoice_number: string | null
+          mrp: number
           product_id: string
           purchase_price: number
           quantity: number
           received_date: string
+          selling_price: number
           supplier: string | null
         }
         Insert: {
@@ -1292,10 +1294,12 @@ export type Database = {
           expiry_date: string
           id?: string
           invoice_number?: string | null
+          mrp?: number
           product_id: string
           purchase_price?: number
           quantity?: number
           received_date?: string
+          selling_price?: number
           supplier?: string | null
         }
         Update: {
@@ -1304,10 +1308,12 @@ export type Database = {
           expiry_date?: string
           id?: string
           invoice_number?: string | null
+          mrp?: number
           product_id?: string
           purchase_price?: number
           quantity?: number
           received_date?: string
+          selling_price?: number
           supplier?: string | null
         }
         Relationships: [

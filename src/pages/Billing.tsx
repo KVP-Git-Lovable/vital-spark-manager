@@ -489,6 +489,12 @@ const Billing = () => {
             notes: `${stage.label}${notes ? ` — ${notes}` : ""}`,
             tax_id: null,
             tax_rate: null,
+            ...t,
+          };
+        });
+        const { error } = await supabase.from("invoices").insert(rows);
+        if (error) throw error;
+      } else if (paymentType === "Recurring") {
         const t = splitTax(recurringAmount);
         const totalPerInst = recurringAmount + t.tax_amount;
         const rows = Array.from({ length: recurringCount }, (_, i) => {
@@ -509,8 +515,8 @@ const Billing = () => {
             payment_type: "Recurring",
             payment_mode: paymentMode,
             notes: `Installment ${i + 1} of ${recurringCount} | Due: ${format(dueDate, "dd MMM yyyy")}${notes ? ` — ${notes}` : ""}`,
-            tax_id: selectedTaxId || null,
-            tax_rate: taxRate,
+            tax_id: null,
+            tax_rate: null,
             ...t,
           };
         });
@@ -535,8 +541,8 @@ const Billing = () => {
           payment_type: "One-time",
           payment_mode: paymentMode,
           notes: notes || null,
-          tax_id: selectedTaxId || null,
-          tax_rate: taxRate,
+          tax_id: null,
+          tax_rate: null,
           ...t,
         });
         if (error) throw error;

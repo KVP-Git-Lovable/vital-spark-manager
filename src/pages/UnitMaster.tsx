@@ -19,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-const emptyForm = { name: "", sub_unit_name: "", is_active: true };
+const emptyForm = { name: "", is_active: true };
 
 const UnitMaster = () => {
   const queryClient = useQueryClient();
@@ -39,7 +39,7 @@ const UnitMaster = () => {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!form.name.trim()) throw new Error("Unit name is required");
-      const payload = { name: form.name, sub_unit_name: form.sub_unit_name, is_active: form.is_active };
+      const payload = { name: form.name, is_active: form.is_active };
       if (editingId) {
         const { error } = await supabase.from("unit_master").update(payload).eq("id", editingId);
         if (error) throw error;
@@ -73,7 +73,7 @@ const UnitMaster = () => {
   const resetForm = () => { setForm(emptyForm); setEditingId(null); setOpen(false); };
 
   const startEdit = (unit: any) => {
-    setForm({ name: unit.name, sub_unit_name: unit.sub_unit_name || "", is_active: unit.is_active });
+    setForm({ name: unit.name, is_active: unit.is_active });
     setEditingId(unit.id);
     setOpen(true);
   };
@@ -83,7 +83,7 @@ const UnitMaster = () => {
       <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="page-title">Unit Master</h1>
-          <p className="page-subtitle">Manage product units and conversions</p>
+          <p className="page-subtitle">Define unit names — conversions are set per product</p>
         </div>
         <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); else setOpen(true); }}>
           <DialogTrigger asChild>
@@ -92,8 +92,8 @@ const UnitMaster = () => {
           <DialogContent>
             <DialogHeader><DialogTitle className="font-display">{editingId ? "Edit Unit" : "Add Unit"}</DialogTitle></DialogHeader>
             <div className="space-y-4 pt-2">
-              <div><Label>Unit Name *</Label><Input className="mt-1" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Strip, Bottle, Box" /></div>
-              <div><Label>Sub-unit (optional)</Label><Input className="mt-1" value={form.sub_unit_name} onChange={(e) => setForm({ ...form, sub_unit_name: e.target.value })} placeholder="e.g. Tablet, ml" /></div>
+              <div><Label>Unit Name *</Label><Input className="mt-1" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Bottle, Box, ml, Tablet" /></div>
+              <p className="text-xs text-muted-foreground">Tip: Add both larger units (Bottle, Box) and smaller units (ml, Tablet). Each product will pick its own Base + Sub unit.</p>
               <div className="flex items-center gap-2">
                 <Switch checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
                 <Label>Active</Label>
@@ -111,20 +111,18 @@ const UnitMaster = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Unit Name</TableHead>
-              <TableHead>Sub-unit</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={3} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : units.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No units added yet</TableCell></TableRow>
+              <TableRow><TableCell colSpan={3} className="text-center py-8 text-muted-foreground">No units added yet</TableCell></TableRow>
             ) : units.map((u: any) => (
               <TableRow key={u.id}>
                 <TableCell className="font-medium">{u.name}</TableCell>
-                <TableCell>{u.sub_unit_name || "—"}</TableCell>
                 <TableCell><Badge variant={u.is_active ? "default" : "secondary"}>{u.is_active ? "Active" : "Inactive"}</Badge></TableCell>
                 <TableCell className="text-right">
                   <Button size="sm" variant="ghost" onClick={() => startEdit(u)}><Pencil className="h-3 w-3" /></Button>

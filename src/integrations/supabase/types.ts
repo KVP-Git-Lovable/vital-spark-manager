@@ -2702,7 +2702,22 @@ export type Database = {
           service_id?: string
           tax_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tax_master_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tax_master_services_tax_id_fkey"
+            columns: ["tax_id"]
+            isOneToOne: false
+            referencedRelation: "tax_master"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       unit_master: {
         Row: {

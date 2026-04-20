@@ -833,42 +833,51 @@ const Billing = () => {
                   </Button>
                 </div>
                 {serviceInputs.map((s, i) => (
-                  <div key={i} className="flex gap-2 mb-2 items-center">
-                    <Popover open={serviceSearchOpen === i} onOpenChange={(open) => setServiceSearchOpen(open ? i : null)}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" role="combobox" className="w-full justify-between font-normal h-10">
-                          {s.name || <span className="text-muted-foreground">Select service...</span>}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                        <Command>
-                          <CommandInput placeholder="Search services..." />
-                          <CommandList>
-                            <CommandEmpty>No service found.</CommandEmpty>
-                            <CommandGroup>
-                              {serviceMaster.map((svc: any) => (
-                                <CommandItem key={svc.id} value={svc.name} onSelect={() => {
-                                  updateServiceInput(i, svc.name, Number(svc.price) || 0);
-                                  const mappedTaxId = serviceTaxMap.get(svc.id);
-                                  if (mappedTaxId) setSelectedTaxId(mappedTaxId);
-                                  setServiceSearchOpen(null);
-                                }}>
-                                  <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
-                                  <span>{svc.name}</span>
-                                  <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                  <div key={i} className="mb-2">
+                    <div className="flex gap-2 items-center">
+                      <Popover open={serviceSearchOpen === i} onOpenChange={(open) => setServiceSearchOpen(open ? i : null)}>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" role="combobox" className="w-full justify-between font-normal h-10">
+                            {s.name || <span className="text-muted-foreground">Select service...</span>}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search services..." />
+                            <CommandList>
+                              <CommandEmpty>No service found.</CommandEmpty>
+                              <CommandGroup>
+                                {serviceMaster.map((svc: any) => (
+                                  <CommandItem key={svc.id} value={svc.name} onSelect={() => {
+                                    updateServiceInput(i, svc.name, Number(svc.price) || 0);
+                                    const mappedTaxId = serviceTaxMap.get(svc.id);
+                                    if (mappedTaxId) setSelectedTaxId(mappedTaxId);
+                                    setServiceSearchOpen(null);
+                                  }}>
+                                    <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
+                                    <span>{svc.name}</span>
+                                    <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      {s.price > 0 && (
+                        <span className="text-sm text-muted-foreground shrink-0 w-20 text-right">₹{s.price.toLocaleString()}</span>
+                      )}
+                      {serviceInputs.length > 1 && (
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" onClick={() => removeServiceInput(i)}>✕</Button>
+                      )}
+                    </div>
                     {s.price > 0 && (
-                      <span className="text-sm text-muted-foreground shrink-0 w-20 text-right">₹{s.price.toLocaleString()}</span>
-                    )}
-                    {serviceInputs.length > 1 && (
-                      <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" onClick={() => removeServiceInput(i)}>✕</Button>
+                      <div className="text-xs text-muted-foreground text-right pr-7 mt-0.5">
+                        {taxApplied
+                          ? `Tax (${currentTaxRate}%): ₹${lineTaxAmount(s.price).toFixed(2)}`
+                          : "No tax"}
+                      </div>
                     )}
                   </div>
                 ))}

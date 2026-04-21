@@ -77,7 +77,6 @@ const surveySubItems = [
 const masterDataItems = [
   { title: "Service Master", url: "/services", icon: Stethoscope, moduleKey: "services" },
   { title: "Vendor Master", url: "/vendors", icon: Building2, moduleKey: "vendors" },
-  { title: "Unit Master", url: "/unit-master", icon: Ruler, moduleKey: "unit_master" },
   { title: "Category Master", url: "/category-master", icon: Tags, moduleKey: "category_master" },
   { title: "User Management", url: "/user-management", icon: ShieldCheck, moduleKey: "user_management" },
 ];

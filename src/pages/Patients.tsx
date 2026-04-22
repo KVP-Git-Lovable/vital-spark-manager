@@ -1,8 +1,20 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera } from "lucide-react";
+import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { motion } from "framer-motion";
 import {
   DropdownMenu,
@@ -35,6 +47,9 @@ const Patients = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [cameraPatient, setCameraPatient] = useState<Patient | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: patients = [], isLoading, refetch } = useQuery({
     queryKey: ["patients"],

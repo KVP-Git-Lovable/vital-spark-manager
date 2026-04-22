@@ -124,13 +124,14 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
     setStep(3);
   };
 
-  const validRows = mapped.filter((r) => r.errors.length === 0);
-  const errorCount = mapped.length - validRows.length;
+  const importableRows = mapped.filter((r) => r.errors.length === 0 && !r.skip);
+  const duplicateSkipCount = mapped.filter((r) => r.skip).length;
+  const errorCount = mapped.filter((r) => r.errors.length > 0).length;
 
   const handleImport = async () => {
     setImporting(true);
     setStep(4);
-    const payloads = validRows.map((r) => toInsertPayload(r));
+    const payloads = importableRows.map((r) => toInsertPayload(r));
     const batch = 100;
     let inserted = 0;
     let failed = 0;
@@ -141,15 +142,17 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
       else inserted += chunk.length;
       setProgress(Math.round(((i + chunk.length) / payloads.length) * 100));
     }
+    const totalSkipped = errorCount + duplicateSkipCount + failed;
     setImportedCount(inserted);
-    setSkippedCount(errorCount + failed);
+    setSkippedCount(totalSkipped);
     setImporting(false);
-    toast.success(`Imported ${inserted} · Skipped ${errorCount + failed}`);
+    toast.success(`Imported ${inserted} · Skipped ${totalSkipped}`);
     onSuccess();
   };
 
   const usedFields = new Set(Object.values(mapping).filter(Boolean));
-  const visibleRows = showOnlyErrors ? mapped.filter((r) => r.errors.length) : mapped;
+  const previewRows = mapped.filter((r) => !r.skip);
+  const visibleRows = showOnlyErrors ? previewRows.filter((r) => r.errors.length) : previewRows;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -187,7 +190,7 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
           {step === 2 && (
             <div className="space-y-3 py-2">
               <p className="text-sm text-muted-foreground">
-                Map each file column to a patient field. Required: First Name, Last Name, Phone.
+                Map each file column to a patient field. Required: First Name, Phone.
               </p>
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">

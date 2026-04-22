@@ -171,6 +171,13 @@ const Patients = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b bg-muted/50">
+                  <th className="p-4 w-10">
+                    <Checkbox
+                      checked={allFilteredSelected}
+                      onCheckedChange={toggleAll}
+                      aria-label="Select all"
+                    />
+                  </th>
                   <th className="text-left text-xs font-medium text-muted-foreground p-4">Patient</th>
                   <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden md:table-cell">Contact</th>
                    <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden lg:table-cell">Skin Type</th>
@@ -182,6 +189,13 @@ const Patients = () => {
               <tbody className="divide-y">
                 {filtered.map((patient) => (
                   <tr key={patient.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => navigate(`/patients/${patient.id}`)}>
+                    <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(patient.id)}
+                        onCheckedChange={() => toggleOne(patient.id)}
+                        aria-label={`Select ${patient.first_name}`}
+                      />
+                    </td>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-semibold text-sm shrink-0">

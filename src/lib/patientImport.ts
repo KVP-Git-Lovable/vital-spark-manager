@@ -21,7 +21,7 @@ export const PATIENT_FIELDS = [
 
 export type PatientField = (typeof PATIENT_FIELDS)[number];
 
-export const REQUIRED_FIELDS: PatientField[] = ["first_name", "last_name", "phone"];
+export const REQUIRED_FIELDS: PatientField[] = ["first_name", "phone"];
 
 const FIELD_ALIASES: Record<PatientField, string[]> = {
   first_name: ["first name", "firstname", "fname", "given name", "first"],

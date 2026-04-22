@@ -1,8 +1,20 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera } from "lucide-react";
+import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { motion } from "framer-motion";
 import {
   DropdownMenu,
@@ -35,6 +47,9 @@ const Patients = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [cameraPatient, setCameraPatient] = useState<Patient | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: patients = [], isLoading, refetch } = useQuery({
     queryKey: ["patients"],
@@ -67,6 +82,39 @@ const Patients = () => {
     setSheetOpen(true);
   };
 
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (filtered.every((p) => selectedIds.has(p.id)) && filtered.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((p) => p.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setDeleting(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from("patients").delete().in("id", ids);
+    setDeleting(false);
+    if (error) {
+      toast.error(`Failed to delete: ${error.message}`);
+      return;
+    }
+    toast.success(`Deleted ${ids.length} patient${ids.length > 1 ? "s" : ""}`);
+    setSelectedIds(new Set());
+    setConfirmOpen(false);
+    refetch();
+  };
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selectedIds.has(p.id));
+
   return (
     <div>
       <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -74,10 +122,18 @@ const Patients = () => {
           <h1 className="page-title">Patients</h1>
           <p className="page-subtitle">Manage your patient records</p>
         </div>
-        <Button className="gap-2 w-fit" onClick={openAdd}>
-          <Plus className="h-4 w-4" />
-          Add Patient
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <Button variant="destructive" className="gap-2" onClick={() => setConfirmOpen(true)}>
+              <Trash2 className="h-4 w-4" />
+              Delete ({selectedIds.size})
+            </Button>
+          )}
+          <Button className="gap-2 w-fit" onClick={openAdd}>
+            <Plus className="h-4 w-4" />
+            Add Patient
+          </Button>
+        </div>
       </div>
 
       <motion.div
@@ -115,6 +171,13 @@ const Patients = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b bg-muted/50">
+                  <th className="p-4 w-10">
+                    <Checkbox
+                      checked={allFilteredSelected}
+                      onCheckedChange={toggleAll}
+                      aria-label="Select all"
+                    />
+                  </th>
                   <th className="text-left text-xs font-medium text-muted-foreground p-4">Patient</th>
                   <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden md:table-cell">Contact</th>
                    <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden lg:table-cell">Skin Type</th>
@@ -126,6 +189,13 @@ const Patients = () => {
               <tbody className="divide-y">
                 {filtered.map((patient) => (
                   <tr key={patient.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => navigate(`/patients/${patient.id}`)}>
+                    <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(patient.id)}
+                        onCheckedChange={() => toggleOne(patient.id)}
+                        aria-label={`Select ${patient.first_name}`}
+                      />
+                    </td>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-semibold text-sm shrink-0">
@@ -219,6 +289,27 @@ const Patients = () => {
           context="patient"
         />
       )}
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} patient{selectedIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. All selected patient records will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleBulkDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

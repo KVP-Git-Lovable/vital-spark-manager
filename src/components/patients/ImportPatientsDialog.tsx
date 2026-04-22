@@ -135,18 +135,26 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
     const batch = 100;
     let inserted = 0;
     let failed = 0;
+    let lastError: string | null = null;
     for (let i = 0; i < payloads.length; i += batch) {
       const chunk = payloads.slice(i, i + batch);
       const { error } = await supabase.from("patients").insert(chunk as any);
-      if (error) failed += chunk.length;
-      else inserted += chunk.length;
+      if (error) {
+        failed += chunk.length;
+        lastError = error.message;
+        console.error("Patient import batch error:", error, "sample row:", chunk[0]);
+      } else inserted += chunk.length;
       setProgress(Math.round(((i + chunk.length) / payloads.length) * 100));
     }
     const totalSkipped = errorCount + duplicateSkipCount + failed;
     setImportedCount(inserted);
     setSkippedCount(totalSkipped);
     setImporting(false);
-    toast.success(`Imported ${inserted} · Skipped ${totalSkipped}`);
+    if (inserted > 0) {
+      toast.success(`Imported ${inserted} · Skipped ${totalSkipped}`);
+    } else {
+      toast.error(`Import failed: ${lastError ?? "Unknown error"}`);
+    }
     onSuccess();
   };
 

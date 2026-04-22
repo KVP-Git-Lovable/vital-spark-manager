@@ -128,6 +128,7 @@ export interface MappedRow {
   index: number;
   data: Record<string, any>;
   errors: string[];
+  skip?: boolean;
 }
 
 export function buildMappedRows(

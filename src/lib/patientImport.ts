@@ -193,5 +193,7 @@ export function toInsertPayload(row: MappedRow): Record<string, any> {
     // store as text in skin_concerns column
     d.skin_concerns = d.skin_concerns;
   }
+  // last_name is NOT NULL in the DB but optional in the importer — default to empty string
+  if (!d.last_name) d.last_name = "";
   return d;
 }

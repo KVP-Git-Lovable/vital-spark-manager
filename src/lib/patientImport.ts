@@ -135,7 +135,7 @@ export function buildMappedRows(
   mapping: Record<string, PatientField | "">,
   existingPhones: Set<string>
 ): MappedRow[] {
-  const seenPhones = new Map<string, number>();
+  const seenPhones = new Set<string>();
   const result: MappedRow[] = [];
 
   rows.forEach((raw, i) => {
@@ -180,16 +180,17 @@ export function buildMappedRows(
       if (!data[f]) errors.push(`${f.replace("_", " ")} missing`);
     }
 
-    if (data.email && !isEmail(data.email)) errors.push("Invalid email");
-
-    if (data.phone) {
-      if (existingPhones.has(data.phone)) errors.push("Phone already exists in database");
-      const prev = seenPhones.get(data.phone);
-      if (prev !== undefined) errors.push(`Duplicate phone in file (row ${prev + 1})`);
-      else seenPhones.set(data.phone, i);
+    // Silently skip duplicates (in-file and in-database) — mark as skipped, not error
+    let skip = false;
+    if (data.phone && errors.length === 0) {
+      if (existingPhones.has(data.phone) || seenPhones.has(data.phone)) {
+        skip = true;
+      } else {
+        seenPhones.add(data.phone);
+      }
     }
 
-    result.push({ index: i, data, errors });
+    result.push({ index: i, data, errors, skip });
   });
 
   return result;

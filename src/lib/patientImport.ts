@@ -136,7 +136,6 @@ export function buildMappedRows(
   mapping: Record<string, PatientField | "">,
   existingPhones: Set<string>
 ): MappedRow[] {
-  const seenPhones = new Set<string>();
   const result: MappedRow[] = [];
 
   rows.forEach((raw, i) => {
@@ -181,17 +180,8 @@ export function buildMappedRows(
       if (!data[f]) errors.push(`${f.replace("_", " ")} missing`);
     }
 
-    // Silently skip duplicates (in-file and in-database) — mark as skipped, not error
-    let skip = false;
-    if (data.phone && errors.length === 0) {
-      if (existingPhones.has(data.phone) || seenPhones.has(data.phone)) {
-        skip = true;
-      } else {
-        seenPhones.add(data.phone);
-      }
-    }
-
-    result.push({ index: i, data, errors, skip });
+    // Phone uniqueness is NOT validated during import — all rows including duplicates are imported
+    result.push({ index: i, data, errors, skip: false });
   });
 
   return result;

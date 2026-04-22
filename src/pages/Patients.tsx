@@ -82,6 +82,39 @@ const Patients = () => {
     setSheetOpen(true);
   };
 
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (filtered.every((p) => selectedIds.has(p.id)) && filtered.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((p) => p.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setDeleting(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from("patients").delete().in("id", ids);
+    setDeleting(false);
+    if (error) {
+      toast.error(`Failed to delete: ${error.message}`);
+      return;
+    }
+    toast.success(`Deleted ${ids.length} patient${ids.length > 1 ? "s" : ""}`);
+    setSelectedIds(new Set());
+    setConfirmOpen(false);
+    refetch();
+  };
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selectedIds.has(p.id));
+
   return (
     <div>
       <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -89,10 +122,18 @@ const Patients = () => {
           <h1 className="page-title">Patients</h1>
           <p className="page-subtitle">Manage your patient records</p>
         </div>
-        <Button className="gap-2 w-fit" onClick={openAdd}>
-          <Plus className="h-4 w-4" />
-          Add Patient
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <Button variant="destructive" className="gap-2" onClick={() => setConfirmOpen(true)}>
+              <Trash2 className="h-4 w-4" />
+              Delete ({selectedIds.size})
+            </Button>
+          )}
+          <Button className="gap-2 w-fit" onClick={openAdd}>
+            <Plus className="h-4 w-4" />
+            Add Patient
+          </Button>
+        </div>
       </div>
 
       <motion.div

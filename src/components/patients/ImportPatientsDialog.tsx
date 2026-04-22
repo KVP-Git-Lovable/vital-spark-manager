@@ -19,6 +19,25 @@ import {
   MappedRow,
 } from "@/lib/patientImport";
 
+const FIELD_LABELS: Record<PatientField, string> = {
+  first_name: "First Name",
+  last_name: "Last Name",
+  phone: "Phone",
+  email: "Email",
+  date_of_birth: "Date of Birth",
+  gender: "Gender",
+  address: "Address",
+  emergency_contact_name: "Emergency Contact Name",
+  emergency_contact_phone: "Emergency Contact Phone",
+  source: "Source",
+  medical_history: "Medical History",
+  previous_treatments: "Previous Treatments",
+  notes: "Notes",
+  skin_concerns: "Skin Concerns",
+  follows_facebook: "Follows Facebook",
+  follows_instagram: "Follows Instagram",
+};
+
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -67,7 +86,7 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
       }
       setHeaders(h);
       setRows(r);
-      setMapping(autoDetectMapping(h));
+      setMapping(Object.fromEntries(h.map((c) => [c, ""])) as Record<string, PatientField | "">);
       setStep(2);
     } catch (e: any) {
       toast.error(`Failed to parse: ${e.message}`);

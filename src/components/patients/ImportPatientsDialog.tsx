@@ -124,13 +124,14 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
     setStep(3);
   };
 
-  const validRows = mapped.filter((r) => r.errors.length === 0);
-  const errorCount = mapped.length - validRows.length;
+  const importableRows = mapped.filter((r) => r.errors.length === 0 && !r.skip);
+  const duplicateSkipCount = mapped.filter((r) => r.skip).length;
+  const errorCount = mapped.filter((r) => r.errors.length > 0).length;
 
   const handleImport = async () => {
     setImporting(true);
     setStep(4);
-    const payloads = validRows.map((r) => toInsertPayload(r));
+    const payloads = importableRows.map((r) => toInsertPayload(r));
     const batch = 100;
     let inserted = 0;
     let failed = 0;
@@ -141,15 +142,17 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
       else inserted += chunk.length;
       setProgress(Math.round(((i + chunk.length) / payloads.length) * 100));
     }
+    const totalSkipped = errorCount + duplicateSkipCount + failed;
     setImportedCount(inserted);
-    setSkippedCount(errorCount + failed);
+    setSkippedCount(totalSkipped);
     setImporting(false);
-    toast.success(`Imported ${inserted} · Skipped ${errorCount + failed}`);
+    toast.success(`Imported ${inserted} · Skipped ${totalSkipped}`);
     onSuccess();
   };
 
   const usedFields = new Set(Object.values(mapping).filter(Boolean));
-  const visibleRows = showOnlyErrors ? mapped.filter((r) => r.errors.length) : mapped;
+  const previewRows = mapped.filter((r) => !r.skip);
+  const visibleRows = showOnlyErrors ? previewRows.filter((r) => r.errors.length) : previewRows;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -187,7 +190,7 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
           {step === 2 && (
             <div className="space-y-3 py-2">
               <p className="text-sm text-muted-foreground">
-                Map each file column to a patient field. Required: First Name, Last Name, Phone.
+                Map each file column to a patient field. Required: First Name, Phone.
               </p>
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
@@ -234,8 +237,11 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
             <div className="space-y-3 py-2">
               <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
                 <div className="flex items-center gap-4 text-sm">
-                  <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-success" /> {validRows.length} valid</span>
+                  <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-success" /> {importableRows.length} valid</span>
                   <span className="flex items-center gap-1.5"><AlertCircle className="h-4 w-4 text-destructive" /> {errorCount} errors</span>
+                  {duplicateSkipCount > 0 && (
+                    <span className="text-muted-foreground">{duplicateSkipCount} duplicates skipped</span>
+                  )}
                   <span className="text-muted-foreground">Total: {mapped.length}</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -312,8 +318,8 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
             {step === 3 && (
               <>
                 <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
-                <Button onClick={handleImport} disabled={validRows.length === 0}>
-                  Import {validRows.length} valid patient{validRows.length !== 1 ? "s" : ""}
+                <Button onClick={handleImport} disabled={importableRows.length === 0}>
+                  Import {importableRows.length} valid patient{importableRows.length !== 1 ? "s" : ""}
                 </Button>
               </>
             )}

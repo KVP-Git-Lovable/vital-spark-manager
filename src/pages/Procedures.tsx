@@ -167,6 +167,12 @@ const Procedures = () => {
         <ProcedureFormDialog open={createOpen} onOpenChange={setCreateOpen} />
       )}
 
+      <ImportProceduresDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["procedures"] })}
+      />
+
       <ProcedureDetailSheet procedureId={selectedId} onClose={() => setSelectedId(null)} onSaved={handleProcedureSaved} />
 
       {cameraProc && (

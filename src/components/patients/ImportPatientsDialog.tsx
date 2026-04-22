@@ -187,7 +187,7 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
           {step === 2 && (
             <div className="space-y-3 py-2">
               <p className="text-sm text-muted-foreground">
-                We've auto-detected mappings. Required: {REQUIRED_FIELDS.join(", ")}.
+                Map each file column to a patient field. Required: First Name, Last Name, Phone.
               </p>
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
@@ -215,7 +215,7 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
                               <SelectItem value="__skip__">— Skip —</SelectItem>
                               {PATIENT_FIELDS.map((f) => (
                                 <SelectItem key={f} value={f} disabled={usedFields.has(f) && mapping[h] !== f}>
-                                  {f}
+                                  {FIELD_LABELS[f]}
                                   {REQUIRED_FIELDS.includes(f) && " *"}
                                 </SelectItem>
                               ))}

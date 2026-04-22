@@ -1,53 +1,35 @@
 
 
-## Plan: Import Patients (Excel/CSV) with mapping & validation
+## Plan: Clean manual mapping in Import Patients dialog
 
-### Where
-New button on `src/pages/Patients.tsx` header → opens a multi-step `ImportPatientsDialog` (new component).
+### Problem
+- Auto-detection guesses field matches (often wrongly, e.g., a Salesforce column gets mapped to `first_name` automatically), and the user has to undo bad guesses.
+- The dropdown shows technical field names (e.g., `first_name`, `emergency_contact_phone`) which can feel inconsistent.
 
-### Flow (4 steps in one dialog)
+### Changes
 
-**1. Upload**
-- Drag/drop or file picker accepts `.csv`, `.xlsx`, `.xls`
-- Parse with `xlsx` library (handles both CSV and Excel uniformly)
-- Read first sheet → array of rows with header row detected
+**1. Disable auto-mapping** (`src/components/patients/ImportPatientsDialog.tsx`)
+- In `handleFile`, replace `setMapping(autoDetectMapping(h))` with an empty mapping (`Object.fromEntries(h.map(c => [c, ""]))`), so every column starts as **— Skip —**.
+- User must explicitly map each file column.
 
-**2. Column Mapping**
-- Left column: every header from the file
-- Right column: dropdown of patient fields (the 16 listed) + "— Skip —"
-- **Auto-detect**: fuzzy match headers to field names (e.g. "Phone Number" → `phone`, "DOB"/"Birth Date" → `date_of_birth`, "First Name"/"Fname" → `first_name`). Pre-fill dropdowns; user can override.
-- Required field indicator on `first_name`, `last_name`, `phone`
+**2. Cleaner field labels** (same file)
+- Add a `FIELD_LABELS` map for human-readable names shown in the dropdown (e.g., `first_name → "First Name"`, `emergency_contact_phone → "Emergency Contact Phone"`).
+- Field list still comes only from `PATIENT_FIELDS` in `src/lib/patientImport.ts` — the canonical 16 system fields. Nothing extra is added.
+- Required fields keep the `*` indicator.
 
-**3. Preview & Validate**
-- Table showing first 50 mapped rows with the target field names as headers
-- Run validations row-by-row:
-  - `phone` required, non-empty, normalized (strip spaces/dashes)
-  - `phone` unique within the file (flag duplicates)
-  - `phone` not already in DB (single query: `select phone from patients where phone in (...)`)
-  - `email` format check if present
-  - `date_of_birth` parseable to ISO date (accept dd/mm/yyyy, yyyy-mm-dd, Excel serial)
-  - `gender` normalized to Male/Female/Other if recognizable
-  - `follows_facebook`/`follows_instagram` → boolean (yes/y/true/1)
-  - `skin_concerns` → split by comma into text[] 
-- Summary banner: `X valid · Y errors · Z duplicates` + toggle "Show only errors"
-- Each error row shows inline reason ("Phone missing", "Phone already exists", etc.)
+**3. Keep "Skip" default & duplicate prevention**
+- "— Skip —" remains the first option and is the default for every row.
+- Already-mapped fields stay disabled in other rows (prevents two file columns mapping to the same patient field).
 
-**4. Confirm & Import**
-- Button: `Import N valid patients` (disabled if N=0)
-- Insert in batches of 100 via `supabase.from("patients").insert(...)`
-- Progress bar; on completion show toast `Imported N · Skipped M`
-- Refetch patient list, close dialog
+**4. Update the help text** at top of step 2:
+- From: *"We've auto-detected mappings…"*
+- To: *"Map each file column to a patient field. Required: First Name, Last Name, Phone."*
+
+**5. Keep `autoDetectMapping`** in `patientImport.ts` untouched (no longer called, but left for potential future use). No DB changes, no other files touched.
 
 ### Files
-- **New**: `src/components/patients/ImportPatientsDialog.tsx` — the full 4-step dialog
-- **New**: `src/lib/patientImport.ts` — header auto-detect map, row validators, date/boolean/array normalizers
-- **Modified**: `src/pages/Patients.tsx` — add `Import` button next to `Add Patient`, wire dialog open state + refetch on success
-- **Dependency**: add `xlsx` (sheetjs) via npm
+- Modified: `src/components/patients/ImportPatientsDialog.tsx`
 
-### Salesforce integration (research outcome)
-Direct Salesforce sync is feasible later via OAuth 2.0 + REST API (`/services/data/vXX.0/sobjects/Contact`), but requires a Connected App in the user's Salesforce org and a backend edge function to hold refresh tokens securely. **Not built now** — Excel/CSV import ships as the primary path. When the user is ready, we'd add: (a) a `salesforce-sync` edge function with stored refresh token, (b) field mapping UI mirroring this importer, (c) optional scheduled pull. Flagged as a follow-up; no scaffolding added in this change.
-
-### Out of scope
-- Update-on-conflict (duplicates are skipped, not merged) — can add later as a checkbox option
-- Family/relationship import — patient records only
+### Result
+Step 2 opens with every column set to **— Skip —**. User manually picks the matching system field from a dropdown of friendly labels. Required fields are flagged; duplicate mappings are prevented; previously-incorrect auto-mappings (like `first_name` getting wrongly assigned) no longer happen.
 

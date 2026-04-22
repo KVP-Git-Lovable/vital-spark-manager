@@ -1,0 +1,205 @@
+import * as XLSX from "xlsx";
+
+export const PATIENT_FIELDS = [
+  "first_name",
+  "last_name",
+  "phone",
+  "email",
+  "date_of_birth",
+  "gender",
+  "address",
+  "emergency_contact_name",
+  "emergency_contact_phone",
+  "source",
+  "medical_history",
+  "previous_treatments",
+  "notes",
+  "skin_concerns",
+  "follows_facebook",
+  "follows_instagram",
+] as const;
+
+export type PatientField = (typeof PATIENT_FIELDS)[number];
+
+export const REQUIRED_FIELDS: PatientField[] = ["first_name", "last_name", "phone"];
+
+const FIELD_ALIASES: Record<PatientField, string[]> = {
+  first_name: ["first name", "firstname", "fname", "given name", "first"],
+  last_name: ["last name", "lastname", "lname", "surname", "family name", "last"],
+  phone: ["phone", "phone number", "mobile", "mobile number", "contact", "contact number", "cell", "telephone"],
+  email: ["email", "email address", "e-mail", "mail"],
+  date_of_birth: ["dob", "date of birth", "birth date", "birthdate", "birthday"],
+  gender: ["gender", "sex"],
+  address: ["address", "street", "location", "addr"],
+  emergency_contact_name: ["emergency contact name", "emergency name", "emergency contact"],
+  emergency_contact_phone: ["emergency contact phone", "emergency phone", "emergency number"],
+  source: ["source", "lead source", "referred by", "referral source"],
+  medical_history: ["medical history", "history", "past medical history"],
+  previous_treatments: ["previous treatments", "past treatments", "prior treatments"],
+  notes: ["notes", "remarks", "comments"],
+  skin_concerns: ["skin concerns", "concerns", "skin issues", "problems"],
+  follows_facebook: ["follows facebook", "facebook", "fb follower", "follows fb"],
+  follows_instagram: ["follows instagram", "instagram", "ig follower", "follows ig"],
+};
+
+const norm = (s: string) => s.toLowerCase().trim().replace(/[_\-\s]+/g, " ");
+
+export function autoDetectMapping(headers: string[]): Record<string, PatientField | ""> {
+  const out: Record<string, PatientField | ""> = {};
+  for (const h of headers) {
+    const n = norm(h);
+    let match: PatientField | "" = "";
+    for (const f of PATIENT_FIELDS) {
+      if (FIELD_ALIASES[f].some((a) => norm(a) === n)) {
+        match = f;
+        break;
+      }
+    }
+    if (!match) {
+      for (const f of PATIENT_FIELDS) {
+        if (FIELD_ALIASES[f].some((a) => n.includes(norm(a)) || norm(a).includes(n))) {
+          match = f;
+          break;
+        }
+      }
+    }
+    out[h] = match;
+  }
+  return out;
+}
+
+export async function parseFile(file: File): Promise<{ headers: string[]; rows: Record<string, any>[] }> {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array", cellDates: true });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const json: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
+  const headers = json.length ? Object.keys(json[0]) : [];
+  return { headers, rows: json };
+}
+
+export const normalizePhone = (v: any): string => String(v ?? "").replace(/[\s\-()]/g, "").trim();
+
+const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+function parseDate(v: any): string | null {
+  if (v == null || v === "") return null;
+  if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10);
+  if (typeof v === "number") {
+    // Excel serial
+    const d = XLSX.SSF ? new Date(Math.round((v - 25569) * 86400 * 1000)) : null;
+    if (d && !isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  }
+  const s = String(v).trim();
+  // dd/mm/yyyy or dd-mm-yyyy
+  const m1 = s.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})$/);
+  if (m1) {
+    const dd = +m1[1], mm = +m1[2];
+    let yy = +m1[3];
+    if (yy < 100) yy += 2000;
+    const d = new Date(Date.UTC(yy, mm - 1, dd));
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  }
+  // yyyy-mm-dd
+  const m2 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m2) {
+    const d = new Date(Date.UTC(+m2[1], +m2[2] - 1, +m2[3]));
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return null;
+}
+
+function parseBool(v: any): boolean {
+  const s = String(v ?? "").toLowerCase().trim();
+  return ["yes", "y", "true", "1", "t"].includes(s);
+}
+
+function parseGender(v: any): string | null {
+  const s = String(v ?? "").toLowerCase().trim();
+  if (!s) return null;
+  if (["m", "male"].includes(s)) return "Male";
+  if (["f", "female"].includes(s)) return "Female";
+  if (["o", "other"].includes(s)) return "Other";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+export interface MappedRow {
+  index: number;
+  data: Record<string, any>;
+  errors: string[];
+}
+
+export function buildMappedRows(
+  rows: Record<string, any>[],
+  mapping: Record<string, PatientField | "">,
+  existingPhones: Set<string>
+): MappedRow[] {
+  const seenPhones = new Map<string, number>();
+  const result: MappedRow[] = [];
+
+  rows.forEach((raw, i) => {
+    const data: Record<string, any> = {};
+    const errors: string[] = [];
+
+    for (const [header, field] of Object.entries(mapping)) {
+      if (!field) continue;
+      const val = raw[header];
+      if (val === undefined || val === null || val === "") continue;
+
+      switch (field) {
+        case "phone":
+        case "emergency_contact_phone":
+          data[field] = normalizePhone(val);
+          break;
+        case "email":
+          data[field] = String(val).trim();
+          break;
+        case "date_of_birth": {
+          const d = parseDate(val);
+          if (d) data[field] = d;
+          else errors.push("Invalid date_of_birth");
+          break;
+        }
+        case "gender":
+          data[field] = parseGender(val);
+          break;
+        case "follows_facebook":
+        case "follows_instagram":
+          data[field] = parseBool(val);
+          break;
+        case "skin_concerns":
+          data[field] = String(val);
+          break;
+        default:
+          data[field] = String(val).trim();
+      }
+    }
+
+    for (const f of REQUIRED_FIELDS) {
+      if (!data[f]) errors.push(`${f.replace("_", " ")} missing`);
+    }
+
+    if (data.email && !isEmail(data.email)) errors.push("Invalid email");
+
+    if (data.phone) {
+      if (existingPhones.has(data.phone)) errors.push("Phone already exists in database");
+      const prev = seenPhones.get(data.phone);
+      if (prev !== undefined) errors.push(`Duplicate phone in file (row ${prev + 1})`);
+      else seenPhones.set(data.phone, i);
+    }
+
+    result.push({ index: i, data, errors });
+  });
+
+  return result;
+}
+
+export function toInsertPayload(row: MappedRow): Record<string, any> {
+  const d = { ...row.data };
+  if (typeof d.skin_concerns === "string") {
+    // store as text in skin_concerns column
+    d.skin_concerns = d.skin_concerns;
+  }
+  return d;
+}

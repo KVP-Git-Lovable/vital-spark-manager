@@ -237,8 +237,11 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
             <div className="space-y-3 py-2">
               <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
                 <div className="flex items-center gap-4 text-sm">
-                  <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-success" /> {validRows.length} valid</span>
+                  <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-success" /> {importableRows.length} valid</span>
                   <span className="flex items-center gap-1.5"><AlertCircle className="h-4 w-4 text-destructive" /> {errorCount} errors</span>
+                  {duplicateSkipCount > 0 && (
+                    <span className="text-muted-foreground">{duplicateSkipCount} duplicates skipped</span>
+                  )}
                   <span className="text-muted-foreground">Total: {mapped.length}</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -315,8 +318,8 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
             {step === 3 && (
               <>
                 <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
-                <Button onClick={handleImport} disabled={validRows.length === 0}>
-                  Import {validRows.length} valid patient{validRows.length !== 1 ? "s" : ""}
+                <Button onClick={handleImport} disabled={importableRows.length === 0}>
+                  Import {importableRows.length} valid patient{importableRows.length !== 1 ? "s" : ""}
                 </Button>
               </>
             )}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Trash2 } from "lucide-react";
+import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Trash2, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { CameraCapture } from "@/components/shared/CameraCapture";
+import { ImportPatientsDialog } from "@/components/patients/ImportPatientsDialog";
 import { EngagementBadge } from "@/components/patients/EngagementBadge";
 import { useEngagementScores } from "@/hooks/useEngagementScores";
 import type { Tables } from "@/integrations/supabase/types";
@@ -50,6 +51,7 @@ const Patients = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data: patients = [], isLoading, refetch } = useQuery({
     queryKey: ["patients"],
@@ -129,6 +131,10 @@ const Patients = () => {
               Delete ({selectedIds.size})
             </Button>
           )}
+          <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4" />
+            Import Patients
+          </Button>
           <Button className="gap-2 w-fit" onClick={openAdd}>
             <Plus className="h-4 w-4" />
             Add Patient
@@ -277,6 +283,12 @@ const Patients = () => {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         patient={editingPatient}
+        onSuccess={() => refetch()}
+      />
+
+      <ImportPatientsDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
         onSuccess={() => refetch()}
       />
 

@@ -105,10 +105,15 @@ const Patients = () => {
   };
 
   const toggleAll = () => {
-    if (filtered.every((p) => selectedIds.has(p.id)) && filtered.length > 0) {
-      setSelectedIds(new Set());
+    if (paged.length === 0) return;
+    if (paged.every((p) => selectedIds.has(p.id))) {
+      const next = new Set(selectedIds);
+      paged.forEach((p) => next.delete(p.id));
+      setSelectedIds(next);
     } else {
-      setSelectedIds(new Set(filtered.map((p) => p.id)));
+      const next = new Set(selectedIds);
+      paged.forEach((p) => next.add(p.id));
+      setSelectedIds(next);
     }
   };
 
@@ -127,7 +132,7 @@ const Patients = () => {
     refetch();
   };
 
-  const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selectedIds.has(p.id));
+  const allFilteredSelected = paged.length > 0 && paged.every((p) => selectedIds.has(p.id));
 
   return (
     <div>

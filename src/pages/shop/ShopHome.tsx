@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { formatProductUnit } from "@/lib/unitDisplay";
+import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
@@ -37,6 +38,8 @@ const ShopHome = () => {
   const { addToCart, cartItems, updateQuantity, removeFromCart } = useCart(patientId);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const { data: unitsData } = usePharmaProductUnits();
+  const unitsByProduct = unitsData?.byProduct || {};
 
   const { data: portalSettings } = useQuery({
     queryKey: ["portal-settings"],
@@ -253,7 +256,7 @@ const ShopHome = () => {
                   <div className="p-3">
                     <div className="flex items-center gap-1 mb-1">
                       <Badge variant="secondary" className="text-[10px]">{product.category}</Badge>
-                      <span className="text-[10px] text-muted-foreground ml-auto">{formatProductUnit(product)}</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto">{formatProductUnit(product, unitsByProduct[product.id])}</span>
                     </div>
                     <h3 className="text-sm font-semibold text-foreground line-clamp-2 leading-tight">{product.name}</h3>
                     {product.generic_name && (

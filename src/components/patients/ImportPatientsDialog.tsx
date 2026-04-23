@@ -38,6 +38,7 @@ const FIELD_LABELS: Record<PatientField, string> = {
   skin_concerns: "Skin Concerns",
   follows_facebook: "Follows Facebook",
   follows_instagram: "Follows Instagram",
+  sf_id: "Salesforce ID",
 };
 
 interface Props {

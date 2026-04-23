@@ -25,9 +25,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatProductUnit } from "@/lib/unitDisplay";
 import { getActiveBatchPrice } from "@/lib/productPricing";
+import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/components/pharma/UnitConversionsEditor";
+import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", sub_unit: "", conversion_value: 1, reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0 };
 const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {

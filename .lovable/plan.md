@@ -1,74 +1,74 @@
 
 
-## Plan: Bulk Import for Procedures (Excel/CSV)
+## Plan: Recover missing patients + fix bulk-import scale issue
 
-Mirror the Patients import flow for the Procedures module — same 4-step dialog (Upload → Map → Preview → Import), same UX, same validation pattern.
+### Diagnosis
 
-### Where
-- New button on `src/pages/Procedures.tsx` header → "Import Procedures"
-- New component: `src/components/procedures/ImportProceduresDialog.tsx` (cloned/adapted from `ImportPatientsDialog.tsx`)
-- New helper: `src/lib/procedureImport.ts` (cloned/adapted from `patientImport.ts`)
+- **Database now**: 25,019 patients (25,017 imported in last 7 days from your earlier runs).
+- **CSV uploaded**: ~28,663 rows. So ~3,000–3,600 patients are still missing.
+- **Root cause of partial import**: In `ImportPatientsDialog.goToPreview()`, the existing-phone check runs `supabase.from("patients").select("phone").in("phone", [...28k phones])`. Supabase caps that response at **1000 rows** by default, so the dialog only "knew about" 1000 existing patients. But importing didn't dedupe at all (we removed dedup blocking earlier per your request) — combined with the dialog re-running on a partial CSV it produced an incomplete import.
+- **Per your latest rule**: dedup must happen on **phone AND email** so we don't reimport existing patients.
 
-### Procedure fields available for mapping
-Based on the `procedures` table (and patterns in `ProcedureFormDialog`):
+### Two-part fix
 
-| Field | Required | Notes |
-|---|---|---|
-| `patient_phone` | ✅ Yes | Used to look up `patient_id` |
-| `service_name` | ✅ Yes | Free text — matches Service Master where possible |
-| `procedure_date` | ✅ Yes | Parsed via same date logic as patients (dd/mm/yyyy, ISO, Excel serial) |
-| `staff_name` | optional | Looked up against `staff` table by full name |
-| `status` | optional | Defaults to `Completed` if blank |
-| `chief_complaint` | optional | |
-| `diagnosis` | optional | |
-| `treatment_notes` | optional | |
-| `prescription` | optional | |
-| `follow_up_date` | optional | |
-| `cost` | optional | Numeric |
-| `notes` | optional | |
+**Part A — One-time recovery run (now, server-side)**
 
-Dropdown shows friendly labels (e.g., "Patient Phone", "Service Name") — same `FIELD_LABELS` pattern as Patients.
+Process your `patients_import.csv` directly on the server using the same column mapping as your Salesforce export:
 
-### Flow
+```text
+First_Name → first_name        Mobile_Number__c → phone
+Last_Name  → last_name         Email_ID__c     → email
+Date_of_birth__c → date_of_birth   Sex__c → gender
+Place__c → address              Patient_source__c → source
+Reason_for_Consulting__c → skin_concerns
+Patient_details__c → medical_history
+Others__c → notes
+Emergency_Contact_Person__c → emergency_contact_name
+Emergency_Contact_Number__c → emergency_contact_phone
+FB_follower__c → follows_facebook
+Instagram_follower__c → follows_instagram
+```
 
-**Step 1 – Upload**
-Drag/drop or pick `.csv`, `.xlsx`, `.xls`. Parse with `xlsx` (already installed).
+Steps:
+1. Pull all existing `(phone, email)` from the DB in pages of 1000 (full 25k rows) → build two sets: `existingPhones`, `existingEmails`.
+2. Stream-parse the CSV.
+3. For each row:
+   - Normalize phone (strip spaces/dashes), lowercase email.
+   - **Skip** if phone exists in DB OR email exists in DB OR phone+email already seen earlier in this CSV.
+   - **Skip** if missing both first name and phone.
+   - Otherwise add to insert batch.
+4. Insert in batches of 500 using the service role (bypasses any RLS edge cases, faster).
+5. After completion, output a **CSV report** to `/mnt/documents/patient_import_report.csv` with columns: `row_number, salesforce_id, name, phone, email, status (imported / skipped_duplicate_phone / skipped_duplicate_email / skipped_duplicate_in_file / skipped_invalid / failed), reason`.
+6. Print summary: total rows, imported, skipped (broken down), failed.
 
-**Step 2 – Mapping**
-- Every column starts as **— Skip —** (no auto-detection — matches the corrected Patients behavior).
-- User maps each file column to a procedure field from the dropdown.
-- Required fields flagged with `*`. "Preview" button enables once all 3 required fields are mapped.
-- Already-mapped fields disabled in other rows (no duplicate mappings).
+This runs once and recovers the ~3k missing records without touching the dialog UI.
 
-**Step 3 – Preview**
-- Show table of parsed rows with status badge (OK / Error).
-- Validation rules (only block these):
-  - Missing `patient_phone`
-  - Missing `service_name`
-  - Missing/invalid `procedure_date`
-  - `patient_phone` not found in `patients` table → error "Patient not found"
-- All other fields optional. Duplicates allowed. Unknown staff names → imported with `staff_id = null` (warning shown, not blocking).
-- Summary: `X valid, Y errors`.
+**Part B — Permanent fix to `ImportPatientsDialog` so this never happens again**
 
-**Step 4 – Import**
-- Resolve `patient_id` from phone (case/whitespace-normalized lookup).
-- Resolve `staff_id` from name (best-effort, optional).
-- Bulk insert in batches of 100 to `procedures`.
-- Toast on success; surface DB errors to console + toast on failure.
-- Invalidate `["procedures"]` query so the list refreshes.
+Modify `src/components/patients/ImportPatientsDialog.tsx` and `src/lib/patientImport.ts`:
 
-### UI consistency
-- Same dialog shell, stepper, table styling, button labels, and copy as Patients import.
-- Same mobile-friendly layout.
-- Help text at top of Step 2: *"Map each file column to a procedure field. Required: Patient Phone, Service Name, Procedure Date."*
+1. **Fix existing-record lookup to handle >1000 rows**: paginate the `patients` SELECT in 1000-row pages (using `.range()`) until exhausted — load all phones AND emails into two sets.
+2. **Dedup on phone OR email** (both, not just phone) — both against DB and within the file.
+3. **Mark dedup rows as `skip` with a clear reason** (`Duplicate phone in DB`, `Duplicate email in DB`, `Duplicate within file`) — already-imported patients will not be re-inserted.
+4. **Batch inserts**: keep at 100 but add proper per-row error capture so a single bad row doesn't fail the whole batch (fall back to per-row insert on batch failure).
+5. **Step 3 preview**: show separate counters — `Valid · Duplicates (DB) · Duplicates (file) · Errors`.
+6. **Step 4 result**: show the breakdown and add a "Download report" button that exports a CSV of every row's outcome.
 
 ### Files
-- **New**: `src/lib/procedureImport.ts`
-- **New**: `src/components/procedures/ImportProceduresDialog.tsx`
-- **Modified**: `src/pages/Procedures.tsx` (add "Import Procedures" button next to "New Procedure", wire dialog open state)
+
+- **Run once**: a one-off Node script (server-side, not added to repo) to recover the missing ~3k patients from your uploaded CSV.
+- **Modified**: `src/components/patients/ImportPatientsDialog.tsx` — paginated existing-record fetch, phone+email dedup, per-row error fallback, downloadable report.
+- **Modified**: `src/lib/patientImport.ts` — accept both `existingPhones` and `existingEmails` sets, return richer skip reasons.
+
+### Deliverables to you
+
+1. ✅ All missing patients imported (target: bring total to ~28,663 unique).
+2. ✅ A downloadable CSV report at `/mnt/documents/patient_import_report.csv` listing every row's outcome.
+3. ✅ Console summary: `Imported: X · Skipped (DB dup): Y · Skipped (file dup): Z · Invalid: W · Failed: F`.
+4. ✅ Future imports through the UI will correctly skip already-existing patients (by phone or email) at any scale.
 
 ### Out of scope
-- Creating new patients on-the-fly when phone not found (rows are flagged as errors instead — keeps imports safe).
-- Service Master auto-creation for unknown service names (stored as free text on the procedure, same as manual entry).
-- Photo/attachment import.
+
+- No DB schema changes (no unique constraints added — your data already has legitimate duplicate phones/emails for family members, so a hard constraint would break inserts).
+- Existing 25,019 patients are not touched/deduped — only new rows from the CSV are added.
 

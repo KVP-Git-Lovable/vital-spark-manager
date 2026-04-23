@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Trash2, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -29,17 +29,19 @@ import { CameraCapture } from "@/components/shared/CameraCapture";
 import { ImportPatientsDialog } from "@/components/patients/ImportPatientsDialog";
 import { EngagementBadge } from "@/components/patients/EngagementBadge";
 import { useEngagementScores } from "@/hooks/useEngagementScores";
+import { fetchAll } from "@/lib/supabasePaginate";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
 
 const fetchPatients = async (): Promise<Patient[]> => {
-  const { data, error } = await supabase
-    .from("patients")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return data;
+  return await fetchAll<Patient>((from, to) =>
+    supabase
+      .from("patients")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, to)
+  );
 };
 
 const Patients = () => {
@@ -52,6 +54,8 @@ const Patients = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const { data: patients = [], isLoading, refetch } = useQuery({
     queryKey: ["patients"],
@@ -61,12 +65,20 @@ const Patients = () => {
   const patientIds = patients.map((p) => p.id);
   const { data: engagementScores = {} } = useEngagementScores(patientIds);
 
-  const filtered = patients.filter(
-    (p) =>
-      `${p.first_name} ${p.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
-      p.email?.toLowerCase().includes(search.toLowerCase()) ||
-      p.phone?.includes(search)
+  const filtered = useMemo(
+    () =>
+      patients.filter(
+        (p) =>
+          `${p.first_name} ${p.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
+          p.email?.toLowerCase().includes(search.toLowerCase()) ||
+          p.phone?.includes(search)
+      ),
+    [patients, search]
   );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const getAge = (dob: string | null) => {
     if (!dob) return null;

@@ -224,8 +224,21 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
           {step === 2 && (
             <div className="space-y-3 py-2">
               <p className="text-sm text-muted-foreground">
-                Map each file column to a procedure field. Required: Patient Phone, Service Name, Procedure Date.
+                Map each file column to a procedure field. Required: at least one patient identifier (Salesforce ID, Name, or Phone) and a date (column or default below).
               </p>
+              {!Object.values(mapping).includes("procedure_date") && (
+                <div className="flex items-center gap-3 bg-muted/40 border rounded-lg p-3">
+                  <Label htmlFor="default-date" className="text-sm whitespace-nowrap">Default procedure date</Label>
+                  <Input
+                    id="default-date"
+                    type="date"
+                    value={defaultDate}
+                    onChange={(e) => setDefaultDate(e.target.value)}
+                    className="h-8 w-48"
+                  />
+                  <span className="text-xs text-muted-foreground">Applied to all rows (no date column mapped)</span>
+                </div>
+              )}
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
@@ -253,7 +266,6 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
                               {PROCEDURE_FIELDS.map((f) => (
                                 <SelectItem key={f} value={f} disabled={usedFields.has(f) && mapping[h] !== f}>
                                   {FIELD_LABELS[f]}
-                                  {REQUIRED_PROCEDURE_FIELDS.includes(f) && " *"}
                                 </SelectItem>
                               ))}
                             </SelectContent>

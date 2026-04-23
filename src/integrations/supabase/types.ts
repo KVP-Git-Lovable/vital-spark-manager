@@ -1051,6 +1051,7 @@ export type Database = {
           phone: string | null
           pincode: string | null
           previous_treatments: string | null
+          sf_id: string | null
           skin_concerns: string | null
           skin_type: string | null
           source: string | null
@@ -1086,6 +1087,7 @@ export type Database = {
           phone?: string | null
           pincode?: string | null
           previous_treatments?: string | null
+          sf_id?: string | null
           skin_concerns?: string | null
           skin_type?: string | null
           source?: string | null
@@ -1121,6 +1123,7 @@ export type Database = {
           phone?: string | null
           pincode?: string | null
           previous_treatments?: string | null
+          sf_id?: string | null
           skin_concerns?: string | null
           skin_type?: string | null
           source?: string | null

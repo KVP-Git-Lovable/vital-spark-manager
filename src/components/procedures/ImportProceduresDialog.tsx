@@ -5,35 +5,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Loader2, Upload, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   PROCEDURE_FIELDS,
-  REQUIRED_PROCEDURE_FIELDS,
   ProcedureField,
+  FIELD_LABELS,
   parseFile,
   buildMappedProcedureRows,
   toProcedureInsertPayload,
   MappedProcedureRow,
+  ResolutionMaps,
+  autoDetectProcedureMapping,
   normalizePhone,
+  normalizeName,
 } from "@/lib/procedureImport";
-
-const FIELD_LABELS: Record<ProcedureField, string> = {
-  patient_phone: "Patient Phone",
-  service_name: "Service Name",
-  procedure_date: "Procedure Date",
-  staff_name: "Staff Name",
-  status: "Status",
-  symptoms: "Symptoms",
-  diagnosis: "Diagnosis",
-  consultation_notes: "Consultation Notes",
-  procedure_notes: "Procedure Notes",
-  recommendations: "Recommendations",
-  follow_up_date: "Follow-up Date",
-  cost: "Cost",
-  notes: "Notes",
-};
 
 interface Props {
   open: boolean;
@@ -55,6 +43,8 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
   const [progress, setProgress] = useState(0);
   const [importedCount, setImportedCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
+  const [defaultDate, setDefaultDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [loadingMaps, setLoadingMaps] = useState(false);
 
   const reset = () => {
     setStep(1);
@@ -66,6 +56,7 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
     setProgress(0);
     setImportedCount(0);
     setSkippedCount(0);
+    setDefaultDate(new Date().toISOString().slice(0, 10));
   };
 
   const handleClose = (o: boolean) => {
@@ -83,7 +74,7 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
       }
       setHeaders(h);
       setRows(r);
-      setMapping(Object.fromEntries(h.map((c) => [c, ""])) as Record<string, ProcedureField | "">);
+      setMapping(autoDetectProcedureMapping(h));
       setStep(2);
     } catch (e: any) {
       toast.error(`Failed to parse: ${e.message}`);
@@ -94,44 +85,69 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
 
   const mappingValid = useMemo(() => {
     const used = new Set(Object.values(mapping).filter(Boolean));
-    return REQUIRED_PROCEDURE_FIELDS.every((f) => used.has(f));
-  }, [mapping]);
+    const hasPatient =
+      used.has("patient_sf_id") || used.has("patient_name") || used.has("patient_phone");
+    const hasDate = used.has("procedure_date") || !!defaultDate;
+    return hasPatient && hasDate;
+  }, [mapping, defaultDate]);
 
   const goToPreview = async () => {
-    // Collect phones to lookup
-    const phones = new Set<string>();
-    for (const r of rows) {
-      for (const [h, f] of Object.entries(mapping)) {
-        if (f === "patient_phone" && r[h]) {
-          const p = normalizePhone(r[h]);
-          if (p) phones.add(p);
+    setLoadingMaps(true);
+    try {
+      // Page through ALL patients (1000-row Supabase cap) to build sf_id + name + phone maps
+      const sfIdToPatient = new Map<string, string>();
+      const nameToPatients = new Map<string, string[]>();
+      const phoneToPatient = new Map<string, string>();
+      const PAGE = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("patients")
+          .select("id, sf_id, first_name, last_name, phone, created_at")
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const p of data as any[]) {
+          if (p.sf_id) sfIdToPatient.set(String(p.sf_id), p.id);
+          const key = normalizeName(`${p.first_name || ""} ${p.last_name || ""}`);
+          if (key) {
+            const arr = nameToPatients.get(key) || [];
+            arr.push(p.id);
+            nameToPatients.set(key, arr);
+          }
+          if (p.phone) phoneToPatient.set(normalizePhone(p.phone), p.id);
         }
+        if (data.length < PAGE) break;
+        from += PAGE;
       }
-    }
-    const phoneToPatient = new Map<string, string>();
-    if (phones.size) {
-      const { data } = await supabase
-        .from("patients")
-        .select("id, phone")
-        .in("phone", Array.from(phones));
-      (data || []).forEach((p: any) => {
-        if (p.phone) phoneToPatient.set(p.phone, p.id);
+
+      // Staff
+      const nameToStaff = new Map<string, string>();
+      const { data: staffData } = await supabase.from("staff").select("id, first_name, last_name");
+      (staffData || []).forEach((s: any) => {
+        const full = normalizeName(`${s.first_name || ""} ${s.last_name || ""}`);
+        if (full) nameToStaff.set(full, s.id);
+        const firstOnly = normalizeName(s.first_name || "");
+        if (firstOnly && !nameToStaff.has(firstOnly)) nameToStaff.set(firstOnly, s.id);
       });
+
+      // Services
+      const serviceNames = new Map<string, string>();
+      const { data: svcData } = await supabase.from("services").select("name");
+      (svcData || []).forEach((s: any) => {
+        if (s.name) serviceNames.set(normalizeName(s.name), s.name);
+      });
+
+      const maps: ResolutionMaps = { sfIdToPatient, nameToPatients, phoneToPatient, nameToStaff, serviceNames };
+      const m = buildMappedProcedureRows(rows, mapping, maps, defaultDate || null);
+      setMapped(m);
+      setStep(3);
+    } catch (e: any) {
+      toast.error(`Failed to load resolution data: ${e.message}`);
+    } finally {
+      setLoadingMaps(false);
     }
-
-    // Load staff for name match
-    const nameToStaff = new Map<string, string>();
-    const { data: staffData } = await supabase.from("staff").select("id, first_name, last_name");
-    (staffData || []).forEach((s: any) => {
-      const full = `${s.first_name || ""} ${s.last_name || ""}`.toLowerCase().trim();
-      if (full) nameToStaff.set(full, s.id);
-      const firstOnly = String(s.first_name || "").toLowerCase().trim();
-      if (firstOnly && !nameToStaff.has(firstOnly)) nameToStaff.set(firstOnly, s.id);
-    });
-
-    const m = buildMappedProcedureRows(rows, mapping, phoneToPatient, nameToStaff);
-    setMapped(m);
-    setStep(3);
   };
 
   const importableRows = mapped.filter((r) => r.errors.length === 0 && !r.skip);
@@ -208,8 +224,21 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
           {step === 2 && (
             <div className="space-y-3 py-2">
               <p className="text-sm text-muted-foreground">
-                Map each file column to a procedure field. Required: Patient Phone, Service Name, Procedure Date.
+                Map each file column to a procedure field. Required: at least one patient identifier (Salesforce ID, Name, or Phone) and a date (column or default below).
               </p>
+              {!Object.values(mapping).includes("procedure_date") && (
+                <div className="flex items-center gap-3 bg-muted/40 border rounded-lg p-3">
+                  <Label htmlFor="default-date" className="text-sm whitespace-nowrap">Default procedure date</Label>
+                  <Input
+                    id="default-date"
+                    type="date"
+                    value={defaultDate}
+                    onChange={(e) => setDefaultDate(e.target.value)}
+                    className="h-8 w-48"
+                  />
+                  <span className="text-xs text-muted-foreground">Applied to all rows (no date column mapped)</span>
+                </div>
+              )}
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
@@ -237,7 +266,6 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
                               {PROCEDURE_FIELDS.map((f) => (
                                 <SelectItem key={f} value={f} disabled={usedFields.has(f) && mapping[h] !== f}>
                                   {FIELD_LABELS[f]}
-                                  {REQUIRED_PROCEDURE_FIELDS.includes(f) && " *"}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -330,8 +358,9 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
             {step === 2 && (
               <>
                 <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                <Button onClick={goToPreview} disabled={!mappingValid}>
-                  Preview {!mappingValid && "(map required fields)"}
+                <Button onClick={goToPreview} disabled={!mappingValid || loadingMaps}>
+                  {loadingMaps && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Preview {!mappingValid && "(map a patient field & date)"}
                 </Button>
               </>
             )}

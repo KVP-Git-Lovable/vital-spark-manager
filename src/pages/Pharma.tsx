@@ -717,7 +717,7 @@ const Pharma = () => {
                       {price.hasBatch || price.sellingPrice > 0 ? `₹${price.sellingPrice.toFixed(2)}` : "—"}
                     </TableCell>
                     <TableCell>{Number(p.gst_percent)}%</TableCell>
-                    <TableCell>{formatProductUnit(p)}</TableCell>
+                    <TableCell>{formatProductUnit(p, productUnits)}</TableCell>
                     <TableCell>{p.reorder_level}</TableCell>
                   </TableRow>
                   );

@@ -294,8 +294,11 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
                 <div className="flex items-center gap-4 text-sm">
                   <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-success" /> {importableRows.length} valid</span>
                   <span className="flex items-center gap-1.5"><AlertCircle className="h-4 w-4 text-destructive" /> {errorCount} errors</span>
-                  {duplicateSkipCount > 0 && (
-                    <span className="text-muted-foreground">{duplicateSkipCount} duplicates skipped</span>
+                  {dupDbCount > 0 && (
+                    <span className="text-muted-foreground">{dupDbCount} duplicates in DB</span>
+                  )}
+                  {dupFileCount > 0 && (
+                    <span className="text-muted-foreground">{dupFileCount} duplicates in file</span>
                   )}
                   <span className="text-muted-foreground">Total: {mapped.length}</span>
                 </div>
@@ -353,6 +356,13 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
               <p className="text-center text-sm text-muted-foreground">
                 {importing ? `Importing... ${progress}%` : `Imported ${importedCount} · Skipped ${skippedCount}`}
               </p>
+              {!importing && reportRows.length > 0 && (
+                <div className="flex justify-center">
+                  <Button variant="outline" size="sm" onClick={downloadReport}>
+                    <Download className="h-4 w-4 mr-2" /> Download report
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>

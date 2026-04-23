@@ -340,7 +340,7 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
                     <tr>
                       <th className="text-left p-2">Row</th>
                       <th className="text-left p-2">Status</th>
-                      {Array.from(usedFields).map((f) => (
+                      {displayFields.map((f) => (
                         <th key={f} className="text-left p-2 whitespace-nowrap">{f}</th>
                       ))}
                     </tr>
@@ -356,7 +356,7 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
                             <span className="text-success">OK</span>
                           )}
                         </td>
-                        {Array.from(usedFields).map((f) => (
+                        {displayFields.map((f) => (
                           <td key={f} className="p-2 whitespace-nowrap max-w-[180px] truncate">
                             {r.data[f] !== undefined ? String(r.data[f]) : ""}
                           </td>

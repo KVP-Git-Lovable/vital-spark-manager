@@ -465,22 +465,13 @@ const Pharma = () => {
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={productForm.reorder_level} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
-                  <div>
-                    <Label>Sub Unit</Label>
-                    <Select value={productForm.sub_unit || "__none__"} onValueChange={(v) => setProductForm({ ...productForm, sub_unit: v === "__none__" ? "" : v })}>
-                      <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. ml, Tablet" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— None —</SelectItem>
-                        {unitMaster.map((u: any) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>{productForm.sub_unit && productForm.base_unit ? `${productForm.sub_unit} per ${productForm.base_unit}` : "Units per Base Unit"}</Label>
-                    <Input type="number" className="mt-1" value={productForm.conversion_value} onChange={(e) => setProductForm({ ...productForm, conversion_value: parseFloat(e.target.value) || 1 })} placeholder="e.g. 100" disabled={!productForm.sub_unit} />
-                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground -mt-1">e.g. 1 Bottle = 100 ml, 1 Box = 100 Tablets</p>
+                <UnitConversionsEditor
+                  value={productUnitRows}
+                  onChange={setProductUnitRows}
+                  unitOptions={unitMaster as any}
+                  baseUnit={productForm.base_unit}
+                />
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
                   <div><Label>GST %</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>

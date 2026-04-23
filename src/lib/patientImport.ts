@@ -129,14 +129,18 @@ export interface MappedRow {
   data: Record<string, any>;
   errors: string[];
   skip?: boolean;
+  skipReason?: string;
 }
 
 export function buildMappedRows(
   rows: Record<string, any>[],
   mapping: Record<string, PatientField | "">,
-  existingPhones: Set<string>
+  existingPhones: Set<string>,
+  existingEmails: Set<string> = new Set()
 ): MappedRow[] {
   const result: MappedRow[] = [];
+  const seenPhones = new Set<string>();
+  const seenEmails = new Set<string>();
 
   rows.forEach((raw, i) => {
     const data: Record<string, any> = {};
@@ -180,8 +184,22 @@ export function buildMappedRows(
       if (!data[f]) errors.push(`${f.replace("_", " ")} missing`);
     }
 
-    // Phone uniqueness is NOT validated during import — all rows including duplicates are imported
-    result.push({ index: i, data, errors, skip: false });
+    // Dedup against DB and within file (phone OR email)
+    let skip = false;
+    let skipReason: string | undefined;
+    const phone = data.phone ? String(data.phone) : "";
+    const email = data.email ? String(data.email).toLowerCase() : "";
+    if (errors.length === 0) {
+      if (phone && existingPhones.has(phone)) { skip = true; skipReason = "Duplicate phone in DB"; }
+      else if (email && existingEmails.has(email)) { skip = true; skipReason = "Duplicate email in DB"; }
+      else if (phone && seenPhones.has(phone)) { skip = true; skipReason = "Duplicate phone in file"; }
+      else if (email && seenEmails.has(email)) { skip = true; skipReason = "Duplicate email in file"; }
+      else {
+        if (phone) seenPhones.add(phone);
+        if (email) seenEmails.add(email);
+      }
+    }
+    result.push({ index: i, data, errors, skip, skipReason });
   });
 
   return result;

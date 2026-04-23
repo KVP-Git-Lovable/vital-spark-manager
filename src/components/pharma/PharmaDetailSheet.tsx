@@ -35,6 +35,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
   const [isEditing, setIsEditing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [form, setForm] = useState<any>({});
+  const [editConversions, setEditConversions] = useState<ConversionRow[]>([]);
   const [priceForm, setPriceForm] = useState({ mrp: 0, selling_price: 0, purchase_price: 0, gst_percent: 0, notes: "", effective_from: new Date().toISOString().split("T")[0] });
   const [showPriceForm, setShowPriceForm] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<any>(null);
@@ -141,19 +142,48 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
     enabled: !!productId,
   });
 
+  const { data: existingUnits = [] } = useProductUnits(productId);
+
   useEffect(() => {
     if (product) setForm({ ...product });
   }, [product]);
 
+  useEffect(() => {
+    if (isEditing) {
+      setEditConversions(
+        (existingUnits || []).map((u: any, i: number) => ({
+          id: u.id,
+          sub_unit: u.sub_unit,
+          conversion_value: Number(u.conversion_value) || 1,
+          is_active: !!u.is_active,
+          is_default: !!u.is_default,
+          sort_order: u.sort_order ?? i,
+        })),
+      );
+    }
+  }, [isEditing, existingUnits]);
+
   const updateProduct = useMutation({
     mutationFn: async () => {
       const { id, created_at, updated_at, ...rest } = form;
-      const { error } = await supabase.from("pharma_products").update(rest).eq("id", productId!);
+      // Mirror default active conversion to legacy columns for backward compat.
+      const def = editConversions.find((r) => r.is_active && r.is_default)
+        || editConversions.find((r) => r.is_active)
+        || null;
+      const payload = {
+        ...rest,
+        sub_unit: def?.sub_unit || null,
+        conversion_value: def ? Number(def.conversion_value) || 1 : 1,
+        qty_per_unit: def ? Number(def.conversion_value) || 1 : 1,
+      };
+      const { error } = await supabase.from("pharma_products").update(payload).eq("id", productId!);
       if (error) throw error;
+      await syncProductUnits(supabase, productId!, editConversions);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
       queryClient.invalidateQueries({ queryKey: ["pharma-product", productId] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-product-units"] });
       toast.success("Product updated");
       setIsEditing(false);
     },
@@ -285,7 +315,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 <Field label="Name" value={product.name} />
                 <Field label="Generic Name" value={product.generic_name} />
                 <Field label="Category" value={product.category} />
-                <Field label="Unit" value={formatProductUnit(product)} />
+                <Field label="Unit" value={formatProductUnit(product, existingUnits as any)} />
                 <Field label="Manufacturer" value={product.manufacturer} />
                 <Field label="HSN Code" value={product.hsn_code} />
                 <Field label="Reorder Level" value={product.reorder_level} />
@@ -631,7 +661,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 <div><Label>Category</Label><Input className="mt-1" value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
                 <div><Label>Manufacturer</Label><Input className="mt-1" value={form.manufacturer || ""} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} /></div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Base Unit</Label>
                   <Select value={form.base_unit || form.unit || ""} onValueChange={(v) => setForm({ ...form, base_unit: v, unit: v })}>
@@ -639,21 +669,13 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                     <SelectContent>{unitMaster.map((u: any) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>Sub Unit</Label>
-                  <Select value={form.sub_unit || "__none__"} onValueChange={(v) => setForm({ ...form, sub_unit: v === "__none__" ? "" : v })}>
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. ml, Tablet" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— None —</SelectItem>
-                      {unitMaster.map((u: any) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>{form.sub_unit && (form.base_unit || form.unit) ? `${form.sub_unit} per ${form.base_unit || form.unit}` : "Units per Base Unit"}</Label>
-                  <Input type="number" className="mt-1" value={form.conversion_value ?? form.qty_per_unit ?? 1} onChange={(e) => { const v = parseFloat(e.target.value) || 1; setForm({ ...form, conversion_value: v, qty_per_unit: v }); }} disabled={!form.sub_unit} />
-                </div>
               </div>
+              <UnitConversionsEditor
+                value={editConversions}
+                onChange={setEditConversions}
+                unitOptions={unitMaster as any}
+                baseUnit={form.base_unit || form.unit}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>HSN Code</Label><Input className="mt-1" value={form.hsn_code || ""} onChange={(e) => setForm({ ...form, hsn_code: e.target.value })} /></div>
                 <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={form.reorder_level || 10} onChange={(e) => setForm({ ...form, reorder_level: parseInt(e.target.value) || 10 })} /></div>

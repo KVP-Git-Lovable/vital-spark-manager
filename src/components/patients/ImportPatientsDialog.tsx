@@ -63,6 +63,9 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
   const [skippedCount, setSkippedCount] = useState(0);
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [reportRows, setReportRows] = useState<Array<{ row: number; status: string; reason: string; phone: string; email: string; name: string }>>([]);
+  const [updateMode, setUpdateMode] = useState(false);
+  // phone -> patient row (id + current values), used when updateMode is on
+  const [phoneToPatient, setPhoneToPatient] = useState<Map<string, any>>(new Map());
 
   const reset = () => {
     setStep(1);
@@ -75,6 +78,8 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
     setImportedCount(0);
     setSkippedCount(0);
     setReportRows([]);
+    setUpdateMode(false);
+    setPhoneToPatient(new Map());
   };
 
   const handleClose = (o: boolean) => {

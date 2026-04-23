@@ -506,12 +506,15 @@ const Pharma = () => {
                   const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
                   if (!sp) return null;
                   const baseUnit = sp.base_unit || sp.unit || "unit";
-                  const sub = sp.sub_unit;
-                  const conv = Number(sp.conversion_value ?? sp.qty_per_unit ?? 1) || 1;
+                  const activeUnits = (unitsByProduct[sp.id] || []).filter((u: any) => u.is_active && u.sub_unit && Number(u.conversion_value) > 1);
                   return (
                     <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground space-y-0.5">
                       <div><strong>Base Unit:</strong> {baseUnit}</div>
-                      {sub && conv > 1 && <div><strong>Conversion:</strong> 1 {baseUnit} = {conv} {sub}</div>}
+                      {activeUnits.length > 0 ? activeUnits.map((u: any, i: number) => (
+                        <div key={i}><strong>Conversion:</strong> 1 {baseUnit} = {Number(u.conversion_value)} {u.sub_unit}{u.is_default && " (default)"}</div>
+                      )) : (sp.sub_unit && Number(sp.conversion_value ?? sp.qty_per_unit ?? 1) > 1 && (
+                        <div><strong>Conversion:</strong> 1 {baseUnit} = {Number(sp.conversion_value ?? sp.qty_per_unit)} {sp.sub_unit}</div>
+                      ))}
                     </div>
                   );
                 })()}
@@ -522,8 +525,10 @@ const Pharma = () => {
                 {(() => {
                   const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
                   const baseUnit = sp?.base_unit || sp?.unit || "";
-                  const sub = sp?.sub_unit;
-                  const conv = Number(sp?.conversion_value ?? sp?.qty_per_unit ?? 1) || 1;
+                  const activeUnits = sp ? (unitsByProduct[sp.id] || []).filter((u: any) => u.is_active && u.sub_unit && Number(u.conversion_value) > 1) : [];
+                  const defaultUnit = activeUnits.find((u: any) => u.is_default) || activeUnits[0] || null;
+                  const sub = defaultUnit?.sub_unit || sp?.sub_unit;
+                  const conv = Number(defaultUnit?.conversion_value ?? sp?.conversion_value ?? sp?.qty_per_unit ?? 1) || 1;
                   const perBase = baseUnit ? ` (per ${baseUnit})` : "";
                   const subHint = (price: number) => (sub && conv > 1 && price > 0)
                     ? `= ₹${(price / conv).toFixed(2)} per ${sub}` : "";
@@ -689,7 +694,8 @@ const Pharma = () => {
                 {filteredProducts.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No products found</TableCell></TableRow>
                 ) : filteredProducts.map((p: any) => {
-                  const price = getActiveBatchPrice(p, inventory as any);
+                  const productUnits = unitsByProduct[p.id];
+                  const price = getActiveBatchPrice(p, inventory as any, productUnits);
                   return (
                   <TableRow key={p.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setSelectedProductId(p.id)}>
                     <TableCell>

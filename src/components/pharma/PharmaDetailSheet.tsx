@@ -142,19 +142,48 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
     enabled: !!productId,
   });
 
+  const { data: existingUnits = [] } = useProductUnits(productId);
+
   useEffect(() => {
     if (product) setForm({ ...product });
   }, [product]);
 
+  useEffect(() => {
+    if (isEditing) {
+      setEditConversions(
+        (existingUnits || []).map((u: any, i: number) => ({
+          id: u.id,
+          sub_unit: u.sub_unit,
+          conversion_value: Number(u.conversion_value) || 1,
+          is_active: !!u.is_active,
+          is_default: !!u.is_default,
+          sort_order: u.sort_order ?? i,
+        })),
+      );
+    }
+  }, [isEditing, existingUnits]);
+
   const updateProduct = useMutation({
     mutationFn: async () => {
       const { id, created_at, updated_at, ...rest } = form;
-      const { error } = await supabase.from("pharma_products").update(rest).eq("id", productId!);
+      // Mirror default active conversion to legacy columns for backward compat.
+      const def = editConversions.find((r) => r.is_active && r.is_default)
+        || editConversions.find((r) => r.is_active)
+        || null;
+      const payload = {
+        ...rest,
+        sub_unit: def?.sub_unit || null,
+        conversion_value: def ? Number(def.conversion_value) || 1 : 1,
+        qty_per_unit: def ? Number(def.conversion_value) || 1 : 1,
+      };
+      const { error } = await supabase.from("pharma_products").update(payload).eq("id", productId!);
       if (error) throw error;
+      await syncProductUnits(supabase, productId!, editConversions);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
       queryClient.invalidateQueries({ queryKey: ["pharma-product", productId] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-product-units"] });
       toast.success("Product updated");
       setIsEditing(false);
     },

@@ -63,18 +63,34 @@ export function PatientCombobox({
     staleTime: 60_000,
   });
 
-  const displayName = (p: PatientLite) =>
-    `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Unnamed";
+  const displayName = (p: PatientLite) => {
+    const name = `${p.first_name || ""} ${p.last_name || ""}`.trim();
+    if (name) return name;
+    if (p.phone) return p.phone;
+    return "Unnamed";
+  };
+
+  const hasName = (p: PatientLite) =>
+    !!`${p.first_name || ""} ${p.last_name || ""}`.trim();
+
+  const sortedPatients = useMemo(() => {
+    return [...patients].sort((a, b) => {
+      const an = hasName(a);
+      const bn = hasName(b);
+      if (an !== bn) return an ? -1 : 1;
+      return displayName(a).localeCompare(displayName(b));
+    });
+  }, [patients]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return patients;
-    return patients.filter(
+    if (!q) return sortedPatients;
+    return sortedPatients.filter(
       (p) =>
         displayName(p).toLowerCase().includes(q) ||
         (p.phone || "").toLowerCase().includes(q)
     );
-  }, [patients, search]);
+  }, [sortedPatients, search]);
 
   const shown = filtered.slice(0, visible);
   const selected = patients.find((p) => p.id === value);

@@ -5,35 +5,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Loader2, Upload, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   PROCEDURE_FIELDS,
-  REQUIRED_PROCEDURE_FIELDS,
   ProcedureField,
+  FIELD_LABELS,
   parseFile,
   buildMappedProcedureRows,
   toProcedureInsertPayload,
   MappedProcedureRow,
+  ResolutionMaps,
+  autoDetectProcedureMapping,
   normalizePhone,
+  normalizeName,
 } from "@/lib/procedureImport";
-
-const FIELD_LABELS: Record<ProcedureField, string> = {
-  patient_phone: "Patient Phone",
-  service_name: "Service Name",
-  procedure_date: "Procedure Date",
-  staff_name: "Staff Name",
-  status: "Status",
-  symptoms: "Symptoms",
-  diagnosis: "Diagnosis",
-  consultation_notes: "Consultation Notes",
-  procedure_notes: "Procedure Notes",
-  recommendations: "Recommendations",
-  follow_up_date: "Follow-up Date",
-  cost: "Cost",
-  notes: "Notes",
-};
 
 interface Props {
   open: boolean;

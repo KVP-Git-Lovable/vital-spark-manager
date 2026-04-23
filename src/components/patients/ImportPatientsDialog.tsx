@@ -16,6 +16,9 @@ import {
   buildMappedRows,
   toInsertPayload,
   MappedRow,
+  MappingTarget,
+  FULL_NAME_TARGET,
+  autoDetectMapping,
 } from "@/lib/patientImport";
 
 const FIELD_LABELS: Record<PatientField, string> = {

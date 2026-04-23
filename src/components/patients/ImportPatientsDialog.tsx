@@ -63,6 +63,9 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
   const [skippedCount, setSkippedCount] = useState(0);
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [reportRows, setReportRows] = useState<Array<{ row: number; status: string; reason: string; phone: string; email: string; name: string }>>([]);
+  const [updateMode, setUpdateMode] = useState(false);
+  // phone -> patient row (id + current values), used when updateMode is on
+  const [phoneToPatient, setPhoneToPatient] = useState<Map<string, any>>(new Map());
 
   const reset = () => {
     setStep(1);
@@ -75,6 +78,8 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
     setImportedCount(0);
     setSkippedCount(0);
     setReportRows([]);
+    setUpdateMode(false);
+    setPhoneToPatient(new Map());
   };
 
   const handleClose = (o: boolean) => {
@@ -113,23 +118,35 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
       // Paginated fetch of ALL existing patients (phone + email) to handle 1000-row cap
       const existingPhones = new Set<string>();
       const existingEmails = new Set<string>();
+      const phoneMap = new Map<string, any>();
       const PAGE = 1000;
       let from = 0;
       while (true) {
         const { data, error } = await supabase
           .from("patients")
-          .select("phone,email")
+          .select("id,phone,email,sf_id,first_name,last_name,date_of_birth,gender,address,email,emergency_contact_name,emergency_contact_phone,source,medical_history,previous_treatments,notes,skin_concerns,follows_facebook,follows_instagram")
           .range(from, from + PAGE - 1);
         if (error) throw error;
         if (!data || data.length === 0) break;
         for (const r of data) {
-          if (r.phone) existingPhones.add(String(r.phone).replace(/[\s\-()]/g, "").trim());
+          if (r.phone) {
+            const p = String(r.phone).replace(/[\s\-()]/g, "").trim();
+            existingPhones.add(p);
+            if (!phoneMap.has(p)) phoneMap.set(p, r);
+          }
           if (r.email) existingEmails.add(String(r.email).trim().toLowerCase());
         }
         if (data.length < PAGE) break;
         from += PAGE;
       }
-      const m = buildMappedRows(rows, mapping, existingPhones, existingEmails);
+      // In update mode, do NOT treat phone matches as duplicates — they become updates
+      const m = buildMappedRows(
+        rows,
+        mapping,
+        updateMode ? new Set() : existingPhones,
+        updateMode ? new Set() : existingEmails
+      );
+      setPhoneToPatient(phoneMap);
       setMapped(m);
       setStep(3);
     } catch (e: any) {
@@ -147,21 +164,52 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
   const handleImport = async () => {
     setImporting(true);
     setStep(4);
-    const payloads = importableRows.map((r) => ({ row: r.index + 1, data: r.data, payload: toInsertPayload(r) }));
     const batch = 100;
     let inserted = 0;
+    let updated = 0;
     let failed = 0;
     const report: typeof reportRows = [];
+
+    // Split rows into "update existing" vs "insert new" when updateMode is on
+    const toInsert: Array<{ row: number; data: any; payload: any }> = [];
+    const toUpdate: Array<{ row: number; data: any; id: string; patch: any }> = [];
+    for (const r of importableRows) {
+      const phone = r.data.phone ? String(r.data.phone) : "";
+      const existing = updateMode && phone ? phoneToPatient.get(phone) : null;
+      if (existing) {
+        // Build patch: only fill columns that are currently empty in DB
+        const patch: Record<string, any> = {};
+        for (const [k, v] of Object.entries(r.data)) {
+          if (v === undefined || v === null || v === "") continue;
+          const cur = (existing as any)[k];
+          if (cur === null || cur === undefined || cur === "") {
+            patch[k] = v;
+          }
+        }
+        if (Object.keys(patch).length > 0) {
+          toUpdate.push({ row: r.index + 1, data: r.data, id: existing.id, patch });
+        } else {
+          report.push({ row: r.index + 1, status: "skipped", reason: "no empty fields to fill", phone, email: r.data.email || "", name: `${r.data.first_name || ""} ${r.data.last_name || ""}`.trim() });
+        }
+      } else {
+        toInsert.push({ row: r.index + 1, data: r.data, payload: toInsertPayload(r) });
+      }
+    }
+
     // Pre-fill skip/error reasons in report
     for (const r of mapped) {
       if (r.skip) report.push({ row: r.index + 1, status: "skipped", reason: r.skipReason || "duplicate", phone: r.data.phone || "", email: r.data.email || "", name: `${r.data.first_name || ""} ${r.data.last_name || ""}`.trim() });
       else if (r.errors.length) report.push({ row: r.index + 1, status: "invalid", reason: r.errors.join("; "), phone: r.data.phone || "", email: r.data.email || "", name: `${r.data.first_name || ""} ${r.data.last_name || ""}`.trim() });
     }
-    for (let i = 0; i < payloads.length; i += batch) {
-      const chunk = payloads.slice(i, i + batch);
+
+    const totalOps = toInsert.length + toUpdate.length;
+    let done = 0;
+
+    // INSERTS (batched)
+    for (let i = 0; i < toInsert.length; i += batch) {
+      const chunk = toInsert.slice(i, i + batch);
       const { error } = await supabase.from("patients").insert(chunk.map((c) => c.payload) as any);
       if (error) {
-        // Per-row fallback so one bad row doesn't fail the whole batch
         for (const c of chunk) {
           const { error: e2 } = await supabase.from("patients").insert(c.payload as any);
           if (e2) {
@@ -176,15 +224,31 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
         inserted += chunk.length;
         for (const c of chunk) report.push({ row: c.row, status: "imported", reason: "", phone: c.data.phone || "", email: c.data.email || "", name: `${c.data.first_name || ""} ${c.data.last_name || ""}`.trim() });
       }
-      setProgress(Math.round(((i + chunk.length) / payloads.length) * 100));
+      done += chunk.length;
+      if (totalOps) setProgress(Math.round((done / totalOps) * 100));
     }
+
+    // UPDATES (per-row, since each has its own patch)
+    for (const u of toUpdate) {
+      const { error } = await supabase.from("patients").update(u.patch).eq("id", u.id);
+      if (error) {
+        failed++;
+        report.push({ row: u.row, status: "failed", reason: error.message, phone: u.data.phone || "", email: u.data.email || "", name: `${u.data.first_name || ""} ${u.data.last_name || ""}`.trim() });
+      } else {
+        updated++;
+        report.push({ row: u.row, status: "updated", reason: `filled: ${Object.keys(u.patch).join(", ")}`, phone: u.data.phone || "", email: u.data.email || "", name: `${u.data.first_name || ""} ${u.data.last_name || ""}`.trim() });
+      }
+      done++;
+      if (totalOps) setProgress(Math.round((done / totalOps) * 100));
+    }
+
     const totalSkipped = errorCount + dupDbCount + dupFileCount + failed;
-    setImportedCount(inserted);
+    setImportedCount(inserted + updated);
     setSkippedCount(totalSkipped);
     setReportRows(report);
     setImporting(false);
-    if (inserted > 0) {
-      toast.success(`Imported ${inserted} · Skipped ${totalSkipped}`);
+    if (inserted + updated > 0) {
+      toast.success(`Inserted ${inserted} · Updated ${updated} · Skipped ${totalSkipped}`);
     } else if (failed > 0) {
       toast.error(`Import failed for all rows`);
     } else {
@@ -269,6 +333,15 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
               <p className="text-sm text-muted-foreground">
                 Map each file column to a patient field. Required: First Name, Phone.
               </p>
+              <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="update-mode" className="text-sm font-medium">Update existing patients (match by phone)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Fill empty fields (like Salesforce ID) on existing records instead of skipping them. New patients are still inserted. No data is overwritten.
+                  </p>
+                </div>
+                <Switch id="update-mode" checked={updateMode} onCheckedChange={setUpdateMode} />
+              </div>
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">

@@ -333,6 +333,15 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
               <p className="text-sm text-muted-foreground">
                 Map each file column to a patient field. Required: First Name, Phone.
               </p>
+              <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="update-mode" className="text-sm font-medium">Update existing patients (match by phone)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Fill empty fields (like Salesforce ID) on existing records instead of skipping them. New patients are still inserted. No data is overwritten.
+                  </p>
+                </div>
+                <Switch id="update-mode" checked={updateMode} onCheckedChange={setUpdateMode} />
+              </div>
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">

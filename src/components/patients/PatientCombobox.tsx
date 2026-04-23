@@ -12,6 +12,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/supabasePaginate";
 
+const PHONE_LIKE_NAME = /^[+\d\s()\-]{7,}$/;
+
 export interface PatientLite {
   id: string;
   first_name: string;
@@ -63,22 +65,31 @@ export function PatientCombobox({
     staleTime: 60_000,
   });
 
+  const getRawName = (p: PatientLite) =>
+    `${p.first_name || ""} ${p.last_name || ""}`.replace(/\s+/g, " ").trim();
+
+  const hasMeaningfulName = (p: PatientLite) => {
+    const name = getRawName(p);
+    return !!name && !PHONE_LIKE_NAME.test(name);
+  };
+
   const displayName = (p: PatientLite) => {
-    const name = `${p.first_name || ""} ${p.last_name || ""}`.trim();
-    if (name) return name;
+    const name = getRawName(p);
+    if (hasMeaningfulName(p)) return name;
     if (p.phone) return p.phone;
+    if (name) return name;
     return "Unnamed";
   };
 
-  const hasName = (p: PatientLite) =>
-    !!`${p.first_name || ""} ${p.last_name || ""}`.trim();
-
   const sortedPatients = useMemo(() => {
     return [...patients].sort((a, b) => {
-      const an = hasName(a);
-      const bn = hasName(b);
+      const an = hasMeaningfulName(a);
+      const bn = hasMeaningfulName(b);
       if (an !== bn) return an ? -1 : 1;
-      return displayName(a).localeCompare(displayName(b));
+      return displayName(a).localeCompare(displayName(b), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
     });
   }, [patients]);
 
@@ -136,7 +147,8 @@ export function PatientCombobox({
           />
         </div>
         <div
-          className="max-h-64 overflow-y-auto space-y-0.5"
+          className="max-h-64 overflow-y-scroll overscroll-contain space-y-0.5 pr-1"
+          style={{ scrollbarGutter: "stable" }}
           onScroll={(e) => {
             const el = e.currentTarget;
             if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
@@ -186,7 +198,7 @@ export function PatientCombobox({
                 />
                 <div className="flex-1 min-w-0">
                   <p className="truncate">{displayName(p)}</p>
-                  {p.phone && (
+                  {p.phone && p.phone !== displayName(p) && (
                     <p className="text-[10px] text-muted-foreground truncate">{p.phone}</p>
                   )}
                 </div>

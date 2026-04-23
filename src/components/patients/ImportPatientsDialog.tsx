@@ -16,6 +16,9 @@ import {
   buildMappedRows,
   toInsertPayload,
   MappedRow,
+  MappingTarget,
+  FULL_NAME_TARGET,
+  autoDetectMapping,
 } from "@/lib/patientImport";
 
 const FIELD_LABELS: Record<PatientField, string> = {
@@ -50,7 +53,7 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
   const [parsing, setParsing] = useState(false);
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, any>[]>([]);
-  const [mapping, setMapping] = useState<Record<string, PatientField | "">>({});
+  const [mapping, setMapping] = useState<Record<string, MappingTarget | "">>({});
   const [mapped, setMapped] = useState<MappedRow[]>([]);
   const [showOnlyErrors, setShowOnlyErrors] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -88,7 +91,7 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
       }
       setHeaders(h);
       setRows(r);
-      setMapping(Object.fromEntries(h.map((c) => [c, ""])) as Record<string, PatientField | "">);
+      setMapping(autoDetectMapping(h));
       setStep(2);
     } catch (e: any) {
       toast.error(`Failed to parse: ${e.message}`);
@@ -99,7 +102,8 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
 
   const mappingValid = useMemo(() => {
     const used = new Set(Object.values(mapping).filter(Boolean));
-    return REQUIRED_FIELDS.every((f) => used.has(f));
+    const hasFullName = used.has(FULL_NAME_TARGET);
+    return REQUIRED_FIELDS.every((f) => used.has(f) || (f === "first_name" && hasFullName));
   }, [mapping]);
 
   const goToPreview = async () => {
@@ -263,7 +267,7 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
                           <Select
                             value={mapping[h] || "__skip__"}
                             onValueChange={(v) =>
-                              setMapping((prev) => ({ ...prev, [h]: v === "__skip__" ? "" : (v as PatientField) }))
+                              setMapping((prev) => ({ ...prev, [h]: v === "__skip__" ? "" : (v as MappingTarget) }))
                             }
                           >
                             <SelectTrigger className="h-8 w-64">
@@ -271,6 +275,12 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__skip__">— Skip —</SelectItem>
+                              <SelectItem
+                                value={FULL_NAME_TARGET}
+                                disabled={usedFields.has(FULL_NAME_TARGET) && mapping[h] !== FULL_NAME_TARGET}
+                              >
+                                Full Name (auto-split) *
+                              </SelectItem>
                               {PATIENT_FIELDS.map((f) => (
                                 <SelectItem key={f} value={f} disabled={usedFields.has(f) && mapping[h] !== f}>
                                   {FIELD_LABELS[f]}

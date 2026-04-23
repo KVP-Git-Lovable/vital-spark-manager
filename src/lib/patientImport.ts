@@ -21,34 +21,45 @@ export const PATIENT_FIELDS = [
 
 export type PatientField = (typeof PATIENT_FIELDS)[number];
 
+/** Virtual mapping target that splits a single full-name column into first_name + last_name. */
+export const FULL_NAME_TARGET = "__full_name__" as const;
+export type MappingTarget = PatientField | typeof FULL_NAME_TARGET;
+
 export const REQUIRED_FIELDS: PatientField[] = ["first_name", "phone"];
 
 const FIELD_ALIASES: Record<PatientField, string[]> = {
   first_name: ["first name", "firstname", "fname", "given name", "first"],
   last_name: ["last name", "lastname", "lname", "surname", "family name", "last"],
-  phone: ["phone", "phone number", "mobile", "mobile number", "contact", "contact number", "cell", "telephone"],
-  email: ["email", "email address", "e-mail", "mail"],
-  date_of_birth: ["dob", "date of birth", "birth date", "birthdate", "birthday"],
-  gender: ["gender", "sex"],
-  address: ["address", "street", "location", "addr"],
-  emergency_contact_name: ["emergency contact name", "emergency name", "emergency contact"],
-  emergency_contact_phone: ["emergency contact phone", "emergency phone", "emergency number"],
-  source: ["source", "lead source", "referred by", "referral source"],
+  phone: ["phone", "phone number", "mobile", "mobile number", "contact", "contact number", "cell", "telephone", "mobile number c"],
+  email: ["email", "email address", "e-mail", "mail", "email id c"],
+  date_of_birth: ["dob", "date of birth", "birth date", "birthdate", "birthday", "date of birth c"],
+  gender: ["gender", "sex", "sex c"],
+  address: ["address", "street", "location", "addr", "place c"],
+  emergency_contact_name: ["emergency contact name", "emergency name", "emergency contact", "emergency contact person c"],
+  emergency_contact_phone: ["emergency contact phone", "emergency phone", "emergency number", "emergency contact number c"],
+  source: ["source", "lead source", "referred by", "referral source", "patient source c"],
   medical_history: ["medical history", "history", "past medical history"],
   previous_treatments: ["previous treatments", "past treatments", "prior treatments"],
-  notes: ["notes", "remarks", "comments"],
-  skin_concerns: ["skin concerns", "concerns", "skin issues", "problems"],
-  follows_facebook: ["follows facebook", "facebook", "fb follower", "follows fb"],
-  follows_instagram: ["follows instagram", "instagram", "ig follower", "follows ig"],
+  notes: ["notes", "remarks", "comments", "patient details c"],
+  skin_concerns: ["skin concerns", "concerns", "skin issues", "problems", "reason for consulting c"],
+  follows_facebook: ["follows facebook", "facebook", "fb follower", "follows fb", "fb follower c"],
+  follows_instagram: ["follows instagram", "instagram", "ig follower", "follows ig", "instagram follower c"],
 };
+
+const FULL_NAME_ALIASES = ["patient name", "patient name c", "full name", "name", "patient"];
 
 const norm = (s: string) => s.toLowerCase().trim().replace(/[_\-\s]+/g, " ");
 
-export function autoDetectMapping(headers: string[]): Record<string, PatientField | ""> {
-  const out: Record<string, PatientField | ""> = {};
+export function autoDetectMapping(headers: string[]): Record<string, MappingTarget | ""> {
+  const out: Record<string, MappingTarget | ""> = {};
   for (const h of headers) {
     const n = norm(h);
-    let match: PatientField | "" = "";
+    let match: MappingTarget | "" = "";
+    // Full name first (exact)
+    if (FULL_NAME_ALIASES.some((a) => norm(a) === n)) {
+      out[h] = FULL_NAME_TARGET;
+      continue;
+    }
     for (const f of PATIENT_FIELDS) {
       if (FIELD_ALIASES[f].some((a) => norm(a) === n)) {
         match = f;
@@ -56,6 +67,10 @@ export function autoDetectMapping(headers: string[]): Record<string, PatientFiel
       }
     }
     if (!match) {
+      if (FULL_NAME_ALIASES.some((a) => n.includes(norm(a)) || norm(a).includes(n))) {
+        out[h] = FULL_NAME_TARGET;
+        continue;
+      }
       for (const f of PATIENT_FIELDS) {
         if (FIELD_ALIASES[f].some((a) => n.includes(norm(a)) || norm(a).includes(n))) {
           match = f;
@@ -137,7 +152,7 @@ export interface MappedRow {
 
 export function buildMappedRows(
   rows: Record<string, any>[],
-  mapping: Record<string, PatientField | "">,
+  mapping: Record<string, MappingTarget | "">,
   existingPhones: Set<string>,
   existingEmails: Set<string> = new Set()
 ): MappedRow[] {
@@ -145,14 +160,30 @@ export function buildMappedRows(
   const seenPhones = new Set<string>();
   const seenEmails = new Set<string>();
 
+  // Determine if first/last are explicitly mapped — if so, skip auto-split
+  const explicitFirst = Object.values(mapping).includes("first_name");
+  const explicitLast = Object.values(mapping).includes("last_name");
+
   rows.forEach((raw, i) => {
     const data: Record<string, any> = {};
     const errors: string[] = [];
+    const fromSplit = new Set<string>();
 
     for (const [header, field] of Object.entries(mapping)) {
       if (!field) continue;
       const val = raw[header];
       if (val === undefined || val === null || val === "") continue;
+
+      if (field === FULL_NAME_TARGET) {
+        const full = String(val).replace(/\s+/g, " ").trim();
+        if (!full) continue;
+        const idx = full.indexOf(" ");
+        const fn = idx === -1 ? full : full.slice(0, idx);
+        const ln = idx === -1 ? "" : full.slice(idx + 1).trim();
+        if (!explicitFirst && !data.first_name) { data.first_name = fn; fromSplit.add("first_name"); }
+        if (!explicitLast && !data.last_name) { data.last_name = ln; fromSplit.add("last_name"); }
+        continue;
+      }
 
       switch (field) {
         case "phone":
@@ -183,8 +214,8 @@ export function buildMappedRows(
       }
     }
 
-    // Guard: first_name accidentally contains a phone number
-    if (data.first_name && isPhoneLike(data.first_name)) {
+    // Guard: first_name accidentally contains a phone number (only when not from full-name split)
+    if (data.first_name && !fromSplit.has("first_name") && isPhoneLike(data.first_name)) {
       const digits = normalizePhone(data.first_name);
       if (!data.phone) {
         // Move to phone, blank out first_name (will trigger required-field error below if no replacement)

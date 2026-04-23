@@ -92,40 +92,62 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
   }, [mapping, defaultDate]);
 
   const goToPreview = async () => {
-    // Collect phones to lookup
-    const phones = new Set<string>();
-    for (const r of rows) {
-      for (const [h, f] of Object.entries(mapping)) {
-        if (f === "patient_phone" && r[h]) {
-          const p = normalizePhone(r[h]);
-          if (p) phones.add(p);
+    setLoadingMaps(true);
+    try {
+      // Page through ALL patients (1000-row Supabase cap) to build sf_id + name + phone maps
+      const sfIdToPatient = new Map<string, string>();
+      const nameToPatients = new Map<string, string[]>();
+      const phoneToPatient = new Map<string, string>();
+      const PAGE = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("patients")
+          .select("id, sf_id, first_name, last_name, phone, created_at")
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const p of data as any[]) {
+          if (p.sf_id) sfIdToPatient.set(String(p.sf_id), p.id);
+          const key = normalizeName(`${p.first_name || ""} ${p.last_name || ""}`);
+          if (key) {
+            const arr = nameToPatients.get(key) || [];
+            arr.push(p.id);
+            nameToPatients.set(key, arr);
+          }
+          if (p.phone) phoneToPatient.set(normalizePhone(p.phone), p.id);
         }
+        if (data.length < PAGE) break;
+        from += PAGE;
       }
-    }
-    const phoneToPatient = new Map<string, string>();
-    if (phones.size) {
-      const { data } = await supabase
-        .from("patients")
-        .select("id, phone")
-        .in("phone", Array.from(phones));
-      (data || []).forEach((p: any) => {
-        if (p.phone) phoneToPatient.set(p.phone, p.id);
+
+      // Staff
+      const nameToStaff = new Map<string, string>();
+      const { data: staffData } = await supabase.from("staff").select("id, first_name, last_name");
+      (staffData || []).forEach((s: any) => {
+        const full = normalizeName(`${s.first_name || ""} ${s.last_name || ""}`);
+        if (full) nameToStaff.set(full, s.id);
+        const firstOnly = normalizeName(s.first_name || "");
+        if (firstOnly && !nameToStaff.has(firstOnly)) nameToStaff.set(firstOnly, s.id);
       });
+
+      // Services
+      const serviceNames = new Map<string, string>();
+      const { data: svcData } = await supabase.from("services").select("name");
+      (svcData || []).forEach((s: any) => {
+        if (s.name) serviceNames.set(normalizeName(s.name), s.name);
+      });
+
+      const maps: ResolutionMaps = { sfIdToPatient, nameToPatients, phoneToPatient, nameToStaff, serviceNames };
+      const m = buildMappedProcedureRows(rows, mapping, maps, defaultDate || null);
+      setMapped(m);
+      setStep(3);
+    } catch (e: any) {
+      toast.error(`Failed to load resolution data: ${e.message}`);
+    } finally {
+      setLoadingMaps(false);
     }
-
-    // Load staff for name match
-    const nameToStaff = new Map<string, string>();
-    const { data: staffData } = await supabase.from("staff").select("id, first_name, last_name");
-    (staffData || []).forEach((s: any) => {
-      const full = `${s.first_name || ""} ${s.last_name || ""}`.toLowerCase().trim();
-      if (full) nameToStaff.set(full, s.id);
-      const firstOnly = String(s.first_name || "").toLowerCase().trim();
-      if (firstOnly && !nameToStaff.has(firstOnly)) nameToStaff.set(firstOnly, s.id);
-    });
-
-    const m = buildMappedProcedureRows(rows, mapping, phoneToPatient, nameToStaff);
-    setMapped(m);
-    setStep(3);
   };
 
   const importableRows = mapped.filter((r) => r.errors.length === 0 && !r.skip);

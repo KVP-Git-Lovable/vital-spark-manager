@@ -160,14 +160,14 @@ const Patients = () => {
         transition={{ duration: 0.3 }}
         className="data-table"
       >
-        <div className="p-4 border-b flex flex-col sm:flex-row gap-3">
+          <div className="p-4 border-b flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by name, email, or phone..."
               className="pl-9 bg-muted border-0"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
           <Button variant="outline" className="gap-2">
@@ -205,7 +205,7 @@ const Patients = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filtered.map((patient) => (
+                {paged.map((patient) => (
                   <tr key={patient.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => navigate(`/patients/${patient.id}`)}>
                     <td className="p-4" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
@@ -217,10 +217,10 @@ const Patients = () => {
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-semibold text-sm shrink-0">
-                          {patient.first_name[0]}{patient.last_name[0]}
+                          {(patient.first_name?.[0] || "?")}{(patient.last_name?.[0] || "")}
                         </div>
                         <div>
-                          <p className="font-medium text-sm">{patient.first_name} {patient.last_name}</p>
+                          <p className="font-medium text-sm">{`${patient.first_name || ""} ${patient.last_name || ""}`.trim() || "Unnamed"}</p>
                           <p className="text-xs text-muted-foreground">
                             {patient.gender || "—"}
                             {getAge(patient.date_of_birth) !== null && ` · Age ${getAge(patient.date_of_birth)}`}
@@ -286,8 +286,35 @@ const Patients = () => {
           </div>
         )}
 
-        <div className="p-4 border-t flex items-center justify-between text-sm text-muted-foreground">
-          <span>Showing {filtered.length} of {patients.length} patients</span>
+        <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
+          <span>
+            Showing {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–
+            {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length.toLocaleString()}
+            {search ? ` (filtered from ${patients.length.toLocaleString()})` : ""}
+          </span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span className="text-xs">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
       </motion.div>
 

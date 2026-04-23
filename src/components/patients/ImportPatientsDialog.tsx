@@ -5,14 +5,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Loader2, Upload, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   PATIENT_FIELDS,
   REQUIRED_FIELDS,
   PatientField,
-  autoDetectMapping,
   parseFile,
   buildMappedRows,
   toInsertPayload,
@@ -58,6 +57,8 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
   const [progress, setProgress] = useState(0);
   const [importedCount, setImportedCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const [reportRows, setReportRows] = useState<Array<{ row: number; status: string; reason: string; phone: string; email: string; name: string }>>([]);
 
   const reset = () => {
     setStep(1);
@@ -69,6 +70,7 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
     setProgress(0);
     setImportedCount(0);
     setSkippedCount(0);
+    setReportRows([]);
   };
 
   const handleClose = (o: boolean) => {
@@ -101,61 +103,106 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
   }, [mapping]);
 
   const goToPreview = async () => {
-    // get phones to check
-    const phones = new Set<string>();
-    for (const r of rows) {
-      for (const [h, f] of Object.entries(mapping)) {
-        if (f === "phone" && r[h]) {
-          const p = String(r[h]).replace(/[\s\-()]/g, "").trim();
-          if (p) phones.add(p);
+    setLoadingExisting(true);
+    try {
+      // Paginated fetch of ALL existing patients (phone + email) to handle 1000-row cap
+      const existingPhones = new Set<string>();
+      const existingEmails = new Set<string>();
+      const PAGE = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("patients")
+          .select("phone,email")
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        for (const r of data) {
+          if (r.phone) existingPhones.add(String(r.phone).replace(/[\s\-()]/g, "").trim());
+          if (r.email) existingEmails.add(String(r.email).trim().toLowerCase());
         }
+        if (data.length < PAGE) break;
+        from += PAGE;
       }
+      const m = buildMappedRows(rows, mapping, existingPhones, existingEmails);
+      setMapped(m);
+      setStep(3);
+    } catch (e: any) {
+      toast.error(`Failed to load existing patients: ${e.message}`);
+    } finally {
+      setLoadingExisting(false);
     }
-    let existing = new Set<string>();
-    if (phones.size) {
-      const { data } = await supabase
-        .from("patients")
-        .select("phone")
-        .in("phone", Array.from(phones));
-      existing = new Set((data || []).map((d) => d.phone || "").filter(Boolean));
-    }
-    const m = buildMappedRows(rows, mapping, existing);
-    setMapped(m);
-    setStep(3);
   };
 
   const importableRows = mapped.filter((r) => r.errors.length === 0 && !r.skip);
-  const duplicateSkipCount = mapped.filter((r) => r.skip).length;
+  const dupDbCount = mapped.filter((r) => r.skip && r.skipReason?.includes("in DB")).length;
+  const dupFileCount = mapped.filter((r) => r.skip && r.skipReason?.includes("in file")).length;
   const errorCount = mapped.filter((r) => r.errors.length > 0).length;
 
   const handleImport = async () => {
     setImporting(true);
     setStep(4);
-    const payloads = importableRows.map((r) => toInsertPayload(r));
+    const payloads = importableRows.map((r) => ({ row: r.index + 1, data: r.data, payload: toInsertPayload(r) }));
     const batch = 100;
     let inserted = 0;
     let failed = 0;
-    let lastError: string | null = null;
+    const report: typeof reportRows = [];
+    // Pre-fill skip/error reasons in report
+    for (const r of mapped) {
+      if (r.skip) report.push({ row: r.index + 1, status: "skipped", reason: r.skipReason || "duplicate", phone: r.data.phone || "", email: r.data.email || "", name: `${r.data.first_name || ""} ${r.data.last_name || ""}`.trim() });
+      else if (r.errors.length) report.push({ row: r.index + 1, status: "invalid", reason: r.errors.join("; "), phone: r.data.phone || "", email: r.data.email || "", name: `${r.data.first_name || ""} ${r.data.last_name || ""}`.trim() });
+    }
     for (let i = 0; i < payloads.length; i += batch) {
       const chunk = payloads.slice(i, i + batch);
-      const { error } = await supabase.from("patients").insert(chunk as any);
+      const { error } = await supabase.from("patients").insert(chunk.map((c) => c.payload) as any);
       if (error) {
-        failed += chunk.length;
-        lastError = error.message;
-        console.error("Patient import batch error:", error, "sample row:", chunk[0]);
-      } else inserted += chunk.length;
+        // Per-row fallback so one bad row doesn't fail the whole batch
+        for (const c of chunk) {
+          const { error: e2 } = await supabase.from("patients").insert(c.payload as any);
+          if (e2) {
+            failed++;
+            report.push({ row: c.row, status: "failed", reason: e2.message, phone: c.data.phone || "", email: c.data.email || "", name: `${c.data.first_name || ""} ${c.data.last_name || ""}`.trim() });
+          } else {
+            inserted++;
+            report.push({ row: c.row, status: "imported", reason: "", phone: c.data.phone || "", email: c.data.email || "", name: `${c.data.first_name || ""} ${c.data.last_name || ""}`.trim() });
+          }
+        }
+      } else {
+        inserted += chunk.length;
+        for (const c of chunk) report.push({ row: c.row, status: "imported", reason: "", phone: c.data.phone || "", email: c.data.email || "", name: `${c.data.first_name || ""} ${c.data.last_name || ""}`.trim() });
+      }
       setProgress(Math.round(((i + chunk.length) / payloads.length) * 100));
     }
-    const totalSkipped = errorCount + duplicateSkipCount + failed;
+    const totalSkipped = errorCount + dupDbCount + dupFileCount + failed;
     setImportedCount(inserted);
     setSkippedCount(totalSkipped);
+    setReportRows(report);
     setImporting(false);
     if (inserted > 0) {
       toast.success(`Imported ${inserted} · Skipped ${totalSkipped}`);
+    } else if (failed > 0) {
+      toast.error(`Import failed for all rows`);
     } else {
-      toast.error(`Import failed: ${lastError ?? "Unknown error"}`);
+      toast.info(`No new patients to import`);
     }
     onSuccess();
+  };
+
+  const downloadReport = () => {
+    const header = ["row", "name", "phone", "email", "status", "reason"];
+    const csv = [header.join(",")]
+      .concat(reportRows.map((r) => header.map((h) => {
+        const v = String((r as any)[h] ?? "");
+        return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+      }).join(",")))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `patient_import_report_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const usedFields = new Set(Object.values(mapping).filter(Boolean));

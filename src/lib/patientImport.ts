@@ -79,6 +79,9 @@ export async function parseFile(file: File): Promise<{ headers: string[]; rows: 
 
 export const normalizePhone = (v: any): string => String(v ?? "").replace(/[\s\-()]/g, "").trim();
 
+const PHONE_LIKE = /^[0-9+\-\s()]{7,}$/;
+const isPhoneLike = (v: any) => PHONE_LIKE.test(String(v ?? "").trim());
+
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 function parseDate(v: any): string | null {
@@ -177,6 +180,18 @@ export function buildMappedRows(
           break;
         default:
           data[field] = String(val).trim();
+      }
+    }
+
+    // Guard: first_name accidentally contains a phone number
+    if (data.first_name && isPhoneLike(data.first_name)) {
+      const digits = normalizePhone(data.first_name);
+      if (!data.phone) {
+        // Move to phone, blank out first_name (will trigger required-field error below if no replacement)
+        data.phone = digits;
+        data.first_name = "";
+      } else {
+        errors.push("First name looks like a phone number");
       }
     }
 

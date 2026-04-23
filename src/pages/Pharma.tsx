@@ -51,6 +51,10 @@ const Pharma = () => {
   const [billOpen, setBillOpen] = useState(false);
   const [productForm, setProductForm] = useState({ ...emptyProduct });
   const [stockForm, setStockForm] = useState({ ...emptyStock });
+  const [productUnitRows, setProductUnitRows] = useState<ConversionRow[]>([]);
+  // For Inward Stock: which sub-unit the operator entered prices in.
+  // null = entering at Base Unit. A row id means convert from sub-unit price → base.
+  const [stockSubUnitIdx, setStockSubUnitIdx] = useState<number | null>(null);
 
   // Detail sheet state
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -73,6 +77,9 @@ const Pharma = () => {
       return data;
     },
   });
+
+  const { data: unitsData } = usePharmaProductUnits();
+  const unitsByProduct = unitsData?.byProduct || {};
 
   const { data: vendors = [] } = useQuery({
     queryKey: ["vendors-list"],

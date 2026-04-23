@@ -152,7 +152,7 @@ export interface MappedRow {
 
 export function buildMappedRows(
   rows: Record<string, any>[],
-  mapping: Record<string, PatientField | "">,
+  mapping: Record<string, MappingTarget | "">,
   existingPhones: Set<string>,
   existingEmails: Set<string> = new Set()
 ): MappedRow[] {
@@ -160,14 +160,30 @@ export function buildMappedRows(
   const seenPhones = new Set<string>();
   const seenEmails = new Set<string>();
 
+  // Determine if first/last are explicitly mapped — if so, skip auto-split
+  const explicitFirst = Object.values(mapping).includes("first_name");
+  const explicitLast = Object.values(mapping).includes("last_name");
+
   rows.forEach((raw, i) => {
     const data: Record<string, any> = {};
     const errors: string[] = [];
+    const fromSplit = new Set<string>();
 
     for (const [header, field] of Object.entries(mapping)) {
       if (!field) continue;
       const val = raw[header];
       if (val === undefined || val === null || val === "") continue;
+
+      if (field === FULL_NAME_TARGET) {
+        const full = String(val).replace(/\s+/g, " ").trim();
+        if (!full) continue;
+        const idx = full.indexOf(" ");
+        const fn = idx === -1 ? full : full.slice(0, idx);
+        const ln = idx === -1 ? "" : full.slice(idx + 1).trim();
+        if (!explicitFirst && !data.first_name) { data.first_name = fn; fromSplit.add("first_name"); }
+        if (!explicitLast && !data.last_name) { data.last_name = ln; fromSplit.add("last_name"); }
+        continue;
+      }
 
       switch (field) {
         case "phone":
@@ -198,8 +214,8 @@ export function buildMappedRows(
       }
     }
 
-    // Guard: first_name accidentally contains a phone number
-    if (data.first_name && isPhoneLike(data.first_name)) {
+    // Guard: first_name accidentally contains a phone number (only when not from full-name split)
+    if (data.first_name && !fromSplit.has("first_name") && isPhoneLike(data.first_name)) {
       const digits = normalizePhone(data.first_name);
       if (!data.phone) {
         // Move to phone, blank out first_name (will trigger required-field error below if no replacement)

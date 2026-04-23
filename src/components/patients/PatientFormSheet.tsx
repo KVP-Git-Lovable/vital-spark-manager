@@ -28,6 +28,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import { fetchAll } from "@/lib/supabasePaginate";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
@@ -82,10 +83,14 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
 
   const { data: allPatients = [] } = useQuery({
     queryKey: ["patients-lookup"],
-    queryFn: async () => {
-      const { data } = await supabase.from("patients").select("id, first_name, last_name").order("first_name");
-      return data || [];
-    },
+    queryFn: async () =>
+      await fetchAll<any>((from, to) =>
+        supabase
+          .from("patients")
+          .select("id, first_name, last_name")
+          .order("first_name")
+          .range(from, to)
+      ),
   });
 
 

@@ -1,74 +1,75 @@
 
 
-## Plan: Recover missing patients + fix bulk-import scale issue
+## Plan: Fix 1000-row cap and phone-as-name issue
 
 ### Diagnosis
 
-- **Database now**: 25,019 patients (25,017 imported in last 7 days from your earlier runs).
-- **CSV uploaded**: ~28,663 rows. So ~3,000–3,600 patients are still missing.
-- **Root cause of partial import**: In `ImportPatientsDialog.goToPreview()`, the existing-phone check runs `supabase.from("patients").select("phone").in("phone", [...28k phones])`. Supabase caps that response at **1000 rows** by default, so the dialog only "knew about" 1000 existing patients. But importing didn't dedupe at all (we removed dedup blocking earlier per your request) — combined with the dialog re-running on a partial CSV it produced an incomplete import.
-- **Per your latest rule**: dedup must happen on **phone AND email** so we don't reimport existing patients.
+**Issue 1 — "Showing 1000 of 1000 patients"**
+Database actually has **25,019 patients**. Supabase caps every `.select()` at 1000 rows by default. Every list query in the app (Patients, Appointments dropdown, Billing, Procedures, Photos, etc.) is hitting that cap, so the UI only ever sees the first 1000.
 
-### Two-part fix
+**Issue 2 — Patient dropdown shows phone numbers instead of names**
+The dropdown code is correct (`{p.first_name} {p.last_name}`). The problem is the underlying data: the Salesforce-style CSV import wrote the phone number into the `first_name` column for those rows (or `first_name` is empty and the rendered string falls back to phone elsewhere). We need to (a) verify with a DB scan and (b) repair those rows by swapping the phone-shaped value out of `first_name` and using the actual name from the source CSV when available.
 
-**Part A — One-time recovery run (now, server-side)**
+### Fix
 
-Process your `patients_import.csv` directly on the server using the same column mapping as your Salesforce export:
+**Part A — Remove the 1000-row cap (permanent, all list queries)**
 
-```text
-First_Name → first_name        Mobile_Number__c → phone
-Last_Name  → last_name         Email_ID__c     → email
-Date_of_birth__c → date_of_birth   Sex__c → gender
-Place__c → address              Patient_source__c → source
-Reason_for_Consulting__c → skin_concerns
-Patient_details__c → medical_history
-Others__c → notes
-Emergency_Contact_Person__c → emergency_contact_name
-Emergency_Contact_Number__c → emergency_contact_phone
-FB_follower__c → follows_facebook
-Instagram_follower__c → follows_instagram
+Add a small paginated fetch helper and replace the unbounded `.select()` calls in these files:
+- `src/pages/Patients.tsx` (main list — fetch all 25k)
+- `src/pages/Appointments.tsx` (patient + staff dropdowns + appointments list)
+- `src/pages/Billing.tsx` (patient dropdown)
+- `src/pages/Photos.tsx` (patient dropdown)
+- `src/components/procedures/ProcedureFormDialog.tsx` (patient dropdown)
+- `src/components/patients/PatientFormSheet.tsx` (family lookup)
+
+Helper pattern (in `src/lib/supabasePaginate.ts`, new file):
+```ts
+export async function fetchAll<T>(builder: (from: number, to: number) => any) {
+  const PAGE = 1000;
+  const out: T[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await builder(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return out;
+}
 ```
 
-Steps:
-1. Pull all existing `(phone, email)` from the DB in pages of 1000 (full 25k rows) → build two sets: `existingPhones`, `existingEmails`.
-2. Stream-parse the CSV.
-3. For each row:
-   - Normalize phone (strip spaces/dashes), lowercase email.
-   - **Skip** if phone exists in DB OR email exists in DB OR phone+email already seen earlier in this CSV.
-   - **Skip** if missing both first name and phone.
-   - Otherwise add to insert batch.
-4. Insert in batches of 500 using the service role (bypasses any RLS edge cases, faster).
-5. After completion, output a **CSV report** to `/mnt/documents/patient_import_report.csv` with columns: `row_number, salesforce_id, name, phone, email, status (imported / skipped_duplicate_phone / skipped_duplicate_email / skipped_duplicate_in_file / skipped_invalid / failed), reason`.
-6. Print summary: total rows, imported, skipped (broken down), failed.
+**Part B — Convert big dropdowns to a searchable combobox**
 
-This runs once and recovers the ~3k missing records without touching the dialog UI.
+Rendering 25k `<SelectItem>`s will freeze the browser. Replace the plain `Select` patient pickers in Appointments / Billing / Photos / Procedures with the existing searchable combobox pattern (same look as `StaffCombobox` / `VendorCombobox`, with virtualized command list and async search by name/phone). New component: `src/components/patients/PatientCombobox.tsx`.
 
-**Part B — Permanent fix to `ImportPatientsDialog` so this never happens again**
+**Part C — Repair patient rows where `first_name` is a phone number**
 
-Modify `src/components/patients/ImportPatientsDialog.tsx` and `src/lib/patientImport.ts`:
+One-time SQL cleanup (safe, reversible):
+1. Identify rows: `WHERE first_name ~ '^[0-9+\-\s()]{7,}$'` — first_name is digits/symbols only.
+2. Report count to user before changing anything.
+3. For each such row, if `phone` is empty, copy the digits into `phone`. Then set `first_name` to a sensible placeholder derived from `email` local-part (capitalized) or `'Patient'` if no email. Preserve original value in a new `notes` append (`"Imported name: <original>"`) so nothing is lost.
+4. Run as a migration so it's auditable.
 
-1. **Fix existing-record lookup to handle >1000 rows**: paginate the `patients` SELECT in 1000-row pages (using `.range()`) until exhausted — load all phones AND emails into two sets.
-2. **Dedup on phone OR email** (both, not just phone) — both against DB and within the file.
-3. **Mark dedup rows as `skip` with a clear reason** (`Duplicate phone in DB`, `Duplicate email in DB`, `Duplicate within file`) — already-imported patients will not be re-inserted.
-4. **Batch inserts**: keep at 100 but add proper per-row error capture so a single bad row doesn't fail the whole batch (fall back to per-row insert on batch failure).
-5. **Step 3 preview**: show separate counters — `Valid · Duplicates (DB) · Duplicates (file) · Errors`.
-6. **Step 4 result**: show the breakdown and add a "Download report" button that exports a CSV of every row's outcome.
+**Part D — Prevent regression in importer**
+
+Add a validation in `src/lib/patientImport.ts`: if `first_name` after normalization matches a phone-like regex AND `phone` is empty, swap it; if `phone` is also present, flag the row as an error in the preview ("First name looks like a phone number").
+
+### Deliverables
+1. Patients list shows all 25,019 patients (with pagination/virtual scrolling — see note below).
+2. Appointment / Billing / Photo / Procedure dropdowns show searchable names, not phone numbers, across all 25k.
+3. DB cleanup report: how many rows had phone-as-name, what each was changed to.
+4. Importer guards against the same mistake going forward.
+
+### Note on rendering 25k rows
+For the **Patients page table** itself, also add simple client-side pagination (50 per page) — rendering 25k table rows at once is slow. Search stays global (filters all 25k).
 
 ### Files
-
-- **Run once**: a one-off Node script (server-side, not added to repo) to recover the missing ~3k patients from your uploaded CSV.
-- **Modified**: `src/components/patients/ImportPatientsDialog.tsx` — paginated existing-record fetch, phone+email dedup, per-row error fallback, downloadable report.
-- **Modified**: `src/lib/patientImport.ts` — accept both `existingPhones` and `existingEmails` sets, return richer skip reasons.
-
-### Deliverables to you
-
-1. ✅ All missing patients imported (target: bring total to ~28,663 unique).
-2. ✅ A downloadable CSV report at `/mnt/documents/patient_import_report.csv` listing every row's outcome.
-3. ✅ Console summary: `Imported: X · Skipped (DB dup): Y · Skipped (file dup): Z · Invalid: W · Failed: F`.
-4. ✅ Future imports through the UI will correctly skip already-existing patients (by phone or email) at any scale.
+- New: `src/lib/supabasePaginate.ts`, `src/components/patients/PatientCombobox.tsx`, one DB migration for the cleanup.
+- Modified: `src/pages/Patients.tsx`, `src/pages/Appointments.tsx`, `src/pages/Billing.tsx`, `src/pages/Photos.tsx`, `src/components/procedures/ProcedureFormDialog.tsx`, `src/components/patients/PatientFormSheet.tsx`, `src/lib/patientImport.ts`.
 
 ### Out of scope
-
-- No DB schema changes (no unique constraints added — your data already has legitimate duplicate phones/emails for family members, so a hard constraint would break inserts).
-- Existing 25,019 patients are not touched/deduped — only new rows from the CSV are added.
+- No schema changes to `patients` table.
+- No deletion of any patient records — cleanup only edits `first_name` / `phone` / `notes`.
 

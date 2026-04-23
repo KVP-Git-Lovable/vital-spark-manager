@@ -118,23 +118,35 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
       // Paginated fetch of ALL existing patients (phone + email) to handle 1000-row cap
       const existingPhones = new Set<string>();
       const existingEmails = new Set<string>();
+      const phoneMap = new Map<string, any>();
       const PAGE = 1000;
       let from = 0;
       while (true) {
         const { data, error } = await supabase
           .from("patients")
-          .select("phone,email")
+          .select("id,phone,email,sf_id,first_name,last_name,date_of_birth,gender,address,email,emergency_contact_name,emergency_contact_phone,source,medical_history,previous_treatments,notes,skin_concerns,follows_facebook,follows_instagram")
           .range(from, from + PAGE - 1);
         if (error) throw error;
         if (!data || data.length === 0) break;
         for (const r of data) {
-          if (r.phone) existingPhones.add(String(r.phone).replace(/[\s\-()]/g, "").trim());
+          if (r.phone) {
+            const p = String(r.phone).replace(/[\s\-()]/g, "").trim();
+            existingPhones.add(p);
+            if (!phoneMap.has(p)) phoneMap.set(p, r);
+          }
           if (r.email) existingEmails.add(String(r.email).trim().toLowerCase());
         }
         if (data.length < PAGE) break;
         from += PAGE;
       }
-      const m = buildMappedRows(rows, mapping, existingPhones, existingEmails);
+      // In update mode, do NOT treat phone matches as duplicates — they become updates
+      const m = buildMappedRows(
+        rows,
+        mapping,
+        updateMode ? new Set() : existingPhones,
+        updateMode ? new Set() : existingEmails
+      );
+      setPhoneToPatient(phoneMap);
       setMapped(m);
       setStep(3);
     } catch (e: any) {

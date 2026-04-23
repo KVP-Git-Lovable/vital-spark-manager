@@ -17,6 +17,7 @@ export const PATIENT_FIELDS = [
   "skin_concerns",
   "follows_facebook",
   "follows_instagram",
+  "sf_id",
 ] as const;
 
 export type PatientField = (typeof PATIENT_FIELDS)[number];
@@ -44,6 +45,7 @@ const FIELD_ALIASES: Record<PatientField, string[]> = {
   skin_concerns: ["skin concerns", "concerns", "skin issues", "problems", "reason for consulting c"],
   follows_facebook: ["follows facebook", "facebook", "fb follower", "follows fb", "fb follower c"],
   follows_instagram: ["follows instagram", "instagram", "ig follower", "follows ig", "instagram follower c"],
+  sf_id: ["id", "sf id", "salesforce id", "record id", "sfid"],
 };
 
 const FULL_NAME_ALIASES = ["patient name", "patient name c", "full name", "name", "patient"];

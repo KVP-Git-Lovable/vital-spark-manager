@@ -315,7 +315,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 <Field label="Name" value={product.name} />
                 <Field label="Generic Name" value={product.generic_name} />
                 <Field label="Category" value={product.category} />
-                <Field label="Unit" value={formatProductUnit(product)} />
+                <Field label="Unit" value={formatProductUnit(product, existingUnits as any)} />
                 <Field label="Manufacturer" value={product.manufacturer} />
                 <Field label="HSN Code" value={product.hsn_code} />
                 <Field label="Reorder Level" value={product.reorder_level} />

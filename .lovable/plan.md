@@ -1,75 +1,70 @@
 
 
-## Plan: Fix 1000-row cap and phone-as-name issue
+## Database Schema — Lovable Cloud (public schema)
 
-### Diagnosis
+Below is the complete schema for all **57 tables** in your project's database. No foreign-key constraints are defined at the DB level (relationships are managed in app code via UUID columns).
 
-**Issue 1 — "Showing 1000 of 1000 patients"**
-Database actually has **25,019 patients**. Supabase caps every `.select()` at 1000 rows by default. Every list query in the app (Patients, Appointments dropdown, Billing, Procedures, Photos, etc.) is hitting that cap, so the UI only ever sees the first 1000.
+### Patient & Family
+- **patients** — `id, first_name, last_name, email, phone, date_of_birth, gender, address, city, state, pincode, blood_group, medical_history, current_medications, allergies, skin_type, skin_concerns, previous_treatments, notes, status, source, source_ad_details, source_referral_doctor, emergency_contact_name, emergency_contact_phone, facebook_url, instagram_url, follows_facebook, follows_instagram, doctor_id, auth_user_id, created_at, updated_at`
+- **patient_family_members** — `id, patient_id, related_patient_id, name, relationship, phone, email, city, state, is_primary_contact, notes, created_at`
+- **patient_photos** — `id, patient_id, appointment_id, procedure_id, photo_url, photo_type, taken_at, notes, created_at`
+- **patient_feedback** — `id, patient_id, appointment_id, patient_name, nps_score, service_rating, created_at`
+- **patient_pharma_requests** — `id, patient_id, product_id, product_name, quantity, status, notes, created_at, updated_at`
+- **patient_portal_tokens** — `id, patient_id, phone, otp_code, session_token, expires_at, is_used, created_at`
 
-**Issue 2 — Patient dropdown shows phone numbers instead of names**
-The dropdown code is correct (`{p.first_name} {p.last_name}`). The problem is the underlying data: the Salesforce-style CSV import wrote the phone number into the `first_name` column for those rows (or `first_name` is empty and the rendered string falls back to phone elsewhere). We need to (a) verify with a DB scan and (b) repair those rows by swapping the phone-shaped value out of `first_name` and using the actual name from the source CSV when available.
+### Appointments & Clinical
+- **appointments** — `id, patient_id, staff_id, patient_name, service, start_time, end_time, status, source, problem_area_ids[], survey_template_id, is_recurring, recurrence_pattern, recurrence_end_date, created_at, updated_at`
+- **procedures** — clinical procedure records (patient_id, service, doctor, dates, notes, etc.)
+- **procedure_attachments** — files linked to procedures
+- **prescriptions** — prescription records
+- **problem_areas** — clinical concern taxonomy
+- **services** — Service Master (template repository)
+- **service_medicines** — service-to-medicine mapping
+- **doctors** — `id, name, email, phone, specialization, status, role_id, created_at, updated_at`
 
-### Fix
+### Billing & Finance
+- **invoices** — `id, invoice_number, patient_id, appointment_id, patient_name, services[], total_amount, paid_amount, payment_type, payment_mode, status, tax_id, tax_rate, tax_amount, cgst_amount, sgst_amount, igst_amount, notes, created_at, updated_at`
+- **expenses** — `id, title, category_id, amount, expense_date, vendor_name, payment_mode, reference_number, description, notes, attachment_url, attachment_name, created_at, updated_at`
+- **expense_categories** — `id, name, description, is_active, created_at`
+- **tax_master** / **tax_master_products** / **tax_master_services** — tax configurations
+- **product_prices** — pricing tiers
 
-**Part A — Remove the 1000-row cap (permanent, all list queries)**
+### Pharmacy & Shop
+- **pharma_products** — `id, name, generic_name, category, manufacturer, unit, base_unit, sub_unit, conversion_value, qty_per_unit, hsn_code, gst_percent, mrp, selling_price, reorder_level, image_url, vendor_id, expiry_date, created_at, updated_at`
+- **pharma_inventory** — batch-level stock (batch_number, quantity, mrp, purchase_price, selling_price, expiry_date, supplier, invoice_number, received_date)
+- **pharma_bills** + **pharma_bill_items** — POS billing
+- **portal_orders** + **portal_order_items** — patient portal e-commerce orders
+- **cart_items** — shopping cart
+- **portal_settings** — portal configuration
 
-Add a small paginated fetch helper and replace the unbounded `.select()` calls in these files:
-- `src/pages/Patients.tsx` (main list — fetch all 25k)
-- `src/pages/Appointments.tsx` (patient + staff dropdowns + appointments list)
-- `src/pages/Billing.tsx` (patient dropdown)
-- `src/pages/Photos.tsx` (patient dropdown)
-- `src/components/procedures/ProcedureFormDialog.tsx` (patient dropdown)
-- `src/components/patients/PatientFormSheet.tsx` (family lookup)
+### Staff & HR
+- **staff** — full staff profile
+- **staff_roles** / **user_roles_config** / **role_module_permissions** — RBAC
+- **staff_education** / **staff_experience** / **staff_aspirations** / **staff_requests** — HR sub-tables
+- **staff_leave_balances** / **leave_applications** / **leave_types** — leave management
+- **attendance_records** — `id, staff_id, date, check_in_time, check_out_time, check_in_photo, check_out_photo, status, created_at, updated_at`
+- **working_hours** — staff schedules
 
-Helper pattern (in `src/lib/supabasePaginate.ts`, new file):
-```ts
-export async function fetchAll<T>(builder: (from: number, to: number) => any) {
-  const PAGE = 1000;
-  const out: T[] = [];
-  let from = 0;
-  while (true) {
-    const { data, error } = await builder(from, from + PAGE - 1);
-    if (error) throw error;
-    if (!data?.length) break;
-    out.push(...data);
-    if (data.length < PAGE) break;
-    from += PAGE;
-  }
-  return out;
-}
-```
+### Assets & Vendors
+- **assets** — equipment registry (warranty, AMC, vendor, purchase details)
+- **asset_issues** — maintenance tickets
+- **asset_service_links** — asset-to-service mapping
+- **vendors** + **vendor_contacts** — supplier registry
 
-**Part B — Convert big dropdowns to a searchable combobox**
+### Surveys & Reports
+- **survey_templates** + **survey_questions** + **survey_responses** — clinical surveys
+- **survey_template_products** + **survey_template_services** — recommendation pools
+- **saved_reports** + **report_folders** — Report Configurator
+- **category_master** / **unit_master** — master data
 
-Rendering 25k `<SelectItem>`s will freeze the browser. Replace the plain `Select` patient pickers in Appointments / Billing / Photos / Procedures with the existing searchable combobox pattern (same look as `StaffCombobox` / `VendorCombobox`, with virtualized command list and async search by name/phone). New component: `src/components/patients/PatientCombobox.tsx`.
+### Clinic Config
+- **clinic_settings** — `id, name, logo_url, address, city, state, pincode, phone, email, gst_number, created_at, updated_at`
 
-**Part C — Repair patient rows where `first_name` is a phone number**
+### Deliverable
+A downloadable **Markdown file** at `/mnt/documents/database_schema.md` with the full schema (every column, type, nullable, default, RLS summary) for all 57 tables — generated by querying `information_schema` directly. You'll see a `<lov-artifact>` to download it.
 
-One-time SQL cleanup (safe, reversible):
-1. Identify rows: `WHERE first_name ~ '^[0-9+\-\s()]{7,}$'` — first_name is digits/symbols only.
-2. Report count to user before changing anything.
-3. For each such row, if `phone` is empty, copy the digits into `phone`. Then set `first_name` to a sensible placeholder derived from `email` local-part (capitalized) or `'Patient'` if no email. Preserve original value in a new `notes` append (`"Imported name: <original>"`) so nothing is lost.
-4. Run as a migration so it's auditable.
-
-**Part D — Prevent regression in importer**
-
-Add a validation in `src/lib/patientImport.ts`: if `first_name` after normalization matches a phone-like regex AND `phone` is empty, swap it; if `phone` is also present, flag the row as an error in the preview ("First name looks like a phone number").
-
-### Deliverables
-1. Patients list shows all 25,019 patients (with pagination/virtual scrolling — see note below).
-2. Appointment / Billing / Photo / Procedure dropdowns show searchable names, not phone numbers, across all 25k.
-3. DB cleanup report: how many rows had phone-as-name, what each was changed to.
-4. Importer guards against the same mistake going forward.
-
-### Note on rendering 25k rows
-For the **Patients page table** itself, also add simple client-side pagination (50 per page) — rendering 25k table rows at once is slow. Search stays global (filters all 25k).
-
-### Files
-- New: `src/lib/supabasePaginate.ts`, `src/components/patients/PatientCombobox.tsx`, one DB migration for the cleanup.
-- Modified: `src/pages/Patients.tsx`, `src/pages/Appointments.tsx`, `src/pages/Billing.tsx`, `src/pages/Photos.tsx`, `src/components/procedures/ProcedureFormDialog.tsx`, `src/components/patients/PatientFormSheet.tsx`, `src/lib/patientImport.ts`.
-
-### Out of scope
-- No schema changes to `patients` table.
-- No deletion of any patient records — cleanup only edits `first_name` / `phone` / `notes`.
+### Note
+- All tables have **RLS enabled** with permissive policies for both `anon` and `authenticated` roles (open access).
+- No DB-level foreign keys; relationships are enforced in application code.
+- No custom triggers; only the `update_updated_at_column()` function exists.
 

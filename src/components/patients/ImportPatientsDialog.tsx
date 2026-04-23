@@ -267,7 +267,7 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
                           <Select
                             value={mapping[h] || "__skip__"}
                             onValueChange={(v) =>
-                              setMapping((prev) => ({ ...prev, [h]: v === "__skip__" ? "" : (v as PatientField) }))
+                              setMapping((prev) => ({ ...prev, [h]: v === "__skip__" ? "" : (v as MappingTarget) }))
                             }
                           >
                             <SelectTrigger className="h-8 w-64">
@@ -275,6 +275,12 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__skip__">— Skip —</SelectItem>
+                              <SelectItem
+                                value={FULL_NAME_TARGET}
+                                disabled={usedFields.has(FULL_NAME_TARGET) && mapping[h] !== FULL_NAME_TARGET}
+                              >
+                                Full Name (auto-split) *
+                              </SelectItem>
                               {PATIENT_FIELDS.map((f) => (
                                 <SelectItem key={f} value={f} disabled={usedFields.has(f) && mapping[h] !== f}>
                                   {FIELD_LABELS[f]}

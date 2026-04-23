@@ -34,6 +34,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { fetchAll } from "@/lib/supabasePaginate";
+import { PatientCombobox } from "@/components/patients/PatientCombobox";
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 // 15-min slots from 8:00 to 19:45
@@ -108,9 +110,13 @@ const Appointments = () => {
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("patients").select("id, first_name, last_name, phone, source, source_ad_details, source_referral_doctor").order("first_name");
-      if (error) throw error;
-      return data;
+      return await fetchAll<any>((from, to) =>
+        supabase
+          .from("patients")
+          .select("id, first_name, last_name, phone, source, source_ad_details, source_referral_doctor")
+          .order("first_name")
+          .range(from, to)
+      );
     },
   });
 
@@ -144,9 +150,13 @@ const Appointments = () => {
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("appointments").select("*, patients(first_name, last_name, phone)").order("start_time");
-      if (error) throw error;
-      return data;
+      return await fetchAll<any>((from, to) =>
+        supabase
+          .from("appointments")
+          .select("*, patients(first_name, last_name, phone)")
+          .order("start_time")
+          .range(from, to)
+      );
     },
   });
 
@@ -161,9 +171,12 @@ const Appointments = () => {
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices-for-appointments"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("invoices").select("id, appointment_id, total_amount, paid_amount, payment_mode, status");
-      if (error) throw error;
-      return data;
+      return await fetchAll<any>((from, to) =>
+        supabase
+          .from("invoices")
+          .select("id, appointment_id, total_amount, paid_amount, payment_mode, status")
+          .range(from, to)
+      );
     },
   });
 
@@ -673,12 +686,13 @@ const Appointments = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                   <div>
                     <Label>Patient</Label>
-                    <Select value={patientId} onValueChange={setPatientId}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select patient" /></SelectTrigger>
-                      <SelectContent>
-                        {patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <PatientCombobox
+                      value={patientId}
+                      onValueChange={setPatientId}
+                      placeholder="Select patient"
+                      className="mt-1.5"
+                      withSource
+                    />
                     {patientId && (() => {
                       const p = patients.find(pt => pt.id === patientId);
                       return p?.phone ? (

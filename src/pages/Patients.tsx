@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Trash2, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -29,17 +29,19 @@ import { CameraCapture } from "@/components/shared/CameraCapture";
 import { ImportPatientsDialog } from "@/components/patients/ImportPatientsDialog";
 import { EngagementBadge } from "@/components/patients/EngagementBadge";
 import { useEngagementScores } from "@/hooks/useEngagementScores";
+import { fetchAll } from "@/lib/supabasePaginate";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
 
 const fetchPatients = async (): Promise<Patient[]> => {
-  const { data, error } = await supabase
-    .from("patients")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return data;
+  return await fetchAll<Patient>((from, to) =>
+    supabase
+      .from("patients")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, to)
+  );
 };
 
 const Patients = () => {
@@ -52,6 +54,8 @@ const Patients = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const { data: patients = [], isLoading, refetch } = useQuery({
     queryKey: ["patients"],
@@ -61,12 +65,20 @@ const Patients = () => {
   const patientIds = patients.map((p) => p.id);
   const { data: engagementScores = {} } = useEngagementScores(patientIds);
 
-  const filtered = patients.filter(
-    (p) =>
-      `${p.first_name} ${p.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
-      p.email?.toLowerCase().includes(search.toLowerCase()) ||
-      p.phone?.includes(search)
+  const filtered = useMemo(
+    () =>
+      patients.filter(
+        (p) =>
+          `${p.first_name} ${p.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
+          p.email?.toLowerCase().includes(search.toLowerCase()) ||
+          p.phone?.includes(search)
+      ),
+    [patients, search]
   );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const getAge = (dob: string | null) => {
     if (!dob) return null;
@@ -93,10 +105,15 @@ const Patients = () => {
   };
 
   const toggleAll = () => {
-    if (filtered.every((p) => selectedIds.has(p.id)) && filtered.length > 0) {
-      setSelectedIds(new Set());
+    if (paged.length === 0) return;
+    if (paged.every((p) => selectedIds.has(p.id))) {
+      const next = new Set(selectedIds);
+      paged.forEach((p) => next.delete(p.id));
+      setSelectedIds(next);
     } else {
-      setSelectedIds(new Set(filtered.map((p) => p.id)));
+      const next = new Set(selectedIds);
+      paged.forEach((p) => next.add(p.id));
+      setSelectedIds(next);
     }
   };
 
@@ -115,7 +132,7 @@ const Patients = () => {
     refetch();
   };
 
-  const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selectedIds.has(p.id));
+  const allFilteredSelected = paged.length > 0 && paged.every((p) => selectedIds.has(p.id));
 
   return (
     <div>
@@ -148,14 +165,14 @@ const Patients = () => {
         transition={{ duration: 0.3 }}
         className="data-table"
       >
-        <div className="p-4 border-b flex flex-col sm:flex-row gap-3">
+          <div className="p-4 border-b flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by name, email, or phone..."
               className="pl-9 bg-muted border-0"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
           <Button variant="outline" className="gap-2">
@@ -193,7 +210,7 @@ const Patients = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filtered.map((patient) => (
+                {paged.map((patient) => (
                   <tr key={patient.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => navigate(`/patients/${patient.id}`)}>
                     <td className="p-4" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
@@ -205,10 +222,10 @@ const Patients = () => {
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-semibold text-sm shrink-0">
-                          {patient.first_name[0]}{patient.last_name[0]}
+                          {(patient.first_name?.[0] || "?")}{(patient.last_name?.[0] || "")}
                         </div>
                         <div>
-                          <p className="font-medium text-sm">{patient.first_name} {patient.last_name}</p>
+                          <p className="font-medium text-sm">{`${patient.first_name || ""} ${patient.last_name || ""}`.trim() || "Unnamed"}</p>
                           <p className="text-xs text-muted-foreground">
                             {patient.gender || "—"}
                             {getAge(patient.date_of_birth) !== null && ` · Age ${getAge(patient.date_of_birth)}`}
@@ -274,8 +291,35 @@ const Patients = () => {
           </div>
         )}
 
-        <div className="p-4 border-t flex items-center justify-between text-sm text-muted-foreground">
-          <span>Showing {filtered.length} of {patients.length} patients</span>
+        <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
+          <span>
+            Showing {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–
+            {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length.toLocaleString()}
+            {search ? ` (filtered from ${patients.length.toLocaleString()})` : ""}
+          </span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span className="text-xs">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
       </motion.div>
 

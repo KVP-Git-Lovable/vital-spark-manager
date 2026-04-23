@@ -23,6 +23,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { fetchAll } from "@/lib/supabasePaginate";
+import { PatientCombobox } from "@/components/patients/PatientCombobox";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -58,9 +60,13 @@ const Photos = () => {
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("patients").select("id, first_name, last_name").order("first_name");
-      if (error) throw error;
-      return data;
+      return await fetchAll<any>((from, to) =>
+        supabase
+          .from("patients")
+          .select("id, first_name, last_name")
+          .order("first_name")
+          .range(from, to)
+      );
     },
   });
 
@@ -186,12 +192,12 @@ const Photos = () => {
             <div className="space-y-4 pt-2">
               <div>
                 <Label>Patient *</Label>
-                <Select value={patientId} onValueChange={setPatientId}>
-                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select patient" /></SelectTrigger>
-                  <SelectContent>
-                    {patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <PatientCombobox
+                  value={patientId}
+                  onValueChange={setPatientId}
+                  placeholder="Select patient"
+                  className="mt-1.5"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">

@@ -43,6 +43,8 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
   const [progress, setProgress] = useState(0);
   const [importedCount, setImportedCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
+  const [defaultDate, setDefaultDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [loadingMaps, setLoadingMaps] = useState(false);
 
   const reset = () => {
     setStep(1);
@@ -54,6 +56,7 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
     setProgress(0);
     setImportedCount(0);
     setSkippedCount(0);
+    setDefaultDate(new Date().toISOString().slice(0, 10));
   };
 
   const handleClose = (o: boolean) => {
@@ -71,7 +74,7 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
       }
       setHeaders(h);
       setRows(r);
-      setMapping(Object.fromEntries(h.map((c) => [c, ""])) as Record<string, ProcedureField | "">);
+      setMapping(autoDetectProcedureMapping(h));
       setStep(2);
     } catch (e: any) {
       toast.error(`Failed to parse: ${e.message}`);
@@ -82,8 +85,11 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
 
   const mappingValid = useMemo(() => {
     const used = new Set(Object.values(mapping).filter(Boolean));
-    return REQUIRED_PROCEDURE_FIELDS.every((f) => used.has(f));
-  }, [mapping]);
+    const hasPatient =
+      used.has("patient_sf_id") || used.has("patient_name") || used.has("patient_phone");
+    const hasDate = used.has("procedure_date") || !!defaultDate;
+    return hasPatient && hasDate;
+  }, [mapping, defaultDate]);
 
   const goToPreview = async () => {
     // Collect phones to lookup

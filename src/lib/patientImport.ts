@@ -113,7 +113,10 @@ function parseDate(v: any): string | null {
   if (m1) {
     const dd = +m1[1], mm = +m1[2];
     let yy = +m1[3];
-    if (yy < 100) yy += 2000;
+    if (yy < 100) {
+      const currentYY = new Date().getFullYear() % 100;
+      yy += yy <= currentYY ? 2000 : 1900;
+    }
     const d = new Date(Date.UTC(yy, mm - 1, dd));
     if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
   }

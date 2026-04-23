@@ -181,28 +181,37 @@ const Pharma = () => {
   // ─── Mutations ──────────────────────────────────
   const addProduct = useMutation({
     mutationFn: async () => {
+      // Pick the default-active row from the editor (if any) to mirror into legacy cols.
+      const activeRows = productUnitRows.filter((r) => r.is_active && r.sub_unit && Number(r.conversion_value) > 1);
+      const defaultRow = activeRows.find((r) => r.is_default) || activeRows[0] || null;
       const payload: any = {
         name: productForm.name,
         generic_name: productForm.generic_name || null,
         category: productForm.category,
         manufacturer: productForm.manufacturer || null,
         base_unit: productForm.base_unit || null,
-        sub_unit: productForm.sub_unit || null,
-        conversion_value: productForm.conversion_value || 1,
+        sub_unit: defaultRow?.sub_unit || null,
+        conversion_value: defaultRow ? Number(defaultRow.conversion_value) || 1 : 1,
         unit: productForm.base_unit || "Nos", // legacy fallback
         reorder_level: productForm.reorder_level,
         vendor_id: productForm.vendor_ids.length > 0 ? productForm.vendor_ids[0] : null,
-        qty_per_unit: productForm.conversion_value || 1, // legacy fallback
+        qty_per_unit: defaultRow ? Number(defaultRow.conversion_value) || 1 : 1,
         hsn_code: productForm.hsn_code || null,
         gst_percent: Number(productForm.gst_percent) || 0,
       };
-      const { error } = await supabase.from("pharma_products").insert(payload);
+      const { data: inserted, error } = await supabase.from("pharma_products").insert(payload).select().single();
       if (error) throw error;
+      // Persist conversion rows
+      if (productUnitRows.length > 0 && inserted?.id) {
+        await syncProductUnits(supabase, inserted.id, productUnitRows);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-product-units"] });
       toast.success("Product added");
       setProductForm({ ...emptyProduct });
+      setProductUnitRows([]);
       setProductOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -335,13 +344,32 @@ const Pharma = () => {
       category: product.category || "General",
       manufacturer: product.manufacturer || "",
       base_unit: product.base_unit || product.unit || "",
-      sub_unit: product.sub_unit || "",
-      conversion_value: Number(product.conversion_value ?? product.qty_per_unit ?? 1) || 1,
       reorder_level: product.reorder_level || 10,
       vendor_ids: product.vendor_id ? [product.vendor_id] : [],
       hsn_code: product.hsn_code || "",
       gst_percent: Number(product.gst_percent) || 0,
     });
+    // Seed conversion rows from existing units (if any) or from legacy fields.
+    const existing = unitsByProduct[product.id] || [];
+    if (existing.length > 0) {
+      setProductUnitRows(existing.map((r: any, i: number) => ({
+        sub_unit: r.sub_unit,
+        conversion_value: Number(r.conversion_value) || 1,
+        is_active: !!r.is_active,
+        is_default: !!r.is_default,
+        sort_order: i,
+      })));
+    } else if (product.sub_unit) {
+      setProductUnitRows([{
+        sub_unit: product.sub_unit,
+        conversion_value: Number(product.conversion_value ?? product.qty_per_unit ?? 1) || 1,
+        is_active: true,
+        is_default: true,
+        sort_order: 0,
+      }]);
+    } else {
+      setProductUnitRows([]);
+    }
     setProductOpen(true);
   };
 

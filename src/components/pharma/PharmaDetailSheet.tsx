@@ -16,6 +16,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatProductUnit } from "@/lib/unitDisplay";
 import { getActiveBatchPrice } from "@/lib/productPricing";
+import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/components/pharma/UnitConversionsEditor";
+import { useProductUnits } from "@/hooks/usePharmaProductUnits";
 import {
   AlertDialog,
   AlertDialogAction,

@@ -1,5 +1,6 @@
 // Resolve product pricing from the latest active inventory batch.
 // Falls back to legacy product-level prices when no batch exists.
+import { getDefaultUnit, type ProductUnitRow } from "./unitDisplay";
 
 export interface InventoryRow {
   product_id: string;
@@ -18,7 +19,11 @@ export interface ResolvedPrice {
   hasBatch: boolean;
 }
 
-export function getActiveBatchPrice(product: any, inventoryRows: InventoryRow[] = []): ResolvedPrice {
+export function getActiveBatchPrice(
+  product: any,
+  inventoryRows: InventoryRow[] = [],
+  units?: ProductUnitRow[],
+): ResolvedPrice {
   const today = new Date().toISOString().slice(0, 10);
   const batches = inventoryRows
     .filter(r => r.product_id === product?.id && Number(r.quantity) > 0 && r.expiry_date >= today)
@@ -30,8 +35,17 @@ export function getActiveBatchPrice(product: any, inventoryRows: InventoryRow[] 
     ? Number(latest.selling_price)
     : Number(product?.selling_price ?? baseMrp);
 
-  const conv = Number(product?.conversion_value ?? product?.qty_per_unit ?? 1) || 1;
-  const sub = product?.sub_unit || null;
+  // Prefer default active row from pharma_product_units; fall back to legacy fields.
+  const defaultUnit = getDefaultUnit(units);
+  let conv: number;
+  let sub: string | null;
+  if (defaultUnit) {
+    conv = Number(defaultUnit.conversion_value) || 1;
+    sub = defaultUnit.sub_unit || null;
+  } else {
+    conv = Number(product?.conversion_value ?? product?.qty_per_unit ?? 1) || 1;
+    sub = product?.sub_unit || null;
+  }
   const subUnitPrice = sub && conv > 1 ? baseSp / conv : null;
 
   return {

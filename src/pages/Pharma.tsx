@@ -25,9 +25,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatProductUnit } from "@/lib/unitDisplay";
 import { getActiveBatchPrice } from "@/lib/productPricing";
+import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/components/pharma/UnitConversionsEditor";
+import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", sub_unit: "", conversion_value: 1, reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0 };
 const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {
@@ -49,6 +51,10 @@ const Pharma = () => {
   const [billOpen, setBillOpen] = useState(false);
   const [productForm, setProductForm] = useState({ ...emptyProduct });
   const [stockForm, setStockForm] = useState({ ...emptyStock });
+  const [productUnitRows, setProductUnitRows] = useState<ConversionRow[]>([]);
+  // For Inward Stock: which sub-unit the operator entered prices in.
+  // null = entering at Base Unit. A row id means convert from sub-unit price → base.
+  const [stockSubUnitIdx, setStockSubUnitIdx] = useState<number | null>(null);
 
   // Detail sheet state
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -71,6 +77,9 @@ const Pharma = () => {
       return data;
     },
   });
+
+  const { data: unitsData } = usePharmaProductUnits();
+  const unitsByProduct = unitsData?.byProduct || {};
 
   const { data: vendors = [] } = useQuery({
     queryKey: ["vendors-list"],
@@ -172,28 +181,37 @@ const Pharma = () => {
   // ─── Mutations ──────────────────────────────────
   const addProduct = useMutation({
     mutationFn: async () => {
+      // Pick the default-active row from the editor (if any) to mirror into legacy cols.
+      const activeRows = productUnitRows.filter((r) => r.is_active && r.sub_unit && Number(r.conversion_value) > 1);
+      const defaultRow = activeRows.find((r) => r.is_default) || activeRows[0] || null;
       const payload: any = {
         name: productForm.name,
         generic_name: productForm.generic_name || null,
         category: productForm.category,
         manufacturer: productForm.manufacturer || null,
         base_unit: productForm.base_unit || null,
-        sub_unit: productForm.sub_unit || null,
-        conversion_value: productForm.conversion_value || 1,
+        sub_unit: defaultRow?.sub_unit || null,
+        conversion_value: defaultRow ? Number(defaultRow.conversion_value) || 1 : 1,
         unit: productForm.base_unit || "Nos", // legacy fallback
         reorder_level: productForm.reorder_level,
         vendor_id: productForm.vendor_ids.length > 0 ? productForm.vendor_ids[0] : null,
-        qty_per_unit: productForm.conversion_value || 1, // legacy fallback
+        qty_per_unit: defaultRow ? Number(defaultRow.conversion_value) || 1 : 1,
         hsn_code: productForm.hsn_code || null,
         gst_percent: Number(productForm.gst_percent) || 0,
       };
-      const { error } = await supabase.from("pharma_products").insert(payload);
+      const { data: inserted, error } = await supabase.from("pharma_products").insert(payload).select().single();
       if (error) throw error;
+      // Persist conversion rows
+      if (productUnitRows.length > 0 && inserted?.id) {
+        await syncProductUnits(supabase, inserted.id, productUnitRows);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-product-units"] });
       toast.success("Product added");
       setProductForm({ ...emptyProduct });
+      setProductUnitRows([]);
       setProductOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -326,13 +344,32 @@ const Pharma = () => {
       category: product.category || "General",
       manufacturer: product.manufacturer || "",
       base_unit: product.base_unit || product.unit || "",
-      sub_unit: product.sub_unit || "",
-      conversion_value: Number(product.conversion_value ?? product.qty_per_unit ?? 1) || 1,
       reorder_level: product.reorder_level || 10,
       vendor_ids: product.vendor_id ? [product.vendor_id] : [],
       hsn_code: product.hsn_code || "",
       gst_percent: Number(product.gst_percent) || 0,
     });
+    // Seed conversion rows from existing units (if any) or from legacy fields.
+    const existing = unitsByProduct[product.id] || [];
+    if (existing.length > 0) {
+      setProductUnitRows(existing.map((r: any, i: number) => ({
+        sub_unit: r.sub_unit,
+        conversion_value: Number(r.conversion_value) || 1,
+        is_active: !!r.is_active,
+        is_default: !!r.is_default,
+        sort_order: i,
+      })));
+    } else if (product.sub_unit) {
+      setProductUnitRows([{
+        sub_unit: product.sub_unit,
+        conversion_value: Number(product.conversion_value ?? product.qty_per_unit ?? 1) || 1,
+        is_active: true,
+        is_default: true,
+        sort_order: 0,
+      }]);
+    } else {
+      setProductUnitRows([]);
+    }
     setProductOpen(true);
   };
 
@@ -428,22 +465,13 @@ const Pharma = () => {
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={productForm.reorder_level} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
-                  <div>
-                    <Label>Sub Unit</Label>
-                    <Select value={productForm.sub_unit || "__none__"} onValueChange={(v) => setProductForm({ ...productForm, sub_unit: v === "__none__" ? "" : v })}>
-                      <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. ml, Tablet" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— None —</SelectItem>
-                        {unitMaster.map((u: any) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>{productForm.sub_unit && productForm.base_unit ? `${productForm.sub_unit} per ${productForm.base_unit}` : "Units per Base Unit"}</Label>
-                    <Input type="number" className="mt-1" value={productForm.conversion_value} onChange={(e) => setProductForm({ ...productForm, conversion_value: parseFloat(e.target.value) || 1 })} placeholder="e.g. 100" disabled={!productForm.sub_unit} />
-                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground -mt-1">e.g. 1 Bottle = 100 ml, 1 Box = 100 Tablets</p>
+                <UnitConversionsEditor
+                  value={productUnitRows}
+                  onChange={setProductUnitRows}
+                  unitOptions={unitMaster as any}
+                  baseUnit={productForm.base_unit}
+                />
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
                   <div><Label>GST %</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
@@ -478,12 +506,15 @@ const Pharma = () => {
                   const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
                   if (!sp) return null;
                   const baseUnit = sp.base_unit || sp.unit || "unit";
-                  const sub = sp.sub_unit;
-                  const conv = Number(sp.conversion_value ?? sp.qty_per_unit ?? 1) || 1;
+                  const activeUnits = (unitsByProduct[sp.id] || []).filter((u: any) => u.is_active && u.sub_unit && Number(u.conversion_value) > 1);
                   return (
                     <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground space-y-0.5">
                       <div><strong>Base Unit:</strong> {baseUnit}</div>
-                      {sub && conv > 1 && <div><strong>Conversion:</strong> 1 {baseUnit} = {conv} {sub}</div>}
+                      {activeUnits.length > 0 ? activeUnits.map((u: any, i: number) => (
+                        <div key={i}><strong>Conversion:</strong> 1 {baseUnit} = {Number(u.conversion_value)} {u.sub_unit}{u.is_default && " (default)"}</div>
+                      )) : (sp.sub_unit && Number(sp.conversion_value ?? sp.qty_per_unit ?? 1) > 1 && (
+                        <div><strong>Conversion:</strong> 1 {baseUnit} = {Number(sp.conversion_value ?? sp.qty_per_unit)} {sp.sub_unit}</div>
+                      ))}
                     </div>
                   );
                 })()}
@@ -494,8 +525,10 @@ const Pharma = () => {
                 {(() => {
                   const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
                   const baseUnit = sp?.base_unit || sp?.unit || "";
-                  const sub = sp?.sub_unit;
-                  const conv = Number(sp?.conversion_value ?? sp?.qty_per_unit ?? 1) || 1;
+                  const activeUnits = sp ? (unitsByProduct[sp.id] || []).filter((u: any) => u.is_active && u.sub_unit && Number(u.conversion_value) > 1) : [];
+                  const defaultUnit = activeUnits.find((u: any) => u.is_default) || activeUnits[0] || null;
+                  const sub = defaultUnit?.sub_unit || sp?.sub_unit;
+                  const conv = Number(defaultUnit?.conversion_value ?? sp?.conversion_value ?? sp?.qty_per_unit ?? 1) || 1;
                   const perBase = baseUnit ? ` (per ${baseUnit})` : "";
                   const subHint = (price: number) => (sub && conv > 1 && price > 0)
                     ? `= ₹${(price / conv).toFixed(2)} per ${sub}` : "";
@@ -661,7 +694,8 @@ const Pharma = () => {
                 {filteredProducts.length === 0 ? (
                   <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No products found</TableCell></TableRow>
                 ) : filteredProducts.map((p: any) => {
-                  const price = getActiveBatchPrice(p, inventory as any);
+                  const productUnits = unitsByProduct[p.id];
+                  const price = getActiveBatchPrice(p, inventory as any, productUnits);
                   return (
                   <TableRow key={p.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setSelectedProductId(p.id)}>
                     <TableCell>
@@ -683,7 +717,7 @@ const Pharma = () => {
                       {price.hasBatch || price.sellingPrice > 0 ? `₹${price.sellingPrice.toFixed(2)}` : "—"}
                     </TableCell>
                     <TableCell>{Number(p.gst_percent)}%</TableCell>
-                    <TableCell>{formatProductUnit(p)}</TableCell>
+                    <TableCell>{formatProductUnit(p, productUnits)}</TableCell>
                     <TableCell>{p.reorder_level}</TableCell>
                   </TableRow>
                   );

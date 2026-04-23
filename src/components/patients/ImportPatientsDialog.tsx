@@ -210,6 +210,23 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
   };
 
   const usedFields = new Set(Object.values(mapping).filter(Boolean));
+  // For preview display: replace virtual __full_name__ with the real split fields
+  const displayFields = useMemo(() => {
+    const fields: (PatientField | MappingTarget)[] = [];
+    const seen = new Set<string>();
+    const push = (f: PatientField | MappingTarget) => {
+      if (!seen.has(f)) { seen.add(f); fields.push(f); }
+    };
+    for (const f of usedFields) {
+      if (f === FULL_NAME_TARGET) {
+        push("first_name");
+        push("last_name");
+      } else {
+        push(f as PatientField);
+      }
+    }
+    return fields;
+  }, [mapping]);
   const previewRows = mapped.filter((r) => !r.skip);
   const visibleRows = showOnlyErrors ? previewRows.filter((r) => r.errors.length) : previewRows;
 

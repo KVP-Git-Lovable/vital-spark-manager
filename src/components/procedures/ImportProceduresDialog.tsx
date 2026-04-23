@@ -358,8 +358,9 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
             {step === 2 && (
               <>
                 <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                <Button onClick={goToPreview} disabled={!mappingValid}>
-                  Preview {!mappingValid && "(map required fields)"}
+                <Button onClick={goToPreview} disabled={!mappingValid || loadingMaps}>
+                  {loadingMaps && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Preview {!mappingValid && "(map a patient field & date)"}
                 </Button>
               </>
             )}

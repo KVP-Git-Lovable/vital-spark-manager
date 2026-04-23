@@ -1329,6 +1329,50 @@ export type Database = {
           },
         ]
       }
+      pharma_product_units: {
+        Row: {
+          conversion_value: number
+          created_at: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          product_id: string
+          sort_order: number
+          sub_unit: string
+          updated_at: string
+        }
+        Insert: {
+          conversion_value?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          product_id: string
+          sort_order?: number
+          sub_unit: string
+          updated_at?: string
+        }
+        Update: {
+          conversion_value?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          product_id?: string
+          sort_order?: number
+          sub_unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pharma_product_units_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "pharma_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pharma_products: {
         Row: {
           base_unit: string | null

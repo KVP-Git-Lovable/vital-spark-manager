@@ -375,7 +375,8 @@ export const ImportPatientsDialog = ({ open, onOpenChange, onSuccess }: Props) =
             {step === 2 && (
               <>
                 <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                <Button onClick={goToPreview} disabled={!mappingValid}>
+                <Button onClick={goToPreview} disabled={!mappingValid || loadingExisting}>
+                  {loadingExisting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Preview {!mappingValid && "(map required fields)"}
                 </Button>
               </>

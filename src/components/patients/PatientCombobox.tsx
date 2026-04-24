@@ -147,8 +147,10 @@ export function PatientCombobox({
           />
         </div>
         <div
-          className="max-h-64 overflow-y-scroll overscroll-contain space-y-0.5 pr-1"
-          style={{ scrollbarGutter: "stable" }}
+          className="max-h-64 overflow-y-auto overscroll-contain space-y-0.5 pr-1"
+          style={{ scrollbarGutter: "stable", WebkitOverflowScrolling: "touch" }}
+          onWheel={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
           onScroll={(e) => {
             const el = e.currentTarget;
             if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {

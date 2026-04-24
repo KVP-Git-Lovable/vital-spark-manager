@@ -366,12 +366,38 @@ const Appointments = () => {
         } as any);
         if (error) throw error;
       }
-      return { wasRecurring, capturedPatientId: patientId, capturedServiceName: serviceName, phone: patient?.phone };
+      return {
+        wasRecurring,
+        capturedPatientId: patientId,
+        capturedServiceName: serviceName,
+        phone: patient?.phone,
+        patientName,
+        firstStartDT: startDT,
+      };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       toast.success("Appointment(s) created");
       if (data.phone) toast.info(`Patient phone: ${data.phone}`, { duration: 6000 });
+      // Send WhatsApp confirmation (first occurrence only for recurring)
+      if (data.phone && data.patientName && data.firstStartDT) {
+        supabase.functions
+          .invoke("send-appointment-whatsapp", {
+            body: {
+              phone: data.phone,
+              patientName: data.patientName,
+              appointmentDate: format(data.firstStartDT, "dd MMM yyyy"),
+              appointmentTime: format(data.firstStartDT, "hh:mm a"),
+            },
+          })
+          .then(({ error }) => {
+            if (error) {
+              console.error("WhatsApp send failed:", error);
+            } else {
+              toast.success("WhatsApp confirmation sent");
+            }
+          });
+      }
       resetForm();
       setOpen(false);
       if (data.wasRecurring) {

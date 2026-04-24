@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.whatsapp-fallback]
 verify_jwt = false
+
+[functions.send-appointment-whatsapp]
+verify_jwt = false

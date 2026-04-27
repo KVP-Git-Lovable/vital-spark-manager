@@ -86,6 +86,10 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
         console.error("AI recommendation failed, saving without AI");
       }
 
+      const { enrichAiProducts, enrichAiServices } = await import("@/lib/surveyApproval");
+      const enrichedProducts = enrichAiProducts(aiResult.products || [], tplProducts || []);
+      const enrichedServices = enrichAiServices(aiResult.services || [], tplServices || []);
+
       // Save response
       const { error } = await supabase.from("survey_responses").insert({
         template_id: templateId,
@@ -93,8 +97,8 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
         patient_id: patientId,
         answers,
         ai_recommendation: aiResult.recommendation ? { text: aiResult.recommendation } : {},
-        ai_products: aiResult.products || [],
-        ai_services: aiResult.services || [],
+        ai_products: enrichedProducts,
+        ai_services: enrichedServices,
         dr_status: "pending_review",
       });
       if (error) throw error;

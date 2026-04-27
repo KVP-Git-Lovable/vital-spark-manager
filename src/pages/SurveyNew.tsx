@@ -161,19 +161,29 @@ export default function SurveyNew() {
               )}
 
               {q.question_type === "single_choice" && (
-                <RadioGroup value={answers[q.id] || ""} onValueChange={(v) => updateAnswer(q.id, v)} className="pl-1">
-                  {opts.map((opt: string) => (
-                    <div key={opt} className="flex items-center gap-2">
-                      <RadioGroupItem value={opt} id={`${q.id}-${opt}`} />
-                      <Label htmlFor={`${q.id}-${opt}`} className="font-normal cursor-pointer">{opt}</Label>
-                    </div>
-                  ))}
-                </RadioGroup>
+                opts.length > 0 ? (
+                  <RadioGroup value={answers[q.id] || ""} onValueChange={(v) => updateAnswer(q.id, v)} className="pl-1">
+                    {opts.map((opt: string) => (
+                      <div key={opt} className="flex items-center gap-2">
+                        <RadioGroupItem value={opt} id={`${q.id}-${opt}`} />
+                        <Label htmlFor={`${q.id}-${opt}`} className="font-normal cursor-pointer">{opt}</Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                ) : (
+                  <Textarea
+                    value={answers[q.id] || ""}
+                    onChange={(e) => updateAnswer(q.id, e.target.value)}
+                    placeholder="Type answer here..."
+                    rows={2}
+                  />
+                )
               )}
 
               {q.question_type === "multi_choice" && (
-                <div className="space-y-2 pl-1">
-                  {opts.map((opt: string) => (
+                opts.length > 0 ? (
+                  <div className="space-y-2 pl-1">
+                    {opts.map((opt: string) => (
                     <div key={opt} className="flex items-center gap-2">
                       <Checkbox
                         checked={(answers[q.id] || []).includes(opt)}
@@ -184,8 +194,16 @@ export default function SurveyNew() {
                       />
                       <Label className="font-normal cursor-pointer">{opt}</Label>
                     </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <Textarea
+                    value={answers[q.id] || ""}
+                    onChange={(e) => updateAnswer(q.id, e.target.value)}
+                    placeholder="Type answers (comma separated)..."
+                    rows={2}
+                  />
+                )
               )}
 
               {q.question_type === "scale" && (

@@ -88,6 +88,8 @@ const PatientDetail = () => {
   const [surveyTemplateSelectOpen, setSurveyTemplateSelectOpen] = useState(false);
   const [selectedSurveyTemplateId, setSelectedSurveyTemplateId] = useState<string | null>(null);
   const [surveyFillOpen, setSurveyFillOpen] = useState(false);
+  const [addSurveyMode, setAddSurveyMode] = useState<"choice" | "fill" | "assign" | null>(null);
+  const [assigning, setAssigning] = useState(false);
   
 
   const { data: patient, isLoading } = useQuery({
@@ -236,6 +238,41 @@ const PatientDetail = () => {
       return data;
     },
   });
+
+  const { data: surveyAssignments = [] } = useQuery({
+    queryKey: ["patient-survey-assignments", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("survey_assignments")
+        .select("*, survey_templates(name)")
+        .eq("patient_id", id!)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const assignTemplate = async (templateId: string) => {
+    if (!id) return;
+    setAssigning(true);
+    try {
+      const { error } = await supabase.from("survey_assignments").insert({
+        patient_id: id,
+        template_id: templateId,
+        status: "pending",
+      });
+      if (error) throw error;
+      toast.success("Survey assigned. Patient will see it in their portal.");
+      setAddSurveyMode(null);
+      queryClient.invalidateQueries({ queryKey: ["patient-survey-assignments", id] });
+    } catch (e: any) {
+      toast.error(e.message || "Failed to assign");
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  LineChart, Line,
+  LineChart, Line, Legend,
 } from "recharts";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -11,7 +11,11 @@ const STATUS_COLORS: Record<string, string> = {
   Scheduled: "hsl(210, 80%, 55%)",
   "In Progress": "hsl(38, 92%, 50%)",
   "No Show": "hsl(0, 72%, 51%)",
+  "No-show": "hsl(0, 72%, 51%)",
   Cancelled: "hsl(0, 60%, 60%)",
+  Proposed: "hsl(265, 60%, 60%)",
+  Requested: "hsl(195, 70%, 50%)",
+  Rescheduled: "hsl(38, 80%, 60%)",
 };
 
 const BAR_COLORS = [
@@ -22,8 +26,8 @@ const BAR_COLORS = [
 interface ChartData {
   appointmentStatus: { name: string; value: number }[];
   appointmentsByDr: { name: string; value: number }[];
-  billingByDr: { name: string; value: number }[];
-  revenueByDate: { date: string; revenue: number }[];
+  billingByDr: { name: string; paid: number; invoiced: number }[];
+  revenueByDate: { date: string; paid: number; invoiced: number }[];
 }
 
 interface Props {
@@ -108,12 +112,10 @@ export function DashboardCharts({ data, onChartClick }: Props) {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => [`₹${v.toLocaleString()}`, "Revenue"]} />
-                  <Bar dataKey="value" name="Revenue" radius={[4, 4, 0, 0]}>
-                    {data.billingByDr.map((_, i) => (
-                      <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-                    ))}
-                  </Bar>
+                  <Tooltip formatter={(v: number, n: string) => [`₹${Number(v).toLocaleString()}`, n]} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="paid" name="Paid" fill="hsl(152, 60%, 40%)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="invoiced" name="Invoiced" fill="hsl(210, 80%, 55%)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -136,8 +138,10 @@ export function DashboardCharts({ data, onChartClick }: Props) {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => [`₹${v.toLocaleString()}`, "Revenue"]} />
-                  <Line type="monotone" dataKey="revenue" stroke="hsl(174, 62%, 38%)" strokeWidth={2} dot={{ r: 3 }} />
+                  <Tooltip formatter={(v: number, n: string) => [`₹${Number(v).toLocaleString()}`, n]} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Line type="monotone" dataKey="paid" name="Paid" stroke="hsl(152, 60%, 40%)" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="invoiced" name="Invoiced" stroke="hsl(210, 80%, 55%)" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 2 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}

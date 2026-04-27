@@ -28,6 +28,7 @@ Deno.serve(async (req) => {
       paidAmount,
       balanceAmount,
       status,
+      invoiceUrl,
     } = await req.json();
 
     if (!phone || !patientName || !invoiceNumber) {
@@ -75,6 +76,7 @@ Deno.serve(async (req) => {
         "4": String(paidAmount ?? ""),
         "5": String(balanceAmount ?? ""),
         "6": String(status ?? ""),
+        "7": String(invoiceUrl ?? ""),
       });
       body = new URLSearchParams({
         To: toFormatted,
@@ -91,6 +93,7 @@ Deno.serve(async (req) => {
         `Paid: ${paidAmount}\n` +
         `Balance: ${balanceAmount}\n` +
         `Status: ${status}\n\n` +
+        (invoiceUrl ? `View / download invoice PDF:\n${invoiceUrl}\n\n` : "") +
         `Thank you for choosing The Skin Clinic.`;
       body = new URLSearchParams({
         To: toFormatted,

@@ -608,6 +608,7 @@ export type Database = {
           patient_name: string | null
           payment_mode: string | null
           payment_type: string
+          pdf_url: string | null
           services: string[]
           sgst_amount: number | null
           status: string
@@ -630,6 +631,7 @@ export type Database = {
           patient_name?: string | null
           payment_mode?: string | null
           payment_type?: string
+          pdf_url?: string | null
           services?: string[]
           sgst_amount?: number | null
           status?: string
@@ -652,6 +654,7 @@ export type Database = {
           patient_name?: string | null
           payment_mode?: string | null
           payment_type?: string
+          pdf_url?: string | null
           services?: string[]
           sgst_amount?: number | null
           status?: string

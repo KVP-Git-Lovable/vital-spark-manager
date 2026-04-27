@@ -509,6 +509,7 @@ const Billing = () => {
           totalAmount: rows.reduce((s, r: any) => s + Number(r.total_amount), 0),
           paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
           status: "Staged plan",
+          invoiceId: undefined as string | undefined,
         };
       } else if (paymentType === "Recurring") {
         const t = splitTax(recurringAmount);
@@ -543,6 +544,7 @@ const Billing = () => {
           totalAmount: rows.reduce((s, r: any) => s + Number(r.total_amount), 0),
           paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
           status: "Recurring plan",
+          invoiceId: undefined as string | undefined,
         };
       } else {
         const combinedSubtotal = servicesSubtotal + pharmaSubtotal;
@@ -552,7 +554,7 @@ const Billing = () => {
         if (paidAmount >= grandTotal && grandTotal > 0) status = "Paid";
         else if (paidAmount > 0) status = "Partial";
 
-        const { error } = await supabase.from("invoices").insert({
+        const { data: insertedInv, error } = await supabase.from("invoices").insert({
           invoice_number: `INV-${baseNum}`,
           patient_id: patientId || null,
           patient_name: patientName,
@@ -566,13 +568,14 @@ const Billing = () => {
           tax_id: null,
           tax_rate: null,
           ...t,
-        });
+        }).select("id").single();
         if (error) throw error;
         var summary = {
           invoiceNumber: `INV-${baseNum}`,
           totalAmount: grandTotal,
           paidAmount: paidAmount,
           status,
+          invoiceId: insertedInv?.id as string | undefined,
         };
       }
 
@@ -610,6 +613,22 @@ const Billing = () => {
       try {
         if (result?.patientPhone && result?.patientName && result?.summary) {
           const balance = Math.max(0, Number(result.summary.totalAmount) - Number(result.summary.paidAmount));
+
+          // Generate the public PDF first (only for one-time invoices that have a single id)
+          let invoiceUrl: string | undefined;
+          if (result.summary.invoiceId) {
+            try {
+              const { data: pdfData, error: pdfErr } = await supabase.functions.invoke(
+                "generate-invoice-pdf",
+                { body: { invoiceId: result.summary.invoiceId } },
+              );
+              if (pdfErr) console.error("Invoice PDF generation failed:", pdfErr);
+              else invoiceUrl = (pdfData as any)?.url;
+            } catch (pdfE) {
+              console.error("Invoice PDF generation error:", pdfE);
+            }
+          }
+
           const { error: waErr } = await supabase.functions.invoke("send-invoice-whatsapp", {
             body: {
               phone: result.patientPhone,
@@ -619,6 +638,7 @@ const Billing = () => {
               paidAmount: `₹${Number(result.summary.paidAmount).toLocaleString("en-IN")}`,
               balanceAmount: `₹${balance.toLocaleString("en-IN")}`,
               status: result.summary.status,
+              invoiceUrl,
             },
           });
           if (waErr) console.error("WhatsApp invoice send failed:", waErr);

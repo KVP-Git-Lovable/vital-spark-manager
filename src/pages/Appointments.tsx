@@ -333,6 +333,47 @@ const Appointments = () => {
       const selectedService = services.find((s) => s.id === serviceId);
       const serviceName = selectedService?.name || "";
       const wasRecurring = isRecurring && !!recurrenceEndDate;
+
+      // Build the list of (start, end) windows we need to validate
+      const windows: { start: Date; end: Date }[] = wasRecurring
+        ? generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate!).map((d) => ({
+            start: buildDateTime(d, startTime),
+            end: buildDateTime(d, endTime),
+          }))
+        : [{ start: startDT, end: buildDateTime(startDate, endTime) }];
+
+      // Client-side overlap pre-check (the DB trigger is the authoritative guard)
+      if (staffId) {
+        const minStart = new Date(Math.min(...windows.map((w) => w.start.getTime())));
+        const maxEnd = new Date(Math.max(...windows.map((w) => w.end.getTime())));
+        const { data: existing, error: existingErr } = await supabase
+          .from("appointments")
+          .select("start_time, end_time, patient_name, status")
+          .eq("staff_id", staffId)
+          .lt("start_time", maxEnd.toISOString())
+          .gt("end_time", minStart.toISOString());
+        if (existingErr) throw existingErr;
+        const blockers = (existing || []).filter(
+          (a: any) => !["Cancelled", "No-show"].includes(a.status),
+        );
+        const conflicts = windows
+          .map((w) => {
+            const hit = blockers.find(
+              (a: any) => new Date(a.start_time) < w.end && new Date(a.end_time) > w.start,
+            );
+            return hit ? { w, hit } : null;
+          })
+          .filter(Boolean) as { w: { start: Date; end: Date }; hit: any }[];
+        if (conflicts.length > 0) {
+          const first = conflicts[0];
+          const when = format(new Date(first.hit.start_time), "dd MMM yyyy hh:mm a");
+          const extra = conflicts.length > 1 ? ` (+${conflicts.length - 1} more conflict${conflicts.length - 1 === 1 ? "" : "s"})` : "";
+          throw new Error(
+            `This doctor already has an appointment on ${when}${first.hit.patient_name ? ` with ${first.hit.patient_name}` : ""}. Please pick a different slot.${extra}`,
+          );
+        }
+      }
+
       if (wasRecurring) {
         const dates = generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate!);
         const rows = dates.map((d) => ({

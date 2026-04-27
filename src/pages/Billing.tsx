@@ -613,6 +613,22 @@ const Billing = () => {
       try {
         if (result?.patientPhone && result?.patientName && result?.summary) {
           const balance = Math.max(0, Number(result.summary.totalAmount) - Number(result.summary.paidAmount));
+
+          // Generate the public PDF first (only for one-time invoices that have a single id)
+          let invoiceUrl: string | undefined;
+          if (result.summary.invoiceId) {
+            try {
+              const { data: pdfData, error: pdfErr } = await supabase.functions.invoke(
+                "generate-invoice-pdf",
+                { body: { invoiceId: result.summary.invoiceId } },
+              );
+              if (pdfErr) console.error("Invoice PDF generation failed:", pdfErr);
+              else invoiceUrl = (pdfData as any)?.url;
+            } catch (pdfE) {
+              console.error("Invoice PDF generation error:", pdfE);
+            }
+          }
+
           const { error: waErr } = await supabase.functions.invoke("send-invoice-whatsapp", {
             body: {
               phone: result.patientPhone,
@@ -622,6 +638,7 @@ const Billing = () => {
               paidAmount: `₹${Number(result.summary.paidAmount).toLocaleString("en-IN")}`,
               balanceAmount: `₹${balance.toLocaleString("en-IN")}`,
               status: result.summary.status,
+              invoiceUrl,
             },
           });
           if (waErr) console.error("WhatsApp invoice send failed:", waErr);

@@ -48,6 +48,8 @@ interface ApproveOptions {
   reviewedBy?: string | null;
   drNotes?: string | null;
   queryClient?: QueryClient;
+  /** Status to set on the survey_responses row. Defaults to "approved". */
+  newStatus?: string;
 }
 
 /**
@@ -77,7 +79,7 @@ export async function approveSurveyResponse(
 
   // 1. Update survey_responses
   const { error: upErr } = await supabase.from("survey_responses").update({
-    dr_status: "approved",
+    dr_status: opts.newStatus || "approved",
     selected_products: products,
     selected_services: services,
     reviewed_by: opts.reviewedBy || null,

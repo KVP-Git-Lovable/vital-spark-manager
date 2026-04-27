@@ -49,6 +49,96 @@ const tabs = [
   { id: "bot", label: "AI Bot", icon: MessageCircle },
 ];
 
+function PortalSurveysList({ patientId, onOpen }: { patientId: string; onOpen: (templateId: string, assignmentId?: string) => void }) {
+  const { data: assigned = [] } = useQuery({
+    queryKey: ["portal-assigned-surveys", patientId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("survey_assignments")
+        .select("*, survey_templates(id, name, description)")
+        .eq("patient_id", patientId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!patientId,
+  });
+
+  const { data: templates = [] } = useQuery({
+    queryKey: ["portal-available-surveys"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("survey_templates")
+        .select("id, name, description")
+        .eq("is_active", true)
+        .order("name");
+      return data || [];
+    },
+  });
+
+  const assignedTemplateIds = new Set(assigned.map((a: any) => a.template_id));
+  const available = templates.filter((t: any) => !assignedTemplateIds.has(t.id));
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="font-bold text-lg mb-2">Assigned Surveys</h2>
+        {assigned.length === 0 ? (
+          <div className="bg-card rounded-xl border p-4 text-sm text-muted-foreground text-center">
+            No surveys assigned by your clinic yet.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {assigned.map((a: any) => (
+              <button
+                key={a.id}
+                onClick={() => onOpen(a.template_id, a.id)}
+                className="w-full text-left bg-card rounded-xl border shadow-sm p-4 flex items-center justify-between gap-3 hover:bg-muted/40 transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">{a.survey_templates?.name || "Survey"}</p>
+                  {a.survey_templates?.description && (
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{a.survey_templates.description}</p>
+                  )}
+                  <Badge variant="secondary" className="mt-1.5 text-[10px]">Assigned by clinic</Badge>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h2 className="font-bold text-lg mb-2">Available Surveys</h2>
+        {available.length === 0 ? (
+          <div className="bg-card rounded-xl border p-4 text-sm text-muted-foreground text-center">
+            No additional surveys available right now.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {available.map((t: any) => (
+              <button
+                key={t.id}
+                onClick={() => onOpen(t.id)}
+                className="w-full text-left bg-card rounded-xl border shadow-sm p-4 flex items-center justify-between gap-3 hover:bg-muted/40 transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">{t.name}</p>
+                  {t.description && (
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{t.description}</p>
+                  )}
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const Portal = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();

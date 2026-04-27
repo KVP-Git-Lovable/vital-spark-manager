@@ -1,34 +1,55 @@
-## Problem
-Currently `src/pages/Appointments.tsx` inserts new appointments into the `appointments` table without verifying whether the selected staff (doctor) already has an overlapping appointment. The screenshot shows two patients booked with the same doctor (Anjali Desai) at 9:00 AM on Tue 28 — the system allowed it.
+# Fix: Survey Approval → Auto-create Rx & Procedures
 
-This needs to be fixed at **two layers**: client-side (immediate UX feedback) and database-side (authoritative guard so it can't be bypassed via API/import/edits).
+## Problems found
 
-## Plan
+1. **Approve handler only exists in `AllSurveys.tsx`.** The other two approve buttons — `SurveyRecommendations.tsx` (inside Appointment Detail Sheet) and `SurveyResponseDetail.tsx` — only flip `dr_status` and never insert Rx or procedures. Approving from these places does nothing downstream.
+2. **Approved products are missing dosage / frequency / duration / instructions.** The AI tool schema in `survey-recommend` only returns `product_name` + `advice`. The template-level `survey_template_products` config (which has these fields) is fetched but never carried into `ai_products`, so created prescriptions have null clinical fields.
+3. **Services are never pushed to the patient's Procedures tab.** No code path inserts into `procedures` on approval.
+4. **No "From Survey: [Template Name]" source label** is stored on either prescriptions or procedures.
 
-### 1. Database guard (authoritative)
-Add a Postgres validation trigger on `public.appointments` that raises an exception if an insert/update would result in the same `staff_id` having a time-range overlap with another appointment on the same day. Logic:
-- Skip when `staff_id IS NULL` (allows unassigned bookings).
-- Skip when the existing appointment is in a "blocking-exempt" status, e.g. `Cancelled` or `No-show` (configurable — default exempt list: `Cancelled`, `No-show`).
-- Overlap check: `new.start_time < other.end_time AND new.end_time > other.start_time` for the same `staff_id`, excluding the row's own `id` on update.
-- On conflict, raise a clear error message like: *"Dr. <name> already has an appointment from HH:MM to HH:MM. Please pick a different slot."* (We'll include the conflicting time window; the client will surface the message via the existing `onError` toast.)
+## Fix plan
 
-A unique constraint can't express range overlaps, so a `BEFORE INSERT OR UPDATE` trigger function is the right tool. (Per project rules: trigger, not CHECK constraint.)
+### 1. Centralize approval in a shared helper
+Create `src/lib/surveyApproval.ts` with `approveSurveyResponse(response, { selectedProducts, selectedServices })` that:
+- Updates `survey_responses` with `dr_status: "approved"`, `selected_products`, `selected_services`, `reviewed_at`.
+- For each selected product, inserts a row in `prescriptions`:
+  - `survey_response_id` = response.id, `procedure_id: null`
+  - `medicine_name` = product name
+  - `dosage`, `frequency`, `duration`, `quantity`, `instructions` populated from product config (template values take precedence; falls back to AI values, then `advice`)
+  - Prefixes `instructions` with `From Survey: [Template Name] — ` so the source is visible in the Rx tab
+  - `product_id` linked when known
+- For each selected service, inserts a row in `procedures`:
+  - `patient_id` = response.patient_id
+  - `service_name` = service name
+  - `status: "Recommended"` (so it shows as a pending/suggested procedure, not "Completed")
+  - `procedure_date: now()`
+  - `procedure_notes` = `From Survey: [Template Name] — [advice text]`
+- Invalidates `patient-prescriptions`, `patient-procedures`, `patient-surveys`, `all-survey-responses`, `survey-responses` (for AppointmentDetailSheet) queries.
 
-### 2. Client-side pre-check (better UX)
-In `src/pages/Appointments.tsx` `createAppointment.mutationFn`:
-- Before inserting (both single and recurring branches), if `staffId` is set, query existing appointments for that staff that overlap any of the proposed start/end windows, excluding `Cancelled` / `No-show` statuses.
-- If conflicts found, throw a friendly error listing the conflicting date/time(s) so the user sees the toast immediately without a round-trip insert.
-- For **recurring** bookings: validate every generated occurrence; if any conflicts, abort the whole batch and list which dates conflict.
-- Apply the same pre-check inside `rescheduleAppointment` (drag-to-reschedule) and the inline edit mutation when `start_time`, `end_time`, or `staff_id` is being changed, so the database error surfaces nicely.
+### 2. Enrich `ai_products` with template clinical fields
+In `src/pages/SurveyNew.tsx` and `src/components/surveys/SurveyFill.tsx`, after `survey-recommend` returns, merge each AI product back with its matching `survey_template_products` row (by name) and persist the merged objects into `ai_products`. Each saved product will then carry: `product_id`, `product_name`, `advice`, `dosage`, `frequency`, `duration`, `instructions`. Same enrichment for services (carry `service_id`, `advice`).
 
-### 3. Optional UX enhancement (small)
-In the New Appointment dialog, when `staffId` + `startDate` + `startTime` + `endTime` are all set, show a subtle inline warning under the time picker if a conflict is detected (using the same query). This gives feedback before the user clicks Save. Cheap to add since the query already exists.
+### 3. Update `survey-recommend` edge function
+Pass dosage/frequency/duration/instructions into the AI's product pool context so it can echo them back, and extend the tool schema to optionally return them. (Frontend enrichment in step 2 is the safety net if the model omits them.)
 
-## Files affected
-- **New migration**: create `validate_appointment_no_overlap()` function + `BEFORE INSERT OR UPDATE` trigger on `public.appointments`.
-- **Updated**: `src/pages/Appointments.tsx` — add overlap pre-check helper and use it in `createAppointment`, `rescheduleAppointment`, and `inlineUpdateMutation`; optional inline warning in the dialog.
+### 4. Wire up the missing approve buttons
+- **`src/components/surveys/SurveyRecommendations.tsx`**: in the existing Approve / Modify mutation, call `approveSurveyResponse(...)` instead of just updating `dr_status`. Pass all AI products/services as "selected" by default (since this UI has no per-item checklist).
+- **`src/pages/SurveyResponseDetail.tsx`**: add an "Approve" button (visible when `dr_status !== "approved"`) that calls the same helper, defaulting to all recommended items.
+- **`src/pages/AllSurveys.tsx`**: replace the inline approve logic with a call to the same helper so behavior is identical everywhere.
 
-## Notes / questions
-- **Status exemptions**: I'll treat `Cancelled` and `No-show` as non-blocking by default. Tell me if you also want `Proposed` (tentative) bookings to be non-blocking — currently they will block, which I think is correct.
-- **Buffer time**: Strict overlap only (touching slots, e.g. 9:00–9:30 then 9:30–10:00, are allowed). Let me know if you want a configurable buffer.
-- This change does not affect existing rows; it only guards future inserts/updates.
+### 5. Show services in the patient Procedures tab
+The procedures query in `PatientDetail.tsx` already pulls all rows for the patient, so the new "Recommended"-status procedures will appear automatically. Add a "Recommended" badge variant in the procedures list rendering and (optionally) a "Convert to Appointment" affordance — out of scope for this fix; the row will simply appear with status "Recommended".
+
+## Files touched
+- `src/lib/surveyApproval.ts` *(new)*
+- `src/pages/SurveyNew.tsx`
+- `src/components/surveys/SurveyFill.tsx`
+- `src/components/surveys/SurveyRecommendations.tsx`
+- `src/pages/SurveyResponseDetail.tsx`
+- `src/pages/AllSurveys.tsx`
+- `supabase/functions/survey-recommend/index.ts`
+
+## Result
+Approving a survey response from any screen (AllSurveys list, Patient → Surveys tab detail, or Appointment Detail Sheet) will:
+- Insert each approved product into the patient's **Rx tab** with full dosage/frequency/duration/instructions and a `From Survey: [Template Name]` prefix.
+- Insert each approved service into the patient's **Procedures tab** as a "Recommended" procedure tagged with the template name.

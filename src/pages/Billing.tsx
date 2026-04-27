@@ -153,8 +153,10 @@ interface PharmaLineItem {
 }
 
 const getDrName = (inv: any) => {
-  if (inv.appointments?.doctors) {
-    return `Dr. ${inv.appointments.doctors.name}`;
+  const d = inv.appointments?.doctors;
+  if (d) {
+    const full = [d.first_name, d.last_name].filter(Boolean).join(" ").trim();
+    if (full) return `Dr. ${full}`;
   }
   return "";
 };
@@ -238,7 +240,7 @@ const Billing = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")
-        .select("*, appointments(id, service, start_time, staff_id, doctors:staff_id(name))")
+        .select("*, appointments(id, service, start_time, staff_id, doctors:staff_id(first_name, last_name))")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -501,6 +503,13 @@ const Billing = () => {
         });
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
+        // Return a summary for downstream WhatsApp notification
+        var summary = {
+          invoiceNumber: `INV-${baseNum} (${stages.length} stages)`,
+          totalAmount: rows.reduce((s, r: any) => s + Number(r.total_amount), 0),
+          paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
+          status: "Staged plan",
+        };
       } else if (paymentType === "Recurring") {
         const t = splitTax(recurringAmount);
         const totalPerInst = recurringAmount + t.tax_amount;
@@ -529,6 +538,12 @@ const Billing = () => {
         });
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
+        var summary = {
+          invoiceNumber: `INV-${baseNum} (${recurringCount} installments)`,
+          totalAmount: rows.reduce((s, r: any) => s + Number(r.total_amount), 0),
+          paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
+          status: "Recurring plan",
+        };
       } else {
         const combinedSubtotal = servicesSubtotal + pharmaSubtotal;
         const t = splitTax(combinedSubtotal);
@@ -553,6 +568,12 @@ const Billing = () => {
           ...t,
         });
         if (error) throw error;
+        var summary = {
+          invoiceNumber: `INV-${baseNum}`,
+          totalAmount: grandTotal,
+          paidAmount: paidAmount,
+          status,
+        };
       }
 
       for (const item of pharmaItems) {
@@ -565,12 +586,48 @@ const Billing = () => {
           }
         }
       }
+
+      // Lookup patient phone for WhatsApp notification
+      let patientPhone: string | null = null;
+      if (patientId) {
+        const { data: pdata } = await supabase
+          .from("patients")
+          .select("phone")
+          .eq("id", patientId)
+          .maybeSingle();
+        patientPhone = (pdata as any)?.phone ?? null;
+      }
+
+      return { summary, patientPhone, patientName };
     },
-    onSuccess: () => {
+    onSuccess: async (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["pharma-inventory-billing"] });
       const msg = paymentType === "Staged" ? `${stages.length} staged invoices created` : paymentType === "Recurring" ? `${recurringCount} recurring invoices created` : "Invoice created";
       toast.success(msg);
+
+      // Fire-and-forget WhatsApp invoice notification
+      try {
+        if (result?.patientPhone && result?.patientName && result?.summary) {
+          const balance = Math.max(0, Number(result.summary.totalAmount) - Number(result.summary.paidAmount));
+          const { error: waErr } = await supabase.functions.invoke("send-invoice-whatsapp", {
+            body: {
+              phone: result.patientPhone,
+              patientName: result.patientName,
+              invoiceNumber: result.summary.invoiceNumber,
+              totalAmount: `₹${Number(result.summary.totalAmount).toLocaleString("en-IN")}`,
+              paidAmount: `₹${Number(result.summary.paidAmount).toLocaleString("en-IN")}`,
+              balanceAmount: `₹${balance.toLocaleString("en-IN")}`,
+              status: result.summary.status,
+            },
+          });
+          if (waErr) console.error("WhatsApp invoice send failed:", waErr);
+          else toast.success("WhatsApp invoice sent to patient");
+        }
+      } catch (e) {
+        console.error("WhatsApp invoice send error:", e);
+      }
+
       resetForm();
       setOpen(false);
     },

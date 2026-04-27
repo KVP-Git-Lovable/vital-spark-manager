@@ -509,6 +509,7 @@ const Billing = () => {
           totalAmount: rows.reduce((s, r: any) => s + Number(r.total_amount), 0),
           paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
           status: "Staged plan",
+          invoiceId: undefined as string | undefined,
         };
       } else if (paymentType === "Recurring") {
         const t = splitTax(recurringAmount);
@@ -543,6 +544,7 @@ const Billing = () => {
           totalAmount: rows.reduce((s, r: any) => s + Number(r.total_amount), 0),
           paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
           status: "Recurring plan",
+          invoiceId: undefined as string | undefined,
         };
       } else {
         const combinedSubtotal = servicesSubtotal + pharmaSubtotal;

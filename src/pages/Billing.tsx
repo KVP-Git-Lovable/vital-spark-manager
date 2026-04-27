@@ -552,7 +552,7 @@ const Billing = () => {
         if (paidAmount >= grandTotal && grandTotal > 0) status = "Paid";
         else if (paidAmount > 0) status = "Partial";
 
-        const { error } = await supabase.from("invoices").insert({
+        const { data: insertedInv, error } = await supabase.from("invoices").insert({
           invoice_number: `INV-${baseNum}`,
           patient_id: patientId || null,
           patient_name: patientName,
@@ -566,13 +566,14 @@ const Billing = () => {
           tax_id: null,
           tax_rate: null,
           ...t,
-        });
+        }).select("id").single();
         if (error) throw error;
         var summary = {
           invoiceNumber: `INV-${baseNum}`,
           totalAmount: grandTotal,
           paidAmount: paidAmount,
           status,
+          invoiceId: insertedInv?.id as string | undefined,
         };
       }
 

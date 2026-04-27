@@ -1024,7 +1024,7 @@ const PatientDetail = () => {
                 </Button>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Select onValueChange={(val) => { setSelectedSurveyTemplateId(val); setSurveyFillOpen(true); setSurveyTemplateSelectOpen(false); }}>
+                  <Select onValueChange={(val) => { setSurveyTemplateSelectOpen(false); navigate(`/surveys/new?patient=${id}&template=${val}`); }}>
                     <SelectTrigger className="w-[220px] h-8 text-xs">
                       <SelectValue placeholder="Select template..." />
                     </SelectTrigger>
@@ -1160,17 +1160,6 @@ const PatientDetail = () => {
           queryClient.invalidateQueries({ queryKey: ["patient-appointments", id] });
         }}
       />
-
-      {selectedSurveyTemplateId && (
-        <SurveyFill
-          open={surveyFillOpen}
-          onOpenChange={(open) => { setSurveyFillOpen(open); if (!open) setSelectedSurveyTemplateId(null); }}
-          templateId={selectedSurveyTemplateId}
-          appointmentId={appointments.length > 0 ? appointments[0].id : ""}
-          patientId={id!}
-          onComplete={() => queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] })}
-        />
-      )}
 
       {/* Survey detail moved to dedicated /surveys/:id route */}
     </div>

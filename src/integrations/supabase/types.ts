@@ -2399,6 +2399,42 @@ export type Database = {
         }
         Relationships: []
       }
+      survey_assignments: {
+        Row: {
+          assigned_by: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          patient_id: string
+          response_id: string | null
+          status: string
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          patient_id: string
+          response_id?: string | null
+          status?: string
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_by?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          patient_id?: string
+          response_id?: string | null
+          status?: string
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       survey_questions: {
         Row: {
           created_at: string

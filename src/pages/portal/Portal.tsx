@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import {
   Heart, Home, Calendar, ClipboardList, Camera, Receipt, Pill,
   LogOut, Clock, User, ChevronRight, Plus, Send, Loader2, Stethoscope,
-  MessageCircle, ShoppingBag,
+  MessageCircle, ShoppingBag, ClipboardCheck,
 } from "lucide-react";
 import PortalShop from "@/components/portal/PortalShop";
 import PortalBot from "@/components/portal/PortalBot";
+import PortalSurveyFill from "@/components/portal/PortalSurveyFill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,8 +45,99 @@ const tabs = [
   { id: "photos", label: "Photos", icon: Camera },
   { id: "billing", label: "Bills", icon: Receipt },
   { id: "pharmacy", label: "Shop", icon: ShoppingBag },
+  { id: "surveys", label: "Surveys", icon: ClipboardCheck },
   { id: "bot", label: "AI Bot", icon: MessageCircle },
 ];
+
+function PortalSurveysList({ patientId, onOpen }: { patientId: string; onOpen: (templateId: string, assignmentId?: string) => void }) {
+  const { data: assigned = [] } = useQuery({
+    queryKey: ["portal-assigned-surveys", patientId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("survey_assignments")
+        .select("*, survey_templates(id, name, description)")
+        .eq("patient_id", patientId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!patientId,
+  });
+
+  const { data: templates = [] } = useQuery({
+    queryKey: ["portal-available-surveys"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("survey_templates")
+        .select("id, name, description")
+        .eq("is_active", true)
+        .order("name");
+      return data || [];
+    },
+  });
+
+  const assignedTemplateIds = new Set(assigned.map((a: any) => a.template_id));
+  const available = templates.filter((t: any) => !assignedTemplateIds.has(t.id));
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="font-bold text-lg mb-2">Assigned Surveys</h2>
+        {assigned.length === 0 ? (
+          <div className="bg-card rounded-xl border p-4 text-sm text-muted-foreground text-center">
+            No surveys assigned by your clinic yet.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {assigned.map((a: any) => (
+              <button
+                key={a.id}
+                onClick={() => onOpen(a.template_id, a.id)}
+                className="w-full text-left bg-card rounded-xl border shadow-sm p-4 flex items-center justify-between gap-3 hover:bg-muted/40 transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">{a.survey_templates?.name || "Survey"}</p>
+                  {a.survey_templates?.description && (
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{a.survey_templates.description}</p>
+                  )}
+                  <Badge variant="secondary" className="mt-1.5 text-[10px]">Assigned by clinic</Badge>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h2 className="font-bold text-lg mb-2">Available Surveys</h2>
+        {available.length === 0 ? (
+          <div className="bg-card rounded-xl border p-4 text-sm text-muted-foreground text-center">
+            No additional surveys available right now.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {available.map((t: any) => (
+              <button
+                key={t.id}
+                onClick={() => onOpen(t.id)}
+                className="w-full text-left bg-card rounded-xl border shadow-sm p-4 flex items-center justify-between gap-3 hover:bg-muted/40 transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">{t.name}</p>
+                  {t.description && (
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{t.description}</p>
+                  )}
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const Portal = () => {
   const navigate = useNavigate();
@@ -56,6 +148,7 @@ const Portal = () => {
   const [pharmaOpen, setPharmaOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [selectedProcedure, setSelectedProcedure] = useState<any>(null);
+  const [activeSurvey, setActiveSurvey] = useState<{ templateId: string; assignmentId?: string } | null>(null);
 
   // Appointment request form
   const [apptService, setApptService] = useState("");
@@ -591,6 +684,26 @@ const Portal = () => {
             {activeTab === "bot" && (
               <motion.div key="bot" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
                 <PortalBot patientId={patientId!} patientName={session.patientName} />
+              </motion.div>
+            )}
+
+            {/* ─── SURVEYS ─── */}
+            {activeTab === "surveys" && (
+              <motion.div key="surveys" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+                {activeSurvey ? (
+                  <PortalSurveyFill
+                    patientId={patientId!}
+                    templateId={activeSurvey.templateId}
+                    assignmentId={activeSurvey.assignmentId}
+                    onClose={() => setActiveSurvey(null)}
+                    onSubmitted={() => {
+                      queryClient.invalidateQueries({ queryKey: ["portal-assigned-surveys"] });
+                      queryClient.invalidateQueries({ queryKey: ["portal-available-surveys"] });
+                    }}
+                  />
+                ) : (
+                  <PortalSurveysList patientId={patientId!} onOpen={(t, a) => setActiveSurvey({ templateId: t, assignmentId: a })} />
+                )}
               </motion.div>
             )}
           </AnimatePresence>

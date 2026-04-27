@@ -48,6 +48,7 @@ import SurveyTemplateDetail from "./pages/SurveyTemplateDetail";
 import AllSurveys from "./pages/AllSurveys";
 import SurveyResponseDetail from "./pages/SurveyResponseDetail";
 import SurveyResponseEdit from "./pages/SurveyResponseEdit";
+import SurveyNew from "./pages/SurveyNew";
 import Vendors from "./pages/Vendors";
 import UserManagement from "./pages/UserManagement";
 import UnitMaster from "./pages/UnitMaster";
@@ -147,6 +148,7 @@ const App = () => (
                     <Route path="/survey-templates" element={<ProtectedRoute moduleKey="surveys"><SurveyTemplates /></ProtectedRoute>} />
                     <Route path="/survey-templates/:id" element={<ProtectedRoute moduleKey="surveys"><SurveyTemplateDetail /></ProtectedRoute>} />
                     <Route path="/all-surveys" element={<ProtectedRoute moduleKey="surveys"><AllSurveys /></ProtectedRoute>} />
+                    <Route path="/surveys/new" element={<ProtectedRoute moduleKey="surveys"><SurveyNew /></ProtectedRoute>} />
                     <Route path="/surveys/:id" element={<ProtectedRoute moduleKey="surveys"><SurveyResponseDetail /></ProtectedRoute>} />
                     <Route path="/surveys/:id/edit" element={<ProtectedRoute moduleKey="surveys"><SurveyResponseEdit /></ProtectedRoute>} />
                     <Route path="/vendors" element={<ProtectedRoute moduleKey="vendors"><Vendors /></ProtectedRoute>} />

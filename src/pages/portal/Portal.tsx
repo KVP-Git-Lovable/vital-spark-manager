@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import {
   Heart, Home, Calendar, ClipboardList, Camera, Receipt, Pill,
   LogOut, Clock, User, ChevronRight, Plus, Send, Loader2, Stethoscope,
-  MessageCircle, ShoppingBag,
+  MessageCircle, ShoppingBag, ClipboardCheck,
 } from "lucide-react";
 import PortalShop from "@/components/portal/PortalShop";
 import PortalBot from "@/components/portal/PortalBot";
+import PortalSurveyFill from "@/components/portal/PortalSurveyFill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +45,7 @@ const tabs = [
   { id: "photos", label: "Photos", icon: Camera },
   { id: "billing", label: "Bills", icon: Receipt },
   { id: "pharmacy", label: "Shop", icon: ShoppingBag },
+  { id: "surveys", label: "Surveys", icon: ClipboardCheck },
   { id: "bot", label: "AI Bot", icon: MessageCircle },
 ];
 
@@ -56,6 +58,7 @@ const Portal = () => {
   const [pharmaOpen, setPharmaOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
   const [selectedProcedure, setSelectedProcedure] = useState<any>(null);
+  const [activeSurvey, setActiveSurvey] = useState<{ templateId: string; assignmentId?: string } | null>(null);
 
   // Appointment request form
   const [apptService, setApptService] = useState("");
@@ -591,6 +594,26 @@ const Portal = () => {
             {activeTab === "bot" && (
               <motion.div key="bot" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
                 <PortalBot patientId={patientId!} patientName={session.patientName} />
+              </motion.div>
+            )}
+
+            {/* ─── SURVEYS ─── */}
+            {activeTab === "surveys" && (
+              <motion.div key="surveys" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+                {activeSurvey ? (
+                  <PortalSurveyFill
+                    patientId={patientId!}
+                    templateId={activeSurvey.templateId}
+                    assignmentId={activeSurvey.assignmentId}
+                    onClose={() => setActiveSurvey(null)}
+                    onSubmitted={() => {
+                      queryClient.invalidateQueries({ queryKey: ["portal-assigned-surveys"] });
+                      queryClient.invalidateQueries({ queryKey: ["portal-available-surveys"] });
+                    }}
+                  />
+                ) : (
+                  <PortalSurveysList patientId={patientId!} onOpen={(t, a) => setActiveSurvey({ templateId: t, assignmentId: a })} />
+                )}
               </motion.div>
             )}
           </AnimatePresence>

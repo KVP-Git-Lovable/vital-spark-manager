@@ -1516,7 +1516,7 @@ const Billing = () => {
                             <CreditCard className="h-4 w-4" />
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Download PDF" onClick={() => generateInvoicePDF(inv)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Open Invoice PDF" onClick={() => openInvoicePDF(inv)}>
                           <FileText className="h-4 w-4" />
                         </Button>
                       </div>
@@ -1549,7 +1549,7 @@ const Billing = () => {
                 }}>
                   <Trash2 className="h-3.5 w-3.5" /> Delete
                 </Button>
-                <Button size="sm" variant="outline" className="gap-1.5 ml-auto" onClick={() => generateInvoicePDF(viewInvoice)}>
+                <Button size="sm" variant="outline" className="gap-1.5 ml-auto" onClick={() => openInvoicePDF(viewInvoice)}>
                   <FileText className="h-3.5 w-3.5" /> PDF
                 </Button>
               </div>

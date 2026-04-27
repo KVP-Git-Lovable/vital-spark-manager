@@ -130,6 +130,7 @@ export async function approveSurveyResponse(
         procedure_date: new Date().toISOString(),
         procedure_notes: notes,
         recommendations: advice || null,
+        survey_response_id: response.id,
       };
     });
     const { error: procErr } = await supabase.from("procedures").insert(procEntries);

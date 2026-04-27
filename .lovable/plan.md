@@ -1,55 +1,67 @@
-# Fix: Survey Approval → Auto-create Rx & Procedures
+## Goal
 
-## Problems found
+Enable patients to fill surveys from the portal (assigned by staff or self-picked from active templates), and let staff assign templates without filling.
 
-1. **Approve handler only exists in `AllSurveys.tsx`.** The other two approve buttons — `SurveyRecommendations.tsx` (inside Appointment Detail Sheet) and `SurveyResponseDetail.tsx` — only flip `dr_status` and never insert Rx or procedures. Approving from these places does nothing downstream.
-2. **Approved products are missing dosage / frequency / duration / instructions.** The AI tool schema in `survey-recommend` only returns `product_name` + `advice`. The template-level `survey_template_products` config (which has these fields) is fetched but never carried into `ai_products`, so created prescriptions have null clinical fields.
-3. **Services are never pushed to the patient's Procedures tab.** No code path inserts into `procedures` on approval.
-4. **No "From Survey: [Template Name]" source label** is stored on either prescriptions or procedures.
+## Database (1 migration)
 
-## Fix plan
+Create `survey_assignments` table:
+- `id uuid pk`, `patient_id uuid not null`, `template_id uuid not null`, `assigned_by uuid` (staff), `status text default 'pending'` (pending | completed | cancelled), `response_id uuid` (set after submission), `notes text`, `created_at`, `updated_at`
+- Indexes on `patient_id`, `(patient_id, status)`
+- RLS: enable; portal reads via session token pattern (mirroring how other portal queries currently work — current portal uses anon `supabase` client directly, so add permissive `select`/`update` policies for `anon` filtered by patient_id is not safe. Match the existing pattern in the portal: open select to anon (same as `appointments`/`procedures` queries already do). Use the same RLS approach already used by the existing `survey_responses` table to stay consistent.)
 
-### 1. Centralize approval in a shared helper
-Create `src/lib/surveyApproval.ts` with `approveSurveyResponse(response, { selectedProducts, selectedServices })` that:
-- Updates `survey_responses` with `dr_status: "approved"`, `selected_products`, `selected_services`, `reviewed_at`.
-- For each selected product, inserts a row in `prescriptions`:
-  - `survey_response_id` = response.id, `procedure_id: null`
-  - `medicine_name` = product name
-  - `dosage`, `frequency`, `duration`, `quantity`, `instructions` populated from product config (template values take precedence; falls back to AI values, then `advice`)
-  - Prefixes `instructions` with `From Survey: [Template Name] — ` so the source is visible in the Rx tab
-  - `product_id` linked when known
-- For each selected service, inserts a row in `procedures`:
-  - `patient_id` = response.patient_id
-  - `service_name` = service name
-  - `status: "Recommended"` (so it shows as a pending/suggested procedure, not "Completed")
-  - `procedure_date: now()`
-  - `procedure_notes` = `From Survey: [Template Name] — [advice text]`
-- Invalidates `patient-prescriptions`, `patient-procedures`, `patient-surveys`, `all-survey-responses`, `survey-responses` (for AppointmentDetailSheet) queries.
+## Clinic App
 
-### 2. Enrich `ai_products` with template clinical fields
-In `src/pages/SurveyNew.tsx` and `src/components/surveys/SurveyFill.tsx`, after `survey-recommend` returns, merge each AI product back with its matching `survey_template_products` row (by name) and persist the merged objects into `ai_products`. Each saved product will then carry: `product_id`, `product_name`, `advice`, `dosage`, `frequency`, `duration`, `instructions`. Same enrichment for services (carry `service_id`, `advice`).
+**`src/pages/PatientDetail.tsx`** — replace single template selector in Surveys tab with a 2-step flow:
+1. Click "+ Add Survey" → small dialog with two buttons: **Fill Now** and **Assign to Patient**
+2. Both show the template dropdown:
+   - Fill Now → existing behavior: navigate to `/surveys/new?patient=:id&template=:id`
+   - Assign to Patient → insert into `survey_assignments` (status=pending), toast success, refresh list
+3. Show assigned (pending) items above responses with an "Assigned • Pending patient" badge
 
-### 3. Update `survey-recommend` edge function
-Pass dosage/frequency/duration/instructions into the AI's product pool context so it can echo them back, and extend the tool schema to optionally return them. (Frontend enrichment in step 2 is the safety net if the model omits them.)
+## Patient Portal
 
-### 4. Wire up the missing approve buttons
-- **`src/components/surveys/SurveyRecommendations.tsx`**: in the existing Approve / Modify mutation, call `approveSurveyResponse(...)` instead of just updating `dr_status`. Pass all AI products/services as "selected" by default (since this UI has no per-item checklist).
-- **`src/pages/SurveyResponseDetail.tsx`**: add an "Approve" button (visible when `dr_status !== "approved"`) that calls the same helper, defaulting to all recommended items.
-- **`src/pages/AllSurveys.tsx`**: replace the inline approve logic with a call to the same helper so behavior is identical everywhere.
+**`src/pages/portal/Portal.tsx`**:
+- Add `surveys` tab to bottom nav before `bot`: `Home | Appts | History | Photos | Bills | Shop | Surveys | AI Bot` (icon: `ClipboardCheck`)
+- Add new tab content section with two collapsible groups:
+  - **Assigned Surveys**: query `survey_assignments` where `patient_id = me AND status = 'pending'`, joined with template name/description. Empty state if none.
+  - **Available Surveys**: query `survey_templates` where `is_active = true`, excluding those already assigned-pending (to avoid duplicates in both lists). Show name + description + "Start" button.
+- Tapping any item opens a new in-portal fill view (reuse a new lightweight component, see below) — not the clinic `/surveys/new` page (portal is a self-contained `/portal` route with no auth header).
 
-### 5. Show services in the patient Procedures tab
-The procedures query in `PatientDetail.tsx` already pulls all rows for the patient, so the new "Recommended"-status procedures will appear automatically. Add a "Recommended" badge variant in the procedures list rendering and (optionally) a "Convert to Appointment" affordance — out of scope for this fix; the row will simply appear with status "Recommended".
+**New component `src/components/portal/PortalSurveyFill.tsx`**:
+- Props: `patientId`, `templateId`, `assignmentId?`, `onClose`, `onSubmitted`
+- Fetches template + questions, renders inputs (mirror `SurveyNew.tsx` rendering: text/single_choice/multi_choice/scale with empty-options textarea fallback)
+- On submit:
+  1. Call `survey-recommend` edge function (same as `SurveyNew`) for AI products/services + enrich via `enrichAiProducts/Services`
+  2. Insert into `survey_responses` with `dr_status='pending_review'`
+  3. If `assignmentId`, update assignment → `status='completed'`, `response_id=<new>`
+  4. Invoke new edge function `send-survey-whatsapp` with `{ patient_id, template_name, response_id }`
+  5. Toast + close, refresh portal queries
 
-## Files touched
-- `src/lib/surveyApproval.ts` *(new)*
-- `src/pages/SurveyNew.tsx`
-- `src/components/surveys/SurveyFill.tsx`
-- `src/components/surveys/SurveyRecommendations.tsx`
-- `src/pages/SurveyResponseDetail.tsx`
-- `src/pages/AllSurveys.tsx`
-- `supabase/functions/survey-recommend/index.ts`
+This guarantees responses appear in:
+- Patient Detail → Surveys tab (already queries `survey_responses` by patient_id)
+- All Surveys page (already lists all `survey_responses`)
+- Doctor approval flow unchanged (status defaults to Pending)
 
-## Result
-Approving a survey response from any screen (AllSurveys list, Patient → Surveys tab detail, or Appointment Detail Sheet) will:
-- Insert each approved product into the patient's **Rx tab** with full dosage/frequency/duration/instructions and a `From Survey: [Template Name]` prefix.
-- Insert each approved service into the patient's **Procedures tab** as a "Recommended" procedure tagged with the template name.
+## Edge Function
+
+**New `supabase/functions/send-survey-whatsapp/index.ts`**:
+- CORS + JWT-optional (consistent with existing whatsapp functions)
+- Inputs (zod): `patient_id`, `template_name`, `response_id`
+- Loads patient phone from `patients` table via service role client
+- Sends WhatsApp via Twilio gateway (mirror `send-appointment-whatsapp` pattern). Use a configurable `SURVEY_WHATSAPP_TEMPLATE_SID` env var; if unset, send a plain text body fallback ("New survey submitted: {template_name}. Pending doctor review.")
+- Returns `{ success: true }` (non-blocking — failures logged, do not break submit)
+
+Notify user in chat: they may add `SURVEY_WHATSAPP_TEMPLATE_SID` secret later for an approved template; until then we use freeform text.
+
+## Files Touched
+
+- **New migration**: `survey_assignments` table + RLS
+- **New**: `src/components/portal/PortalSurveyFill.tsx`
+- **New**: `supabase/functions/send-survey-whatsapp/index.ts`
+- **Edited**: `src/pages/portal/Portal.tsx` (nav tab + Surveys page)
+- **Edited**: `src/pages/PatientDetail.tsx` (Add Survey → Fill Now / Assign dialog, show assigned list)
+
+## Out of Scope
+
+- Patient-side viewing of past responses (existing `survey_responses` shown only in clinic; can be added later)
+- Twilio template SID configuration UI (user configures secret directly)

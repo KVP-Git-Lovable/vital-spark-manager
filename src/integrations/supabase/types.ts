@@ -1760,6 +1760,7 @@ export type Database = {
           service_name: string
           staff_id: string | null
           status: string
+          survey_response_id: string | null
           symptoms: string | null
           updated_at: string
         }
@@ -1777,6 +1778,7 @@ export type Database = {
           service_name: string
           staff_id?: string | null
           status?: string
+          survey_response_id?: string | null
           symptoms?: string | null
           updated_at?: string
         }
@@ -1794,6 +1796,7 @@ export type Database = {
           service_name?: string
           staff_id?: string | null
           status?: string
+          survey_response_id?: string | null
           symptoms?: string | null
           updated_at?: string
         }

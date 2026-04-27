@@ -26,6 +26,7 @@ import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailShe
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { toast } from "sonner";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
+import { approveSurveyResponse, enrichAiProducts, enrichAiServices } from "@/lib/surveyApproval";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -271,6 +272,57 @@ const PatientDetail = () => {
       toast.error(e.message || "Failed to assign");
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const changeSurveyStatus = async (sr: any, newLabel: "Pending" | "Reviewed") => {
+    const currentLabel =
+      sr.dr_status === "approved" || sr.dr_status === "reviewed" ? "Reviewed" : "Pending";
+    if (currentLabel === newLabel) return;
+    try {
+      if (newLabel === "Reviewed") {
+        // Fetch template product/service config so we can enrich AI items with dosage/frequency/duration/instructions
+        const [{ data: tplProducts }, { data: tplServices }] = await Promise.all([
+          supabase
+            .from("survey_template_products")
+            .select("*, pharma_products(name, category)")
+            .eq("template_id", sr.template_id),
+          supabase
+            .from("survey_template_services")
+            .select("*, services(name, category)")
+            .eq("template_id", sr.template_id),
+        ]);
+        const enrichedProducts = enrichAiProducts(sr.ai_products || [], tplProducts || []);
+        const enrichedServices = enrichAiServices(sr.ai_services || [], tplServices || []);
+        const { rxCount, procCount } = await approveSurveyResponse(sr, {
+          selectedProducts: enrichedProducts,
+          selectedServices: enrichedServices,
+          newStatus: "approved",
+          queryClient,
+        });
+        toast.success(
+          `Marked Reviewed · ${rxCount} Rx, ${procCount} procedure${procCount === 1 ? "" : "s"} synced`,
+        );
+      } else {
+        // Revert to Pending — remove auto-created Rx + procedures from this survey
+        await supabase.from("prescriptions").delete().eq("survey_response_id", sr.id);
+        await supabase
+          .from("procedures")
+          .delete()
+          .eq("survey_response_id", sr.id)
+          .eq("status", "Recommended");
+        const { error } = await supabase
+          .from("survey_responses")
+          .update({ dr_status: "pending_review", reviewed_at: null, reviewed_by: null })
+          .eq("id", sr.id);
+        if (error) throw error;
+        toast.success("Marked Pending · synced Rx & procedures removed");
+      }
+      queryClient.invalidateQueries({ queryKey: ["patient-surveys", id] });
+      queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", id] });
+      queryClient.invalidateQueries({ queryKey: ["patient-procedures", id] });
+    } catch (e: any) {
+      toast.error(e.message || "Failed to update status");
     }
   };
 
@@ -1117,6 +1169,7 @@ const PatientDetail = () => {
               <div className="space-y-2">
                 {surveyResponses.map((sr: any) => {
                   const template = sr.survey_templates;
+                  const currentStatus = sr.dr_status === "approved" || sr.dr_status === "reviewed" ? "Reviewed" : "Pending";
                   return (
                     <div
                       key={sr.id}
@@ -1128,12 +1181,25 @@ const PatientDetail = () => {
                         <Eye className="h-4 w-4 text-muted-foreground shrink-0" />
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <Badge
-                          variant={sr.dr_status === "approved" ? "default" : "secondary"}
-                          className="text-[10px]"
-                        >
-                          {sr.dr_status === "approved" ? "Approved" : sr.dr_status === "reviewed" ? "Reviewed" : "Pending"}
-                        </Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Badge
+                              variant={currentStatus === "Reviewed" ? "default" : "secondary"}
+                              className="text-[10px] cursor-pointer hover:opacity-80 gap-1"
+                            >
+                              {currentStatus}
+                              <ChevronDown className="h-2.5 w-2.5" />
+                            </Badge>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); changeSurveyStatus(sr, "Pending"); }}>
+                              Pending
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); changeSurveyStatus(sr, "Reviewed"); }}>
+                              Reviewed
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         <p className="text-xs text-muted-foreground">{new Date(sr.created_at).toLocaleDateString()}</p>
                       </div>
                     </div>

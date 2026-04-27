@@ -1,66 +1,80 @@
-## Issue 1: Invoice not appearing in Billing list
+## Goal
+Create a **public storage bucket for invoice PDFs** so each generated invoice has a permanent, shareable URL that can be passed as a variable into a Twilio WhatsApp template (e.g. `{{7}}` invoice link, or a Media template using the URL as the header media).
 
-**Root cause:** The `invoices` query in `src/pages/Billing.tsx` (line 241) joins:
-```ts
-.select("*, appointments(id, service, start_time, staff_id, doctors:staff_id(name))")
+## Current state
+- Invoices live in `public.invoices`.
+- The PDF in `Billing.tsx` is generated **only in the browser** via `window.print()` — there is no PDF file anywhere; nothing to link to.
+- WhatsApp invoice notifications already go out via `send-invoice-whatsapp` with text variables but no link/attachment.
+
+To send a real link, we need: (1) a public bucket, (2) a server-side PDF generator that uploads to the bucket, (3) the public URL appended to the WhatsApp call.
+
+---
+
+## Step 1 — Create public storage bucket `invoices`
+Migration:
+```sql
+insert into storage.buckets (id, name, public)
+values ('invoices', 'invoices', true)
+on conflict (id) do update set public = true;
+
+-- Public read of all invoice PDFs (so Twilio/WhatsApp can fetch the link)
+create policy "Public can read invoice pdfs"
+on storage.objects for select
+to public
+using (bucket_id = 'invoices');
+
+-- Authenticated users / service role can upload
+create policy "Authenticated can upload invoice pdfs"
+on storage.objects for insert
+to authenticated
+with check (bucket_id = 'invoices');
+
+create policy "Service role can manage invoice pdfs"
+on storage.objects for all
+to service_role
+using (bucket_id = 'invoices')
+with check (bucket_id = 'invoices');
 ```
+Files will be stored as `invoices/{invoice_number}.pdf` and exposed at:
+`https://brdrkhgfbbrgdkzdfbpr.supabase.co/storage/v1/object/public/invoices/{invoice_number}.pdf`
 
-The `staff` table has no `name` column — only `first_name` and `last_name`. Postgres returns `42703 column staff_2.name does not exist`, so the **entire invoice list fails** and renders "No invoices found", even though your invoice (`INV-151546`, ₹5,763.60) is correctly saved in the DB.
+> Note: a public bucket means **anyone with the URL can read the PDF**. Invoice numbers are sequential-ish, so URLs are guessable. If you want privacy, say so and I'll switch to a **private bucket with signed URLs (7-day expiry)** instead — recommended for medical billing. Default below is **public** as you asked.
 
-**Fix:** Change the select to use `first_name, last_name` (matching the pattern used elsewhere like Appointments):
-```ts
-.select("*, appointments(id, service, start_time, staff_id, doctors:staff_id(first_name, last_name))")
-```
-And update any place in Billing.tsx that reads `inv.appointments?.doctors?.name` to derive it from `first_name + last_name`.
+## Step 2 — New edge function `generate-invoice-pdf`
+- Accepts the same invoice payload the UI uses today (or just `invoice_id` and re-queries).
+- Renders the existing HTML template (lifted out of `Billing.tsx` into `supabase/functions/_shared/invoice-template.ts` so client + server share it).
+- Converts HTML → PDF using a Deno-compatible renderer (e.g. `@sparticuz/chromium` is too heavy for edge — instead use the lightweight `https://deno.land/x/pdfkit` or, more reliably, call a hosted HTML-to-PDF service). Recommended approach: use **`pdf-lib`** to compose a clean PDF directly from invoice fields (no headless browser needed, fast, deno-friendly).
+- Uploads to `invoices/{invoice_number}.pdf` (upsert: true) using the service role key.
+- Returns `{ url, path }`.
 
----
+Optional column on `public.invoices`: `pdf_url text` to cache the URL (cheap and avoids re-generating). Migration adds this nullable column.
 
-## Issue 2: Where invoices are saved
+## Step 3 — Update `send-invoice-whatsapp`
+- Before sending, call `generate-invoice-pdf` (or use `invoices.pdf_url` if already set) to obtain `pdfUrl`.
+- Pass the URL as **`{{7}}` ContentVariable** in the existing template, OR — preferred — switch to a **WhatsApp Media template** where the public PDF URL becomes the header media (`type: document`).
+- I'll need from you: the **new template SID** that includes a document header (or a 7th text variable for the link). If you don't have one yet, I'll temporarily append the link to the message body and you can swap in the template SID later via the existing `TWILIO_INVOICE_TEMPLATE_SID` secret.
 
-Invoices are saved in the **`public.invoices`** table in Lovable Cloud (your backend database). Each row stores: `invoice_number`, `patient_id`, `patient_name`, `services`, `total_amount`, `paid_amount`, `tax_amount`, `cgst_amount`, `sgst_amount`, `igst_amount`, `status`, `payment_type`, `payment_mode`, `notes`, `created_at`. There is no separate file/PDF storage — the PDF in `Billing.tsx` is generated on-demand for printing.
+## Step 4 — Wire it into `Billing.tsx`
+- After `createInvoice` succeeds, call `generate-invoice-pdf` (fire-and-forget; show toast on success) so the PDF exists at the public URL before/just as the WhatsApp message is sent.
+- Add a small "Copy invoice link" / "Open PDF" action next to the existing Download button in the invoice list and detail sheet, using `invoices.pdf_url`.
 
----
-
-## Issue 3: Send invoice details to patient on WhatsApp
-
-Reuse the existing Twilio plumbing pattern from `send-appointment-whatsapp`.
-
-### A. New Twilio template (you need to create this in Twilio Console)
-You'll need a WhatsApp template SID with variables for:
-- `{{1}}` Patient name
-- `{{2}}` Invoice number
-- `{{3}}` Total amount (₹)
-- `{{4}}` Amount paid
-- `{{5}}` Balance due
-- `{{6}}` Status (Paid / Partial / Pending)
-
-**Question for you:** Please provide the new Twilio Content Template SID for invoice notifications (e.g. `HX...`). If you don't have one yet, I can stub the SID via a `TWILIO_INVOICE_TEMPLATE_SID` secret you fill in later, and the function will simply skip sending until the secret is set.
-
-### B. New edge function: `send-invoice-whatsapp`
-- Accepts `{ patientId, invoiceNumber, totalAmount, paidAmount, status }`.
-- Looks up patient phone from `patients` table.
-- Normalizes phone to E.164 (default +91, same helper as appointment function).
-- Calls Twilio `Messages.json` with `ContentSid` + `ContentVariables` JSON.
-- Returns `{ ok: true, sid }` or logs failure (never throws to caller).
-- `verify_jwt = false` in `supabase/config.toml`.
-
-### C. Wire into Billing.tsx `createInvoice` mutation
-In the `onSuccess` handler (line 569) of `createInvoice`:
-- For **One-time**: send 1 WhatsApp with the invoice details.
-- For **Staged**: send 1 summary message for the first stage (avoid spamming).
-- For **Recurring**: send 1 summary covering installment plan (count × amount).
-- Skip silently if `patientId` is empty or patient has no phone.
-- Show toast `"WhatsApp invoice sent"` on success; never block the success flow if WhatsApp fails.
-
-### D. No DB migration required
-All needed data (`patient_id`, `patient_name`, `total_amount`, `paid_amount`, `status`, `invoice_number`) already exists on `invoices` and `patients`.
+## Step 5 — Backfill (optional)
+A one-time button in Billing (admin only) to regenerate PDFs for old invoices that don't yet have a `pdf_url`. Skipped unless you want it.
 
 ---
 
-## Summary of files to change
-1. `src/pages/Billing.tsx` — fix join (`name` → `first_name, last_name`), update display, invoke new edge function in `onSuccess`.
-2. `supabase/functions/send-invoice-whatsapp/index.ts` — new function (Twilio API call).
-3. `supabase/config.toml` — register new function with `verify_jwt = false`.
-4. Add secret: `TWILIO_INVOICE_TEMPLATE_SID` (you provide the SID from Twilio Console).
+## Files to change
+1. **Migration**: create `invoices` bucket + storage policies, add `invoices.pdf_url` column.
+2. **New**: `supabase/functions/_shared/invoice-template.ts` (shared HTML/PDF builder).
+3. **New**: `supabase/functions/generate-invoice-pdf/index.ts` (renders + uploads, returns public URL).
+4. **Update**: `supabase/functions/send-invoice-whatsapp/index.ts` to fetch/generate the URL and include it in the Twilio call.
+5. **Update**: `supabase/config.toml` to register the new function with `verify_jwt = false`.
+6. **Update**: `src/pages/Billing.tsx` to invoke `generate-invoice-pdf` post-create and surface the link in the UI.
 
-Please share the **invoice template SID** (or confirm you'd like me to add a placeholder secret you'll fill later), then approve to implement.
+---
+
+## Decisions I need from you before implementing
+1. **Privacy**: keep bucket **public** (any link-holder can view) or switch to **private with signed URLs** (more secure, link expires)? Default = public per your request.
+2. **Twilio template**: do you have a template SID with a **document header** (preferred for sending a PDF), or should I add the link as a 7th text variable on your existing template (you'd need to update the template body to include `{{7}}`)?
+
+Approve to proceed (default: public bucket + add link as text in fallback body until you provide an updated template SID).

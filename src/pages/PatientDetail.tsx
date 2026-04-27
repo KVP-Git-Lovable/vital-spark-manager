@@ -1055,15 +1055,32 @@ const PatientDetail = () => {
         <TabsContent value="surveys">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex justify-end mb-3 gap-2">
-              {!surveyTemplateSelectOpen ? (
-                <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setSurveyTemplateSelectOpen(true)}>
+              {!addSurveyMode ? (
+                <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setAddSurveyMode("choice")}>
                   <Plus className="h-3.5 w-3.5" /> Add Survey
                 </Button>
+              ) : addSurveyMode === "choice" ? (
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setAddSurveyMode("fill")}>Fill Now</Button>
+                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setAddSurveyMode("assign")}>Assign to Patient</Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAddSurveyMode(null)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Select onValueChange={(val) => { setSurveyTemplateSelectOpen(false); navigate(`/surveys/new?patient=${id}&template=${val}`); }}>
-                    <SelectTrigger className="w-[220px] h-8 text-xs">
-                      <SelectValue placeholder="Select template..." />
+                  <Select
+                    onValueChange={(val) => {
+                      if (addSurveyMode === "fill") {
+                        setAddSurveyMode(null);
+                        navigate(`/surveys/new?patient=${id}&template=${val}`);
+                      } else if (addSurveyMode === "assign") {
+                        assignTemplate(val);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-[240px] h-8 text-xs" disabled={assigning}>
+                      <SelectValue placeholder={addSurveyMode === "fill" ? "Select template to fill..." : "Select template to assign..."} />
                     </SelectTrigger>
                     <SelectContent>
                       {surveyTemplates.map((t: any) => (
@@ -1071,13 +1088,27 @@ const PatientDetail = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSurveyTemplateSelectOpen(false)}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAddSurveyMode(null)} disabled={assigning}>
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               )}
             </div>
-            {surveyResponses.length === 0 && !surveyTemplateSelectOpen ? (
+            {surveyAssignments.length > 0 && (
+              <div className="mb-3 space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Assigned · Awaiting patient</p>
+                {surveyAssignments.map((a: any) => (
+                  <div key={a.id} className="stat-card p-3 flex items-center justify-between gap-3">
+                    <p className="font-medium text-sm truncate">{a.survey_templates?.name || "Survey"}</p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="outline" className="text-[10px]">Pending patient</Badge>
+                      <p className="text-xs text-muted-foreground">{new Date(a.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {surveyResponses.length === 0 && surveyAssignments.length === 0 && !addSurveyMode ? (
               <div className="text-center py-12 text-muted-foreground">
                 <ClipboardCheck className="h-10 w-10 mx-auto mb-2 opacity-40" />
                 <p className="text-sm">No survey responses yet</p>

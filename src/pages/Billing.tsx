@@ -153,8 +153,10 @@ interface PharmaLineItem {
 }
 
 const getDrName = (inv: any) => {
-  if (inv.appointments?.doctors) {
-    return `Dr. ${inv.appointments.doctors.name}`;
+  const d = inv.appointments?.doctors;
+  if (d) {
+    const full = [d.first_name, d.last_name].filter(Boolean).join(" ").trim();
+    if (full) return `Dr. ${full}`;
   }
   return "";
 };
@@ -238,7 +240,7 @@ const Billing = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")
-        .select("*, appointments(id, service, start_time, staff_id, doctors:staff_id(name))")
+        .select("*, appointments(id, service, start_time, staff_id, doctors:staff_id(first_name, last_name))")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;

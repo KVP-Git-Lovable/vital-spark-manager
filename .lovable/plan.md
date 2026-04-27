@@ -1,67 +1,46 @@
-## Goal
+## Problem
 
-Enable patients to fill surveys from the portal (assigned by staff or self-picked from active templates), and let staff assign templates without filling.
+The dashboard queries already exist but the numbers feel "empty/wrong" because:
 
-## Database (1 migration)
+- **Today (2026-04-27 IST)** genuinely has 0 appointments in the DB, while 2026-04-28 has 3. The "Today" filter currently uses local browser midnight converted to UTC ISO, which is correct in IST but the empty result looks like a bug.
+- **Revenue** sums only `paid_amount`. Today's 2 invoices have `paid_amount = 0` and `total_amount = ₹9,243`, so the card shows ₹0 even though invoices exist.
+- **Revenue Trend** chart is hard-coded to the current calendar month — ignores the Date Range filter.
+- **Billing-by-Staff** only attributes invoices that have an `appointment_id`. Invoices without that link silently disappear when a staff filter is applied.
+- **Appointment Status** pie has color entries only for Scheduled / Completed / Cancelled / In Progress / No Show — real data also contains Proposed, Requested, Rescheduled which fall back to grey.
 
-Create `survey_assignments` table:
-- `id uuid pk`, `patient_id uuid not null`, `template_id uuid not null`, `assigned_by uuid` (staff), `status text default 'pending'` (pending | completed | cancelled), `response_id uuid` (set after submission), `notes text`, `created_at`, `updated_at`
-- Indexes on `patient_id`, `(patient_id, status)`
-- RLS: enable; portal reads via session token pattern (mirroring how other portal queries currently work — current portal uses anon `supabase` client directly, so add permissive `select`/`update` policies for `anon` filtered by patient_id is not safe. Match the existing pattern in the portal: open select to anon (same as `appointments`/`procedures` queries already do). Use the same RLS approach already used by the existing `survey_responses` table to stay consistent.)
+## Fix
 
-## Clinic App
+### 1. Stat cards
+- **Appointments**: keep filtered count, subtitle becomes `X completed • Y scheduled • {dateLabel}`.
+- **Revenue**: show `₹{paid}` as primary value, with subtitle `of ₹{invoiced} invoiced • {dateLabel}` (per your choice). Both numbers use the filtered invoice list.
 
-**`src/pages/PatientDetail.tsx`** — replace single template selector in Surveys tab with a 2-step flow:
-1. Click "+ Add Survey" → small dialog with two buttons: **Fill Now** and **Assign to Patient**
-2. Both show the template dropdown:
-   - Fill Now → existing behavior: navigate to `/surveys/new?patient=:id&template=:id`
-   - Assign to Patient → insert into `survey_assignments` (status=pending), toast success, refresh list
-3. Show assigned (pending) items above responses with an "Assigned • Pending patient" badge
+### 2. Appointment Status pie
+- Use real status counts from filtered appointments (already correct).
+- Add color mappings for `Proposed`, `Requested`, `Rescheduled`, `No-show` so every slice is themed.
 
-## Patient Portal
+### 3. Appointments by Staff bar
+- Already correct logic. Sort descending by count, drop "Unassigned" if zero, cap to top 8 with "Other" rollup so the chart stays readable.
 
-**`src/pages/portal/Portal.tsx`**:
-- Add `surveys` tab to bottom nav before `bot`: `Home | Appts | History | Photos | Bills | Shop | Surveys | AI Bot` (icon: `ClipboardCheck`)
-- Add new tab content section with two collapsible groups:
-  - **Assigned Surveys**: query `survey_assignments` where `patient_id = me AND status = 'pending'`, joined with template name/description. Empty state if none.
-  - **Available Surveys**: query `survey_templates` where `is_active = true`, excluding those already assigned-pending (to avoid duplicates in both lists). Show name + description + "Start" button.
-- Tapping any item opens a new in-portal fill view (reuse a new lightweight component, see below) — not the clinic `/surveys/new` page (portal is a self-contained `/portal` route with no auth header).
+### 4. Billing by Staff bar — main fix
+Today most invoices don't have `appointment_id`. Two changes:
+- Sum `paid_amount` per staff via the appointment join when available.
+- For invoices without `appointment_id`, group as "Walk-in / Direct billing" instead of dropping them when a staff filter is active (only hide them when a specific staff is selected).
+- Show both Paid and Invoiced as grouped bars (matches new revenue definition).
 
-**New component `src/components/portal/PortalSurveyFill.tsx`**:
-- Props: `patientId`, `templateId`, `assignmentId?`, `onClose`, `onSubmitted`
-- Fetches template + questions, renders inputs (mirror `SurveyNew.tsx` rendering: text/single_choice/multi_choice/scale with empty-options textarea fallback)
-- On submit:
-  1. Call `survey-recommend` edge function (same as `SurveyNew`) for AI products/services + enrich via `enrichAiProducts/Services`
-  2. Insert into `survey_responses` with `dr_status='pending_review'`
-  3. If `assignmentId`, update assignment → `status='completed'`, `response_id=<new>`
-  4. Invoke new edge function `send-survey-whatsapp` with `{ patient_id, template_name, response_id }`
-  5. Toast + close, refresh portal queries
+### 5. Revenue Trend chart
+- Build the day-by-day series from the **selected date range** (not current month).
+- For Today / Yesterday → bucket by hour. For ranges ≤ 31 days → bucket by day. For longer → bucket by week.
+- Render two lines: **Paid** (solid) and **Invoiced** (dashed).
 
-This guarantees responses appear in:
-- Patient Detail → Surveys tab (already queries `survey_responses` by patient_id)
-- All Surveys page (already lists all `survey_responses`)
-- Doctor approval flow unchanged (status defaults to Pending)
+### 6. Filter wiring
+- Staff filter: appointments filtered by `staff_id`; invoices filtered via the appointment lookup or `staff_id` if present on the invoice.
+- Service filter: appointments filtered by `service`; invoices filtered to those linked to a matching appointment.
+- Date range: every query refetches when `startISO` / `endISO` change (already wired); Revenue Trend now also uses these.
 
-## Edge Function
+## Files to edit
 
-**New `supabase/functions/send-survey-whatsapp/index.ts`**:
-- CORS + JWT-optional (consistent with existing whatsapp functions)
-- Inputs (zod): `patient_id`, `template_name`, `response_id`
-- Loads patient phone from `patients` table via service role client
-- Sends WhatsApp via Twilio gateway (mirror `send-appointment-whatsapp` pattern). Use a configurable `SURVEY_WHATSAPP_TEMPLATE_SID` env var; if unset, send a plain text body fallback ("New survey submitted: {template_name}. Pending doctor review.")
-- Returns `{ success: true }` (non-blocking — failures logged, do not break submit)
+- `src/pages/Index.tsx` — change `chartData` calc (revenue trend uses `start`/`end`, billing-by-staff handles null appointment_id, both paid+invoiced totals), update Revenue + Appointments stat cards, expand status color map.
+- `src/components/dashboard/DashboardCharts.tsx` — accept `revenueByDate` items as `{ date, paid, invoiced }`, render two lines; update billing bar to grouped Paid/Invoiced; expand `STATUS_COLORS`.
+- `src/components/dashboard/StatCard.tsx` — no change needed; subtitle already supported via `change` prop.
 
-Notify user in chat: they may add `SURVEY_WHATSAPP_TEMPLATE_SID` secret later for an approved template; until then we use freeform text.
-
-## Files Touched
-
-- **New migration**: `survey_assignments` table + RLS
-- **New**: `src/components/portal/PortalSurveyFill.tsx`
-- **New**: `supabase/functions/send-survey-whatsapp/index.ts`
-- **Edited**: `src/pages/portal/Portal.tsx` (nav tab + Surveys page)
-- **Edited**: `src/pages/PatientDetail.tsx` (Add Survey → Fill Now / Assign dialog, show assigned list)
-
-## Out of Scope
-
-- Patient-side viewing of past responses (existing `survey_responses` shown only in clinic; can be added later)
-- Twilio template SID configuration UI (user configures secret directly)
+No schema changes. No new queries beyond what's already fetched.

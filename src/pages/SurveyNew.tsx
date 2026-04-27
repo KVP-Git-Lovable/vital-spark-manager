@@ -87,14 +87,18 @@ export default function SurveyNew() {
       let aiResult: any = { recommendation: "", products: [], services: [] };
       if (resp.ok) aiResult = await resp.json();
 
+      const { enrichAiProducts, enrichAiServices } = await import("@/lib/surveyApproval");
+      const enrichedProducts = enrichAiProducts(aiResult.products || [], tplProducts || []);
+      const enrichedServices = enrichAiServices(aiResult.services || [], tplServices || []);
+
       const { error } = await supabase.from("survey_responses").insert({
         template_id: templateId,
         patient_id: patientId,
         appointment_id: null,
         answers,
         ai_recommendation: aiResult.recommendation ? { text: aiResult.recommendation } : {},
-        ai_products: aiResult.products || [],
-        ai_services: aiResult.services || [],
+        ai_products: enrichedProducts,
+        ai_services: enrichedServices,
         dr_status: "pending_review",
       });
       if (error) throw error;

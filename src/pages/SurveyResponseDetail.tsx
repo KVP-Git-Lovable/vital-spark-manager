@@ -1,11 +1,14 @@
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ClipboardCheck, User, FileText, Bot, Pill, Stethoscope, Loader2 } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, User, FileText, Bot, Pill, Stethoscope, Loader2, Check } from "lucide-react";
 import { format } from "date-fns";
+import { approveSurveyResponse } from "@/lib/surveyApproval";
+import { toast } from "sonner";
+import { useState } from "react";
 
 function getStatusVariant(status: string | null): "default" | "secondary" | "outline" {
   if (status === "approved") return "default";
@@ -29,6 +32,8 @@ function calcAge(dob: string | null): string {
 export default function SurveyResponseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [approving, setApproving] = useState(false);
 
   const { data: response, isLoading } = useQuery({
     queryKey: ["survey-response-detail", id],
@@ -91,6 +96,21 @@ export default function SurveyResponseDetail() {
   const appt = response.appointments as any;
   const reviewer = response.staff as any;
 
+  const handleApprove = async () => {
+    setApproving(true);
+    try {
+      const { rxCount, procCount } = await approveSurveyResponse(
+        { ...response, survey_templates: template },
+        { queryClient }
+      );
+      toast.success(`Approved — ${rxCount} Rx, ${procCount} procedure(s) added`);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setApproving(false);
+    }
+  };
+
   const answerKeys = Object.keys(answers);
   const getAnswer = (q: any, idx: number) => {
     if (answers[q.id] !== undefined) return answers[q.id];
@@ -118,9 +138,16 @@ export default function SurveyResponseDetail() {
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1.5">
           <ArrowLeft className="h-4 w-4" /> Back
         </Button>
-        <Badge variant={getStatusVariant(response.dr_status)} className="text-xs">
-          {getStatusLabel(response.dr_status)}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={getStatusVariant(response.dr_status)} className="text-xs">
+            {getStatusLabel(response.dr_status)}
+          </Badge>
+          {response.dr_status !== "approved" && (
+            <Button size="sm" className="gap-1.5" onClick={handleApprove} disabled={approving}>
+              <Check className="h-3.5 w-3.5" /> {approving ? "Approving..." : "Approve"}
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

@@ -22,6 +22,7 @@ import { Search, ClipboardCheck, ChevronDown, Filter, X, Eye, Package, Stethosco
 import { format, subDays, startOfDay } from "date-fns";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { approveSurveyResponse } from "@/lib/surveyApproval";
 
 const STATUS_OPTIONS = [
   { value: "pending_review", label: "⏳ Pending Review", variant: "outline" as const },
@@ -155,45 +156,22 @@ export default function AllSurveys() {
 
   const handleStatusChange = async (response: any, newStatus: string) => {
     if (newStatus === "approved") {
-      // Use selective products/services
       const aiProducts = (response.ai_products || []) as any[];
       const aiServices = (response.ai_services || []) as any[];
 
       const chosenProducts = aiProducts.filter((_: any, i: number) => selectedProducts.includes(String(i)));
       const chosenServices = aiServices.filter((_: any, i: number) => selectedServices.includes(String(i)));
 
-      const { error } = await supabase.from("survey_responses").update({
-        dr_status: newStatus,
-        selected_products: chosenProducts,
-        selected_services: chosenServices,
-      }).eq("id", response.id);
-      if (error) { toast.error(error.message); return; }
-
-      // Create prescriptions only for selected products
-      if (chosenProducts.length > 0) {
-        const rxEntries = chosenProducts.map((p: any) => ({
-          procedure_id: null,
-          survey_response_id: response.id,
-          medicine_name: p.product_name || p.name || "Unknown",
-          dosage: p.dosage || null,
-          frequency: p.frequency || null,
-          duration: p.duration || null,
-          quantity: p.quantity || 1,
-          instructions: p.advice || p.instructions || null,
-          product_id: p.product_id || null,
-        }));
-        const { error: rxError } = await supabase.from("prescriptions").insert(rxEntries);
-        if (rxError) {
-          toast.error("Approved but failed to create Rx: " + rxError.message);
-        } else {
-          toast.success(`Approved — ${rxEntries.length} product(s), ${chosenServices.length} service(s) selected`);
-        }
-      } else {
-        toast.success(`Approved — ${chosenServices.length} service(s) selected`);
-      }
-
-      if (response.patients?.id) {
-        queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", response.patients.id] });
+      try {
+        const { rxCount, procCount } = await approveSurveyResponse(response, {
+          selectedProducts: chosenProducts,
+          selectedServices: chosenServices,
+          queryClient,
+        });
+        toast.success(`Approved — ${rxCount} Rx, ${procCount} procedure(s) added`);
+      } catch (e: any) {
+        toast.error(e.message);
+        return;
       }
     } else {
       const { error } = await supabase.from("survey_responses").update({ dr_status: newStatus }).eq("id", response.id);

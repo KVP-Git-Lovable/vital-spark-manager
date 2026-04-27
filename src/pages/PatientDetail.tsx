@@ -26,6 +26,7 @@ import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailShe
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { toast } from "sonner";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
+import { approveSurveyResponse, enrichAiProducts, enrichAiServices } from "@/lib/surveyApproval";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -1117,6 +1118,7 @@ const PatientDetail = () => {
               <div className="space-y-2">
                 {surveyResponses.map((sr: any) => {
                   const template = sr.survey_templates;
+                  const currentStatus = sr.dr_status === "approved" || sr.dr_status === "reviewed" ? "Reviewed" : "Pending";
                   return (
                     <div
                       key={sr.id}
@@ -1128,12 +1130,25 @@ const PatientDetail = () => {
                         <Eye className="h-4 w-4 text-muted-foreground shrink-0" />
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <Badge
-                          variant={sr.dr_status === "approved" ? "default" : "secondary"}
-                          className="text-[10px]"
-                        >
-                          {sr.dr_status === "approved" ? "Approved" : sr.dr_status === "reviewed" ? "Reviewed" : "Pending"}
-                        </Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Badge
+                              variant={currentStatus === "Reviewed" ? "default" : "secondary"}
+                              className="text-[10px] cursor-pointer hover:opacity-80 gap-1"
+                            >
+                              {currentStatus}
+                              <ChevronDown className="h-2.5 w-2.5" />
+                            </Badge>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); changeSurveyStatus(sr, "Pending"); }}>
+                              Pending
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); changeSurveyStatus(sr, "Reviewed"); }}>
+                              Reviewed
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         <p className="text-xs text-muted-foreground">{new Date(sr.created_at).toLocaleDateString()}</p>
                       </div>
                     </div>

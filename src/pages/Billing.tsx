@@ -164,6 +164,42 @@ const getDrName = (inv: any) => {
 const Billing = () => {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Open the public invoice PDF (generates on-demand if not yet cached).
+  const openInvoicePDF = async (inv: any) => {
+    // Open a tab synchronously to avoid popup blockers; we'll set its URL later.
+    const win = window.open("", "_blank");
+    try {
+      if (inv?.pdf_url) {
+        if (win) win.location.href = inv.pdf_url;
+        else window.location.href = inv.pdf_url;
+        return;
+      }
+      if (!inv?.id) {
+        toast.error("Invoice id missing");
+        if (win) win.close();
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
+        body: { invoiceId: inv.id },
+      });
+      if (error || !(data as any)?.url) {
+        console.error("PDF generate failed:", error, data);
+        toast.error("Failed to generate invoice PDF");
+        if (win) win.close();
+        return;
+      }
+      const url = (data as any).url as string;
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      if (win) win.location.href = url;
+      else window.location.href = url;
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "Failed to open invoice PDF");
+      if (win) win.close();
+    }
+  };
+
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [paymentInv, setPaymentInv] = useState<any>(null);
@@ -1480,7 +1516,7 @@ const Billing = () => {
                             <CreditCard className="h-4 w-4" />
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Download PDF" onClick={() => generateInvoicePDF(inv)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="Open Invoice PDF" onClick={() => openInvoicePDF(inv)}>
                           <FileText className="h-4 w-4" />
                         </Button>
                       </div>
@@ -1513,7 +1549,7 @@ const Billing = () => {
                 }}>
                   <Trash2 className="h-3.5 w-3.5" /> Delete
                 </Button>
-                <Button size="sm" variant="outline" className="gap-1.5 ml-auto" onClick={() => generateInvoicePDF(viewInvoice)}>
+                <Button size="sm" variant="outline" className="gap-1.5 ml-auto" onClick={() => openInvoicePDF(viewInvoice)}>
                   <FileText className="h-3.5 w-3.5" /> PDF
                 </Button>
               </div>

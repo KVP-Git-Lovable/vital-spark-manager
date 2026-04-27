@@ -1,5 +1,5 @@
-import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
-import { createClient } from "npm:@supabase/supabase-js@2.95.0";
+import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

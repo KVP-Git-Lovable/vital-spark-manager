@@ -42,6 +42,39 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Resolve per-item amounts: services come in as plain strings like
+    // "Acne Treatment Package" or "Hydrogen x1". Look up prices from
+    // services + pharma_products to compute each line's amount.
+    const rawServices: string[] = Array.isArray(inv.services) ? inv.services : [];
+    const parsedItems = rawServices.map((s) => {
+      const str = String(s).trim();
+      // Match trailing " x<number>" (product quantity convention)
+      const qtyMatch = str.match(/^(.*?)\s+x(\d+(?:\.\d+)?)$/i);
+      if (qtyMatch) {
+        return { raw: str, name: qtyMatch[1].trim(), qty: Number(qtyMatch[2]) || 1, kind: "product" as const };
+      }
+      return { raw: str, name: str, qty: 1, kind: "service" as const };
+    });
+
+    const uniqueNames = Array.from(new Set(parsedItems.map((i) => i.name)));
+    const priceMap = new Map<string, number>();
+    if (uniqueNames.length > 0) {
+      const [{ data: svcRows }, { data: prodRows }] = await Promise.all([
+        supabase.from("services").select("name, price").in("name", uniqueNames),
+        supabase.from("pharma_products").select("name, selling_price").in("name", uniqueNames),
+      ]);
+      (svcRows || []).forEach((r: any) => priceMap.set(r.name, Number(r.price) || 0));
+      // Products override only if no service match (service takes precedence on collisions)
+      (prodRows || []).forEach((r: any) => {
+        if (!priceMap.has(r.name)) priceMap.set(r.name, Number(r.selling_price) || 0);
+      });
+    }
+
+    const lineItems = parsedItems.map((i) => {
+      const unit = priceMap.get(i.name) ?? 0;
+      return { ...i, unit, amount: unit * i.qty };
+    });
+
     // Build PDF
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([595, 842]); // A4
@@ -87,11 +120,13 @@ Deno.serve(async (req) => {
     page.drawText("AMOUNT", { x: width - 110, y: y + 4, size: 10, font: fontBold, color: teal });
     y -= 22;
 
-    const services: string[] = Array.isArray(inv.services) ? inv.services : [];
-    services.forEach((s, i) => {
+    lineItems.forEach((item, i) => {
       page.drawText(String(i + 1), { x: 50, y, size: 10, font, color: dark });
-      page.drawText(String(s).slice(0, 60), { x: 80, y, size: 10, font, color: dark });
-      page.drawText("-", { x: width - 110, y, size: 10, font, color: dark });
+      const label = item.qty > 1 ? `${item.name}  x${item.qty}` : item.name;
+      page.drawText(label.slice(0, 60), { x: 80, y, size: 10, font, color: dark });
+      const amountText = item.amount > 0 ? fmtINR(item.amount) : "-";
+      const amtWidth = font.widthOfTextAtSize(amountText, 10);
+      page.drawText(amountText, { x: width - 50 - amtWidth, y, size: 10, font, color: dark });
       y -= 18;
     });
 
@@ -108,8 +143,9 @@ Deno.serve(async (req) => {
     y -= 16;
     page.drawText("Paid Amount", { x: width - 250, y, size: 10, font, color: dark });
     page.drawText(fmtINR(paid), { x: width - 130, y, size: 10, font, color: dark });
-    y -= 16;
-    page.drawLine({ start: { x: width - 250, y: y + 6 }, end: { x: width - 40, y: y + 6 }, thickness: 1, color: teal });
+    y -= 12;
+    page.drawLine({ start: { x: width - 250, y }, end: { x: width - 40, y }, thickness: 1, color: teal });
+    y -= 18;
     page.drawText("Balance Due", { x: width - 250, y, size: 12, font: fontBold, color: teal });
     page.drawText(fmtINR(balance), { x: width - 130, y, size: 12, font: fontBold, color: teal });
 

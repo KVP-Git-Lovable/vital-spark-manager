@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek,
   startOfMonth, endOfMonth, subMonths, startOfQuarter, eachDayOfInterval,
+  eachHourOfInterval, eachWeekOfInterval, differenceInDays,
 } from "date-fns";
 import { useNavigate } from "react-router-dom";
 
@@ -171,45 +172,90 @@ const Index = () => {
     filtered.forEach((a: any) => { statusMap[a.status] = (statusMap[a.status] || 0) + 1; });
     const appointmentStatus = Object.entries(statusMap).map(([name, value]) => ({ name, value }));
 
-    // Appointments by Dr
+    // Appointments by Staff
     const drApptMap: Record<string, number> = {};
     const doctorLookup = new Map(staffList.map(d => [d.id, `${d.first_name} ${d.last_name}`]));
     filtered.forEach((a: any) => {
       const name = a.staff_id ? (doctorLookup.get(a.staff_id) || "Unassigned") : "Unassigned";
       drApptMap[name] = (drApptMap[name] || 0) + 1;
     });
-    const appointmentsByDr = Object.entries(drApptMap).map(([name, value]) => ({ name, value }));
+    let appointmentsByDr = Object.entries(drApptMap)
+      .map(([name, value]) => ({ name, value }))
+      .filter((d) => !(d.name === "Unassigned" && d.value === 0))
+      .sort((a, b) => b.value - a.value);
+    if (appointmentsByDr.length > 8) {
+      const top = appointmentsByDr.slice(0, 8);
+      const other = appointmentsByDr.slice(8).reduce((s, x) => s + x.value, 0);
+      appointmentsByDr = [...top, { name: "Other", value: other }];
+    }
 
-    // Billing by Dr - match invoices to appointments to get staff
-    const drBillMap: Record<string, number> = {};
+    // Billing by Staff — link invoice → appointment → staff; fall back to "Walk-in / Direct"
+    const drBillPaid: Record<string, number> = {};
+    const drBillInvoiced: Record<string, number> = {};
     const apptStaffMap: Record<string, string> = {};
-    filtered.forEach((a: any) => {
+    appointments.forEach((a: any) => {
       apptStaffMap[a.id] = a.staff_id ? (doctorLookup.get(a.staff_id) || "Unassigned") : "Unassigned";
     });
     filteredInvoices.forEach((inv: any) => {
-      const drName = inv.appointment_id ? (apptStaffMap[inv.appointment_id] || "Unassigned") : "Unassigned";
-      drBillMap[drName] = (drBillMap[drName] || 0) + Number(inv.paid_amount || 0);
+      const drName = inv.appointment_id
+        ? (apptStaffMap[inv.appointment_id] || "Unassigned")
+        : "Walk-in / Direct";
+      drBillPaid[drName] = (drBillPaid[drName] || 0) + Number(inv.paid_amount || 0);
+      drBillInvoiced[drName] = (drBillInvoiced[drName] || 0) + Number(inv.total_amount || 0);
     });
-    const billingByDr = Object.entries(drBillMap).map(([name, value]) => ({ name, value }));
+    const billingByDr = Object.keys({ ...drBillPaid, ...drBillInvoiced })
+      .map((name) => ({ name, paid: drBillPaid[name] || 0, invoiced: drBillInvoiced[name] || 0 }))
+      .sort((a, b) => b.invoiced - a.invoiced)
+      .slice(0, 10);
 
-    // Revenue by date (current month)
-    const monthStart = startOfMonth(new Date());
-    const today = new Date();
-    const days = eachDayOfInterval({ start: monthStart, end: today > end ? end : today });
-    const revByDate: Record<string, number> = {};
-    days.forEach((d) => { revByDate[format(d, "dd MMM")] = 0; });
-    filteredInvoices.forEach((inv: any) => {
-      const key = format(new Date(inv.created_at), "dd MMM");
-      if (revByDate[key] !== undefined) revByDate[key] += Number(inv.paid_amount || 0);
+    // Revenue Trend — bucket by hour / day / week based on selected range length
+    const rangeDays = Math.max(1, differenceInDays(end, start) + 1);
+    let buckets: Date[];
+    let bucketKey: (d: Date) => string;
+    let bucketLabel: (d: Date) => string;
+    if (rangeDays <= 1) {
+      buckets = eachHourOfInterval({ start, end });
+      bucketKey = (d) => format(d, "yyyy-MM-dd HH");
+      bucketLabel = (d) => format(d, "h a");
+    } else if (rangeDays <= 31) {
+      buckets = eachDayOfInterval({ start, end });
+      bucketKey = (d) => format(d, "yyyy-MM-dd");
+      bucketLabel = (d) => format(d, "dd MMM");
+    } else {
+      buckets = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
+      bucketKey = (d) => format(startOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd");
+      bucketLabel = (d) => `Wk ${format(startOfWeek(d, { weekStartsOn: 1 }), "dd MMM")}`;
+    }
+    const paidByBucket: Record<string, number> = {};
+    const invByBucket: Record<string, number> = {};
+    const labelByBucket: Record<string, string> = {};
+    buckets.forEach((b) => {
+      const k = bucketKey(b);
+      paidByBucket[k] = 0;
+      invByBucket[k] = 0;
+      labelByBucket[k] = bucketLabel(b);
     });
-    const revenueByDate = Object.entries(revByDate).map(([date, revenue]) => ({ date, revenue }));
+    filteredInvoices.forEach((inv: any) => {
+      const k = bucketKey(new Date(inv.created_at));
+      if (paidByBucket[k] !== undefined) {
+        paidByBucket[k] += Number(inv.paid_amount || 0);
+        invByBucket[k] += Number(inv.total_amount || 0);
+      }
+    });
+    const revenueByDate = Object.keys(paidByBucket).map((k) => ({
+      date: labelByBucket[k],
+      paid: paidByBucket[k],
+      invoiced: invByBucket[k],
+    }));
 
     return { appointmentStatus, appointmentsByDr, billingByDr, revenueByDate };
-  }, [filtered, filteredInvoices, end]);
+  }, [filtered, filteredInvoices, appointments, staffList, start, end]);
 
   // Stat card values
-  const totalRevenue = filteredInvoices.reduce((s, inv: any) => s + Number(inv.paid_amount || 0), 0);
+  const paidRevenue = filteredInvoices.reduce((s, inv: any) => s + Number(inv.paid_amount || 0), 0);
+  const invoicedRevenue = filteredInvoices.reduce((s, inv: any) => s + Number(inv.total_amount || 0), 0);
   const completedCount = filtered.filter((a: any) => a.status === "Completed").length;
+  const scheduledCount = filtered.filter((a: any) => a.status === "Scheduled").length;
   const checkedInStaff = todayAttendance.filter((a: any) => a.check_in_time).length;
   const pendingAmount = pendingInvoices.reduce((s, inv: any) => s + (Number(inv.total_amount) - Number(inv.paid_amount)), 0);
   const dateLabel = DATE_RANGE_OPTIONS.find((o) => o.key === selectedDateRange)?.label || "Today";
@@ -259,9 +305,9 @@ const Index = () => {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-        <StatCard title={`Appointments`} value={filtered.length} change={`${completedCount} completed • ${dateLabel}`} changeType="neutral" icon={Calendar} iconColor="bg-info/10 text-info" delay={0} />
+        <StatCard title={`Appointments`} value={filtered.length} change={`${completedCount} completed • ${scheduledCount} scheduled • ${dateLabel}`} changeType="neutral" icon={Calendar} iconColor="bg-info/10 text-info" delay={0} />
         <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.05} />
-        <StatCard title={`Revenue`} value={`₹${totalRevenue.toLocaleString()}`} change={dateLabel} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.1} />
+        <StatCard title={`Revenue`} value={`₹${paidRevenue.toLocaleString()}`} change={`of ₹${invoicedRevenue.toLocaleString()} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.1} />
         <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.15} />
       </div>
 

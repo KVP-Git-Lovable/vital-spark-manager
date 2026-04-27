@@ -26,6 +26,10 @@ serve(async (req) => {
       name: p.pharma_products?.name || "Unknown",
       category: p.pharma_products?.category || "",
       advice: p.advice_text || "",
+      dosage: p.dosage || "",
+      frequency: p.frequency || "",
+      duration: p.duration || "",
+      instructions: p.instructions || "",
     }));
 
     const servicePool = (available_services || []).map((s: any) => ({
@@ -87,6 +91,10 @@ Based on the gap analysis between patient responses and ideal answers, provide r
                     properties: {
                       product_name: { type: "string" },
                       advice: { type: "string" },
+                      dosage: { type: "string" },
+                      frequency: { type: "string" },
+                      duration: { type: "string" },
+                      instructions: { type: "string" },
                     },
                     required: ["product_name", "advice"],
                   },

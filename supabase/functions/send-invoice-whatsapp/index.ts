@@ -69,7 +69,18 @@ Deno.serve(async (req) => {
 
     if (templateSid) {
       // Use approved template (recommended for WhatsApp Business outside session window)
+      // Template uses named variables. The invoice PDF URL in the template is
+      // built as ".../invoices/{{inf}}.pdf", so {{inf}} must be just the
+      // invoice number (e.g. INV-874623), not the full URL.
       const contentVariables = JSON.stringify({
+        // Named variables (current template)
+        name: String(patientName),
+        inf: String(invoiceNumber),
+        total: String(totalAmount ?? ""),
+        paid: String(paidAmount ?? ""),
+        balance: String(balanceAmount ?? ""),
+        status: String(status ?? ""),
+        // Numeric fallbacks in case template still references {{1}}..{{7}}
         "1": String(patientName),
         "2": String(invoiceNumber),
         "3": String(totalAmount ?? ""),

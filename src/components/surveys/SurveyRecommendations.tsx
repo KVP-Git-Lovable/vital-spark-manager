@@ -10,6 +10,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { approveSurveyResponse } from "@/lib/surveyApproval";
 
 interface Props {
   appointmentId: string;
@@ -43,18 +44,31 @@ export function SurveyRecommendations({ appointmentId }: Props) {
   });
 
   const reviewMutation = useMutation({
-    mutationFn: async ({ responseId, status, notes, reviewedBy }: { responseId: string; status: string; notes: string; reviewedBy: string }) => {
+    mutationFn: async ({ response, status, notes, reviewedBy }: { response: any; status: string; notes: string; reviewedBy: string }) => {
+      if (status === "approved") {
+        const { rxCount, procCount } = await approveSurveyResponse(response, {
+          reviewedBy: reviewedBy || null,
+          drNotes: notes || null,
+          queryClient,
+        });
+        return { rxCount, procCount };
+      }
       const { error } = await supabase.from("survey_responses").update({
         dr_status: status,
         dr_notes: notes,
         reviewed_by: reviewedBy || null,
         reviewed_at: new Date().toISOString(),
-      }).eq("id", responseId);
+      }).eq("id", response.id);
       if (error) throw error;
+      return { rxCount: 0, procCount: 0 };
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["survey-responses", appointmentId] });
-      toast.success("Review saved");
+      if (res?.rxCount || res?.procCount) {
+        toast.success(`Approved — ${res.rxCount} Rx, ${res.procCount} procedure(s) added`);
+      } else {
+        toast.success("Review saved");
+      }
       setReviewAction(null);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -149,7 +163,7 @@ export function SurveyRecommendations({ appointmentId }: Props) {
                     size="sm"
                     className="gap-1"
                     onClick={() => reviewMutation.mutate({
-                      responseId: resp.id,
+                      response: resp,
                       status: "approved",
                       notes: drNotes,
                       reviewedBy: reviewAction || "",
@@ -163,7 +177,7 @@ export function SurveyRecommendations({ appointmentId }: Props) {
                     variant="secondary"
                     className="gap-1"
                     onClick={() => reviewMutation.mutate({
-                      responseId: resp.id,
+                      response: resp,
                       status: "modified",
                       notes: drNotes,
                       reviewedBy: reviewAction || "",

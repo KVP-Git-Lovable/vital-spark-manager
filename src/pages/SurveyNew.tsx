@@ -47,9 +47,9 @@ export default function SurveyNew() {
   const { data: patient } = useQuery({
     queryKey: ["patient-min", patientId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("patients").select("id, name").eq("id", patientId).single();
+      const { data, error } = await supabase.from("patients").select("id, first_name, last_name").eq("id", patientId).single();
       if (error) throw error;
-      return data;
+      return { id: data.id, name: `${data.first_name} ${data.last_name}`.trim() };
     },
     enabled: !!patientId,
   });

@@ -91,7 +91,7 @@ const generateInvoicePDF = (inv: any) => {
 </head>
 <body>
   <div class="header">
-    <div class="logo">DermaCare<span>Clinic Manager</span></div>
+    <div class="logo">The Skin Clinic<span>Clinic Manager</span></div>
     <div class="invoice-title">
       <h1>Invoice</h1>
       <p>${inv.invoice_number}</p>
@@ -126,7 +126,7 @@ const generateInvoicePDF = (inv: any) => {
   </div>
   ${inv.notes ? `<div style="margin-top:20px;padding:12px 16px;background:#f9fafb;border-radius:8px;font-size:13px;"><strong>Notes:</strong> ${inv.notes}</div>` : ""}
   <div class="footer">
-    <p>Thank you for choosing DermaCare Clinic</p>
+    <p>Thank you for choosing The Skin Clinic</p>
     <p style="margin-top:4px;">This is a computer-generated invoice.</p>
   </div>
 </body>

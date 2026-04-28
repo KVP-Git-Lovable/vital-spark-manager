@@ -220,12 +220,12 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
               </Button>
             </div>
 
-            {report.filters.length > 0 && (
+            {safeFilters.length > 0 && (
               <>
                 <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2 block">
                   Saved Filters
                 </Label>
-                {report.filters.map((filter, idx) => (
+                {safeFilters.map((filter, idx) => (
                   <div key={`saved-${idx}`} className="flex flex-col gap-1 p-1.5 bg-muted/30 rounded text-[11px] mb-2 opacity-80">
                     <div className="flex items-center gap-1">
                       <Lock className="h-3 w-3 text-muted-foreground shrink-0" />

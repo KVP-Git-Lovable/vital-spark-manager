@@ -695,9 +695,9 @@ const Billing = () => {
                   phone: result.patientPhone,
                   patientName: result.patientName,
                   serviceName: result.summary.serviceName,
-                  totalAmount: `₹${Number(result.summary.totalAmount).toLocaleString("en-IN")}`,
+                  totalAmount: Number(result.summary.totalAmount).toLocaleString("en-IN"),
                   installmentCount: String(result.summary.installmentCount),
-                  installmentAmount: `₹${Number(result.summary.installmentAmount).toLocaleString("en-IN")}`,
+                  installmentAmount: Number(result.summary.installmentAmount).toLocaleString("en-IN"),
                   firstDueDate: due,
                 },
               },
@@ -729,9 +729,9 @@ const Billing = () => {
               phone: result.patientPhone,
               patientName: result.patientName,
               invoiceNumber: result.summary.invoiceNumber,
-              totalAmount: `₹${Number(result.summary.totalAmount).toLocaleString("en-IN")}`,
-              paidAmount: `₹${Number(result.summary.paidAmount).toLocaleString("en-IN")}`,
-              balanceAmount: `₹${balance.toLocaleString("en-IN")}`,
+              totalAmount: Number(result.summary.totalAmount).toLocaleString("en-IN"),
+              paidAmount: Number(result.summary.paidAmount).toLocaleString("en-IN"),
+              balanceAmount: balance.toLocaleString("en-IN"),
               status: result.summary.status,
               invoiceUrl,
             },
@@ -749,6 +749,70 @@ const Billing = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Helper: when a recurring installment invoice flips to Paid,
+  // generate a PDF for that specific installment and send it via WhatsApp
+  // using the existing invoice template. Plain numbers are sent (₹ lives
+  // in the Twilio template).
+  const notifyInstallmentPaid = async (invoiceId: string) => {
+    try {
+      const { data: inv } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("id", invoiceId)
+        .maybeSingle();
+      if (!inv) return;
+      // Only fire for recurring installments
+      if ((inv as any).payment_type !== "Recurring") return;
+
+      let phone: string | null = null;
+      if ((inv as any).patient_id) {
+        const { data: p } = await supabase
+          .from("patients")
+          .select("phone")
+          .eq("id", (inv as any).patient_id)
+          .maybeSingle();
+        phone = (p as any)?.phone ?? null;
+      }
+      if (!phone) return;
+
+      // Generate PDF for this specific installment invoice
+      let invoiceUrl: string | undefined;
+      try {
+        const { data: pdfData } = await supabase.functions.invoke(
+          "generate-invoice-pdf",
+          { body: { invoiceId } },
+        );
+        invoiceUrl = (pdfData as any)?.url;
+      } catch (e) {
+        console.error("Installment PDF generation error:", e);
+      }
+
+      const total = Number((inv as any).total_amount) || 0;
+      const paid = Number((inv as any).paid_amount) || 0;
+      const balance = Math.max(0, total - paid);
+
+      const { error: waErr } = await supabase.functions.invoke(
+        "send-invoice-whatsapp",
+        {
+          body: {
+            phone,
+            patientName: (inv as any).patient_name,
+            invoiceNumber: (inv as any).invoice_number,
+            totalAmount: total.toLocaleString("en-IN"),
+            paidAmount: paid.toLocaleString("en-IN"),
+            balanceAmount: balance.toLocaleString("en-IN"),
+            status: (inv as any).status,
+            invoiceUrl,
+          },
+        },
+      );
+      if (waErr) console.error("Installment WhatsApp send failed:", waErr);
+      else toast.success("Installment invoice sent to patient");
+    } catch (e) {
+      console.error("notifyInstallmentPaid error:", e);
+    }
+  };
+
   const updatePayment = useMutation({
     mutationFn: async () => {
       if (!paymentInv) return;
@@ -764,10 +828,14 @@ const Billing = () => {
         payment_mode: addPaymentMode,
       }).eq("id", paymentInv.id);
       if (error) throw error;
+      return { invoiceId: paymentInv.id, becamePaid: status === "Paid" && paymentInv.status !== "Paid" };
     },
-    onSuccess: () => {
+    onSuccess: async (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Payment updated");
+      if (res?.becamePaid && res.invoiceId) {
+        await notifyInstallmentPaid(res.invoiceId);
+      }
       setPaymentInv(null);
       setAddPaymentAmount(0);
     },
@@ -781,22 +849,36 @@ const Billing = () => {
         status: "Paid",
       }).eq("id", inv.id);
       if (error) throw error;
+      return { invoiceId: inv.id, becamePaid: inv.status !== "Paid" };
     },
-    onSuccess: () => {
+    onSuccess: async (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Invoice marked as paid");
+      if (res?.becamePaid && res.invoiceId) {
+        await notifyInstallmentPaid(res.invoiceId);
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const updateInvoiceStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("invoices").update({ status }).eq("id", id);
+    mutationFn: async ({ id, status, prevStatus }: { id: string; status: string; prevStatus?: string }) => {
+      const updates: any = { status };
+      // If marking Paid, also set paid_amount to total so totals stay consistent
+      if (status === "Paid") {
+        const { data: invRow } = await supabase.from("invoices").select("total_amount").eq("id", id).maybeSingle();
+        if (invRow) updates.paid_amount = Number((invRow as any).total_amount) || 0;
+      }
+      const { error } = await supabase.from("invoices").update(updates).eq("id", id);
       if (error) throw error;
+      return { invoiceId: id, becamePaid: status === "Paid" && prevStatus !== "Paid" };
     },
-    onSuccess: () => {
+    onSuccess: async (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Status updated");
+      if (res?.becamePaid && res.invoiceId) {
+        await notifyInstallmentPaid(res.invoiceId);
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -834,10 +916,17 @@ const Billing = () => {
         status,
       }).eq("id", viewInvoice.id);
       if (error) throw error;
+      return {
+        invoiceId: viewInvoice.id,
+        becamePaid: status === "Paid" && viewInvoice.status !== "Paid",
+      };
     },
-    onSuccess: () => {
+    onSuccess: async (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Invoice updated");
+      if (res?.becamePaid && res.invoiceId) {
+        await notifyInstallmentPaid(res.invoiceId);
+      }
       setIsEditing(false);
       setViewInvoice(null);
     },
@@ -1564,7 +1653,7 @@ const Billing = () => {
                       )}
                     </td>
                     <td className="p-4" onClick={(e) => e.stopPropagation()}>
-                      <Select value={inv.status} onValueChange={(v) => updateInvoiceStatus.mutate({ id: inv.id, status: v })}>
+                      <Select value={inv.status} onValueChange={(v) => updateInvoiceStatus.mutate({ id: inv.id, status: v, prevStatus: inv.status })}>
                         <SelectTrigger className={`h-auto border-0 p-0 shadow-none w-auto gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[inv.status] || ""}`}>
                           <SelectValue />
                         </SelectTrigger>

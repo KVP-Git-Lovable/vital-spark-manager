@@ -1310,13 +1310,20 @@ const Billing = () => {
                               const updated = [...recurringStatuses];
                               updated[i] = v;
                               setRecurringStatuses(updated);
+                              const updatedCollected = [...recurringCollected];
+                              if (v === "Paid") {
+                                updatedCollected[i] = recurringAmount;
+                              } else if (instStatus === "Paid") {
+                                updatedCollected[i] = 0;
+                              }
+                              setRecurringCollected(updatedCollected);
                             }}>
                               <SelectTrigger className="h-7 text-xs px-1.5"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 {["Pending", "Paid", "Partial", "Overdue"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                               </SelectContent>
                             </Select>
-                            <Input type="number" className="h-7 text-xs" placeholder="0" value={recurringCollected[i] || 0} onChange={(e) => {
+                            <Input type="number" className="h-7 text-xs" placeholder="0" disabled={instStatus === "Paid"} value={instStatus === "Paid" ? recurringAmount : (recurringCollected[i] || 0)} onChange={(e) => {
                               const updated = [...recurringCollected];
                               updated[i] = parseFloat(e.target.value) || 0;
                               setRecurringCollected(updated);

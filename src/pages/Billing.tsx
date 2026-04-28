@@ -540,7 +540,7 @@ const Billing = () => {
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
         // Return a summary for downstream WhatsApp notification
-        var summary = {
+        var summary: any = {
           invoiceNumber: `INV-${baseNum} (${stages.length} stages)`,
           totalAmount: rows.reduce((s, r: any) => s + Number(r.total_amount), 0),
           paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
@@ -575,7 +575,7 @@ const Billing = () => {
         });
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
-        var summary = {
+        var summary: any = {
           invoiceNumber: `INV-${baseNum} (${recurringCount} installments)`,
           totalAmount: rows.reduce((s, r: any) => s + Number(r.total_amount), 0),
           paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
@@ -585,7 +585,7 @@ const Billing = () => {
           installmentCount: recurringCount,
           installmentAmount: recurringAmount,
           firstDueDate: recurringDueDates[0] || new Date(),
-          serviceName: (allServices?.[0]?.name as string) || "Treatment plan",
+          serviceName: allServices[0] || "Treatment plan",
         };
       } else {
         const combinedSubtotal = servicesSubtotal + pharmaSubtotal;
@@ -611,7 +611,7 @@ const Billing = () => {
           ...t,
         }).select("id").single();
         if (error) throw error;
-        var summary = {
+        var summary: any = {
           invoiceNumber: `INV-${baseNum}`,
           totalAmount: grandTotal,
           paidAmount: paidAmount,

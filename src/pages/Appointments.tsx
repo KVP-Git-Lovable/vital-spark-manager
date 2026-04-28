@@ -605,9 +605,7 @@ const Appointments = () => {
   }, [appointments]);
 
   const colorForApt = (apt: any) => {
-    const palette = apt.staff_id ? doctorColorMap.get(apt.staff_id) : DOCTOR_PALETTE[0];
-    const p = palette || DOCTOR_PALETTE[0];
-    return `${p.bg} ${p.border} ${p.text}`;
+    return STATUS_CARD_CLASSES[apt.status] || STATUS_CARD_CLASSES.Proposed;
   };
 
   const getDoctorName = (apt: any) => {
@@ -615,13 +613,7 @@ const Appointments = () => {
   };
 
   const statusColor = (status: string) => {
-    switch (status) {
-      case "Confirmed": return "bg-success/10 text-success";
-      case "Completed": return "bg-primary/10 text-primary";
-      case "No Show": return "bg-destructive/10 text-destructive";
-      case "Cancelled": return "bg-muted text-muted-foreground";
-      default: return "bg-warning/10 text-warning";
-    }
+    return STATUS_BADGE_CLASSES[status] || STATUS_BADGE_CLASSES.Proposed;
   };
 
   const disablePastDates = (date: Date) => {

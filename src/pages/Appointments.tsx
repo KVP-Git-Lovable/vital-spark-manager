@@ -57,6 +57,24 @@ const DOCTOR_PALETTE = [
 
 const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancelled"];
 
+// Status → tailwind classes for calendar cards (background + border + text)
+const STATUS_CARD_CLASSES: Record<string, string> = {
+  Proposed: "bg-info/15 border-info/30 text-info",
+  Confirmed: "bg-success/15 border-success/30 text-success",
+  Completed: "bg-muted border-border text-muted-foreground",
+  "No Show": "bg-destructive/15 border-destructive/30 text-destructive",
+  Cancelled: "bg-warning/15 border-warning/30 text-warning",
+};
+
+// Status → tailwind classes for badges (sidebar, legend, table)
+const STATUS_BADGE_CLASSES: Record<string, string> = {
+  Proposed: "bg-info/15 text-info border-info/30",
+  Confirmed: "bg-success/15 text-success border-success/30",
+  Completed: "bg-muted text-muted-foreground border-border",
+  "No Show": "bg-destructive/15 text-destructive border-destructive/30",
+  Cancelled: "bg-warning/15 text-warning border-warning/30",
+};
+
 const Appointments = () => {
   const queryClient = useQueryClient();
   const routerNavigate = useNavigate();
@@ -73,6 +91,8 @@ const Appointments = () => {
   // Filter state
   const [filterDoctors, setFilterDoctors] = useState<Set<string>>(new Set());
   const [filterDate, setFilterDate] = useState<Date | undefined>();
+  const [filterSource, setFilterSource] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [quickFilter, setQuickFilter] = useState<string>("");
@@ -207,6 +227,12 @@ const Appointments = () => {
   const filteredAppointments = appointments.filter((apt: any) => {
     if (filterDoctors.size > 0 && apt.staff_id && !filterDoctors.has(apt.staff_id)) return false;
     if (filterDate && !isSameDay(new Date(apt.start_time), filterDate)) return false;
+    if (filterSource !== "all") {
+      const src = (apt.source || "").toString().toLowerCase();
+      if (filterSource === "portal" && src !== "portal") return false;
+      if (filterSource === "walkin" && src === "portal") return false;
+    }
+    if (filterStatus !== "all" && apt.status !== filterStatus) return false;
     if (searchQuery) {
       const name = apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
       if (!name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -329,7 +355,9 @@ const Appointments = () => {
       if (startDT < new Date()) throw new Error("Cannot book appointments in the past");
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
-      const patientSource = (patient as any)?.source || "Walk-in";
+      // Appointments created from the clinic app are always tagged "Walk-in".
+      // Portal-originated bookings tag themselves as "portal" at creation time.
+      const patientSource = "Walk-in";
       const selectedService = services.find((s) => s.id === serviceId);
       const serviceName = selectedService?.name || "";
       const wasRecurring = isRecurring && !!recurrenceEndDate;
@@ -579,9 +607,7 @@ const Appointments = () => {
   }, [appointments]);
 
   const colorForApt = (apt: any) => {
-    const palette = apt.staff_id ? doctorColorMap.get(apt.staff_id) : DOCTOR_PALETTE[0];
-    const p = palette || DOCTOR_PALETTE[0];
-    return `${p.bg} ${p.border} ${p.text}`;
+    return STATUS_CARD_CLASSES[apt.status] || STATUS_CARD_CLASSES.Proposed;
   };
 
   const getDoctorName = (apt: any) => {
@@ -589,13 +615,7 @@ const Appointments = () => {
   };
 
   const statusColor = (status: string) => {
-    switch (status) {
-      case "Confirmed": return "bg-success/10 text-success";
-      case "Completed": return "bg-primary/10 text-primary";
-      case "No Show": return "bg-destructive/10 text-destructive";
-      case "Cancelled": return "bg-muted text-muted-foreground";
-      default: return "bg-warning/10 text-warning";
-    }
+    return STATUS_BADGE_CLASSES[status] || STATUS_BADGE_CLASSES.Proposed;
   };
 
   const disablePastDates = (date: Date) => {
@@ -966,7 +986,7 @@ const Appointments = () => {
           <Filter className="h-3.5 w-3.5" />
           Filters & Search
           {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          {(searchQuery || filterDoctors.size > 0 || filterDate) && <Badge className="h-4 px-1.5 text-[10px]">Active</Badge>}
+          {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all") && <Badge className="h-4 px-1.5 text-[10px]">Active</Badge>}
         </Button>
         {showFilters && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex flex-wrap items-center gap-3 p-3 bg-muted/30 rounded-lg border overflow-hidden">
@@ -984,6 +1004,21 @@ const Appointments = () => {
                 {staffList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select value={filterSource} onValueChange={setFilterSource}>
+              <SelectTrigger className="w-[140px] h-9 text-sm"><SelectValue placeholder="All Sources" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                <SelectItem value="portal">Portal</SelectItem>
+                <SelectItem value="walkin">Walk-in</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue placeholder="All Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", filterDate && "border-primary text-primary")}>
@@ -995,47 +1030,39 @@ const Appointments = () => {
                 <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus className={cn("p-3 pointer-events-auto")} />
               </PopoverContent>
             </Popover>
-            {(searchQuery || filterDoctors.size > 0 || filterDate) && (
-              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterDate(undefined); }}>Clear filters</Button>
+            {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all") && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterDate(undefined); setFilterSource("all"); setFilterStatus("all"); }}>Clear filters</Button>
             )}
             <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
           </motion.div>
         )}
-        {/* Staff color legend */}
-        {view !== "table" && doctorColorMap.size > 0 && (
+        {/* Status color legend (click to filter by status) */}
+        {view !== "table" && (
           <div className="flex flex-wrap items-center gap-2 mt-2">
-            <span className="text-xs text-muted-foreground font-medium">Staff:</span>
-            {staffList.filter((d: any) => doctorColorMap.has(d.id)).map((d: any) => {
-              const p = doctorColorMap.get(d.id)!;
-              const isSelected = filterDoctors.has(d.id);
-              const isFiltering = filterDoctors.size > 0;
+            <span className="text-xs text-muted-foreground font-medium">Status:</span>
+            {statusOptions.map((s) => {
+              const isSelected = filterStatus === s;
+              const isFiltering = filterStatus !== "all";
               return (
                 <button
-                  key={d.id}
+                  key={s}
                   className={cn(
                     "flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border transition-all cursor-pointer",
                     isSelected
-                      ? `${p.bg} ${p.border} ${p.text} font-medium`
+                      ? `${STATUS_BADGE_CLASSES[s]} font-medium`
                       : isFiltering
                         ? "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
                         : "border-transparent text-muted-foreground hover:bg-muted"
                   )}
-                  onClick={() => {
-                    setFilterDoctors(prev => {
-                      const next = new Set(prev);
-                      if (next.has(d.id)) next.delete(d.id);
-                      else next.add(d.id);
-                      return next;
-                    });
-                  }}
+                  onClick={() => setFilterStatus(prev => prev === s ? "all" : s)}
                 >
-                  <span className={cn("w-2.5 h-2.5 rounded-full", p.dot)} />
-                  {d.first_name} {d.last_name}
+                  <span className={cn("w-2.5 h-2.5 rounded-full", STATUS_BADGE_CLASSES[s].split(" ")[0].replace("/15", ""))} />
+                  {s}
                 </button>
               );
             })}
-            {filterDoctors.size > 0 && (
-              <button className="text-[10px] text-muted-foreground hover:text-foreground ml-1" onClick={() => setFilterDoctors(new Set())}>
+            {filterStatus !== "all" && (
+              <button className="text-[10px] text-muted-foreground hover:text-foreground ml-1" onClick={() => setFilterStatus("all")}>
                 Clear
               </button>
             )}

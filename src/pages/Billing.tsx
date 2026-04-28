@@ -439,6 +439,17 @@ const Billing = () => {
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
   const servicesSubtotal = useMemo(() => serviceInputs.reduce((sum, s) => sum + (Number(s.price) || 0), 0), [serviceInputs]);
 
+  // Auto-fill Recurring Total Amount from services + products subtotal, and recompute per-installment amount
+  useEffect(() => {
+    if (paymentType !== "Recurring") return;
+    const subtotal = servicesSubtotal + pharmaSubtotal;
+    if (subtotal <= 0) return;
+    setRecurringTotalAmount(subtotal);
+    const c = Math.max(1, recurringCount);
+    setRecurringAmount(Math.round((subtotal / c) * 100) / 100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentType, servicesSubtotal, pharmaSubtotal, recurringCount]);
+
   const addPharmaItem = () => {
     setPharmaItems([...pharmaItems, { inventory_id: "", product_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0 }]);
   };

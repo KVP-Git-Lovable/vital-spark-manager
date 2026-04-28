@@ -388,6 +388,7 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
               <Select value={relatedObject || "none"} onValueChange={(v) => {
                 const newRel = v === "none" ? "" : v;
                 setRelatedObject(newRel);
+                purgeInvalid(primaryObject, newRel);
                 if (!initial) setName(generateReportName(primaryObject, newRel || undefined));
               }}>
                 <SelectTrigger className="h-6 text-[10px]">

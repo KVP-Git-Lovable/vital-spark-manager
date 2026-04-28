@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getObjectByKey, type ReportFilter, type ReportDisplayOptions, DEFAULT_DISPLAY_OPTIONS } from "@/lib/reportObjects";
+import { getObjectByKey, isValidFieldKey, type ReportFilter, type ReportDisplayOptions, DEFAULT_DISPLAY_OPTIONS } from "@/lib/reportObjects";
 import { Badge } from "@/components/ui/badge";
 import {
   BarChart,
@@ -65,6 +65,7 @@ export function ReportPreview({
 }: Props) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const opts = displayOptionsProp || DEFAULT_DISPLAY_OPTIONS;
 
   useEffect(() => {
@@ -73,13 +74,22 @@ export function ReportPreview({
 
   const fetchData = async () => {
     setLoading(true);
+    setErrorMsg(null);
     const primaryObj = getObjectByKey(primaryObject);
     if (!primaryObj) { setLoading(false); return; }
 
-    const allFieldKeys = [...new Set([...columns, ...groupRows, ...groupColumns])];
+    // Sanitize: drop any selected field that doesn't exist on the
+    // current primary/related objects. This protects against stale saved
+    // reports or leftover chips after switching objects.
+    const allowed = [primaryObject, relatedObject].filter(Boolean);
+    const allFieldKeys = [...new Set([...columns, ...groupRows, ...groupColumns])]
+      .filter((fk) => isValidFieldKey(fk, allowed));
+
+    const primaryValidFieldSet = new Set(primaryObj.fields.map((f) => f.key));
     const primaryFieldKeys = allFieldKeys
       .filter((fk) => fk.startsWith(`${primaryObject}.`))
-      .map((fk) => fk.split(".")[1]);
+      .map((fk) => fk.split(".")[1])
+      .filter((k) => primaryValidFieldSet.has(k));
     if (!primaryFieldKeys.includes("id")) primaryFieldKeys.push("id");
 
     if (allFieldKeys.length === 0) {
@@ -89,10 +99,12 @@ export function ReportPreview({
     }
 
     const relatedObj = relatedObject ? getObjectByKey(relatedObject) : null;
+    const relatedValidFieldSet = new Set(relatedObj?.fields.map((f) => f.key) || []);
     const relatedFieldKeys = relatedObj
       ? allFieldKeys
           .filter((fk) => fk.startsWith(`${relatedObject}.`))
           .map((fk) => fk.split(".")[1])
+          .filter((k) => relatedValidFieldSet.has(k))
       : [];
 
     let selectStr = primaryFieldKeys.join(",");
@@ -118,6 +130,7 @@ export function ReportPreview({
     let query = supabase.from(primaryObj.table as any).select(selectStr);
     filters
       .filter((f) => f.field.startsWith(`${primaryObject}.`))
+      .filter((f) => primaryValidFieldSet.has(f.field.split(".")[1]))
       .forEach((f) => {
         const col = f.field.split(".")[1];
         switch (f.operator) {
@@ -138,6 +151,7 @@ export function ReportPreview({
 
     if (error) {
       console.error("Report query error:", error);
+      setErrorMsg(error.message || "Failed to load report data.");
       setData([]);
       setLoading(false);
       return;
@@ -162,7 +176,9 @@ export function ReportPreview({
       return flat;
     });
 
-    const relatedFilters = filters.filter((f) => relatedObject && f.field.startsWith(`${relatedObject}.`));
+    const relatedFilters = filters
+      .filter((f) => relatedObject && f.field.startsWith(`${relatedObject}.`))
+      .filter((f) => relatedValidFieldSet.has(f.field.split(".")[1]));
     let filteredData = flattenedData;
     if (relatedFilters.length > 0) {
       filteredData = flattenedData.filter((row) => {
@@ -239,6 +255,18 @@ export function ReportPreview({
 
   if (loading) {
     return <div className="text-sm text-muted-foreground py-8 text-center">Loading report data...</div>;
+  }
+
+  if (errorMsg) {
+    return (
+      <div className="text-sm py-8 text-center space-y-1">
+        <div className="text-destructive font-medium">Couldn't load report data</div>
+        <div className="text-xs text-muted-foreground">
+          Some selected fields may no longer exist on the chosen objects. Try editing the report and re-adding the fields.
+        </div>
+        <div className="text-[11px] text-muted-foreground/80 italic">{errorMsg}</div>
+      </div>
+    );
   }
 
   if (data.length === 0) {

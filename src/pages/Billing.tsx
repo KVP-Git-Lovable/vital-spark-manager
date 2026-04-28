@@ -581,6 +581,11 @@ const Billing = () => {
           paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
           status: "Recurring plan",
           invoiceId: undefined as string | undefined,
+          isRecurring: true,
+          installmentCount: recurringCount,
+          installmentAmount: recurringAmount,
+          firstDueDate: recurringDueDates[0] || new Date(),
+          serviceName: (allServices?.[0]?.name as string) || "Treatment plan",
         };
       } else {
         const combinedSubtotal = servicesSubtotal + pharmaSubtotal;

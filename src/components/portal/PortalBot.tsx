@@ -118,7 +118,7 @@ const PortalBot = ({ patientId, patientName }: PortalBotProps) => {
           <Sparkles className="h-5 w-5 text-primary-foreground" />
         </div>
         <div>
-          <h2 className="font-bold text-lg">DermaCare AI</h2>
+          <h2 className="font-bold text-lg">The Skin Clinic AI</h2>
           <p className="text-xs text-muted-foreground">Your health assistant</p>
         </div>
       </div>
@@ -129,7 +129,7 @@ const PortalBot = ({ patientId, patientName }: PortalBotProps) => {
           <div className="space-y-4 pt-4">
             <div className="bg-primary/5 rounded-2xl p-4 border border-primary/10">
               <p className="text-sm">
-                Hi {patientName.split(" ")[0]}! 👋 I'm your DermaCare AI assistant. I can help you with:
+                Hi {patientName.split(" ")[0]}! 👋 I'm your Skin Clinic AI assistant. I can help you with:
               </p>
               <ul className="text-sm text-muted-foreground mt-2 space-y-1">
                 <li>• Book, cancel or reschedule appointments</li>

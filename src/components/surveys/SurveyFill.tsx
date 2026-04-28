@@ -138,6 +138,10 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
             const opts = getOptions();
             const scaleMin = q.options?.min ?? 1;
             const scaleMax = q.options?.max ?? 10;
+            // If a choice question has no configured options, fall back to a text input
+            // so the survey is still answerable instead of rendering nothing.
+            const isChoice = q.question_type === "single_choice" || q.question_type === "multi_choice";
+            const renderAsText = q.question_type === "text" || (isChoice && opts.length === 0);
 
             return (
               <div key={q.id} className="space-y-2 p-3 rounded-lg border bg-muted/30">
@@ -145,7 +149,7 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
                   {i + 1}. {q.question_text}
                 </Label>
 
-                {q.question_type === "text" && (
+                {renderAsText && (
                   <Textarea
                     value={answers[q.id] || ""}
                     onChange={(e) => updateAnswer(q.id, e.target.value)}
@@ -154,7 +158,7 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
                   />
                 )}
 
-                {q.question_type === "single_choice" && (
+                {q.question_type === "single_choice" && opts.length > 0 && (
                   <RadioGroup value={answers[q.id] || ""} onValueChange={(v) => updateAnswer(q.id, v)} className="pl-1">
                     {opts.map((opt: string) => (
                       <div key={opt} className="flex items-center gap-2">
@@ -165,7 +169,7 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
                   </RadioGroup>
                 )}
 
-                {q.question_type === "multi_choice" && (
+                {q.question_type === "multi_choice" && opts.length > 0 && (
                   <div className="space-y-2 pl-1">
                     {opts.map((opt: string) => (
                       <div key={opt} className="flex items-center gap-2">

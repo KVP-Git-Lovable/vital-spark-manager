@@ -39,6 +39,7 @@ import {
   generateReportName,
   CHART_TYPES,
   DEFAULT_DISPLAY_OPTIONS,
+  isValidFieldKey,
   type SavedReport,
   type ReportFilter,
   type ReportField,
@@ -68,10 +69,21 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
   const [description, setDescription] = useState(initial?.description || "");
   const [primaryObject, setPrimaryObject] = useState(initial?.primary_object || "");
   const [relatedObject, setRelatedObject] = useState(initial?.related_object || "");
-  const [columns, setColumns] = useState<string[]>(initial?.columns || []);
-  const [groupRows, setGroupRows] = useState<string[]>(initial?.group_rows || []);
-  const [groupColumns, setGroupColumns] = useState<string[]>(initial?.group_columns || []);
-  const [filters, setFilters] = useState<ReportFilter[]>(initial?.filters || []);
+  // Sanitize on load so stale saved reports (with field keys that no longer
+  // exist on the chosen objects) self-heal silently and don't break queries.
+  const initialAllowed = [initial?.primary_object, initial?.related_object];
+  const [columns, setColumns] = useState<string[]>(
+    (initial?.columns || []).filter((fk) => isValidFieldKey(fk, initialAllowed))
+  );
+  const [groupRows, setGroupRows] = useState<string[]>(
+    (initial?.group_rows || []).filter((fk) => isValidFieldKey(fk, initialAllowed))
+  );
+  const [groupColumns, setGroupColumns] = useState<string[]>(
+    (initial?.group_columns || []).filter((fk) => isValidFieldKey(fk, initialAllowed))
+  );
+  const [filters, setFilters] = useState<ReportFilter[]>(
+    (initial?.filters || []).filter((f) => isValidFieldKey(f.field, initialAllowed))
+  );
   const [chartType, setChartType] = useState(initial?.chart_type || "table");
   const [folderId, setFolderId] = useState(initial?.folder_id || "");
   const [fieldSearch, setFieldSearch] = useState("");
@@ -84,6 +96,16 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
   const primaryObj = getObjectByKey(primaryObject);
   const relatedObj = relatedObject ? getObjectByKey(relatedObject) : null;
   const relatedOptions = primaryObject ? getRelatedObjects(primaryObject) : [];
+
+  // Purge any chip/filter that references an object no longer in scope or a
+  // field that doesn't exist on the current objects.
+  const purgeInvalid = (nextPrimary: string, nextRelated: string) => {
+    const allowed = [nextPrimary, nextRelated].filter(Boolean);
+    setColumns((p) => p.filter((fk) => isValidFieldKey(fk, allowed)));
+    setGroupRows((p) => p.filter((fk) => isValidFieldKey(fk, allowed)));
+    setGroupColumns((p) => p.filter((fk) => isValidFieldKey(fk, allowed)));
+    setFilters((p) => p.filter((f) => isValidFieldKey(f.field, allowed)));
+  };
 
   const allFields: (ReportField & { objectKey: string; prefix: string })[] = [];
   if (primaryObj) {

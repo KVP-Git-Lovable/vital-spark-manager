@@ -1653,7 +1653,7 @@ const Billing = () => {
                       )}
                     </td>
                     <td className="p-4" onClick={(e) => e.stopPropagation()}>
-                      <Select value={inv.status} onValueChange={(v) => updateInvoiceStatus.mutate({ id: inv.id, status: v })}>
+                      <Select value={inv.status} onValueChange={(v) => updateInvoiceStatus.mutate({ id: inv.id, status: v, prevStatus: inv.status })}>
                         <SelectTrigger className={`h-auto border-0 p-0 shadow-none w-auto gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[inv.status] || ""}`}>
                           <SelectValue />
                         </SelectTrigger>

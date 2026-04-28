@@ -414,14 +414,40 @@ const Appointments = () => {
         phone: patient?.phone,
         patientName,
         firstStartDT: startDT,
+        recurrencePattern,
+        recurrenceEndDate: wasRecurring ? recurrenceEndDate : null,
+        totalSessions: wasRecurring
+          ? generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate!).length
+          : 1,
       };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       toast.success("Appointment(s) created");
       if (data.phone) toast.info(`Patient phone: ${data.phone}`, { duration: 6000 });
-      // Send WhatsApp confirmation (first occurrence only for recurring)
+      // Send WhatsApp confirmation
       if (data.phone && data.patientName && data.firstStartDT) {
+        if (data.wasRecurring && data.recurrenceEndDate) {
+          supabase.functions
+            .invoke("send-recurring-appointment-whatsapp", {
+              body: {
+                phone: data.phone,
+                patientName: data.patientName,
+                firstAppointmentDate: format(data.firstStartDT, "dd MMM yyyy"),
+                startTime: format(data.firstStartDT, "hh:mm a"),
+                totalSessions: data.totalSessions,
+                repeatPattern: data.recurrencePattern,
+                endDate: format(data.recurrenceEndDate, "dd MMM yyyy"),
+              },
+            })
+            .then(({ error }) => {
+              if (error) {
+                console.error("Recurring WhatsApp send failed:", error);
+              } else {
+                toast.success("WhatsApp confirmation sent");
+              }
+            });
+        } else {
         supabase.functions
           .invoke("send-appointment-whatsapp", {
             body: {
@@ -438,6 +464,7 @@ const Appointments = () => {
               toast.success("WhatsApp confirmation sent");
             }
           });
+        }
       }
       resetForm();
       setOpen(false);

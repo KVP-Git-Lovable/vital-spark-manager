@@ -397,6 +397,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
       // WhatsApp notifications on save
       try {
         const phone = (appointment as any)?.patients?.phone;
+        console.log("[appt-notify] check", { phone, prevStatus, newStatus, prevStaffId, newStaffId });
         if (phone) {
           const startDate = new Date(editStartTime);
           const apptDate = format(startDate, "dd MMM yyyy");
@@ -406,7 +407,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
           const staffAssigned = !!newStaffId && newStaffId !== prevStaffId;
 
           if (newStatus === "Cancelled" && statusChanged) {
-            await supabase.functions.invoke("send-appointment-update-whatsapp", {
+            const { error: nErr } = await supabase.functions.invoke("send-appointment-update-whatsapp", {
               body: {
                 kind: "cancelled",
                 phone,
@@ -415,12 +416,14 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                 appointmentTime: apptTime,
               },
             });
+            if (nErr) { console.error("[appt-notify] cancel error", nErr); toast.error("WhatsApp notification failed"); }
+            else toast.success("WhatsApp cancellation sent");
           } else if (statusChanged || staffAssigned) {
             const assignedStaff = staffList.find((s: any) => s.id === newStaffId);
             const doctorName = assignedStaff
               ? `${assignedStaff.first_name || ""} ${assignedStaff.last_name || ""}`.trim()
               : "To be assigned";
-            await supabase.functions.invoke("send-appointment-update-whatsapp", {
+            const { error: nErr } = await supabase.functions.invoke("send-appointment-update-whatsapp", {
               body: {
                 kind: "update",
                 phone,
@@ -432,6 +435,10 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                 serviceName: editService || "-",
               },
             });
+            if (nErr) { console.error("[appt-notify] update error", nErr); toast.error("WhatsApp notification failed"); }
+            else toast.success("WhatsApp notification sent");
+          } else {
+            console.log("[appt-notify] no change detected — skipping notification");
           }
         }
       } catch (notifyErr) {

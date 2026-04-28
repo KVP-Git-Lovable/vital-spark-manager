@@ -750,6 +750,7 @@ const Billing = () => {
   });
 
   const updatePayment = useMutation({
+    
     mutationFn: async () => {
       if (!paymentInv) return;
       const newPaid = Number(paymentInv.paid_amount) + addPaymentAmount;

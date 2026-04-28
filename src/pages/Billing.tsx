@@ -540,7 +540,7 @@ const Billing = () => {
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
         // Return a summary for downstream WhatsApp notification
-        var summary = {
+        var summary: any = {
           invoiceNumber: `INV-${baseNum} (${stages.length} stages)`,
           totalAmount: rows.reduce((s, r: any) => s + Number(r.total_amount), 0),
           paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
@@ -575,12 +575,17 @@ const Billing = () => {
         });
         const { error } = await supabase.from("invoices").insert(rows);
         if (error) throw error;
-        var summary = {
+        var summary: any = {
           invoiceNumber: `INV-${baseNum} (${recurringCount} installments)`,
           totalAmount: rows.reduce((s, r: any) => s + Number(r.total_amount), 0),
           paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
           status: "Recurring plan",
           invoiceId: undefined as string | undefined,
+          isRecurring: true,
+          installmentCount: recurringCount,
+          installmentAmount: recurringAmount,
+          firstDueDate: recurringDueDates[0] || new Date(),
+          serviceName: allServices[0] || "Treatment plan",
         };
       } else {
         const combinedSubtotal = servicesSubtotal + pharmaSubtotal;
@@ -606,7 +611,7 @@ const Billing = () => {
           ...t,
         }).select("id").single();
         if (error) throw error;
-        var summary = {
+        var summary: any = {
           invoiceNumber: `INV-${baseNum}`,
           totalAmount: grandTotal,
           paidAmount: paidAmount,
@@ -649,6 +654,32 @@ const Billing = () => {
       try {
         if (result?.patientPhone && result?.patientName && result?.summary) {
           const balance = Math.max(0, Number(result.summary.totalAmount) - Number(result.summary.paidAmount));
+
+          // Recurring invoices use a dedicated template, sent ONCE per series
+          if (result.summary.isRecurring) {
+            const due = result.summary.firstDueDate
+              ? format(new Date(result.summary.firstDueDate), "dd MMM yyyy")
+              : "";
+            const { error: rWaErr } = await supabase.functions.invoke(
+              "send-recurring-invoice-whatsapp",
+              {
+                body: {
+                  phone: result.patientPhone,
+                  patientName: result.patientName,
+                  serviceName: result.summary.serviceName,
+                  totalAmount: `₹${Number(result.summary.totalAmount).toLocaleString("en-IN")}`,
+                  installmentCount: String(result.summary.installmentCount),
+                  installmentAmount: `₹${Number(result.summary.installmentAmount).toLocaleString("en-IN")}`,
+                  firstDueDate: due,
+                },
+              },
+            );
+            if (rWaErr) console.error("Recurring WhatsApp send failed:", rWaErr);
+            else toast.success("WhatsApp recurring plan sent to patient");
+            resetForm();
+            setOpen(false);
+            return;
+          }
 
           // Generate the public PDF first (only for one-time invoices that have a single id)
           let invoiceUrl: string | undefined;

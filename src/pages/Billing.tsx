@@ -450,6 +450,23 @@ const Billing = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentType, servicesSubtotal, pharmaSubtotal, recurringCount]);
 
+  // Keep "Paid" installments' collected amount in sync with the per-installment amount
+  useEffect(() => {
+    if (paymentType !== "Recurring") return;
+    setRecurringCollected((prev) => {
+      const next = [...prev];
+      let changed = false;
+      for (let i = 0; i < recurringCount; i++) {
+        if (recurringStatuses[i] === "Paid" && next[i] !== recurringAmount) {
+          next[i] = recurringAmount;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recurringAmount, recurringStatuses, recurringCount, paymentType]);
+
   const addPharmaItem = () => {
     setPharmaItems([...pharmaItems, { inventory_id: "", product_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0 }]);
   };

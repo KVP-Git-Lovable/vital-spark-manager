@@ -609,7 +609,10 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                       </p>
                     )}
                   </div>
-                  <Badge variant="secondary" className="text-xs">{hasCompletedProcedure ? "Completed" : appointment.status}</Badge>
+                  {(() => {
+                    const s = hasCompletedProcedure ? "Completed" : appointment.status;
+                    return <Badge variant="outline" className={`text-xs ${STATUS_BADGE_CLASSES[s] || ""}`}>{s}</Badge>;
+                  })()}
                 </div>
               </SheetHeader>
 

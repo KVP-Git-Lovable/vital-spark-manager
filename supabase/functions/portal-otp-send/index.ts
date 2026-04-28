@@ -91,7 +91,9 @@ Deno.serve(async (req) => {
     const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
     const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
     const fromNumber = Deno.env.get("TWILIO_WHATSAPP_FROM");
-    const templateSid = Deno.env.get("TWILIO_OTP_TEMPLATE_SID");
+    const templateSid =
+      Deno.env.get("TWILIO_OTP_TEMPLATE_SID") ||
+      "HXb2a9e20b46c0b3f0ae4d556bdc301192";
 
     if (!accountSid || !authToken || !fromNumber) {
       console.error("Missing Twilio credentials");

@@ -20,6 +20,7 @@ import {
   CHART_TYPES,
   getObjectByKey,
   DEFAULT_DISPLAY_OPTIONS,
+  isValidFieldKey,
   type SavedReport,
   type ReportFilter,
   type ReportField,
@@ -43,6 +44,14 @@ interface Props {
 }
 
 export function ReportViewer({ report, onEdit, onClose }: Props) {
+  // Sanitize stored field keys so old reports with invalid columns
+  // don't poison the query and produce "no records found".
+  const allowed = [report.primary_object, report.related_object];
+  const safeColumns = report.columns.filter((fk) => isValidFieldKey(fk, allowed));
+  const safeGroupRows = report.group_rows.filter((fk) => isValidFieldKey(fk, allowed));
+  const safeGroupColumns = report.group_columns.filter((fk) => isValidFieldKey(fk, allowed));
+  const safeFilters = report.filters.filter((f) => isValidFieldKey(f.field, allowed));
+
   const [chartType, setChartType] = useState(report.chart_type);
   const [tempFilters, setTempFilters] = useState<ReportFilter[]>([]);
   const [showFilters, setShowFilters] = useState(false);
@@ -73,7 +82,7 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
     return obj?.fields.find((f) => f.key === fldKey)?.label || fk;
   };
 
-  const activeFilters = [...report.filters, ...tempFilters];
+  const activeFilters = [...safeFilters, ...tempFilters];
 
   const addTempFilter = () => {
     if (allFields.length === 0) return;
@@ -160,9 +169,9 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
               <ReportPreview
                 primaryObject={report.primary_object}
                 relatedObject={report.related_object || ""}
-                columns={report.columns}
-                groupRows={report.group_rows}
-                groupColumns={report.group_columns}
+                columns={safeColumns}
+                groupRows={safeGroupRows}
+                groupColumns={safeGroupColumns}
                 filters={activeFilters}
                 chartType={chartType}
                 displayOptions={displayOptions}
@@ -211,12 +220,12 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
               </Button>
             </div>
 
-            {report.filters.length > 0 && (
+            {safeFilters.length > 0 && (
               <>
                 <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2 block">
                   Saved Filters
                 </Label>
-                {report.filters.map((filter, idx) => (
+                {safeFilters.map((filter, idx) => (
                   <div key={`saved-${idx}`} className="flex flex-col gap-1 p-1.5 bg-muted/30 rounded text-[11px] mb-2 opacity-80">
                     <div className="flex items-center gap-1">
                       <Lock className="h-3 w-3 text-muted-foreground shrink-0" />

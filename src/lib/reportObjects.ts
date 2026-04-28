@@ -226,6 +226,24 @@ export const REPORT_OBJECTS: ReportObject[] = [
 export const getObjectByKey = (key: string) =>
   REPORT_OBJECTS.find((o) => o.key === key);
 
+/**
+ * Returns true if `fk` (e.g. "patients.first_name") references a field that
+ * actually exists on one of the allowed objects. Used to drop stale field
+ * references from saved reports / leftover chips after switching objects.
+ */
+export const isValidFieldKey = (
+  fk: string,
+  allowedObjectKeys: (string | undefined | null)[]
+): boolean => {
+  if (!fk || typeof fk !== "string") return false;
+  const [objKey, fieldKey] = fk.split(".");
+  if (!objKey || !fieldKey) return false;
+  if (!allowedObjectKeys.filter(Boolean).includes(objKey)) return false;
+  const obj = getObjectByKey(objKey);
+  if (!obj) return false;
+  return obj.fields.some((f) => f.key === fieldKey);
+};
+
 export const getRelatedObjects = (primaryKey: string): ReportObject[] => {
   const primary = getObjectByKey(primaryKey);
   if (!primary?.relations) return [];

@@ -355,7 +355,9 @@ const Appointments = () => {
       if (startDT < new Date()) throw new Error("Cannot book appointments in the past");
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
-      const patientSource = (patient as any)?.source || "Walk-in";
+      // Appointments created from the clinic app are always tagged "Walk-in".
+      // Portal-originated bookings tag themselves as "portal" at creation time.
+      const patientSource = "Walk-in";
       const selectedService = services.find((s) => s.id === serviceId);
       const serviceName = selectedService?.name || "";
       const wasRecurring = isRecurring && !!recurrenceEndDate;

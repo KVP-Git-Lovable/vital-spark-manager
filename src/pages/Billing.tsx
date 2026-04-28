@@ -271,6 +271,17 @@ const Billing = () => {
     }
   };
 
+  // Auto-fill Total Amount from services + products subtotal when Recurring is selected
+  useEffect(() => {
+    if (paymentType !== "Recurring") return;
+    const subtotal = servicesSubtotal + pharmaSubtotal;
+    if (subtotal <= 0) return;
+    setRecurringTotalAmount(subtotal);
+    const c = Math.max(1, recurringCount);
+    setRecurringAmount(Math.round((subtotal / c) * 100) / 100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentType, servicesSubtotal, pharmaSubtotal, recurringCount]);
+
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices"],
     queryFn: async () => {

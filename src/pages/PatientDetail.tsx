@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound } from "lucide-react";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -445,6 +445,29 @@ const PatientDetail = () => {
                 }}
               >
                 <Share2 className="h-3.5 w-3.5" /> Portal
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 h-8 text-xs"
+                onClick={async () => {
+                  if (!confirm("Reset this patient's portal PIN? They will be asked to set a new PIN on next login.")) return;
+                  const { error } = await supabase
+                    .from("patients")
+                    .update({
+                      portal_pin_hash: null,
+                      portal_pin_failed_attempts: 0,
+                      portal_pin_locked_until: null,
+                    } as any)
+                    .eq("id", id!);
+                  if (error) {
+                    toast.error("Failed to reset PIN");
+                    return;
+                  }
+                  toast.success("Portal PIN reset. Patient will set a new PIN on next login.");
+                }}
+              >
+                <KeyRound className="h-3.5 w-3.5" /> Reset Portal PIN
               </Button>
               <Badge className={`h-8 ${patient.status === "Active" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
                 {patient.status}

@@ -986,6 +986,41 @@ export type Database = {
           },
         ]
       }
+      patient_portal_otps: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          otp_hash: string
+          patient_id: string
+          used: boolean
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          otp_hash: string
+          patient_id: string
+          used?: boolean
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          otp_hash?: string
+          patient_id?: string
+          used?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_portal_otps_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_portal_tokens: {
         Row: {
           created_at: string | null
@@ -1053,6 +1088,9 @@ export type Database = {
           notes: string | null
           phone: string | null
           pincode: string | null
+          portal_pin_failed_attempts: number
+          portal_pin_hash: string | null
+          portal_pin_locked_until: string | null
           previous_treatments: string | null
           sf_id: string | null
           skin_concerns: string | null
@@ -1089,6 +1127,9 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           pincode?: string | null
+          portal_pin_failed_attempts?: number
+          portal_pin_hash?: string | null
+          portal_pin_locked_until?: string | null
           previous_treatments?: string | null
           sf_id?: string | null
           skin_concerns?: string | null
@@ -1125,6 +1166,9 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           pincode?: string | null
+          portal_pin_failed_attempts?: number
+          portal_pin_hash?: string | null
+          portal_pin_locked_until?: string | null
           previous_treatments?: string | null
           sf_id?: string | null
           skin_concerns?: string | null

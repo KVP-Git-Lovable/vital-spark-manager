@@ -377,17 +377,66 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
 
   const updateMutation = useMutation({
     mutationFn: async () => {
+      const prevStatus = appointment?.status || null;
+      const prevStaffId = appointment?.staff_id || null;
+      const newStatus = hasCompletedProcedure ? "Completed" : editStatus;
+      const newStaffId = editStaffId || null;
+
       const { error } = await supabase
         .from("appointments")
         .update({
           service: editService,
-          status: hasCompletedProcedure ? "Completed" : editStatus,
+          status: newStatus,
           start_time: new Date(editStartTime).toISOString(),
           end_time: new Date(editEndTime).toISOString(),
-          staff_id: editStaffId || null,
+          staff_id: newStaffId,
         })
         .eq("id", appointmentId!);
       if (error) throw error;
+
+      // WhatsApp notifications on save
+      try {
+        const phone = (appointment as any)?.patients?.phone;
+        if (phone) {
+          const startDate = new Date(editStartTime);
+          const apptDate = format(startDate, "dd MMM yyyy");
+          const apptTime = format(startDate, "hh:mm a");
+          const notifyStatuses = ["Confirmed", "Completed", "No Show", "Cancelled"];
+          const statusChanged = newStatus !== prevStatus && notifyStatuses.includes(newStatus);
+          const staffAssigned = !!newStaffId && newStaffId !== prevStaffId;
+
+          if (newStatus === "Cancelled" && statusChanged) {
+            await supabase.functions.invoke("send-appointment-update-whatsapp", {
+              body: {
+                kind: "cancelled",
+                phone,
+                patientName,
+                appointmentDate: apptDate,
+                appointmentTime: apptTime,
+              },
+            });
+          } else if (statusChanged || staffAssigned) {
+            const assignedStaff = staffList.find((s: any) => s.id === newStaffId);
+            const doctorName = assignedStaff
+              ? `${assignedStaff.first_name || ""} ${assignedStaff.last_name || ""}`.trim()
+              : "To be assigned";
+            await supabase.functions.invoke("send-appointment-update-whatsapp", {
+              body: {
+                kind: "update",
+                phone,
+                patientName,
+                status: newStatus,
+                appointmentDate: apptDate,
+                appointmentTime: apptTime,
+                doctorName,
+                serviceName: editService || "-",
+              },
+            });
+          }
+        }
+      } catch (notifyErr) {
+        console.error("WhatsApp notify failed:", notifyErr);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });

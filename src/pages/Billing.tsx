@@ -764,10 +764,14 @@ const Billing = () => {
         payment_mode: addPaymentMode,
       }).eq("id", paymentInv.id);
       if (error) throw error;
+      return { invoiceId: paymentInv.id, becamePaid: status === "Paid" && paymentInv.status !== "Paid" };
     },
-    onSuccess: () => {
+    onSuccess: async (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Payment updated");
+      if (res?.becamePaid && res.invoiceId) {
+        await notifyInstallmentPaid(res.invoiceId);
+      }
       setPaymentInv(null);
       setAddPaymentAmount(0);
     },
@@ -781,22 +785,36 @@ const Billing = () => {
         status: "Paid",
       }).eq("id", inv.id);
       if (error) throw error;
+      return { invoiceId: inv.id, becamePaid: inv.status !== "Paid" };
     },
-    onSuccess: () => {
+    onSuccess: async (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Invoice marked as paid");
+      if (res?.becamePaid && res.invoiceId) {
+        await notifyInstallmentPaid(res.invoiceId);
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const updateInvoiceStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("invoices").update({ status }).eq("id", id);
+    mutationFn: async ({ id, status, prevStatus }: { id: string; status: string; prevStatus?: string }) => {
+      const updates: any = { status };
+      // If marking Paid, also set paid_amount to total so totals stay consistent
+      if (status === "Paid") {
+        const { data: invRow } = await supabase.from("invoices").select("total_amount").eq("id", id).maybeSingle();
+        if (invRow) updates.paid_amount = Number((invRow as any).total_amount) || 0;
+      }
+      const { error } = await supabase.from("invoices").update(updates).eq("id", id);
       if (error) throw error;
+      return { invoiceId: id, becamePaid: status === "Paid" && prevStatus !== "Paid" };
     },
-    onSuccess: () => {
+    onSuccess: async (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Status updated");
+      if (res?.becamePaid && res.invoiceId) {
+        await notifyInstallmentPaid(res.invoiceId);
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });

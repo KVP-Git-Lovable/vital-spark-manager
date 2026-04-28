@@ -227,6 +227,12 @@ const Appointments = () => {
   const filteredAppointments = appointments.filter((apt: any) => {
     if (filterDoctors.size > 0 && apt.staff_id && !filterDoctors.has(apt.staff_id)) return false;
     if (filterDate && !isSameDay(new Date(apt.start_time), filterDate)) return false;
+    if (filterSource !== "all") {
+      const src = (apt.source || "").toString().toLowerCase();
+      if (filterSource === "portal" && src !== "portal") return false;
+      if (filterSource === "walkin" && src === "portal") return false;
+    }
+    if (filterStatus !== "all" && apt.status !== filterStatus) return false;
     if (searchQuery) {
       const name = apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
       if (!name.toLowerCase().includes(searchQuery.toLowerCase())) return false;

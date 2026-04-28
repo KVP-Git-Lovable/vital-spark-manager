@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Heart, Home, Calendar, ClipboardList, Camera, Receipt, Pill,
+  Home, Calendar, ClipboardList, Camera, Receipt, Pill,
   LogOut, Clock, User, ChevronRight, Plus, Send, Loader2, Stethoscope,
   MessageCircle, ShoppingBag, ClipboardCheck,
 } from "lucide-react";

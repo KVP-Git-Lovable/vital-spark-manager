@@ -57,6 +57,24 @@ const DOCTOR_PALETTE = [
 
 const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancelled"];
 
+// Status → tailwind classes for calendar cards (background + border + text)
+const STATUS_CARD_CLASSES: Record<string, string> = {
+  Proposed: "bg-info/15 border-info/30 text-info",
+  Confirmed: "bg-success/15 border-success/30 text-success",
+  Completed: "bg-muted border-border text-muted-foreground",
+  "No Show": "bg-destructive/15 border-destructive/30 text-destructive",
+  Cancelled: "bg-warning/15 border-warning/30 text-warning",
+};
+
+// Status → tailwind classes for badges (sidebar, legend, table)
+const STATUS_BADGE_CLASSES: Record<string, string> = {
+  Proposed: "bg-info/15 text-info border-info/30",
+  Confirmed: "bg-success/15 text-success border-success/30",
+  Completed: "bg-muted text-muted-foreground border-border",
+  "No Show": "bg-destructive/15 text-destructive border-destructive/30",
+  Cancelled: "bg-warning/15 text-warning border-warning/30",
+};
+
 const Appointments = () => {
   const queryClient = useQueryClient();
   const routerNavigate = useNavigate();
@@ -73,6 +91,8 @@ const Appointments = () => {
   // Filter state
   const [filterDoctors, setFilterDoctors] = useState<Set<string>>(new Set());
   const [filterDate, setFilterDate] = useState<Date | undefined>();
+  const [filterSource, setFilterSource] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [quickFilter, setQuickFilter] = useState<string>("");

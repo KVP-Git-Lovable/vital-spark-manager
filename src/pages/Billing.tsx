@@ -916,10 +916,17 @@ const Billing = () => {
         status,
       }).eq("id", viewInvoice.id);
       if (error) throw error;
+      return {
+        invoiceId: viewInvoice.id,
+        becamePaid: status === "Paid" && viewInvoice.status !== "Paid",
+      };
     },
-    onSuccess: () => {
+    onSuccess: async (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Invoice updated");
+      if (res?.becamePaid && res.invoiceId) {
+        await notifyInstallmentPaid(res.invoiceId);
+      }
       setIsEditing(false);
       setViewInvoice(null);
     },

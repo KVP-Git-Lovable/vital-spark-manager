@@ -13,6 +13,26 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
+    // The AI gateway only accepts PNG/JPEG/WebP/GIF via image_url.
+    // For PDFs (and as a safe fallback), download the file and send as a base64 data URL.
+    let imagePayloadUrl = imageUrl as string;
+    try {
+      const lower = (imageUrl as string).toLowerCase().split("?")[0];
+      const isPdf = lower.endsWith(".pdf");
+      if (isPdf) {
+        const fileResp = await fetch(imageUrl);
+        if (!fileResp.ok) throw new Error(`Failed to download file: ${fileResp.status}`);
+        const contentType = fileResp.headers.get("content-type") || "application/pdf";
+        const buf = new Uint8Array(await fileResp.arrayBuffer());
+        let binary = "";
+        for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);
+        const b64 = btoa(binary);
+        imagePayloadUrl = `data:${contentType};base64,${b64}`;
+      }
+    } catch (e) {
+      console.error("Failed to inline file as data URL:", e);
+    }
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -41,7 +61,7 @@ If you cannot determine a field, set it to null. Always return valid JSON only, 
             role: "user",
             content: [
               { type: "text", text: "Parse this expense receipt/invoice and extract the details." },
-              { type: "image_url", image_url: { url: imageUrl } },
+              { type: "image_url", image_url: { url: imagePayloadUrl } },
             ],
           },
         ],

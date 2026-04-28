@@ -43,6 +43,14 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancelled"];
 
+const STATUS_BADGE_CLASSES: Record<string, string> = {
+  Proposed: "bg-info/15 text-info border-info/30",
+  Confirmed: "bg-success/15 text-success border-success/30",
+  Completed: "bg-muted text-muted-foreground border-border",
+  "No Show": "bg-destructive/15 text-destructive border-destructive/30",
+  Cancelled: "bg-warning/15 text-warning border-warning/30",
+};
+
 const NPS_LABELS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 
 function FeedbackTabContent({

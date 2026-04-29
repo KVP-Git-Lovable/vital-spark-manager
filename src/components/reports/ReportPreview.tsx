@@ -115,7 +115,12 @@ export function ReportPreview({
         foreignKey = relation.foreignKey;
         const relFields = relatedFieldKeys.length > 0 ? relatedFieldKeys : relatedObj.fields.map((f) => f.key);
         selectStr += `,${relatedObj.table}(${relFields.join(",")})`;
-        if (!primaryFieldKeys.includes(foreignKey)) {
+        // Only include the FK column in the primary select when it actually
+        // exists on the primary table (i.e. primary is the "child" side of the
+        // relation). For one-to-many where the FK lives on the related table,
+        // Supabase resolves the embed via the FK on the related table itself.
+        const fkOnPrimary = primaryValidFieldSet.has(foreignKey);
+        if (fkOnPrimary && !primaryFieldKeys.includes(foreignKey)) {
           selectStr = `${foreignKey},${selectStr}`;
         }
       } else {

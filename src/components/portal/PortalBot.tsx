@@ -28,7 +28,14 @@ const quickActions = [
 ];
 
 const PortalBot = ({ patientId, patientName }: PortalBotProps) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const storageKey = `portal_bot_messages_${patientId}`;
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const stored = sessionStorage.getItem(storageKey);
+      if (stored) return JSON.parse(stored) as Message[];
+    } catch {}
+    return [];
+  });
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -39,6 +46,12 @@ const PortalBot = ({ patientId, patientName }: PortalBotProps) => {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify(messages));
+    } catch {}
+  }, [messages, storageKey]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;

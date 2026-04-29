@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.send-recurring-invoice-whatsapp]
 verify_jwt = false
+
+[functions.salesforce-intake]
+verify_jwt = false

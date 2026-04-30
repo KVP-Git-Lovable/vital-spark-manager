@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import { ReportList } from "@/components/reports/ReportList";
 import { ReportBuilder } from "@/components/reports/ReportBuilder";
 import { ReportViewer } from "@/components/reports/ReportViewer";
 import type { SavedReport } from "@/lib/reportObjects";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ReportFolder {
   id: string;
@@ -23,6 +25,8 @@ interface ReportFolder {
 }
 
 const ReportConfigurator = () => {
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [folders, setFolders] = useState<ReportFolder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +35,7 @@ const ReportConfigurator = () => {
   const [activeFolder, setActiveFolder] = useState<string>("all");
   const [newFolderName, setNewFolderName] = useState("");
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
 
   const fetchData = async () => {
     setLoading(true);
@@ -56,9 +61,41 @@ const ReportConfigurator = () => {
     setLoading(false);
   };
 
+  const fetchPins = async () => {
+    if (!user?.id) {
+      setPinnedIds(new Set());
+      return;
+    }
+    const { data, error } = await supabase
+      .from("dashboard_pins")
+      .select("report_id")
+      .eq("user_id", user.id);
+    if (!error) {
+      setPinnedIds(new Set((data || []).map((d: any) => d.report_id as string)));
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    fetchPins();
+  }, [user?.id]);
+
+  // Auto-open a report when navigated with ?view=<id>
+  useEffect(() => {
+    const viewId = searchParams.get("view");
+    if (!viewId || reports.length === 0) return;
+    const target = reports.find((r) => r.id === viewId);
+    if (target) {
+      setActiveReport(target);
+      setMode("view");
+      // Clean the query so refresh doesn't re-trigger
+      searchParams.delete("view");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, reports, setSearchParams]);
 
   const handleNew = () => {
     setActiveReport(null);
@@ -82,7 +119,38 @@ const ReportConfigurator = () => {
     } else {
       toast.success("Report deleted");
       fetchData();
+      fetchPins();
     }
+  };
+
+  const handleTogglePin = async (report: SavedReport) => {
+    if (!user?.id || !report.id) {
+      toast.error("Sign in to pin reports");
+      return;
+    }
+    const isPinned = pinnedIds.has(report.id);
+    if (isPinned) {
+      const { error } = await supabase
+        .from("dashboard_pins")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("report_id", report.id);
+      if (error) {
+        toast.error("Failed to unpin");
+        return;
+      }
+      toast.success("Unpinned from Dashboard");
+    } else {
+      const { error } = await supabase
+        .from("dashboard_pins")
+        .insert({ user_id: user.id, report_id: report.id, position: pinnedIds.size });
+      if (error) {
+        toast.error("Failed to pin");
+        return;
+      }
+      toast.success("Pinned to Dashboard");
+    }
+    fetchPins();
   };
 
   const handleSave = async (report: SavedReport) => {
@@ -286,6 +354,8 @@ const ReportConfigurator = () => {
           onDelete={handleDelete}
           onRun={handleView}
           folders={folders}
+          pinnedIds={pinnedIds}
+          onTogglePin={handleTogglePin}
         />
       )}
     </div>

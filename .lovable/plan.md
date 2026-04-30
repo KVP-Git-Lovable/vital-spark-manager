@@ -1,107 +1,42 @@
 ## Goal
-Replace the current dark-teal gradient PortalLanding with a faithful recreation of the clinic's external landing page (https://lp.theskinclinic.org.in/google) — light background, mint/teal accents, dark navy text — while keeping all CTAs routed to `/portal/login` so existing portal functionality is preserved.
 
-## What changes
+Rewrite `src/pages/portal/PortalLanding.tsx` so it strictly mirrors the layout, section order, and content of the uploaded reference HTML (`The Skin Clinic | Simply . Better . Skin`). Replace every Unsplash / AI placeholder currently on the page with the actual images hosted on the clinic's CDN (`theskinclinicorgin.swipepages.media`). Preserve all portal functionality — every CTA continues to route to `/portal/login`.
 
-**File:** `src/pages/portal/PortalLanding.tsx` (full rewrite)
+## Section order (matches reference HTML top → bottom)
 
-The existing file is the only thing being replaced. Routing (`/portal` → `PortalLanding`, `/portal/login` → `PortalLogin`) and all downstream portal logic remain untouched.
+1. **Sticky Navbar** — logo + "The Skin Clinic" wordmark · "Book An Appointment" → goes to `/portal/login` (renamed visually to "Access My Portal" per existing requirement, but keeps the navbar slot).
+2. **Hero** — left: H1 "For the perfect skin you desire", subline, 5★ + "200+ 5 Star Google Rating", CTAs *Enquiry on WhatsApp* / *Call Now* / *Access My Portal*. Right: hero portrait `closeup-handsome-young-man-getting-facial-rejuvenation-therapy-health-spa-spxoq8.jpg`.
+3. **Stats band** (mint gradient): `10000+ Laser Treatments`, `15000+ Satisfied Patients`, `6+ Years of Establishment`.
+4. **Our Doctors** — two cards using `doctor1.webp` (Dr. Punya Suvarna, MBBS, MD, FAGE, MRCP(SCE), Dermatologist, 5+ yrs) and `doctor2.webp` (Dr. Vindhya A. Pai, Founder, MBBS MD Dermatologist, 14+ yrs).
+5. **WhatsApp band** — "Have Questions? Chat With Our Expert Instantly on WhatsApp" + green WhatsApp button + dark Call button.
+6. **Services We Provide** — 6 cards with the *exact* CDN images and copy from the HTML:
+   - Skin Treatments → `facial.webp`
+   - Laser Hair Reduction → `laser-uyv67m.webp`
+   - Anti Ageing Treatment → `anti-aging-treatment-and-filler-injection.webp`
+   - Pre Wedding Skin Care → `beautiful-woman-getting-beauty-treatment--1--2500.webp`
+   - Fat Loss → `fat.webp`
+   - Filler Treatment → `woman-with-marked-face-receiving-botox-injection-2500.webp`
+7. **Before and After / Gallery** — grid of clinic tour photos: `skin-clinic-tour-13/27/28/31/32/33/41/42-btx5nw/43.jpg` (we'll use ~6 of these).
+8. **Why Choose The Skin Clinic** — 4 cards using the actual icons from the site: `dermatologist.webp`, `deadline.webp` (No-Rush), `commitment.webp` (Comfortable & Confidential), `interactivity.webp` (State-of-the-Art).
+9. **Achieve the skin you've always dreamed of** CTA band → Call Now + Access My Portal.
+10. **Testimonials** — 4 patient quotes (Sharvari Shetty, Varsha Rani, Sagar Jogi, Sahana A) — verbatim from the HTML.
+11. **Book Your Consultation in Seconds via WhatsApp** band.
+12. **About Us** — two-paragraph block from the HTML.
+13. **FAQ** — three Q/A items with full answers from the HTML.
+14. **Footer** — Services list, "Simply. Better. Skin." tagline, Mon–Sat 10AM–8PM, 9380682287, Kadri Mangalore.
+15. **Floating WhatsApp + Call buttons** (kept from current implementation).
 
-## New page structure (top to bottom)
+## Images
 
-1. **Sticky Navbar** (white, subtle shadow)
-   - Left: butterfly logo + "The Skin Clinic" wordmark
-   - Right: "Access My Portal" button (dark navy, white text) → `/portal/login`
-   - Mobile: logo + compact "Portal" button
+All images are hot-linked directly from `https://theskinclinicorgin.swipepages.media/2023/{11,12}/64c3bc8f029443001063c027/<file>`. No new asset files are added; the AI-generated `portal-hero-skin.jpg`, `portal-doctor-1.jpg`, `portal-doctor-2.jpg` will simply stop being imported (left on disk, can be deleted later — they're harmless).
 
-2. **Hero** (light grey/white background, two-column on desktop, stacked on mobile)
-   - Left column:
-     - H1: "For the perfect skin you desire" (dark navy, large display font)
-     - Subtitle: "Find the permanent solution to your skin issues with our expert care!"
-     - 5-star row + "200+ 5 Star Google Rating"
-     - Primary CTA: **"Access My Portal"** (dark navy) → `/portal/login`
-     - Secondary CTA: **"Get Started Free"** (mint/green) → `/portal/login`
-   - Right column: hero portrait image (use a stock dermatology/skincare portrait via Unsplash URL — the original site image is copyrighted)
+Every CTA — "Access My Portal", "Get Started Free" (kept on the dark CTA band), "Book An Appointment" — routes to `/portal/login` via `useNavigate`. WhatsApp / Call buttons keep their `wa.me` and `tel:` links.
 
-3. **Stats band** (mint gradient strip)
-   - 10000+ Laser Treatments · 15000+ Satisfied Patients · 6+ Years of Establishment
+## Technical notes
 
-4. **Our Doctors** (white section, two cards)
-   - Dr. Punya Suvarna — MBBS, MD, FAGE, MRCP (SCE) · Dermatologist · 5+ Years Experience
-   - Dr. Vindhya A. Pai — Founder · MBBS, MD Dermatologist · 14+ Years Experience
-   - Generic professional placeholder portraits (Unsplash)
-
-5. **WhatsApp / Contact band** ("Have Questions? Chat With Our Expert Instantly on WhatsApp")
-   - Buttons: "Chat on WhatsApp Now" (green, opens `https://wa.me/919380682287`) and "Call Now" (`tel:9380682287`)
-
-6. **Services We Provide** (mint gradient background, 3×2 card grid)
-   Skin Treatments · Laser Hair Reduction · Anti Ageing Treatment · Pre Wedding Skin Care · Fat Loss · Filler Treatment — each with image, title, and short description copied from the source site.
-
-7. **Before & After** (white, simple 3-image row / horizontal scroll on mobile) using neutral placeholder treatment images.
-
-8. **Why Choose The Skin Clinic** (mint gradient, 4 feature cards with icon)
-   - State-of-the-Art Facility · Comfortable & Confidential · No-Rush Appointments · Experienced Dermatologist
-
-9. **Patient Testimonials** (white, 3–4 cards with name, 5 stars, quote) — use the testimonials from the source page (Sharvari Shetty, Varsha Rani, Sagar Jogi, Sahana A).
-
-10. **Portal CTA banner** (dark navy, full width)
-    - Title: "Access Your Patient Portal"
-    - Body: "Manage appointments, view prescriptions, reorder medicines, and track your skin journey — all in one place."
-    - Buttons: **"Access My Portal"** and **"Get Started Free"** → both `/portal/login`
-
-11. **FAQ** (white, accordion using existing `@/components/ui/accordion`)
-    - Are Your Treatments Safe?
-    - How do I Book an Appointment?
-    - Is There Any Down Time After Treatments?
-
-12. **Footer** (light, three columns)
-    - Brand + tagline "Simply. Better. Skin."
-    - Quick links: Skin Treatment, Laser Hair Reduction, Hair Restoration, Pre Wedding Skin Care, Fat Loss
-    - Hours (Mon–Sat 10 AM–8 PM), Phone (9380682287), Address (Kadri, Mangalore)
-    - Copyright row
-
-13. **Floating action buttons** (fixed bottom-left, like reference): black square Phone button + green WhatsApp button.
-
-## Design tokens
-
-- Background: white / very light grey (`#FFFFFF`, `#F7F9F8`)
-- Mint section bg: soft gradient `from-[hsl(150,40%,90%)] to-[hsl(160,45%,82%)]`
-- Primary text: dark navy `#1F2A44` (matches reference)
-- Accent green (WhatsApp / Get Started Free): `#1F8A3C`
-- Dark CTA: navy `#1A1F36`
-- Headings: Plus Jakarta Sans (already loaded in `index.css`)
-- Body: Inter
-
-## CTA routing rules (all enforced)
-
-| Button | Destination |
-|---|---|
-| Navbar "Access My Portal" | `/portal/login` |
-| Hero "Access My Portal" | `/portal/login` |
-| Hero "Get Started Free" | `/portal/login` |
-| CTA banner "Access My Portal" | `/portal/login` |
-| CTA banner "Get Started Free" | `/portal/login` |
-| WhatsApp buttons | `https://wa.me/919380682287` (new tab) |
-| Call buttons | `tel:9380682287` |
-
-## Mobile responsiveness
-
-- Hero: stacks (text first, image hidden or below) under `md`
-- Navbar: condenses to logo + single icon-button "Portal"
-- Service grid: 1 col mobile → 2 cols tablet → 3 cols desktop
-- Doctors: 1 col mobile → 2 cols desktop
-- Why Choose: 1 col mobile → 2 cols tablet → 4 cols desktop
-- Testimonials: horizontal snap-scroll on mobile, 3-col grid on desktop
-- Floating call/WhatsApp FABs visible on all sizes
-
-## Things kept intact
-
-- Route `/portal` still renders `PortalLanding` (no router changes)
-- `/portal/login` and downstream portal pages, auth, bot, surveys — untouched
-- `clinicLogo` asset import retained for navbar
-- No backend, schema, or edge-function changes
-
-## Out of scope
-
-- No new images uploaded to `src/assets/` — use Unsplash URLs for doctor/hero/treatment placeholders. If you'd prefer the actual clinic photos, upload them after approval and I'll swap the URLs.
-- No changes to PortalLogin page styling.
+- Single file rewrite: `src/pages/portal/PortalLanding.tsx`.
+- Keep existing palette tokens (`NAVY #1F2A44`, `NAVY_DARK #1A1F36`, `GREEN #1F8A3C`), Plus Jakarta Sans for headings, Inter for body.
+- Continue using shadcn `Button` + `Accordion` and `framer-motion` for fade-ins.
+- Mobile-responsive: 1-col on mobile, 2-col tablet, 3-col desktop for services/gallery; stacked hero on mobile.
+- Remove imports of `portal-hero-skin.jpg`, `portal-doctor-1.jpg`, `portal-doctor-2.jpg`. Keep `clinicLogo` import.
+- No backend or routing changes; no edits to other files.

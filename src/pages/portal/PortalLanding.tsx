@@ -390,10 +390,17 @@ const PortalLanding = () => {
             </h2>
             <div className="mt-4 mx-auto h-px w-20 bg-gray-300" />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-            {gallery.map((src, i) => (
-              <div key={i} className="rounded-xl overflow-hidden aspect-[4/3] shadow-md bg-gray-100">
-                <img src={src} alt={`Clinic gallery ${i + 1}`} loading="lazy" className="w-full h-full object-cover" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+            {beforeAfter.map((item, i) => (
+              <div key={i} className="overflow-hidden bg-white">
+                <img
+                  src={item.src}
+                  alt={item.alt}
+                  loading="lazy"
+                  width={1024}
+                  height={768}
+                  className="w-full h-auto object-cover"
+                />
               </div>
             ))}
           </div>

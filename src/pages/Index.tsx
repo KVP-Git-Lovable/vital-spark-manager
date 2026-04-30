@@ -4,6 +4,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { DashboardFilters, DATE_RANGE_OPTIONS } from "@/components/dashboard/DashboardFilters";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { DashboardDrillDown } from "@/components/dashboard/DashboardDrillDown";
+import { PinnedReports } from "@/components/dashboard/PinnedReports";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -310,6 +311,8 @@ const Index = () => {
         <StatCard title={`Revenue`} value={`₹${paidRevenue.toLocaleString()}`} change={`of ₹${invoicedRevenue.toLocaleString()} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.1} />
         <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.15} />
       </div>
+
+      <PinnedReports start={start} end={end} staffId={selectedStaff} />
 
       <DashboardCharts data={chartData} onChartClick={handleChartClick} />
 

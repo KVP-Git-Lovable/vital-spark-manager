@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -15,6 +18,8 @@ import {
   Hash,
   Lock,
   PanelRightClose,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import {
   CHART_TYPES,
@@ -44,6 +49,60 @@ interface Props {
 }
 
 export function ReportViewer({ report, onEdit, onClose }: Props) {
+  const { user } = useAuth();
+  const [isPinned, setIsPinned] = useState(false);
+  const [pinBusy, setPinBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user?.id || !report.id) {
+      setIsPinned(false);
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from("dashboard_pins")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("report_id", report.id)
+        .maybeSingle();
+      if (!cancelled) setIsPinned(!!data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, report.id]);
+
+  const togglePin = async () => {
+    if (!user?.id || !report.id) {
+      toast.error("Sign in to pin reports");
+      return;
+    }
+    setPinBusy(true);
+    if (isPinned) {
+      const { error } = await supabase
+        .from("dashboard_pins")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("report_id", report.id);
+      if (error) toast.error("Failed to unpin");
+      else {
+        toast.success("Unpinned from Dashboard");
+        setIsPinned(false);
+      }
+    } else {
+      const { error } = await supabase
+        .from("dashboard_pins")
+        .insert({ user_id: user.id, report_id: report.id });
+      if (error) toast.error("Failed to pin");
+      else {
+        toast.success("Pinned to Dashboard");
+        setIsPinned(true);
+      }
+    }
+    setPinBusy(false);
+  };
+
   // Sanitize stored field keys so old reports with invalid columns
   // don't poison the query and produce "no records found".
   const allowed = [report.primary_object, report.related_object];
@@ -149,6 +208,18 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
 
         <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={onEdit}>
           <Edit className="h-3 w-3" /> Edit
+        </Button>
+
+        <Button
+          variant={isPinned ? "default" : "outline"}
+          size="sm"
+          className="h-7 gap-1 text-xs"
+          onClick={togglePin}
+          disabled={pinBusy || !report.id}
+          title={isPinned ? "Unpin from Dashboard" : "Pin to Dashboard"}
+        >
+          {isPinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
+          {isPinned ? "Unpin" : "Pin"}
         </Button>
       </div>
 

@@ -1,42 +1,89 @@
 ## Goal
 
-Rewrite `src/pages/portal/PortalLanding.tsx` so it strictly mirrors the layout, section order, and content of the uploaded reference HTML (`The Skin Clinic | Simply . Better . Skin`). Replace every Unsplash / AI placeholder currently on the page with the actual images hosted on the clinic's CDN (`theskinclinicorgin.swipepages.media`). Preserve all portal functionality — every CTA continues to route to `/portal/login`.
+Allow users to pin saved reports from `/report-builder` onto the main Dashboard (`/`) as live widgets, where each widget renders inline using the report's existing `chart_type` (table/bar/doughnut/line/number) and respects the Dashboard's date/staff filters when applicable.
 
-## Section order (matches reference HTML top → bottom)
+## 1. Database — new `dashboard_pins` table
 
-1. **Sticky Navbar** — logo + "The Skin Clinic" wordmark · "Book An Appointment" → goes to `/portal/login` (renamed visually to "Access My Portal" per existing requirement, but keeps the navbar slot).
-2. **Hero** — left: H1 "For the perfect skin you desire", subline, 5★ + "200+ 5 Star Google Rating", CTAs *Enquiry on WhatsApp* / *Call Now* / *Access My Portal*. Right: hero portrait `closeup-handsome-young-man-getting-facial-rejuvenation-therapy-health-spa-spxoq8.jpg`.
-3. **Stats band** (mint gradient): `10000+ Laser Treatments`, `15000+ Satisfied Patients`, `6+ Years of Establishment`.
-4. **Our Doctors** — two cards using `doctor1.webp` (Dr. Punya Suvarna, MBBS, MD, FAGE, MRCP(SCE), Dermatologist, 5+ yrs) and `doctor2.webp` (Dr. Vindhya A. Pai, Founder, MBBS MD Dermatologist, 14+ yrs).
-5. **WhatsApp band** — "Have Questions? Chat With Our Expert Instantly on WhatsApp" + green WhatsApp button + dark Call button.
-6. **Services We Provide** — 6 cards with the *exact* CDN images and copy from the HTML:
-   - Skin Treatments → `facial.webp`
-   - Laser Hair Reduction → `laser-uyv67m.webp`
-   - Anti Ageing Treatment → `anti-aging-treatment-and-filler-injection.webp`
-   - Pre Wedding Skin Care → `beautiful-woman-getting-beauty-treatment--1--2500.webp`
-   - Fat Loss → `fat.webp`
-   - Filler Treatment → `woman-with-marked-face-receiving-botox-injection-2500.webp`
-7. **Before and After / Gallery** — grid of clinic tour photos: `skin-clinic-tour-13/27/28/31/32/33/41/42-btx5nw/43.jpg` (we'll use ~6 of these).
-8. **Why Choose The Skin Clinic** — 4 cards using the actual icons from the site: `dermatologist.webp`, `deadline.webp` (No-Rush), `commitment.webp` (Comfortable & Confidential), `interactivity.webp` (State-of-the-Art).
-9. **Achieve the skin you've always dreamed of** CTA band → Call Now + Access My Portal.
-10. **Testimonials** — 4 patient quotes (Sharvari Shetty, Varsha Rani, Sagar Jogi, Sahana A) — verbatim from the HTML.
-11. **Book Your Consultation in Seconds via WhatsApp** band.
-12. **About Us** — two-paragraph block from the HTML.
-13. **FAQ** — three Q/A items with full answers from the HTML.
-14. **Footer** — Services list, "Simply. Better. Skin." tagline, Mon–Sat 10AM–8PM, 9380682287, Kadri Mangalore.
-15. **Floating WhatsApp + Call buttons** (kept from current implementation).
+Migration:
 
-## Images
+```sql
+create table public.dashboard_pins (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,             -- auth.uid() of pinning user
+  report_id uuid not null references public.saved_reports(id) on delete cascade,
+  position int not null default 0,   -- ordering on dashboard
+  created_at timestamptz not null default now(),
+  unique (user_id, report_id)
+);
+alter table public.dashboard_pins enable row level security;
 
-All images are hot-linked directly from `https://theskinclinicorgin.swipepages.media/2023/{11,12}/64c3bc8f029443001063c027/<file>`. No new asset files are added; the AI-generated `portal-hero-skin.jpg`, `portal-doctor-1.jpg`, `portal-doctor-2.jpg` will simply stop being imported (left on disk, can be deleted later — they're harmless).
+-- Policies: users see/manage only their own pins
+create policy "pins: select own" on public.dashboard_pins
+  for select to authenticated using (auth.uid() = user_id);
+create policy "pins: insert own" on public.dashboard_pins
+  for insert to authenticated with check (auth.uid() = user_id);
+create policy "pins: delete own" on public.dashboard_pins
+  for delete to authenticated using (auth.uid() = user_id);
+create policy "pins: update own" on public.dashboard_pins
+  for update to authenticated using (auth.uid() = user_id);
+```
 
-Every CTA — "Access My Portal", "Get Started Free" (kept on the dark CTA band), "Book An Appointment" — routes to `/portal/login` via `useNavigate`. WhatsApp / Call buttons keep their `wa.me` and `tel:` links.
+Per-user pinning matches existing patterns (each clinician sees their own dashboard). No changes to `saved_reports`.
 
-## Technical notes
+## 2. Pin action in Report Builder
 
-- Single file rewrite: `src/pages/portal/PortalLanding.tsx`.
-- Keep existing palette tokens (`NAVY #1F2A44`, `NAVY_DARK #1A1F36`, `GREEN #1F8A3C`), Plus Jakarta Sans for headings, Inter for body.
-- Continue using shadcn `Button` + `Accordion` and `framer-motion` for fade-ins.
-- Mobile-responsive: 1-col on mobile, 2-col tablet, 3-col desktop for services/gallery; stacked hero on mobile.
-- Remove imports of `portal-hero-skin.jpg`, `portal-doctor-1.jpg`, `portal-doctor-2.jpg`. Keep `clinicLogo` import.
-- No backend or routing changes; no edits to other files.
+`src/components/reports/ReportList.tsx` — add a Pin/Unpin icon button next to the existing View/Edit/Delete buttons.
+
+- Component fetches the current user's pins (set of `report_id`).
+- Toggle handler calls `supabase.from("dashboard_pins").insert(...)` / `.delete()`.
+- Icon: `Pin` (filled when pinned) from `lucide-react`, with tooltip "Pin to Dashboard" / "Unpin from Dashboard".
+- Toast on success.
+
+`src/pages/ReportConfigurator.tsx` passes a refreshable pin set into `ReportList`.
+
+Also add the same Pin icon button in `ReportViewer.tsx` header so users can pin while viewing a report.
+
+## 3. New Dashboard section — "Pinned Reports"
+
+New file `src/components/dashboard/PinnedReports.tsx`:
+
+- Loads `dashboard_pins` joined with `saved_reports` for current user, ordered by `position`.
+- Renders a responsive grid (1 col mobile / 2 col md / 3 col lg) of `PinnedReportWidget` cards.
+- Empty state: muted hint "Pin reports from Report Builder to see them here."
+
+New file `src/components/dashboard/PinnedReportWidget.tsx`:
+
+- Header row: report name (bold) + small badge with chart type + "Updated <relative time>" (using `report.updated_at`).
+- Action row (top-right): Open icon → navigates to `/report-builder?view=<id>`; Unpin icon (X / PinOff).
+- Body: renders `<ReportPreview {...report} compact />`. Existing `compact` prop already shrinks the inline preview.
+- Card height capped (~280px) with internal scroll for tables.
+- `chart_type === "number"` and `"table"` get a "summary stat" treatment: the widget pulls the first value/count out of `ReportPreview`'s rendered output via the existing `number` mode.
+
+Mount the section in `src/pages/Index.tsx` directly under the existing 4 stat cards and above `DashboardCharts`, with section heading "Pinned Reports".
+
+## 4. Apply Dashboard filters to widgets
+
+`PinnedReports` receives `{ start, end, staffId }` from `Index.tsx`. For each pinned report it constructs a runtime filter set:
+
+- Start with the saved `report.filters`.
+- If the primary object exposes a date field (`created_at`, `start_time`, `procedure_date`, `invoice_date`), append `gte`/`lte` filters using `start`/`end`.
+- If primary object has a `staff_id` field and `staffId !== "all"`, append `staff_id equals <staffId>`.
+- Pass the merged filter array into `ReportPreview`.
+
+This is best-effort: when a report's object doesn't have the relevant field we silently skip injection (existing report behavior unchanged). A small "Filtered" indicator appears on widgets where Dashboard filters were applied.
+
+## 5. Routing for "open full report"
+
+`/report-builder` already supports `view` mode internally. Update `ReportConfigurator.tsx` to read `?view=<id>` from the URL on mount and auto-open that report in the existing `ReportViewer`.
+
+## Files touched
+
+- New migration: `dashboard_pins` table + RLS policies.
+- New: `src/components/dashboard/PinnedReports.tsx`, `src/components/dashboard/PinnedReportWidget.tsx`.
+- Edited: `src/components/reports/ReportList.tsx` (Pin button), `src/components/reports/ReportViewer.tsx` (Pin button in header), `src/pages/ReportConfigurator.tsx` (pin-set fetch + `?view=` query handling), `src/pages/Index.tsx` (mount Pinned Reports section, pass filters).
+
+## Out of scope
+
+- Drag-and-drop reordering (uses insertion order; can be added later).
+- Sharing pins across users / global org pins.
+- Caching/refresh policies beyond TanStack Query defaults — widgets re-fetch when filters change.

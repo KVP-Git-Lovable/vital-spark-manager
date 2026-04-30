@@ -58,12 +58,21 @@ export function PinnedReports({ start, end, staffId }: Props) {
         .order("position", { ascending: true })
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data || []) as Array<{
-        id: string;
-        position: number;
-        report_id: string;
-        saved_reports: SavedReport | null;
-      }>;
+      return (data || []).map((row: any) => ({
+        id: row.id as string,
+        position: row.position as number,
+        report_id: row.report_id as string,
+        saved_reports: row.saved_reports
+          ? ({
+              ...row.saved_reports,
+              columns: row.saved_reports.columns || [],
+              group_rows: row.saved_reports.group_rows || [],
+              group_columns: row.saved_reports.group_columns || [],
+              filters: row.saved_reports.filters || [],
+              display_options: row.saved_reports.display_options || undefined,
+            } as SavedReport)
+          : null,
+      }));
     },
   });
 

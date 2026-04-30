@@ -18,6 +18,9 @@ import {
 } from "@/components/ui/accordion";
 import { motion } from "framer-motion";
 import clinicLogo from "@/assets/skin-clinic-logo.png";
+import baAcneScars from "@/assets/portal-ba-acne-scars.jpg";
+import baPigmentation from "@/assets/portal-ba-pigmentation.jpg";
+import baAcneFace from "@/assets/portal-ba-acne-face.jpg";
 
 /* ───────── tokens ───────── */
 const heading = { fontFamily: "'Plus Jakarta Sans', sans-serif" };

@@ -1,216 +1,107 @@
-## Salesforce → Make.com → Lovable Cloud Integration Reference
+## Goal
+Replace the current dark-teal gradient PortalLanding with a faithful recreation of the clinic's external landing page (https://lp.theskinclinic.org.in/google) — light background, mint/teal accents, dark navy text — while keeping all CTAs routed to `/portal/login` so existing portal functionality is preserved.
 
-This is a **reference document** (no code changes). It lists every endpoint, auth method, payload, and mapping rule Make.com needs to push Salesforce data into your DermaCare backend.
+## What changes
 
----
+**File:** `src/pages/portal/PortalLanding.tsx` (full rewrite)
 
-### 1. Base URL & Authentication
+The existing file is the only thing being replaced. Routing (`/portal` → `PortalLanding`, `/portal/login` → `PortalLogin`) and all downstream portal logic remain untouched.
 
-All operations use Supabase's auto-generated REST API (PostgREST) and Storage API.
+## New page structure (top to bottom)
 
-```text
-Base URL : https://brdrkhgfbbrgdkzdfbpr.supabase.co
-REST     : {Base}/rest/v1/{table_name}
-Storage  : {Base}/storage/v1/object/{bucket}/{path}
-```
+1. **Sticky Navbar** (white, subtle shadow)
+   - Left: butterfly logo + "The Skin Clinic" wordmark
+   - Right: "Access My Portal" button (dark navy, white text) → `/portal/login`
+   - Mobile: logo + compact "Portal" button
 
-**Auth method: Bearer token + apikey header** (both required, both set to the **service-role key**).
+2. **Hero** (light grey/white background, two-column on desktop, stacked on mobile)
+   - Left column:
+     - H1: "For the perfect skin you desire" (dark navy, large display font)
+     - Subtitle: "Find the permanent solution to your skin issues with our expert care!"
+     - 5-star row + "200+ 5 Star Google Rating"
+     - Primary CTA: **"Access My Portal"** (dark navy) → `/portal/login`
+     - Secondary CTA: **"Get Started Free"** (mint/green) → `/portal/login`
+   - Right column: hero portrait image (use a stock dermatology/skincare portrait via Unsplash URL — the original site image is copyrighted)
 
-```http
-apikey: <SUPABASE_SERVICE_ROLE_KEY>
-Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
-Content-Type: application/json
-Prefer: return=representation
-```
+3. **Stats band** (mint gradient strip)
+   - 10000+ Laser Treatments · 15000+ Satisfied Patients · 6+ Years of Establishment
 
-The service-role key bypasses RLS — store it only in Make.com's connection vault, never in client apps.
-You already have it in Lovable Cloud secrets as `SUPABASE_SERVICE_ROLE_KEY`.
+4. **Our Doctors** (white section, two cards)
+   - Dr. Punya Suvarna — MBBS, MD, FAGE, MRCP (SCE) · Dermatologist · 5+ Years Experience
+   - Dr. Vindhya A. Pai — Founder · MBBS, MD Dermatologist · 14+ Years Experience
+   - Generic professional placeholder portraits (Unsplash)
 
----
+5. **WhatsApp / Contact band** ("Have Questions? Chat With Our Expert Instantly on WhatsApp")
+   - Buttons: "Chat on WhatsApp Now" (green, opens `https://wa.me/919380682287`) and "Call Now" (`tel:9380682287`)
 
-### 2. Patient Mapping Strategy
+6. **Services We Provide** (mint gradient background, 3×2 card grid)
+   Skin Treatments · Laser Hair Reduction · Anti Ageing Treatment · Pre Wedding Skin Care · Fat Loss · Filler Treatment — each with image, title, and short description copied from the source site.
 
-Every Salesforce record links to a patient. Use **`phone`** as the primary join key (already unique in your data) and optionally store the SF Id in `notes` for traceability.
+7. **Before & After** (white, simple 3-image row / horizontal scroll on mobile) using neutral placeholder treatment images.
 
-Lookup pattern in Make:
-```http
-GET /rest/v1/patients?phone=eq.{{SF_Phone}}&select=id,first_name,last_name
-```
+8. **Why Choose The Skin Clinic** (mint gradient, 4 feature cards with icon)
+   - State-of-the-Art Facility · Comfortable & Confidential · No-Rush Appointments · Experienced Dermatologist
 
-If a row is returned → use `id`. If empty → create the patient first (step 3.1).
+9. **Patient Testimonials** (white, 3–4 cards with name, 5 stars, quote) — use the testimonials from the source page (Sharvari Shetty, Varsha Rani, Sagar Jogi, Sahana A).
 
----
+10. **Portal CTA banner** (dark navy, full width)
+    - Title: "Access Your Patient Portal"
+    - Body: "Manage appointments, view prescriptions, reorder medicines, and track your skin journey — all in one place."
+    - Buttons: **"Access My Portal"** and **"Get Started Free"** → both `/portal/login`
 
-### 3. Endpoints
+11. **FAQ** (white, accordion using existing `@/components/ui/accordion`)
+    - Are Your Treatments Safe?
+    - How do I Book an Appointment?
+    - Is There Any Down Time After Treatments?
 
-#### 3.1 Create Patient
-```http
-POST /rest/v1/patients
-```
-```json
-{
-  "first_name": "Asha",
-  "last_name":  "Verma",
-  "phone":      "+919812345678",
-  "email":      "asha@example.com",
-  "gender":     "Female",
-  "date_of_birth": "1989-04-12",
-  "address":    "12 MG Road",
-  "city":       "Mumbai",
-  "state":      "MH",
-  "pincode":    "400001",
-  "blood_group":"O+",
-  "medical_history":    "Hypothyroid since 2018",
-  "current_medications":"Thyronorm 50mcg",
-  "allergies":  "Penicillin",
-  "notes":      "sf_id=003XYZ000ABC123"
-}
-```
-Returns the inserted row including `id` (UUID) — store it in Make as `patient_id`.
+12. **Footer** (light, three columns)
+    - Brand + tagline "Simply. Better. Skin."
+    - Quick links: Skin Treatment, Laser Hair Reduction, Hair Restoration, Pre Wedding Skin Care, Fat Loss
+    - Hours (Mon–Sat 10 AM–8 PM), Phone (9380682287), Address (Kadri, Mangalore)
+    - Copyright row
 
-#### 3.2 Add Procedure (and Prescription)
-```http
-POST /rest/v1/procedures
-```
-```json
-{
-  "patient_id":     "{{patient_id}}",
-  "service_name":   "Chemical Peel - Glycolic 30%",
-  "procedure_date": "2026-04-20",
-  "status":         "Completed",
-  "notes":          "Tolerated well. Mild erythema post-procedure.",
-  "staff_id":       null
-}
-```
-Then push prescriptions for that procedure:
-```http
-POST /rest/v1/prescriptions
-```
-```json
-{
-  "procedure_id": "{{procedure_id}}",
-  "medication":   "Tretinoin 0.025% cream",
-  "dosage":       "Pea-sized",
-  "frequency":    "Once nightly",
-  "duration":     "8 weeks",
-  "instructions": "Apply 30 min after washing face"
-}
-```
+13. **Floating action buttons** (fixed bottom-left, like reference): black square Phone button + green WhatsApp button.
 
-#### 3.3 Add Invoice (Billing)
-```http
-POST /rest/v1/invoices
-```
-```json
-{
-  "invoice_number": "INV-SF-000123",
-  "patient_id":     "{{patient_id}}",
-  "patient_name":   "Asha Verma",
-  "services":       ["Chemical Peel - Glycolic 30%"],
-  "total_amount":   2675,
-  "paid_amount":    2675,
-  "status":         "Paid",
-  "payment_type":   "One-time",
-  "payment_mode":   "Card",
-  "tax_rate":       18,
-  "tax_amount":     408,
-  "notes":          "Imported from Salesforce. sf_id=a01XYZ..."
-}
-```
-For recurring/installment invoices, set `payment_type: "Recurring"` and put installment metadata in `notes` (JSON string) — matches existing schema.
+## Design tokens
 
-#### 3.4 Upload Photos / Attachments — TWO STEPS
+- Background: white / very light grey (`#FFFFFF`, `#F7F9F8`)
+- Mint section bg: soft gradient `from-[hsl(150,40%,90%)] to-[hsl(160,45%,82%)]`
+- Primary text: dark navy `#1F2A44` (matches reference)
+- Accent green (WhatsApp / Get Started Free): `#1F8A3C`
+- Dark CTA: navy `#1A1F36`
+- Headings: Plus Jakarta Sans (already loaded in `index.css`)
+- Body: Inter
 
-**Step A — upload binary to Storage**
-```http
-POST /storage/v1/object/patient-photos/{{patient_id}}/{{timestamp}}.jpg
-Content-Type: image/jpeg
-Body: <binary file bytes>
-```
-Public URL after upload:
-```
-https://brdrkhgfbbrgdkzdfbpr.supabase.co/storage/v1/object/public/patient-photos/{{patient_id}}/{{timestamp}}.jpg
-```
+## CTA routing rules (all enforced)
 
-**Step B — register metadata row**
-```http
-POST /rest/v1/patient_photos
-```
-```json
-{
-  "patient_id":     "{{patient_id}}",
-  "procedure_id":   "{{procedure_id}}",   // optional
-  "appointment_id": null,                  // optional
-  "photo_type":     "before",              // before | after
-  "photo_url":      "{{public_url_from_step_A}}",
-  "notes":          "Forehead, session 1"
-}
-```
+| Button | Destination |
+|---|---|
+| Navbar "Access My Portal" | `/portal/login` |
+| Hero "Access My Portal" | `/portal/login` |
+| Hero "Get Started Free" | `/portal/login` |
+| CTA banner "Access My Portal" | `/portal/login` |
+| CTA banner "Get Started Free" | `/portal/login` |
+| WhatsApp buttons | `https://wa.me/919380682287` (new tab) |
+| Call buttons | `tel:9380682287` |
 
-For procedure documents (PDF/scan), use bucket **`procedure-attachments`** and table **`procedure_attachments`** with `file_url` instead of `photo_url`.
+## Mobile responsiveness
 
-Buckets already public in your project: `patient-photos`, `procedure-attachments`, `invoices`, `product-images`, `expense-attachments`, `attendance-photos`.
+- Hero: stacks (text first, image hidden or below) under `md`
+- Navbar: condenses to logo + single icon-button "Portal"
+- Service grid: 1 col mobile → 2 cols tablet → 3 cols desktop
+- Doctors: 1 col mobile → 2 cols desktop
+- Why Choose: 1 col mobile → 2 cols tablet → 4 cols desktop
+- Testimonials: horizontal snap-scroll on mobile, 3-col grid on desktop
+- Floating call/WhatsApp FABs visible on all sizes
 
-#### 3.5 Notes / Medical History
-There is no separate `patient_notes` table. Notes are stored on the patient itself:
-```http
-PATCH /rest/v1/patients?id=eq.{{patient_id}}
-```
-```json
-{ "medical_history": "...", "allergies": "...", "current_medications": "...", "notes": "..." }
-```
-Procedure-specific notes go in `procedures.notes`.
+## Things kept intact
 
----
+- Route `/portal` still renders `PortalLanding` (no router changes)
+- `/portal/login` and downstream portal pages, auth, bot, surveys — untouched
+- `clinicLogo` asset import retained for navbar
+- No backend, schema, or edge-function changes
 
-### 4. Bulk Insert
-PostgREST accepts arrays — send up to 1000 rows per call:
-```http
-POST /rest/v1/patients
-[ { ... }, { ... }, { ... } ]
-```
+## Out of scope
 
----
-
-### 5. Limits & Constraints
-- File size: 50 MB per object (Storage default).
-- API rate: ~ 200 req/sec per project; batch via bulk insert to stay well under.
-- Max rows per query/insert: 1000.
-- All `id` fields are UUIDs auto-generated — never send your own.
-- `phone` should be E.164 (`+91XXXXXXXXXX`) for portal/WhatsApp compatibility.
-
----
-
-### 6. Webhook Support (Make → Lovable)
-
-Edge functions are public HTTPS endpoints — Make can call them directly. Today none are configured as a generic Salesforce intake webhook. The plan proposes adding **one new edge function**:
-
-```text
-POST https://brdrkhgfbbrgdkzdfbpr.supabase.co/functions/v1/salesforce-intake
-```
-
-It will accept a normalized payload like:
-```json
-{
-  "type": "patient" | "procedure" | "invoice" | "photo" | "note",
-  "sf_id": "003XYZ...",
-  "data": { ...record fields... },
-  "binary_url": "https://.../file.jpg"   // photos only
-}
-```
-…and internally do patient lookup-or-create, then insert into the right table (and download + upload binary for photos). This means Make only configures **one** webhook URL instead of orchestrating five separate flows.
-
-A shared header secret (`X-Make-Token`) will gate the function so only your Make scenario can call it.
-
----
-
-### 7. Implementation (when you approve)
-
-Switch to build mode and I will:
-
-1. Create edge function `salesforce-intake` with the routing logic above.
-2. Add `verify_jwt = false` for it in `supabase/config.toml`.
-3. Add a new secret `MAKE_WEBHOOK_TOKEN` (you'll paste the value once).
-4. Provide ready-to-paste Make.com HTTP module configs (URL, headers, sample bodies) for both direct PostgREST and the new webhook.
-
-No frontend changes are required — this is purely backend integration.
+- No new images uploaded to `src/assets/` — use Unsplash URLs for doctor/hero/treatment placeholders. If you'd prefer the actual clinic photos, upload them after approval and I'll swap the URLs.
+- No changes to PortalLogin page styling.

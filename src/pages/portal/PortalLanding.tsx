@@ -102,13 +102,10 @@ const reasons = [
   },
 ];
 
-const gallery = [
-  `${CDN_NOV}/skin-clinic-tour-13.jpg`,
-  `${CDN_NOV}/skin-clinic-tour-32.jpg`,
-  `${CDN_NOV}/skin-clinic-tour-33.jpg`,
-  `${CDN_NOV}/skin-clinic-tour-41.jpg`,
-  `${CDN_NOV}/skin-clinic-tour-42-btx5nw.jpg`,
-  `${CDN_NOV}/skin-clinic-tour-43.jpg`,
+const beforeAfter = [
+  { src: baAcneScars, alt: "Before and after acne scar treatment" },
+  { src: baPigmentation, alt: "Before and after pigmentation treatment" },
+  { src: baAcneFace, alt: "Before and after acne treatment" },
 ];
 
 const testimonials = [

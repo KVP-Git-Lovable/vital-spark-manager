@@ -1,6 +1,6 @@
 import { SavedReport, CHART_TYPES, getObjectByKey } from "@/lib/reportObjects";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Play, BarChart3, PieChart, LineChart, Table, Hash, Folder } from "lucide-react";
+import { Edit, Trash2, Play, BarChart3, PieChart, LineChart, Table, Hash, Folder, Pin, PinOff } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 
@@ -16,9 +16,11 @@ interface Props {
   onDelete: (id: string) => void;
   onRun: (r: SavedReport) => void;
   folders?: { id: string; name: string }[];
+  pinnedIds?: Set<string>;
+  onTogglePin?: (r: SavedReport) => void;
 }
 
-export function ReportList({ reports, onEdit, onDelete, onRun, folders }: Props) {
+export function ReportList({ reports, onEdit, onDelete, onRun, folders, pinnedIds, onTogglePin }: Props) {
   const getFolderName = (folderId?: string | null) => {
     if (!folderId || !folders) return null;
     return folders.find((f) => f.id === folderId)?.name;
@@ -68,6 +70,21 @@ export function ReportList({ reports, onEdit, onDelete, onRun, folders }: Props)
               <Button size="sm" variant="outline" onClick={() => onRun(r)} className="gap-1">
                 <Play className="h-3.5 w-3.5" /> View
               </Button>
+              {onTogglePin && r.id && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onTogglePin(r)}
+                  title={pinnedIds?.has(r.id) ? "Unpin from Dashboard" : "Pin to Dashboard"}
+                  className={pinnedIds?.has(r.id) ? "text-primary" : ""}
+                >
+                  {pinnedIds?.has(r.id) ? (
+                    <PinOff className="h-3.5 w-3.5" />
+                  ) : (
+                    <Pin className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              )}
               <Button size="sm" variant="ghost" onClick={() => onEdit(r)}>
                 <Edit className="h-3.5 w-3.5" />
               </Button>

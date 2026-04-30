@@ -211,16 +211,6 @@ const PortalLanding = () => {
             <p className="mt-2 text-sm italic text-gray-600">200+ 5 Star Google Rating</p>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              <a href={WA_URL} target="_blank" rel="noopener noreferrer">
-                <Button
-                  size="lg"
-                  className="text-white font-semibold h-12 md:h-14 px-6 md:px-8 text-sm md:text-base hover:opacity-90 shadow-lg"
-                  style={{ backgroundColor: GREEN }}
-                >
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Enquiry on WhatsApp
-                </Button>
-              </a>
               <a href={TEL_URL}>
                 <Button
                   size="lg"

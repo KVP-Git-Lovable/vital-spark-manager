@@ -1,89 +1,143 @@
-## Goal
+# Optimize WhatsApp Webhook Response Time
 
-Allow users to pin saved reports from `/report-builder` onto the main Dashboard (`/`) as live widgets, where each widget renders inline using the report's existing `chart_type` (table/bar/doughnut/line/number) and respects the Dashboard's date/staff filters when applicable.
+## Problem
 
-## 1. Database — new `dashboard_pins` table
+Current `supabase/functions/whatsapp-webhook/index.ts` does all work **before** returning TwiML to Twilio:
 
-Migration:
+1. Insert inbound message into `whatsapp_conversations`
+2. Lookup patient by phone
+3. Load last 20 conversation messages
+4. Call Lovable AI gateway (up to 6 tool-call rounds, each with DB queries)
+5. POST reply to Twilio Messages API
+6. Insert outbound message
+7. Return `<Response/>`
 
-```sql
-create table public.dashboard_pins (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,             -- auth.uid() of pinning user
-  report_id uuid not null references public.saved_reports(id) on delete cascade,
-  position int not null default 0,   -- ordering on dashboard
-  created_at timestamptz not null default now(),
-  unique (user_id, report_id)
-);
-alter table public.dashboard_pins enable row level security;
+Total: 7–8s. Twilio only needs an empty TwiML ack to mark the webhook successful — replies can be delivered out-of-band via the Twilio REST API (which the function already uses). This is the standard pattern for sub-second Twilio webhook latency.
 
--- Policies: users see/manage only their own pins
-create policy "pins: select own" on public.dashboard_pins
-  for select to authenticated using (auth.uid() = user_id);
-create policy "pins: insert own" on public.dashboard_pins
-  for insert to authenticated with check (auth.uid() = user_id);
-create policy "pins: delete own" on public.dashboard_pins
-  for delete to authenticated using (auth.uid() = user_id);
-create policy "pins: update own" on public.dashboard_pins
-  for update to authenticated using (auth.uid() = user_id);
+## Strategy
+
+**Acknowledge first, work later.** Return the empty TwiML response within ~50ms, and run all heavy logic via `EdgeRuntime.waitUntil(...)` so the function instance keeps executing after the HTTP response is flushed. No external queue needed.
+
+Add a fast-path for trivial greetings that skips the AI call entirely (still async-sent so we don't block, but the user sees a reply in ~1s instead of 4–6s).
+
+## Changes (single file: `supabase/functions/whatsapp-webhook/index.ts`)
+
+### 1. Flip the response order
+
+Restructure the `Deno.serve` handler:
+
+```ts
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const t0 = performance.now();
+  let payload: Record<string, string> = {};
+  try {
+    const ct = req.headers.get("content-type") || "";
+    if (ct.includes("application/x-www-form-urlencoded")) {
+      const form = await req.formData();
+      form.forEach((v, k) => { payload[k] = String(v); });
+    } else if (ct.includes("application/json")) {
+      payload = await req.json();
+    }
+  } catch (_) { /* ignore */ }
+
+  const fromRaw = payload.From || "";
+  const userBody = (payload.Body || "").trim();
+  const messageSid = payload.MessageSid || payload.SmsMessageSid || "";
+
+  // Schedule all heavy work in the background — does NOT block the response.
+  if (fromRaw && userBody) {
+    // @ts-ignore - EdgeRuntime is provided by Supabase Edge Runtime
+    EdgeRuntime.waitUntil(processMessage({ fromRaw, userBody, messageSid, t0 }));
+  }
+
+  console.log(`[whatsapp-webhook] ack in ${(performance.now() - t0).toFixed(0)}ms sid=${messageSid}`);
+  return twimlResponse(); // empty <Response/> — Twilio is happy
+});
 ```
 
-Per-user pinning matches existing patterns (each clinician sees their own dashboard). No changes to `saved_reports`.
+`EdgeRuntime.waitUntil` is the Supabase-supported API for background tasks in edge functions; the worker stays alive until the promise resolves (up to the function's wall-clock limit, ~150s — well above our needs).
 
-## 2. Pin action in Report Builder
+### 2. Move existing logic into `processMessage(...)`
 
-`src/components/reports/ReportList.tsx` — add a Pin/Unpin icon button next to the existing View/Edit/Delete buttons.
+Lift all current work (Supabase client creation, inbound insert, patient lookup, history fetch, AI tool loop, Twilio reply send, outbound insert) into a single async helper. No semantic changes — just relocated. This preserves the existing API contract and DB writes.
 
-- Component fetches the current user's pins (set of `report_id`).
-- Toggle handler calls `supabase.from("dashboard_pins").insert(...)` / `.delete()`.
-- Icon: `Pin` (filled when pinned) from `lucide-react`, with tooltip "Pin to Dashboard" / "Unpin from Dashboard".
-- Toast on success.
+### 3. Fast-path for greetings (skip AI)
 
-`src/pages/ReportConfigurator.tsx` passes a refreshable pin set into `ReportList`.
+Inside `processMessage`, before building the AI prompt:
 
-Also add the same Pin icon button in `ReportViewer.tsx` header so users can pin while viewing a report.
+```ts
+const GREETING_RE = /^(hi|hii+|hey+|hello+|helo|yo|hola|namaste|namaskar|good\s*(morning|afternoon|evening)|gm|ge|ga)[\s!.,]*$/i;
 
-## 3. New Dashboard section — "Pinned Reports"
+if (GREETING_RE.test(userBody)) {
+  const firstName = patient?.first_name || "there";
+  const reply = `Hi ${firstName}! 👋 I'm DermaCare AI. I can help you book/reschedule/cancel appointments, browse the shop, place orders, or track existing orders. What would you like to do?`;
+  const sid = await sendWhatsAppReply(phone, reply);
+  await sb.from("whatsapp_conversations").insert({
+    patient_id: patient?.id ?? null, phone, direction: "outbound",
+    role: "assistant", content: reply, message_sid: sid,
+  });
+  console.log(`[whatsapp-webhook] greeting fast-path total=${(performance.now() - t0).toFixed(0)}ms`);
+  return;
+}
+```
 
-New file `src/components/dashboard/PinnedReports.tsx`:
+Greetings now bypass the 1–4s AI round-trip entirely.
 
-- Loads `dashboard_pins` joined with `saved_reports` for current user, ordered by `position`.
-- Renders a responsive grid (1 col mobile / 2 col md / 3 col lg) of `PinnedReportWidget` cards.
-- Empty state: muted hint "Pin reports from Report Builder to see them here."
+### 4. Parallelize independent DB calls
 
-New file `src/components/dashboard/PinnedReportWidget.tsx`:
+For non-greeting flow, run inbound-insert, patient lookup, and history fetch concurrently with `Promise.all` instead of sequentially. Saves ~200–500ms.
 
-- Header row: report name (bold) + small badge with chart type + "Updated <relative time>" (using `report.updated_at`).
-- Action row (top-right): Open icon → navigates to `/report-builder?view=<id>`; Unpin icon (X / PinOff).
-- Body: renders `<ReportPreview {...report} compact />`. Existing `compact` prop already shrinks the inline preview.
-- Card height capped (~280px) with internal scroll for tables.
-- `chart_type === "number"` and `"table"` get a "summary stat" treatment: the widget pulls the first value/count out of `ReportPreview`'s rendered output via the existing `number` mode.
+```ts
+const [_ins, patient, historyRows] = await Promise.all([
+  sb.from("whatsapp_conversations").insert({ phone, direction: "inbound", role: "user", content: userBody, message_sid: messageSid }),
+  findPatientByPhone(sb, phone),
+  // history fetch is keyed by phone instead of patient_id so it can run in parallel
+  sb.from("whatsapp_conversations").select("role, content").eq("phone", phone).in("role", ["user","assistant"]).order("created_at", { ascending: false }).limit(20),
+]);
+```
 
-Mount the section in `src/pages/Index.tsx` directly under the existing 4 stat cards and above `DashboardCharts`, with section heading "Pinned Reports".
+(Backfill of `patient_id` on the inbound row stays as best-effort, unchanged.)
 
-## 4. Apply Dashboard filters to widgets
+### 5. Trim AI tool-loop overhead
 
-`PinnedReports` receives `{ start, end, staffId }` from `Index.tsx`. For each pinned report it constructs a runtime filter set:
+Lower `MAX_TOOL_ROUNDS` from 6 → 4 (logs show typical flows finish in 1–2 rounds; 4 is still ample and caps worst-case latency). Keep model `google/gemini-3-flash-preview` (already the fastest in the supported set).
 
-- Start with the saved `report.filters`.
-- If the primary object exposes a date field (`created_at`, `start_time`, `procedure_date`, `invoice_date`), append `gte`/`lte` filters using `start`/`end`.
-- If primary object has a `staff_id` field and `staffId !== "all"`, append `staff_id equals <staffId>`.
-- Pass the merged filter array into `ReportPreview`.
+### 6. Performance logging
 
-This is best-effort: when a report's object doesn't have the relevant field we silently skip injection (existing report behavior unchanged). A small "Filtered" indicator appears on widgets where Dashboard filters were applied.
+Add `performance.now()` checkpoints with a consistent prefix so we can grep edge logs:
 
-## 5. Routing for "open full report"
+- `ack` (time to TwiML response)
+- `patient_lookup_ms`
+- `ai_round_<n>_ms`
+- `twilio_send_ms`
+- `total_ms`
 
-`/report-builder` already supports `view` mode internally. Update `ReportConfigurator.tsx` to read `?view=<id>` from the URL on mount and auto-open that report in the existing `ReportViewer`.
+Format: `[whatsapp-webhook] sid=<MessageSid> stage=<name> ms=<n>`
+
+### 7. No infra/config changes
+
+- No new edge functions, no new tables, no new secrets — all credentials and the Twilio REST send path already exist.
+- No `supabase/config.toml` change. `verify_jwt` stays as-is (Twilio is unauthenticated; signature validation is out of scope for this task and would itself add latency — leaving current behavior).
+- No caching layer added. The "cache phone→name" suggestion in the brief would require an extra table or Redis service for marginal benefit (patient lookup is a single indexed query, ~30–80ms). Skipping it keeps the change small and risk-free; revisit if logs show the lookup is a real bottleneck.
+
+## Expected results
+
+| Scenario | Before | After |
+|---|---|---|
+| Twilio webhook ack (all messages) | 7–8s | < 200ms |
+| User-perceived greeting reply | 7–8s | ~1s (one Twilio REST hop) |
+| User-perceived complex reply (AI + tools) | 7–8s | 3–6s, but webhook itself never blocks |
+
+Twilio retries / timeouts disappear because the webhook always 200s in well under the 15s Twilio limit, and well under the 3s target.
+
+## Risks & mitigations
+
+- **Background task killed early**: `EdgeRuntime.waitUntil` keeps the worker alive; Supabase's edge runtime supports this pattern explicitly. If the platform ever cancels mid-flight, the user just doesn't get a reply for that one message — same failure mode as today's timeout case.
+- **Duplicate replies on Twilio retry**: Today, slow responses can already cause Twilio retries. After this change, retries become essentially impossible because we ack instantly. Net improvement.
+- **Outbound message ordering**: Unchanged — we still insert outbound rows after `sendWhatsAppReply` resolves.
 
 ## Files touched
 
-- New migration: `dashboard_pins` table + RLS policies.
-- New: `src/components/dashboard/PinnedReports.tsx`, `src/components/dashboard/PinnedReportWidget.tsx`.
-- Edited: `src/components/reports/ReportList.tsx` (Pin button), `src/components/reports/ReportViewer.tsx` (Pin button in header), `src/pages/ReportConfigurator.tsx` (pin-set fetch + `?view=` query handling), `src/pages/Index.tsx` (mount Pinned Reports section, pass filters).
-
-## Out of scope
-
-- Drag-and-drop reordering (uses insertion order; can be added later).
-- Sharing pins across users / global org pins.
-- Caching/refresh policies beyond TanStack Query defaults — widgets re-fetch when filters change.
+- `supabase/functions/whatsapp-webhook/index.ts` (refactor only; no new files, no schema changes)

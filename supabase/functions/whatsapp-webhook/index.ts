@@ -1,8 +1,5 @@
 // Twilio WhatsApp inbound webhook -> Lovable AI conversational bot
-// - Identifies patient by inbound phone number
-// - Maintains conversation memory in `whatsapp_conversations`
-// - Uses portal-bot tools (book/cancel/reschedule appointments, order/track products)
-// - Replies via Twilio WhatsApp REST API
+// Optimized: returns TwiML <Response/> immediately, processes everything in background.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -141,12 +138,10 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
 
 // ---------- Helpers ----------
 function normalizeIncomingPhone(twilioFrom: string): string {
-  // Twilio format: "whatsapp:+919xxxxxxxxx"
   return twilioFrom.replace(/^whatsapp:/, "").trim();
 }
 
 async function findPatientByPhone(sb: any, phone: string) {
-  // Try exact and last-10-digit match (handles +91XXXXXXXXXX vs XXXXXXXXXX)
   const last10 = phone.replace(/\D/g, "").slice(-10);
   const { data } = await sb.from("patients").select("id, first_name, last_name, phone, gender, date_of_birth, skin_type, skin_concerns, allergies, current_medications, medical_history").or(`phone.eq.${phone},phone.ilike.%${last10}`).limit(1);
   return data?.[0] || null;
@@ -162,10 +157,7 @@ async function sendWhatsAppReply(toPhone: string, body: string): Promise<string 
   }
   const fromFormatted = fromNumber.startsWith("whatsapp:") ? fromNumber : `whatsapp:${fromNumber}`;
   const toFormatted = toPhone.startsWith("whatsapp:") ? toPhone : `whatsapp:${toPhone}`;
-
-  // WhatsApp single message limit ~1600 chars; trim safely
   const safeBody = body.length > 1500 ? body.slice(0, 1490) + "…" : body;
-
   const params = new URLSearchParams({ To: toFormatted, From: fromFormatted, Body: safeBody });
   const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
   const auth = btoa(`${accountSid}:${authToken}`);
@@ -183,66 +175,72 @@ async function sendWhatsAppReply(toPhone: string, body: string): Promise<string 
   return result.sid || null;
 }
 
-// ---------- Main handler ----------
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+const GREETING_RE = /^(hi+|hey+|hello+|helo+|yo|hola|namaste|namaskar|good\s*(morning|afternoon|evening|night)|gm|ga|ge|gn|start|hii|hiii)[\s!.,?]*$/i;
 
-  // Always return TwiML quickly so Twilio is happy; do work inline (Twilio webhook timeout ~10s).
+// ---------- Background processor ----------
+async function processMessage(opts: { fromRaw: string; userBody: string; messageSid: string; t0: number }) {
+  const { fromRaw, userBody, messageSid, t0 } = opts;
+  const sidTag = messageSid || "no-sid";
+  const log = (stage: string, extra = "") =>
+    console.log(`[whatsapp-webhook] sid=${sidTag} stage=${stage} ms=${(performance.now() - t0).toFixed(0)}${extra ? " " + extra : ""}`);
+
   try {
-    const contentType = req.headers.get("content-type") || "";
-    let payload: Record<string, string> = {};
-    if (contentType.includes("application/x-www-form-urlencoded")) {
-      const form = await req.formData();
-      form.forEach((v, k) => { payload[k] = String(v); });
-    } else if (contentType.includes("application/json")) {
-      payload = await req.json();
-    }
-
-    const fromRaw = payload.From || "";
-    const userBody = (payload.Body || "").trim();
-    const messageSid = payload.MessageSid || payload.SmsMessageSid || "";
-
-    console.log(`[whatsapp-webhook] SID=${messageSid} From=${fromRaw} Body="${userBody}"`);
-
-    if (!fromRaw || !userBody) return twimlResponse();
-
     const phone = normalizeIncomingPhone(fromRaw);
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, serviceKey);
 
-    // Persist inbound
-    await sb.from("whatsapp_conversations").insert({
-      phone, direction: "inbound", role: "user", content: userBody, message_sid: messageSid,
-    });
+    log("start");
 
-    // Identify patient
-    const patient = await findPatientByPhone(sb, phone);
+    // Run independent calls in parallel: persist inbound, lookup patient, fetch history.
+    const [, patient, historyRes] = await Promise.all([
+      sb.from("whatsapp_conversations").insert({
+        phone, direction: "inbound", role: "user", content: userBody, message_sid: messageSid,
+      }),
+      findPatientByPhone(sb, phone),
+      sb.from("whatsapp_conversations")
+        .select("role, content")
+        .eq("phone", phone)
+        .in("role", ["user", "assistant"])
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
+    log("parallel_loaded");
 
     if (!patient) {
       const replyText = `Hi! 👋 I couldn't find a patient profile for this WhatsApp number (${phone}). Please visit the clinic or contact us so we can register you. Once registered, I'll be able to help you book appointments, order products, and track orders right here on WhatsApp.`;
+      const ts = performance.now();
       const sid = await sendWhatsAppReply(phone, replyText);
+      log("twilio_send", `extra_ms=${(performance.now() - ts).toFixed(0)}`);
       await sb.from("whatsapp_conversations").insert({ phone, direction: "outbound", role: "assistant", content: replyText, message_sid: sid });
-      return twimlResponse();
+      log("done_unknown_patient");
+      return;
     }
 
     const patientId = patient.id;
     const patientName = `${patient.first_name} ${patient.last_name}`;
 
-    // Load recent conversation history (last 20 messages, oldest-first)
-    const { data: history } = await sb
-      .from("whatsapp_conversations")
-      .select("role, content")
-      .eq("patient_id", patientId)
-      .in("role", ["user", "assistant"])
-      .order("created_at", { ascending: false })
-      .limit(20);
-    const historyMessages = (history || []).reverse().map((m: any) => ({ role: m.role, content: m.content }));
+    // Backfill patient_id on the inbound message (best-effort, do not await blocking)
+    sb.from("whatsapp_conversations").update({ patient_id: patientId }).eq("message_sid", messageSid).is("patient_id", null).then(() => {});
 
-    // Backfill patient_id on the just-inserted inbound message (best-effort)
-    await sb.from("whatsapp_conversations").update({ patient_id: patientId }).eq("message_sid", messageSid).is("patient_id", null);
+    // Greeting fast-path — skip AI entirely
+    if (GREETING_RE.test(userBody)) {
+      const reply = `Hi ${patient.first_name}! 👋 I'm DermaCare AI. I can help you book, reschedule or cancel appointments, browse the clinic shop, place orders, or track existing orders. What would you like to do?`;
+      const ts = performance.now();
+      const sid = await sendWhatsAppReply(phone, reply);
+      log("twilio_send", `extra_ms=${(performance.now() - ts).toFixed(0)}`);
+      await sb.from("whatsapp_conversations").insert({
+        patient_id: patientId, phone, direction: "outbound", role: "assistant", content: reply, message_sid: sid,
+      });
+      log("done_greeting_fastpath");
+      return;
+    }
 
-    // Build system prompt with patient context (lighter than portal-bot since WhatsApp is short-form)
+    const historyMessages = (historyRes?.data || [])
+      .slice()
+      .reverse()
+      .map((m: any) => ({ role: m.role, content: m.content }));
+
     const today = new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
     const systemPrompt = `You are DermaCare AI, a friendly WhatsApp assistant for a dermatology clinic. You are chatting with ${patientName} via WhatsApp. Today is ${today}.
 
@@ -271,23 +269,23 @@ GUIDELINES:
 
     const aiMessages: any[] = [{ role: "system", content: systemPrompt }, ...historyMessages, { role: "user", content: userBody }];
 
-    // Tool loop
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       console.error("[whatsapp-webhook] LOVABLE_API_KEY not configured");
       const fallback = "Sorry, I'm having trouble right now. Please try again shortly.";
       const sid = await sendWhatsAppReply(phone, fallback);
       await sb.from("whatsapp_conversations").insert({ patient_id: patientId, phone, direction: "outbound", role: "assistant", content: fallback, message_sid: sid });
-      return twimlResponse();
+      return;
     }
 
-    const MAX_TOOL_ROUNDS = 6;
+    const MAX_TOOL_ROUNDS = 4;
     let round = 0;
     let assistantText = "";
 
     while (round < MAX_TOOL_ROUNDS) {
       round++;
       const isLastRound = round === MAX_TOOL_ROUNDS;
+      const aiStart = performance.now();
 
       const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -299,6 +297,8 @@ GUIDELINES:
           stream: false,
         }),
       });
+
+      log(`ai_round_${round}`, `dur_ms=${(performance.now() - aiStart).toFixed(0)} status=${aiResp.status}`);
 
       if (!aiResp.ok) {
         const errTxt = await aiResp.text();
@@ -319,13 +319,19 @@ GUIDELINES:
 
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
         aiMessages.push(assistantMessage);
-        for (const toolCall of assistantMessage.tool_calls) {
-          const fnName = toolCall.function.name;
-          let fnArgs: any = {};
-          try { fnArgs = JSON.parse(toolCall.function.arguments || "{}"); } catch { /* empty */ }
-          console.log(`[whatsapp-webhook] Tool call: ${fnName}`, fnArgs);
-          const toolResult = await executeTool(sb, fnName, fnArgs, patientId, patientName);
-          aiMessages.push({ role: "tool", tool_call_id: toolCall.id, content: toolResult });
+        // Execute tool calls in parallel
+        const toolResults = await Promise.all(
+          assistantMessage.tool_calls.map(async (toolCall: any) => {
+            const fnName = toolCall.function.name;
+            let fnArgs: any = {};
+            try { fnArgs = JSON.parse(toolCall.function.arguments || "{}"); } catch { /* empty */ }
+            console.log(`[whatsapp-webhook] sid=${sidTag} tool=${fnName}`);
+            const toolResult = await executeTool(sb, fnName, fnArgs, patientId, patientName);
+            return { tool_call_id: toolCall.id, content: toolResult };
+          })
+        );
+        for (const tr of toolResults) {
+          aiMessages.push({ role: "tool", tool_call_id: tr.tool_call_id, content: tr.content });
         }
         continue;
       }
@@ -336,15 +342,60 @@ GUIDELINES:
 
     if (!assistantText) assistantText = "I'm here to help. What would you like to do?";
 
+    const ts = performance.now();
     const replySid = await sendWhatsAppReply(phone, assistantText);
+    log("twilio_send", `extra_ms=${(performance.now() - ts).toFixed(0)}`);
+
     await sb.from("whatsapp_conversations").insert({
       patient_id: patientId, phone, direction: "outbound", role: "assistant",
       content: assistantText, message_sid: replySid,
     });
+    log("done");
+  } catch (error) {
+    console.error("[whatsapp-webhook] processMessage error:", error);
+  }
+}
 
+// ---------- Main handler ----------
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const t0 = performance.now();
+
+  try {
+    const contentType = req.headers.get("content-type") || "";
+    let payload: Record<string, string> = {};
+    if (contentType.includes("application/x-www-form-urlencoded")) {
+      const form = await req.formData();
+      form.forEach((v, k) => { payload[k] = String(v); });
+    } else if (contentType.includes("application/json")) {
+      payload = await req.json();
+    }
+
+    const fromRaw = payload.From || "";
+    const userBody = (payload.Body || "").trim();
+    const messageSid = payload.MessageSid || payload.SmsMessageSid || "";
+
+    console.log(`[whatsapp-webhook] inbound sid=${messageSid} from=${fromRaw} body="${userBody}" parse_ms=${(performance.now() - t0).toFixed(0)}`);
+
+    if (fromRaw && userBody) {
+      // Schedule heavy work in background — does NOT block the TwiML response.
+      // @ts-ignore - EdgeRuntime is provided by Supabase Edge Runtime
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(processMessage({ fromRaw, userBody, messageSid, t0 }));
+      } else {
+        // Fallback: fire-and-forget (best-effort if waitUntil isn't available)
+        processMessage({ fromRaw, userBody, messageSid, t0 }).catch((e) =>
+          console.error("[whatsapp-webhook] bg error:", e),
+        );
+      }
+    }
+
+    console.log(`[whatsapp-webhook] ack sid=${messageSid} ms=${(performance.now() - t0).toFixed(0)}`);
     return twimlResponse();
   } catch (error) {
-    console.error("[whatsapp-webhook] Error:", error);
+    console.error("[whatsapp-webhook] handler error:", error);
     return twimlResponse();
   }
 });

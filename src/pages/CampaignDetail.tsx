@@ -206,11 +206,11 @@ export default function CampaignDetail() {
 
         <TabsContent value="spend" className="space-y-4 mt-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-4">
-            <StatCard title="Total Budget" value={`₹${budget.toLocaleString()}`} icon={Wallet} />
-            <StatCard title="Amount Spent" value={`₹${spent.toLocaleString()}`} icon={IndianRupee} iconColor="bg-warning/10 text-warning" />
-            <StatCard title="New Patients" value={newPatients} icon={Users} iconColor="bg-info/10 text-info" />
-            <StatCard title="Revenue" value={`₹${revenue.toLocaleString()}`} icon={IndianRupee} iconColor="bg-success/10 text-success" />
-            <StatCard title="ROI" value={spent > 0 ? `${roi.toFixed(1)}%` : "—"} icon={TrendingUp} iconColor={roi >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"} />
+            <StatCard compact title="Total Budget" value={`₹${budget.toLocaleString()}`} icon={Wallet} />
+            <StatCard compact title="Amount Spent" value={`₹${spent.toLocaleString()}`} icon={IndianRupee} iconColor="bg-warning/10 text-warning" />
+            <StatCard compact title="New Patients" value={newPatients} icon={Users} iconColor="bg-info/10 text-info" />
+            <StatCard compact title="Revenue" value={`₹${revenue.toLocaleString()}`} icon={IndianRupee} iconColor="bg-success/10 text-success" />
+            <StatCard compact title="ROI" value={spent > 0 ? `${roi.toFixed(1)}%` : "—"} icon={TrendingUp} iconColor={roi >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"} />
           </div>
           <Card><CardContent className="p-6 space-y-3">
             <Label>Update Amount Spent (₹)</Label>

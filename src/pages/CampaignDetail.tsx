@@ -48,7 +48,7 @@ export default function CampaignDetail() {
   const { data: linkedPatients = [] } = useQuery({
     queryKey: ["campaign-patients", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("patients").select("id, first_name, last_name, phone, source, created_at").eq("campaign_id" as any, id!);
+      const { data, error } = await (supabase.from("patients") as any).select("id, first_name, last_name, phone, source, created_at").eq("campaign_id", id!);
       if (error) throw error;
       return data || [];
     },

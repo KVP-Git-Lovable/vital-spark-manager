@@ -31,6 +31,8 @@ import Orders from "./pages/Orders";
 import Expenses from "./pages/Expenses";
 import StaffManagement from "./pages/StaffManagement";
 import StaffDetail from "./pages/StaffDetail";
+import Campaigns from "./pages/Campaigns";
+import CampaignDetail from "./pages/CampaignDetail";
 import PortalLanding from "./pages/portal/PortalLanding";
 import PortalLogin from "./pages/portal/PortalLogin";
 import Portal from "./pages/portal/Portal";

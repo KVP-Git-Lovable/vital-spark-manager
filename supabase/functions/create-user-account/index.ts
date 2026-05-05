@@ -65,6 +65,8 @@ Deno.serve(async (req) => {
 
       // Delete staff record
       if (staff_id) {
+        // Null out FK references first to avoid constraint violations
+        await supabaseAdmin.from("appointments").update({ staff_id: null }).eq("staff_id", staff_id);
         const { error } = await supabaseAdmin.from("staff").delete().eq("id", staff_id);
         if (error) {
           return new Response(JSON.stringify({ error: error.message }), {

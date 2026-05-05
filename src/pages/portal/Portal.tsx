@@ -283,6 +283,16 @@ const Portal = () => {
     },
   });
 
+  const { data: portalSettings } = useQuery({
+    queryKey: ["portal-settings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("portal_settings").select("shop_enabled").limit(1).maybeSingle();
+      return data;
+    },
+  });
+  const shopEnabled = portalSettings?.shop_enabled !== false;
+  const visibleTabs = shopEnabled ? tabs : tabs.filter((t) => t.id !== "pharmacy");
+
   // ─── Mutations ──────────────────────────────────
   const requestAppointment = useMutation({
     mutationFn: async () => {
@@ -675,7 +685,7 @@ const Portal = () => {
             )}
 
             {/* ─── SHOP ─── */}
-            {activeTab === "pharmacy" && (
+            {activeTab === "pharmacy" && shopEnabled && (
               <motion.div key="pharmacy" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
                 <PortalShop patientId={patientId!} patientName={session.patientName} />
               </motion.div>
@@ -894,7 +904,7 @@ const Portal = () => {
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-card border-t safe-area-bottom z-50">
         <div className="max-w-lg mx-auto flex">
-          {tabs.map((tab) => {
+          {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (

@@ -205,7 +205,7 @@ export default function CampaignDetail() {
         </TabsContent>
 
         <TabsContent value="spend" className="space-y-4 mt-4">
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-4">
             <StatCard title="Total Budget" value={`₹${budget.toLocaleString()}`} icon={Wallet} />
             <StatCard title="Amount Spent" value={`₹${spent.toLocaleString()}`} icon={IndianRupee} iconColor="bg-warning/10 text-warning" />
             <StatCard title="New Patients" value={newPatients} icon={Users} iconColor="bg-info/10 text-info" />

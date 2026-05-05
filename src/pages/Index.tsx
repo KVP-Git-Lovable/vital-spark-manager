@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle } from "lucide-react";
+import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle, Megaphone } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { DashboardFilters, DATE_RANGE_OPTIONS } from "@/components/dashboard/DashboardFilters";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
@@ -148,6 +148,15 @@ const Index = () => {
         .eq("date", format(new Date(), "yyyy-MM-dd"));
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: activeCampaigns = [] } = useQuery({
+    queryKey: ["dashboard-active-campaigns"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("campaigns" as any).select("id, amount_spent").eq("status", "Active");
+      if (error) throw error;
+      return (data as any[]) || [];
     },
   });
 
@@ -310,6 +319,20 @@ const Index = () => {
         <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.05} />
         <StatCard title={`Revenue`} value={`₹${paidRevenue.toLocaleString()}`} change={`of ₹${invoicedRevenue.toLocaleString()} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.1} />
         <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.15} />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+        <div onClick={() => navigate("/campaigns")} className="cursor-pointer">
+          <StatCard
+            title="Active Campaigns"
+            value={activeCampaigns.length}
+            change={`₹${activeCampaigns.reduce((s, c: any) => s + Number(c.amount_spent || 0), 0).toLocaleString()} total spend`}
+            changeType="neutral"
+            icon={Megaphone}
+            iconColor="bg-primary/10 text-primary"
+            delay={0.2}
+          />
+        </div>
       </div>
 
       <PinnedReports start={start} end={end} staffId={selectedStaff} />

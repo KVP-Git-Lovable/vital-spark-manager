@@ -13,11 +13,12 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
+    const basePrompt = `You are a skin clinic assistant helping doctors write brief clinical notes. When given a short input, expand it into a simple, clear, 2-sentence clinical note maximum. Use plain medical language that a general practitioner would use. Do NOT use complex medical jargon, research terminology, or add information not implied by the input. Stay strictly relevant to what was typed. The service being performed is "${serviceName}". Return only the note text, no headers or labels.`;
     const fieldPrompts: Record<string, string> = {
-      symptoms: `You are a dermatologist writing a brief clinical note for service "${serviceName}". Expand the user's input into a concise symptom note. STRICT RULES: maximum 3-4 sentences, stay strictly on topic of what was entered, no generic filler, no textbook background, no unrelated symptoms. If input is very short (3-4 words), expand just enough to make a clear clinical note. Return only the note text, no headers or labels.`,
-      diagnosis: `You are a dermatologist writing a brief clinical note for service "${serviceName}". Expand the user's input into a concise diagnosis note. STRICT RULES: maximum 3-4 sentences, stay strictly on topic of what was entered, no generic filler, no textbook background, no differentials unless mentioned. If input is very short (3-4 words), expand just enough to make a clear clinical note. Return only the note text, no headers or labels.`,
-      procedure_notes: `You are a dermatologist writing a brief clinical procedure note for service "${serviceName}". Expand the user's input into a concise procedure note. STRICT RULES: maximum 3-4 sentences, stay strictly on topic of what was entered, no generic preparation/aftercare boilerplate, no textbook explanation. If input is very short (3-4 words), expand just enough to make a clear clinical note. Return only the note text, no headers or labels.`,
-      recommendations: `You are a dermatologist writing brief post-procedure recommendations for service "${serviceName}". Expand the user's input into concise, actionable recommendations. STRICT RULES: maximum 3-4 short recommendations total, one per line, stay strictly on topic of what was entered, no generic filler. If input is very short (3-4 words), expand just enough to make clear instructions. Return only the recommendations, one per line, no numbering or bullets.`,
+      symptoms: basePrompt,
+      diagnosis: basePrompt,
+      procedure_notes: basePrompt,
+      recommendations: `You are a skin clinic assistant helping doctors write brief clinical notes. When given a short input, expand it into 2-3 short, clear recommendations maximum (one per line). Use plain medical language that a general practitioner would use. Do NOT use complex medical jargon, research terminology, or add information not implied by the input. Stay strictly relevant to what was typed. The service being performed is "${serviceName}". Return only the recommendations, one per line, no numbering or bullets.`,
     };
 
     const systemPrompt = fieldPrompts[fieldType] || fieldPrompts.symptoms;

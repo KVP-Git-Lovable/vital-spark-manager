@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Pill, Wrench, Check } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -73,6 +73,28 @@ export function ProcedureFormDialog({
   const [stockMap, setStockMap] = useState<Record<number, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);
   const [autoFilled, setAutoFilled] = useState(false);
+  const [elaborating, setElaborating] = useState<null | "symptoms" | "diagnosis" | "procedure_notes" | "recommendations">(null);
+
+  const elaborate = async (fieldType: "symptoms" | "diagnosis" | "procedure_notes" | "recommendations") => {
+    const svcName = serviceName.trim() || "Consultation";
+    const currentText = fieldType === "symptoms" ? symptoms : fieldType === "diagnosis" ? diagnosis : fieldType === "procedure_notes" ? procedureNotes : recommendations;
+    setElaborating(fieldType);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elaborate-text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify({ serviceName: svcName, fieldType, currentText }),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({ error: "AI request failed" })); throw new Error(err.error || "AI request failed"); }
+      const { text } = await res.json();
+      if (fieldType === "symptoms") setSymptoms(text);
+      else if (fieldType === "diagnosis") setDiagnosis(text);
+      else if (fieldType === "procedure_notes") setProcedureNotes(text);
+      else setRecommendations(text);
+      toast.success("Text elaborated");
+    } catch (e: any) { toast.error(e.message || "Failed to elaborate"); }
+    finally { setElaborating(null); }
+  };
 
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],
@@ -363,22 +385,42 @@ export function ProcedureFormDialog({
           </div>
 
           <div>
-            <Label>Symptoms</Label>
+            <div className="flex items-center justify-between">
+              <Label>Symptoms</Label>
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("symptoms")} disabled={elaborating !== null}>
+                {elaborating === "symptoms" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+              </Button>
+            </div>
             <Textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)} placeholder="e.g. Redness, itching, dry patches..." className="mt-1.5" rows={2} />
           </div>
 
           <div>
-            <Label>Diagnosis</Label>
+            <div className="flex items-center justify-between">
+              <Label>Diagnosis</Label>
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("diagnosis")} disabled={elaborating !== null}>
+                {elaborating === "diagnosis" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+              </Button>
+            </div>
             <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Patient diagnosis..." className="mt-1.5" rows={2} />
           </div>
 
           <div>
-            <Label>Procedure Notes</Label>
+            <div className="flex items-center justify-between">
+              <Label>Procedure Notes</Label>
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("procedure_notes")} disabled={elaborating !== null}>
+                {elaborating === "procedure_notes" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+              </Button>
+            </div>
             <Textarea value={procedureNotes} onChange={(e) => setProcedureNotes(e.target.value)} placeholder="Details of the procedure performed..." className="mt-1.5" rows={3} />
           </div>
 
           <div>
-            <Label>Recommendations</Label>
+            <div className="flex items-center justify-between">
+              <Label>Recommendations</Label>
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("recommendations")} disabled={elaborating !== null}>
+                {elaborating === "recommendations" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+              </Button>
+            </div>
             <Textarea value={recommendations} onChange={(e) => setRecommendations(e.target.value)} placeholder="Post-procedure recommendations..." className="mt-1.5" rows={3} />
           </div>
 

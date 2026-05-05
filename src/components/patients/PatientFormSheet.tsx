@@ -605,3 +605,28 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     </Sheet>
   );
 }
+
+function CampaignSelectField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ["campaigns-for-patient-form"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("campaigns" as any).select("id, name, status").order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+  return (
+    <div>
+      <Label>Campaign (Source)</Label>
+      <Select value={value || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)}>
+        <SelectTrigger className="mt-1.5"><SelectValue placeholder="None" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">None</SelectItem>
+          {campaigns.map((c) => (
+            <SelectItem key={c.id} value={c.id}>{c.name} {c.status !== "Active" ? `(${c.status})` : ""}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}

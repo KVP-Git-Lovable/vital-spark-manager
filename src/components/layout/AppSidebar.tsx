@@ -24,6 +24,7 @@ import {
   FileText,
   ListChecks,
   ShieldCheck,
+  Megaphone,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -67,6 +68,7 @@ const mainItems = [
   { title: "Problem Areas", url: "/problem-areas", icon: AlertCircle, moduleKey: "problem_areas" },
   { title: "Reports", url: "/reports", icon: BarChart3, moduleKey: "reports" },
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart, moduleKey: "report_builder" },
+  { title: "Campaigns", url: "/campaigns", icon: Megaphone, moduleKey: "campaigns" },
 ];
 
 const surveySubItems = [

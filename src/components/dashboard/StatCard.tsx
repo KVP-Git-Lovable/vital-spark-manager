@@ -9,6 +9,7 @@ interface StatCardProps {
   icon: LucideIcon;
   iconColor?: string;
   delay?: number;
+  compact?: boolean;
 }
 
 export function StatCard({
@@ -19,6 +20,7 @@ export function StatCard({
   icon: Icon,
   iconColor = "bg-primary/10 text-primary",
   delay = 0,
+  compact = false,
 }: StatCardProps) {
   return (
     <motion.div
@@ -30,7 +32,7 @@ export function StatCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs md:text-sm text-muted-foreground truncate">{title}</p>
-          <p className="text-xl md:text-3xl font-bold font-display mt-1">{value}</p>
+          <p className={`font-bold font-display mt-1 truncate ${compact ? "text-lg md:text-xl" : "text-xl md:text-3xl"}`}>{value}</p>
           {change && (
             <p
               className={`text-[10px] md:text-xs mt-1.5 md:mt-2 font-medium ${

@@ -356,6 +356,83 @@ export type Database = {
           },
         ]
       }
+      campaign_updates: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_updates_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          amount_spent: number
+          budget: number
+          created_at: string
+          end_date: string | null
+          goals: string | null
+          id: string
+          name: string
+          start_date: string | null
+          status: string
+          target_audience: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          amount_spent?: number
+          budget?: number
+          created_at?: string
+          end_date?: string | null
+          goals?: string | null
+          id?: string
+          name: string
+          start_date?: string | null
+          status?: string
+          target_audience?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_spent?: number
+          budget?: number
+          created_at?: string
+          end_date?: string | null
+          goals?: string | null
+          id?: string
+          name?: string
+          start_date?: string | null
+          status?: string
+          target_audience?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cart_items: {
         Row: {
           created_at: string
@@ -1100,6 +1177,7 @@ export type Database = {
           allergies: string | null
           auth_user_id: string | null
           blood_group: string | null
+          campaign_id: string | null
           city: string | null
           created_at: string
           current_medications: string | null
@@ -1139,6 +1217,7 @@ export type Database = {
           allergies?: string | null
           auth_user_id?: string | null
           blood_group?: string | null
+          campaign_id?: string | null
           city?: string | null
           created_at?: string
           current_medications?: string | null
@@ -1178,6 +1257,7 @@ export type Database = {
           allergies?: string | null
           auth_user_id?: string | null
           blood_group?: string | null
+          campaign_id?: string | null
           city?: string | null
           created_at?: string
           current_medications?: string | null
@@ -1213,6 +1293,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "patients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "patients_doctor_id_fkey"
             columns: ["doctor_id"]

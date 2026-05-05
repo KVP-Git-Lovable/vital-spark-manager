@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { format } from "date-fns";
-import { Save, Trash2, Pill, Camera, Plus, Paperclip, X } from "lucide-react";
+import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,6 +58,28 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [editPrescriptions, setEditPrescriptions] = useState<PrescriptionRow[]>([]);
   const [attachmentNotes, setAttachmentNotes] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [elaborating, setElaborating] = useState<null | "symptoms" | "diagnosis" | "procedure_notes" | "recommendations">(null);
+
+  const elaborate = async (fieldType: "symptoms" | "diagnosis" | "procedure_notes" | "recommendations") => {
+    const svcName = (editServiceName || "Consultation").trim();
+    const currentText = fieldType === "symptoms" ? editSymptoms : fieldType === "diagnosis" ? editDiagnosis : fieldType === "procedure_notes" ? editProcedureNotes : editRecommendations;
+    setElaborating(fieldType);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/elaborate-text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify({ serviceName: svcName, fieldType, currentText }),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({ error: "AI request failed" })); throw new Error(err.error || "AI request failed"); }
+      const { text } = await res.json();
+      if (fieldType === "symptoms") setEditSymptoms(text);
+      else if (fieldType === "diagnosis") setEditDiagnosis(text);
+      else if (fieldType === "procedure_notes") setEditProcedureNotes(text);
+      else setEditRecommendations(text);
+      toast.success("Text elaborated");
+    } catch (e: any) { toast.error(e.message || "Failed to elaborate"); }
+    finally { setElaborating(null); }
+  };
 
   const { data: procedure, isLoading } = useQuery({
     queryKey: ["procedure-detail", procedureId],
@@ -329,22 +351,42 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </div>
 
                 <div>
-                  <Label>Symptoms</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Symptoms</Label>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("symptoms")} disabled={elaborating !== null}>
+                      {elaborating === "symptoms" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                    </Button>
+                  </div>
                   <Textarea value={editSymptoms} onChange={(e) => setEditSymptoms(e.target.value)} className="mt-1.5" rows={2} placeholder="e.g. Redness, itching, dry patches..." />
                 </div>
 
                 <div>
-                  <Label>Diagnosis</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Diagnosis</Label>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("diagnosis")} disabled={elaborating !== null}>
+                      {elaborating === "diagnosis" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                    </Button>
+                  </div>
                   <Textarea value={editDiagnosis} onChange={(e) => setEditDiagnosis(e.target.value)} className="mt-1.5" rows={2} />
                 </div>
 
                 <div>
-                  <Label>Procedure Notes</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Procedure Notes</Label>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("procedure_notes")} disabled={elaborating !== null}>
+                      {elaborating === "procedure_notes" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                    </Button>
+                  </div>
                   <Textarea value={editProcedureNotes} onChange={(e) => setEditProcedureNotes(e.target.value)} className="mt-1.5" rows={3} />
                 </div>
 
                 <div>
-                  <Label>Recommendations</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Recommendations</Label>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("recommendations")} disabled={elaborating !== null}>
+                      {elaborating === "recommendations" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                    </Button>
+                  </div>
                   <Textarea value={editRecommendations} onChange={(e) => setEditRecommendations(e.target.value)} className="mt-1.5" rows={3} />
                 </div>
 

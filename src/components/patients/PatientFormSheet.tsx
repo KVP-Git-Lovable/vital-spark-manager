@@ -427,13 +427,10 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               </div>
             )}
 
-            <div>
-              <Label>Campaign (Source)</Label>
-              <CampaignSelect
-                value={(form as any).campaign_id || ""}
-                onChange={(v) => setForm((prev) => ({ ...prev, campaign_id: v || null } as any))}
-              />
-            </div>
+            <CampaignSelectField
+              value={(form as any).campaign_id || ""}
+              onChange={(v) => setForm((prev) => ({ ...prev, campaign_id: v || null } as any))}
+            />
           </TabsContent>
 
           <TabsContent value="medical" className="space-y-4 mt-4">

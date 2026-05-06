@@ -79,7 +79,12 @@ export function StaffCombobox({
             className="h-8"
           />
         </div>
-        <div className="max-h-52 overflow-y-auto space-y-0.5">
+        <div
+          className="max-h-52 overflow-y-auto overscroll-contain space-y-0.5"
+          style={{ scrollbarGutter: "stable", WebkitOverflowScrolling: "touch" }}
+          onWheel={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
           {allowNone && (
             <button
               className={cn(

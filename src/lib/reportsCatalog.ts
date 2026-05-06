@@ -38,6 +38,46 @@ export interface ReportConfig {
   fetcher: (params: { from?: string; to?: string }) => Promise<any[]>;
   summary?: (rows: any[]) => { label: string; value: string }[];
   defaultSort?: { key: string; dir: "asc" | "desc" };
+  chart?: {
+    title: string;
+    valueLabel?: string;
+    orientation?: "vertical" | "horizontal";
+    build: (rows: any[]) => { label: string; value: number }[];
+  };
+}
+
+function groupCount(rows: any[], field: string, topN = 10, fallback = "Unknown") {
+  const m = new Map<string, number>();
+  rows.forEach((r) => {
+    const k = (r?.[field] ?? fallback) || fallback;
+    m.set(String(k), (m.get(String(k)) ?? 0) + 1);
+  });
+  return Array.from(m, ([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, topN);
+}
+
+function groupSum(rows: any[], field: string, valueField: string, topN = 10, fallback = "Unknown") {
+  const m = new Map<string, number>();
+  rows.forEach((r) => {
+    const k = (r?.[field] ?? fallback) || fallback;
+    m.set(String(k), (m.get(String(k)) ?? 0) + Number(r?.[valueField] ?? 0));
+  });
+  return Array.from(m, ([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, topN);
+}
+
+function groupSumByMonth(rows: any[], dateField: string, valueField: string) {
+  const m = new Map<string, number>();
+  rows.forEach((r) => {
+    if (!r?.[dateField]) return;
+    const d = new Date(r[dateField]);
+    if (isNaN(d.getTime())) return;
+    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    m.set(k, (m.get(k) ?? 0) + Number(r?.[valueField] ?? 0));
+  });
+  return Array.from(m, ([label, value]) => ({ label, value })).sort((a, b) => a.label.localeCompare(b.label));
 }
 
 const STATUS_APPT = ["Scheduled", "Confirmed", "Completed", "Cancelled", "No-show"];

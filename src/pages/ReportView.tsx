@@ -110,6 +110,7 @@ const ReportView = () => {
           data={report.chart.build(filteredRows)}
           valueLabel={report.chart.valueLabel}
           orientation={report.chart.orientation}
+          reportKey={report.key}
         />
       )}
 

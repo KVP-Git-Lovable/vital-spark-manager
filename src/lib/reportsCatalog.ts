@@ -44,6 +44,29 @@ export interface ReportConfig {
     orientation?: "vertical" | "horizontal";
     build: (rows: any[]) => { label: string; value: number }[];
   };
+  paged?: {
+    pageSize: number;
+    fetchPage: (params: {
+      page: number;
+      from?: string;
+      to?: string;
+      search?: string;
+      selects?: Record<string, string>;
+    }) => Promise<{ rows: any[]; total: number }>;
+    fetchAllForExport: (params: {
+      from?: string;
+      to?: string;
+      search?: string;
+      selects?: Record<string, string>;
+    }) => Promise<any[]>;
+    chartFetch?: (params: { from?: string; to?: string }) => Promise<{ label: string; value: number }[]>;
+    summaryFetch?: (params: {
+      from?: string;
+      to?: string;
+      search?: string;
+      selects?: Record<string, string>;
+    }) => Promise<{ label: string; value: string }[]>;
+  };
 }
 
 function groupCount(rows: any[], field: string, topN = 10, opts: { excludeBlank?: boolean; fallback?: string } = {}) {
@@ -133,6 +156,91 @@ export const REPORTS: ReportConfig[] = [
       title: "Patients by Source",
       valueLabel: "Patients",
       build: (rows) => groupCount(rows, "source", 10, { excludeBlank: true }),
+    },
+    paged: {
+      pageSize: 50,
+      fetchPage: async ({ page, from, to, search, selects }) => {
+        const fromIdx = (page - 1) * 50;
+        const toIdx = fromIdx + 49;
+        let q = supabase
+          .from("patients")
+          .select("*", { count: "exact" })
+          .order("created_at", { ascending: false })
+          .range(fromIdx, toIdx);
+        if (from) q = q.gte("created_at", from);
+        if (to) q = q.lte("created_at", to);
+        if (selects?.source) q = q.eq("source", selects.source);
+        if (selects?.status) q = q.eq("status", selects.status);
+        const term = search?.trim();
+        if (term) {
+          const safe = term.replace(/[%,()]/g, " ");
+          q = q.or(
+            `first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%`
+          );
+        }
+        const { data, error, count } = await q;
+        if (error) throw error;
+        return { rows: data ?? [], total: count ?? 0 };
+      },
+      fetchAllForExport: async ({ from, to, search, selects }) =>
+        fetchAll((s, e) => {
+          let q = supabase
+            .from("patients")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .range(s, e);
+          if (from) q = q.gte("created_at", from);
+          if (to) q = q.lte("created_at", to);
+          if (selects?.source) q = q.eq("source", selects.source);
+          if (selects?.status) q = q.eq("status", selects.status);
+          const term = search?.trim();
+          if (term) {
+            const safe = term.replace(/[%,()]/g, " ");
+            q = q.or(
+              `first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%`
+            );
+          }
+          return q;
+        }),
+      chartFetch: async ({ from, to }) => {
+        const rows = await fetchAll<{ source: string | null }>((s, e) => {
+          let q = supabase
+            .from("patients")
+            .select("source")
+            .range(s, e);
+          if (from) q = q.gte("created_at", from);
+          if (to) q = q.lte("created_at", to);
+          return q;
+        });
+        return groupCount(rows, "source", 10, { excludeBlank: true });
+      },
+      summaryFetch: async ({ from, to, search, selects }) => {
+        const baseFilter = (q: any) => {
+          if (from) q = q.gte("created_at", from);
+          if (to) q = q.lte("created_at", to);
+          if (selects?.source) q = q.eq("source", selects.source);
+          if (selects?.status) q = q.eq("status", selects.status);
+          const term = search?.trim();
+          if (term) {
+            const safe = term.replace(/[%,()]/g, " ");
+            q = q.or(
+              `first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%`
+            );
+          }
+          return q;
+        };
+        const totalQ = baseFilter(
+          supabase.from("patients").select("id", { count: "exact", head: true })
+        );
+        const activeQ = baseFilter(
+          supabase.from("patients").select("id", { count: "exact", head: true }).eq("status", "Active")
+        );
+        const [{ count: total }, { count: active }] = await Promise.all([totalQ, activeQ]);
+        return [
+          { label: "Total Patients", value: (total ?? 0).toLocaleString() },
+          { label: "Active", value: (active ?? 0).toLocaleString() },
+        ];
+      },
     },
   },
   {

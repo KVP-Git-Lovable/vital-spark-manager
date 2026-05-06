@@ -95,7 +95,6 @@ export const REPORTS: ReportConfig[] = [
     columns: [
       { key: "patient_name", label: "Patient", sortable: true },
       { key: "service", label: "Service", sortable: true },
-      { key: "staff_name", label: "Staff", sortable: true, accessor: (r) => r.staff ? `${r.staff.first_name ?? ""} ${r.staff.last_name ?? ""}`.trim() : "—" },
       { key: "start_time", label: "Start", sortable: true, type: "datetime" },
       { key: "status", label: "Status", sortable: true, type: "badge" },
     ],
@@ -107,7 +106,7 @@ export const REPORTS: ReportConfig[] = [
     rowHref: () => `/appointments`,
     fetcher: async ({ from, to }) =>
       fetchAll((s, e) => {
-        let q = supabase.from("appointments").select("*, staff:staff_id(first_name,last_name)").order("start_time", { ascending: false }).range(s, e);
+        let q = supabase.from("appointments").select("*").order("start_time", { ascending: false }).range(s, e);
         if (from) q = q.gte("start_time", from);
         if (to) q = q.lte("start_time", to);
         return q;

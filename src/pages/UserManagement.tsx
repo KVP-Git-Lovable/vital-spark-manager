@@ -15,9 +15,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ShieldCheck, Plus, Save, Search, UserPlus, KeyRound, Trash2 } from "lucide-react";
+import { ShieldCheck, Plus, Save, Search, UserPlus, KeyRound, Trash2, Pencil } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import CreateUserDialog from "@/components/users/CreateUserDialog";
+import EditUserDialog from "@/components/users/EditUserDialog";
 
 const ALL_MODULES = [
   { key: "dashboard", label: "Dashboard" },
@@ -65,6 +66,8 @@ export default function UserManagement() {
   const [resetPwConfirm, setResetPwConfirm] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteStaff, setDeleteStaff] = useState<any>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editStaff, setEditStaff] = useState<any>(null);
 
   // Fetch roles
   const { data: roles = [] } = useQuery({
@@ -340,6 +343,17 @@ export default function UserManagement() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            title="Edit User"
+                            onClick={() => {
+                              setEditStaff(s);
+                              setEditOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             title="Reset Password"
                             onClick={() => {
                               setResetPwStaff(s);
@@ -486,6 +500,13 @@ export default function UserManagement() {
         open={createUserOpen}
         onOpenChange={setCreateUserOpen}
         staffList={staff}
+        roles={roles}
+      />
+
+      <EditUserDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        staff={editStaff}
         roles={roles}
       />
 

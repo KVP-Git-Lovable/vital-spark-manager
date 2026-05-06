@@ -145,9 +145,23 @@ const Settings = () => {
         permissions: perms,
       });
       if (error) throw error;
+      // Sync to user_roles_config so it appears in User Management dropdown
+      const { data: existing } = await supabase
+        .from("user_roles_config")
+        .select("id")
+        .ilike("name", roleName)
+        .maybeSingle();
+      if (!existing) {
+        await supabase.from("user_roles_config").insert({
+          name: roleName,
+          description: roleDesc || null,
+          is_system: false,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-roles"] });
+      queryClient.invalidateQueries({ queryKey: ["user-roles-config"] });
       toast.success("Role created");
       setRoleName(""); setRoleDesc(""); setRolePerms(""); setRoleOpen(false);
     },
@@ -156,11 +170,20 @@ const Settings = () => {
 
   const deleteRole = useMutation({
     mutationFn: async (id: string) => {
+      const { data: row } = await supabase.from("staff_roles").select("name").eq("id", id).maybeSingle();
       const { error } = await supabase.from("staff_roles").delete().eq("id", id);
       if (error) throw error;
+      if (row?.name) {
+        await supabase
+          .from("user_roles_config")
+          .delete()
+          .ilike("name", row.name)
+          .eq("is_system", false);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-roles"] });
+      queryClient.invalidateQueries({ queryKey: ["user-roles-config"] });
       toast.success("Role deleted");
     },
     onError: (e: Error) => toast.error(e.message),

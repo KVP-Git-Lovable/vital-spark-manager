@@ -1,45 +1,70 @@
-## Reports Module — Salesforce-style Tabular Reports
+## Goal
 
-Replace the current chart-only `Reports` page with a Salesforce-like report center: a list of canned reports, each opening a clean filterable, sortable table where every row drills into the underlying record.
+The Reports module already has a Salesforce-style viewer (summary KPIs, filters, sortable table, drill-down rows, CSV export). The piece missing from the user's spec is a **visual chart section** between the summary bar and the data table, plus richer summary metrics. This plan adds that without disturbing the existing structure.
 
-### Reports to include (canned)
-1. **Patients** — name, phone, gender, source, campaign, created. Row → `/patients/:id`. Filters: date range (created), source, status.
-2. **Appointments** — patient, service, staff, start time, status. Row → `/appointments` (with selected id query param). Filters: date range (start_time), staff, status.
-3. **Invoices / Revenue** — invoice #, patient, total, paid, status, date. Row → `/billing`. Filters: date range, payment status, payment mode.
-4. **Expenses** — date, title, category, vendor, amount, mode. Row → `/expenses`. Filters: date range, category, payment mode.
-5. **Pharma Bills** — bill #, patient, total, payment mode, date. Row → `/pharma`. Filters: date range, payment mode.
-6. **Campaigns ROI** — name, type, status, budget, spent, dates. Row → `/campaigns/:id`. Filters: type, status.
+## Changes
 
-### UX (Salesforce-style)
-- `/reports` lists all reports as cards grouped by category (Patients / Operations / Finance / Marketing).
-- Click a report → `/reports/:key` opens a full-width report view:
-  - **Header**: report title, subtitle, "Back to Reports", export CSV button.
-  - **Filter bar**: date range picker + report-specific dropdowns (staff, status, etc.) + search box. "Clear filters" link. Active filter chips.
-  - **Summary strip**: row count + key totals (e.g. Total Revenue, Avg Invoice).
-  - **Table**: sticky header, sortable columns (click header → asc/desc with arrow icon), zebra rows, hover highlight, row cursor pointer, click → navigate to record. Compact rows similar to existing `data-table` style.
-  - Pagination (50/page) for large sets.
+### 1. Extend `ReportConfig` in `src/lib/reportsCatalog.ts`
 
-### Technical
+Add an optional `chart` definition per report:
 
-New files:
-- `src/pages/Reports.tsx` — rewritten as report catalog (cards linking to `/reports/:key`).
-- `src/pages/ReportView.tsx` — generic report viewer driven by a config object.
-- `src/lib/reportsCatalog.ts` — declarative config: each report has `key`, `title`, `category`, `description`, data fetcher (Supabase query), columns `[{key, label, render?, sortable, type}]`, filter definitions, `rowHref(row)` for drill-down, optional summary aggregator.
-- `src/components/reports/SortableDataTable.tsx` — reusable table with sort state, sticky header, row click handler.
-- `src/components/reports/ReportFilterBar.tsx` — renders filter inputs from config (date range, select, text), maintains URL-synced state via `useSearchParams`.
+```ts
+chart?: {
+  type: "bar" | "horizontalBar";
+  title: string;
+  // Build chart series from filtered rows
+  build: (rows: any[]) => { label: string; value: number }[];
+  valueLabel?: string; // e.g. "Patients", "₹ Revenue"
+};
+```
 
-Routing (`src/App.tsx`):
-- Add `<Route path="/reports/:key" element={<ProtectedRoute moduleKey="reports"><ReportView /></ProtectedRoute>} />`.
+Define `chart` for each report:
+- **Patients** → group by `city` (top 10), value = count.
+- **Appointments** → group by `status`, value = count.
+- **Invoices** → group by month of `created_at`, value = sum of `total_amount`.
+- **Expenses** → group by month, value = sum of `amount`.
+- **Pharmacy Bills** → group by `payment_mode`, value = sum of `net_amount`.
+- **Campaigns ROI** → bar per campaign comparing budget vs spent (use horizontal bar with two series — see note below; if simpler, plot `amount_spent` per campaign).
 
-Data fetching: TanStack Query, one query per report keyed on `[reportKey, filters]`. Use `fetchAll` from `src/lib/supabasePaginate.ts` to bypass the 1000-row cap. Client-side sort + filter for already-fetched rows; server-side date filter applied in the query for performance.
+Also enrich `summary` where useful:
+- Patients: add **Total LTV** (sum of `total_amount` across joined invoices is heavy — instead show "New this month" count).
+- Appointments: add **Completion rate %**.
+- Invoices: already strong.
 
-Export CSV: simple client-side conversion of currently-visible filtered rows.
+### 2. New component `src/components/reports/ReportChart.tsx`
 
-Sidebar: "Reports" entry already exists — no change needed.
+Recharts-based, responsive bar chart:
+- Uses `BarChart` + `ResponsiveContainer` from recharts (already a dep — see `DashboardCharts.tsx`).
+- Reads HSL semantic tokens (`--primary`, `--chart-1`, etc.) for color — no hardcoded colors.
+- Renders inside a card-styled wrapper matching `.data-table` look.
+- Empty state: "No data to chart for current filters."
+- Height ~260px, `XAxis` label rotated 45° if >6 categories.
 
-The existing chart dashboard previously on `/reports` is preserved on the main dashboard (`/`); the Reports page becomes purely the Salesforce-style report center.
+### 3. Wire chart into `src/pages/ReportView.tsx`
 
-### Out of scope
-- Saved custom reports (already covered by Report Builder).
-- Pivot/grouping (use Report Builder).
-- Scheduled report emails.
+Layout becomes:
+1. Header (title + back + Export CSV)
+2. Filter bar
+3. Summary KPI cards
+4. **Chart card** (only if `report.chart` defined and rows present)
+5. Sortable data table
+
+Pass `report.chart.build(filteredRows)` to `<ReportChart>`.
+
+### 4. Layout polish
+
+- Summary cards remain `grid-cols-2 md:grid-cols-4`.
+- Chart card full-width, mt-4.
+- Table sits beneath chart.
+
+## Out of scope
+
+- No new routes, no DB changes.
+- No grouped/pivot tables (handled by separate Report Configurator).
+- Pagination, sorting, drill-down, CSV export are already implemented — left untouched.
+
+## Files
+
+- Edit `src/lib/reportsCatalog.ts` — add `chart` configs + minor summary tweaks.
+- Add `src/components/reports/ReportChart.tsx`.
+- Edit `src/pages/ReportView.tsx` — render `<ReportChart>` between summary and table.

@@ -38,6 +38,46 @@ export interface ReportConfig {
   fetcher: (params: { from?: string; to?: string }) => Promise<any[]>;
   summary?: (rows: any[]) => { label: string; value: string }[];
   defaultSort?: { key: string; dir: "asc" | "desc" };
+  chart?: {
+    title: string;
+    valueLabel?: string;
+    orientation?: "vertical" | "horizontal";
+    build: (rows: any[]) => { label: string; value: number }[];
+  };
+}
+
+function groupCount(rows: any[], field: string, topN = 10, fallback = "Unknown") {
+  const m = new Map<string, number>();
+  rows.forEach((r) => {
+    const k = (r?.[field] ?? fallback) || fallback;
+    m.set(String(k), (m.get(String(k)) ?? 0) + 1);
+  });
+  return Array.from(m, ([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, topN);
+}
+
+function groupSum(rows: any[], field: string, valueField: string, topN = 10, fallback = "Unknown") {
+  const m = new Map<string, number>();
+  rows.forEach((r) => {
+    const k = (r?.[field] ?? fallback) || fallback;
+    m.set(String(k), (m.get(String(k)) ?? 0) + Number(r?.[valueField] ?? 0));
+  });
+  return Array.from(m, ([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, topN);
+}
+
+function groupSumByMonth(rows: any[], dateField: string, valueField: string) {
+  const m = new Map<string, number>();
+  rows.forEach((r) => {
+    if (!r?.[dateField]) return;
+    const d = new Date(r[dateField]);
+    if (isNaN(d.getTime())) return;
+    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    m.set(k, (m.get(k) ?? 0) + Number(r?.[valueField] ?? 0));
+  });
+  return Array.from(m, ([label, value]) => ({ label, value })).sort((a, b) => a.label.localeCompare(b.label));
 }
 
 const STATUS_APPT = ["Scheduled", "Confirmed", "Completed", "Cancelled", "No-show"];
@@ -85,6 +125,11 @@ export const REPORTS: ReportConfig[] = [
       { label: "Total Patients", value: rows.length.toLocaleString() },
       { label: "Active", value: rows.filter((r) => r.status === "Active").length.toLocaleString() },
     ],
+    chart: {
+      title: "Patients by City (Top 10)",
+      valueLabel: "Patients",
+      build: (rows) => groupCount(rows, "city"),
+    },
   },
   {
     key: "appointments",
@@ -116,6 +161,11 @@ export const REPORTS: ReportConfig[] = [
       { label: "Completed", value: rows.filter((r) => r.status === "Completed").length.toLocaleString() },
       { label: "Cancelled", value: rows.filter((r) => r.status === "Cancelled").length.toLocaleString() },
     ],
+    chart: {
+      title: "Appointments by Status",
+      valueLabel: "Appointments",
+      build: (rows) => groupCount(rows, "status"),
+    },
   },
   {
     key: "invoices",
@@ -156,6 +206,11 @@ export const REPORTS: ReportConfig[] = [
         { label: "Outstanding", value: `₹${(total - paid).toLocaleString()}` },
       ];
     },
+    chart: {
+      title: "Revenue by Month",
+      valueLabel: "₹ Total",
+      build: (rows) => groupSumByMonth(rows, "created_at", "total_amount"),
+    },
   },
   {
     key: "expenses",
@@ -189,6 +244,11 @@ export const REPORTS: ReportConfig[] = [
         { label: "Entries", value: rows.length.toLocaleString() },
         { label: "Total Spent", value: `₹${total.toLocaleString()}` },
       ];
+    },
+    chart: {
+      title: "Expenses by Month",
+      valueLabel: "₹ Spent",
+      build: (rows) => groupSumByMonth(rows, "expense_date", "amount"),
     },
   },
   {
@@ -225,6 +285,11 @@ export const REPORTS: ReportConfig[] = [
         { label: "Total", value: `₹${total.toLocaleString()}` },
       ];
     },
+    chart: {
+      title: "Pharmacy Sales by Payment Mode",
+      valueLabel: "₹ Net",
+      build: (rows) => groupSum(rows, "payment_mode", "net_amount"),
+    },
   },
   {
     key: "campaigns",
@@ -257,6 +322,16 @@ export const REPORTS: ReportConfig[] = [
         { label: "Total Budget", value: `₹${budget.toLocaleString()}` },
         { label: "Total Spent", value: `₹${spent.toLocaleString()}` },
       ];
+    },
+    chart: {
+      title: "Spend by Campaign (Top 10)",
+      valueLabel: "₹ Spent",
+      orientation: "horizontal",
+      build: (rows) =>
+        rows
+          .map((r) => ({ label: r.name ?? "Untitled", value: Number(r.amount_spent ?? 0) }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 10),
     },
   },
 ];

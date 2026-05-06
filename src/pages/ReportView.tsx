@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { getReport } from "@/lib/reportsCatalog";
 import { ReportFilterBar, type FilterState } from "@/components/reports/ReportFilterBar";
 import { SortableDataTable } from "@/components/reports/SortableDataTable";
+import { ReportChart } from "@/components/reports/ReportChart";
 import NotFound from "./NotFound";
 
 function toCSV(columns: { key: string; label: string; accessor?: (r: any) => any }[], rows: any[]) {
@@ -101,6 +102,15 @@ const ReportView = () => {
             </div>
           ))}
         </div>
+      )}
+
+      {report.chart && !isLoading && (
+        <ReportChart
+          title={report.chart.title}
+          data={report.chart.build(filteredRows)}
+          valueLabel={report.chart.valueLabel}
+          orientation={report.chart.orientation}
+        />
       )}
 
       {isLoading ? (

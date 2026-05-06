@@ -19,6 +19,7 @@ import Appointments from "./pages/Appointments";
 import Services from "./pages/Services";
 import Billing from "./pages/Billing";
 import Reports from "./pages/Reports";
+import ReportView from "./pages/ReportView";
 import ReportConfigurator from "./pages/ReportConfigurator";
 import Procedures from "./pages/Procedures";
 import Pharma from "./pages/Pharma";
@@ -137,6 +138,7 @@ const App = () => (
                     <Route path="/services" element={<ProtectedRoute moduleKey="services"><Services /></ProtectedRoute>} />
                     <Route path="/billing" element={<ProtectedRoute moduleKey="billing"><Billing /></ProtectedRoute>} />
                     <Route path="/reports" element={<ProtectedRoute moduleKey="reports"><Reports /></ProtectedRoute>} />
+                    <Route path="/reports/:key" element={<ProtectedRoute moduleKey="reports"><ReportView /></ProtectedRoute>} />
                     <Route path="/report-builder" element={<ProtectedRoute moduleKey="report_builder"><ReportConfigurator /></ProtectedRoute>} />
                     <Route path="/campaigns" element={<ProtectedRoute moduleKey="campaigns"><Campaigns /></ProtectedRoute>} />
                     <Route path="/campaigns/:id" element={<ProtectedRoute moduleKey="campaigns"><CampaignDetail /></ProtectedRoute>} />

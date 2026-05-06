@@ -1,97 +1,45 @@
-# Campaigns Module
+## Reports Module — Salesforce-style Tabular Reports
 
-A new marketing Campaigns module to track ad/outreach campaigns, link patients to them, and measure ROI.
+Replace the current chart-only `Reports` page with a Salesforce-like report center: a list of canned reports, each opening a clean filterable, sortable table where every row drills into the underlying record.
 
-## 1. Database changes
+### Reports to include (canned)
+1. **Patients** — name, phone, gender, source, campaign, created. Row → `/patients/:id`. Filters: date range (created), source, status.
+2. **Appointments** — patient, service, staff, start time, status. Row → `/appointments` (with selected id query param). Filters: date range (start_time), staff, status.
+3. **Invoices / Revenue** — invoice #, patient, total, paid, status, date. Row → `/billing`. Filters: date range, payment status, payment mode.
+4. **Expenses** — date, title, category, vendor, amount, mode. Row → `/expenses`. Filters: date range, category, payment mode.
+5. **Pharma Bills** — bill #, patient, total, payment mode, date. Row → `/pharma`. Filters: date range, payment mode.
+6. **Campaigns ROI** — name, type, status, budget, spent, dates. Row → `/campaigns/:id`. Filters: type, status.
 
-New tables (with RLS enabled, `authenticated` full access — matching existing module patterns):
+### UX (Salesforce-style)
+- `/reports` lists all reports as cards grouped by category (Patients / Operations / Finance / Marketing).
+- Click a report → `/reports/:key` opens a full-width report view:
+  - **Header**: report title, subtitle, "Back to Reports", export CSV button.
+  - **Filter bar**: date range picker + report-specific dropdowns (staff, status, etc.) + search box. "Clear filters" link. Active filter chips.
+  - **Summary strip**: row count + key totals (e.g. Total Revenue, Avg Invoice).
+  - **Table**: sticky header, sortable columns (click header → asc/desc with arrow icon), zebra rows, hover highlight, row cursor pointer, click → navigate to record. Compact rows similar to existing `data-table` style.
+  - Pagination (50/page) for large sets.
 
-**`campaigns`**
-- `id` uuid PK
-- `name` text not null
-- `type` text not null — values: `Google Ads`, `Meta Ads`, `WhatsApp`, `Email`, `Other`
-- `status` text not null default `Planning` — `Planning` / `Active` / `Completed`
-- `start_date` date, `end_date` date
-- `budget` numeric default 0
-- `amount_spent` numeric default 0
-- `target_audience` text
-- `goals` text (description / goals)
-- `created_at`, `updated_at` timestamptz, with `update_updated_at_column` trigger
+### Technical
 
-**`campaign_updates`** (for Notes & Updates timeline)
-- `id` uuid PK
-- `campaign_id` uuid FK → campaigns(id) on delete cascade
-- `note` text not null
-- `created_by` text (display name; optional)
-- `created_at` timestamptz default now()
+New files:
+- `src/pages/Reports.tsx` — rewritten as report catalog (cards linking to `/reports/:key`).
+- `src/pages/ReportView.tsx` — generic report viewer driven by a config object.
+- `src/lib/reportsCatalog.ts` — declarative config: each report has `key`, `title`, `category`, `description`, data fetcher (Supabase query), columns `[{key, label, render?, sortable, type}]`, filter definitions, `rowHref(row)` for drill-down, optional summary aggregator.
+- `src/components/reports/SortableDataTable.tsx` — reusable table with sort state, sticky header, row click handler.
+- `src/components/reports/ReportFilterBar.tsx` — renders filter inputs from config (date range, select, text), maintains URL-synced state via `useSearchParams`.
 
-**`patients` table change**
-- Add `campaign_id` uuid nullable, FK → campaigns(id) on delete set null. This is the "Source → Campaign" link. We keep the existing `source` text column as-is; `campaign_id` is the structured link used by the module.
+Routing (`src/App.tsx`):
+- Add `<Route path="/reports/:key" element={<ProtectedRoute moduleKey="reports"><ReportView /></ProtectedRoute>} />`.
 
-## 2. Sidebar
+Data fetching: TanStack Query, one query per report keyed on `[reportKey, filters]`. Use `fetchAll` from `src/lib/supabasePaginate.ts` to bypass the 1000-row cap. Client-side sort + filter for already-fetched rows; server-side date filter applied in the query for performance.
 
-Edit `src/components/layout/AppSidebar.tsx`: add `{ title: "Campaigns", url: "/campaigns", icon: Megaphone, moduleKey: "campaigns" }` to `mainItems`, positioned between **Report Builder** and **Surveys** (Surveys is the collapsible block right after `mainItems`).
+Export CSV: simple client-side conversion of currently-visible filtered rows.
 
-Add route in `src/App.tsx`:
-- `/campaigns` → `Campaigns` list (wrapped in `ProtectedRoute moduleKey="campaigns"`)
-- `/campaigns/:id` → `CampaignDetail`
+Sidebar: "Reports" entry already exists — no change needed.
 
-`ProtectedRoute` already permits access when no permission record exists, so no user_management seeding is required to make it work, but admins will see it by default (`isAdmin` short-circuits).
+The existing chart dashboard previously on `/reports` is preserved on the main dashboard (`/`); the Reports page becomes purely the Salesforce-style report center.
 
-## 3. Campaigns list page — `src/pages/Campaigns.tsx`
-
-Mint/teal styled page matching Vendors / Procedures conventions:
-- Header with title + "New Campaign" button
-- Search box (by name) + Type filter + Status filter
-- Table columns: Name, Type (badge), Start/End Date, Budget (₹), Status (color-coded badge), actions (edit/delete)
-- Click row → navigate to `/campaigns/:id`
-- "New Campaign" opens a Dialog form (name, type select, status select, start/end date pickers, budget, target audience, goals textarea)
-
-## 4. Campaign detail page — `src/pages/CampaignDetail.tsx`
-
-Header: campaign name, type badge, status badge, back button, edit button.
-
-Tabs (using shadcn Tabs):
-
-**Overview** — read-only card grid: Name, Type, Status, Budget, Duration (start → end, computed days), Target Audience, Goals/Description. Edit button opens the same dialog used on the list page.
-
-**Spend & ROI** — editable card:
-- Total Budget ₹ (from `campaigns.budget`)
-- Amount Spent ₹ (editable inline; updates `campaigns.amount_spent`)
-- New Patients acquired — auto-counted: `patients` where `campaign_id = :id`
-- Revenue generated ₹ — auto-summed: `invoices.total_amount` joined via `patient_id` for those patients (sum of paid + pending; we'll use `total_amount`)
-- ROI % — computed client-side: `((revenue - spent) / spent) * 100`, displayed with color (green if positive)
-- Stat cards reuse `StatCard` component
-
-**Linked Patients** — list of patients with `campaign_id = :id`:
-- Table: Name, Phone, Joined date, Source field
-- "Link Patient" button → searchable patient combobox (reuse `PatientCombobox`) → sets that patient's `campaign_id`
-- "Unlink" action sets `campaign_id` to null
-
-**Notes & Updates** — timeline:
-- Textarea + "Add Update" button → inserts row into `campaign_updates`
-- List sorted desc by `created_at`, each entry as a card with timestamp
-
-## 5. Patient form — campaign source field
-
-Edit `src/components/patients/PatientFormSheet.tsx`:
-- Add a "Campaign" select (dropdown of all campaigns) below the existing Source field
-- Stores into `patients.campaign_id`
-- Shown regardless of source value (independent structured link)
-
-## 6. Dashboard widget
-
-Edit `src/pages/Index.tsx`: add a `StatCard` (or two) near the existing top-row stat cards:
-- **Active Campaigns** — count of `campaigns` where `status = 'Active'`
-- **Campaign Spend (This Month)** — sum of `amount_spent` for campaigns whose `start_date` or `end_date` overlaps the current month. (Simpler MVP: sum `amount_spent` for all `Active` campaigns.) We'll use the simpler "sum amount_spent for Active campaigns" since spend isn't time-bucketed in the schema.
-
-Both cards are clickable → navigate to `/campaigns`.
-
-## 7. Memory update
-
-Add a new memory file `mem://features/campaigns` describing the module and update `mem://index.md` to reference it.
-
-## Out of scope
-
-- No external API integration (Google/Meta Ads pulls) — spend is entered manually.
-- No per-day spend history table — single `amount_spent` field on the campaign.
+### Out of scope
+- Saved custom reports (already covered by Report Builder).
+- Pivot/grouping (use Report Builder).
+- Scheduled report emails.

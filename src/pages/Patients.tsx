@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Trash2, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -23,25 +23,39 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { ImportPatientsDialog } from "@/components/patients/ImportPatientsDialog";
 import { EngagementBadge } from "@/components/patients/EngagementBadge";
 import { useEngagementScores } from "@/hooks/useEngagementScores";
-import { fetchAll } from "@/lib/supabasePaginate";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
 
-const fetchPatients = async (): Promise<Patient[]> => {
-  return await fetchAll<Patient>((from, to) =>
-    supabase
-      .from("patients")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .range(from, to)
-  );
+const PAGE_SIZE = 50;
+
+const fetchPatientsPage = async (
+  page: number,
+  search: string
+): Promise<{ rows: Patient[]; total: number }> => {
+  const fromIdx = (page - 1) * PAGE_SIZE;
+  const toIdx = fromIdx + PAGE_SIZE - 1;
+  let q = supabase
+    .from("patients")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(fromIdx, toIdx);
+  const term = search.trim();
+  if (term) {
+    const safe = term.replace(/[%,()]/g, " ");
+    q = q.or(
+      `first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%`
+    );
+  }
+  const { data, error, count } = await q;
+  if (error) throw error;
+  return { rows: (data as Patient[]) || [], total: count ?? 0 };
 };
 
 const Patients = () => {
@@ -55,30 +69,29 @@ const Patients = () => {
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 50;
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const { data: patients = [], isLoading, refetch } = useQuery({
-    queryKey: ["patients"],
-    queryFn: fetchPatients,
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["patients", page, debouncedSearch],
+    queryFn: () => fetchPatientsPage(page, debouncedSearch),
+    placeholderData: keepPreviousData,
   });
 
-  const patientIds = patients.map((p) => p.id);
-  const { data: engagementScores = {} } = useEngagementScores(patientIds);
-
-  const filtered = useMemo(
-    () =>
-      patients.filter(
-        (p) =>
-          `${p.first_name} ${p.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
-          p.email?.toLowerCase().includes(search.toLowerCase()) ||
-          p.phone?.includes(search)
-      ),
-    [patients, search]
-  );
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paged: Patient[] = data?.rows ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  const patientIds = paged.map((p) => p.id);
+  const { data: engagementScores = {} } = useEngagementScores(patientIds);
 
   const getAge = (dob: string | null) => {
     if (!dob) return null;
@@ -185,9 +198,9 @@ const Patients = () => {
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : filtered.length === 0 ? (
+        ) : paged.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-            <p className="text-sm">{patients.length === 0 ? "No patients yet. Add your first patient!" : "No patients match your search."}</p>
+            <p className="text-sm">{debouncedSearch ? "No patients match your search." : "No patients yet. Add your first patient!"}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -293,9 +306,9 @@ const Patients = () => {
 
         <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
           <span>
-            Showing {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–
-            {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length.toLocaleString()}
-            {search ? ` (filtered from ${patients.length.toLocaleString()})` : ""}
+            Showing {total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–
+            {Math.min(currentPage * PAGE_SIZE, total)} of {total.toLocaleString()}
+            {isFetching && !isLoading ? " · loading…" : ""}
           </span>
           {totalPages > 1 && (
             <div className="flex items-center gap-2">

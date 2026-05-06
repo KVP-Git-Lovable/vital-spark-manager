@@ -1,70 +1,31 @@
-## Goal
+## Reports — Chart fixes & chart type switcher
 
-The Reports module already has a Salesforce-style viewer (summary KPIs, filters, sortable table, drill-down rows, CSV export). The piece missing from the user's spec is a **visual chart section** between the summary bar and the data table, plus richer summary metrics. This plan adds that without disturbing the existing structure.
+### 1. Patients chart fix (`src/lib/reportsCatalog.ts`)
+- Change Patients default chart from "Patients by City" to **"Patients by Source"** (most consistently populated field, already a filter option).
+- Update `groupCount` helper to accept an `excludeBlank` flag. When true, skip rows whose value is null/empty/whitespace/`"Unknown"` instead of bucketing them into a fallback. Use this for the Source chart so empty values don't dominate.
+- Keep the City grouping logic available but no longer the default; if/when used, also apply the blank filter so only cities with real data appear.
 
-## Changes
+### 2. Chart type switcher (`src/components/reports/ReportChart.tsx`)
+- Add a small toggle group in the chart header with 4 icons (lucide): `BarChart3` (Bar), `PieChart` (Pie), `Donut`/`CircleDot` (Doughnut), `LineChart` (Line).
+- Local state `chartType` with default `"bar"`. Persist per report in `localStorage` under key `report-chart-type:<reportKey>` so each report remembers its last-used chart type across reloads. Pass `reportKey` as a new prop from `ReportView`.
+- Render the selected variant with Recharts:
+  - **Bar**: existing implementation (vertical or horizontal based on `orientation` prop).
+  - **Line**: `LineChart` with the same `{label, value}` series, single line using `hsl(var(--primary))`, dot markers.
+  - **Pie**: `PieChart` + `Pie` with `Cell`s cycling through `PALETTE`, label showing `label` + percent, legend below.
+  - **Doughnut**: same as Pie but with `innerRadius` set (e.g. 50–60) for the ring look.
+- Keep the empty-state message and the existing card wrapper (`data-table p-4 mb-4`).
+- Tooltip styling, axis fonts, and palette tokens reuse the current HSL semantic tokens — no new colors introduced.
 
-### 1. Extend `ReportConfig` in `src/lib/reportsCatalog.ts`
+### 3. Wire-through (`src/pages/ReportView.tsx`)
+- Pass `reportKey={report.key}` to `<ReportChart>` so it can scope its persisted chart-type preference.
+- No other changes; switcher applies automatically to all reports that already declare a `chart` config (Patients, Appointments, Invoices, Expenses, Pharmacy Bills, Campaigns ROI).
 
-Add an optional `chart` definition per report:
+### Out of scope
+- No DB or fetcher changes.
+- No new routes, no changes to filters/summary/table.
+- Horizontal-bar reports (Campaigns) keep their current orientation when "Bar" is selected; Pie/Doughnut/Line ignore orientation.
 
-```ts
-chart?: {
-  type: "bar" | "horizontalBar";
-  title: string;
-  // Build chart series from filtered rows
-  build: (rows: any[]) => { label: string; value: number }[];
-  valueLabel?: string; // e.g. "Patients", "₹ Revenue"
-};
-```
-
-Define `chart` for each report:
-- **Patients** → group by `city` (top 10), value = count.
-- **Appointments** → group by `status`, value = count.
-- **Invoices** → group by month of `created_at`, value = sum of `total_amount`.
-- **Expenses** → group by month, value = sum of `amount`.
-- **Pharmacy Bills** → group by `payment_mode`, value = sum of `net_amount`.
-- **Campaigns ROI** → bar per campaign comparing budget vs spent (use horizontal bar with two series — see note below; if simpler, plot `amount_spent` per campaign).
-
-Also enrich `summary` where useful:
-- Patients: add **Total LTV** (sum of `total_amount` across joined invoices is heavy — instead show "New this month" count).
-- Appointments: add **Completion rate %**.
-- Invoices: already strong.
-
-### 2. New component `src/components/reports/ReportChart.tsx`
-
-Recharts-based, responsive bar chart:
-- Uses `BarChart` + `ResponsiveContainer` from recharts (already a dep — see `DashboardCharts.tsx`).
-- Reads HSL semantic tokens (`--primary`, `--chart-1`, etc.) for color — no hardcoded colors.
-- Renders inside a card-styled wrapper matching `.data-table` look.
-- Empty state: "No data to chart for current filters."
-- Height ~260px, `XAxis` label rotated 45° if >6 categories.
-
-### 3. Wire chart into `src/pages/ReportView.tsx`
-
-Layout becomes:
-1. Header (title + back + Export CSV)
-2. Filter bar
-3. Summary KPI cards
-4. **Chart card** (only if `report.chart` defined and rows present)
-5. Sortable data table
-
-Pass `report.chart.build(filteredRows)` to `<ReportChart>`.
-
-### 4. Layout polish
-
-- Summary cards remain `grid-cols-2 md:grid-cols-4`.
-- Chart card full-width, mt-4.
-- Table sits beneath chart.
-
-## Out of scope
-
-- No new routes, no DB changes.
-- No grouped/pivot tables (handled by separate Report Configurator).
-- Pagination, sorting, drill-down, CSV export are already implemented — left untouched.
-
-## Files
-
-- Edit `src/lib/reportsCatalog.ts` — add `chart` configs + minor summary tweaks.
-- Add `src/components/reports/ReportChart.tsx`.
-- Edit `src/pages/ReportView.tsx` — render `<ReportChart>` between summary and table.
+### Files touched
+- `src/lib/reportsCatalog.ts` — Patients chart switched to Source; helper supports excluding blanks.
+- `src/components/reports/ReportChart.tsx` — chart-type toggle, Pie/Doughnut/Line renderers, localStorage persistence.
+- `src/pages/ReportView.tsx` — pass `reportKey` prop.

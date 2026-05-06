@@ -46,11 +46,15 @@ export interface ReportConfig {
   };
 }
 
-function groupCount(rows: any[], field: string, topN = 10, fallback = "Unknown") {
+function groupCount(rows: any[], field: string, topN = 10, opts: { excludeBlank?: boolean; fallback?: string } = {}) {
+  const { excludeBlank = false, fallback = "Unknown" } = opts;
   const m = new Map<string, number>();
   rows.forEach((r) => {
-    const k = (r?.[field] ?? fallback) || fallback;
-    m.set(String(k), (m.get(String(k)) ?? 0) + 1);
+    const raw = r?.[field];
+    const trimmed = raw == null ? "" : String(raw).trim();
+    if (excludeBlank && (!trimmed || trimmed.toLowerCase() === "unknown")) return;
+    const k = trimmed || fallback;
+    m.set(k, (m.get(k) ?? 0) + 1);
   });
   return Array.from(m, ([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value)
@@ -126,9 +130,9 @@ export const REPORTS: ReportConfig[] = [
       { label: "Active", value: rows.filter((r) => r.status === "Active").length.toLocaleString() },
     ],
     chart: {
-      title: "Patients by City (Top 10)",
+      title: "Patients by Source",
       valueLabel: "Patients",
-      build: (rows) => groupCount(rows, "city"),
+      build: (rows) => groupCount(rows, "source", 10, { excludeBlank: true }),
     },
   },
   {

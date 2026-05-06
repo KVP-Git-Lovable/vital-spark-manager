@@ -27,7 +27,7 @@ import { motion } from "framer-motion";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-const ROLE_OPTIONS = ["Doctor", "Nurse", "Receptionist", "Lab Technician", "Therapist", "Admin"];
+const FALLBACK_ROLES = ["Doctor", "Nurse", "Receptionist", "Lab Technician", "Therapist", "Admin"];
 
 interface StaffForm {
   first_name: string;
@@ -74,6 +74,20 @@ const StaffManagement = () => {
       return data;
     },
   });
+
+  const { data: rolesData = [] } = useQuery({
+    queryKey: ["staff-roles"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("staff_roles").select("name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const roleOptions = Array.from(new Set([
+    ...FALLBACK_ROLES,
+    ...rolesData.map((r: any) => r.name).filter(Boolean),
+  ]));
 
   const filtered = staff.filter((s: any) => {
     const q = search.toLowerCase();
@@ -225,7 +239,7 @@ const StaffManagement = () => {
                   <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
                     <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {ROLE_OPTIONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                      {roleOptions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

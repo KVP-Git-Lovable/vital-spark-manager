@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import type { ReportColumn } from "@/lib/reportsCatalog";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 interface Props {
   columns: ReportColumn[];
@@ -42,6 +43,7 @@ function renderCell(col: ReportColumn, row: any) {
 export function SortableDataTable({ columns, rows, rowHref, defaultSort, pageSize = 50 }: Props) {
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(defaultSort ?? null);
   const [page, setPage] = useState(1);
+  const navigate = useNavigate();
 
   const sorted = useMemo(() => {
     if (!sort) return rows;
@@ -83,8 +85,14 @@ export function SortableDataTable({ columns, rows, rowHref, defaultSort, pageSiz
   const handleRowClick = (row: any, e?: React.MouseEvent) => {
     const href = rowHref?.(row);
     if (!href) return;
-    // Open full page in a new browser tab
-    window.open(href, "_blank", "noopener,noreferrer");
+    // Remember the report we came from so a "Back to Report" button can return here
+    try {
+      const current = window.location.pathname + window.location.search;
+      if (current.startsWith("/reports/")) {
+        sessionStorage.setItem("reportReferrer", current);
+      }
+    } catch {}
+    navigate(href);
   };
 
   return (

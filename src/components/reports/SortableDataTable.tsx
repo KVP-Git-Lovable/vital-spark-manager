@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,7 +42,6 @@ function renderCell(col: ReportColumn, row: any) {
 export function SortableDataTable({ columns, rows, rowHref, defaultSort, pageSize = 50 }: Props) {
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(defaultSort ?? null);
   const [page, setPage] = useState(1);
-  const navigate = useNavigate();
 
   const sorted = useMemo(() => {
     if (!sort) return rows;
@@ -82,9 +80,11 @@ export function SortableDataTable({ columns, rows, rowHref, defaultSort, pageSiz
     });
   };
 
-  const handleRowClick = (row: any) => {
+  const handleRowClick = (row: any, e?: React.MouseEvent) => {
     const href = rowHref?.(row);
-    if (href) navigate(href);
+    if (!href) return;
+    // Open full page in a new browser tab
+    window.open(href, "_blank", "noopener,noreferrer");
   };
 
   return (

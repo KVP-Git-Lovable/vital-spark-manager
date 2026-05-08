@@ -522,6 +522,34 @@ const Appointments = () => {
           });
         }
       }
+      // Survey: assign-to-patient (WhatsApp invite)
+      if (data.assignSurveyTemplateId && data.capturedPatientId) {
+        const tpl = activeSurveyTemplates.find((t: any) => t.id === data.assignSurveyTemplateId);
+        supabase.functions
+          .invoke("send-survey-whatsapp", {
+            body: {
+              patient_id: data.capturedPatientId,
+              template_name: tpl?.name || "Survey",
+            },
+          })
+          .then(({ error }) => {
+            if (error) console.error("Survey WhatsApp send failed:", error);
+            else toast.success("Survey link sent on WhatsApp");
+          });
+      }
+      // Survey: fill now (only for non-recurring single appointment)
+      if (
+        data.fillNowSurveyTemplateId &&
+        data.capturedPatientId &&
+        data.newAppointmentId &&
+        !data.wasRecurring
+      ) {
+        setPendingFillNow({
+          templateId: data.fillNowSurveyTemplateId,
+          appointmentId: data.newAppointmentId,
+          patientId: data.capturedPatientId,
+        });
+      }
       resetForm();
       setOpen(false);
       if (data.wasRecurring) {

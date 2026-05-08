@@ -1,53 +1,72 @@
-## Problem
+# Add Survey Section to New Appointment Form
 
-`patients` table now has **17,442 rows**. Both screens currently fetch the entire table client-side and then paginate in memory:
+## Goal
+After the Problem Areas field in the New Appointment dialog (`src/pages/Appointments.tsx`), add an optional **Survey** section with two independent dropdowns:
+1. **Assign to Patient** — sends a WhatsApp invite to the patient to self-fill the chosen survey.
+2. **Fill Now** — opens the full survey form on screen (same `SurveyFill` dialog used in Patient Detail) right after the appointment is created, so front desk can complete it on behalf of the patient.
 
-- `src/pages/Patients.tsx` calls `fetchAll(...)` (18 sequential 1000-row Supabase requests) then passes **all 17K patient IDs** into `useEngagementScores`, which POSTs them in a single request to the `patient-engagement` edge function. The edge call is what makes the page sit on the spinner — it either times out or returns a payload that takes seconds to parse.
-- `src/pages/ReportView.tsx` runs the Patients report via `report.fetcher` in `src/lib/reportsCatalog.ts`, which also uses `fetchAll` over the full table. With no engagement call it eventually finishes, but it blocks the UI for many seconds and exhausts memory on lower-end devices.
+Either, both, or neither may be used. If neither is selected, the appointment creates normally with no extra side-effects.
 
-Fix: switch both screens to true **server-side pagination + lazy loading**, and only compute engagement for the rows currently on screen.
+## UI Changes (`src/pages/Appointments.tsx`)
 
----
+Insert a new block immediately after the Problem Areas section (around line 898), styled consistently with surrounding fields:
 
-## 1. Patients page — `src/pages/Patients.tsx`
+```
+Survey (optional)
+├── Assign to Patient   [Select active survey template ▾]   (WhatsApp invite on save)
+└── Fill Now            [Select active survey template ▾]   (Opens survey after save)
+```
 
-Convert from "fetch everything, paginate locally" to "fetch one page at a time".
+- Each dropdown lists only **active + approved** survey templates  
+  (`is_active = true AND approval_status = 'approved'`).
+- Each dropdown includes a "None" option (clears selection).
+- Show a small helper line under each: "Patient will receive a WhatsApp link" / "Survey opens after appointment is created".
+- New local state: `assignSurveyTemplateId`, `fillNowSurveyTemplateId`. Reset on dialog close, after submit, and when switching patients.
 
-- Replace `fetchPatients` with a paged query keyed on `[page, debouncedSearch]`:
-  - Use `supabase.from("patients").select("*", { count: "exact" }).order("created_at", { ascending: false }).range(from, to)`.
-  - When `search` is non-empty, add an `or(...)` filter on `first_name`, `last_name`, `email`, `phone` using `ilike`.
-  - Debounce `search` (~300 ms) before it hits the query key so typing doesn't fire a request per keystroke.
-- Drive pagination from the server `count` instead of `filtered.length`. Keep page size 50.
-- Keep `keepPreviousData: true` so the table doesn't flash empty between pages (smooth lazy loading feel).
-- Remove the in-memory `filtered` / `paged` slicing.
-- Pass **only the current page's IDs** to `useEngagementScores`. Engagement badges will load lazily per page — exactly what the user sees. (Cache it via React Query's default cache so re-visiting a page is instant.)
-- Bulk delete: `selectedIds` already lives outside the page slice, so the existing delete-by-id call still works. After delete, `refetch()` the current page.
-- "Select all" checkbox only selects the visible page (already the case).
+## Data Fetch
+Add a TanStack `useQuery` (`enabled: open`) keyed `["active-survey-templates"]` that selects `id, name` from `survey_templates` where `is_active = true` and `approval_status = 'approved'`, ordered by name. Reuse for both dropdowns.
 
-## 2. Patients report — `src/lib/reportsCatalog.ts` + `src/pages/ReportView.tsx`
+## Behaviour on Appointment Save
 
-The report architecture currently assumes "fetcher returns all rows, then filter / sort / chart / paginate client-side". For 17K+ rows that's the bottleneck. Two options — proposing the lighter one:
+After the appointment row is successfully inserted (inside the existing create mutation's `onSuccess` / post-insert flow):
 
-**Add a `paged` mode for the Patients report only** (other reports stay as-is since their tables are much smaller):
+1. **If `assignSurveyTemplateId` is set:**
+   - Look up the chosen template's name.
+   - Invoke the existing edge function `send-survey-whatsapp` with `{ patient_id, template_name }`.
+   - Toast success/failure independently — do not block appointment creation.
+   - Note: this currently only sends a notification message. We are matching the existing "WhatsApp invite" pattern already used elsewhere; no new SMS link generation is added in this change.
 
-- Extend `ReportConfig` with optional `paged?: { pageSize: number; fetchPage: (args) => Promise<{ rows: any[]; total: number }>; chartFetch?: () => Promise<{label,value}[]> }`.
-- For the Patients report, implement `fetchPage` using the same server-side pattern as the Patients page (range + count + ilike search + date range).
-- For the chart ("Patients by Source"), do a single lightweight aggregation query (`select source` paged in 1000-row chunks but only the `source` column — fast even for 17K rows, ~50 KB) and group in memory. Cache via React Query (`["report-chart","patients"]`).
-- `ReportView.tsx`:
-  - When `report.paged` is set, ignore `fetcher`. Drive the table from the paged query (with a local `page` state + filter state in the query key) and pass server `total` into the summary bar / pagination.
-  - `SortableDataTable` currently sorts the rows it receives. For the paged Patients report we accept that sorting only sorts the visible page (Salesforce behaves the same for very large datasets). Add a small note in the header: *"Sort applies to current page"*. No structural change to `SortableDataTable`.
-  - CSV export for the paged report: when the user clicks **Export**, fetch all matching rows in the background using the same paged query (chunks of 1000) and stream to CSV. Show a small spinner on the button while it runs.
+2. **If `fillNowSurveyTemplateId` is set:**
+   - Close the New Appointment dialog.
+   - Open the existing `SurveyFill` dialog (`src/components/surveys/SurveyFill.tsx`) with:
+     - `templateId = fillNowSurveyTemplateId`
+     - `appointmentId = newly created appointment id`
+     - `patientId = selected patient id`
+   - On `onComplete`, just close the survey dialog (existing behaviour).
 
-Other reports (Appointments, Invoices, Expenses, Pharmacy Bills, Campaigns) keep their current full-fetch behavior — their row counts are well under the danger zone.
+3. **If both are set:** fire the WhatsApp invite **and** open Fill Now. (Front desk explicitly chose both.)
 
-## 3. Out of scope
+4. **If neither:** unchanged flow.
 
-- No DB schema or RLS changes.
-- No changes to `patient-engagement` edge function (we just stop sending it 17K IDs at once).
-- No changes to other report keys, filter bar, chart switcher, or `SortableDataTable` internals beyond the small "current page" hint.
+## State / Component Wiring
 
-## Files touched
+- Import `SurveyFill` at the top of `Appointments.tsx`.
+- Add component-level state to keep the post-save Fill Now context alive after the booking dialog closes:
+  ```
+  const [pendingFillNow, setPendingFillNow] = useState<{
+    templateId: string;
+    appointmentId: string;
+    patientId: string;
+  } | null>(null);
+  ```
+- Render `<SurveyFill open={!!pendingFillNow} ... />` near the bottom of the page (alongside other dialogs), wired to clear `pendingFillNow` on close.
 
-- `src/pages/Patients.tsx` — server-side paged query, debounced search, per-page engagement.
-- `src/lib/reportsCatalog.ts` — `paged` field on `ReportConfig`; Patients report gets `paged.fetchPage` + lightweight chart aggregator.
-- `src/pages/ReportView.tsx` — branch on `report.paged` to drive table + summary + CSV export from the paged fetcher.
+## Out of Scope
+- No DB schema changes.
+- No edits to `SurveyFill` or `send-survey-whatsapp` edge function.
+- No changes to recurring-appointment flow logic beyond the same hook point (only single-create triggers Fill Now to avoid opening many dialogs; for recurring, only the WhatsApp assign fires, on the first created appointment). Will confirm/implement this guard during build.
+
+## Files Touched
+- `src/pages/Appointments.tsx` (UI + state + post-save hook)
+
+No new files.

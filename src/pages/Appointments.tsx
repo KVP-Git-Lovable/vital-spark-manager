@@ -384,6 +384,7 @@ const Appointments = () => {
       const selectedService = services.find((s) => s.id === serviceId);
       const serviceName = selectedService?.name || "";
       const wasRecurring = isRecurring && !!recurrenceEndDate;
+      let newAppointmentId: string | null = null;
 
       // Build the list of (start, end) windows we need to validate
       const windows: { start: Date; end: Date }[] = wasRecurring
@@ -457,7 +458,7 @@ const Appointments = () => {
           problem_area_ids: selectedProblemAreas,
         } as any).select("id").single();
         if (error) throw error;
-        (capturedRef as any).newAppointmentId = (inserted as any)?.id || null;
+        newAppointmentId = (inserted as any)?.id || null;
       }
       return {
         wasRecurring,
@@ -471,7 +472,7 @@ const Appointments = () => {
         totalSessions: wasRecurring
           ? generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate!).length
           : 1,
-        newAppointmentId: (capturedRef as any).newAppointmentId || null,
+        newAppointmentId,
         assignSurveyTemplateId,
         fillNowSurveyTemplateId,
       };

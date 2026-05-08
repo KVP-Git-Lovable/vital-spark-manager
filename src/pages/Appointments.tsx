@@ -444,7 +444,7 @@ const Appointments = () => {
         const { error } = await supabase.from("appointments").insert(rows as any);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("appointments").insert({
+        const { data: inserted, error } = await supabase.from("appointments").insert({
           patient_id: patientId || null,
           patient_name: patientName,
           staff_id: staffId || null,
@@ -455,8 +455,9 @@ const Appointments = () => {
           is_recurring: false,
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
-        } as any);
+        } as any).select("id").single();
         if (error) throw error;
+        (capturedRef as any).newAppointmentId = (inserted as any)?.id || null;
       }
       return {
         wasRecurring,
@@ -470,6 +471,9 @@ const Appointments = () => {
         totalSessions: wasRecurring
           ? generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate!).length
           : 1,
+        newAppointmentId: (capturedRef as any).newAppointmentId || null,
+        assignSurveyTemplateId,
+        fillNowSurveyTemplateId,
       };
     },
     onSuccess: (data) => {

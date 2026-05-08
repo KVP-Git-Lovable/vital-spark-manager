@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
+import { SurveyFill } from "@/components/surveys/SurveyFill";
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 // 15-min slots from 8:00 to 19:45
@@ -125,6 +126,13 @@ const Appointments = () => {
   const [recurrencePattern, setRecurrencePattern] = useState("weekly");
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date>();
   const [selectedProblemAreas, setSelectedProblemAreas] = useState<string[]>([]);
+  const [assignSurveyTemplateId, setAssignSurveyTemplateId] = useState<string>("");
+  const [fillNowSurveyTemplateId, setFillNowSurveyTemplateId] = useState<string>("");
+  const [pendingFillNow, setPendingFillNow] = useState<{
+    templateId: string;
+    appointmentId: string;
+    patientId: string;
+  } | null>(null);
 
   // Queries
   const { data: patients = [] } = useQuery({
@@ -165,6 +173,21 @@ const Appointments = () => {
       if (error) throw error;
       return data;
     },
+  });
+
+  const { data: activeSurveyTemplates = [] } = useQuery({
+    queryKey: ["active-survey-templates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("survey_templates")
+        .select("id, name")
+        .eq("is_active", true)
+        .eq("approval_status", "approved")
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open,
   });
 
   const { data: appointments = [] } = useQuery({
@@ -361,6 +384,7 @@ const Appointments = () => {
       const selectedService = services.find((s) => s.id === serviceId);
       const serviceName = selectedService?.name || "";
       const wasRecurring = isRecurring && !!recurrenceEndDate;
+      let newAppointmentId: string | null = null;
 
       // Build the list of (start, end) windows we need to validate
       const windows: { start: Date; end: Date }[] = wasRecurring
@@ -421,7 +445,7 @@ const Appointments = () => {
         const { error } = await supabase.from("appointments").insert(rows as any);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("appointments").insert({
+        const { data: inserted, error } = await supabase.from("appointments").insert({
           patient_id: patientId || null,
           patient_name: patientName,
           staff_id: staffId || null,
@@ -432,8 +456,9 @@ const Appointments = () => {
           is_recurring: false,
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
-        } as any);
+        } as any).select("id").single();
         if (error) throw error;
+        newAppointmentId = (inserted as any)?.id || null;
       }
       return {
         wasRecurring,
@@ -447,6 +472,9 @@ const Appointments = () => {
         totalSessions: wasRecurring
           ? generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate!).length
           : 1,
+        newAppointmentId,
+        assignSurveyTemplateId,
+        fillNowSurveyTemplateId,
       };
     },
     onSuccess: (data) => {
@@ -493,6 +521,34 @@ const Appointments = () => {
             }
           });
         }
+      }
+      // Survey: assign-to-patient (WhatsApp invite)
+      if (data.assignSurveyTemplateId && data.capturedPatientId) {
+        const tpl = activeSurveyTemplates.find((t: any) => t.id === data.assignSurveyTemplateId);
+        supabase.functions
+          .invoke("send-survey-whatsapp", {
+            body: {
+              patient_id: data.capturedPatientId,
+              template_name: tpl?.name || "Survey",
+            },
+          })
+          .then(({ error }) => {
+            if (error) console.error("Survey WhatsApp send failed:", error);
+            else toast.success("Survey link sent on WhatsApp");
+          });
+      }
+      // Survey: fill now (only for non-recurring single appointment)
+      if (
+        data.fillNowSurveyTemplateId &&
+        data.capturedPatientId &&
+        data.newAppointmentId &&
+        !data.wasRecurring
+      ) {
+        setPendingFillNow({
+          templateId: data.fillNowSurveyTemplateId,
+          appointmentId: data.newAppointmentId,
+          patientId: data.capturedPatientId,
+        });
       }
       resetForm();
       setOpen(false);
@@ -542,6 +598,8 @@ const Appointments = () => {
     setRecurrencePattern("weekly");
     setRecurrenceEndDate(undefined);
     setSelectedProblemAreas([]);
+    setAssignSurveyTemplateId("");
+    setFillNowSurveyTemplateId("");
   };
 
   // Calendar navigation
@@ -895,6 +953,55 @@ const Appointments = () => {
                       })}
                     </div>
                   )}
+                </div>
+
+                {/* Survey (optional) */}
+                <div className="rounded-md border bg-muted/20 p-3 space-y-3">
+                  <Label className="flex items-center gap-1.5">
+                    <ClipboardCheck className="h-3.5 w-3.5" /> Survey <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+                  </Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Assign to Patient</Label>
+                      <Select
+                        value={assignSurveyTemplateId || "__none__"}
+                        onValueChange={(v) => setAssignSurveyTemplateId(v === "__none__" ? "" : v)}
+                        disabled={!patientId}
+                      >
+                        <SelectTrigger className="mt-1.5">
+                          <SelectValue placeholder="Select template" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          <SelectItem value="__none__">None</SelectItem>
+                          {activeSurveyTemplates.map((t: any) => (
+                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground mt-1">Sends WhatsApp link to patient</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Fill Now</Label>
+                      <Select
+                        value={fillNowSurveyTemplateId || "__none__"}
+                        onValueChange={(v) => setFillNowSurveyTemplateId(v === "__none__" ? "" : v)}
+                        disabled={!patientId || isRecurring}
+                      >
+                        <SelectTrigger className="mt-1.5">
+                          <SelectValue placeholder="Select template" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          <SelectItem value="__none__">None</SelectItem>
+                          {activeSurveyTemplates.map((t: any) => (
+                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {isRecurring ? "Not available for recurring" : "Opens after appointment is created"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <div>
@@ -1455,6 +1562,17 @@ const Appointments = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {pendingFillNow && (
+        <SurveyFill
+          open={!!pendingFillNow}
+          onOpenChange={(o) => { if (!o) setPendingFillNow(null); }}
+          templateId={pendingFillNow.templateId}
+          appointmentId={pendingFillNow.appointmentId}
+          patientId={pendingFillNow.patientId}
+          onComplete={() => setPendingFillNow(null)}
+        />
+      )}
     </div>
   );
 };

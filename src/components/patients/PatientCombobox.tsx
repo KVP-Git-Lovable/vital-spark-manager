@@ -73,7 +73,7 @@ export function PatientCombobox({
         .order("first_name")
         .range(0, PAGE_SIZE - 1);
       if (error) throw error;
-      return (data || []) as PatientLite[];
+      return ((data ?? []) as unknown) as PatientLite[];
     },
     enabled: open,
     staleTime: 5 * 60_000,
@@ -96,7 +96,7 @@ export function PatientCombobox({
         .order("first_name")
         .limit(PAGE_SIZE);
       if (error) throw error;
-      return (data || []) as PatientLite[];
+      return ((data ?? []) as unknown) as PatientLite[];
     },
     enabled: open && debounced.length > 0,
     staleTime: 60_000,
@@ -113,7 +113,7 @@ export function PatientCombobox({
         .eq("id", value)
         .maybeSingle();
       if (error) throw error;
-      return data as PatientLite | null;
+      return (data as unknown) as PatientLite | null;
     },
     enabled: !!value,
     staleTime: 5 * 60_000,
@@ -170,7 +170,7 @@ export function PatientCombobox({
                 .select(columns)
                 .order("first_name")
                 .range(0, PAGE_SIZE - 1);
-              return (data || []) as PatientLite[];
+              return ((data ?? []) as unknown) as PatientLite[];
             },
           });
         }

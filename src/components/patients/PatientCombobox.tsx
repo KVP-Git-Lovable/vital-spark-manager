@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAll } from "@/lib/supabasePaginate";
 
 const PHONE_LIKE_NAME = /^[+\d\s()\-]{7,}$/;
 
@@ -32,11 +31,15 @@ interface PatientComboboxProps {
   noneLabel?: string;
   className?: string;
   disabled?: boolean;
-  /** Extra columns to fetch for the consumer */
   withSource?: boolean;
 }
 
-const PAGE = 50;
+const PAGE_SIZE = 50;
+
+const buildColumns = (withSource: boolean) =>
+  withSource
+    ? "id, first_name, last_name, phone, source, source_ad_details, source_referral_doctor"
+    : "id, first_name, last_name, phone";
 
 export function PatientCombobox({
   value,
@@ -50,20 +53,73 @@ export function PatientCombobox({
 }: PatientComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [visible, setVisible] = useState(PAGE);
+  const [debounced, setDebounced] = useState("");
+  const queryClient = useQueryClient();
+  const columns = buildColumns(withSource);
 
-  const columns = withSource
-    ? "id, first_name, last_name, phone, source, source_ad_details, source_referral_doctor"
-    : "id, first_name, last_name, phone";
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search.trim()), 200);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  const { data: patients = [], isLoading } = useQuery({
-    queryKey: ["patients-combobox", withSource],
-    queryFn: async () =>
-      await fetchAll<PatientLite>((from, to) =>
-        supabase.from("patients").select(columns).order("first_name").range(from, to)
-      ),
+  // Fetch first page (initial list) — cached, only when opened
+  const { data: initialList = [], isLoading: loadingInitial } = useQuery({
+    queryKey: ["patients-combobox-initial", withSource],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select(columns)
+        .order("first_name")
+        .range(0, PAGE_SIZE - 1);
+      if (error) throw error;
+      return (data || []) as PatientLite[];
+    },
+    enabled: open,
+    staleTime: 5 * 60_000,
+  });
+
+  // Server-side search when user types
+  const { data: searchResults = [], isFetching: searching } = useQuery({
+    queryKey: ["patients-combobox-search", withSource, debounced],
+    queryFn: async () => {
+      const q = debounced.replace(/[%,]/g, " ").trim();
+      if (!q) return [];
+      // Search by first name, last name, or phone
+      const pattern = `%${q}%`;
+      const { data, error } = await supabase
+        .from("patients")
+        .select(columns)
+        .or(
+          `first_name.ilike.${pattern},last_name.ilike.${pattern},phone.ilike.${pattern}`
+        )
+        .order("first_name")
+        .limit(PAGE_SIZE);
+      if (error) throw error;
+      return (data || []) as PatientLite[];
+    },
+    enabled: open && debounced.length > 0,
     staleTime: 60_000,
   });
+
+  // Fetch the selected patient's details (so the trigger can render a name even if not in the loaded set)
+  const { data: selectedPatient } = useQuery({
+    queryKey: ["patients-combobox-selected", value, withSource],
+    queryFn: async () => {
+      if (!value) return null;
+      const { data, error } = await supabase
+        .from("patients")
+        .select(columns)
+        .eq("id", value)
+        .maybeSingle();
+      if (error) throw error;
+      return data as PatientLite | null;
+    },
+    enabled: !!value,
+    staleTime: 5 * 60_000,
+  });
+
+  const list = debounced ? searchResults : initialList;
 
   const getRawName = (p: PatientLite) =>
     `${p.first_name || ""} ${p.last_name || ""}`.replace(/\s+/g, " ").trim();
@@ -81,8 +137,8 @@ export function PatientCombobox({
     return "Unnamed";
   };
 
-  const sortedPatients = useMemo(() => {
-    return [...patients].sort((a, b) => {
+  const sorted = useMemo(() => {
+    return [...list].sort((a, b) => {
       const an = hasMeaningfulName(a);
       const bn = hasMeaningfulName(b);
       if (an !== bn) return an ? -1 : 1;
@@ -91,20 +147,10 @@ export function PatientCombobox({
         sensitivity: "base",
       });
     });
-  }, [patients]);
+  }, [list]);
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return sortedPatients;
-    return sortedPatients.filter(
-      (p) =>
-        displayName(p).toLowerCase().includes(q) ||
-        (p.phone || "").toLowerCase().includes(q)
-    );
-  }, [sortedPatients, search]);
-
-  const shown = filtered.slice(0, visible);
-  const selected = patients.find((p) => p.id === value);
+  const selected = selectedPatient || sorted.find((p) => p.id === value);
+  const isLoading = debounced ? searching : loadingInitial;
 
   return (
     <Popover
@@ -113,7 +159,20 @@ export function PatientCombobox({
         setOpen(o);
         if (!o) {
           setSearch("");
-          setVisible(PAGE);
+          setDebounced("");
+        } else {
+          // Warm initial cache aggressively
+          queryClient.prefetchQuery({
+            queryKey: ["patients-combobox-initial", withSource],
+            queryFn: async () => {
+              const { data } = await supabase
+                .from("patients")
+                .select(columns)
+                .order("first_name")
+                .range(0, PAGE_SIZE - 1);
+              return (data || []) as PatientLite[];
+            },
+          });
         }
       }}
     >
@@ -138,10 +197,7 @@ export function PatientCombobox({
           <Input
             placeholder="Search by name or phone..."
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setVisible(PAGE);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
             className="h-8"
             autoFocus
           />
@@ -151,12 +207,6 @@ export function PatientCombobox({
           style={{ scrollbarGutter: "stable", WebkitOverflowScrolling: "touch" }}
           onWheel={(e) => e.stopPropagation()}
           onTouchMove={(e) => e.stopPropagation()}
-          onScroll={(e) => {
-            const el = e.currentTarget;
-            if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
-              setVisible((v) => Math.min(v + PAGE, filtered.length));
-            }
-          }}
         >
           {allowNone && (
             <button
@@ -175,11 +225,13 @@ export function PatientCombobox({
             </button>
           )}
           {isLoading ? (
-            <p className="text-xs text-muted-foreground text-center py-3">Loading patients…</p>
-          ) : shown.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-3">No patients found</p>
+            <p className="text-xs text-muted-foreground text-center py-3">Loading…</p>
+          ) : sorted.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-3">
+              {debounced ? "No patients match" : "No patients found"}
+            </p>
           ) : (
-            shown.map((p) => (
+            sorted.map((p) => (
               <button
                 type="button"
                 key={p.id}
@@ -207,14 +259,11 @@ export function PatientCombobox({
               </button>
             ))
           )}
-          {!isLoading && shown.length < filtered.length && (
-            <p className="text-[10px] text-muted-foreground text-center py-1">
-              Showing {shown.length} of {filtered.length} — scroll for more
-            </p>
-          )}
         </div>
         <p className="text-[10px] text-muted-foreground text-center pt-1.5 border-t mt-1">
-          {patients.length.toLocaleString()} patients loaded
+          {debounced
+            ? `Showing up to ${PAGE_SIZE} matches`
+            : `Type to search all patients`}
         </p>
       </PopoverContent>
     </Popover>

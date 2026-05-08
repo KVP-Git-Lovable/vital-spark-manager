@@ -1562,6 +1562,17 @@ const Appointments = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {pendingFillNow && (
+        <SurveyFill
+          open={!!pendingFillNow}
+          onOpenChange={(o) => { if (!o) setPendingFillNow(null); }}
+          templateId={pendingFillNow.templateId}
+          appointmentId={pendingFillNow.appointmentId}
+          patientId={pendingFillNow.patientId}
+          onComplete={() => setPendingFillNow(null)}
+        />
+      )}
     </div>
   );
 };

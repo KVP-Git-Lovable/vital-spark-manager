@@ -598,6 +598,8 @@ const Appointments = () => {
     setRecurrencePattern("weekly");
     setRecurrenceEndDate(undefined);
     setSelectedProblemAreas([]);
+    setAssignSurveyTemplateId("");
+    setFillNowSurveyTemplateId("");
   };
 
   // Calendar navigation

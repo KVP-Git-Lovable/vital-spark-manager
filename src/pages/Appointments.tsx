@@ -175,6 +175,21 @@ const Appointments = () => {
     },
   });
 
+  const { data: activeSurveyTemplates = [] } = useQuery({
+    queryKey: ["active-survey-templates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("survey_templates")
+        .select("id, name")
+        .eq("is_active", true)
+        .eq("approval_status", "approved")
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open,
+  });
+
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments"],
     queryFn: async () => {

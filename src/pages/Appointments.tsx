@@ -126,6 +126,13 @@ const Appointments = () => {
   const [recurrencePattern, setRecurrencePattern] = useState("weekly");
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date>();
   const [selectedProblemAreas, setSelectedProblemAreas] = useState<string[]>([]);
+  const [assignSurveyTemplateId, setAssignSurveyTemplateId] = useState<string>("");
+  const [fillNowSurveyTemplateId, setFillNowSurveyTemplateId] = useState<string>("");
+  const [pendingFillNow, setPendingFillNow] = useState<{
+    templateId: string;
+    appointmentId: string;
+    patientId: string;
+  } | null>(null);
 
   // Queries
   const { data: patients = [] } = useQuery({

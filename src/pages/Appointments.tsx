@@ -955,6 +955,55 @@ const Appointments = () => {
                   )}
                 </div>
 
+                {/* Survey (optional) */}
+                <div className="rounded-md border bg-muted/20 p-3 space-y-3">
+                  <Label className="flex items-center gap-1.5">
+                    <ClipboardCheck className="h-3.5 w-3.5" /> Survey <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+                  </Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Assign to Patient</Label>
+                      <Select
+                        value={assignSurveyTemplateId || "__none__"}
+                        onValueChange={(v) => setAssignSurveyTemplateId(v === "__none__" ? "" : v)}
+                        disabled={!patientId}
+                      >
+                        <SelectTrigger className="mt-1.5">
+                          <SelectValue placeholder="Select template" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          <SelectItem value="__none__">None</SelectItem>
+                          {activeSurveyTemplates.map((t: any) => (
+                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground mt-1">Sends WhatsApp link to patient</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Fill Now</Label>
+                      <Select
+                        value={fillNowSurveyTemplateId || "__none__"}
+                        onValueChange={(v) => setFillNowSurveyTemplateId(v === "__none__" ? "" : v)}
+                        disabled={!patientId || isRecurring}
+                      >
+                        <SelectTrigger className="mt-1.5">
+                          <SelectValue placeholder="Select template" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          <SelectItem value="__none__">None</SelectItem>
+                          {activeSurveyTemplates.map((t: any) => (
+                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {isRecurring ? "Not available for recurring" : "Opens after appointment is created"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <Label>Date *</Label>
                   <Popover>

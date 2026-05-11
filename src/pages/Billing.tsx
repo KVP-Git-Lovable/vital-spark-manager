@@ -625,6 +625,20 @@ const Billing = () => {
         if (paidAmount >= grandTotal && grandTotal > 0) status = "Paid";
         else if (paidAmount > 0) status = "Partial";
 
+        const splitsActive = splits.length > 0;
+        const splitTotal = splits.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+        if (splitsActive) {
+          if (splits.some((r) => !r.mode || !(Number(r.amount) > 0))) {
+            throw new Error("Each split row needs a payment mode and amount");
+          }
+          if (Math.round(splitTotal * 100) !== Math.round(paidAmount * 100)) {
+            throw new Error("Split amounts must equal paid amount");
+          }
+        }
+        const effectivePaymentMode = splitsActive
+          ? (splits.length === 1 ? splits[0].mode : "Split")
+          : paymentMode;
+
         const { data: insertedInv, error } = await supabase.from("invoices").insert({
           invoice_number: `INV-${baseNum}`,
           patient_id: patientId || null,
@@ -634,7 +648,8 @@ const Billing = () => {
           paid_amount: paidAmount,
           status,
           payment_type: "One-time",
-          payment_mode: paymentMode,
+          payment_mode: effectivePaymentMode,
+          payment_splits: splitsActive ? splits : null,
           notes: notes || null,
           tax_id: null,
           tax_rate: null,

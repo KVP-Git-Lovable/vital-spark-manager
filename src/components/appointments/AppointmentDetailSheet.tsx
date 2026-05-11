@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
-import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon, ClipboardCheck } from "lucide-react";
+import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon, ClipboardCheck, NotebookPen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailShe
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { SurveyRecommendations } from "@/components/surveys/SurveyRecommendations";
+import { useAuth } from "@/hooks/useAuth";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -624,6 +625,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                   <TabsTrigger value="photos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Photos</TabsTrigger>
                   <TabsTrigger value="feedback" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Feedback</TabsTrigger>
                   <TabsTrigger value="survey" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Survey</TabsTrigger>
+                  <TabsTrigger value="therapy-notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Therapy Notes</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="details" className="p-6 space-y-4 mt-0">
@@ -1082,6 +1084,10 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                     <SurveyRecommendations appointmentId={appointmentId!} />
                   )}
                 </TabsContent>
+
+                <TabsContent value="therapy-notes" className="p-6 space-y-4 mt-0">
+                  <TherapyNotesTab appointmentId={appointmentId!} patientId={appointment.patient_id} />
+                </TabsContent>
               </Tabs>
             </>
           )}
@@ -1132,5 +1138,98 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
         />
       )}
     </>
+  );
+}
+
+function TherapyNotesTab({ appointmentId, patientId }: { appointmentId: string; patientId: string | null }) {
+  const queryClient = useQueryClient();
+  const { user, staffProfile } = useAuth();
+  const [noteText, setNoteText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const { data: notes = [], isLoading } = useQuery({
+    queryKey: ["therapy-notes", appointmentId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("therapy_notes" as any)
+        .select("*")
+        .eq("appointment_id", appointmentId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!appointmentId,
+  });
+
+  const handleSave = async () => {
+    const trimmed = noteText.trim();
+    if (!trimmed) {
+      toast.error("Please enter a note");
+      return;
+    }
+    setSaving(true);
+    try {
+      const createdByName = staffProfile
+        ? `${staffProfile.firstName || ""} ${staffProfile.lastName || ""}`.trim() || staffProfile.email || "Staff"
+        : user?.email || "Staff";
+      const { error } = await supabase.from("therapy_notes" as any).insert({
+        appointment_id: appointmentId,
+        patient_id: patientId,
+        note: trimmed,
+        created_by: user?.id || null,
+        created_by_name: createdByName,
+      });
+      if (error) throw error;
+      setNoteText("");
+      queryClient.invalidateQueries({ queryKey: ["therapy-notes", appointmentId] });
+      toast.success("Note saved");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save note");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+        <NotebookPen className="h-4 w-4" /> Therapy Notes
+      </h3>
+
+      <div className="space-y-2">
+        <Textarea
+          value={noteText}
+          onChange={(e) => setNoteText(e.target.value)}
+          placeholder="Enter therapy notes..."
+          rows={4}
+        />
+        <Button onClick={handleSave} disabled={saving || !noteText.trim()} size="sm" className="gap-2">
+          <Save className="h-4 w-4" /> {saving ? "Saving..." : "Save Notes"}
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">History</h4>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Loading...</p>
+        ) : notes.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">No notes yet.</p>
+        ) : (
+          <ol className="relative border-l border-border pl-4 space-y-3">
+            {notes.map((n) => (
+              <li key={n.id} className="relative">
+                <span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-primary" />
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
+                  <p className="text-sm whitespace-pre-wrap">{n.note}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {n.created_by_name || "Staff"} · {format(new Date(n.created_at), "MMM d, yyyy · h:mm a")}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </div>
   );
 }

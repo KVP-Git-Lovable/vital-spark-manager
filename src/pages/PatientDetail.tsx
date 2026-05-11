@@ -372,28 +372,71 @@ const PatientDetail = () => {
     }
   };
 
-  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !id) return;
+    setPendingPhotoFile(file);
+    setPhotoTypeDialogOpen(true);
+    e.target.value = "";
+  };
+
+  const savePendingPhoto = async (photoType: "before" | "after") => {
+    if (!pendingPhotoFile || !id) return;
+    setUploadingPhoto(true);
     try {
-      const ext = file.name.split(".").pop() || "jpg";
+      const ext = pendingPhotoFile.name.split(".").pop() || "jpg";
       const fileName = `${id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("patient-photos").upload(fileName, file);
+      const { error: uploadError } = await supabase.storage.from("patient-photos").upload(fileName, pendingPhotoFile);
       if (uploadError) throw uploadError;
       const photoUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${fileName}`;
       const { error } = await supabase.from("patient_photos").insert({
         patient_id: id,
-        photo_type: "before",
+        photo_type: photoType,
         photo_url: photoUrl,
         notes: null,
       } as any);
       if (error) throw error;
       toast.success("Photo uploaded");
       queryClient.invalidateQueries({ queryKey: ["patient-photos", id] });
+      setPhotoTypeDialogOpen(false);
+      setPendingPhotoFile(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to upload photo");
+    } finally {
+      setUploadingPhoto(false);
     }
-    e.target.value = "";
+  };
+
+  const deletePhoto = async (photo: any) => {
+    if (!confirm("Delete this photo?")) return;
+    try {
+      const parts = photo.photo_url?.split("/patient-photos/");
+      if (parts && parts[1]) {
+        await supabase.storage.from("patient-photos").remove([parts[1]]);
+      }
+      const { error } = await supabase.from("patient_photos").delete().eq("id", photo.id);
+      if (error) throw error;
+      toast.success("Photo deleted");
+      queryClient.invalidateQueries({ queryKey: ["patient-photos", id] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete photo");
+    }
+  };
+
+  const deleteAttachment = async (att: any) => {
+    if (!confirm("Delete this attachment?")) return;
+    try {
+      const parts = att.file_url?.split("/patient-photos/");
+      if (parts && parts[1]) {
+        await supabase.storage.from("patient-photos").remove([parts[1]]);
+      }
+      const { error } = await supabase.from("procedure_attachments").delete().eq("id", att.id);
+      if (error) throw error;
+      toast.success("Attachment deleted");
+      refetchAttachments();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete attachment");
+    }
   };
 
   if (isLoading) {

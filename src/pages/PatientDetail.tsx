@@ -17,7 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { CameraCapture } from "@/components/shared/CameraCapture";
+
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { FamilyMembers } from "@/components/patients/FamilyMembers";
@@ -72,7 +72,7 @@ const PatientDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [cameraOpen, setCameraOpen] = useState(false);
+  const photoCameraRef = useRef<HTMLInputElement>(null);
   const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [otpCode, setOtpCode] = useState<string | null>(null);
   const [otpCopied, setOtpCopied] = useState(false);
@@ -369,6 +369,30 @@ const PatientDetail = () => {
     }
   };
 
+  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const fileName = `${id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("patient-photos").upload(fileName, file);
+      if (uploadError) throw uploadError;
+      const photoUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${fileName}`;
+      const { error } = await supabase.from("patient_photos").insert({
+        patient_id: id,
+        photo_type: "before",
+        photo_url: photoUrl,
+        notes: null,
+      } as any);
+      if (error) throw error;
+      toast.success("Photo uploaded");
+      queryClient.invalidateQueries({ queryKey: ["patient-photos", id] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload photo");
+    }
+    e.target.value = "";
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -424,7 +448,7 @@ const PatientDetail = () => {
             <div className="flex gap-2 flex-wrap">
               <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
               <CaseAnalysis patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
-              <Button variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => setCameraOpen(true)}>
+              <Button variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => photoCameraRef.current?.click()}>
                 <Camera className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Take</span> Photo
               </Button>
               <Button variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => setSkinTrackerOpen(true)}>
@@ -905,7 +929,7 @@ const PatientDetail = () => {
         <TabsContent value="photos">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex justify-end mb-3">
-              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setCameraOpen(true)}>
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => photoCameraRef.current?.click()}>
                 <Plus className="h-3.5 w-3.5" /> Take Photo
               </Button>
             </div>
@@ -1347,13 +1371,7 @@ const PatientDetail = () => {
         </DialogContent>
       </Dialog>
 
-      <CameraCapture
-        open={cameraOpen}
-        onOpenChange={setCameraOpen}
-        patientId={id!}
-        patientName={`${patient.first_name} ${patient.last_name}`}
-        context="patient"
-      />
+      <input type="file" accept="image/*" capture="environment" ref={photoCameraRef} className="hidden" onChange={handlePhotoCapture} />
 
       <SkinTracker
         open={skinTrackerOpen}

@@ -86,6 +86,11 @@ const PatientDetail = () => {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [pendingAttachmentFile, setPendingAttachmentFile] = useState<File | null>(null);
+  const [docTypeDialogOpen, setDocTypeDialogOpen] = useState(false);
+  const [selectedDocType, setSelectedDocType] = useState<string>("Prescription");
+  const [attachmentFilter, setAttachmentFilter] = useState<string>("all");
   const [surveyTemplateSelectOpen, setSurveyTemplateSelectOpen] = useState(false);
   const [selectedSurveyTemplateId, setSelectedSurveyTemplateId] = useState<string | null>(null);
   const [surveyFillOpen, setSurveyFillOpen] = useState(false);

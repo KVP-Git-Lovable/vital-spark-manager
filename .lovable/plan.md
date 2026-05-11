@@ -1,66 +1,41 @@
-## Customer Portal Configuration
+## Goal
+Allow split/part payments at invoice creation in Billing → Create Invoice, with up to 3 payment rows whose amounts sum to the Paid Amount. Display the split breakdown in the invoice view and PDF. Single payment mode flow continues to work unchanged.
 
-Rename the Pharmacy → Settings tab to **"Customer Portal Configuration"** and expand it from a shop-only panel into a single control center for every patient portal section. Each toggle directly drives what the patient sees in `/portal/dashboard`.
+## Database
+Add a `payment_splits` JSONB column to `public.invoices` (nullable, default `null`).
+- Shape: `[{ "mode": "Cash", "amount": 2000 }, { "mode": "UPI", "amount": 3000 }]`
+- When null/empty → behaves as today using single `payment_mode` + `paid_amount`.
+- Keep existing `payment_mode` populated (set to first split's mode, or `"Split"` when multiple) for backward compatibility with reports/CSV exports.
 
-### What gets added
+## UI changes — `src/pages/Billing.tsx` (Create Invoice dialog)
+Near the existing Payment Mode select (~line 1270):
+- Add a `+ Split Payment` text button next to the Payment Mode label.
+- New state: `splits: { mode: string; amount: number }[]` (empty = single-mode flow).
+- When toggled on:
+  - Hide the single Payment Mode `<Select>`.
+  - Render a list of split rows (max 3), each with a Payment Mode `<Select>` (same options as today) + Amount `<Input type="number">` + remove (×) button.
+  - `+ Add row` button (disabled at 3 rows).
+  - Live total under the rows: `Split total ₹X / Paid ₹Y`. If mismatch, inline error in destructive color: "Split amounts must equal paid amount".
+  - Submit handler blocks save with a toast when `sum(splits.amount) !== paid_amount` or any row missing mode/amount.
+- On save:
+  - If splits used → write `payment_splits` array to invoice; set `payment_mode = "Split"` (or single mode if rows collapsed to 1).
+  - Otherwise → existing behavior (single `payment_mode`).
+- Reset splits in the existing form-reset path (~line 941).
 
-Toggles, grouped by section in the Settings tab UI:
+## UI changes — Invoice view dialog (~line 1718)
+- If `viewInvoice.payment_splits?.length > 1`, replace the single "Payment Mode" cell with a list:
+  `Cash: ₹2,000`  ·  `UPI: ₹3,000`
+- Otherwise show today's single payment mode.
 
-- **Appointments**: Enable Appointment Booking, Enable Cancellation/Reschedule
-- **History**: Enable Treatment History, Enable Procedure History
-- **Photos**: Enable Clinical Photos
-- **Bills**: Enable Bills/Invoices, Enable Outstanding Balance
-- **Shop**: Enable Shop (existing — kept)
-- **Surveys**: Enable Surveys
-- **AI Bot**: Enable AI Bot
-- **Our Team**: Enable Our Team section
-- **Clinic Hours**: Enable Clinic Hours display
-- **Quick Actions**: Enable "Request Appointment", Enable "Order Medicine"
+## PDF — `supabase/functions/generate-invoice-pdf/index.ts`
+- After the existing `Payment: …` line, if `inv.payment_splits` has entries, render each on its own line: `Cash: Rs. 2,000.00`, `UPI: Rs. 3,000.00`. Otherwise unchanged.
 
-Existing pharmacy-related settings (out-of-stock behavior, expiring products, low-stock threshold) stay, but move under a clearly labeled **Shop / Pharmacy** sub-section so the panel reads cleanly.
+## Out of scope
+- Editing splits in the "Add Payment" / "Edit Invoice" dialogs (these continue to use single payment mode as today).
+- Stage / recurring invoice generation paths keep using single `payment_mode` (only the standard Create Invoice flow gets split support, matching the request).
+- No changes to CSV export columns; "Payment Mode" column will show `"Split"` when split is used.
 
-A single **Save Settings** button at the bottom persists the whole form (current behavior preserved).
-
-### Portal behavior
-
-The portal (`src/pages/portal/Portal.tsx`) reads the same `portal_settings` row it already loads for `shop_enabled`, and conditionally:
-
-- Hides bottom-nav tabs when their toggle is off (`appointments`, `photos`, `surveys`, `bot`, `pharmacy`).
-- Hides the **Request Appointment** / **Order Medicine** quick action buttons on the home tab.
-- Hides the **Book** button + appointment dialog if booking is disabled; hides cancel/reschedule controls on appointment cards if that toggle is off.
-- Hides Treatment History / Procedure History blocks accordingly.
-- Hides the Bills section and the Outstanding Balance card.
-- Hides the Our Team and Clinic Hours blocks on the home tab.
-
-If a tab the user is on becomes disabled, fall back to the home tab.
-
-### Technical details
-
-1. **Migration** on `public.portal_settings` — add boolean columns (default `true` so existing portals behave the same):
-   `appointments_booking_enabled`, `appointments_reschedule_enabled`,
-   `treatment_history_enabled`, `procedure_history_enabled`,
-   `clinical_photos_enabled`,
-   `bills_enabled`, `outstanding_balance_enabled`,
-   `surveys_enabled`, `ai_bot_enabled`,
-   `our_team_enabled`, `clinic_hours_enabled`,
-   `quick_action_request_appointment_enabled`, `quick_action_order_medicine_enabled`.
-   No RLS changes — existing public/auth read+update policies cover them.
-
-2. **`src/pages/Pharma.tsx`**:
-   - Rename `TabsTrigger value="settings"` label to "Customer Portal Configuration" (icon kept).
-   - Extend `settingsForm` state and the `useEffect` hydrator with the new fields.
-   - Re-lay out the Settings `TabsContent` into grouped cards (Appointments, History, Photos, Bills, Shop, Surveys, AI Bot, Our Team, Clinic Hours, Quick Actions, plus existing Shop/Pharmacy behavior controls). Each row: label + short description + `<Switch>`.
-   - Keep the existing single Save mutation; it will now `.update(settingsForm)` with the expanded payload.
-
-3. **`src/pages/portal/Portal.tsx`**:
-   - Expand the `portal-settings` query to `select("*")` and derive booleans (default `true` when null).
-   - Filter `tabs` array by the matching toggles (already done for `pharmacy`/shop).
-   - Wrap the relevant JSX blocks (quick actions, booking button, cancel/reschedule UI, history sections, photos tab, bills section + outstanding balance, surveys tab, bot tab, our-team block, clinic hours block) in conditional renders.
-   - If `activeTab` is filtered out, reset to `"home"`.
-
-4. **No edits** to `src/integrations/supabase/client.ts` or `types.ts`; the latter regenerates after the migration is applied.
-
-### Out of scope
-
-- Per-staff visibility for the Our Team list (handled in Staff module, as noted).
-- Permission-level overrides per patient — this is a clinic-wide configuration.
+## Files touched
+- New migration: add `payment_splits jsonb` to `public.invoices`.
+- `src/pages/Billing.tsx` — split UI, validation, save payload, view dialog rendering, reset.
+- `supabase/functions/generate-invoice-pdf/index.ts` — render splits when present.

@@ -716,6 +716,7 @@ export type Database = {
           patient_id: string | null
           patient_name: string | null
           payment_mode: string | null
+          payment_splits: Json | null
           payment_type: string
           pdf_url: string | null
           services: string[]
@@ -739,6 +740,7 @@ export type Database = {
           patient_id?: string | null
           patient_name?: string | null
           payment_mode?: string | null
+          payment_splits?: Json | null
           payment_type?: string
           pdf_url?: string | null
           services?: string[]
@@ -762,6 +764,7 @@ export type Database = {
           patient_id?: string | null
           patient_name?: string | null
           payment_mode?: string | null
+          payment_splits?: Json | null
           payment_type?: string
           pdf_url?: string | null
           services?: string[]

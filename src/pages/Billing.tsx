@@ -106,7 +106,11 @@ const generateInvoicePDF = (inv: any) => {
     <div class="details-block" style="text-align:right;">
       <h3>Invoice Details</h3>
       <p>Date: ${date}</p>
-      <p>Payment: ${inv.payment_mode || "Cash"}</p>
+      <p>Payment: ${
+        Array.isArray(inv.payment_splits) && inv.payment_splits.length > 0
+          ? inv.payment_splits.map((p: any) => `${p.mode}: ₹${Number(p.amount).toLocaleString("en-IN")}`).join(" | ")
+          : (inv.payment_mode || "Cash")
+      }</p>
       <p>Type: ${inv.payment_type || "One-time"}</p>
       <p style="margin-top:6px;"><span class="status-badge status-${inv.status}">${inv.status}</span></p>
     </div>
@@ -228,6 +232,8 @@ const Billing = () => {
   const [paymentType, setPaymentType] = useState("One-time");
   const [paymentMode, setPaymentMode] = useState("Cash");
   const [notes, setNotes] = useState("");
+  // Split payment (Create Invoice — One-time only). Empty array = single mode flow.
+  const [splits, setSplits] = useState<{ mode: string; amount: number }[]>([]);
   // Tax is now resolved per-line from Tax Master mappings (no manual selector)
   const [pharmaItems, setPharmaItems] = useState<PharmaLineItem[]>([]);
 
@@ -623,6 +629,20 @@ const Billing = () => {
         if (paidAmount >= grandTotal && grandTotal > 0) status = "Paid";
         else if (paidAmount > 0) status = "Partial";
 
+        const splitsActive = splits.length > 0;
+        const splitTotal = splits.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+        if (splitsActive) {
+          if (splits.some((r) => !r.mode || !(Number(r.amount) > 0))) {
+            throw new Error("Each split row needs a payment mode and amount");
+          }
+          if (Math.round(splitTotal * 100) !== Math.round(paidAmount * 100)) {
+            throw new Error("Split amounts must equal paid amount");
+          }
+        }
+        const effectivePaymentMode = splitsActive
+          ? (splits.length === 1 ? splits[0].mode : "Split")
+          : paymentMode;
+
         const { data: insertedInv, error } = await supabase.from("invoices").insert({
           invoice_number: `INV-${baseNum}`,
           patient_id: patientId || null,
@@ -632,7 +652,8 @@ const Billing = () => {
           paid_amount: paidAmount,
           status,
           payment_type: "One-time",
-          payment_mode: paymentMode,
+          payment_mode: effectivePaymentMode,
+          payment_splits: splitsActive ? splits : null,
           notes: notes || null,
           tax_id: null,
           tax_rate: null,
@@ -939,6 +960,7 @@ const Billing = () => {
     setPaidAmount(0);
     setPaymentType("One-time");
     setPaymentMode("Cash");
+    setSplits([]);
     setNotes("");
     // tax is per-line, nothing to reset
     setPharmaItems([]);
@@ -1267,13 +1289,87 @@ const Billing = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label>Payment Mode</Label>
-                  <Select value={paymentMode} onValueChange={setPaymentMode}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["Cash", "Card", "UPI", "Insurance", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center justify-between">
+                    <Label>Payment Mode</Label>
+                    {paymentType === "One-time" && (
+                      splits.length === 0 ? (
+                        <button
+                          type="button"
+                          className="text-xs text-primary hover:underline"
+                          onClick={() => setSplits([{ mode: "Cash", amount: paidAmount || 0 }, { mode: "UPI", amount: 0 }])}
+                        >
+                          + Split Payment
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-xs text-muted-foreground hover:underline"
+                          onClick={() => setSplits([])}
+                        >
+                          Use single mode
+                        </button>
+                      )
+                    )}
+                  </div>
+                  {splits.length === 0 ? (
+                    <Select value={paymentMode} onValueChange={setPaymentMode}>
+                      <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {["Cash", "Card", "UPI", "Insurance", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="mt-1.5 space-y-2">
+                      {splits.map((row, idx) => (
+                        <div key={idx} className="flex gap-2 items-center">
+                          <Select
+                            value={row.mode}
+                            onValueChange={(v) => setSplits(splits.map((r, i) => i === idx ? { ...r, mode: v } : r))}
+                          >
+                            <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {["Cash", "Card", "UPI", "Insurance", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="number"
+                            placeholder="Amount"
+                            className="w-28"
+                            value={row.amount || ""}
+                            onChange={(e) => setSplits(splits.map((r, i) => i === idx ? { ...r, amount: parseFloat(e.target.value) || 0 } : r))}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => setSplits(splits.filter((_, i) => i !== idx))}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      {splits.length < 3 && (
+                        <button
+                          type="button"
+                          className="text-xs text-primary hover:underline"
+                          onClick={() => setSplits([...splits, { mode: "Cash", amount: 0 }])}
+                        >
+                          + Add row
+                        </button>
+                      )}
+                      {(() => {
+                        const total = splits.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                        const matches = Math.round(total * 100) === Math.round((paidAmount || 0) * 100);
+                        return (
+                          <div className={`text-xs ${matches ? "text-muted-foreground" : "text-destructive"}`}>
+                            Split total ₹{total.toLocaleString("en-IN")} / Paid ₹{Number(paidAmount || 0).toLocaleString("en-IN")}
+                            {!matches && <div>Split amounts must equal paid amount</div>}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1715,7 +1811,16 @@ const Billing = () => {
                   <div><span className="text-muted-foreground text-xs block">Patient</span><span className="font-medium">{viewInvoice.patient_name || "Walk-in"}</span></div>
                   <div><span className="text-muted-foreground text-xs block">Date</span><span className="font-medium">{format(new Date(viewInvoice.created_at), "PPP")}</span></div>
                   <div><span className="text-muted-foreground text-xs block">Doctor</span><span className="font-medium">{getDrName(viewInvoice) || "—"}</span></div>
-                  <div><span className="text-muted-foreground text-xs block">Payment Mode</span><span className="font-medium">{viewInvoice.payment_mode || "Cash"}</span></div>
+                  <div>
+                    <span className="text-muted-foreground text-xs block">Payment Mode</span>
+                    {Array.isArray(viewInvoice.payment_splits) && viewInvoice.payment_splits.length > 1 ? (
+                      <span className="font-medium">
+                        {viewInvoice.payment_splits.map((p: any) => `${p.mode}: ₹${Number(p.amount).toLocaleString("en-IN")}`).join("  ·  ")}
+                      </span>
+                    ) : (
+                      <span className="font-medium">{viewInvoice.payment_mode || "Cash"}</span>
+                    )}
+                  </div>
                   <div><span className="text-muted-foreground text-xs block">Type</span><Badge variant="outline" className="text-xs mt-0.5">{viewInvoice.payment_type}</Badge></div>
                   <div><span className="text-muted-foreground text-xs block">Status</span><span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[viewInvoice.status] || ""}`}>{viewInvoice.status}</span></div>
                 </div>

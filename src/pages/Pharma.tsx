@@ -43,6 +43,18 @@ interface BillItemInput {
   gst_percent: number;
 }
 
+function ToggleRow({ label, desc, checked, onChange }: { label: string; desc?: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="min-w-0">
+        <Label className="text-sm font-medium">{label}</Label>
+        {desc && <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>}
+      </div>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
 const Pharma = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");

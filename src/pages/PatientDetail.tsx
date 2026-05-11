@@ -96,6 +96,9 @@ const PatientDetail = () => {
   const [surveyFillOpen, setSurveyFillOpen] = useState(false);
   const [addSurveyMode, setAddSurveyMode] = useState<"choice" | "fill" | "assign" | null>(null);
   const [assigning, setAssigning] = useState(false);
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [photoTypeDialogOpen, setPhotoTypeDialogOpen] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
 
   const { data: patient, isLoading } = useQuery({

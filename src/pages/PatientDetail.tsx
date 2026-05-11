@@ -369,6 +369,30 @@ const PatientDetail = () => {
     }
   };
 
+  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const fileName = `${id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("patient-photos").upload(fileName, file);
+      if (uploadError) throw uploadError;
+      const photoUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${fileName}`;
+      const { error } = await supabase.from("patient_photos").insert({
+        patient_id: id,
+        photo_type: "before",
+        photo_url: photoUrl,
+        notes: null,
+      } as any);
+      if (error) throw error;
+      toast.success("Photo uploaded");
+      queryClient.invalidateQueries({ queryKey: ["patient-photos", id] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload photo");
+    }
+    e.target.value = "";
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">

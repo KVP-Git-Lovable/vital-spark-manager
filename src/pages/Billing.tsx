@@ -106,7 +106,11 @@ const generateInvoicePDF = (inv: any) => {
     <div class="details-block" style="text-align:right;">
       <h3>Invoice Details</h3>
       <p>Date: ${date}</p>
-      <p>Payment: ${inv.payment_mode || "Cash"}</p>
+      <p>Payment: ${
+        Array.isArray(inv.payment_splits) && inv.payment_splits.length > 0
+          ? inv.payment_splits.map((p: any) => `${p.mode}: ₹${Number(p.amount).toLocaleString("en-IN")}`).join(" | ")
+          : (inv.payment_mode || "Cash")
+      }</p>
       <p>Type: ${inv.payment_type || "One-time"}</p>
       <p style="margin-top:6px;"><span class="status-badge status-${inv.status}">${inv.status}</span></p>
     </div>

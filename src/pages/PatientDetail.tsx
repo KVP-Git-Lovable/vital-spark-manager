@@ -1437,6 +1437,36 @@ const PatientDetail = () => {
 
       <input type="file" accept="image/*" capture="environment" ref={photoCameraRef} className="hidden" onChange={handlePhotoCapture} />
 
+      <Dialog open={photoTypeDialogOpen} onOpenChange={(o) => { if (!o && !uploadingPhoto) { setPhotoTypeDialogOpen(false); setPendingPhotoFile(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display">Is this a Before or After photo?</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <Button
+              variant="outline"
+              className="h-16 text-base"
+              disabled={uploadingPhoto}
+              onClick={() => savePendingPhoto("before")}
+            >
+              Before
+            </Button>
+            <Button
+              className="h-16 text-base"
+              disabled={uploadingPhoto}
+              onClick={() => savePendingPhoto("after")}
+            >
+              After
+            </Button>
+          </div>
+          {uploadingPhoto && (
+            <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> Uploading...
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <SkinTracker
         open={skinTrackerOpen}
         onOpenChange={setSkinTrackerOpen}

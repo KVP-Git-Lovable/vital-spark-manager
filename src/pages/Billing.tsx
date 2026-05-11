@@ -956,6 +956,7 @@ const Billing = () => {
     setPaidAmount(0);
     setPaymentType("One-time");
     setPaymentMode("Cash");
+    setSplits([]);
     setNotes("");
     // tax is per-line, nothing to reset
     setPharmaItems([]);

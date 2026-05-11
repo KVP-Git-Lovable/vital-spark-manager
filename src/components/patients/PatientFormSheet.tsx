@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
-import { X, Search } from "lucide-react";
+import { X, Search, Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,8 +79,31 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [referralPatientSearch, setReferralPatientSearch] = useState("");
   const [referralPopoverOpen, setReferralPopoverOpen] = useState(false);
   const [selectedReferralPatientName, setSelectedReferralPatientName] = useState("");
+  const [refDocOpen, setRefDocOpen] = useState(false);
+  const [refDocSearch, setRefDocSearch] = useState("");
   const { toast } = useToast();
   const isEditing = !!patient;
+
+  const { data: referralDoctors = [] } = useQuery({
+    queryKey: ["referral-doctors-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff")
+        .select("id, first_name, last_name, role, specialization")
+        .in("role", ["Doctor", "Referral Doctor"])
+        .eq("is_active", true)
+        .order("first_name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const filteredRefDocs = useMemo(() => {
+    const q = refDocSearch.toLowerCase();
+    return referralDoctors.filter((s: any) =>
+      `${s.first_name} ${s.last_name}`.toLowerCase().includes(q) ||
+      (s.specialization || "").toLowerCase().includes(q)
+    );
+  }, [referralDoctors, refDocSearch]);
 
   const { data: allPatients = [] } = useQuery({
     queryKey: ["patients-lookup"],
@@ -374,12 +398,66 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             {(form as any).source === "Dr. referral" && (
               <div>
                 <Label>Referred Doctor Name *</Label>
-                <Input
-                  value={(form as any).source_referral_doctor || ""}
-                  onChange={(e) => setForm((prev) => ({ ...prev, source_referral_doctor: e.target.value || null }))}
-                  placeholder="Dr. name who referred"
-                  className="mt-1.5"
-                />
+                <Popover open={refDocOpen} onOpenChange={setRefDocOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full mt-1.5 justify-between font-normal"
+                    >
+                      <span className="truncate">
+                        {(form as any).source_referral_doctor || "Select referring doctor..."}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-2" align="start">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <Input
+                        placeholder="Search doctors..."
+                        value={refDocSearch}
+                        onChange={(e) => setRefDocSearch(e.target.value)}
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-y-auto space-y-0.5">
+                      {filteredRefDocs.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-3">
+                          No doctors found. Add staff with role "Doctor" or "Referral Doctor".
+                        </p>
+                      ) : (
+                        filteredRefDocs.map((s: any) => {
+                          const name = `Dr. ${s.first_name} ${s.last_name}`;
+                          const selected = (form as any).source_referral_doctor === name;
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              className={cn(
+                                "w-full text-left px-2 py-1.5 text-sm rounded flex items-center gap-2 hover:bg-accent",
+                                selected && "bg-accent"
+                              )}
+                              onClick={() => {
+                                setForm((prev) => ({ ...prev, source_referral_doctor: name }));
+                                setRefDocOpen(false);
+                                setRefDocSearch("");
+                              }}
+                            >
+                              <Check className={cn("h-3.5 w-3.5", selected ? "opacity-100" : "opacity-0")} />
+                              <div className="flex-1 min-w-0">
+                                <p className="truncate">{name}</p>
+                                <p className="text-[10px] text-muted-foreground truncate">
+                                  {[s.role, s.specialization].filter(Boolean).join(" · ")}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             )}
 

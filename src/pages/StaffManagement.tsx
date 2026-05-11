@@ -27,7 +27,7 @@ import { motion } from "framer-motion";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-const FALLBACK_ROLES = ["Doctor", "Nurse", "Receptionist", "Lab Technician", "Therapist", "Admin"];
+const FALLBACK_ROLES = ["Doctor", "Nurse", "Receptionist", "Lab Technician", "Therapist", "Admin", "Referral Doctor"];
 
 interface StaffForm {
   first_name: string;

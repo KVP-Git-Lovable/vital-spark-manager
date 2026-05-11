@@ -1285,13 +1285,87 @@ const Billing = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label>Payment Mode</Label>
-                  <Select value={paymentMode} onValueChange={setPaymentMode}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["Cash", "Card", "UPI", "Insurance", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center justify-between">
+                    <Label>Payment Mode</Label>
+                    {paymentType === "One-time" && (
+                      splits.length === 0 ? (
+                        <button
+                          type="button"
+                          className="text-xs text-primary hover:underline"
+                          onClick={() => setSplits([{ mode: "Cash", amount: paidAmount || 0 }, { mode: "UPI", amount: 0 }])}
+                        >
+                          + Split Payment
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-xs text-muted-foreground hover:underline"
+                          onClick={() => setSplits([])}
+                        >
+                          Use single mode
+                        </button>
+                      )
+                    )}
+                  </div>
+                  {splits.length === 0 ? (
+                    <Select value={paymentMode} onValueChange={setPaymentMode}>
+                      <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {["Cash", "Card", "UPI", "Insurance", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="mt-1.5 space-y-2">
+                      {splits.map((row, idx) => (
+                        <div key={idx} className="flex gap-2 items-center">
+                          <Select
+                            value={row.mode}
+                            onValueChange={(v) => setSplits(splits.map((r, i) => i === idx ? { ...r, mode: v } : r))}
+                          >
+                            <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {["Cash", "Card", "UPI", "Insurance", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="number"
+                            placeholder="Amount"
+                            className="w-28"
+                            value={row.amount || ""}
+                            onChange={(e) => setSplits(splits.map((r, i) => i === idx ? { ...r, amount: parseFloat(e.target.value) || 0 } : r))}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => setSplits(splits.filter((_, i) => i !== idx))}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      {splits.length < 3 && (
+                        <button
+                          type="button"
+                          className="text-xs text-primary hover:underline"
+                          onClick={() => setSplits([...splits, { mode: "Cash", amount: 0 }])}
+                        >
+                          + Add row
+                        </button>
+                      )}
+                      {(() => {
+                        const total = splits.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+                        const matches = Math.round(total * 100) === Math.round((paidAmount || 0) * 100);
+                        return (
+                          <div className={`text-xs ${matches ? "text-muted-foreground" : "text-destructive"}`}>
+                            Split total ₹{total.toLocaleString("en-IN")} / Paid ₹{Number(paidAmount || 0).toLocaleString("en-IN")}
+                            {!matches && <div>Split amounts must equal paid amount</div>}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
 

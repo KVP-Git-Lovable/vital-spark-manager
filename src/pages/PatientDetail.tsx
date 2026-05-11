@@ -993,6 +993,14 @@ const PatientDetail = () => {
                       <Badge className={`absolute top-2 left-2 text-[10px] ${photo.photo_type === "before" ? "bg-warning/90 text-warning-foreground" : "bg-success/90 text-success-foreground"}`}>
                         {photo.photo_type.toUpperCase()}
                       </Badge>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-2 right-2 h-7 w-7 opacity-80 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => { e.stopPropagation(); deletePhoto(photo); }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                     <div className="p-2 md:p-3">
                       {photo.procedures?.service_name && <p className="text-xs text-muted-foreground truncate">{photo.procedures.service_name}</p>}

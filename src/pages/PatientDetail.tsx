@@ -17,7 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { CameraCapture } from "@/components/shared/CameraCapture";
+
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { FamilyMembers } from "@/components/patients/FamilyMembers";

@@ -286,12 +286,46 @@ const Portal = () => {
   const { data: portalSettings } = useQuery({
     queryKey: ["portal-settings"],
     queryFn: async () => {
-      const { data } = await supabase.from("portal_settings").select("shop_enabled").limit(1).maybeSingle();
+      const { data } = await supabase.from("portal_settings").select("*").limit(1).maybeSingle();
       return data;
     },
   });
-  const shopEnabled = portalSettings?.shop_enabled !== false;
-  const visibleTabs = shopEnabled ? tabs : tabs.filter((t) => t.id !== "pharmacy");
+  const ps: any = portalSettings || {};
+  const flag = (key: string) => ps[key] !== false; // default true
+  const shopEnabled = flag("shop_enabled");
+  const apptsBookingEnabled = flag("appointments_booking_enabled");
+  const apptsRescheduleEnabled = flag("appointments_reschedule_enabled");
+  const treatmentHistoryEnabled = flag("treatment_history_enabled");
+  const procedureHistoryEnabled = flag("procedure_history_enabled");
+  const clinicalPhotosEnabled = flag("clinical_photos_enabled");
+  const billsEnabled = flag("bills_enabled");
+  const outstandingBalanceEnabled = flag("outstanding_balance_enabled");
+  const surveysEnabled = flag("surveys_enabled");
+  const aiBotEnabled = flag("ai_bot_enabled");
+  const ourTeamEnabled = flag("our_team_enabled");
+  const clinicHoursEnabled = flag("clinic_hours_enabled");
+  const qaRequestApptEnabled = flag("quick_action_request_appointment_enabled");
+  const qaOrderMedicineEnabled = flag("quick_action_order_medicine_enabled");
+  const historyTabEnabled = treatmentHistoryEnabled || procedureHistoryEnabled;
+  const apptsTabEnabled = apptsBookingEnabled || true; // viewing appointments always allowed; booking gated separately
+
+  const visibleTabs = tabs.filter((t) => {
+    if (t.id === "pharmacy") return shopEnabled;
+    if (t.id === "procedures") return historyTabEnabled;
+    if (t.id === "photos") return clinicalPhotosEnabled;
+    if (t.id === "billing") return billsEnabled;
+    if (t.id === "surveys") return surveysEnabled;
+    if (t.id === "bot") return aiBotEnabled;
+    return true;
+  });
+
+  // Reset to home if active tab gets hidden
+  useEffect(() => {
+    if (!visibleTabs.find((t) => t.id === activeTab)) {
+      setActiveTab("home");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shopEnabled, historyTabEnabled, clinicalPhotosEnabled, billsEnabled, surveysEnabled, aiBotEnabled]);
 
   // ─── Mutations ──────────────────────────────────
   const requestAppointment = useMutation({

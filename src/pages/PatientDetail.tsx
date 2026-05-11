@@ -86,12 +86,17 @@ const PatientDetail = () => {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [pendingAttachmentFile, setPendingAttachmentFile] = useState<File | null>(null);
+  const [docTypeDialogOpen, setDocTypeDialogOpen] = useState(false);
+  const [selectedDocType, setSelectedDocType] = useState<string>("Prescription");
+  const [attachmentFilter, setAttachmentFilter] = useState<string>("all");
   const [surveyTemplateSelectOpen, setSurveyTemplateSelectOpen] = useState(false);
   const [selectedSurveyTemplateId, setSelectedSurveyTemplateId] = useState<string | null>(null);
   const [surveyFillOpen, setSurveyFillOpen] = useState(false);
   const [addSurveyMode, setAddSurveyMode] = useState<"choice" | "fill" | "assign" | null>(null);
   const [assigning, setAssigning] = useState(false);
-  
+
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],
@@ -326,39 +331,41 @@ const PatientDetail = () => {
     }
   };
 
-  const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAttachmentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !id) return;
+    setPendingAttachmentFile(file);
+    setSelectedDocType("Prescription");
+    setDocTypeDialogOpen(true);
+    e.target.value = "";
+  };
+
+  const uploadPendingAttachment = async () => {
+    if (!pendingAttachmentFile || !id) return;
     setUploadingAttachment(true);
+    const file = pendingAttachmentFile;
     try {
-      const ext = file.name.split(".").pop();
+      const ext = file.name.split(".").pop() || "bin";
       const filePath = `${id}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from("patient-photos").upload(filePath, file);
       if (uploadError) throw uploadError;
       const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${filePath}`;
-      
-      // Use the first procedure if available, otherwise create without procedure
-      const procedureId = procedures.length > 0 ? procedures[0].id : null;
-      if (!procedureId) {
-        toast.error("Please create a procedure first to attach files");
-        setUploadingAttachment(false);
-        return;
-      }
-      
       const { error } = await supabase.from("procedure_attachments").insert({
         patient_id: id,
-        procedure_id: procedureId,
+        procedure_id: procedures.length > 0 ? procedures[0].id : null,
         file_name: file.name,
         file_url: fileUrl,
-      });
+        document_type: selectedDocType,
+      } as any);
       if (error) throw error;
       toast.success("Attachment uploaded");
+      setDocTypeDialogOpen(false);
+      setPendingAttachmentFile(null);
       refetchAttachments();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setUploadingAttachment(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -1236,21 +1243,45 @@ const PatientDetail = () => {
         {/* Attachments Tab */}
         <TabsContent value="attachments">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
-            <div className="flex justify-end mb-3">
-              <input type="file" ref={fileInputRef} className="hidden" onChange={handleAttachmentUpload} />
-              <Button size="sm" className="gap-1.5 h-8 text-xs" disabled={uploadingAttachment} onClick={() => fileInputRef.current?.click()}>
-                {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                Upload File
-              </Button>
-            </div>
-            {attachments.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Paperclip className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No attachments yet. Upload files to attach to this patient.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+              <Select value={attachmentFilter} onValueChange={setAttachmentFilter}>
+                <SelectTrigger className="h-8 text-xs w-full sm:w-56"><SelectValue placeholder="Filter by type" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  <SelectItem value="Prescription">Prescription</SelectItem>
+                  <SelectItem value="Consent Form">Consent Form</SelectItem>
+                  <SelectItem value="Lab Report">Lab Report</SelectItem>
+                  <SelectItem value="Previous Doctor Report">Previous Doctor Report</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2">
+                <input type="file" ref={fileInputRef} className="hidden" onChange={handleAttachmentUpload} />
+                <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} className="hidden" onChange={handleAttachmentUpload} />
+                <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" disabled={uploadingAttachment} onClick={() => cameraInputRef.current?.click()}>
+                  <Camera className="h-3.5 w-3.5" /> Take Photo
+                </Button>
+                <Button size="sm" className="gap-1.5 h-8 text-xs" disabled={uploadingAttachment} onClick={() => fileInputRef.current?.click()}>
+                  {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                  Upload File
+                </Button>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {attachments.map((att: any) => (
+            </div>
+            {(() => {
+              const filtered = attachmentFilter === "all"
+                ? attachments
+                : attachments.filter((a: any) => a.document_type === attachmentFilter);
+              if (filtered.length === 0) {
+                return (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Paperclip className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">No attachments {attachmentFilter !== "all" ? `of type "${attachmentFilter}"` : "yet"}. Upload files to attach to this patient.</p>
+                  </div>
+                );
+              }
+              return (
+                <div className="space-y-3">
+                  {filtered.map((att: any) => (
                   <div key={att.id} className="stat-card p-3 md:p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
@@ -1259,7 +1290,10 @@ const PatientDetail = () => {
                         </div>
                         <div className="min-w-0">
                           <p className="font-medium text-sm truncate">{att.file_name}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            {att.document_type && (
+                              <Badge variant="default" className="text-[10px]">{att.document_type}</Badge>
+                            )}
                             {att.procedures?.service_name && (
                               <Badge variant="secondary" className="text-[10px]">{att.procedures.service_name}</Badge>
                             )}
@@ -1273,12 +1307,45 @@ const PatientDetail = () => {
                       </Button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              );
+            })()}
           </motion.div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={docTypeDialogOpen} onOpenChange={(o) => { if (!o) { setDocTypeDialogOpen(false); setPendingAttachmentFile(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display">Document Type</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {pendingAttachmentFile && (
+              <p className="text-xs text-muted-foreground truncate">File: {pendingAttachmentFile.name}</p>
+            )}
+            <div>
+              <Label>Type</Label>
+              <Select value={selectedDocType} onValueChange={setSelectedDocType}>
+                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Prescription">Prescription</SelectItem>
+                  <SelectItem value="Consent Form">Consent Form</SelectItem>
+                  <SelectItem value="Lab Report">Lab Report</SelectItem>
+                  <SelectItem value="Previous Doctor Report">Previous Doctor Report</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setDocTypeDialogOpen(false); setPendingAttachmentFile(null); }}>Cancel</Button>
+              <Button size="sm" disabled={uploadingAttachment} onClick={uploadPendingAttachment}>
+                {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null} Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <CameraCapture
         open={cameraOpen}

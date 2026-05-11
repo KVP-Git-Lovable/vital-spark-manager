@@ -32,6 +32,7 @@ export type Database = {
           status: string
           survey_template_id: string | null
           updated_at: string
+          visit_status: string | null
         }
         Insert: {
           created_at?: string
@@ -50,6 +51,7 @@ export type Database = {
           status?: string
           survey_template_id?: string | null
           updated_at?: string
+          visit_status?: string | null
         }
         Update: {
           created_at?: string
@@ -68,6 +70,7 @@ export type Database = {
           status?: string
           survey_template_id?: string | null
           updated_at?: string
+          visit_status?: string | null
         }
         Relationships: [
           {

@@ -1,41 +1,67 @@
-## Goal
-Allow split/part payments at invoice creation in Billing → Create Invoice, with up to 3 payment rows whose amounts sum to the Paid Amount. Display the split breakdown in the invoice view and PDF. Single payment mode flow continues to work unchanged.
+# Appointments — Status Overhaul, Visit Status field, WhatsApp rules
 
-## Database
-Add a `payment_splits` JSONB column to `public.invoices` (nullable, default `null`).
-- Shape: `[{ "mode": "Cash", "amount": 2000 }, { "mode": "UPI", "amount": 3000 }]`
-- When null/empty → behaves as today using single `payment_mode` + `paid_amount`.
-- Keep existing `payment_mode` populated (set to first split's mode, or `"Split"` when multiple) for backward compatibility with reports/CSV exports.
+## 1. Status options change
 
-## UI changes — `src/pages/Billing.tsx` (Create Invoice dialog)
-Near the existing Payment Mode select (~line 1270):
-- Add a `+ Split Payment` text button next to the Payment Mode label.
-- New state: `splits: { mode: string; amount: number }[]` (empty = single-mode flow).
-- When toggled on:
-  - Hide the single Payment Mode `<Select>`.
-  - Render a list of split rows (max 3), each with a Payment Mode `<Select>` (same options as today) + Amount `<Input type="number">` + remove (×) button.
-  - `+ Add row` button (disabled at 3 rows).
-  - Live total under the rows: `Split total ₹X / Paid ₹Y`. If mismatch, inline error in destructive color: "Split amounts must equal paid amount".
-  - Submit handler blocks save with a toast when `sum(splits.amount) !== paid_amount` or any row missing mode/amount.
-- On save:
-  - If splits used → write `payment_splits` array to invoice; set `payment_mode = "Split"` (or single mode if rows collapsed to 1).
-  - Otherwise → existing behavior (single `payment_mode`).
-- Reset splits in the existing form-reset path (~line 941).
+New status set everywhere:
+- Reserved (default for new appointments)
+- Confirmed
+- Cancelled
+- Follow Up
 
-## UI changes — Invoice view dialog (~line 1718)
-- If `viewInvoice.payment_splits?.length > 1`, replace the single "Payment Mode" cell with a list:
-  `Cash: ₹2,000`  ·  `UPI: ₹3,000`
-- Otherwise show today's single payment mode.
+Removed: Proposed, Completed, No Show.
 
-## PDF — `supabase/functions/generate-invoice-pdf/index.ts`
-- After the existing `Payment: …` line, if `inv.payment_splits` has entries, render each on its own line: `Cash: Rs. 2,000.00`, `UPI: Rs. 3,000.00`. Otherwise unchanged.
+Migration handling for existing data:
+- Map `Proposed` → `Reserved`
+- Map `Completed` → `Confirmed` (preserves "happened" semantics; safest non-destructive mapping)
+- Map `No Show` / `No-show` → `Cancelled`
 
-## Out of scope
-- Editing splits in the "Add Payment" / "Edit Invoice" dialogs (these continue to use single payment mode as today).
-- Stage / recurring invoice generation paths keep using single `payment_mode` (only the standard Create Invoice flow gets split support, matching the request).
-- No changes to CSV export columns; "Payment Mode" column will show `"Split"` when split is used.
+A single SQL UPDATE will remap historical rows in `appointments.status`.
+
+## 2. New "Visit Status" field
+
+- Add nullable `visit_status TEXT` column to `public.appointments`.
+- UI label: "Visit Status (Investigation)" — free-text input, optional.
+- Placeholder: "Enter visit/investigation details..."
+- Shown and editable in:
+  - New Appointment dialog (`src/pages/Appointments.tsx`) — placed directly below Status.
+  - Appointment Detail sidebar (`src/components/appointments/AppointmentDetailSheet.tsx`) — same placement, editable in edit mode, read-only display otherwise.
+- Persisted on insert/update; included in queries that already select `*`.
+
+## 3. Status filters & color tokens
+
+Update `statusOptions`, `STATUS_CARD_CLASSES`, and `STATUS_BADGE_CLASSES` in both `Appointments.tsx` and `AppointmentDetailSheet.tsx`:
+
+```text
+Reserved   → info  (blue)
+Confirmed  → success (green)
+Follow Up  → warning/accent
+Cancelled  → destructive
+```
+
+Calendar/list filters that currently exclude `["Cancelled","No-show"]` updated to `["Cancelled"]`.
+
+Remove the auto-set-to-Completed logic when a procedure is completed (no longer a valid status). Status stays whatever the user chose; the procedure’s own status remains the source of truth for procedure completion.
+
+Default status for new appointments: `Reserved`.
+
+## 4. WhatsApp notification rules
+
+In `AppointmentDetailSheet.tsx`:
+- Only invoke `send-appointment-update-whatsapp` when the new status is `Confirmed` **or** `Cancelled` AND it differs from the previous status.
+- Pass `kind: "cancelled"` for Cancelled (already wired to template `HX5abaead3d3ff7822e498705bd132d708`) and `kind: "update"` for Confirmed (template `HXfd1a5810ec489dc7b407651c805afbdd`).
+- No notification for `Reserved` or `Follow Up`.
+
+The edge function `send-appointment-update-whatsapp` already routes to the correct template based on `kind`, so no edge function changes are needed. The new-appointment WhatsApp invite (`send-appointment-whatsapp`) on creation is unrelated and remains unchanged.
 
 ## Files touched
-- New migration: add `payment_splits jsonb` to `public.invoices`.
-- `src/pages/Billing.tsx` — split UI, validation, save payload, view dialog rendering, reset.
-- `supabase/functions/generate-invoice-pdf/index.ts` — render splits when present.
+
+- `supabase/migrations/<new>.sql` — add `visit_status` column + remap legacy statuses.
+- `src/pages/Appointments.tsx` — status options/colors, default, filter list, Visit Status input in New Appointment form, save logic.
+- `src/components/appointments/AppointmentDetailSheet.tsx` — status options/colors, Visit Status input, remove auto-Completed, tighten `notifyStatuses` to `["Confirmed", "Cancelled"]`.
+- `src/integrations/supabase/types.ts` — auto-regenerated after migration.
+
+## Out of scope
+
+- Edge function template changes.
+- Reports / dashboards that aggregate by status (will continue to work; old labels simply won’t appear once data is remapped).
+- Patient portal status displays (not mentioned in request).

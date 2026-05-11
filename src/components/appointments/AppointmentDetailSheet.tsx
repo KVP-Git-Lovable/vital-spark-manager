@@ -42,14 +42,13 @@ import { useAuth } from "@/hooks/useAuth";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancelled"];
+const statusOptions = ["Reserved", "Confirmed", "Cancelled", "Follow Up"];
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
-  Proposed: "bg-info/15 text-info border-info/30",
+  Reserved: "bg-info/15 text-info border-info/30",
   Confirmed: "bg-success/15 text-success border-success/30",
-  Completed: "bg-muted text-muted-foreground border-border",
-  "No Show": "bg-destructive/15 text-destructive border-destructive/30",
-  Cancelled: "bg-warning/15 text-warning border-warning/30",
+  Cancelled: "bg-destructive/15 text-destructive border-destructive/30",
+  "Follow Up": "bg-warning/15 text-warning border-warning/30",
 };
 
 const NPS_LABELS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
@@ -278,6 +277,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   // Editable fields
   const [editService, setEditService] = useState("");
   const [editStatus, setEditStatus] = useState("");
+  const [editVisitStatus, setEditVisitStatus] = useState("");
   const [editStartTime, setEditStartTime] = useState("");
   const [editEndTime, setEditEndTime] = useState("");
   const [editStaffId, setEditStaffId] = useState("");
@@ -322,7 +322,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
 
   if (appointment && !initialized) {
     setEditService(appointment.service || "");
-    setEditStatus(appointment.status || "Proposed");
+    setEditStatus(appointment.status || "Reserved");
+    setEditVisitStatus((appointment as any).visit_status || "");
     setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditEndTime(appointment.end_time ? format(new Date(appointment.end_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditStaffId(appointment.staff_id || "");
@@ -350,7 +351,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     enabled: !!appointmentId,
   });
 
-  // Auto-set status to Completed if procedures exist
+  // Kept for procedure UI badges, but no longer affects appointment status
   const hasCompletedProcedure = procedures.some((p: any) => p.status === "Completed");
 
   const { data: invoices = [] } = useQuery({
@@ -388,7 +389,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     mutationFn: async () => {
       const prevStatus = appointment?.status || null;
       const prevStaffId = appointment?.staff_id || null;
-      const newStatus = hasCompletedProcedure ? "Completed" : editStatus;
+      const newStatus = editStatus;
       const newStaffId = editStaffId || null;
 
       const { error } = await supabase
@@ -396,10 +397,11 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
         .update({
           service: editService,
           status: newStatus,
+          visit_status: editVisitStatus || null,
           start_time: new Date(editStartTime).toISOString(),
           end_time: new Date(editEndTime).toISOString(),
           staff_id: newStaffId,
-        })
+        } as any)
         .eq("id", appointmentId!);
       if (error) throw error;
 
@@ -411,9 +413,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
           const startDate = new Date(editStartTime);
           const apptDate = format(startDate, "dd MMM yyyy");
           const apptTime = format(startDate, "hh:mm a");
-          const notifyStatuses = ["Confirmed", "Completed", "No Show", "Cancelled"];
+          const notifyStatuses = ["Confirmed", "Cancelled"];
           const statusChanged = newStatus !== prevStatus && notifyStatuses.includes(newStatus);
-          const staffAssigned = !!newStaffId && newStaffId !== prevStaffId;
 
           if (newStatus === "Cancelled" && statusChanged) {
             const { error: nErr } = await supabase.functions.invoke("send-appointment-update-whatsapp", {
@@ -427,7 +428,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
             });
             if (nErr) { console.error("[appt-notify] cancel error", nErr); toast.error("WhatsApp notification failed"); }
             else toast.success("WhatsApp cancellation sent");
-          } else if (statusChanged || staffAssigned) {
+          } else if (newStatus === "Confirmed" && statusChanged) {
             const assignedStaff = staffList.find((s: any) => s.id === newStaffId);
             const doctorName = assignedStaff
               ? `${assignedStaff.first_name || ""} ${assignedStaff.last_name || ""}`.trim()
@@ -447,7 +448,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
             if (nErr) { console.error("[appt-notify] update error", nErr); toast.error("WhatsApp notification failed"); }
             else toast.success("WhatsApp notification sent");
           } else {
-            console.log("[appt-notify] no change detected — skipping notification");
+            console.log("[appt-notify] status not Confirmed/Cancelled or unchanged — skipping notification");
           }
         }
       } catch (notifyErr) {
@@ -611,7 +612,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                     )}
                   </div>
                   {(() => {
-                    const s = hasCompletedProcedure ? "Completed" : appointment.status;
+                    const s = appointment.status;
                     return <Badge variant="outline" className={`text-xs ${STATUS_BADGE_CLASSES[s] || ""}`}>{s}</Badge>;
                   })()}
                 </div>
@@ -663,15 +664,21 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                   </div>
                   <div>
                     <Label>Status</Label>
-                    <Select value={hasCompletedProcedure ? "Completed" : editStatus} onValueChange={setEditStatus} disabled={hasCompletedProcedure}>
+                    <Select value={editStatus} onValueChange={setEditStatus}>
                       <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    {hasCompletedProcedure && (
-                      <p className="text-xs text-muted-foreground mt-1">Auto-set to Completed (has completed procedure)</p>
-                    )}
+                  </div>
+                  <div>
+                    <Label>Visit Status (Investigation)</Label>
+                    <Input
+                      value={editVisitStatus}
+                      onChange={(e) => setEditVisitStatus(e.target.value)}
+                      placeholder="Enter visit/investigation details..."
+                      className="mt-1.5"
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>

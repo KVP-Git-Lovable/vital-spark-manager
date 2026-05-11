@@ -56,24 +56,22 @@ const DOCTOR_PALETTE = [
   { bg: "bg-accent", border: "border-accent-foreground/30", text: "text-accent-foreground", dot: "bg-accent-foreground" },
 ];
 
-const statusOptions = ["Proposed", "Confirmed", "Completed", "No Show", "Cancelled"];
+const statusOptions = ["Reserved", "Confirmed", "Cancelled", "Follow Up"];
 
 // Status → tailwind classes for calendar cards (background + border + text)
 const STATUS_CARD_CLASSES: Record<string, string> = {
-  Proposed: "bg-info/15 border-info/30 text-info",
+  Reserved: "bg-info/15 border-info/30 text-info",
   Confirmed: "bg-success/15 border-success/30 text-success",
-  Completed: "bg-muted border-border text-muted-foreground",
-  "No Show": "bg-destructive/15 border-destructive/30 text-destructive",
-  Cancelled: "bg-warning/15 border-warning/30 text-warning",
+  Cancelled: "bg-destructive/15 border-destructive/30 text-destructive",
+  "Follow Up": "bg-warning/15 border-warning/30 text-warning",
 };
 
 // Status → tailwind classes for badges (sidebar, legend, table)
 const STATUS_BADGE_CLASSES: Record<string, string> = {
-  Proposed: "bg-info/15 text-info border-info/30",
+  Reserved: "bg-info/15 text-info border-info/30",
   Confirmed: "bg-success/15 text-success border-success/30",
-  Completed: "bg-muted text-muted-foreground border-border",
-  "No Show": "bg-destructive/15 text-destructive border-destructive/30",
-  Cancelled: "bg-warning/15 text-warning border-warning/30",
+  Cancelled: "bg-destructive/15 text-destructive border-destructive/30",
+  "Follow Up": "bg-warning/15 text-warning border-warning/30",
 };
 
 const Appointments = () => {
@@ -118,7 +116,8 @@ const Appointments = () => {
   const [patientId, setPatientId] = useState("");
   const [staffId, setStaffId] = useState("");
   const [serviceId, setServiceId] = useState("");
-  const [appointmentStatus, setAppointmentStatus] = useState("Proposed");
+  const [appointmentStatus, setAppointmentStatus] = useState("Reserved");
+  const [visitStatus, setVisitStatus] = useState("");
   const [startDate, setStartDate] = useState<Date>();
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("09:15");
@@ -406,7 +405,7 @@ const Appointments = () => {
           .gt("end_time", minStart.toISOString());
         if (existingErr) throw existingErr;
         const blockers = (existing || []).filter(
-          (a: any) => !["Cancelled", "No-show"].includes(a.status),
+          (a: any) => !["Cancelled"].includes(a.status),
         );
         const conflicts = windows
           .map((w) => {
@@ -434,6 +433,7 @@ const Appointments = () => {
           staff_id: staffId || null,
           service: serviceName,
           status: appointmentStatus,
+          visit_status: visitStatus || null,
           start_time: buildDateTime(d, startTime).toISOString(),
           end_time: buildDateTime(d, endTime).toISOString(),
           is_recurring: true,
@@ -451,6 +451,7 @@ const Appointments = () => {
           staff_id: staffId || null,
           service: serviceName,
           status: appointmentStatus,
+          visit_status: visitStatus || null,
           start_time: startDT.toISOString(),
           end_time: buildDateTime(startDate, endTime).toISOString(),
           is_recurring: false,
@@ -590,7 +591,8 @@ const Appointments = () => {
     setPatientId("");
     setStaffId("");
     setServiceId("");
-    setAppointmentStatus("Proposed");
+    setAppointmentStatus("Reserved");
+    setVisitStatus("");
     setStartDate(undefined);
     setStartTime("09:00");
     setEndTime("09:15");
@@ -904,6 +906,16 @@ const Appointments = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                <div>
+                  <Label>Visit Status (Investigation)</Label>
+                  <Input
+                    value={visitStatus}
+                    onChange={(e) => setVisitStatus(e.target.value)}
+                    placeholder="Enter visit/investigation details..."
+                    className="mt-1.5"
+                  />
                 </div>
 
                 {/* Problem Areas */}

@@ -1857,32 +1857,35 @@ export type Database = {
         Row: {
           appointment_id: string | null
           created_at: string
+          document_type: string | null
           file_name: string
           file_url: string
           id: string
           notes: string | null
           patient_id: string
-          procedure_id: string
+          procedure_id: string | null
         }
         Insert: {
           appointment_id?: string | null
           created_at?: string
+          document_type?: string | null
           file_name: string
           file_url: string
           id?: string
           notes?: string | null
           patient_id: string
-          procedure_id: string
+          procedure_id?: string | null
         }
         Update: {
           appointment_id?: string | null
           created_at?: string
+          document_type?: string | null
           file_name?: string
           file_url?: string
           id?: string
           notes?: string | null
           patient_id?: string
-          procedure_id?: string
+          procedure_id?: string | null
         }
         Relationships: [
           {

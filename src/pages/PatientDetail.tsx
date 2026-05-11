@@ -996,7 +996,7 @@ const PatientDetail = () => {
                       <Button
                         variant="destructive"
                         size="icon"
-                        className="absolute top-2 right-2 h-7 w-7 opacity-80 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2 right-2 h-7 w-7 opacity-90"
                         onClick={(e) => { e.stopPropagation(); deletePhoto(photo); }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />

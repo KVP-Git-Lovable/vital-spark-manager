@@ -151,6 +151,19 @@ const Pharma = () => {
     expiring_threshold_days: 90,
     shop_enabled: true,
     low_stock_threshold: null as number | null,
+    appointments_booking_enabled: true,
+    appointments_reschedule_enabled: true,
+    treatment_history_enabled: true,
+    procedure_history_enabled: true,
+    clinical_photos_enabled: true,
+    bills_enabled: true,
+    outstanding_balance_enabled: true,
+    surveys_enabled: true,
+    ai_bot_enabled: true,
+    our_team_enabled: true,
+    clinic_hours_enabled: true,
+    quick_action_request_appointment_enabled: true,
+    quick_action_order_medicine_enabled: true,
   });
 
   useEffect(() => {
@@ -161,6 +174,19 @@ const Pharma = () => {
         expiring_threshold_days: portalSettings.expiring_threshold_days,
         shop_enabled: portalSettings.shop_enabled,
         low_stock_threshold: portalSettings.low_stock_threshold,
+        appointments_booking_enabled: (portalSettings as any).appointments_booking_enabled ?? true,
+        appointments_reschedule_enabled: (portalSettings as any).appointments_reschedule_enabled ?? true,
+        treatment_history_enabled: (portalSettings as any).treatment_history_enabled ?? true,
+        procedure_history_enabled: (portalSettings as any).procedure_history_enabled ?? true,
+        clinical_photos_enabled: (portalSettings as any).clinical_photos_enabled ?? true,
+        bills_enabled: (portalSettings as any).bills_enabled ?? true,
+        outstanding_balance_enabled: (portalSettings as any).outstanding_balance_enabled ?? true,
+        surveys_enabled: (portalSettings as any).surveys_enabled ?? true,
+        ai_bot_enabled: (portalSettings as any).ai_bot_enabled ?? true,
+        our_team_enabled: (portalSettings as any).our_team_enabled ?? true,
+        clinic_hours_enabled: (portalSettings as any).clinic_hours_enabled ?? true,
+        quick_action_request_appointment_enabled: (portalSettings as any).quick_action_request_appointment_enabled ?? true,
+        quick_action_order_medicine_enabled: (portalSettings as any).quick_action_order_medicine_enabled ?? true,
       });
     }
   }, [portalSettings]);
@@ -668,7 +694,7 @@ const Pharma = () => {
           <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
           <TabsTrigger value="bills">Bills</TabsTrigger>
-          <TabsTrigger value="settings" className="gap-1"><Settings className="h-3.5 w-3.5" /> Settings</TabsTrigger>
+          <TabsTrigger value="settings" className="gap-1"><Settings className="h-3.5 w-3.5" /> Customer Portal Configuration</TabsTrigger>
         </TabsList>
 
         <TabsContent value="products">

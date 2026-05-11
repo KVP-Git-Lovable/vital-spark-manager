@@ -1385,7 +1385,19 @@ const Appointments = () => {
                           <td className="p-3">{apt.service || "—"}</td>
                           <td className="p-3 text-muted-foreground">{apt.staff_id ? (staffMap.get(apt.staff_id) || "—") : "—"}</td>
                           <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                            <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({ id: apt.id, status: val })}>
+                            <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({
+                              id: apt.id,
+                              status: val,
+                              __notify: {
+                                phone: apt.patients?.phone || "",
+                                patientName: `${apt.patients?.first_name || ""} ${apt.patients?.last_name || ""}`.trim() || "Patient",
+                                prevStatus: apt.status,
+                                newStatus: val,
+                                startTime: apt.start_time,
+                                doctorName: apt.staff_id ? (staffMap.get(apt.staff_id) || "") : "",
+                                serviceName: apt.service || "",
+                              },
+                            })}>
                               <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">
                                 <Badge className={cn("text-xs", statusColor(apt.status))}>{apt.status}</Badge>
                               </SelectTrigger>

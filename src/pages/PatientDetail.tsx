@@ -96,6 +96,9 @@ const PatientDetail = () => {
   const [surveyFillOpen, setSurveyFillOpen] = useState(false);
   const [addSurveyMode, setAddSurveyMode] = useState<"choice" | "fill" | "assign" | null>(null);
   const [assigning, setAssigning] = useState(false);
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [photoTypeDialogOpen, setPhotoTypeDialogOpen] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
 
   const { data: patient, isLoading } = useQuery({
@@ -369,28 +372,71 @@ const PatientDetail = () => {
     }
   };
 
-  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !id) return;
+    setPendingPhotoFile(file);
+    setPhotoTypeDialogOpen(true);
+    e.target.value = "";
+  };
+
+  const savePendingPhoto = async (photoType: "before" | "after") => {
+    if (!pendingPhotoFile || !id) return;
+    setUploadingPhoto(true);
     try {
-      const ext = file.name.split(".").pop() || "jpg";
+      const ext = pendingPhotoFile.name.split(".").pop() || "jpg";
       const fileName = `${id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("patient-photos").upload(fileName, file);
+      const { error: uploadError } = await supabase.storage.from("patient-photos").upload(fileName, pendingPhotoFile);
       if (uploadError) throw uploadError;
       const photoUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${fileName}`;
       const { error } = await supabase.from("patient_photos").insert({
         patient_id: id,
-        photo_type: "before",
+        photo_type: photoType,
         photo_url: photoUrl,
         notes: null,
       } as any);
       if (error) throw error;
       toast.success("Photo uploaded");
       queryClient.invalidateQueries({ queryKey: ["patient-photos", id] });
+      setPhotoTypeDialogOpen(false);
+      setPendingPhotoFile(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to upload photo");
+    } finally {
+      setUploadingPhoto(false);
     }
-    e.target.value = "";
+  };
+
+  const deletePhoto = async (photo: any) => {
+    if (!confirm("Delete this photo?")) return;
+    try {
+      const parts = photo.photo_url?.split("/patient-photos/");
+      if (parts && parts[1]) {
+        await supabase.storage.from("patient-photos").remove([parts[1]]);
+      }
+      const { error } = await supabase.from("patient_photos").delete().eq("id", photo.id);
+      if (error) throw error;
+      toast.success("Photo deleted");
+      queryClient.invalidateQueries({ queryKey: ["patient-photos", id] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete photo");
+    }
+  };
+
+  const deleteAttachment = async (att: any) => {
+    if (!confirm("Delete this attachment?")) return;
+    try {
+      const parts = att.file_url?.split("/patient-photos/");
+      if (parts && parts[1]) {
+        await supabase.storage.from("patient-photos").remove([parts[1]]);
+      }
+      const { error } = await supabase.from("procedure_attachments").delete().eq("id", att.id);
+      if (error) throw error;
+      toast.success("Attachment deleted");
+      refetchAttachments();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete attachment");
+    }
   };
 
   if (isLoading) {
@@ -947,6 +993,14 @@ const PatientDetail = () => {
                       <Badge className={`absolute top-2 left-2 text-[10px] ${photo.photo_type === "before" ? "bg-warning/90 text-warning-foreground" : "bg-success/90 text-success-foreground"}`}>
                         {photo.photo_type.toUpperCase()}
                       </Badge>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-2 right-2 h-7 w-7 opacity-90"
+                        onClick={(e) => { e.stopPropagation(); deletePhoto(photo); }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                     <div className="p-2 md:p-3">
                       {photo.procedures?.service_name && <p className="text-xs text-muted-foreground truncate">{photo.procedures.service_name}</p>}
@@ -1326,9 +1380,19 @@ const PatientDetail = () => {
                           {att.notes && <p className="text-xs text-muted-foreground mt-1">{att.notes}</p>}
                         </div>
                       </div>
-                      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" asChild>
-                        <a href={att.file_url} target="_blank" rel="noopener noreferrer">View</a>
-                      </Button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
+                          <a href={att.file_url} target="_blank" rel="noopener noreferrer">View</a>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => deleteAttachment(att)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   ))}
@@ -1372,6 +1436,36 @@ const PatientDetail = () => {
       </Dialog>
 
       <input type="file" accept="image/*" capture="environment" ref={photoCameraRef} className="hidden" onChange={handlePhotoCapture} />
+
+      <Dialog open={photoTypeDialogOpen} onOpenChange={(o) => { if (!o && !uploadingPhoto) { setPhotoTypeDialogOpen(false); setPendingPhotoFile(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display">Is this a Before or After photo?</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <Button
+              variant="outline"
+              className="h-16 text-base"
+              disabled={uploadingPhoto}
+              onClick={() => savePendingPhoto("before")}
+            >
+              Before
+            </Button>
+            <Button
+              className="h-16 text-base"
+              disabled={uploadingPhoto}
+              onClick={() => savePendingPhoto("after")}
+            >
+              After
+            </Button>
+          </div>
+          {uploadingPhoto && (
+            <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> Uploading...
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <SkinTracker
         open={skinTrackerOpen}

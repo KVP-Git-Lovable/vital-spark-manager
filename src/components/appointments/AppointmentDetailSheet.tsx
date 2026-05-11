@@ -1084,6 +1084,10 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                     <SurveyRecommendations appointmentId={appointmentId!} />
                   )}
                 </TabsContent>
+
+                <TabsContent value="therapy-notes" className="p-6 space-y-4 mt-0">
+                  <TherapyNotesTab appointmentId={appointmentId!} patientId={appointment.patient_id} />
+                </TabsContent>
               </Tabs>
             </>
           )}

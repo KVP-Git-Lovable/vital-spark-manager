@@ -428,7 +428,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                         </p>
                       ) : (
                         filteredRefDocs.map((s: any) => {
-                          const name = `Dr. ${s.first_name} ${s.last_name}`;
+                          const name = `${s.first_name} ${s.last_name}`;
                           const selected = (form as any).source_referral_doctor === name;
                           return (
                             <button

@@ -564,9 +564,36 @@ const Appointments = () => {
 
   const inlineUpdateMutation = useMutation({
     mutationFn: async (data: Record<string, any>) => {
-      const { id, ...updates } = data;
+      const { id, __notify, ...updates } = data;
       const { error } = await supabase.from("appointments").update(updates as any).eq("id", id);
       if (error) throw error;
+      // WhatsApp notification on inline status change
+      try {
+        if (__notify) {
+          const { phone, patientName, prevStatus, newStatus, startTime, doctorName, serviceName } = __notify;
+          const notifyStatuses = ["Confirmed", "Cancelled"];
+          const changed = newStatus !== prevStatus && notifyStatuses.includes(newStatus);
+          console.log("[appt-notify-inline] check", { phone, prevStatus, newStatus });
+          if (phone && changed) {
+            const startDate = new Date(startTime);
+            const apptDate = format(startDate, "dd MMM yyyy");
+            const apptTime = format(startDate, "hh:mm a");
+            if (newStatus === "Cancelled") {
+              await supabase.functions.invoke("send-appointment-update-whatsapp", {
+                body: { kind: "cancelled", phone, patientName, appointmentDate: apptDate, appointmentTime: apptTime },
+              });
+              toast.success("WhatsApp cancellation sent");
+            } else if (newStatus === "Confirmed") {
+              await supabase.functions.invoke("send-appointment-update-whatsapp", {
+                body: { kind: "update", phone, patientName, status: newStatus, appointmentDate: apptDate, appointmentTime: apptTime, doctorName: doctorName || "To be assigned", serviceName: serviceName || "-" },
+              });
+              toast.success("WhatsApp notification sent");
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[appt-notify-inline] error", e);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });

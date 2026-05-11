@@ -555,9 +555,11 @@ const Portal = () => {
               <motion.div key="appointments" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="font-bold text-lg">Appointments</h2>
-                  <Button size="sm" className="gap-1" onClick={() => setApptOpen(true)}>
-                    <Plus className="h-3.5 w-3.5" /> Request
-                  </Button>
+                  {apptsBookingEnabled && (
+                    <Button size="sm" className="gap-1" onClick={() => setApptOpen(true)}>
+                      <Plus className="h-3.5 w-3.5" /> Request
+                    </Button>
+                  )}
                 </div>
 
                 {upcomingAppts.length > 0 && (
@@ -614,7 +616,9 @@ const Portal = () => {
                   <div className="text-center py-12 text-muted-foreground">
                     <Calendar className="h-10 w-10 mx-auto mb-3 opacity-40" />
                     <p className="text-sm">No appointments yet</p>
-                    <Button size="sm" variant="outline" className="mt-3" onClick={() => setApptOpen(true)}>Request your first appointment</Button>
+                    {apptsBookingEnabled && (
+                      <Button size="sm" variant="outline" className="mt-3" onClick={() => setApptOpen(true)}>Request your first appointment</Button>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -685,7 +689,7 @@ const Portal = () => {
               <motion.div key="billing" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
                 <h2 className="font-bold text-lg">Billing</h2>
 
-                {totalDue > 0 && (
+                {outstandingBalanceEnabled && totalDue > 0 && (
                   <div className="bg-warning/5 border border-warning/20 rounded-xl p-4">
                     <p className="text-xs text-warning font-semibold mb-1">Outstanding Balance</p>
                     <p className="text-2xl font-bold">₹{totalDue.toLocaleString()}</p>

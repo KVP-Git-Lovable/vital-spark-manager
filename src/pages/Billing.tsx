@@ -1807,7 +1807,16 @@ const Billing = () => {
                   <div><span className="text-muted-foreground text-xs block">Patient</span><span className="font-medium">{viewInvoice.patient_name || "Walk-in"}</span></div>
                   <div><span className="text-muted-foreground text-xs block">Date</span><span className="font-medium">{format(new Date(viewInvoice.created_at), "PPP")}</span></div>
                   <div><span className="text-muted-foreground text-xs block">Doctor</span><span className="font-medium">{getDrName(viewInvoice) || "—"}</span></div>
-                  <div><span className="text-muted-foreground text-xs block">Payment Mode</span><span className="font-medium">{viewInvoice.payment_mode || "Cash"}</span></div>
+                  <div>
+                    <span className="text-muted-foreground text-xs block">Payment Mode</span>
+                    {Array.isArray(viewInvoice.payment_splits) && viewInvoice.payment_splits.length > 1 ? (
+                      <span className="font-medium">
+                        {viewInvoice.payment_splits.map((p: any) => `${p.mode}: ₹${Number(p.amount).toLocaleString("en-IN")}`).join("  ·  ")}
+                      </span>
+                    ) : (
+                      <span className="font-medium">{viewInvoice.payment_mode || "Cash"}</span>
+                    )}
+                  </div>
                   <div><span className="text-muted-foreground text-xs block">Type</span><Badge variant="outline" className="text-xs mt-0.5">{viewInvoice.payment_type}</Badge></div>
                   <div><span className="text-muted-foreground text-xs block">Status</span><span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[viewInvoice.status] || ""}`}>{viewInvoice.status}</span></div>
                 </div>

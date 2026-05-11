@@ -331,39 +331,41 @@ const PatientDetail = () => {
     }
   };
 
-  const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAttachmentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !id) return;
+    setPendingAttachmentFile(file);
+    setSelectedDocType("Prescription");
+    setDocTypeDialogOpen(true);
+    e.target.value = "";
+  };
+
+  const uploadPendingAttachment = async () => {
+    if (!pendingAttachmentFile || !id) return;
     setUploadingAttachment(true);
+    const file = pendingAttachmentFile;
     try {
-      const ext = file.name.split(".").pop();
+      const ext = file.name.split(".").pop() || "bin";
       const filePath = `${id}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from("patient-photos").upload(filePath, file);
       if (uploadError) throw uploadError;
       const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${filePath}`;
-
-      // Use the first procedure if available, otherwise create without procedure
-      const procedureId = procedures.length > 0 ? procedures[0].id : null;
-      if (!procedureId) {
-        toast.error("Please create a procedure first to attach files");
-        setUploadingAttachment(false);
-        return;
-      }
-
       const { error } = await supabase.from("procedure_attachments").insert({
         patient_id: id,
-        procedure_id: procedureId,
+        procedure_id: procedures.length > 0 ? procedures[0].id : null,
         file_name: file.name,
         file_url: fileUrl,
-      });
+        document_type: selectedDocType,
+      } as any);
       if (error) throw error;
       toast.success("Attachment uploaded");
+      setDocTypeDialogOpen(false);
+      setPendingAttachmentFile(null);
       refetchAttachments();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setUploadingAttachment(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 

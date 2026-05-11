@@ -1380,9 +1380,19 @@ const PatientDetail = () => {
                           {att.notes && <p className="text-xs text-muted-foreground mt-1">{att.notes}</p>}
                         </div>
                       </div>
-                      <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" asChild>
-                        <a href={att.file_url} target="_blank" rel="noopener noreferrer">View</a>
-                      </Button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
+                          <a href={att.file_url} target="_blank" rel="noopener noreferrer">View</a>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => deleteAttachment(att)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   ))}

@@ -108,6 +108,12 @@ Deno.serve(async (req) => {
     y -= 14;
     page.drawText(`Payment: ${inv.payment_mode || "Cash"}`, { x: width - 200, y, size: 10, font, color: dark });
     y -= 14;
+    if (Array.isArray(inv.payment_splits) && inv.payment_splits.length > 0) {
+      for (const sp of inv.payment_splits) {
+        page.drawText(`  ${sp.mode}: ${fmtINR(Number(sp.amount) || 0)}`, { x: width - 200, y, size: 9, font, color: dark });
+        y -= 12;
+      }
+    }
     page.drawText(`Type: ${inv.payment_type || "One-time"}`, { x: width - 200, y, size: 10, font, color: dark });
     y -= 14;
     page.drawText(`Status: ${inv.status || ""}`, { x: width - 200, y, size: 10, font: fontBold, color: teal });

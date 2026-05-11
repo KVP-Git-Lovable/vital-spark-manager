@@ -446,39 +446,50 @@ const Portal = () => {
                     <p className="text-2xl font-bold">{upcomingAppts.length}</p>
                     <p className="text-xs text-muted-foreground">Upcoming Appointments</p>
                   </div>
-                  <div className="bg-card rounded-xl p-4 border shadow-sm">
-                    <Receipt className="h-5 w-5 text-warning mb-2" />
-                    <p className="text-2xl font-bold">₹{totalDue.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">Outstanding Balance</p>
-                  </div>
+                  {outstandingBalanceEnabled && (
+                    <div className="bg-card rounded-xl p-4 border shadow-sm">
+                      <Receipt className="h-5 w-5 text-warning mb-2" />
+                      <p className="text-2xl font-bold">₹{totalDue.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">Outstanding Balance</p>
+                    </div>
+                  )}
                   <div className="bg-card rounded-xl p-4 border shadow-sm">
                     <ClipboardList className="h-5 w-5 text-success mb-2" />
                     <p className="text-2xl font-bold">{procedures.length}</p>
                     <p className="text-xs text-muted-foreground">Total Procedures</p>
                   </div>
-                  <div className="bg-card rounded-xl p-4 border shadow-sm">
-                    <Camera className="h-5 w-5 text-accent-foreground mb-2" />
-                    <p className="text-2xl font-bold">{photos.length}</p>
-                    <p className="text-xs text-muted-foreground">Clinical Photos</p>
-                  </div>
+                  {clinicalPhotosEnabled && (
+                    <div className="bg-card rounded-xl p-4 border shadow-sm">
+                      <Camera className="h-5 w-5 text-accent-foreground mb-2" />
+                      <p className="text-2xl font-bold">{photos.length}</p>
+                      <p className="text-xs text-muted-foreground">Clinical Photos</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Quick actions */}
-                <div className="bg-card rounded-xl border shadow-sm p-4">
-                  <h3 className="font-semibold text-sm mb-3">Quick Actions</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => { setActiveTab("appointments"); setApptOpen(true); }}>
-                      <Plus className="h-4 w-4 text-primary" />
-                      <span className="text-xs">Request Appointment</span>
-                    </Button>
-                    <Button variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setActiveTab("pharmacy")}>
-                      <Pill className="h-4 w-4 text-primary" />
-                      <span className="text-xs">Order Medicine</span>
-                    </Button>
+                {(qaRequestApptEnabled || qaOrderMedicineEnabled) && (
+                  <div className="bg-card rounded-xl border shadow-sm p-4">
+                    <h3 className="font-semibold text-sm mb-3">Quick Actions</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {qaRequestApptEnabled && apptsBookingEnabled && (
+                        <Button variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => { setActiveTab("appointments"); setApptOpen(true); }}>
+                          <Plus className="h-4 w-4 text-primary" />
+                          <span className="text-xs">Request Appointment</span>
+                        </Button>
+                      )}
+                      {qaOrderMedicineEnabled && shopEnabled && (
+                        <Button variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setActiveTab("pharmacy")}>
+                          <Pill className="h-4 w-4 text-primary" />
+                          <span className="text-xs">Order Medicine</span>
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Doctor availability */}
+                {clinicHoursEnabled && (
                 <div className="bg-card rounded-xl border shadow-sm p-4">
                 <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
                     <Stethoscope className="h-4 w-4 text-primary" /> Clinic Hours
@@ -494,9 +505,10 @@ const Portal = () => {
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Staff */}
-                {staff.length > 0 && (
+                {ourTeamEnabled && staff.length > 0 && (
                   <div className="bg-card rounded-xl border shadow-sm p-4">
                     <h3 className="font-semibold text-sm mb-3">Our Team</h3>
                     <div className="space-y-2">

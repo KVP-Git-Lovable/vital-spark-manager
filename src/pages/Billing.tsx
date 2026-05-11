@@ -228,6 +228,8 @@ const Billing = () => {
   const [paymentType, setPaymentType] = useState("One-time");
   const [paymentMode, setPaymentMode] = useState("Cash");
   const [notes, setNotes] = useState("");
+  // Split payment (Create Invoice — One-time only). Empty array = single mode flow.
+  const [splits, setSplits] = useState<{ mode: string; amount: number }[]>([]);
   // Tax is now resolved per-line from Tax Master mappings (no manual selector)
   const [pharmaItems, setPharmaItems] = useState<PharmaLineItem[]>([]);
 

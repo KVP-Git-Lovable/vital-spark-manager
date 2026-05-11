@@ -877,7 +877,7 @@ const Appointments = () => {
                     })()}
                   </div>
                   <div>
-                    <Label>Staff</Label>
+                    <Label>Doctor</Label>
                     <Select value={staffId} onValueChange={setStaffId}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>

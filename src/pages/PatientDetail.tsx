@@ -96,7 +96,7 @@ const PatientDetail = () => {
   const [surveyFillOpen, setSurveyFillOpen] = useState(false);
   const [addSurveyMode, setAddSurveyMode] = useState<"choice" | "fill" | "assign" | null>(null);
   const [assigning, setAssigning] = useState(false);
-  
+
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", id],
@@ -341,7 +341,7 @@ const PatientDetail = () => {
       const { error: uploadError } = await supabase.storage.from("patient-photos").upload(filePath, file);
       if (uploadError) throw uploadError;
       const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${filePath}`;
-      
+
       // Use the first procedure if available, otherwise create without procedure
       const procedureId = procedures.length > 0 ? procedures[0].id : null;
       if (!procedureId) {
@@ -349,7 +349,7 @@ const PatientDetail = () => {
         setUploadingAttachment(false);
         return;
       }
-      
+
       const { error } = await supabase.from("procedure_attachments").insert({
         patient_id: id,
         procedure_id: procedureId,

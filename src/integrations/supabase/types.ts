@@ -1734,33 +1734,72 @@ export type Database = {
       }
       portal_settings: {
         Row: {
+          ai_bot_enabled: boolean
+          appointments_booking_enabled: boolean
+          appointments_reschedule_enabled: boolean
+          bills_enabled: boolean
+          clinic_hours_enabled: boolean
+          clinical_photos_enabled: boolean
           created_at: string
           expiring_threshold_days: number
           hide_expiring_products: boolean
           id: string
           low_stock_threshold: number | null
+          our_team_enabled: boolean
           out_of_stock_behavior: string
+          outstanding_balance_enabled: boolean
+          procedure_history_enabled: boolean
+          quick_action_order_medicine_enabled: boolean
+          quick_action_request_appointment_enabled: boolean
           shop_enabled: boolean
+          surveys_enabled: boolean
+          treatment_history_enabled: boolean
           updated_at: string
         }
         Insert: {
+          ai_bot_enabled?: boolean
+          appointments_booking_enabled?: boolean
+          appointments_reschedule_enabled?: boolean
+          bills_enabled?: boolean
+          clinic_hours_enabled?: boolean
+          clinical_photos_enabled?: boolean
           created_at?: string
           expiring_threshold_days?: number
           hide_expiring_products?: boolean
           id?: string
           low_stock_threshold?: number | null
+          our_team_enabled?: boolean
           out_of_stock_behavior?: string
+          outstanding_balance_enabled?: boolean
+          procedure_history_enabled?: boolean
+          quick_action_order_medicine_enabled?: boolean
+          quick_action_request_appointment_enabled?: boolean
           shop_enabled?: boolean
+          surveys_enabled?: boolean
+          treatment_history_enabled?: boolean
           updated_at?: string
         }
         Update: {
+          ai_bot_enabled?: boolean
+          appointments_booking_enabled?: boolean
+          appointments_reschedule_enabled?: boolean
+          bills_enabled?: boolean
+          clinic_hours_enabled?: boolean
+          clinical_photos_enabled?: boolean
           created_at?: string
           expiring_threshold_days?: number
           hide_expiring_products?: boolean
           id?: string
           low_stock_threshold?: number | null
+          our_team_enabled?: boolean
           out_of_stock_behavior?: string
+          outstanding_balance_enabled?: boolean
+          procedure_history_enabled?: boolean
+          quick_action_order_medicine_enabled?: boolean
+          quick_action_request_appointment_enabled?: boolean
           shop_enabled?: boolean
+          surveys_enabled?: boolean
+          treatment_history_enabled?: boolean
           updated_at?: string
         }
         Relationships: []

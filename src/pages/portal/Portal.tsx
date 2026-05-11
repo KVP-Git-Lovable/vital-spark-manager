@@ -286,12 +286,46 @@ const Portal = () => {
   const { data: portalSettings } = useQuery({
     queryKey: ["portal-settings"],
     queryFn: async () => {
-      const { data } = await supabase.from("portal_settings").select("shop_enabled").limit(1).maybeSingle();
+      const { data } = await supabase.from("portal_settings").select("*").limit(1).maybeSingle();
       return data;
     },
   });
-  const shopEnabled = portalSettings?.shop_enabled !== false;
-  const visibleTabs = shopEnabled ? tabs : tabs.filter((t) => t.id !== "pharmacy");
+  const ps: any = portalSettings || {};
+  const flag = (key: string) => ps[key] !== false; // default true
+  const shopEnabled = flag("shop_enabled");
+  const apptsBookingEnabled = flag("appointments_booking_enabled");
+  const apptsRescheduleEnabled = flag("appointments_reschedule_enabled");
+  const treatmentHistoryEnabled = flag("treatment_history_enabled");
+  const procedureHistoryEnabled = flag("procedure_history_enabled");
+  const clinicalPhotosEnabled = flag("clinical_photos_enabled");
+  const billsEnabled = flag("bills_enabled");
+  const outstandingBalanceEnabled = flag("outstanding_balance_enabled");
+  const surveysEnabled = flag("surveys_enabled");
+  const aiBotEnabled = flag("ai_bot_enabled");
+  const ourTeamEnabled = flag("our_team_enabled");
+  const clinicHoursEnabled = flag("clinic_hours_enabled");
+  const qaRequestApptEnabled = flag("quick_action_request_appointment_enabled");
+  const qaOrderMedicineEnabled = flag("quick_action_order_medicine_enabled");
+  const historyTabEnabled = treatmentHistoryEnabled || procedureHistoryEnabled;
+  const apptsTabEnabled = apptsBookingEnabled || true; // viewing appointments always allowed; booking gated separately
+
+  const visibleTabs = tabs.filter((t) => {
+    if (t.id === "pharmacy") return shopEnabled;
+    if (t.id === "procedures") return historyTabEnabled;
+    if (t.id === "photos") return clinicalPhotosEnabled;
+    if (t.id === "billing") return billsEnabled;
+    if (t.id === "surveys") return surveysEnabled;
+    if (t.id === "bot") return aiBotEnabled;
+    return true;
+  });
+
+  // Reset to home if active tab gets hidden
+  useEffect(() => {
+    if (!visibleTabs.find((t) => t.id === activeTab)) {
+      setActiveTab("home");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shopEnabled, historyTabEnabled, clinicalPhotosEnabled, billsEnabled, surveysEnabled, aiBotEnabled]);
 
   // ─── Mutations ──────────────────────────────────
   const requestAppointment = useMutation({
@@ -412,39 +446,50 @@ const Portal = () => {
                     <p className="text-2xl font-bold">{upcomingAppts.length}</p>
                     <p className="text-xs text-muted-foreground">Upcoming Appointments</p>
                   </div>
-                  <div className="bg-card rounded-xl p-4 border shadow-sm">
-                    <Receipt className="h-5 w-5 text-warning mb-2" />
-                    <p className="text-2xl font-bold">₹{totalDue.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">Outstanding Balance</p>
-                  </div>
+                  {outstandingBalanceEnabled && (
+                    <div className="bg-card rounded-xl p-4 border shadow-sm">
+                      <Receipt className="h-5 w-5 text-warning mb-2" />
+                      <p className="text-2xl font-bold">₹{totalDue.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">Outstanding Balance</p>
+                    </div>
+                  )}
                   <div className="bg-card rounded-xl p-4 border shadow-sm">
                     <ClipboardList className="h-5 w-5 text-success mb-2" />
                     <p className="text-2xl font-bold">{procedures.length}</p>
                     <p className="text-xs text-muted-foreground">Total Procedures</p>
                   </div>
-                  <div className="bg-card rounded-xl p-4 border shadow-sm">
-                    <Camera className="h-5 w-5 text-accent-foreground mb-2" />
-                    <p className="text-2xl font-bold">{photos.length}</p>
-                    <p className="text-xs text-muted-foreground">Clinical Photos</p>
-                  </div>
+                  {clinicalPhotosEnabled && (
+                    <div className="bg-card rounded-xl p-4 border shadow-sm">
+                      <Camera className="h-5 w-5 text-accent-foreground mb-2" />
+                      <p className="text-2xl font-bold">{photos.length}</p>
+                      <p className="text-xs text-muted-foreground">Clinical Photos</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Quick actions */}
-                <div className="bg-card rounded-xl border shadow-sm p-4">
-                  <h3 className="font-semibold text-sm mb-3">Quick Actions</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => { setActiveTab("appointments"); setApptOpen(true); }}>
-                      <Plus className="h-4 w-4 text-primary" />
-                      <span className="text-xs">Request Appointment</span>
-                    </Button>
-                    <Button variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setActiveTab("pharmacy")}>
-                      <Pill className="h-4 w-4 text-primary" />
-                      <span className="text-xs">Order Medicine</span>
-                    </Button>
+                {(qaRequestApptEnabled || qaOrderMedicineEnabled) && (
+                  <div className="bg-card rounded-xl border shadow-sm p-4">
+                    <h3 className="font-semibold text-sm mb-3">Quick Actions</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {qaRequestApptEnabled && apptsBookingEnabled && (
+                        <Button variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => { setActiveTab("appointments"); setApptOpen(true); }}>
+                          <Plus className="h-4 w-4 text-primary" />
+                          <span className="text-xs">Request Appointment</span>
+                        </Button>
+                      )}
+                      {qaOrderMedicineEnabled && shopEnabled && (
+                        <Button variant="outline" className="h-auto py-3 flex-col gap-1" onClick={() => setActiveTab("pharmacy")}>
+                          <Pill className="h-4 w-4 text-primary" />
+                          <span className="text-xs">Order Medicine</span>
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Doctor availability */}
+                {clinicHoursEnabled && (
                 <div className="bg-card rounded-xl border shadow-sm p-4">
                 <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
                     <Stethoscope className="h-4 w-4 text-primary" /> Clinic Hours
@@ -460,9 +505,10 @@ const Portal = () => {
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Staff */}
-                {staff.length > 0 && (
+                {ourTeamEnabled && staff.length > 0 && (
                   <div className="bg-card rounded-xl border shadow-sm p-4">
                     <h3 className="font-semibold text-sm mb-3">Our Team</h3>
                     <div className="space-y-2">
@@ -509,9 +555,11 @@ const Portal = () => {
               <motion.div key="appointments" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="font-bold text-lg">Appointments</h2>
-                  <Button size="sm" className="gap-1" onClick={() => setApptOpen(true)}>
-                    <Plus className="h-3.5 w-3.5" /> Request
-                  </Button>
+                  {apptsBookingEnabled && (
+                    <Button size="sm" className="gap-1" onClick={() => setApptOpen(true)}>
+                      <Plus className="h-3.5 w-3.5" /> Request
+                    </Button>
+                  )}
                 </div>
 
                 {upcomingAppts.length > 0 && (
@@ -568,7 +616,9 @@ const Portal = () => {
                   <div className="text-center py-12 text-muted-foreground">
                     <Calendar className="h-10 w-10 mx-auto mb-3 opacity-40" />
                     <p className="text-sm">No appointments yet</p>
-                    <Button size="sm" variant="outline" className="mt-3" onClick={() => setApptOpen(true)}>Request your first appointment</Button>
+                    {apptsBookingEnabled && (
+                      <Button size="sm" variant="outline" className="mt-3" onClick={() => setApptOpen(true)}>Request your first appointment</Button>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -639,7 +689,7 @@ const Portal = () => {
               <motion.div key="billing" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
                 <h2 className="font-bold text-lg">Billing</h2>
 
-                {totalDue > 0 && (
+                {outstandingBalanceEnabled && totalDue > 0 && (
                   <div className="bg-warning/5 border border-warning/20 rounded-xl p-4">
                     <p className="text-xs text-warning font-semibold mb-1">Outstanding Balance</p>
                     <p className="text-2xl font-bold">₹{totalDue.toLocaleString()}</p>

@@ -43,6 +43,18 @@ interface BillItemInput {
   gst_percent: number;
 }
 
+function ToggleRow({ label, desc, checked, onChange }: { label: string; desc?: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="min-w-0">
+        <Label className="text-sm font-medium">{label}</Label>
+        {desc && <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>}
+      </div>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
 const Pharma = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -151,6 +163,19 @@ const Pharma = () => {
     expiring_threshold_days: 90,
     shop_enabled: true,
     low_stock_threshold: null as number | null,
+    appointments_booking_enabled: true,
+    appointments_reschedule_enabled: true,
+    treatment_history_enabled: true,
+    procedure_history_enabled: true,
+    clinical_photos_enabled: true,
+    bills_enabled: true,
+    outstanding_balance_enabled: true,
+    surveys_enabled: true,
+    ai_bot_enabled: true,
+    our_team_enabled: true,
+    clinic_hours_enabled: true,
+    quick_action_request_appointment_enabled: true,
+    quick_action_order_medicine_enabled: true,
   });
 
   useEffect(() => {
@@ -161,6 +186,19 @@ const Pharma = () => {
         expiring_threshold_days: portalSettings.expiring_threshold_days,
         shop_enabled: portalSettings.shop_enabled,
         low_stock_threshold: portalSettings.low_stock_threshold,
+        appointments_booking_enabled: (portalSettings as any).appointments_booking_enabled ?? true,
+        appointments_reschedule_enabled: (portalSettings as any).appointments_reschedule_enabled ?? true,
+        treatment_history_enabled: (portalSettings as any).treatment_history_enabled ?? true,
+        procedure_history_enabled: (portalSettings as any).procedure_history_enabled ?? true,
+        clinical_photos_enabled: (portalSettings as any).clinical_photos_enabled ?? true,
+        bills_enabled: (portalSettings as any).bills_enabled ?? true,
+        outstanding_balance_enabled: (portalSettings as any).outstanding_balance_enabled ?? true,
+        surveys_enabled: (portalSettings as any).surveys_enabled ?? true,
+        ai_bot_enabled: (portalSettings as any).ai_bot_enabled ?? true,
+        our_team_enabled: (portalSettings as any).our_team_enabled ?? true,
+        clinic_hours_enabled: (portalSettings as any).clinic_hours_enabled ?? true,
+        quick_action_request_appointment_enabled: (portalSettings as any).quick_action_request_appointment_enabled ?? true,
+        quick_action_order_medicine_enabled: (portalSettings as any).quick_action_order_medicine_enabled ?? true,
       });
     }
   }, [portalSettings]);
@@ -668,7 +706,7 @@ const Pharma = () => {
           <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
           <TabsTrigger value="bills">Bills</TabsTrigger>
-          <TabsTrigger value="settings" className="gap-1"><Settings className="h-3.5 w-3.5" /> Settings</TabsTrigger>
+          <TabsTrigger value="settings" className="gap-1"><Settings className="h-3.5 w-3.5" /> Customer Portal Configuration</TabsTrigger>
         </TabsList>
 
         <TabsContent value="products">
@@ -818,16 +856,79 @@ const Pharma = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="font-display">Customer Portal Configuration</CardTitle>
-                <CardDescription>Control how products appear on the patient portal shop</CardDescription>
+                <CardDescription>Toggle which sections patients see in their portal. Each switch instantly shows or hides that section.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Shop Enabled */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-sm font-medium">Enable Shop</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">Toggle the entire shop on/off for patients</p>
+                {/* Appointments */}
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">Appointments</p>
+                  <div className="space-y-3">
+                    <ToggleRow label="Enable Appointment Booking" desc="Allow patients to request appointments from the portal" checked={settingsForm.appointments_booking_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, appointments_booking_enabled: v })} />
+                    <ToggleRow label="Enable Cancellation / Reschedule" desc="Show cancel and reschedule controls on patient appointments" checked={settingsForm.appointments_reschedule_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, appointments_reschedule_enabled: v })} />
                   </div>
-                  <Switch checked={settingsForm.shop_enabled} onCheckedChange={(v) => setSettingsForm({ ...settingsForm, shop_enabled: v })} />
+                </div>
+
+                {/* History */}
+                <div className="border-t pt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">History</p>
+                  <div className="space-y-3">
+                    <ToggleRow label="Enable Treatment History" desc="Show past treatments to patients" checked={settingsForm.treatment_history_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, treatment_history_enabled: v })} />
+                    <ToggleRow label="Enable Procedure History" desc="Show clinical procedure records to patients" checked={settingsForm.procedure_history_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, procedure_history_enabled: v })} />
+                  </div>
+                </div>
+
+                {/* Photos */}
+                <div className="border-t pt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">Photos</p>
+                  <ToggleRow label="Enable Clinical Photos" desc="Allow patients to view their before / after photos" checked={settingsForm.clinical_photos_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, clinical_photos_enabled: v })} />
+                </div>
+
+                {/* Bills */}
+                <div className="border-t pt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">Bills</p>
+                  <div className="space-y-3">
+                    <ToggleRow label="Enable Bills / Invoices" desc="Show invoice list and statuses to patients" checked={settingsForm.bills_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, bills_enabled: v })} />
+                    <ToggleRow label="Show Outstanding Balance" desc="Display total outstanding amount on the home screen" checked={settingsForm.outstanding_balance_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, outstanding_balance_enabled: v })} />
+                  </div>
+                </div>
+
+                {/* Surveys */}
+                <div className="border-t pt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">Surveys</p>
+                  <ToggleRow label="Enable Surveys" desc="Let patients fill assigned and self-serve surveys" checked={settingsForm.surveys_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, surveys_enabled: v })} />
+                </div>
+
+                {/* AI Bot */}
+                <div className="border-t pt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">AI Bot</p>
+                  <ToggleRow label="Enable AI Bot" desc="Show the AI assistant tab in the portal" checked={settingsForm.ai_bot_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, ai_bot_enabled: v })} />
+                </div>
+
+                {/* Our Team */}
+                <div className="border-t pt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">Our Team</p>
+                  <ToggleRow label="Enable Our Team Section" desc="Show the team / doctors block on the home screen. Manage which staff appear from the Staff module." checked={settingsForm.our_team_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, our_team_enabled: v })} />
+                </div>
+
+                {/* Clinic Hours */}
+                <div className="border-t pt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">Clinic Hours</p>
+                  <ToggleRow label="Enable Clinic Hours Display" desc="Show opening hours on the patient home screen" checked={settingsForm.clinic_hours_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, clinic_hours_enabled: v })} />
+                </div>
+
+                {/* Quick Actions */}
+                <div className="border-t pt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">Quick Actions</p>
+                  <div className="space-y-3">
+                    <ToggleRow label='Enable "Request Appointment" button' desc="Show the request-appointment shortcut on the home screen" checked={settingsForm.quick_action_request_appointment_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, quick_action_request_appointment_enabled: v })} />
+                    <ToggleRow label='Enable "Order Medicine" button' desc="Show the order-medicine shortcut on the home screen" checked={settingsForm.quick_action_order_medicine_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, quick_action_order_medicine_enabled: v })} />
+                  </div>
+                </div>
+
+                {/* Shop / Pharmacy */}
+                <div className="border-t pt-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">Shop / Pharmacy</p>
+                  <ToggleRow label="Enable Shop" desc="Toggle the entire shop on/off for patients" checked={settingsForm.shop_enabled} onChange={(v) => setSettingsForm({ ...settingsForm, shop_enabled: v })} />
                 </div>
 
                 <div className="border-t pt-4">

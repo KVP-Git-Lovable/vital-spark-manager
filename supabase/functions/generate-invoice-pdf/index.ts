@@ -80,7 +80,7 @@ function drawWrapped(page: PDFPage, text: string, x: number, y: number, maxWidth
   let cy = y;
   for (const w of words) {
     const test = line ? line + " " + w : w;
-    if (font.widthOfTextAtSize(test, size) <= maxWidth) {
+    if (font.widthOfTextAtSize(sanitize(test), size) <= maxWidth) {
       line = test;
     } else {
       page.drawText(sanitize(line), { x, y: cy, size, font, color });
@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
 
     const drawRow = (label: string, value: string, lx: number, ly: number) => {
       page.drawText(sanitize(`${label}: `), { x: lx, y: ly, size: labelSize, font, color: dark });
-      const lw = font.widthOfTextAtSize(`${label}: `, labelSize);
+      const lw = font.widthOfTextAtSize(sanitize(`${label}: `), labelSize);
       page.drawText(sanitize(String(value || "")), { x: lx + lw, y: ly, size: labelSize, font, color: dark });
     };
 
@@ -293,14 +293,14 @@ Deno.serve(async (req) => {
     for (const c of cols) {
       drawCellBox(cx, y, c.w, headerH);
       // header text - centered, may wrap on 2 lines
-      const tw = bold.widthOfTextAtSize(c.title, 8);
+      const tw = bold.widthOfTextAtSize(sanitize(c.title), 8);
       if (tw > c.w - 4) {
         // split
         const parts = c.title.split(" ");
         let l1 = parts.slice(0, Math.ceil(parts.length / 2)).join(" ");
         let l2 = parts.slice(Math.ceil(parts.length / 2)).join(" ");
-        const w1 = bold.widthOfTextAtSize(l1, 8);
-        const w2 = bold.widthOfTextAtSize(l2, 8);
+        const w1 = bold.widthOfTextAtSize(sanitize(l1), 8);
+        const w2 = bold.widthOfTextAtSize(sanitize(l2), 8);
         page.drawText(sanitize(l1), { x: cx + (c.w - w1) / 2, y: y - 10, size: 8, font: bold, color: dark });
         page.drawText(sanitize(l2), { x: cx + (c.w - w2) / 2, y: y - 20, size: 8, font: bold, color: dark });
       } else {
@@ -332,11 +332,11 @@ Deno.serve(async (req) => {
         // truncate name if too long
         let display = txt;
         const sz = 8;
-        if (font.widthOfTextAtSize(display, sz) > c.w - 4) {
-          while (display.length > 1 && font.widthOfTextAtSize(display + "…", sz) > c.w - 4) display = display.slice(0, -1);
+        if (font.widthOfTextAtSize(sanitize(display), sz) > c.w - 4) {
+          while (display.length > 1 && font.widthOfTextAtSize(sanitize(display + "…"), sz) > c.w - 4) display = display.slice(0, -1);
           display = display + "…";
         }
-        const tw = font.widthOfTextAtSize(display, sz);
+        const tw = font.widthOfTextAtSize(sanitize(display), sz);
         const tx = k === 1 ? cx + 3 : cx + (c.w - tw) / 2;
         page.drawText(sanitize(display), { x: tx, y: y - 14, size: sz, font, color: dark });
         cx += c.w;
@@ -353,12 +353,12 @@ Deno.serve(async (req) => {
       cx += spanW;
       // label cell
       drawCellBox(cx, y, cols[8].w, rowH);
-      const lw = bold.widthOfTextAtSize(label, 9);
+      const lw = bold.widthOfTextAtSize(sanitize(label), 9);
       page.drawText(sanitize(label), { x: cx + (cols[8].w - lw) / 2, y: y - 14, size: 9, font: bold, color: dark });
       cx += cols[8].w;
       // value cell
       drawCellBox(cx, y, cols[9].w, rowH);
-      const vw = font.widthOfTextAtSize(value, 8);
+      const vw = font.widthOfTextAtSize(sanitize(value), 8);
       page.drawText(sanitize(value), { x: cx + (cols[9].w - vw) / 2, y: y - 14, size: 8, font, color: dark });
       y -= rowH;
     };
@@ -388,32 +388,32 @@ Deno.serve(async (req) => {
     // Authorized signatory
     y -= 50;
     const sigText = "Authorized Signatory";
-    const sw = bold.widthOfTextAtSize(sigText, 10);
+    const sw = bold.widthOfTextAtSize(sanitize(sigText), 10);
     page.drawText(sanitize(sigText), { x: width - 40 - sw, y, size: 10, font: bold, color: dark });
 
     // Footer
     const footerY = 80;
     page.drawText(sanitize("----------------"), {
-      x: width / 2 - font.widthOfTextAtSize("----------------", 10) / 2,
+      x: width / 2 - font.widthOfTextAtSize(sanitize("----------------"), 10) / 2,
       y: footerY + 30, size: 10, font, color: grey,
     });
     const addrParts = [clinic?.name, clinic?.address, clinic?.city, clinic?.pincode].filter(Boolean);
     const addrLine = addrParts.join(", ");
     if (addrLine) {
-      const aw = font.widthOfTextAtSize(addrLine, 9);
+      const aw = font.widthOfTextAtSize(sanitize(addrLine), 9);
       page.drawText(sanitize(addrLine), { x: (width - aw) / 2, y: footerY + 16, size: 9, font, color: dark });
     }
     if (clinic?.email) {
       const domain = String(clinic.email).split("@")[1];
       if (domain) {
         const site = `Website: www.${domain}`;
-        const sw2 = font.widthOfTextAtSize(site, 9);
+        const sw2 = font.widthOfTextAtSize(sanitize(site), 9);
         page.drawText(sanitize(site), { x: (width - sw2) / 2, y: footerY + 4, size: 9, font, color: dark });
       }
     }
     if (clinic?.phone) {
       const ct = `For appointments and emergency care, contact us @ ${clinic.phone}`;
-      const ctw = font.widthOfTextAtSize(ct, 9);
+      const ctw = font.widthOfTextAtSize(sanitize(ct), 9);
       page.drawText(sanitize(ct), { x: (width - ctw) / 2, y: footerY - 12, size: 9, font, color: dark });
     }
 

@@ -699,76 +699,80 @@ const Billing = () => {
       const msg = paymentType === "Staged" ? `${stages.length} staged invoices created` : paymentType === "Recurring" ? `${recurringCount} recurring invoices created` : "Invoice created";
       toast.success(msg);
 
-      // Fire-and-forget WhatsApp invoice notification
-      try {
-        if (result?.patientPhone && result?.patientName && result?.summary) {
-          const balance = Math.max(0, Number(result.summary.totalAmount) - Number(result.summary.paidAmount));
-
-          // Recurring invoices use a dedicated template, sent ONCE per series
-          if (result.summary.isRecurring) {
-            const due = result.summary.firstDueDate
-              ? format(new Date(result.summary.firstDueDate), "dd MMM yyyy")
-              : "";
-            const { error: rWaErr } = await supabase.functions.invoke(
-              "send-recurring-invoice-whatsapp",
-              {
-                body: {
-                  phone: result.patientPhone,
-                  patientName: result.patientName,
-                  serviceName: result.summary.serviceName,
-                  totalAmount: Number(result.summary.totalAmount).toLocaleString("en-IN"),
-                  installmentCount: String(result.summary.installmentCount),
-                  installmentAmount: Number(result.summary.installmentAmount).toLocaleString("en-IN"),
-                  firstDueDate: due,
-                },
-              },
-            );
-            if (rWaErr) console.error("Recurring WhatsApp send failed:", rWaErr);
-            else toast.success("WhatsApp recurring plan sent to patient");
-            resetForm();
-            setOpen(false);
-            return;
-          }
-
-          // Generate the public PDF first (only for one-time invoices that have a single id)
-          let invoiceUrl: string | undefined;
-          if (result.summary.invoiceId) {
-            try {
-              const { data: pdfData, error: pdfErr } = await supabase.functions.invoke(
-                "generate-invoice-pdf",
-                { body: { invoiceId: result.summary.invoiceId } },
-              );
-              if (pdfErr) console.error("Invoice PDF generation failed:", pdfErr);
-              else invoiceUrl = (pdfData as any)?.url;
-            } catch (pdfE) {
-              console.error("Invoice PDF generation error:", pdfE);
-            }
-          }
-
-          const { error: waErr } = await supabase.functions.invoke("send-invoice-whatsapp", {
-            body: {
-              phone: result.patientPhone,
-              patientName: result.patientName,
-              invoiceNumber: result.summary.invoiceNumber,
-              totalAmount: Number(result.summary.totalAmount).toLocaleString("en-IN"),
-              paidAmount: Number(result.summary.paidAmount).toLocaleString("en-IN"),
-              balanceAmount: balance.toLocaleString("en-IN"),
-              status: result.summary.status,
-              invoiceUrl,
-            },
-          });
-          if (waErr) console.error("WhatsApp invoice send failed:", waErr);
-          else toast.success("WhatsApp invoice sent to patient");
-        }
-      } catch (e) {
-        console.error("WhatsApp invoice send error:", e);
-      }
-
+      // Close dialog immediately; run PDF + WhatsApp in background.
+      void dispatchInvoiceWhatsApp(result);
       resetForm();
       setOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // Background: generate PDF and send WhatsApp without blocking the UI.
+  const dispatchInvoiceWhatsApp = async (result: any) => {
+    try {
+      if (!result?.patientPhone || !result?.patientName || !result?.summary) return;
+      const balance = Math.max(0, Number(result.summary.totalAmount) - Number(result.summary.paidAmount));
+
+      // Recurring plan — single dedicated template, no PDF needed
+      if (result.summary.isRecurring) {
+        const due = result.summary.firstDueDate
+          ? format(new Date(result.summary.firstDueDate), "dd MMM yyyy")
+          : "";
+        const { error: rWaErr } = await supabase.functions.invoke(
+          "send-recurring-invoice-whatsapp",
+          {
+            body: {
+              phone: result.patientPhone,
+              patientName: result.patientName,
+              serviceName: result.summary.serviceName,
+              totalAmount: Number(result.summary.totalAmount).toLocaleString("en-IN"),
+              installmentCount: String(result.summary.installmentCount),
+              installmentAmount: Number(result.summary.installmentAmount).toLocaleString("en-IN"),
+              firstDueDate: due,
+            },
+          },
+        );
+        if (rWaErr) console.error("Recurring WhatsApp send failed:", rWaErr);
+        else toast.success("WhatsApp recurring plan sent to patient");
+        return;
+      }
+
+      // Fire PDF generation and WhatsApp delivery in parallel.
+      // The Twilio template builds the PDF link from the invoice number,
+      // so the WhatsApp send does not need to wait for the PDF URL.
+      const pdfPromise = result.summary.invoiceId
+        ? supabase.functions.invoke("generate-invoice-pdf", {
+            body: { invoiceId: result.summary.invoiceId },
+          })
+        : Promise.resolve({ error: null });
+
+      const waPromise = supabase.functions.invoke("send-invoice-whatsapp", {
+        body: {
+          phone: result.patientPhone,
+          patientName: result.patientName,
+          invoiceNumber: result.summary.invoiceNumber,
+          totalAmount: Number(result.summary.totalAmount).toLocaleString("en-IN"),
+          paidAmount: Number(result.summary.paidAmount).toLocaleString("en-IN"),
+          balanceAmount: balance.toLocaleString("en-IN"),
+          status: result.summary.status,
+        },
+      });
+
+      const [pdfRes, waRes] = await Promise.allSettled([pdfPromise, waPromise]);
+      if (pdfRes.status === "rejected") console.error("Invoice PDF generation error:", pdfRes.reason);
+      else if ((pdfRes.value as any)?.error) console.error("Invoice PDF generation failed:", (pdfRes.value as any).error);
+
+      if (waRes.status === "rejected") {
+        console.error("WhatsApp invoice send error:", waRes.reason);
+      } else if ((waRes.value as any)?.error) {
+        console.error("WhatsApp invoice send failed:", (waRes.value as any).error);
+      } else {
+        toast.success("WhatsApp invoice sent to patient");
+      }
+    } catch (e) {
+      console.error("dispatchInvoiceWhatsApp error:", e);
+    }
+  };
 
   // Helper: when a recurring installment invoice flips to Paid,
   // generate a PDF for that specific installment and send it via WhatsApp

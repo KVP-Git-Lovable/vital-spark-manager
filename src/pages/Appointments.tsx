@@ -1197,6 +1197,14 @@ const Appointments = () => {
                 <SelectItem value="walkin">Walk-in</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filterAppointmentType} onValueChange={setFilterAppointmentType}>
+              <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue placeholder="All Types" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="Walk-in">Walk-in</SelectItem>
+                <SelectItem value="Online">Online</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue placeholder="All Status" /></SelectTrigger>
               <SelectContent>

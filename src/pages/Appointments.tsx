@@ -923,6 +923,26 @@ const Appointments = () => {
                     })()}
                   </div>
                   <div>
+                    <Label>Appointment Type</Label>
+                    <div className="mt-1.5 inline-flex rounded-md border bg-background p-0.5 w-full">
+                      {(["Walk-in", "Online"] as const).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setAppointmentType(t)}
+                          className={cn(
+                            "flex-1 text-xs h-8 rounded-sm font-medium transition-colors",
+                            appointmentType === t
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-muted"
+                          )}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
                     <Label>Doctor</Label>
                     <Select value={staffId} onValueChange={setStaffId}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>

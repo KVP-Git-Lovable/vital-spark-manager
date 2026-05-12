@@ -92,6 +92,7 @@ const Appointments = () => {
   const [filterDate, setFilterDate] = useState<Date | undefined>();
   const [filterSource, setFilterSource] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterAppointmentType, setFilterAppointmentType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [quickFilter, setQuickFilter] = useState<string>("");
@@ -118,6 +119,7 @@ const Appointments = () => {
   const [serviceId, setServiceId] = useState("");
   const [appointmentStatus, setAppointmentStatus] = useState("Reserved");
   const [visitStatus, setVisitStatus] = useState("");
+  const [appointmentType, setAppointmentType] = useState<"Walk-in" | "Online">("Walk-in");
   const [startDate, setStartDate] = useState<Date>();
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("09:15");
@@ -255,6 +257,7 @@ const Appointments = () => {
       if (filterSource === "walkin" && src === "portal") return false;
     }
     if (filterStatus !== "all" && apt.status !== filterStatus) return false;
+    if (filterAppointmentType !== "all" && (apt.appointment_type || "Walk-in") !== filterAppointmentType) return false;
     if (searchQuery) {
       const name = apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
       if (!name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -441,6 +444,7 @@ const Appointments = () => {
           recurrence_end_date: format(recurrenceEndDate!, "yyyy-MM-dd"),
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
+          appointment_type: appointmentType,
         }));
         const { error } = await supabase.from("appointments").insert(rows as any);
         if (error) throw error;
@@ -457,6 +461,7 @@ const Appointments = () => {
           is_recurring: false,
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
+          appointment_type: appointmentType,
         } as any).select("id").single();
         if (error) throw error;
         newAppointmentId = (inserted as any)?.id || null;
@@ -620,6 +625,7 @@ const Appointments = () => {
     setServiceId("");
     setAppointmentStatus("Reserved");
     setVisitStatus("");
+    setAppointmentType("Walk-in");
     setStartDate(undefined);
     setStartTime("09:00");
     setEndTime("09:15");
@@ -855,6 +861,19 @@ const Appointments = () => {
           {getDoctorName(apt)}
         </p>
       )}
+      {!compact && (
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[10px] px-1.5 py-0 mt-1 mr-1",
+            (apt.appointment_type || "Walk-in") === "Online"
+              ? "bg-primary/10 text-primary border-primary/30"
+              : "bg-muted text-muted-foreground"
+          )}
+        >
+          {apt.appointment_type || "Walk-in"}
+        </Badge>
+      )}
       {!compact && apt.is_recurring && (
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 mt-1"><Repeat className="h-2.5 w-2.5 mr-0.5" />Recurring</Badge>
       )}
@@ -902,6 +921,26 @@ const Appointments = () => {
                         </p>
                       ) : null;
                     })()}
+                  </div>
+                  <div>
+                    <Label>Appointment Type</Label>
+                    <div className="mt-1.5 inline-flex rounded-md border bg-background p-0.5 w-full">
+                      {(["Walk-in", "Online"] as const).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setAppointmentType(t)}
+                          className={cn(
+                            "flex-1 text-xs h-8 rounded-sm font-medium transition-colors",
+                            appointmentType === t
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-muted"
+                          )}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div>
                     <Label>Doctor</Label>
@@ -1132,7 +1171,7 @@ const Appointments = () => {
           <Filter className="h-3.5 w-3.5" />
           Filters & Search
           {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all") && <Badge className="h-4 px-1.5 text-[10px]">Active</Badge>}
+          {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all" || filterAppointmentType !== "all") && <Badge className="h-4 px-1.5 text-[10px]">Active</Badge>}
         </Button>
         {showFilters && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex flex-wrap items-center gap-3 p-3 bg-muted/30 rounded-lg border overflow-hidden">
@@ -1158,6 +1197,14 @@ const Appointments = () => {
                 <SelectItem value="walkin">Walk-in</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filterAppointmentType} onValueChange={setFilterAppointmentType}>
+              <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue placeholder="All Types" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="Walk-in">Walk-in</SelectItem>
+                <SelectItem value="Online">Online</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue placeholder="All Status" /></SelectTrigger>
               <SelectContent>
@@ -1176,8 +1223,8 @@ const Appointments = () => {
                 <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus className={cn("p-3 pointer-events-auto")} />
               </PopoverContent>
             </Popover>
-            {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all") && (
-              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterDate(undefined); setFilterSource("all"); setFilterStatus("all"); }}>Clear filters</Button>
+            {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all" || filterAppointmentType !== "all") && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterDate(undefined); setFilterSource("all"); setFilterStatus("all"); setFilterAppointmentType("all"); }}>Clear filters</Button>
             )}
             <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
           </motion.div>

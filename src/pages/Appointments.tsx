@@ -444,6 +444,7 @@ const Appointments = () => {
           recurrence_end_date: format(recurrenceEndDate!, "yyyy-MM-dd"),
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
+          appointment_type: appointmentType,
         }));
         const { error } = await supabase.from("appointments").insert(rows as any);
         if (error) throw error;
@@ -460,6 +461,7 @@ const Appointments = () => {
           is_recurring: false,
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
+          appointment_type: appointmentType,
         } as any).select("id").single();
         if (error) throw error;
         newAppointmentId = (inserted as any)?.id || null;

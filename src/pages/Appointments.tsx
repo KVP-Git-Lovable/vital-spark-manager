@@ -92,6 +92,7 @@ const Appointments = () => {
   const [filterDate, setFilterDate] = useState<Date | undefined>();
   const [filterSource, setFilterSource] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterAppointmentType, setFilterAppointmentType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [quickFilter, setQuickFilter] = useState<string>("");
@@ -118,6 +119,7 @@ const Appointments = () => {
   const [serviceId, setServiceId] = useState("");
   const [appointmentStatus, setAppointmentStatus] = useState("Reserved");
   const [visitStatus, setVisitStatus] = useState("");
+  const [appointmentType, setAppointmentType] = useState<"Walk-in" | "Online">("Walk-in");
   const [startDate, setStartDate] = useState<Date>();
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("09:15");
@@ -255,6 +257,7 @@ const Appointments = () => {
       if (filterSource === "walkin" && src === "portal") return false;
     }
     if (filterStatus !== "all" && apt.status !== filterStatus) return false;
+    if (filterAppointmentType !== "all" && (apt.appointment_type || "Walk-in") !== filterAppointmentType) return false;
     if (searchQuery) {
       const name = apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
       if (!name.toLowerCase().includes(searchQuery.toLowerCase())) return false;

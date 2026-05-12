@@ -254,7 +254,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
       if (!appointmentId) return null;
       const { data, error } = await supabase
         .from("appointments")
-        .select("*, patients(id, first_name, last_name, phone), staff(first_name, last_name)")
+        .select("*, patients(id, first_name, last_name, phone, gender), staff(first_name, last_name)")
         .eq("id", appointmentId)
         .single();
       if (error) throw error;
@@ -443,6 +443,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                 appointmentTime: apptTime,
                 doctorName,
                 serviceName: editService || "-",
+                patientGender: (appointment as any)?.patients?.gender || null,
               },
             });
             if (nErr) { console.error("[appt-notify] update error", nErr); toast.error("WhatsApp notification failed"); }

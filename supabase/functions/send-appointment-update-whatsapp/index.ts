@@ -1,10 +1,12 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
 
-const UPDATE_TEMPLATE_SID = "HXfd1a5810ec489dc7b407651c805afbdd";
+const UPDATE_TEMPLATE_SID = "HX1750d865022c866cf68dc134cd93c6eb";
 const CANCEL_TEMPLATE_SID = "HX5abaead3d3ff7822e498705bd132d708";
 
 function normalizePhone(phone: string): string | null {
@@ -15,6 +17,14 @@ function normalizePhone(phone: string): string | null {
   if (cleaned.length === 10) return `+91${cleaned}`;
   if (cleaned.length === 12 && cleaned.startsWith("91")) return `+${cleaned}`;
   return `+${cleaned}`;
+}
+
+function titleFromGender(gender?: string | null): string {
+  if (!gender) return "";
+  const g = gender.toLowerCase();
+  if (g.startsWith("m")) return "Mr.";
+  if (g.startsWith("f")) return "Ms.";
+  return "";
 }
 
 Deno.serve(async (req) => {
@@ -32,6 +42,7 @@ Deno.serve(async (req) => {
       doctorName,
       serviceName,
       kind,
+      patientGender,
     } = await req.json();
 
     if (!phone || !patientName || !appointmentDate || !appointmentTime) {
@@ -75,13 +86,34 @@ Deno.serve(async (req) => {
       });
     } else {
       templateSid = UPDATE_TEMPLATE_SID;
+
+      // Fetch clinic phone + city from clinic_settings
+      let clinicPhone = "";
+      let clinicCity = "";
+      try {
+        const supaUrl = Deno.env.get("SUPABASE_URL")!;
+        const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const supa = createClient(supaUrl, supaKey);
+        const { data: clinic } = await supa
+          .from("clinic_settings")
+          .select("phone, city")
+          .limit(1)
+          .maybeSingle();
+        clinicPhone = clinic?.phone || "";
+        clinicCity = clinic?.city || "";
+      } catch (e) {
+        console.error("clinic_settings fetch failed", e);
+      }
+
+      const title = titleFromGender(patientGender);
+      const namedPatient = title ? `${title} ${patientName}`.trim() : patientName;
+
       contentVariables = JSON.stringify({
-        "1": patientName,
-        "2": status || "Updated",
-        "3": appointmentDate,
-        "4": appointmentTime,
-        "5": doctorName || "To be assigned",
-        "6": serviceName || "-",
+        "1": namedPatient,
+        "2": appointmentTime,
+        "3": serviceName || "Consultation",
+        "4": clinicPhone || "-",
+        "5": clinicCity || "-",
       });
     }
 

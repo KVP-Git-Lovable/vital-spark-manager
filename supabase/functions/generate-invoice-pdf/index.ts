@@ -83,13 +83,13 @@ function drawWrapped(page: PDFPage, text: string, x: number, y: number, maxWidth
     if (font.widthOfTextAtSize(test, size) <= maxWidth) {
       line = test;
     } else {
-      page.drawText(line, { x, y: cy, size, font, color });
+      page.drawText(sanitize(line), { x, y: cy, size, font, color });
       cy -= lineHeight;
       line = w;
     }
   }
   if (line) {
-    page.drawText(line, { x, y: cy, size, font, color });
+    page.drawText(sanitize(line), { x, y: cy, size, font, color });
     cy -= lineHeight;
   }
   return cy;
@@ -239,9 +239,9 @@ Deno.serve(async (req) => {
     const gstNo = clinic?.gst_number || "";
 
     const drawRow = (label: string, value: string, lx: number, ly: number) => {
-      page.drawText(`${label}: `, { x: lx, y: ly, size: labelSize, font, color: dark });
+      page.drawText(sanitize(`${label}: `), { x: lx, y: ly, size: labelSize, font, color: dark });
       const lw = font.widthOfTextAtSize(`${label}: `, labelSize);
-      page.drawText(String(value || ""), { x: lx + lw, y: ly, size: labelSize, font, color: dark });
+      page.drawText(sanitize(String(value || "")), { x: lx + lw, y: ly, size: labelSize, font, color: dark });
     };
 
     drawRow("Patient Name", patientFullName, leftX, y);
@@ -257,7 +257,7 @@ Deno.serve(async (req) => {
     drawRow("GST No", gstNo, rightX, y);
     y -= lineH * 2;
 
-    page.drawText("Billing Line Items:", { x: leftX, y, size: 10, font, color: dark });
+    page.drawText(sanitize("Billing Line Items:"), { x: leftX, y, size: 10, font, color: dark });
     y -= 14;
 
     // Table
@@ -301,10 +301,10 @@ Deno.serve(async (req) => {
         let l2 = parts.slice(Math.ceil(parts.length / 2)).join(" ");
         const w1 = bold.widthOfTextAtSize(l1, 8);
         const w2 = bold.widthOfTextAtSize(l2, 8);
-        page.drawText(l1, { x: cx + (c.w - w1) / 2, y: y - 10, size: 8, font: bold, color: dark });
-        page.drawText(l2, { x: cx + (c.w - w2) / 2, y: y - 20, size: 8, font: bold, color: dark });
+        page.drawText(sanitize(l1), { x: cx + (c.w - w1) / 2, y: y - 10, size: 8, font: bold, color: dark });
+        page.drawText(sanitize(l2), { x: cx + (c.w - w2) / 2, y: y - 20, size: 8, font: bold, color: dark });
       } else {
-        page.drawText(c.title, { x: cx + (c.w - tw) / 2, y: y - 16, size: 8, font: bold, color: dark });
+        page.drawText(sanitize(c.title), { x: cx + (c.w - tw) / 2, y: y - 16, size: 8, font: bold, color: dark });
       }
       cx += c.w;
     }
@@ -338,7 +338,7 @@ Deno.serve(async (req) => {
         }
         const tw = font.widthOfTextAtSize(display, sz);
         const tx = k === 1 ? cx + 3 : cx + (c.w - tw) / 2;
-        page.drawText(display, { x: tx, y: y - 14, size: sz, font, color: dark });
+        page.drawText(sanitize(display), { x: tx, y: y - 14, size: sz, font, color: dark });
         cx += c.w;
       }
       y -= rowH;
@@ -354,12 +354,12 @@ Deno.serve(async (req) => {
       // label cell
       drawCellBox(cx, y, cols[8].w, rowH);
       const lw = bold.widthOfTextAtSize(label, 9);
-      page.drawText(label, { x: cx + (cols[8].w - lw) / 2, y: y - 14, size: 9, font: bold, color: dark });
+      page.drawText(sanitize(label), { x: cx + (cols[8].w - lw) / 2, y: y - 14, size: 9, font: bold, color: dark });
       cx += cols[8].w;
       // value cell
       drawCellBox(cx, y, cols[9].w, rowH);
       const vw = font.widthOfTextAtSize(value, 8);
-      page.drawText(value, { x: cx + (cols[9].w - vw) / 2, y: y - 14, size: 8, font, color: dark });
+      page.drawText(sanitize(value), { x: cx + (cols[9].w - vw) / 2, y: y - 14, size: 8, font, color: dark });
       y -= rowH;
     };
     drawTotalsRow("Total Billed", fmtINR(Number(inv.total_amount || 0)));
@@ -370,9 +370,9 @@ Deno.serve(async (req) => {
     const valueColW = tableW - labelColW;
     const drawKVRow = (label: string, value: string, h = rowH) => {
       drawCellBox(tableX, y, labelColW, h);
-      page.drawText(label, { x: tableX + 4, y: y - 14, size: 9, font: bold, color: dark });
+      page.drawText(sanitize(label), { x: tableX + 4, y: y - 14, size: 9, font: bold, color: dark });
       drawCellBox(tableX + labelColW, y, valueColW, h);
-      page.drawText(value, { x: tableX + labelColW + 4, y: y - 14, size: 9, font, color: dark });
+      page.drawText(sanitize(value), { x: tableX + labelColW + 4, y: y - 14, size: 9, font, color: dark });
       y -= h;
     };
 
@@ -389,11 +389,11 @@ Deno.serve(async (req) => {
     y -= 50;
     const sigText = "Authorized Signatory";
     const sw = bold.widthOfTextAtSize(sigText, 10);
-    page.drawText(sigText, { x: width - 40 - sw, y, size: 10, font: bold, color: dark });
+    page.drawText(sanitize(sigText), { x: width - 40 - sw, y, size: 10, font: bold, color: dark });
 
     // Footer
     const footerY = 80;
-    page.drawText("----------------", {
+    page.drawText(sanitize("----------------"), {
       x: width / 2 - font.widthOfTextAtSize("----------------", 10) / 2,
       y: footerY + 30, size: 10, font, color: grey,
     });
@@ -401,20 +401,20 @@ Deno.serve(async (req) => {
     const addrLine = addrParts.join(", ");
     if (addrLine) {
       const aw = font.widthOfTextAtSize(addrLine, 9);
-      page.drawText(addrLine, { x: (width - aw) / 2, y: footerY + 16, size: 9, font, color: dark });
+      page.drawText(sanitize(addrLine), { x: (width - aw) / 2, y: footerY + 16, size: 9, font, color: dark });
     }
     if (clinic?.email) {
       const domain = String(clinic.email).split("@")[1];
       if (domain) {
         const site = `Website: www.${domain}`;
         const sw2 = font.widthOfTextAtSize(site, 9);
-        page.drawText(site, { x: (width - sw2) / 2, y: footerY + 4, size: 9, font, color: dark });
+        page.drawText(sanitize(site), { x: (width - sw2) / 2, y: footerY + 4, size: 9, font, color: dark });
       }
     }
     if (clinic?.phone) {
       const ct = `For appointments and emergency care, contact us @ ${clinic.phone}`;
       const ctw = font.widthOfTextAtSize(ct, 9);
-      page.drawText(ct, { x: (width - ctw) / 2, y: footerY - 12, size: 9, font, color: dark });
+      page.drawText(sanitize(ct), { x: (width - ctw) / 2, y: footerY - 12, size: 9, font, color: dark });
     }
 
     const pdfBytes = await pdfDoc.save();

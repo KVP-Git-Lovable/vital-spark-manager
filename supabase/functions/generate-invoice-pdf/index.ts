@@ -10,6 +10,10 @@ function fmtINR(n: number) {
   return `INR ${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function sanitize(s: any): string {
+  return String(s ?? "").replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function pct(n: any) {
   const v = Number(n || 0);
   return v.toFixed(2);

@@ -443,6 +443,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                 appointmentTime: apptTime,
                 doctorName,
                 serviceName: editService || "-",
+                patientGender: (appointment as any)?.patients?.gender || null,
               },
             });
             if (nErr) { console.error("[appt-notify] update error", nErr); toast.error("WhatsApp notification failed"); }

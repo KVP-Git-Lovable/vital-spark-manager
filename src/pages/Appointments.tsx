@@ -585,7 +585,7 @@ const Appointments = () => {
               toast.success("WhatsApp cancellation sent");
             } else if (newStatus === "Confirmed") {
               await supabase.functions.invoke("send-appointment-update-whatsapp", {
-                body: { kind: "update", phone, patientName, status: newStatus, appointmentDate: apptDate, appointmentTime: apptTime, doctorName: doctorName || "To be assigned", serviceName: serviceName || "-" },
+                body: { kind: "update", phone, patientName, status: newStatus, appointmentDate: apptDate, appointmentTime: apptTime, doctorName: doctorName || "To be assigned", serviceName: serviceName || "-", patientGender: __notify.patientGender || null },
               });
               toast.success("WhatsApp notification sent");
             }
@@ -1396,6 +1396,7 @@ const Appointments = () => {
                                 startTime: apt.start_time,
                                 doctorName: apt.staff_id ? (staffMap.get(apt.staff_id) || "") : "",
                                 serviceName: apt.service || "",
+                                patientGender: apt.patients?.gender || null,
                               },
                             })}>
                               <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">

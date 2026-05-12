@@ -861,6 +861,19 @@ const Appointments = () => {
           {getDoctorName(apt)}
         </p>
       )}
+      {!compact && (
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[10px] px-1.5 py-0 mt-1 mr-1",
+            (apt.appointment_type || "Walk-in") === "Online"
+              ? "bg-primary/10 text-primary border-primary/30"
+              : "bg-muted text-muted-foreground"
+          )}
+        >
+          {apt.appointment_type || "Walk-in"}
+        </Badge>
+      )}
       {!compact && apt.is_recurring && (
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 mt-1"><Repeat className="h-2.5 w-2.5 mr-0.5" />Recurring</Badge>
       )}

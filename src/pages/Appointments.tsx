@@ -195,7 +195,7 @@ const Appointments = () => {
       return await fetchAll<any>((from, to) =>
         supabase
           .from("appointments")
-          .select("*, patients(first_name, last_name, phone)")
+          .select("*, patients(first_name, last_name, phone, gender)")
           .order("start_time")
           .range(from, to)
       );

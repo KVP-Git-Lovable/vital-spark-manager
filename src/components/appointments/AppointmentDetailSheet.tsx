@@ -705,12 +705,18 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                       </SelectContent>
                     </Select>
                   </div>
-                  {appointment.source && (
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${((appointment as any).appointment_type || "Walk-in") === "Online" ? "bg-primary/10 text-primary border-primary/30" : ""}`}
+                    >
+                      {(appointment as any).appointment_type || "Walk-in"}
+                    </Badge>
+                    {appointment.source && (
                       <Badge variant="outline" className="text-xs">Source: {appointment.source}</Badge>
-                      {appointment.is_recurring && <Badge variant="outline" className="text-xs">Recurring</Badge>}
-                    </div>
-                  )}
+                    )}
+                    {appointment.is_recurring && <Badge variant="outline" className="text-xs">Recurring</Badge>}
+                  </div>
 
                   <div className="flex gap-2 pt-4 border-t">
                     <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="flex-1 gap-2">

@@ -1307,7 +1307,8 @@ const Appointments = () => {
                       <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("bill")}>
                         <span className="flex items-center">Bill Amount<SortIcon column="bill" /></span>
                       </th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Payment</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Visit Status</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Payment Mode</th>
                       <th className="text-left p-3 font-medium text-muted-foreground w-20">Actions</th>
                     </tr>
                   </thead>
@@ -1361,6 +1362,7 @@ const Appointments = () => {
                               </Select>
                             </td>
                             <td className="p-2 text-muted-foreground text-xs">{invoice ? `₹${invoice.total_amount?.toLocaleString()}` : "—"}</td>
+                            <td className="p-2 text-muted-foreground text-xs">{apt.visit_status || "—"}</td>
                             <td className="p-2 text-muted-foreground text-xs">{invoice?.payment_mode || "—"}</td>
                             <td className="p-2">
                               <div className="flex items-center gap-1">
@@ -1408,6 +1410,7 @@ const Appointments = () => {
                             </Select>
                           </td>
                           <td className="p-3 text-xs">{invoice ? <span className="font-medium">₹{invoice.total_amount?.toLocaleString()}</span> : <span className="text-muted-foreground">—</span>}</td>
+                          <td className="p-3 text-xs">{apt.visit_status ? <Badge variant="outline" className="text-xs">{apt.visit_status}</Badge> : <span className="text-muted-foreground">—</span>}</td>
                           <td className="p-3 text-xs">{invoice?.payment_mode ? <Badge variant="outline" className="text-xs">{invoice.payment_mode}</Badge> : <span className="text-muted-foreground">—</span>}</td>
                           <td className="p-3" onClick={(e) => e.stopPropagation()}>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startInlineEdit(apt)}>
@@ -1418,7 +1421,7 @@ const Appointments = () => {
                       );
                     })}
                     {sortedAppointments.length === 0 && (
-                      <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
+                      <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
                     )}
                   </tbody>
                 </table>

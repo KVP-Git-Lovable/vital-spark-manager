@@ -625,6 +625,7 @@ const Appointments = () => {
     setServiceId("");
     setAppointmentStatus("Reserved");
     setVisitStatus("");
+    setAppointmentType("Walk-in");
     setStartDate(undefined);
     setStartTime("09:00");
     setEndTime("09:15");

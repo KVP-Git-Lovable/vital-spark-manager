@@ -800,25 +800,15 @@ const Billing = () => {
       }
       if (!phone) return;
 
-      // Generate PDF for this specific installment invoice
-      let invoiceUrl: string | undefined;
-      try {
-        const { data: pdfData } = await supabase.functions.invoke(
-          "generate-invoice-pdf",
-          { body: { invoiceId } },
-        );
-        invoiceUrl = (pdfData as any)?.url;
-      } catch (e) {
-        console.error("Installment PDF generation error:", e);
-      }
-
       const total = Number((inv as any).total_amount) || 0;
       const paid = Number((inv as any).paid_amount) || 0;
       const balance = Math.max(0, total - paid);
 
-      const { error: waErr } = await supabase.functions.invoke(
-        "send-invoice-whatsapp",
-        {
+      // PDF and WhatsApp run in parallel; the Twilio template builds the
+      // PDF link from the invoice number, so WhatsApp does not need the URL.
+      const [pdfRes, waRes] = await Promise.allSettled([
+        supabase.functions.invoke("generate-invoice-pdf", { body: { invoiceId } }),
+        supabase.functions.invoke("send-invoice-whatsapp", {
           body: {
             phone,
             patientName: (inv as any).patient_name,
@@ -827,11 +817,12 @@ const Billing = () => {
             paidAmount: paid.toLocaleString("en-IN"),
             balanceAmount: balance.toLocaleString("en-IN"),
             status: (inv as any).status,
-            invoiceUrl,
           },
-        },
-      );
-      if (waErr) console.error("Installment WhatsApp send failed:", waErr);
+        }),
+      ]);
+      if (pdfRes.status === "rejected") console.error("Installment PDF generation error:", pdfRes.reason);
+      if (waRes.status === "rejected") console.error("Installment WhatsApp send failed:", waRes.reason);
+      else if ((waRes.value as any)?.error) console.error("Installment WhatsApp send failed:", (waRes.value as any).error);
       else toast.success("Installment invoice sent to patient");
     } catch (e) {
       console.error("notifyInstallmentPaid error:", e);
@@ -859,7 +850,7 @@ const Billing = () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Payment updated");
       if (res?.becamePaid && res.invoiceId) {
-        await notifyInstallmentPaid(res.invoiceId);
+        void notifyInstallmentPaid(res.invoiceId);
       }
       setPaymentInv(null);
       setAddPaymentAmount(0);

@@ -1,27 +1,109 @@
-import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
+import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "https://esm.sh/pdf-lib@1.17.1";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 function fmtINR(n: number) {
-  return `Rs. ${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `INR ${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function sanitize(s: any): string {
+  // Strip only control characters that WinAnsi cannot encode; preserve spaces.
+  return String(s ?? "").replace(/[\u0000-\u001F\u007F]+/g, " ");
+}
+
+function pct(n: any) {
+  const v = Number(n || 0);
+  return v.toFixed(2);
+}
+
+// Indian numbering number-to-words (integer rupees + paise)
+function numberToIndianWords(num: number): string {
+  if (!isFinite(num)) return "";
+  const rupees = Math.floor(num);
+  const paise = Math.round((num - rupees) * 100);
+  const words = inWords(rupees);
+  let res = `${words} Rupees`;
+  if (paise > 0) res += ` and ${inWords(paise)} Paise`;
+  return `${res} Only`;
+}
+function inWords(n: number): string {
+  if (n === 0) return "Zero";
+  const a = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+    "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+  const b = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  const two = (x: number): string => x < 20 ? a[x] : `${b[Math.floor(x/10)]}${x%10 ? " " + a[x%10] : ""}`;
+  const three = (x: number): string => {
+    const h = Math.floor(x/100), r = x%100;
+    return `${h ? a[h] + " Hundred" + (r ? " " : "") : ""}${r ? two(r) : ""}`;
+  };
+  const parts: string[] = [];
+  const crore = Math.floor(n / 10000000); n %= 10000000;
+  const lakh = Math.floor(n / 100000); n %= 100000;
+  const thou = Math.floor(n / 1000); n %= 1000;
+  const hund = n;
+  if (crore) parts.push(two(crore) + " Crore");
+  if (lakh) parts.push(two(lakh) + " Lakh");
+  if (thou) parts.push(two(thou) + " Thousand");
+  if (hund) parts.push(three(hund));
+  return parts.join(" ").trim();
+}
+
+function ageFromDob(dob?: string | null): string {
+  if (!dob) return "";
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return "";
+  const diff = Date.now() - d.getTime();
+  return String(Math.floor(diff / (365.25 * 24 * 3600 * 1000)));
+}
+
+function shortPatientId(id?: string | null): string {
+  if (!id) return "";
+  const hex = id.replace(/-/g, "");
+  return `P-${hex.slice(-5).toUpperCase()}`;
+}
+
+function fmtDateIST(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  // dd/mm/yyyy in Asia/Kolkata
+  const f = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" });
+  return f.format(d);
+}
+
+function drawWrapped(page: PDFPage, text: string, x: number, y: number, maxWidth: number, font: PDFFont, size: number, color: any, lineHeight: number): number {
+  const words = String(text).split(/\s+/);
+  let line = "";
+  let cy = y;
+  for (const w of words) {
+    const test = line ? line + " " + w : w;
+    if (font.widthOfTextAtSize(sanitize(test), size) <= maxWidth) {
+      line = test;
+    } else {
+      page.drawText(sanitize(line), { x, y: cy, size, font, color });
+      cy -= lineHeight;
+      line = w;
+    }
+  }
+  if (line) {
+    page.drawText(sanitize(line), { x, y: cy, size, font, color });
+    cy -= lineHeight;
+  }
+  return cy;
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const { invoiceId } = await req.json();
     if (!invoiceId) {
       return new Response(JSON.stringify({ error: "invoiceId required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -31,144 +113,310 @@ Deno.serve(async (req) => {
     );
 
     const { data: inv, error: invErr } = await supabase
-      .from("invoices")
-      .select("*")
-      .eq("id", invoiceId)
-      .maybeSingle();
+      .from("invoices").select("*").eq("id", invoiceId).maybeSingle();
     if (invErr || !inv) {
       return new Response(JSON.stringify({ error: "Invoice not found", details: invErr }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Resolve per-item amounts: services come in as plain strings like
-    // "Acne Treatment Package" or "Hydrogen x1". Look up prices from
-    // services + pharma_products to compute each line's amount.
-    const rawServices: string[] = Array.isArray(inv.services) ? inv.services : [];
-    const parsedItems = rawServices.map((s) => {
-      const str = String(s).trim();
-      // Match trailing " x<number>" (product quantity convention)
-      const qtyMatch = str.match(/^(.*?)\s+x(\d+(?:\.\d+)?)$/i);
-      if (qtyMatch) {
-        return { raw: str, name: qtyMatch[1].trim(), qty: Number(qtyMatch[2]) || 1, kind: "product" as const };
+    const [{ data: clinic }, { data: patient }] = await Promise.all([
+      supabase.from("clinic_settings").select("*").limit(1).maybeSingle(),
+      inv.patient_id
+        ? supabase.from("patients").select("*").eq("id", inv.patient_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    let doctorName = "";
+    if (inv.appointment_id) {
+      const { data: appt } = await supabase
+        .from("appointments").select("staff_id").eq("id", inv.appointment_id).maybeSingle();
+      if (appt?.staff_id) {
+        const { data: st } = await supabase
+          .from("staff").select("first_name, last_name, specialization").eq("id", appt.staff_id).maybeSingle();
+        if (st) {
+          const nm = `${st.first_name || ""} ${st.last_name || ""}`.trim();
+          const spec = st.specialization ? ` ${st.specialization}` : "";
+          doctorName = nm ? `Dr. ${nm}${spec}` : "";
+        }
       }
-      return { raw: str, name: str, qty: 1, kind: "service" as const };
-    });
-
-    const uniqueNames = Array.from(new Set(parsedItems.map((i) => i.name)));
-    const priceMap = new Map<string, number>();
-    if (uniqueNames.length > 0) {
-      const [{ data: svcRows }, { data: prodRows }] = await Promise.all([
-        supabase.from("services").select("name, price").in("name", uniqueNames),
-        supabase.from("pharma_products").select("name, selling_price").in("name", uniqueNames),
-      ]);
-      (svcRows || []).forEach((r: any) => priceMap.set(r.name, Number(r.price) || 0));
-      // Products override only if no service match (service takes precedence on collisions)
-      (prodRows || []).forEach((r: any) => {
-        if (!priceMap.has(r.name)) priceMap.set(r.name, Number(r.selling_price) || 0);
-      });
     }
 
-    const lineItems = parsedItems.map((i) => {
-      const unit = priceMap.get(i.name) ?? 0;
-      return { ...i, unit, amount: unit * i.qty };
+    // Parse line items: "Name" or "Name xN"
+    const rawServices: string[] = Array.isArray(inv.services) ? inv.services : [];
+    const parsed = rawServices.map((s) => {
+      const str = String(s).trim();
+      const m = str.match(/^(.*?)\s+x(\d+(?:\.\d+)?)$/i);
+      if (m) return { raw: str, name: m[1].trim(), qty: Number(m[2]) || 1 };
+      return { raw: str, name: str, qty: 1 };
     });
 
-    // Build PDF
+    const names = Array.from(new Set(parsed.map((p) => p.name)));
+    const svcMap = new Map<string, { price: number; hsn: string; gst: number }>();
+    const prodMap = new Map<string, { price: number; hsn: string; gst: number }>();
+    if (names.length > 0) {
+      const [{ data: svcRows }, { data: prodRows }] = await Promise.all([
+        supabase.from("services").select("name, price, hsn_code, gst_percent").in("name", names),
+        supabase.from("pharma_products").select("name, selling_price, hsn_code, gst_percent").in("name", names),
+      ]);
+      (svcRows || []).forEach((r: any) => svcMap.set(r.name, {
+        price: Number(r.price) || 0, hsn: r.hsn_code || "9993", gst: Number(r.gst_percent) || 0,
+      }));
+      (prodRows || []).forEach((r: any) => prodMap.set(r.name, {
+        price: Number(r.selling_price) || 0, hsn: r.hsn_code || "", gst: Number(r.gst_percent) || 0,
+      }));
+    }
+
+    const sameState = (clinic?.state || "").trim().toLowerCase() === (patient?.state || "").trim().toLowerCase() && (clinic?.state || "");
+    const lineItems = parsed.map((p) => {
+      const svc = svcMap.get(p.name);
+      const prod = prodMap.get(p.name);
+      const ref = svc || prod || { price: 0, hsn: "", gst: 0 };
+      const charges = ref.price;
+      const gross = charges * p.qty;
+      const gstRate = ref.gst || 0;
+      const taxAmount = gross * gstRate / (100 + gstRate); // assume price inclusive (matches existing behavior)
+      const sgst = sameState ? gstRate / 2 : 0;
+      const cgst = sameState ? gstRate / 2 : 0;
+      const igst = sameState ? 0 : gstRate;
+      return {
+        name: p.name, qty: p.qty, charges, hsn: ref.hsn || "",
+        sgst, cgst, igst, taxAmount, amount: gross,
+      };
+    });
+
+    // ---- PDF ----
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595, 842]); // A4
+    const page = pdfDoc.addPage([595, 842]); // A4 portrait
     const { width, height } = page.getSize();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-    const teal = rgb(0.05, 0.58, 0.53);
-    const dark = rgb(0.1, 0.1, 0.1);
-    const grey = rgb(0.4, 0.4, 0.4);
+    const dark = rgb(0.05, 0.05, 0.05);
+    const grey = rgb(0.45, 0.45, 0.45);
+    const line = rgb(0, 0, 0);
 
-    let y = height - 50;
+    let y = height - 40;
 
-    // Header
-    page.drawText("The Skin Clinic", { x: 40, y, size: 22, font: fontBold, color: teal });
-    page.drawText("INVOICE", { x: width - 140, y, size: 22, font: fontBold, color: teal });
-    y -= 18;
-    page.drawText("Clinic Manager", { x: 40, y, size: 10, font, color: grey });
-    page.drawText(String(inv.invoice_number || ""), { x: width - 140, y, size: 10, font, color: grey });
-    y -= 12;
-    page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 2, color: teal });
-    y -= 30;
-
-    // Bill to / details
-    page.drawText("BILL TO", { x: 40, y, size: 9, font: fontBold, color: grey });
-    page.drawText("DETAILS", { x: width - 200, y, size: 9, font: fontBold, color: grey });
-    y -= 14;
-    page.drawText(String(inv.patient_name || "Walk-in Patient"), { x: 40, y, size: 12, font: fontBold, color: dark });
-    const created = new Date(inv.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
-    page.drawText(`Date: ${created}`, { x: width - 200, y, size: 10, font, color: dark });
-    y -= 14;
-    page.drawText(`Payment: ${inv.payment_mode || "Cash"}`, { x: width - 200, y, size: 10, font, color: dark });
-    y -= 14;
-    if (Array.isArray(inv.payment_splits) && inv.payment_splits.length > 0) {
-      for (const sp of inv.payment_splits) {
-        page.drawText(`  ${sp.mode}: ${fmtINR(Number(sp.amount) || 0)}`, { x: width - 200, y, size: 9, font, color: dark });
-        y -= 12;
+    // Logo
+    try {
+      const logoUrl = clinic?.logo_url;
+      if (logoUrl) {
+        const res = await fetch(logoUrl);
+        if (res.ok) {
+          const buf = new Uint8Array(await res.arrayBuffer());
+          const ct = (res.headers.get("content-type") || "").toLowerCase();
+          let img;
+          if (ct.includes("png") || logoUrl.toLowerCase().endsWith(".png")) {
+            img = await pdfDoc.embedPng(buf);
+          } else {
+            img = await pdfDoc.embedJpg(buf);
+          }
+          const targetH = 70;
+          const scale = targetH / img.height;
+          const w = img.width * scale;
+          page.drawImage(img, { x: 40, y: y - targetH, width: w, height: targetH });
+        }
       }
+    } catch (e) {
+      console.warn("logo embed failed", e);
     }
-    page.drawText(`Type: ${inv.payment_type || "One-time"}`, { x: width - 200, y, size: 10, font, color: dark });
+    // Always draw clinic name as fallback below logo region
+    y -= 90;
+
+    // Header info — two columns
+    const leftX = 40;
+    const rightX = 320;
+    const labelSize = 10;
+    const lineH = 14;
+
+    const patientFullName = `${patient?.first_name || ""} ${patient?.last_name || ""}`.trim() || inv.patient_name || "Walk-in Patient";
+    const age = ageFromDob(patient?.date_of_birth);
+    const sex = patient?.gender || "";
+    const phone = patient?.phone || "";
+    const dateStr = fmtDateIST(inv.created_at);
+    const patientShort = shortPatientId(patient?.id || inv.patient_id);
+    const billingId = inv.invoice_number || "";
+    const gstNo = clinic?.gst_number || "";
+
+    const drawRow = (label: string, value: string, lx: number, ly: number) => {
+      page.drawText(sanitize(`${label}: `), { x: lx, y: ly, size: labelSize, font, color: dark });
+      const lw = font.widthOfTextAtSize(sanitize(`${label}: `), labelSize);
+      page.drawText(sanitize(String(value || "")), { x: lx + lw, y: ly, size: labelSize, font, color: dark });
+    };
+
+    drawRow("Patient Name", patientFullName, leftX, y);
+    drawRow("Patient ID", patientShort, rightX, y);
+    y -= lineH;
+    drawRow("Age/Sex", `${age}/${sex}`, leftX, y);
+    drawRow("Billing ID", billingId, rightX, y);
+    y -= lineH;
+    drawRow("Mobile Number", phone, leftX, y);
+    drawRow("Dr/Ref.By", doctorName, rightX, y);
+    y -= lineH;
+    drawRow("Date", dateStr, leftX, y);
+    drawRow("GST No", gstNo, rightX, y);
+    y -= lineH * 2;
+
+    page.drawText(sanitize("Billing Line Items:"), { x: leftX, y, size: 10, font, color: dark });
     y -= 14;
-    page.drawText(`Status: ${inv.status || ""}`, { x: width - 200, y, size: 10, font: fontBold, color: teal });
-    y -= 30;
 
-    // Services table header
-    page.drawRectangle({ x: 40, y: y - 4, width: width - 80, height: 22, color: rgb(0.94, 0.99, 0.98) });
-    page.drawText("#", { x: 50, y: y + 4, size: 10, font: fontBold, color: teal });
-    page.drawText("SERVICE", { x: 80, y: y + 4, size: 10, font: fontBold, color: teal });
-    page.drawText("AMOUNT", { x: width - 110, y: y + 4, size: 10, font: fontBold, color: teal });
-    y -= 22;
+    // Table
+    const tableX = 40;
+    const tableW = width - 80; // 515
+    // Column widths summing to 515
+    const cols = [
+      { key: "sl", title: "Sl.No", w: 32 },
+      { key: "name", title: "Particulars", w: 120 },
+      { key: "charges", title: "Charges (Rs)", w: 75 },
+      { key: "hsn", title: "HSN", w: 38 },
+      { key: "sgst", title: "SGST %", w: 38 },
+      { key: "cgst", title: "CGST %", w: 38 },
+      { key: "gst", title: "GST %", w: 35 },
+      { key: "qty", title: "Qty", w: 28 },
+      { key: "tax", title: "Tax (Rs)", w: 50 },
+      { key: "amt", title: "Amount (Rs)", w: 61 },
+    ];
+    const totalW = cols.reduce((s, c) => s + c.w, 0);
+    if (totalW !== tableW) {
+      // Adjust last column to fit exactly
+      cols[cols.length - 1].w += (tableW - totalW);
+    }
 
-    lineItems.forEach((item, i) => {
-      page.drawText(String(i + 1), { x: 50, y, size: 10, font, color: dark });
-      const label = item.qty > 1 ? `${item.name}  x${item.qty}` : item.name;
-      page.drawText(label.slice(0, 60), { x: 80, y, size: 10, font, color: dark });
-      const amountText = item.amount > 0 ? fmtINR(item.amount) : "-";
-      const amtWidth = font.widthOfTextAtSize(amountText, 10);
-      page.drawText(amountText, { x: width - 50 - amtWidth, y, size: 10, font, color: dark });
-      y -= 18;
+    const headerH = 26;
+    const rowH = 22;
+
+    // Draw header row
+    const drawCellBox = (x: number, yy: number, w: number, h: number) => {
+      page.drawRectangle({ x, y: yy - h, width: w, height: h, borderColor: line, borderWidth: 0.7 });
+    };
+    let cx = tableX;
+    for (const c of cols) {
+      drawCellBox(cx, y, c.w, headerH);
+      // header text - centered, may wrap on 2 lines
+      const tw = bold.widthOfTextAtSize(sanitize(c.title), 8);
+      if (tw > c.w - 4) {
+        // split
+        const parts = c.title.split(" ");
+        let l1 = parts.slice(0, Math.ceil(parts.length / 2)).join(" ");
+        let l2 = parts.slice(Math.ceil(parts.length / 2)).join(" ");
+        const w1 = bold.widthOfTextAtSize(sanitize(l1), 8);
+        const w2 = bold.widthOfTextAtSize(sanitize(l2), 8);
+        page.drawText(sanitize(l1), { x: cx + (c.w - w1) / 2, y: y - 10, size: 8, font: bold, color: dark });
+        page.drawText(sanitize(l2), { x: cx + (c.w - w2) / 2, y: y - 20, size: 8, font: bold, color: dark });
+      } else {
+        page.drawText(sanitize(c.title), { x: cx + (c.w - tw) / 2, y: y - 16, size: 8, font: bold, color: dark });
+      }
+      cx += c.w;
+    }
+    y -= headerH;
+
+    // Item rows
+    lineItems.forEach((it, i) => {
+      cx = tableX;
+      const cells = [
+        String(i + 1),
+        it.name,
+        fmtINR(it.charges),
+        it.hsn || "",
+        pct(it.sgst),
+        pct(it.cgst),
+        pct(it.igst || (it.sgst + it.cgst)),
+        String(it.qty),
+        Number(it.taxAmount).toFixed(2),
+        fmtINR(it.amount),
+      ];
+      for (let k = 0; k < cols.length; k++) {
+        const c = cols[k];
+        drawCellBox(cx, y, c.w, rowH);
+        const txt = String(cells[k] ?? "");
+        // truncate name if too long
+        let display = txt;
+        const sz = 8;
+        if (font.widthOfTextAtSize(sanitize(display), sz) > c.w - 4) {
+          while (display.length > 1 && font.widthOfTextAtSize(sanitize(display + "…"), sz) > c.w - 4) display = display.slice(0, -1);
+          display = display + "…";
+        }
+        const tw = font.widthOfTextAtSize(sanitize(display), sz);
+        const tx = k === 1 ? cx + 3 : cx + (c.w - tw) / 2;
+        page.drawText(sanitize(display), { x: tx, y: y - 14, size: sz, font, color: dark });
+        cx += c.w;
+      }
+      y -= rowH;
     });
 
-    y -= 20;
-    page.drawLine({ start: { x: width - 250, y }, end: { x: width - 40, y }, thickness: 0.5, color: grey });
-    y -= 16;
+    // Totals rows: span cols 0..7 empty, label in col 8, value in col 9
+    const drawTotalsRow = (label: string, value: string) => {
+      cx = tableX;
+      // empty span
+      const spanW = cols.slice(0, 8).reduce((s, c) => s + c.w, 0);
+      drawCellBox(cx, y, spanW, rowH);
+      cx += spanW;
+      // label cell
+      drawCellBox(cx, y, cols[8].w, rowH);
+      const lw = bold.widthOfTextAtSize(sanitize(label), 9);
+      page.drawText(sanitize(label), { x: cx + (cols[8].w - lw) / 2, y: y - 14, size: 9, font: bold, color: dark });
+      cx += cols[8].w;
+      // value cell
+      drawCellBox(cx, y, cols[9].w, rowH);
+      const vw = font.widthOfTextAtSize(sanitize(value), 8);
+      page.drawText(sanitize(value), { x: cx + (cols[9].w - vw) / 2, y: y - 14, size: 8, font, color: dark });
+      y -= rowH;
+    };
+    drawTotalsRow("Total Billed", fmtINR(Number(inv.total_amount || 0)));
+    drawTotalsRow("Total Paid", fmtINR(Number(inv.paid_amount || 0)));
 
-    const total = Number(inv.total_amount || 0);
-    const paid = Number(inv.paid_amount || 0);
-    const balance = Math.max(0, total - paid);
+    // Amount in words / Mode of payment rows
+    const labelColW = 110;
+    const valueColW = tableW - labelColW;
+    const drawKVRow = (label: string, value: string, h = rowH) => {
+      drawCellBox(tableX, y, labelColW, h);
+      page.drawText(sanitize(label), { x: tableX + 4, y: y - 14, size: 9, font: bold, color: dark });
+      drawCellBox(tableX + labelColW, y, valueColW, h);
+      page.drawText(sanitize(value), { x: tableX + labelColW + 4, y: y - 14, size: 9, font, color: dark });
+      y -= h;
+    };
 
-    page.drawText("Total Amount", { x: width - 250, y, size: 10, font, color: dark });
-    page.drawText(fmtINR(total), { x: width - 130, y, size: 10, font, color: dark });
-    y -= 16;
-    page.drawText("Paid Amount", { x: width - 250, y, size: 10, font, color: dark });
-    page.drawText(fmtINR(paid), { x: width - 130, y, size: 10, font, color: dark });
-    y -= 12;
-    page.drawLine({ start: { x: width - 250, y }, end: { x: width - 40, y }, thickness: 1, color: teal });
-    y -= 18;
-    page.drawText("Balance Due", { x: width - 250, y, size: 12, font: fontBold, color: teal });
-    page.drawText(fmtINR(balance), { x: width - 130, y, size: 12, font: fontBold, color: teal });
+    const amountWords = numberToIndianWords(Number(inv.total_amount || 0));
+    drawKVRow("Amount in words", amountWords);
 
-    if (inv.notes) {
-      y -= 40;
-      page.drawText("Notes:", { x: 40, y, size: 10, font: fontBold, color: dark });
-      y -= 14;
-      page.drawText(String(inv.notes).slice(0, 200), { x: 40, y, size: 9, font, color: grey });
+    let modeText = inv.payment_mode || "Cash";
+    if (Array.isArray(inv.payment_splits) && inv.payment_splits.length > 0) {
+      modeText = inv.payment_splits.map((s: any) => `${s.mode}: ${fmtINR(Number(s.amount) || 0)}`).join("  |  ");
     }
+    drawKVRow("Mode of payment", modeText);
+
+    // Authorized signatory
+    y -= 50;
+    const sigText = "Authorized Signatory";
+    const sw = bold.widthOfTextAtSize(sanitize(sigText), 10);
+    page.drawText(sanitize(sigText), { x: width - 40 - sw, y, size: 10, font: bold, color: dark });
 
     // Footer
-    page.drawText("Thank you for choosing The Skin Clinic", {
-      x: 40, y: 40, size: 9, font, color: grey,
+    const footerY = 80;
+    page.drawText(sanitize("----------------"), {
+      x: width / 2 - font.widthOfTextAtSize(sanitize("----------------"), 10) / 2,
+      y: footerY + 30, size: 10, font, color: grey,
     });
-    page.drawText("This is a computer-generated invoice.", {
-      x: 40, y: 28, size: 8, font, color: grey,
-    });
+    const addrParts = [clinic?.name, clinic?.address, clinic?.city, clinic?.pincode].filter(Boolean);
+    const addrLine = addrParts.join(", ");
+    if (addrLine) {
+      const aw = font.widthOfTextAtSize(sanitize(addrLine), 9);
+      page.drawText(sanitize(addrLine), { x: (width - aw) / 2, y: footerY + 16, size: 9, font, color: dark });
+    }
+    if (clinic?.email) {
+      const domain = String(clinic.email).split("@")[1];
+      if (domain) {
+        const site = `Website: www.${domain}`;
+        const sw2 = font.widthOfTextAtSize(sanitize(site), 9);
+        page.drawText(sanitize(site), { x: (width - sw2) / 2, y: footerY + 4, size: 9, font, color: dark });
+      }
+    }
+    if (clinic?.phone) {
+      const ct = `For appointments and emergency care, contact us @ ${clinic.phone}`;
+      const ctw = font.widthOfTextAtSize(sanitize(ct), 9);
+      page.drawText(sanitize(ct), { x: (width - ctw) / 2, y: footerY - 12, size: 9, font, color: dark });
+    }
 
     const pdfBytes = await pdfDoc.save();
 
@@ -177,33 +425,25 @@ Deno.serve(async (req) => {
 
     const { error: upErr } = await supabase.storage
       .from("invoices")
-      .upload(path, pdfBytes, {
-        contentType: "application/pdf",
-        upsert: true,
-      });
+      .upload(path, pdfBytes, { contentType: "application/pdf", upsert: true });
     if (upErr) {
       console.error("Upload failed:", upErr);
       return new Response(JSON.stringify({ error: "Upload failed", details: upErr }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const { data: pub } = supabase.storage.from("invoices").getPublicUrl(path);
     const url = pub.publicUrl;
-
-    // Cache URL on invoice
     await supabase.from("invoices").update({ pdf_url: url }).eq("id", invoiceId);
 
     return new Response(JSON.stringify({ ok: true, url, path }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     console.error("generate-invoice-pdf error:", err);
-    return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

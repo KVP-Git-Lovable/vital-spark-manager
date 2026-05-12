@@ -1171,7 +1171,7 @@ const Appointments = () => {
           <Filter className="h-3.5 w-3.5" />
           Filters & Search
           {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all") && <Badge className="h-4 px-1.5 text-[10px]">Active</Badge>}
+          {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all" || filterAppointmentType !== "all") && <Badge className="h-4 px-1.5 text-[10px]">Active</Badge>}
         </Button>
         {showFilters && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex flex-wrap items-center gap-3 p-3 bg-muted/30 rounded-lg border overflow-hidden">
@@ -1223,8 +1223,8 @@ const Appointments = () => {
                 <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus className={cn("p-3 pointer-events-auto")} />
               </PopoverContent>
             </Popover>
-            {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all") && (
-              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterDate(undefined); setFilterSource("all"); setFilterStatus("all"); }}>Clear filters</Button>
+            {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all" || filterAppointmentType !== "all") && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterDate(undefined); setFilterSource("all"); setFilterStatus("all"); setFilterAppointmentType("all"); }}>Clear filters</Button>
             )}
             <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
           </motion.div>

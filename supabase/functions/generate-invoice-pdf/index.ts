@@ -11,7 +11,8 @@ function fmtINR(n: number) {
 }
 
 function sanitize(s: any): string {
-  return String(s ?? "").replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim();
+  // Strip only control characters that WinAnsi cannot encode; preserve spaces.
+  return String(s ?? "").replace(/[\u0000-\u001F\u007F]+/g, " ");
 }
 
 function pct(n: any) {

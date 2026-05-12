@@ -120,6 +120,39 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Build + upload the PDF in the background so callers don't block on it.
+    const buildAndStore = async () => {
+      try {
+        const result = await buildInvoicePdf(supabase, inv);
+        if (result?.url) {
+          await supabase.from("invoices").update({ pdf_url: result.url }).eq("id", invoiceId);
+        }
+      } catch (e) {
+        console.error("background PDF build failed:", e);
+      }
+    };
+    // @ts-ignore EdgeRuntime is available in Supabase Edge Functions
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(buildAndStore());
+    } else {
+      // Fallback: fire-and-forget
+      buildAndStore();
+    }
+
+    return new Response(JSON.stringify({ ok: true, queued: true }), {
+      status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    console.error("generate-invoice-pdf error:", err);
+    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
+
+async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; path: string } | null> {
+  const invoiceId = inv.id;
     const [{ data: clinic }, { data: patient }] = await Promise.all([
       supabase.from("clinic_settings").select("*").limit(1).maybeSingle(),
       inv.patient_id
@@ -428,22 +461,10 @@ Deno.serve(async (req) => {
       .upload(path, pdfBytes, { contentType: "application/pdf", upsert: true });
     if (upErr) {
       console.error("Upload failed:", upErr);
-      return new Response(JSON.stringify({ error: "Upload failed", details: upErr }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return null;
     }
 
     const { data: pub } = supabase.storage.from("invoices").getPublicUrl(path);
     const url = pub.publicUrl;
-    await supabase.from("invoices").update({ pdf_url: url }).eq("id", invoiceId);
-
-    return new Response(JSON.stringify({ ok: true, url, path }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (err) {
-    console.error("generate-invoice-pdf error:", err);
-    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-});
+    return { url, path };
+}

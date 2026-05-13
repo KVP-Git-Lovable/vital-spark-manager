@@ -1,59 +1,55 @@
-## Problem
-
-The "Creating…" button stays visible for several seconds after clicking **Create Invoice** because the create-invoice mutation's `onSuccess` handler does the following sequentially **before** closing the dialog:
-
-1. Invokes `generate-invoice-pdf` edge function — fetches clinic + patient + services + products, builds the PDF with `pdf-lib`, uploads it to Storage. Typically 2–4s.
-2. Invokes `send-invoice-whatsapp` edge function — calls Twilio API. Typically 1–2s.
-3. Only then calls `resetForm()` / `setOpen(false)`.
-
-Because TanStack Query keeps `mutation.isPending = true` until `onSuccess` resolves, the button label stays on "Creating…" for the full 3–6s round-trip even though the invoice itself is already saved.
-
 ## Goal
+Fix invoice service charges, ensure consistent Patient ID, add HSN per service line, and add doctor selection with auto-added consultation fee. All visible in the invoice PDF.
 
-Close the dialog and clear the busy state **immediately** after the invoice row is written. Run PDF generation + WhatsApp delivery in the background and surface their result via toasts. No change to the resulting PDF or WhatsApp content.
+## 1. Service charges show "—" on PDF
 
-## Plan
+**Cause**: Invoice rows store services as plain strings (`"Service Name xN"`). The PDF function looks up price from `services` master, but the `services` table has no `price` lookup match when the saved name has been edited, or when an ad-hoc service was used. Also the legacy `generateInvoicePDF` browser print fallback prints `—`.
 
-### 1. Make PDF + WhatsApp truly fire-and-forget on the client (`src/pages/Billing.tsx`)
+**Fix**:
+- In `supabase/functions/generate-invoice-pdf/index.ts`: when a service line cannot be matched in `services` master (no `price`), fall back to deriving per-unit charge from the invoice's stored line price. To enable this, also start persisting per-line price/hsn into a new `invoice_line_items` JSONB column on `invoices` so PDF generation no longer guesses.
+- Migration: add `invoices.line_items jsonb` (array of `{ name, qty, price, hsn, gst, doctor_fee?: bool }`). Keep existing `services text[]` for backward compatibility.
+- `Billing.tsx` writes `line_items` on insert/update.
+- PDF reads `line_items` first; falls back to old logic if absent.
 
-In the `createInvoice` mutation's `onSuccess`:
+## 2. Patient ID consistency
 
-- Move the PDF generation + WhatsApp invoke block into a separate async helper (e.g. `dispatchInvoiceWhatsApp(result)`).
-- Call it **without `await`** (`void dispatchInvoiceWhatsApp(result)`).
-- Run `resetForm()` and `setOpen(false)` synchronously right after queueing the background task, so the dialog closes the instant the DB insert completes.
-- Inside the background helper, keep the existing toasts (`"WhatsApp invoice sent to patient"` / error log) so the user still gets feedback when delivery completes.
-- Apply the same pattern to the recurring branch (`send-recurring-invoice-whatsapp`) and to `notifyInstallmentPaid`.
+User confirmed: keep `P-XXXXX` (last-5 of UUID).
+- Display the same `P-XXXXX` in **Patient Detail** header (next to name) and in the **Patients** list, so the value on the PDF matches what staff see in the profile. No schema change.
+- Helper added in `src/lib/utils.ts`: `shortPatientId(uuid)` mirroring the edge function's logic.
 
-This single change removes the perceived wait without touching any backend logic.
+## 3. HSN Code per service line
 
-### 2. Parallelise PDF generation and WhatsApp send
+- Migration: `ALTER TABLE services ADD COLUMN hsn_code text, ADD COLUMN gst_percent numeric DEFAULT 0;` (PDF function already references these but they don't exist).
+- `src/pages/Services.tsx`: add HSN Code input (optional) and GST% input in the service form & list.
+- `Billing.tsx` Create Invoice → each service row gets an optional `HSN` text input (auto-populated from Service Master when a service is picked, editable).
+- HSN flows into `invoice_line_items` and prints in the existing HSN column.
 
-Today the WhatsApp call waits for the PDF URL. The current Twilio template builds the PDF link from `{{inf}}` (just the invoice number) — the PDF URL itself is **not** passed as a template variable. So we can fire both in parallel:
+## 4. Doctor dropdown + Consultation Fee
 
-- Kick off `generate-invoice-pdf` and `send-invoice-whatsapp` with `Promise.allSettled([...])` inside the background helper.
-- Drop `invoiceUrl` from the WhatsApp payload (it's already unused by the template; the `inf` variable resolves the PDF link on Twilio's side).
-- Net effect: WhatsApp send is no longer gated on PDF rendering.
+- Migration: `ALTER TABLE staff ADD COLUMN consultation_fee numeric DEFAULT 0;`
+- `src/pages/StaffManagement.tsx` + `src/pages/StaffDetail.tsx`: add **Consultation Fee (₹)** field in the staff form (Doctor role only — but field shown for all, default 0).
+- `Billing.tsx` Create Invoice form: add **Doctor** dropdown after Patient (filtered to `staff` where `role = 'Doctor'` and `is_active`). On selection:
+  - Auto-insert/update a line item: `"Consultation - Dr. <Name>"` with charge = `consultation_fee`, qty 1, marked `doctor_fee: true`. Re-selecting a different doctor replaces it.
+  - Persist `doctor_id` on the invoice (new nullable column `invoices.doctor_id uuid references staff(id)`).
+- PDF: `Dr/Ref.By` field reads `invoices.doctor_id → staff` first, falls back to current appointment-based lookup.
 
-### 3. Background the PDF work inside the edge function
+## 5. PDF reflects everything
 
-In `supabase/functions/generate-invoice-pdf/index.ts`:
+- `generate-invoice-pdf/index.ts` updated to:
+  - Prefer `inv.line_items` for Particulars / Charges / HSN / GST / Qty / Tax / Amount.
+  - Resolve doctor name from `inv.doctor_id` when set.
+  - Keep existing layout (header, table, totals, amount-in-words, mode of payment, footer) — **no visual redesign**.
+- Legacy in-browser `generateInvoicePDF()` fallback in `Billing.tsx` updated to print real charges instead of `—` (uses `line_items`).
 
-- After loading the invoice row, respond `202 Accepted` immediately with `{ ok: true, queued: true }`.
-- Wrap the PDF build + Storage upload + `invoices.pdf_url` update in `EdgeRuntime.waitUntil(...)` so it continues after the response is sent.
-- The client already ignores the response body in the fire-and-forget path, so no client change needed beyond step 1.
+## Technical summary
 
-This shortens the round-trip the browser experiences for the PDF call from ~3s to <300ms, and keeps the actual PDF generation reliable.
+Files:
+- `supabase/migrations/<new>.sql` — `invoices.line_items jsonb`, `invoices.doctor_id uuid`, `services.hsn_code text`, `services.gst_percent numeric`, `staff.consultation_fee numeric`.
+- `supabase/functions/generate-invoice-pdf/index.ts` — read `line_items` and `doctor_id`; fallback chain preserved.
+- `src/pages/Billing.tsx` — Doctor dropdown, HSN input per service line, persist `line_items` + `doctor_id`, auto-add consultation fee row.
+- `src/pages/Services.tsx` — HSN + GST% inputs.
+- `src/pages/StaffManagement.tsx` (+ `StaffDetail.tsx` if it has its own form) — Consultation Fee input.
+- `src/pages/PatientDetail.tsx`, `src/pages/Patients.tsx` — show `P-XXXXX` next to patient name.
+- `src/lib/utils.ts` — `shortPatientId` helper.
 
-### 4. Verification
-
-- Create a one-time invoice → dialog closes within ~1s of clicking Create; toasts for "Invoice created" appear immediately, "WhatsApp invoice sent" appears a couple of seconds later.
-- Confirm in Storage that the PDF still appears and `invoices.pdf_url` is populated.
-- Confirm WhatsApp message is received with the correct PDF link via the template.
-- Repeat for: recurring plan creation (single WhatsApp) and installment marked Paid (`notifyInstallmentPaid`).
-
-### Files touched
-
-- `src/pages/Billing.tsx` — restructure `onSuccess` and `notifyInstallmentPaid` to fire-and-forget; parallelise PDF + WhatsApp calls.
-- `supabase/functions/generate-invoice-pdf/index.ts` — early `202` response + `EdgeRuntime.waitUntil` for PDF build/upload.
-
-No DB schema changes. No change to PDF layout or WhatsApp template.
+No visual redesign of the PDF; only data plumbing and three new form fields.

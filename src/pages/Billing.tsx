@@ -1150,6 +1150,29 @@ const Billing = () => {
               </div>
 
               <div>
+                <Label>Doctor</Label>
+                <StaffCombobox
+                  value={doctorId}
+                  onValueChange={handleDoctorChange}
+                  allowNone
+                  noneLabel="No doctor"
+                  placeholder="Select doctor"
+                  className="mt-1.5"
+                />
+                {doctorId && (() => {
+                  const d: any = (doctorsList as any[]).find((x: any) => x.id === doctorId);
+                  const fee = Number(d?.consultation_fee) || 0;
+                  return (
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      {fee > 0
+                        ? `Consultation fee ₹${fee.toLocaleString()} added as a line item.`
+                        : "This doctor has no consultation fee set in Staff Master."}
+                    </p>
+                  );
+                })()}
+              </div>
+
+              <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <Label>Services</Label>
                   <Button type="button" variant="ghost" size="sm" className="h-6 text-xs" onClick={addServiceInput}>

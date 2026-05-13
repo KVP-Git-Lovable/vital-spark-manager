@@ -483,6 +483,7 @@ const PatientDetail = () => {
               <div className="min-w-0">
                 <h1 className="page-title text-xl md:text-2xl truncate">{patient.first_name} {patient.last_name}</h1>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 md:mt-1 text-xs md:text-sm text-muted-foreground">
+                  <span className="font-mono text-primary">{shortPatientId(patient.id)}</span>
                   {patient.gender && <span>{patient.gender}</span>}
                   {getAge(patient.date_of_birth) !== null && <span>• Age {getAge(patient.date_of_birth)}</span>}
                   {patient.blood_group && <span>• {patient.blood_group}</span>}

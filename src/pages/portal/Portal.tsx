@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Home, Calendar, ClipboardList, Camera, Receipt, Pill,
   LogOut, Clock, User, ChevronRight, Plus, Send, Loader2, Stethoscope,
-  MessageCircle, ShoppingBag, ClipboardCheck,
+  MessageCircle, ShoppingBag, ClipboardCheck, Eye, Download,
 } from "lucide-react";
 import PortalShop from "@/components/portal/PortalShop";
 import PortalBot from "@/components/portal/PortalBot";

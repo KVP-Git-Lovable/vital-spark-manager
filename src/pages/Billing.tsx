@@ -1207,11 +1207,12 @@ const Billing = () => {
               Create Invoice
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="max-w-[95vw] lg:max-w-[1100px] xl:max-w-[1200px] max-h-[92vh] p-0 gap-0 overflow-hidden">
+            <DialogHeader className="px-6 pt-6 pb-3 border-b">
               <DialogTitle className="font-display">Create Invoice</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 pt-2">
+            <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-0 max-h-[calc(92vh-5rem)]">
+            <div className="space-y-4 px-6 py-4 overflow-y-auto lg:max-h-[calc(92vh-5rem)]">
               <div>
                 <Label>Patient</Label>
                 <PatientCombobox
@@ -1674,10 +1675,92 @@ const Billing = () => {
                 <Label>Notes</Label>
                 <Textarea className="mt-1.5" placeholder="Optional notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
               </div>
-
-              <Button className="w-full" onClick={() => createInvoice.mutate()} disabled={!canCreateInvoice() || createInvoice.isPending}>
+              {/* Mobile-only inline create button (sticky panel handles desktop) */}
+              <Button className="w-full lg:hidden" onClick={() => createInvoice.mutate()} disabled={!canCreateInvoice() || createInvoice.isPending}>
                 {createInvoice.isPending ? "Creating..." : paymentType === "Staged" ? `Create ${stages.length} Staged Invoice(s)` : paymentType === "Recurring" ? `Create ${recurringCount} Recurring Invoice(s)` : "Create Invoice"}
               </Button>
+            </div>
+
+            {/* Right sticky summary panel (desktop) */}
+            <aside className="hidden lg:flex flex-col border-l bg-muted/20 max-h-[calc(92vh-5rem)]">
+              <div className="px-5 py-4 border-b">
+                <h3 className="font-display font-semibold text-sm">Invoice Summary</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Totals update as you edit</p>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 text-sm">
+                {(() => {
+                  if (paymentType === "Staged") {
+                    return (
+                      <div className="space-y-1">
+                        <div className="flex justify-between"><span className="text-muted-foreground">Total across stages</span><span className="font-semibold">₹{stagedTotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{stagedPaid.toLocaleString()}</span></div>
+                        <div className="flex justify-between text-primary font-semibold border-t pt-2 mt-2"><span>Balance</span><span>₹{(stagedTotal - stagedPaid).toLocaleString()}</span></div>
+                        <p className="text-xs text-muted-foreground mt-1">{stages.length} invoice(s) will be created</p>
+                      </div>
+                    );
+                  }
+                  if (paymentType === "Recurring") {
+                    return (
+                      <div className="space-y-1">
+                        <div className="flex justify-between"><span className="text-muted-foreground">Total ({recurringCount} × ₹{recurringAmount.toLocaleString()})</span><span className="font-semibold">₹{recurringTotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{recurringPaidTotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between text-primary font-semibold border-t pt-2 mt-2"><span>Balance</span><span>₹{(recurringTotal - recurringPaidTotal).toLocaleString()}</span></div>
+                        <p className="text-xs text-muted-foreground mt-1">{recurringCount} invoice(s) will be created</p>
+                      </div>
+                    );
+                  }
+                  // One-time
+                  const subtotal = servicesSubtotal + pharmaSubtotal;
+                  let totalCgst = 0, totalSgst = 0, totalIgst = 0;
+                  serviceInputs.forEach((s) => {
+                    if (!s.name.trim() || !s.price) return;
+                    const lt = getLineTax(getServiceTaxId(s.name), s.price);
+                    totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
+                  });
+                  pharmaItems.forEach((p) => {
+                    const amt = p.quantity * p.unit_price;
+                    if (!p.product_id || !amt) return;
+                    const lt = getLineTax(getProductTaxId(p.product_id), amt);
+                    totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
+                  });
+                  const totalTax = totalCgst + totalSgst + totalIgst;
+                  const grand = subtotal + totalTax;
+                  const balance = grand - (Number(paidAmount) || 0);
+                  return (
+                    <div className="space-y-1">
+                      {servicesSubtotal > 0 && (
+                        <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
+                      )}
+                      {pharmaSubtotal > 0 && (
+                        <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
+                      )}
+                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
+                      {totalCgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{totalCgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
+                      {totalSgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>₹{totalSgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
+                      {totalIgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{totalIgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
+                      <div className="flex justify-between font-semibold text-primary border-t pt-2 mt-2"><span>Grand Total</span><span>₹{grand.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                      <div className="pt-2 mt-2 border-t space-y-2">
+                        <div>
+                          <Label className="text-xs">Paid Amount (₹)</Label>
+                          <Input type="number" className="mt-1 h-9" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Balance Due</span>
+                          <span className={balance > 0 ? "text-destructive font-medium" : "text-primary font-medium"}>
+                            ₹{balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="border-t px-5 py-4 bg-background/60">
+                <Button className="w-full" onClick={() => createInvoice.mutate()} disabled={!canCreateInvoice() || createInvoice.isPending}>
+                  {createInvoice.isPending ? "Creating..." : paymentType === "Staged" ? `Create ${stages.length} Staged Invoice(s)` : paymentType === "Recurring" ? `Create ${recurringCount} Recurring Invoice(s)` : "Create Invoice"}
+                </Button>
+              </div>
+            </aside>
             </div>
           </DialogContent>
         </Dialog>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Home, Calendar, ClipboardList, Camera, Receipt, Pill,
   LogOut, Clock, User, ChevronRight, Plus, Send, Loader2, Stethoscope,
@@ -143,7 +143,29 @@ function PortalSurveysList({ patientId, onOpen }: { patientId: string; onOpen: (
 const Portal = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("home");
+  const { tab: tabParam } = useParams<{ tab?: string }>();
+  const tabSlugMap: Record<string, string> = {
+    home: "home",
+    appointments: "appointments",
+    appts: "appointments",
+    procedures: "procedures",
+    history: "procedures",
+    photos: "photos",
+    bills: "billing",
+    billing: "billing",
+    invoices: "billing",
+    pharmacy: "pharmacy",
+    shop: "pharmacy",
+    bot: "bot",
+    surveys: "surveys",
+  };
+  const initialTab = (tabParam && tabSlugMap[tabParam.toLowerCase()]) || "home";
+  const [activeTab, setActiveTab] = useState(initialTab);
+  useEffect(() => {
+    if (tabParam && tabSlugMap[tabParam.toLowerCase()]) {
+      setActiveTab(tabSlugMap[tabParam.toLowerCase()]);
+    }
+  }, [tabParam]);
   const [session, setSession] = useState<PortalSession | null>(null);
   const [apptOpen, setApptOpen] = useState(false);
   const [pharmaOpen, setPharmaOpen] = useState(false);

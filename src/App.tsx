@@ -123,6 +123,8 @@ const App = () => (
             <Route path="/portal" element={<PortalLanding />} />
             <Route path="/portal/login" element={<PortalLogin />} />
             <Route path="/portal/dashboard" element={<Portal />} />
+            <Route path="/portal/dashboard/:tab" element={<Portal />} />
+            <Route path="/portal/:tab" element={<Portal />} />
 
             {/* Clinic app — inside sidebar layout */}
             <Route

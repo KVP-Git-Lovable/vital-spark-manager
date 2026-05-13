@@ -40,6 +40,7 @@ interface StaffForm {
   work_end_time: string;
   photo_url: string;
   is_active: boolean;
+  consultation_fee: number;
 }
 
 const emptyForm: StaffForm = {
@@ -53,6 +54,7 @@ const emptyForm: StaffForm = {
   work_end_time: "18:00",
   photo_url: "",
   is_active: true,
+  consultation_fee: 0,
 };
 
 const StaffManagement = () => {
@@ -131,6 +133,7 @@ const StaffManagement = () => {
       (payload as any).work_start_time = form.work_start_time || "09:00";
       (payload as any).work_end_time = form.work_end_time || "18:00";
       (payload as any).is_active = form.is_active;
+      (payload as any).consultation_fee = Number(form.consultation_fee) || 0;
 
       if (editId) {
         const { error } = await supabase.from("staff").update(payload).eq("id", editId);
@@ -176,6 +179,7 @@ const StaffManagement = () => {
       work_end_time: s.work_end_time || "18:00",
       photo_url: s.photo_url || "",
       is_active: s.is_active ?? true,
+      consultation_fee: Number(s.consultation_fee) || 0,
     });
     setFormOpen(true);
   };
@@ -271,6 +275,20 @@ const StaffManagement = () => {
                   <Label>Work End Time</Label>
                   <Input type="time" className="mt-1" value={form.work_end_time} onChange={(e) => setForm({ ...form, work_end_time: e.target.value })} />
                 </div>
+              </div>
+
+              {/* Consultation Fee (used on invoices when this doctor is selected) */}
+              <div>
+                <Label>Consultation Fee (₹)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  className="mt-1"
+                  placeholder="0"
+                  value={form.consultation_fee}
+                  onChange={(e) => setForm({ ...form, consultation_fee: parseFloat(e.target.value) || 0 })}
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">Auto-added as a line item when this doctor is selected on an invoice.</p>
               </div>
 
               {/* Active */}

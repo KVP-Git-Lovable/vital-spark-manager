@@ -159,6 +159,16 @@ const Portal = () => {
     bot: "bot",
     surveys: "surveys",
   };
+  const tabToUrlSlug: Record<string, string> = {
+    home: "home",
+    appointments: "appointments",
+    procedures: "history",
+    photos: "photos",
+    billing: "bills",
+    pharmacy: "pharmacy",
+    surveys: "surveys",
+    bot: "ai-bot",
+  };
   const initialTab = (tabParam && tabSlugMap[tabParam.toLowerCase()]) || "home";
   const [activeTab, setActiveTab] = useState(initialTab);
   useEffect(() => {
@@ -345,6 +355,7 @@ const Portal = () => {
   useEffect(() => {
     if (!visibleTabs.find((t) => t.id === activeTab)) {
       setActiveTab("home");
+      navigate("/portal/home", { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shopEnabled, historyTabEnabled, clinicalPhotosEnabled, billsEnabled, surveysEnabled, aiBotEnabled]);
@@ -1060,7 +1071,10 @@ const Portal = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  navigate(`/portal/${tabToUrlSlug[tab.id] || tab.id}`);
+                }}
                 className={`flex-1 flex flex-col items-center py-2 pt-2.5 transition-colors ${
                   isActive ? "text-primary" : "text-muted-foreground"
                 }`}

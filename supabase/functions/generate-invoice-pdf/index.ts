@@ -161,7 +161,17 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
     ]);
 
     let doctorName = "";
-    if (inv.appointment_id) {
+    // Prefer the doctor explicitly chosen on the invoice; fall back to appointment staff.
+    if (inv.doctor_id) {
+      const { data: st } = await supabase
+        .from("staff").select("first_name, last_name, specialization").eq("id", inv.doctor_id).maybeSingle();
+      if (st) {
+        const nm = `${st.first_name || ""} ${st.last_name || ""}`.trim();
+        const spec = st.specialization ? ` ${st.specialization}` : "";
+        doctorName = nm ? `Dr. ${nm}${spec}` : "";
+      }
+    }
+    if (!doctorName && inv.appointment_id) {
       const { data: appt } = await supabase
         .from("appointments").select("staff_id").eq("id", inv.appointment_id).maybeSingle();
       if (appt?.staff_id) {
@@ -175,48 +185,78 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       }
     }
 
-    // Parse line items: "Name" or "Name xN"
-    const rawServices: string[] = Array.isArray(inv.services) ? inv.services : [];
-    const parsed = rawServices.map((s) => {
-      const str = String(s).trim();
-      const m = str.match(/^(.*?)\s+x(\d+(?:\.\d+)?)$/i);
-      if (m) return { raw: str, name: m[1].trim(), qty: Number(m[2]) || 1 };
-      return { raw: str, name: str, qty: 1 };
-    });
+    const sameState = (clinic?.state || "").trim().toLowerCase() === (patient?.state || "").trim().toLowerCase() && (clinic?.state || "");
 
-    const names = Array.from(new Set(parsed.map((p) => p.name)));
-    const svcMap = new Map<string, { price: number; hsn: string; gst: number }>();
-    const prodMap = new Map<string, { price: number; hsn: string; gst: number }>();
-    if (names.length > 0) {
-      const [{ data: svcRows }, { data: prodRows }] = await Promise.all([
-        supabase.from("services").select("name, price, hsn_code, gst_percent").in("name", names),
-        supabase.from("pharma_products").select("name, selling_price, hsn_code, gst_percent").in("name", names),
-      ]);
-      (svcRows || []).forEach((r: any) => svcMap.set(r.name, {
-        price: Number(r.price) || 0, hsn: r.hsn_code || "9993", gst: Number(r.gst_percent) || 0,
-      }));
-      (prodRows || []).forEach((r: any) => prodMap.set(r.name, {
-        price: Number(r.selling_price) || 0, hsn: r.hsn_code || "", gst: Number(r.gst_percent) || 0,
-      }));
+    // ── Build line items: prefer the structured snapshot persisted on the invoice ──
+    type LineRow = { name: string; qty: number; charges: number; hsn: string; sgst: number; cgst: number; igst: number; taxAmount: number; amount: number };
+    let lineItems: LineRow[] = [];
+
+    const buildFromRefs = async (parsed: { name: string; qty: number }[]): Promise<LineRow[]> => {
+      const names = Array.from(new Set(parsed.map((p) => p.name)));
+      const svcMap = new Map<string, { price: number; hsn: string; gst: number }>();
+      const prodMap = new Map<string, { price: number; hsn: string; gst: number }>();
+      if (names.length > 0) {
+        const [{ data: svcRows }, { data: prodRows }] = await Promise.all([
+          supabase.from("services").select("name, price, hsn_code, gst_percent").in("name", names),
+          supabase.from("pharma_products").select("name, selling_price, hsn_code, gst_percent").in("name", names),
+        ]);
+        (svcRows || []).forEach((r: any) => svcMap.set(r.name, {
+          price: Number(r.price) || 0, hsn: r.hsn_code || "9993", gst: Number(r.gst_percent) || 0,
+        }));
+        (prodRows || []).forEach((r: any) => prodMap.set(r.name, {
+          price: Number(r.selling_price) || 0, hsn: r.hsn_code || "", gst: Number(r.gst_percent) || 0,
+        }));
+      }
+      return parsed.map((p) => {
+        const svc = svcMap.get(p.name);
+        const prod = prodMap.get(p.name);
+        const ref = svc || prod || { price: 0, hsn: "", gst: 0 };
+        const charges = ref.price;
+        const gross = charges * p.qty;
+        const gstRate = ref.gst || 0;
+        const taxAmount = gross * gstRate / (100 + gstRate);
+        const sgst = sameState ? gstRate / 2 : 0;
+        const cgst = sameState ? gstRate / 2 : 0;
+        const igst = sameState ? 0 : gstRate;
+        return { name: p.name, qty: p.qty, charges, hsn: ref.hsn || "", sgst, cgst, igst, taxAmount, amount: gross };
+      });
+    };
+
+    if (Array.isArray(inv.line_items) && inv.line_items.length > 0) {
+      lineItems = (inv.line_items as any[]).map((it: any) => {
+        const qty = Number(it.qty) || 1;
+        const charges = Number(it.price) || 0;
+        const gross = charges * qty;
+        const gstRate = Number(it.gst) || 0;
+        const taxAmount = gross * gstRate / (100 + gstRate);
+        const sgst = sameState ? gstRate / 2 : 0;
+        const cgst = sameState ? gstRate / 2 : 0;
+        const igst = sameState ? 0 : gstRate;
+        return {
+          name: String(it.name || ""), qty, charges,
+          hsn: it.hsn || "", sgst, cgst, igst, taxAmount, amount: gross,
+        };
+      });
+    } else {
+      // Legacy fallback for invoices created before line_items existed.
+      const rawServices: string[] = Array.isArray(inv.services) ? inv.services : [];
+      const parsed = rawServices.map((s) => {
+        const str = String(s).trim();
+        const m = str.match(/^(.*?)\s+x(\d+(?:\.\d+)?)$/i);
+        if (m) return { name: m[1].trim(), qty: Number(m[2]) || 1 };
+        return { name: str, qty: 1 };
+      });
+      lineItems = await buildFromRefs(parsed);
     }
 
-    const sameState = (clinic?.state || "").trim().toLowerCase() === (patient?.state || "").trim().toLowerCase() && (clinic?.state || "");
-    const lineItems = parsed.map((p) => {
-      const svc = svcMap.get(p.name);
-      const prod = prodMap.get(p.name);
-      const ref = svc || prod || { price: 0, hsn: "", gst: 0 };
-      const charges = ref.price;
-      const gross = charges * p.qty;
-      const gstRate = ref.gst || 0;
-      const taxAmount = gross * gstRate / (100 + gstRate); // assume price inclusive (matches existing behavior)
-      const sgst = sameState ? gstRate / 2 : 0;
-      const cgst = sameState ? gstRate / 2 : 0;
-      const igst = sameState ? 0 : gstRate;
-      return {
-        name: p.name, qty: p.qty, charges, hsn: ref.hsn || "",
-        sgst, cgst, igst, taxAmount, amount: gross,
-      };
-    });
+    // If we somehow have zero charges across all rows but the invoice carries a total,
+    // distribute the total proportionally so charges aren't shown as 0.
+    const sumCharges = lineItems.reduce((s, r) => s + r.amount, 0);
+    const invTotal = Number(inv.total_amount) || 0;
+    if (sumCharges === 0 && invTotal > 0 && lineItems.length > 0) {
+      const per = invTotal / lineItems.length;
+      lineItems = lineItems.map((r) => ({ ...r, charges: per / (r.qty || 1), amount: per }));
+    }
 
     // ---- PDF ----
     const pdfDoc = await PDFDocument.create();

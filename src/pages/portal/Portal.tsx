@@ -1071,7 +1071,10 @@ const Portal = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  navigate(`/portal/${tabToUrlSlug[tab.id] || tab.id}`);
+                }}
                 className={`flex-1 flex flex-col items-center py-2 pt-2.5 transition-colors ${
                   isActive ? "text-primary" : "text-muted-foreground"
                 }`}

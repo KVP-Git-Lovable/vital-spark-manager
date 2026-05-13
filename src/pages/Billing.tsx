@@ -1503,7 +1503,7 @@ const Billing = () => {
               {/* Tax is auto-applied per item from Tax Master mappings — no manual selector */}
 
               {paymentType === "One-time" && (
-                <div className="space-y-3">
+                <div className="space-y-3 lg:hidden">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Services Subtotal (₹)</Label>

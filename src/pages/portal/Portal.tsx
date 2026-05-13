@@ -758,7 +758,11 @@ const Portal = () => {
                     <p className="text-sm">No invoices yet</p>
                   </div>
                 ) : invoices.map((inv: any) => (
-                  <div key={inv.id} className="bg-card rounded-xl border p-4 shadow-sm">
+                  <div
+                    key={inv.id}
+                    className="bg-card rounded-xl border p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => viewInvoicePdf(inv)}
+                  >
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <p className="font-medium text-sm">{inv.invoice_number}</p>
@@ -785,6 +789,24 @@ const Portal = () => {
                         <span className="text-success">₹{Number(inv.paid_amount).toLocaleString()}</span>
                       </div>
                     )}
+                    <div className="flex gap-2 mt-3 pt-3 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-8"
+                        onClick={(e) => { e.stopPropagation(); viewInvoicePdf(inv); }}
+                      >
+                        <Eye className="h-3.5 w-3.5 mr-1.5" /> View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-8"
+                        onClick={(e) => { e.stopPropagation(); downloadInvoicePdf(inv); }}
+                      >
+                        <Download className="h-3.5 w-3.5 mr-1.5" /> Download
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </motion.div>

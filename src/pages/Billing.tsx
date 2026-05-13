@@ -119,7 +119,20 @@ const generateInvoicePDF = (inv: any) => {
   <table>
     <thead><tr><th>#</th><th>Service</th><th class="amount-col">Amount</th></tr></thead>
     <tbody>
-      ${(inv.services || []).map((s: string, i: number) => `<tr><td>${i + 1}</td><td>${s}</td><td class="amount-col">—</td></tr>`).join("")}
+      ${(() => {
+        const items: any[] = Array.isArray(inv.line_items) && inv.line_items.length > 0
+          ? inv.line_items
+          : (inv.services || []).map((s: string) => ({ name: s, qty: 1, price: null }));
+        return items.map((it: any, i: number) => {
+          const qty = Number(it.qty) || 1;
+          const price = it.price == null ? null : Number(it.price) || 0;
+          const amount = price == null ? null : qty * price;
+          const amtCell = amount == null ? "—" : `₹${amount.toLocaleString("en-IN")}`;
+          const label = qty > 1 ? `${it.name} × ${qty}` : it.name;
+          const hsn = it.hsn ? ` <span style=\"color:#999;font-size:11px;\">HSN ${it.hsn}</span>` : "";
+          return `<tr><td>${i + 1}</td><td>${label}${hsn}</td><td class=\"amount-col\">${amtCell}</td></tr>`;
+        }).join("");
+      })()}
     </tbody>
   </table>
   <div class="summary">

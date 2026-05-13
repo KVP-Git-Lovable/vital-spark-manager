@@ -278,14 +278,14 @@ const PortalLanding = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
             {[
               {
-                img: DOCTOR_1,
+                img: DOCTOR_2,
                 name: "Dr. Punya Suvarna",
                 creds: "MBBS, MD, FAGE, MRCP (SCE)",
                 role: "Dermatologist",
                 exp: "5+ Years of Experience",
               },
               {
-                img: DOCTOR_2,
+                img: DOCTOR_1,
                 name: "Dr. Vindhya A. Pai",
                 creds: "MBBS, MD Dermatologist",
                 role: "Founder of The Skin Clinic",

@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
+import { StaffCombobox } from "@/components/shared/StaffCombobox";
 
 const statusStyles: Record<string, string> = {
   Paid: "bg-success/10 text-success",
@@ -227,7 +228,8 @@ const Billing = () => {
 
   // Form state
   const [patientId, setPatientId] = useState("");
-  const [serviceInputs, setServiceInputs] = useState<{ name: string; price: number }[]>([{ name: "", price: 0 }]);
+  const [doctorId, setDoctorId] = useState("");
+  const [serviceInputs, setServiceInputs] = useState<{ name: string; price: number; hsn: string; gst: number; service_id?: string; doctor_fee?: boolean }[]>([{ name: "", price: 0, hsn: "", gst: 0 }]);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentType, setPaymentType] = useState("One-time");
   const [paymentMode, setPaymentMode] = useState("Cash");
@@ -359,9 +361,27 @@ const Billing = () => {
   const { data: serviceMaster = [] } = useQuery({
     queryKey: ["services-master-billing"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("services").select("id, name, price").order("name");
+      const { data, error } = await supabase
+        .from("services")
+        .select("id, name, price, hsn_code, gst_percent" as any)
+        .order("name");
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Doctors list for the new "Doctor" dropdown
+  const { data: doctorsList = [] } = useQuery({
+    queryKey: ["staff-doctors-billing"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff")
+        .select("id, first_name, last_name, role, specialization, consultation_fee, is_active" as any)
+        .eq("role", "Doctor")
+        .eq("is_active", true)
+        .order("first_name");
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -385,7 +405,7 @@ const Billing = () => {
       if (prefillPatient) setPatientId(prefillPatient);
       if (prefillService) {
         const svc = serviceMaster.find((s: any) => s.name === prefillService);
-        setServiceInputs([{ name: prefillService, price: svc?.price || 0 }]);
+        setServiceInputs([{ name: prefillService, price: svc?.price || 0, hsn: (svc as any)?.hsn_code || "", gst: Number((svc as any)?.gst_percent) || 0, service_id: svc?.id }]);
       }
       setPaymentType("Recurring");
       setOpen(true);

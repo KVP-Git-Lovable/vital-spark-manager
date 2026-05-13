@@ -355,6 +355,7 @@ const Portal = () => {
   useEffect(() => {
     if (!visibleTabs.find((t) => t.id === activeTab)) {
       setActiveTab("home");
+      navigate("/portal/home", { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shopEnabled, historyTabEnabled, clinicalPhotosEnabled, billsEnabled, surveysEnabled, aiBotEnabled]);

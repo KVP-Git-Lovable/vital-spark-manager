@@ -43,6 +43,8 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
   const [category, setCategory] = useState("");
   const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
+  const [hsnCode, setHsnCode] = useState("");
+  const [gstPercent, setGstPercent] = useState("");
   const [symptoms, setSymptoms] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
@@ -112,6 +114,8 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
       setCategory(service.category);
       setDuration(String(service.duration));
       setPrice(String(service.price));
+      setHsnCode((service as any).hsn_code || "");
+      setGstPercent(String((service as any).gst_percent ?? ""));
       setSymptoms(service.symptoms || "");
       setDiagnosis(service.diagnosis || "");
       setProcedureNotes(service.procedure_notes || "");
@@ -178,9 +182,12 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
       const recs = recommendations.split("\n").filter((r) => r.trim());
       const { error } = await supabase.from("services").update({
         name, category: category || "General", duration: parseInt(duration) || 30,
-        price: parseFloat(price) || 0, symptoms: symptoms || null, diagnosis: diagnosis || null,
+        price: parseFloat(price) || 0,
+        hsn_code: hsnCode || null,
+        gst_percent: parseFloat(gstPercent) || 0,
+        symptoms: symptoms || null, diagnosis: diagnosis || null,
         procedure_notes: procedureNotes || null, recommendations: recs,
-      }).eq("id", serviceId!);
+      } as any).eq("id", serviceId!);
       if (error) throw error;
 
       // Delete old medicines, re-insert
@@ -276,9 +283,19 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
                 <Input type="number" className="mt-1.5" value={duration} onChange={(e) => setDuration(e.target.value)} />
               </div>
             </div>
-            <div>
-              <Label>Price (₹)</Label>
-              <Input type="number" className="mt-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label>Price (₹)</Label>
+                <Input type="number" className="mt-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
+              </div>
+              <div>
+                <Label>HSN Code</Label>
+                <Input className="mt-1.5" placeholder="9993" value={hsnCode} onChange={(e) => setHsnCode(e.target.value)} />
+              </div>
+              <div>
+                <Label>GST %</Label>
+                <Input type="number" className="mt-1.5" placeholder="18" value={gstPercent} onChange={(e) => setGstPercent(e.target.value)} />
+              </div>
             </div>
 
             {/* Symptoms */}

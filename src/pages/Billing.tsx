@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
+import { StaffCombobox } from "@/components/shared/StaffCombobox";
 
 const statusStyles: Record<string, string> = {
   Paid: "bg-success/10 text-success",
@@ -118,7 +119,20 @@ const generateInvoicePDF = (inv: any) => {
   <table>
     <thead><tr><th>#</th><th>Service</th><th class="amount-col">Amount</th></tr></thead>
     <tbody>
-      ${(inv.services || []).map((s: string, i: number) => `<tr><td>${i + 1}</td><td>${s}</td><td class="amount-col">—</td></tr>`).join("")}
+      ${(() => {
+        const items: any[] = Array.isArray(inv.line_items) && inv.line_items.length > 0
+          ? inv.line_items
+          : (inv.services || []).map((s: string) => ({ name: s, qty: 1, price: null }));
+        return items.map((it: any, i: number) => {
+          const qty = Number(it.qty) || 1;
+          const price = it.price == null ? null : Number(it.price) || 0;
+          const amount = price == null ? null : qty * price;
+          const amtCell = amount == null ? "—" : `₹${amount.toLocaleString("en-IN")}`;
+          const label = qty > 1 ? `${it.name} × ${qty}` : it.name;
+          const hsn = it.hsn ? ` <span style=\"color:#999;font-size:11px;\">HSN ${it.hsn}</span>` : "";
+          return `<tr><td>${i + 1}</td><td>${label}${hsn}</td><td class=\"amount-col\">${amtCell}</td></tr>`;
+        }).join("");
+      })()}
     </tbody>
   </table>
   <div class="summary">
@@ -227,7 +241,8 @@ const Billing = () => {
 
   // Form state
   const [patientId, setPatientId] = useState("");
-  const [serviceInputs, setServiceInputs] = useState<{ name: string; price: number }[]>([{ name: "", price: 0 }]);
+  const [doctorId, setDoctorId] = useState("");
+  const [serviceInputs, setServiceInputs] = useState<{ name: string; price: number; hsn: string; gst: number; service_id?: string; doctor_fee?: boolean }[]>([{ name: "", price: 0, hsn: "", gst: 0 }]);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentType, setPaymentType] = useState("One-time");
   const [paymentMode, setPaymentMode] = useState("Cash");
@@ -359,9 +374,27 @@ const Billing = () => {
   const { data: serviceMaster = [] } = useQuery({
     queryKey: ["services-master-billing"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("services").select("id, name, price").order("name");
+      const { data, error } = await supabase
+        .from("services")
+        .select("id, name, price, hsn_code, gst_percent" as any)
+        .order("name");
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Doctors list for the new "Doctor" dropdown
+  const { data: doctorsList = [] } = useQuery({
+    queryKey: ["staff-doctors-billing"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff")
+        .select("id, first_name, last_name, role, specialization, consultation_fee, is_active" as any)
+        .eq("role", "Doctor")
+        .eq("is_active", true)
+        .order("first_name");
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -384,8 +417,8 @@ const Billing = () => {
     if (prefillPatient || prefillService) {
       if (prefillPatient) setPatientId(prefillPatient);
       if (prefillService) {
-        const svc = serviceMaster.find((s: any) => s.name === prefillService);
-        setServiceInputs([{ name: prefillService, price: svc?.price || 0 }]);
+        const svc = (serviceMaster as any[]).find((s: any) => s?.name === prefillService);
+        setServiceInputs([{ name: prefillService, price: Number(svc?.price) || 0, hsn: svc?.hsn_code || "", gst: Number(svc?.gst_percent) || 0, service_id: svc?.id }]);
       }
       setPaymentType("Recurring");
       setOpen(true);
@@ -522,6 +555,34 @@ const Billing = () => {
       const allServices = [...services, ...pharmaServiceNames];
       if (allServices.length === 0) throw new Error("Add at least one service or product");
 
+      // Persist a structured snapshot of every line so the PDF doesn't have to guess prices/HSN later.
+      const lineItemsSnapshot: any[] = [
+        ...serviceInputs
+          .filter((s) => s.name.trim())
+          .map((s) => ({
+            kind: "service",
+            name: s.name,
+            qty: 1,
+            price: Number(s.price) || 0,
+            hsn: s.hsn || "",
+            gst: Number(s.gst) || 0,
+            doctor_fee: !!s.doctor_fee,
+            service_id: s.service_id || null,
+          })),
+        ...pharmaItems
+          .filter((i) => i.product_name)
+          .map((i) => ({
+            kind: "product",
+            name: i.product_name,
+            qty: i.quantity,
+            price: Number(i.unit_price) || 0,
+            hsn: "",
+            gst: 0,
+            product_id: i.product_id || null,
+            batch_number: i.batch_number || null,
+          })),
+      ];
+
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
       const baseNum = Date.now().toString().slice(-6);
@@ -560,6 +621,8 @@ const Billing = () => {
             patient_id: patientId || null,
             patient_name: patientName,
             services: allServices,
+            line_items: lineItemsSnapshot,
+            doctor_id: doctorId || null,
             total_amount: stageTotal,
             paid_amount: stage.paid,
             status,
@@ -571,7 +634,7 @@ const Billing = () => {
             ...t,
           };
         });
-        const { error } = await supabase.from("invoices").insert(rows);
+        const { error } = await supabase.from("invoices").insert(rows as any);
         if (error) throw error;
         // Return a summary for downstream WhatsApp notification
         var summary: any = {
@@ -596,6 +659,8 @@ const Billing = () => {
             patient_id: patientId || null,
             patient_name: patientName,
             services: allServices,
+            line_items: lineItemsSnapshot,
+            doctor_id: doctorId || null,
             total_amount: totalPerInst,
             paid_amount: collected,
             status,
@@ -607,7 +672,7 @@ const Billing = () => {
             ...t,
           };
         });
-        const { error } = await supabase.from("invoices").insert(rows);
+        const { error } = await supabase.from("invoices").insert(rows as any);
         if (error) throw error;
         var summary: any = {
           invoiceNumber: `INV-${baseNum} (${recurringCount} installments)`,
@@ -648,6 +713,8 @@ const Billing = () => {
           patient_id: patientId || null,
           patient_name: patientName,
           services: allServices,
+          line_items: lineItemsSnapshot,
+          doctor_id: doctorId || null,
           total_amount: grandTotal,
           paid_amount: paidAmount,
           status,
@@ -658,7 +725,7 @@ const Billing = () => {
           tax_id: null,
           tax_rate: null,
           ...t,
-        }).select("id").single();
+        } as any).select("id").single();
         if (error) throw error;
         var summary: any = {
           invoiceNumber: `INV-${baseNum}`,
@@ -951,7 +1018,8 @@ const Billing = () => {
 
   const resetForm = () => {
     setPatientId("");
-    setServiceInputs([{ name: "", price: 0 }]);
+    setDoctorId("");
+    setServiceInputs([{ name: "", price: 0, hsn: "", gst: 0 }]);
     setPaidAmount(0);
     setPaymentType("One-time");
     setPaymentMode("Cash");
@@ -969,13 +1037,37 @@ const Billing = () => {
     setServiceSearchOpen(null);
   };
 
-  const addServiceInput = () => setServiceInputs([...serviceInputs, { name: "", price: 0 }]);
-  const updateServiceInput = (i: number, name: string, price: number) => {
-    const updated = [...serviceInputs];
-    updated[i] = { name, price };
-    setServiceInputs(updated);
+  const addServiceInput = () => setServiceInputs([...serviceInputs, { name: "", price: 0, hsn: "", gst: 0 }]);
+  const updateServiceInput = (i: number, patch: Partial<{ name: string; price: number; hsn: string; gst: number; service_id?: string; doctor_fee?: boolean }>) => {
+    setServiceInputs((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   };
   const removeServiceInput = (i: number) => setServiceInputs(serviceInputs.filter((_, idx) => idx !== i));
+
+  // Doctor selection: maintain a single auto "Consultation - Dr. X" line item
+  // marked with `doctor_fee: true`. Replacing the doctor replaces that row.
+  const handleDoctorChange = (newDoctorId: string) => {
+    setDoctorId(newDoctorId);
+    setServiceInputs((prev) => {
+      // Strip any existing doctor-fee row first
+      const stripped = prev.filter((r) => !r.doctor_fee);
+      if (!newDoctorId) {
+        return stripped.length > 0 ? stripped : [{ name: "", price: 0, hsn: "", gst: 0 }];
+      }
+      const doc: any = (doctorsList as any[]).find((d: any) => d.id === newDoctorId);
+      const fee = Number(doc?.consultation_fee) || 0;
+      const docName = doc ? `Dr. ${doc.first_name || ""} ${doc.last_name || ""}`.trim() : "Doctor";
+      const feeRow = {
+        name: `Consultation - ${docName}`,
+        price: fee,
+        hsn: "9993",
+        gst: 0,
+        doctor_fee: true as const,
+      };
+      // If user only had the empty initial blank row, drop it.
+      const cleaned = stripped.filter((r) => r.name.trim() || r.price > 0);
+      return [feeRow, ...cleaned];
+    });
+  };
 
   const addStage = () => setStages([...stages, { label: `Stage ${stages.length + 1}`, amount: 0, paid: 0 }]);
   const updateStage = (i: number, field: keyof StageRow, value: string | number) => {
@@ -1131,6 +1223,29 @@ const Billing = () => {
               </div>
 
               <div>
+                <Label>Doctor</Label>
+                <StaffCombobox
+                  value={doctorId}
+                  onValueChange={handleDoctorChange}
+                  allowNone
+                  noneLabel="No doctor"
+                  placeholder="Select doctor"
+                  className="mt-1.5"
+                />
+                {doctorId && (() => {
+                  const d: any = (doctorsList as any[]).find((x: any) => x.id === doctorId);
+                  const fee = Number(d?.consultation_fee) || 0;
+                  return (
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      {fee > 0
+                        ? `Consultation fee ₹${fee.toLocaleString()} added as a line item.`
+                        : "This doctor has no consultation fee set in Staff Master."}
+                    </p>
+                  );
+                })()}
+              </div>
+
+              <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <Label>Services</Label>
                   <Button type="button" variant="ghost" size="sm" className="h-6 text-xs" onClick={addServiceInput}>
@@ -1155,7 +1270,13 @@ const Billing = () => {
                               <CommandGroup>
                                 {serviceMaster.map((svc: any) => (
                                   <CommandItem key={svc.id} value={svc.name} onSelect={() => {
-                                    updateServiceInput(i, svc.name, Number(svc.price) || 0);
+                                    updateServiceInput(i, {
+                                      name: svc.name,
+                                      price: Number(svc.price) || 0,
+                                      hsn: svc.hsn_code || "",
+                                      gst: Number(svc.gst_percent) || 0,
+                                      service_id: svc.id,
+                                    });
                                     setServiceSearchOpen(null);
                                   }}>
                                     <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
@@ -1168,11 +1289,21 @@ const Billing = () => {
                           </Command>
                         </PopoverContent>
                       </Popover>
-                      {s.price > 0 && (
-                        <span className="text-sm text-muted-foreground shrink-0 w-20 text-right">₹{s.price.toLocaleString()}</span>
-                      )}
+                      <Input
+                        type="number"
+                        className="h-10 w-24 shrink-0 text-right"
+                        placeholder="₹ Price"
+                        value={s.price || ""}
+                        onChange={(e) => updateServiceInput(i, { price: parseFloat(e.target.value) || 0 })}
+                      />
+                      <Input
+                        className="h-10 w-24 shrink-0"
+                        placeholder="HSN"
+                        value={s.hsn || ""}
+                        onChange={(e) => updateServiceInput(i, { hsn: e.target.value })}
+                      />
                       {serviceInputs.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" onClick={() => removeServiceInput(i)}>✕</Button>
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" disabled={!!s.doctor_fee} onClick={() => removeServiceInput(i)}>✕</Button>
                       )}
                     </div>
                     {s.price > 0 && (() => {

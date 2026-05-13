@@ -47,6 +47,8 @@ const Services = () => {
   const [category, setCategory] = useState("");
   const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
+  const [hsnCode, setHsnCode] = useState("");
+  const [gstPercent, setGstPercent] = useState("");
   const [symptoms, setSymptoms] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
@@ -129,11 +131,13 @@ const Services = () => {
           category: category || "General",
           duration: parseInt(duration) || 30,
           price: parseFloat(price) || 0,
+          hsn_code: hsnCode || null,
+          gst_percent: parseFloat(gstPercent) || 0,
           symptoms: symptoms || null,
           diagnosis: diagnosis || null,
           procedure_notes: procedureNotes || null,
           recommendations: recs,
-        })
+        } as any)
         .select()
         .single();
       if (error) throw error;
@@ -183,6 +187,8 @@ const Services = () => {
     setCategory("");
     setDuration("");
     setPrice("");
+    setHsnCode("");
+    setGstPercent("");
     setSymptoms("");
     setDiagnosis("");
     setProcedureNotes("");
@@ -253,9 +259,19 @@ const Services = () => {
                   <Input type="number" placeholder="45" className="mt-1.5" value={duration} onChange={(e) => setDuration(e.target.value)} />
                 </div>
               </div>
-              <div>
-                <Label>Price (₹)</Label>
-                <Input type="number" placeholder="3500" className="mt-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label>Price (₹)</Label>
+                  <Input type="number" placeholder="3500" className="mt-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
+                </div>
+                <div>
+                  <Label>HSN Code</Label>
+                  <Input placeholder="9993" className="mt-1.5" value={hsnCode} onChange={(e) => setHsnCode(e.target.value)} />
+                </div>
+                <div>
+                  <Label>GST %</Label>
+                  <Input type="number" placeholder="18" className="mt-1.5" value={gstPercent} onChange={(e) => setGstPercent(e.target.value)} />
+                </div>
               </div>
               {/* Symptoms */}
               <div>

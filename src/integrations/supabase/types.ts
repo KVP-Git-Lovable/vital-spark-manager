@@ -714,9 +714,11 @@ export type Database = {
           appointment_id: string | null
           cgst_amount: number | null
           created_at: string
+          doctor_id: string | null
           id: string
           igst_amount: number | null
           invoice_number: string
+          line_items: Json | null
           notes: string | null
           paid_amount: number
           patient_id: string | null
@@ -738,9 +740,11 @@ export type Database = {
           appointment_id?: string | null
           cgst_amount?: number | null
           created_at?: string
+          doctor_id?: string | null
           id?: string
           igst_amount?: number | null
           invoice_number: string
+          line_items?: Json | null
           notes?: string | null
           paid_amount?: number
           patient_id?: string | null
@@ -762,9 +766,11 @@ export type Database = {
           appointment_id?: string | null
           cgst_amount?: number | null
           created_at?: string
+          doctor_id?: string | null
           id?: string
           igst_amount?: number | null
           invoice_number?: string
+          line_items?: Json | null
           notes?: string | null
           paid_amount?: number
           patient_id?: string | null
@@ -788,6 +794,13 @@ export type Database = {
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
           {
@@ -2270,6 +2283,8 @@ export type Database = {
           created_at: string
           diagnosis: string | null
           duration: number
+          gst_percent: number
+          hsn_code: string | null
           id: string
           name: string
           price: number
@@ -2283,6 +2298,8 @@ export type Database = {
           created_at?: string
           diagnosis?: string | null
           duration?: number
+          gst_percent?: number
+          hsn_code?: string | null
           id?: string
           name: string
           price?: number
@@ -2296,6 +2313,8 @@ export type Database = {
           created_at?: string
           diagnosis?: string | null
           duration?: number
+          gst_percent?: number
+          hsn_code?: string | null
           id?: string
           name?: string
           price?: number
@@ -2309,6 +2328,7 @@ export type Database = {
       staff: {
         Row: {
           auth_user_id: string | null
+          consultation_fee: number
           created_at: string
           email: string | null
           first_name: string
@@ -2327,6 +2347,7 @@ export type Database = {
         }
         Insert: {
           auth_user_id?: string | null
+          consultation_fee?: number
           created_at?: string
           email?: string | null
           first_name: string
@@ -2345,6 +2366,7 @@ export type Database = {
         }
         Update: {
           auth_user_id?: string | null
+          consultation_fee?: number
           created_at?: string
           email?: string | null
           first_name?: string

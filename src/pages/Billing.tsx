@@ -996,6 +996,32 @@ const Billing = () => {
   };
   const removeServiceInput = (i: number) => setServiceInputs(serviceInputs.filter((_, idx) => idx !== i));
 
+  // Doctor selection: maintain a single auto "Consultation - Dr. X" line item
+  // marked with `doctor_fee: true`. Replacing the doctor replaces that row.
+  const handleDoctorChange = (newDoctorId: string) => {
+    setDoctorId(newDoctorId);
+    setServiceInputs((prev) => {
+      // Strip any existing doctor-fee row first
+      const stripped = prev.filter((r) => !r.doctor_fee);
+      if (!newDoctorId) {
+        return stripped.length > 0 ? stripped : [{ name: "", price: 0, hsn: "", gst: 0 }];
+      }
+      const doc: any = (doctorsList as any[]).find((d: any) => d.id === newDoctorId);
+      const fee = Number(doc?.consultation_fee) || 0;
+      const docName = doc ? `Dr. ${doc.first_name || ""} ${doc.last_name || ""}`.trim() : "Doctor";
+      const feeRow = {
+        name: `Consultation - ${docName}`,
+        price: fee,
+        hsn: "9993",
+        gst: 0,
+        doctor_fee: true as const,
+      };
+      // If user only had the empty initial blank row, drop it.
+      const cleaned = stripped.filter((r) => r.name.trim() || r.price > 0);
+      return [feeRow, ...cleaned];
+    });
+  };
+
   const addStage = () => setStages([...stages, { label: `Stage ${stages.length + 1}`, amount: 0, paid: 0 }]);
   const updateStage = (i: number, field: keyof StageRow, value: string | number) => {
     const updated = [...stages];

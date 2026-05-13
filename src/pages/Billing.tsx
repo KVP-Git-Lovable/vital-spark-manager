@@ -542,6 +542,34 @@ const Billing = () => {
       const allServices = [...services, ...pharmaServiceNames];
       if (allServices.length === 0) throw new Error("Add at least one service or product");
 
+      // Persist a structured snapshot of every line so the PDF doesn't have to guess prices/HSN later.
+      const lineItemsSnapshot: any[] = [
+        ...serviceInputs
+          .filter((s) => s.name.trim())
+          .map((s) => ({
+            kind: "service",
+            name: s.name,
+            qty: 1,
+            price: Number(s.price) || 0,
+            hsn: s.hsn || "",
+            gst: Number(s.gst) || 0,
+            doctor_fee: !!s.doctor_fee,
+            service_id: s.service_id || null,
+          })),
+        ...pharmaItems
+          .filter((i) => i.product_name)
+          .map((i) => ({
+            kind: "product",
+            name: i.product_name,
+            qty: i.quantity,
+            price: Number(i.unit_price) || 0,
+            hsn: "",
+            gst: 0,
+            product_id: i.product_id || null,
+            batch_number: i.batch_number || null,
+          })),
+      ];
+
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
       const baseNum = Date.now().toString().slice(-6);
@@ -580,6 +608,8 @@ const Billing = () => {
             patient_id: patientId || null,
             patient_name: patientName,
             services: allServices,
+            line_items: lineItemsSnapshot,
+            doctor_id: doctorId || null,
             total_amount: stageTotal,
             paid_amount: stage.paid,
             status,
@@ -591,7 +621,7 @@ const Billing = () => {
             ...t,
           };
         });
-        const { error } = await supabase.from("invoices").insert(rows);
+        const { error } = await supabase.from("invoices").insert(rows as any);
         if (error) throw error;
         // Return a summary for downstream WhatsApp notification
         var summary: any = {
@@ -616,6 +646,8 @@ const Billing = () => {
             patient_id: patientId || null,
             patient_name: patientName,
             services: allServices,
+            line_items: lineItemsSnapshot,
+            doctor_id: doctorId || null,
             total_amount: totalPerInst,
             paid_amount: collected,
             status,
@@ -627,7 +659,7 @@ const Billing = () => {
             ...t,
           };
         });
-        const { error } = await supabase.from("invoices").insert(rows);
+        const { error } = await supabase.from("invoices").insert(rows as any);
         if (error) throw error;
         var summary: any = {
           invoiceNumber: `INV-${baseNum} (${recurringCount} installments)`,
@@ -668,6 +700,8 @@ const Billing = () => {
           patient_id: patientId || null,
           patient_name: patientName,
           services: allServices,
+          line_items: lineItemsSnapshot,
+          doctor_id: doctorId || null,
           total_amount: grandTotal,
           paid_amount: paidAmount,
           status,
@@ -678,7 +712,7 @@ const Billing = () => {
           tax_id: null,
           tax_rate: null,
           ...t,
-        }).select("id").single();
+        } as any).select("id").single();
         if (error) throw error;
         var summary: any = {
           invoiceNumber: `INV-${baseNum}`,

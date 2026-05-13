@@ -159,6 +159,16 @@ const Portal = () => {
     bot: "bot",
     surveys: "surveys",
   };
+  const tabToUrlSlug: Record<string, string> = {
+    home: "home",
+    appointments: "appointments",
+    procedures: "history",
+    photos: "photos",
+    billing: "bills",
+    pharmacy: "pharmacy",
+    surveys: "surveys",
+    bot: "ai-bot",
+  };
   const initialTab = (tabParam && tabSlugMap[tabParam.toLowerCase()]) || "home";
   const [activeTab, setActiveTab] = useState(initialTab);
   useEffect(() => {

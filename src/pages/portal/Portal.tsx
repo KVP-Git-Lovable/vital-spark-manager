@@ -400,6 +400,62 @@ const Portal = () => {
     Pending: "bg-destructive/10 text-destructive",
   };
 
+  const getInvoicePdfUrl = async (inv: any): Promise<string | null> => {
+    if (inv?.pdf_url) return inv.pdf_url;
+    if (!inv?.id) return null;
+    const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
+      body: { invoiceId: inv.id },
+    });
+    if (error) {
+      console.error("PDF generate failed:", error);
+      return null;
+    }
+    // Edge fn may return queued; poll the row briefly for pdf_url
+    if ((data as any)?.url) return (data as any).url;
+    for (let i = 0; i < 8; i++) {
+      await new Promise((r) => setTimeout(r, 800));
+      const { data: row } = await supabase.from("invoices").select("pdf_url").eq("id", inv.id).maybeSingle();
+      if (row?.pdf_url) return row.pdf_url;
+    }
+    return null;
+  };
+
+  const viewInvoicePdf = async (inv: any) => {
+    const win = window.open("", "_blank");
+    const url = await getInvoicePdfUrl(inv);
+    if (!url) {
+      toast.error("Failed to open invoice PDF");
+      if (win) win.close();
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["portal-invoices"] });
+    if (win) win.location.href = url;
+    else window.location.href = url;
+  };
+
+  const downloadInvoicePdf = async (inv: any) => {
+    const url = await getInvoicePdfUrl(inv);
+    if (!url) {
+      toast.error("Failed to download invoice PDF");
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["portal-invoices"] });
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = `${inv.invoice_number || "invoice"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objUrl);
+    } catch {
+      window.open(url, "_blank");
+    }
+  };
+
   const requestStatusColors: Record<string, string> = {
     Pending: "bg-warning/10 text-warning",
     Confirmed: "bg-success/10 text-success",

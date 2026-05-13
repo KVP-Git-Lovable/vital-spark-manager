@@ -1174,7 +1174,13 @@ const Billing = () => {
                               <CommandGroup>
                                 {serviceMaster.map((svc: any) => (
                                   <CommandItem key={svc.id} value={svc.name} onSelect={() => {
-                                    updateServiceInput(i, svc.name, Number(svc.price) || 0);
+                                    updateServiceInput(i, {
+                                      name: svc.name,
+                                      price: Number(svc.price) || 0,
+                                      hsn: svc.hsn_code || "",
+                                      gst: Number(svc.gst_percent) || 0,
+                                      service_id: svc.id,
+                                    });
                                     setServiceSearchOpen(null);
                                   }}>
                                     <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
@@ -1187,11 +1193,21 @@ const Billing = () => {
                           </Command>
                         </PopoverContent>
                       </Popover>
-                      {s.price > 0 && (
-                        <span className="text-sm text-muted-foreground shrink-0 w-20 text-right">₹{s.price.toLocaleString()}</span>
-                      )}
+                      <Input
+                        type="number"
+                        className="h-10 w-24 shrink-0 text-right"
+                        placeholder="₹ Price"
+                        value={s.price || ""}
+                        onChange={(e) => updateServiceInput(i, { price: parseFloat(e.target.value) || 0 })}
+                      />
+                      <Input
+                        className="h-10 w-24 shrink-0"
+                        placeholder="HSN"
+                        value={s.hsn || ""}
+                        onChange={(e) => updateServiceInput(i, { hsn: e.target.value })}
+                      />
                       {serviceInputs.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" onClick={() => removeServiceInput(i)}>✕</Button>
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" disabled={!!s.doctor_fee} onClick={() => removeServiceInput(i)}>✕</Button>
                       )}
                     </div>
                     {s.price > 0 && (() => {

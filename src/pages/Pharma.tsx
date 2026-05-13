@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
+import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { Plus, Search, Package, ShoppingCart, AlertTriangle, Settings } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,7 @@ const Pharma = () => {
 
   // Bill state
   const [billPatientName, setBillPatientName] = useState("");
+  const [billPatientId, setBillPatientId] = useState("");
   const [billPaymentMode, setBillPaymentMode] = useState("Cash");
   const [billDiscount, setBillDiscount] = useState(0);
   const [billItems, setBillItems] = useState<BillItemInput[]>([]);
@@ -339,6 +341,7 @@ const Pharma = () => {
       toast.success("Bill created");
       setBillItems([]);
       setBillPatientName("");
+      setBillPatientId("");
       setBillDiscount(0);
       setBillOpen(false);
     },
@@ -428,6 +431,7 @@ const Pharma = () => {
 
   const handleCloneBill = (bill: any) => {
     setBillPatientName(bill.patient_name || "");
+    setBillPatientId("");
     setBillPaymentMode(bill.payment_mode || "Cash");
     setBillDiscount(bill.discount || 0);
     setBillItems([]);
@@ -612,7 +616,24 @@ const Pharma = () => {
               <DialogHeader><DialogTitle className="font-display">Pharmacy Bill (Outward)</DialogTitle></DialogHeader>
               <div className="space-y-4 pt-2">
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Patient Name</Label><Input className="mt-1" value={billPatientName} onChange={(e) => setBillPatientName(e.target.value)} /></div>
+                  <div>
+                    <Label>Patient</Label>
+                    <div className="mt-1">
+                      <PatientCombobox
+                        value={billPatientId}
+                        onValueChange={(id, p) => {
+                          setBillPatientId(id);
+                          if (p) {
+                            const name = `${p.first_name || ""} ${p.last_name || ""}`.trim();
+                            setBillPatientName(name || p.phone || "");
+                          } else {
+                            setBillPatientName("");
+                          }
+                        }}
+                        placeholder="Select patient"
+                      />
+                    </div>
+                  </div>
                   <div>
                     <Label>Payment Mode</Label>
                     <Select value={billPaymentMode} onValueChange={setBillPaymentMode}>

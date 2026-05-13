@@ -404,8 +404,8 @@ const Billing = () => {
     if (prefillPatient || prefillService) {
       if (prefillPatient) setPatientId(prefillPatient);
       if (prefillService) {
-        const svc = serviceMaster.find((s: any) => s.name === prefillService);
-        setServiceInputs([{ name: prefillService, price: svc?.price || 0, hsn: (svc as any)?.hsn_code || "", gst: Number((svc as any)?.gst_percent) || 0, service_id: svc?.id }]);
+        const svc = (serviceMaster as any[]).find((s: any) => s?.name === prefillService);
+        setServiceInputs([{ name: prefillService, price: Number(svc?.price) || 0, hsn: svc?.hsn_code || "", gst: Number(svc?.gst_percent) || 0, service_id: svc?.id }]);
       }
       setPaymentType("Recurring");
       setOpen(true);
@@ -971,7 +971,8 @@ const Billing = () => {
 
   const resetForm = () => {
     setPatientId("");
-    setServiceInputs([{ name: "", price: 0 }]);
+    setDoctorId("");
+    setServiceInputs([{ name: "", price: 0, hsn: "", gst: 0 }]);
     setPaidAmount(0);
     setPaymentType("One-time");
     setPaymentMode("Cash");
@@ -989,11 +990,9 @@ const Billing = () => {
     setServiceSearchOpen(null);
   };
 
-  const addServiceInput = () => setServiceInputs([...serviceInputs, { name: "", price: 0 }]);
-  const updateServiceInput = (i: number, name: string, price: number) => {
-    const updated = [...serviceInputs];
-    updated[i] = { name, price };
-    setServiceInputs(updated);
+  const addServiceInput = () => setServiceInputs([...serviceInputs, { name: "", price: 0, hsn: "", gst: 0 }]);
+  const updateServiceInput = (i: number, patch: Partial<{ name: string; price: number; hsn: string; gst: number; service_id?: string; doctor_fee?: boolean }>) => {
+    setServiceInputs((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   };
   const removeServiceInput = (i: number) => setServiceInputs(serviceInputs.filter((_, idx) => idx !== i));
 

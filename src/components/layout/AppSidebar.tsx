@@ -61,15 +61,17 @@ const mainItems = [
   { title: "Photos", url: "/photos", icon: Camera, moduleKey: "photos" },
   { title: "Pharmacy", url: "/pharma", icon: Pill, moduleKey: "pharmacy" },
   { title: "Billing", url: "/billing", icon: Receipt, moduleKey: "billing" },
-  { title: "Leave", url: "/leave", icon: CalendarDays, moduleKey: "leave" },
   { title: "Assets", url: "/assets", icon: Package, moduleKey: "assets" },
   { title: "Portal Orders", url: "/orders", icon: ShoppingBag, moduleKey: "portal_orders" },
   { title: "Expenses", url: "/expenses", icon: Wallet, moduleKey: "expenses" },
-  { title: "Staff", url: "/staff", icon: UserCog, moduleKey: "staff" },
-  { title: "Problem Areas", url: "/problem-areas", icon: AlertCircle, moduleKey: "problem_areas" },
   { title: "Reports", url: "/reports", icon: BarChart3, moduleKey: "reports" },
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart, moduleKey: "report_builder" },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone, moduleKey: "campaigns" },
+];
+
+const employeesSubItems = [
+  { title: "Staff", url: "/staff", icon: UserCog },
+  { title: "Leave", url: "/leave", icon: CalendarDays },
 ];
 
 const surveySubItems = [
@@ -81,7 +83,7 @@ const masterDataItems = [
   { title: "Service Master", url: "/services", icon: Stethoscope, moduleKey: "services" },
   { title: "Vendor Master", url: "/vendors", icon: Building2, moduleKey: "vendors" },
   { title: "Category Master", url: "/category-master", icon: Tags, moduleKey: "category_master" },
-  { title: "User Management", url: "/user-management", icon: ShieldCheck, moduleKey: "user_management" },
+  { title: "Problem Areas", url: "/problem-areas", icon: AlertCircle, moduleKey: "problem_areas" },
 ];
 
 const settingsItems = [

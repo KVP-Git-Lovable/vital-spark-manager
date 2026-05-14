@@ -242,6 +242,62 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
+  const { data: patientCampaigns = [], refetch: refetchPatientCampaigns } = useQuery({
+    queryKey: ["patient-campaigns", id],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("patient_campaigns") as any)
+        .select("id, linked_date, linked_by, notes, campaigns(id, name, type, status)")
+        .eq("patient_id", id!)
+        .order("linked_date", { ascending: false });
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+    enabled: !!id,
+  });
+
+  const { data: allCampaignsForLink = [] } = useQuery({
+    queryKey: ["campaigns-for-patient-link"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("campaigns" as any).select("id, name, status").order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+
+  const [linkCampaignOpen, setLinkCampaignOpen] = useState(false);
+  const [linkCampaignSearch, setLinkCampaignSearch] = useState("");
+
+  const linkCampaignToPatient = async (campaignId: string) => {
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const { error } = await (supabase.from("patient_campaigns") as any).insert({
+        patient_id: id,
+        campaign_id: campaignId,
+        linked_by: userRes?.user?.id || null,
+      });
+      if (error) throw error;
+      toast.success("Campaign linked");
+      setLinkCampaignOpen(false);
+      setLinkCampaignSearch("");
+      refetchPatientCampaigns();
+      queryClient.invalidateQueries({ queryKey: ["campaign-patients", campaignId] });
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const unlinkCampaignFromPatient = async (linkId: string, campaignId: string) => {
+    try {
+      const { error } = await (supabase.from("patient_campaigns") as any).delete().eq("id", linkId);
+      if (error) throw error;
+      toast.success("Campaign unlinked");
+      refetchPatientCampaigns();
+      queryClient.invalidateQueries({ queryKey: ["campaign-patients", campaignId] });
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
   const { data: surveyTemplates = [] } = useQuery({
     queryKey: ["survey-templates-active"],
     queryFn: async () => {

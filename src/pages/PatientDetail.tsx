@@ -1549,7 +1549,7 @@ const PatientDetail = () => {
                         <td className="py-2 px-3">{pc.campaigns?.type || "—"}</td>
                         <td className="py-2 px-3">{pc.campaigns?.status || "—"}</td>
                         <td className="py-2 px-3">{pc.linked_date ? format(new Date(pc.linked_date), "dd MMM yyyy") : "—"}</td>
-                        <td className="py-2 px-3 text-xs text-muted-foreground">{pc.linked_by ? `${String(pc.linked_by).slice(0, 8)}…` : "—"}</td>
+                        <td className="py-2 px-3 text-xs text-muted-foreground">{pc.linked_by ? (linkedByMap[pc.linked_by] || "—") : "—"}</td>
                         <td className="py-2 px-3">
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => unlinkCampaignFromPatient(pc.id, pc.campaigns?.id)}>
                             <X className="h-3.5 w-3.5 text-destructive" />

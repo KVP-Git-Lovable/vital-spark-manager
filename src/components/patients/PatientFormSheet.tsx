@@ -76,6 +76,7 @@ const emptyForm: TablesInsert<"patients"> = {
 export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, onSuccess }: PatientFormSheetProps) {
   const [form, setForm] = useState<TablesInsert<"patients">>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
   const [referralPatientSearch, setReferralPatientSearch] = useState("");
   const [referralPopoverOpen, setReferralPopoverOpen] = useState(false);
   const [selectedReferralPatientName, setSelectedReferralPatientName] = useState("");
@@ -169,6 +170,24 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     }
   }, [patient, defaultValues, open, allPatients]);
 
+  // Load existing campaign links when editing
+  useEffect(() => {
+    if (!open) {
+      setSelectedCampaignIds([]);
+      return;
+    }
+    if (patient) {
+      (async () => {
+        const { data } = await (supabase.from("patient_campaigns") as any)
+          .select("campaign_id")
+          .eq("patient_id", patient.id);
+        setSelectedCampaignIds(((data as any[]) || []).map((r) => r.campaign_id));
+      })();
+    } else {
+      setSelectedCampaignIds([]);
+    }
+  }, [patient, open]);
+
   const updateField = (field: keyof typeof form, value: string | null) => {
     setForm((prev) => ({ ...prev, [field]: value || null }));
   };
@@ -180,6 +199,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     }
     setSaving(true);
     try {
+      let patientId: string | null = patient?.id || null;
       if (isEditing && patient) {
         const { error } = await supabase
           .from("patients")
@@ -188,10 +208,36 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         if (error) throw error;
         toast({ title: "Patient updated successfully" });
       } else {
-        const { error } = await supabase.from("patients").insert(form);
+        const { data: created, error } = await supabase.from("patients").insert(form).select("id").single();
         if (error) throw error;
+        patientId = (created as any)?.id || null;
         toast({ title: "Patient created successfully" });
       }
+
+      // Sync patient_campaigns links
+      if (patientId) {
+        const { data: existingLinks } = await (supabase.from("patient_campaigns") as any)
+          .select("campaign_id")
+          .eq("patient_id", patientId);
+        const existing = new Set(((existingLinks as any[]) || []).map((r) => r.campaign_id));
+        const desired = new Set(selectedCampaignIds);
+        const toAdd = [...desired].filter((cid) => !existing.has(cid));
+        const toRemove = [...existing].filter((cid) => !desired.has(cid));
+        if (toAdd.length) {
+          const { data: userRes } = await supabase.auth.getUser();
+          const linkedBy = userRes?.user?.id || null;
+          await (supabase.from("patient_campaigns") as any).insert(
+            toAdd.map((cid) => ({ patient_id: patientId, campaign_id: cid, linked_by: linkedBy })),
+          );
+        }
+        if (toRemove.length) {
+          await (supabase.from("patient_campaigns") as any)
+            .delete()
+            .eq("patient_id", patientId)
+            .in("campaign_id", toRemove);
+        }
+      }
+
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
@@ -505,9 +551,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               </div>
             )}
 
-            <CampaignSelectField
-              value={(form as any).campaign_id || ""}
-              onChange={(v) => setForm((prev) => ({ ...prev, campaign_id: v || null } as any))}
+            <CampaignMultiSelectField
+              value={selectedCampaignIds}
+              onChange={setSelectedCampaignIds}
             />
           </TabsContent>
 

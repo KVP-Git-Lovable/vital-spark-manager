@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import skinClinicLogo from "@/assets/skin-clinic-logo.png";
 import {
   Sidebar,
@@ -88,11 +89,15 @@ const settingsItems = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
   const currentPath = location.pathname;
   const { isAdmin, permissions } = useAuth();
+
+  useEffect(() => {
+    if (isMobile) setOpenMobile(false);
+  }, [currentPath, isMobile, setOpenMobile]);
 
   const isActive = (path: string) =>
     path === "/" ? currentPath === "/" : currentPath.startsWith(path);

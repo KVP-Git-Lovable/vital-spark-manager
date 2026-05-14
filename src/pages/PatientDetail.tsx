@@ -1464,6 +1464,7 @@ const PatientDetail = () => {
         </TabsContent>
       </Tabs>
 
+
       <Dialog open={docTypeDialogOpen} onOpenChange={(o) => { if (!o) { setDocTypeDialogOpen(false); setPendingAttachmentFile(null); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

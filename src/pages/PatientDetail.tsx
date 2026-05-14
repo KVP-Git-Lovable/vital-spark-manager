@@ -255,6 +255,25 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
+  const linkedByIds = Array.from(new Set((patientCampaigns as any[]).map((pc: any) => pc.linked_by).filter(Boolean)));
+  const { data: linkedByMap = {} } = useQuery({
+    queryKey: ["staff-by-auth-user", linkedByIds.sort().join(",")],
+    queryFn: async () => {
+      if (linkedByIds.length === 0) return {} as Record<string, string>;
+      const { data, error } = await supabase
+        .from("staff")
+        .select("auth_user_id, first_name, last_name")
+        .in("auth_user_id", linkedByIds as string[]);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      (data || []).forEach((s: any) => {
+        if (s.auth_user_id) map[s.auth_user_id] = `${s.first_name || ""} ${s.last_name || ""}`.trim() || "—";
+      });
+      return map;
+    },
+    enabled: linkedByIds.length > 0,
+  });
+
   const { data: allCampaignsForLink = [] } = useQuery({
     queryKey: ["campaigns-for-patient-link"],
     queryFn: async () => {

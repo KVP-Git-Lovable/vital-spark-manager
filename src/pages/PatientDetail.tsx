@@ -1462,6 +1462,88 @@ const PatientDetail = () => {
             })()}
           </motion.div>
         </TabsContent>
+
+        {/* Campaigns Tab */}
+        <TabsContent value="campaigns">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            <div className="flex justify-end mb-3">
+              <Popover open={linkCampaignOpen} onOpenChange={setLinkCampaignOpen}>
+                <PopoverTrigger asChild>
+                  <Button size="sm" className="gap-1.5 h-8 text-xs">
+                    <Plus className="h-3.5 w-3.5" /> Link Campaign
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 p-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                    <Input value={linkCampaignSearch} onChange={(e) => setLinkCampaignSearch(e.target.value)} placeholder="Search campaigns…" className="h-8" />
+                  </div>
+                  <div className="max-h-60 overflow-y-auto space-y-0.5">
+                    {(() => {
+                      const linkedIds = new Set(patientCampaigns.map((pc: any) => pc.campaigns?.id));
+                      const available = (allCampaignsForLink as any[])
+                        .filter((c) => !linkedIds.has(c.id))
+                        .filter((c) => c.name.toLowerCase().includes(linkCampaignSearch.toLowerCase()));
+                      if (available.length === 0) {
+                        return <p className="text-xs text-muted-foreground p-2">No available campaigns</p>;
+                      }
+                      return available.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent"
+                          onClick={() => linkCampaignToPatient(c.id)}
+                        >
+                          {c.name} {c.status !== "Active" && <span className="text-xs text-muted-foreground">({c.status})</span>}
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {patientCampaigns.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Megaphone className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No campaigns linked yet.</p>
+              </div>
+            ) : (
+              <div className="data-table">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="py-2 px-3 font-medium">Campaign</th>
+                      <th className="py-2 px-3 font-medium">Type</th>
+                      <th className="py-2 px-3 font-medium">Status</th>
+                      <th className="py-2 px-3 font-medium">Date Linked</th>
+                      <th className="py-2 px-3 font-medium">Linked By</th>
+                      <th className="py-2 px-3 w-[60px]"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {patientCampaigns.map((pc: any) => (
+                      <tr key={pc.id} className="border-b hover:bg-muted/40">
+                        <td className="py-2 px-3 font-medium text-primary cursor-pointer" onClick={() => navigate(`/campaigns/${pc.campaigns?.id}`)}>
+                          {pc.campaigns?.name || "—"}
+                        </td>
+                        <td className="py-2 px-3">{pc.campaigns?.type || "—"}</td>
+                        <td className="py-2 px-3">{pc.campaigns?.status || "—"}</td>
+                        <td className="py-2 px-3">{pc.linked_date ? format(new Date(pc.linked_date), "dd MMM yyyy") : "—"}</td>
+                        <td className="py-2 px-3 text-xs text-muted-foreground">{pc.linked_by ? `${String(pc.linked_by).slice(0, 8)}…` : "—"}</td>
+                        <td className="py-2 px-3">
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => unlinkCampaignFromPatient(pc.id, pc.campaigns?.id)}>
+                            <X className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </motion.div>
+        </TabsContent>
       </Tabs>
 
 

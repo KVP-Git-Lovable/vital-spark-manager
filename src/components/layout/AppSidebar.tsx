@@ -66,7 +66,6 @@ const mainItems = [
   { title: "Reports", url: "/reports", icon: BarChart3, moduleKey: "reports" },
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart, moduleKey: "report_builder" },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone, moduleKey: "campaigns" },
-  { title: "User Management", url: "/user-management", icon: ShieldCheck, moduleKey: "user_management" },
 ];
 
 const employeesSubItems = [

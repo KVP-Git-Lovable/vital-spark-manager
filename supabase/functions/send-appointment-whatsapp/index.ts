@@ -1,10 +1,12 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
 
-const TEMPLATE_SID = "HX2579baba680a6b450e2f7b75530d0e25";
+const TEMPLATE_SID = "HX1750d865022c866cf68dc134cd93c6eb";
 
 function normalizePhone(phone: string): string | null {
   if (!phone) return null;
@@ -17,13 +19,21 @@ function normalizePhone(phone: string): string | null {
   return `+${cleaned}`;
 }
 
+function titleFromGender(gender?: string | null): string {
+  if (!gender) return "";
+  const g = gender.toLowerCase();
+  if (g.startsWith("m")) return "Mr.";
+  if (g.startsWith("f")) return "Ms.";
+  return "";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { phone, patientName, appointmentDate, appointmentTime } = await req.json();
+    const { phone, patientName, appointmentDate, appointmentTime, serviceName, patientGender } = await req.json();
 
     if (!phone || !patientName || !appointmentDate || !appointmentTime) {
       return new Response(
@@ -55,10 +65,33 @@ Deno.serve(async (req) => {
     const fromFormatted = fromNumber.startsWith("whatsapp:") ? fromNumber : `whatsapp:${fromNumber}`;
     const toFormatted = `whatsapp:${toNumber}`;
 
+    // Fetch clinic phone + city for template variables 4 & 5
+    let clinicPhone = "";
+    let clinicCity = "";
+    try {
+      const supaUrl = Deno.env.get("SUPABASE_URL")!;
+      const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supa = createClient(supaUrl, supaKey);
+      const { data: clinic } = await supa
+        .from("clinic_settings")
+        .select("phone, city")
+        .limit(1)
+        .maybeSingle();
+      clinicPhone = clinic?.phone || "";
+      clinicCity = clinic?.city || "";
+    } catch (e) {
+      console.error("clinic_settings fetch failed", e);
+    }
+
+    const title = titleFromGender(patientGender);
+    const namedPatient = title ? `${title} ${patientName}`.trim() : patientName;
+
     const contentVariables = JSON.stringify({
-      "1": patientName,
-      "2": appointmentDate,
-      "3": appointmentTime,
+      "1": namedPatient,
+      "2": appointmentTime,
+      "3": serviceName || "Consultation",
+      "4": clinicPhone || "-",
+      "5": clinicCity || "-",
     });
 
     const body = new URLSearchParams({

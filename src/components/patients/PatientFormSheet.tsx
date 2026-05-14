@@ -730,7 +730,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   );
 }
 
-function CampaignSelectField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function CampaignMultiSelectField({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const { data: campaigns = [] } = useQuery({
     queryKey: ["campaigns-for-patient-form"],
     queryFn: async () => {
@@ -739,18 +741,56 @@ function CampaignSelectField({ value, onChange }: { value: string; onChange: (v:
       return (data as any[]) || [];
     },
   });
+  const filtered = campaigns.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
+  const selected = campaigns.filter((c) => value.includes(c.id));
+  const toggle = (id: string) => {
+    if (value.includes(id)) onChange(value.filter((v) => v !== id));
+    else onChange([...value, id]);
+  };
   return (
     <div>
-      <Label>Campaign (Source)</Label>
-      <Select value={value || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)}>
-        <SelectTrigger className="mt-1.5"><SelectValue placeholder="None" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">None</SelectItem>
-          {campaigns.map((c) => (
-            <SelectItem key={c.id} value={c.id}>{c.name} {c.status !== "Active" ? `(${c.status})` : ""}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Label>Campaigns</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" className="w-full justify-between mt-1.5 h-auto min-h-10 py-2 font-normal">
+            <span className="flex flex-wrap gap-1 text-left">
+              {selected.length === 0 ? (
+                <span className="text-muted-foreground">Select campaigns...</span>
+              ) : (
+                selected.map((c) => (
+                  <span key={c.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-secondary text-xs">
+                    {c.name}
+                    <X className="h-3 w-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); toggle(c.id); }} />
+                  </span>
+                ))
+              )}
+            </span>
+            <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-2" align="start">
+          <div className="flex items-center gap-2 mb-2">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="h-8" />
+          </div>
+          <div className="max-h-56 overflow-y-auto space-y-0.5">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-muted-foreground p-2">No campaigns</p>
+            ) : filtered.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className={cn("w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-left")}
+                onClick={() => toggle(c.id)}
+              >
+                <Check className={cn("h-4 w-4", value.includes(c.id) ? "opacity-100" : "opacity-0")} />
+                <span className="flex-1">{c.name}</span>
+                {c.status !== "Active" && <span className="text-xs text-muted-foreground">({c.status})</span>}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

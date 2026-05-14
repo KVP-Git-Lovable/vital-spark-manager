@@ -910,6 +910,51 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_campaigns: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          id: string
+          linked_by: string | null
+          linked_date: string
+          notes: string | null
+          patient_id: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          id?: string
+          linked_by?: string | null
+          linked_date?: string
+          notes?: string | null
+          patient_id: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          linked_by?: string | null
+          linked_date?: string
+          notes?: string | null
+          patient_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_campaigns_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_campaigns_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_family_members: {
         Row: {
           city: string | null
@@ -1199,7 +1244,6 @@ export type Database = {
           allergies: string | null
           auth_user_id: string | null
           blood_group: string | null
-          campaign_id: string | null
           city: string | null
           created_at: string
           current_medications: string | null
@@ -1239,7 +1283,6 @@ export type Database = {
           allergies?: string | null
           auth_user_id?: string | null
           blood_group?: string | null
-          campaign_id?: string | null
           city?: string | null
           created_at?: string
           current_medications?: string | null
@@ -1279,7 +1322,6 @@ export type Database = {
           allergies?: string | null
           auth_user_id?: string | null
           blood_group?: string | null
-          campaign_id?: string | null
           city?: string | null
           created_at?: string
           current_medications?: string | null
@@ -1315,13 +1357,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "patients_campaign_id_fkey"
-            columns: ["campaign_id"]
-            isOneToOne: false
-            referencedRelation: "campaigns"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "patients_doctor_id_fkey"
             columns: ["doctor_id"]

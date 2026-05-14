@@ -648,7 +648,7 @@ const PatientDetail = () => {
 
       <Tabs defaultValue="details" className="mt-2">
         <div className="overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
-          <TabsList className="w-max md:w-auto">
+          <TabsList className="w-max md:w-full md:flex-wrap md:h-auto md:justify-start">
             <TabsTrigger value="details" className="gap-1 text-xs md:text-sm"><Info className="h-3.5 w-3.5" /> Details</TabsTrigger>
             <TabsTrigger value="appointments" className="gap-1 text-xs md:text-sm"><Calendar className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Appts</span> ({appointments.length})</TabsTrigger>
             <TabsTrigger value="invoices" className="gap-1 text-xs md:text-sm"><Receipt className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Invoices</span> ({invoices.length})</TabsTrigger>

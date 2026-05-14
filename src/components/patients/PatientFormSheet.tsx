@@ -76,6 +76,7 @@ const emptyForm: TablesInsert<"patients"> = {
 export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, onSuccess }: PatientFormSheetProps) {
   const [form, setForm] = useState<TablesInsert<"patients">>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
   const [referralPatientSearch, setReferralPatientSearch] = useState("");
   const [referralPopoverOpen, setReferralPopoverOpen] = useState(false);
   const [selectedReferralPatientName, setSelectedReferralPatientName] = useState("");
@@ -169,6 +170,24 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     }
   }, [patient, defaultValues, open, allPatients]);
 
+  // Load existing campaign links when editing
+  useEffect(() => {
+    if (!open) {
+      setSelectedCampaignIds([]);
+      return;
+    }
+    if (patient) {
+      (async () => {
+        const { data } = await (supabase.from("patient_campaigns") as any)
+          .select("campaign_id")
+          .eq("patient_id", patient.id);
+        setSelectedCampaignIds(((data as any[]) || []).map((r) => r.campaign_id));
+      })();
+    } else {
+      setSelectedCampaignIds([]);
+    }
+  }, [patient, open]);
+
   const updateField = (field: keyof typeof form, value: string | null) => {
     setForm((prev) => ({ ...prev, [field]: value || null }));
   };
@@ -180,6 +199,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     }
     setSaving(true);
     try {
+      let patientId: string | null = patient?.id || null;
       if (isEditing && patient) {
         const { error } = await supabase
           .from("patients")
@@ -188,10 +208,36 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         if (error) throw error;
         toast({ title: "Patient updated successfully" });
       } else {
-        const { error } = await supabase.from("patients").insert(form);
+        const { data: created, error } = await supabase.from("patients").insert(form).select("id").single();
         if (error) throw error;
+        patientId = (created as any)?.id || null;
         toast({ title: "Patient created successfully" });
       }
+
+      // Sync patient_campaigns links
+      if (patientId) {
+        const { data: existingLinks } = await (supabase.from("patient_campaigns") as any)
+          .select("campaign_id")
+          .eq("patient_id", patientId);
+        const existing = new Set(((existingLinks as any[]) || []).map((r) => r.campaign_id));
+        const desired = new Set(selectedCampaignIds);
+        const toAdd = [...desired].filter((cid) => !existing.has(cid));
+        const toRemove = [...existing].filter((cid) => !desired.has(cid));
+        if (toAdd.length) {
+          const { data: userRes } = await supabase.auth.getUser();
+          const linkedBy = userRes?.user?.id || null;
+          await (supabase.from("patient_campaigns") as any).insert(
+            toAdd.map((cid) => ({ patient_id: patientId, campaign_id: cid, linked_by: linkedBy })),
+          );
+        }
+        if (toRemove.length) {
+          await (supabase.from("patient_campaigns") as any)
+            .delete()
+            .eq("patient_id", patientId)
+            .in("campaign_id", toRemove);
+        }
+      }
+
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {
@@ -505,9 +551,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               </div>
             )}
 
-            <CampaignSelectField
-              value={(form as any).campaign_id || ""}
-              onChange={(v) => setForm((prev) => ({ ...prev, campaign_id: v || null } as any))}
+            <CampaignMultiSelectField
+              value={selectedCampaignIds}
+              onChange={setSelectedCampaignIds}
             />
           </TabsContent>
 
@@ -684,7 +730,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   );
 }
 
-function CampaignSelectField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function CampaignMultiSelectField({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const { data: campaigns = [] } = useQuery({
     queryKey: ["campaigns-for-patient-form"],
     queryFn: async () => {
@@ -693,18 +741,56 @@ function CampaignSelectField({ value, onChange }: { value: string; onChange: (v:
       return (data as any[]) || [];
     },
   });
+  const filtered = campaigns.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
+  const selected = campaigns.filter((c) => value.includes(c.id));
+  const toggle = (id: string) => {
+    if (value.includes(id)) onChange(value.filter((v) => v !== id));
+    else onChange([...value, id]);
+  };
   return (
     <div>
-      <Label>Campaign (Source)</Label>
-      <Select value={value || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)}>
-        <SelectTrigger className="mt-1.5"><SelectValue placeholder="None" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">None</SelectItem>
-          {campaigns.map((c) => (
-            <SelectItem key={c.id} value={c.id}>{c.name} {c.status !== "Active" ? `(${c.status})` : ""}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Label>Campaigns</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" className="w-full justify-between mt-1.5 h-auto min-h-10 py-2 font-normal">
+            <span className="flex flex-wrap gap-1 text-left">
+              {selected.length === 0 ? (
+                <span className="text-muted-foreground">Select campaigns...</span>
+              ) : (
+                selected.map((c) => (
+                  <span key={c.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-secondary text-xs">
+                    {c.name}
+                    <X className="h-3 w-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); toggle(c.id); }} />
+                  </span>
+                ))
+              )}
+            </span>
+            <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-2" align="start">
+          <div className="flex items-center gap-2 mb-2">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="h-8" />
+          </div>
+          <div className="max-h-56 overflow-y-auto space-y-0.5">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-muted-foreground p-2">No campaigns</p>
+            ) : filtered.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className={cn("w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-left")}
+                onClick={() => toggle(c.id)}
+              >
+                <Check className={cn("h-4 w-4", value.includes(c.id) ? "opacity-100" : "opacity-0")} />
+                <span className="flex-1">{c.name}</span>
+                {c.status !== "Active" && <span className="text-xs text-muted-foreground">({c.status})</span>}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

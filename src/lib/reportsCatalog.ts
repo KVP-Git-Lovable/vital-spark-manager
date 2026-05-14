@@ -415,6 +415,9 @@ export const REPORTS: ReportConfig[] = [
       { key: "status", label: "Status", sortable: true, type: "badge" },
       { key: "budget", label: "Budget", sortable: true, type: "currency" },
       { key: "amount_spent", label: "Spent", sortable: true, type: "currency" },
+      { key: "new_patients", label: "Patients", sortable: true },
+      { key: "revenue", label: "Revenue", sortable: true, type: "currency" },
+      { key: "roi", label: "ROI %", sortable: true },
       { key: "start_date", label: "Start", sortable: true, type: "date" },
       { key: "end_date", label: "End", sortable: true, type: "date" },
     ],
@@ -424,15 +427,48 @@ export const REPORTS: ReportConfig[] = [
     ],
     searchFields: ["name"],
     rowHref: (r) => `/campaigns/${r.id}`,
-    fetcher: async () =>
-      fetchAll((s, e) => supabase.from("campaigns").select("*").order("start_date", { ascending: false }).range(s, e)),
+    fetcher: async () => {
+      const campaigns = await fetchAll<any>((s, e) =>
+        supabase.from("campaigns").select("*").order("start_date", { ascending: false }).range(s, e),
+      );
+      // Junction-table-based metrics (distinct patients, no duplication)
+      const links = await fetchAll<any>((s, e) =>
+        (supabase.from("patient_campaigns") as any).select("campaign_id, patient_id").range(s, e),
+      );
+      const patientsByCampaign: Record<string, Set<string>> = {};
+      const allPatientIds = new Set<string>();
+      links.forEach((l: any) => {
+        if (!patientsByCampaign[l.campaign_id]) patientsByCampaign[l.campaign_id] = new Set();
+        patientsByCampaign[l.campaign_id].add(l.patient_id);
+        allPatientIds.add(l.patient_id);
+      });
+      let revenueByPatient: Record<string, number> = {};
+      if (allPatientIds.size > 0) {
+        const invoices = await fetchAll<any>((s, e) =>
+          supabase.from("invoices").select("patient_id, total_amount").in("patient_id", [...allPatientIds]).range(s, e),
+        );
+        invoices.forEach((inv: any) => {
+          revenueByPatient[inv.patient_id] = (revenueByPatient[inv.patient_id] || 0) + Number(inv.total_amount || 0);
+        });
+      }
+      return campaigns.map((c: any) => {
+        const patientIds = patientsByCampaign[c.id] || new Set();
+        const new_patients = patientIds.size;
+        const revenue = [...patientIds].reduce((s, pid) => s + (revenueByPatient[pid] || 0), 0);
+        const spent = Number(c.amount_spent || 0);
+        const roi = spent > 0 ? Number((((revenue - spent) / spent) * 100).toFixed(1)) : 0;
+        return { ...c, new_patients, revenue, roi };
+      });
+    },
     summary: (rows) => {
       const budget = rows.reduce((a, r) => a + Number(r.budget || 0), 0);
       const spent = rows.reduce((a, r) => a + Number(r.amount_spent || 0), 0);
+      const revenue = rows.reduce((a, r) => a + Number((r as any).revenue || 0), 0);
       return [
         { label: "Campaigns", value: rows.length.toLocaleString() },
         { label: "Total Budget", value: `₹${budget.toLocaleString()}` },
         { label: "Total Spent", value: `₹${spent.toLocaleString()}` },
+        { label: "Total Revenue", value: `₹${revenue.toLocaleString()}` },
       ];
     },
     chart: {

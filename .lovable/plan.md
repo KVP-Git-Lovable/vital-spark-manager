@@ -1,55 +1,84 @@
 ## Goal
-Fix invoice service charges, ensure consistent Patient ID, add HSN per service line, and add doctor selection with auto-added consultation fee. All visible in the invoice PDF.
+Convert Patient ↔ Campaign from a single FK (`patients.campaign_id`) to a many-to-many relationship via a new `patient_campaigns` junction table, and surface it on both sides (Patient profile + Campaign detail), in the New Patient form, ROI metrics, and Reports.
 
-## 1. Service charges show "—" on PDF
+---
 
-**Cause**: Invoice rows store services as plain strings (`"Service Name xN"`). The PDF function looks up price from `services` master, but the `services` table has no `price` lookup match when the saved name has been edited, or when an ad-hoc service was used. Also the legacy `generateInvoicePDF` browser print fallback prints `—`.
+## 1. Database migration
 
-**Fix**:
-- In `supabase/functions/generate-invoice-pdf/index.ts`: when a service line cannot be matched in `services` master (no `price`), fall back to deriving per-unit charge from the invoice's stored line price. To enable this, also start persisting per-line price/hsn into a new `invoice_line_items` JSONB column on `invoices` so PDF generation no longer guesses.
-- Migration: add `invoices.line_items jsonb` (array of `{ name, qty, price, hsn, gst, doctor_fee?: bool }`). Keep existing `services text[]` for backward compatibility.
-- `Billing.tsx` writes `line_items` on insert/update.
-- PDF reads `line_items` first; falls back to old logic if absent.
+Create junction table `public.patient_campaigns`:
+- `id` uuid pk
+- `patient_id` uuid → patients(id) on delete cascade
+- `campaign_id` uuid → campaigns(id) on delete cascade
+- `linked_date` timestamptz default now()
+- `linked_by` uuid (auth user id, nullable)
+- `notes` text nullable
+- `created_at` timestamptz default now()
+- Unique (patient_id, campaign_id)
+- Indexes on patient_id and campaign_id
+- Enable RLS with same policy pattern used by `patients`/`campaigns` (authenticated full access — to confirm via existing policies).
 
-## 2. Patient ID consistency
+Data migration:
+- `INSERT INTO patient_campaigns (patient_id, campaign_id) SELECT id, campaign_id FROM patients WHERE campaign_id IS NOT NULL;`
+- Drop column `patients.campaign_id` (after verifying inserts).
 
-User confirmed: keep `P-XXXXX` (last-5 of UUID).
-- Display the same `P-XXXXX` in **Patient Detail** header (next to name) and in the **Patients** list, so the value on the PDF matches what staff see in the profile. No schema change.
-- Helper added in `src/lib/utils.ts`: `shortPatientId(uuid)` mirroring the edge function's logic.
+---
 
-## 3. HSN Code per service line
+## 2. Patient profile — new "Campaigns" tab
+File: `src/pages/PatientDetail.tsx`
+- Add a new `<TabsTrigger value="campaigns">` placed immediately after the Attachments trigger, plus a matching `<TabsContent>`.
+- Component fetches `patient_campaigns` joined with `campaigns` for this patient.
+- Table columns: Campaign Name (link to `/campaigns/:id`) | Type | Status | Date Linked | Linked By (resolve via profiles if available, else show "—").
+- `+ Link Campaign` button opens a dialog with a searchable Combobox (Command pattern, like existing PatientCombobox) listing campaigns not yet linked. On select → insert row with `linked_by = auth.uid()`.
+- Row-level Unlink button → delete junction row (with confirm).
+- No max limit. Invalidate queries: `["patient-campaigns", patientId]` and `["campaign-patients", campaignId]`.
 
-- Migration: `ALTER TABLE services ADD COLUMN hsn_code text, ADD COLUMN gst_percent numeric DEFAULT 0;` (PDF function already references these but they don't exist).
-- `src/pages/Services.tsx`: add HSN Code input (optional) and GST% input in the service form & list.
-- `Billing.tsx` Create Invoice → each service row gets an optional `HSN` text input (auto-populated from Service Master when a service is picked, editable).
-- HSN flows into `invoice_line_items` and prints in the existing HSN column.
+---
 
-## 4. Doctor dropdown + Consultation Fee
+## 3. New/Edit Patient form — multi-select campaigns
+File: `src/components/patients/PatientFormSheet.tsx`
+- Replace the single `<Select>` campaign field (lines ~505–515) with a multi-select control (Popover + Command with checkboxes, mirroring existing multi-select patterns in the project — to confirm by quick grep; otherwise build a small inline one).
+- Local state: `selectedCampaignIds: string[]`. On edit, preload from `patient_campaigns`.
+- On submit:
+  - After patient insert/update succeeds, diff selected vs existing rows in `patient_campaigns`, insert added, delete removed.
+  - Use `linked_by = current user id`.
 
-- Migration: `ALTER TABLE staff ADD COLUMN consultation_fee numeric DEFAULT 0;`
-- `src/pages/StaffManagement.tsx` + `src/pages/StaffDetail.tsx`: add **Consultation Fee (₹)** field in the staff form (Doctor role only — but field shown for all, default 0).
-- `Billing.tsx` Create Invoice form: add **Doctor** dropdown after Patient (filtered to `staff` where `role = 'Doctor'` and `is_active`). On selection:
-  - Auto-insert/update a line item: `"Consultation - Dr. <Name>"` with charge = `consultation_fee`, qty 1, marked `doctor_fee: true`. Re-selecting a different doctor replaces it.
-  - Persist `doctor_id` on the invoice (new nullable column `invoices.doctor_id uuid references staff(id)`).
-- PDF: `Dr/Ref.By` field reads `invoices.doctor_id → staff` first, falls back to current appointment-based lookup.
+---
 
-## 5. PDF reflects everything
+## 4. Campaign detail — Linked Patients tab
+File: `src/pages/CampaignDetail.tsx`
+- Replace `linkedPatients` query: fetch `patient_campaigns` by `campaign_id`, join `patients` for name/phone, expose `linked_date`.
+- Replace `linkMutation` to `INSERT INTO patient_campaigns` (campaign_id, patient_id, linked_by).
+- Replace `unlinkMutation` to `DELETE FROM patient_campaigns WHERE campaign_id = ? AND patient_id = ?`.
+- Update table columns to: Name | Phone | Date Linked | Revenue (per-patient subtotal) — replacing current Joined/Source columns per spec.
+- Revenue per row: derive from existing `invoices` query result grouped by `patient_id`; show total in Spend & ROI tab as today.
 
-- `generate-invoice-pdf/index.ts` updated to:
-  - Prefer `inv.line_items` for Particulars / Charges / HSN / GST / Qty / Tax / Amount.
-  - Resolve doctor name from `inv.doctor_id` when set.
-  - Keep existing layout (header, table, totals, amount-in-words, mode of payment, footer) — **no visual redesign**.
-- Legacy in-browser `generateInvoicePDF()` fallback in `Billing.tsx` updated to print real charges instead of `—` (uses `line_items`).
+---
 
-## Technical summary
+## 5. Spend & ROI metrics
+Same file (`CampaignDetail.tsx`):
+- "New Patients" = distinct `patient_id` count from `patient_campaigns` for this campaign (already distinct by unique constraint).
+- "Revenue" = sum of `invoices.total_amount` for those patient ids (logic preserved).
 
-Files:
-- `supabase/migrations/<new>.sql` — `invoices.line_items jsonb`, `invoices.doctor_id uuid`, `services.hsn_code text`, `services.gst_percent numeric`, `staff.consultation_fee numeric`.
-- `supabase/functions/generate-invoice-pdf/index.ts` — read `line_items` and `doctor_id`; fallback chain preserved.
-- `src/pages/Billing.tsx` — Doctor dropdown, HSN input per service line, persist `line_items` + `doctor_id`, auto-add consultation fee row.
-- `src/pages/Services.tsx` — HSN + GST% inputs.
-- `src/pages/StaffManagement.tsx` (+ `StaffDetail.tsx` if it has its own form) — Consultation Fee input.
-- `src/pages/PatientDetail.tsx`, `src/pages/Patients.tsx` — show `P-XXXXX` next to patient name.
-- `src/lib/utils.ts` — `shortPatientId` helper.
+---
 
-No visual redesign of the PDF; only data plumbing and three new form fields.
+## 6. Reports — Campaigns ROI
+Files: `src/lib/reportsCatalog.ts` (and any campaign ROI report builder).
+- Where the campaign report joins patients via `campaign_id`, switch to joining via `patient_campaigns` (campaign_id → patient_id).
+- Use distinct patient counts to avoid duplicate rows when a patient is in multiple campaigns.
+- Verify `reportObjects.ts` for any `patients.campaign_id` field reference and remove/replace.
+
+---
+
+## Technical notes
+- All Supabase calls must use `from("patient_campaigns" as any)` until types regenerate post-migration.
+- Migration order: (a) create table + RLS, (b) backfill, (c) drop `patients.campaign_id`. Code changes ship after migration is approved so types regenerate cleanly.
+- Reuse existing `PatientCombobox` for patient pickers; build a lightweight CampaignCombobox (or inline Command list) for the patient side.
+- Keep all UI within existing design tokens; no new colors.
+
+---
+
+## Out of scope / assumptions
+- "Linked By" displays the user UUID truncated unless a `profiles` lookup already exists for staff names (will check during implementation; fall back to "—").
+- WhatsApp / campaign analytics dashboards outside the listed surfaces are not touched.
+
+Ready to implement on approval.

@@ -48,9 +48,16 @@ export default function CampaignDetail() {
   const { data: linkedPatients = [] } = useQuery({
     queryKey: ["campaign-patients", id],
     queryFn: async () => {
-      const { data, error } = await (supabase.from("patients") as any).select("id, first_name, last_name, phone, source, created_at").eq("campaign_id", id!);
+      const { data, error } = await (supabase.from("patient_campaigns") as any)
+        .select("id, linked_date, patients(id, first_name, last_name, phone, source, created_at)")
+        .eq("campaign_id", id!)
+        .order("linked_date", { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []).map((row: any) => ({
+        link_id: row.id,
+        linked_date: row.linked_date,
+        ...(row.patients || {}),
+      }));
     },
     enabled: !!id,
   });
@@ -64,6 +71,22 @@ export default function CampaignDetail() {
       if (error) throw error;
       const total = (data || []).reduce((s, inv: any) => s + Number(inv.total_amount || 0), 0);
       return { total };
+    },
+    enabled: linkedPatients.length > 0,
+  });
+
+  const { data: revenueByPatient = {} } = useQuery({
+    queryKey: ["campaign-revenue-by-patient", id, linkedPatients.map((p: any) => p.id)],
+    queryFn: async () => {
+      if (linkedPatients.length === 0) return {} as Record<string, number>;
+      const ids = linkedPatients.map((p: any) => p.id);
+      const { data, error } = await supabase.from("invoices").select("patient_id, total_amount").in("patient_id", ids);
+      if (error) throw error;
+      const map: Record<string, number> = {};
+      (data || []).forEach((inv: any) => {
+        map[inv.patient_id] = (map[inv.patient_id] || 0) + Number(inv.total_amount || 0);
+      });
+      return map;
     },
     enabled: linkedPatients.length > 0,
   });
@@ -93,11 +116,17 @@ export default function CampaignDetail() {
 
   const linkMutation = useMutation({
     mutationFn: async (patientId: string) => {
-      const { error } = await supabase.from("patients").update({ campaign_id: id } as any).eq("id", patientId);
+      const { data: userRes } = await supabase.auth.getUser();
+      const { error } = await (supabase.from("patient_campaigns") as any).insert({
+        patient_id: patientId,
+        campaign_id: id,
+        linked_by: userRes?.user?.id || null,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["campaign-patients", id] });
+      qc.invalidateQueries({ queryKey: ["patient-campaigns"] });
       setLinkPatientId("");
       toast.success("Patient linked");
     },
@@ -106,11 +135,15 @@ export default function CampaignDetail() {
 
   const unlinkMutation = useMutation({
     mutationFn: async (patientId: string) => {
-      const { error } = await supabase.from("patients").update({ campaign_id: null } as any).eq("id", patientId);
+      const { error } = await (supabase.from("patient_campaigns") as any)
+        .delete()
+        .eq("campaign_id", id!)
+        .eq("patient_id", patientId);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["campaign-patients", id] });
+      qc.invalidateQueries({ queryKey: ["patient-campaigns"] });
       toast.success("Patient unlinked");
     },
   });
@@ -243,8 +276,8 @@ export default function CampaignDetail() {
               <TableHeader><TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Phone</TableHead>
-                <TableHead>Joined</TableHead>
-                <TableHead>Source</TableHead>
+                <TableHead>Date Linked</TableHead>
+                <TableHead>Revenue</TableHead>
                 <TableHead className="w-[60px]"></TableHead>
               </TableRow></TableHeader>
               <TableBody>
@@ -254,8 +287,8 @@ export default function CampaignDetail() {
                   <TableRow key={p.id}>
                     <TableCell className="font-medium text-primary cursor-pointer" onClick={() => navigate(`/patients/${p.id}`)}>{p.first_name} {p.last_name}</TableCell>
                     <TableCell>{p.phone || "—"}</TableCell>
-                    <TableCell>{format(new Date(p.created_at), "dd MMM yyyy")}</TableCell>
-                    <TableCell>{p.source || "—"}</TableCell>
+                    <TableCell>{p.linked_date ? format(new Date(p.linked_date), "dd MMM yyyy") : "—"}</TableCell>
+                    <TableCell>₹{((revenueByPatient as any)[p.id] || 0).toLocaleString()}</TableCell>
                     <TableCell>
                       <Button size="icon" variant="ghost" onClick={() => unlinkMutation.mutate(p.id)}>
                         <X className="h-4 w-4 text-destructive" />

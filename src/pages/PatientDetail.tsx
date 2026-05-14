@@ -1,7 +1,9 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { shortPatientId } from "@/lib/utils";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound, Megaphone, Search } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -239,6 +241,62 @@ const PatientDetail = () => {
     },
     enabled: !!id,
   });
+
+  const { data: patientCampaigns = [], refetch: refetchPatientCampaigns } = useQuery({
+    queryKey: ["patient-campaigns", id],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("patient_campaigns") as any)
+        .select("id, linked_date, linked_by, notes, campaigns(id, name, type, status)")
+        .eq("patient_id", id!)
+        .order("linked_date", { ascending: false });
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+    enabled: !!id,
+  });
+
+  const { data: allCampaignsForLink = [] } = useQuery({
+    queryKey: ["campaigns-for-patient-link"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("campaigns" as any).select("id, name, status").order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as any[]) || [];
+    },
+  });
+
+  const [linkCampaignOpen, setLinkCampaignOpen] = useState(false);
+  const [linkCampaignSearch, setLinkCampaignSearch] = useState("");
+
+  const linkCampaignToPatient = async (campaignId: string) => {
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const { error } = await (supabase.from("patient_campaigns") as any).insert({
+        patient_id: id,
+        campaign_id: campaignId,
+        linked_by: userRes?.user?.id || null,
+      });
+      if (error) throw error;
+      toast.success("Campaign linked");
+      setLinkCampaignOpen(false);
+      setLinkCampaignSearch("");
+      refetchPatientCampaigns();
+      queryClient.invalidateQueries({ queryKey: ["campaign-patients", campaignId] });
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const unlinkCampaignFromPatient = async (linkId: string, campaignId: string) => {
+    try {
+      const { error } = await (supabase.from("patient_campaigns") as any).delete().eq("id", linkId);
+      if (error) throw error;
+      toast.success("Campaign unlinked");
+      refetchPatientCampaigns();
+      queryClient.invalidateQueries({ queryKey: ["campaign-patients", campaignId] });
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
 
   const { data: surveyTemplates = [] } = useQuery({
     queryKey: ["survey-templates-active"],
@@ -600,6 +658,7 @@ const PatientDetail = () => {
             <TabsTrigger value="family" className="gap-1 text-xs md:text-sm"><Users className="h-3.5 w-3.5" /> Family</TabsTrigger>
             <TabsTrigger value="surveys" className="gap-1 text-xs md:text-sm"><ClipboardCheck className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Surveys</span> ({surveyResponses.length})</TabsTrigger>
             <TabsTrigger value="attachments" className="gap-1 text-xs md:text-sm"><Paperclip className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Attachments</span> ({attachments.length})</TabsTrigger>
+            <TabsTrigger value="campaigns" className="gap-1 text-xs md:text-sm"><Megaphone className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Campaigns</span> ({patientCampaigns.length})</TabsTrigger>
           </TabsList>
         </div>
 
@@ -1403,7 +1462,90 @@ const PatientDetail = () => {
             })()}
           </motion.div>
         </TabsContent>
+
+        {/* Campaigns Tab */}
+        <TabsContent value="campaigns">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
+            <div className="flex justify-end mb-3">
+              <Popover open={linkCampaignOpen} onOpenChange={setLinkCampaignOpen}>
+                <PopoverTrigger asChild>
+                  <Button size="sm" className="gap-1.5 h-8 text-xs">
+                    <Plus className="h-3.5 w-3.5" /> Link Campaign
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 p-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                    <Input value={linkCampaignSearch} onChange={(e) => setLinkCampaignSearch(e.target.value)} placeholder="Search campaigns…" className="h-8" />
+                  </div>
+                  <div className="max-h-60 overflow-y-auto space-y-0.5">
+                    {(() => {
+                      const linkedIds = new Set(patientCampaigns.map((pc: any) => pc.campaigns?.id));
+                      const available = (allCampaignsForLink as any[])
+                        .filter((c) => !linkedIds.has(c.id))
+                        .filter((c) => c.name.toLowerCase().includes(linkCampaignSearch.toLowerCase()));
+                      if (available.length === 0) {
+                        return <p className="text-xs text-muted-foreground p-2">No available campaigns</p>;
+                      }
+                      return available.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent"
+                          onClick={() => linkCampaignToPatient(c.id)}
+                        >
+                          {c.name} {c.status !== "Active" && <span className="text-xs text-muted-foreground">({c.status})</span>}
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {patientCampaigns.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Megaphone className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No campaigns linked yet.</p>
+              </div>
+            ) : (
+              <div className="data-table">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="py-2 px-3 font-medium">Campaign</th>
+                      <th className="py-2 px-3 font-medium">Type</th>
+                      <th className="py-2 px-3 font-medium">Status</th>
+                      <th className="py-2 px-3 font-medium">Date Linked</th>
+                      <th className="py-2 px-3 font-medium">Linked By</th>
+                      <th className="py-2 px-3 w-[60px]"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {patientCampaigns.map((pc: any) => (
+                      <tr key={pc.id} className="border-b hover:bg-muted/40">
+                        <td className="py-2 px-3 font-medium text-primary cursor-pointer" onClick={() => navigate(`/campaigns/${pc.campaigns?.id}`)}>
+                          {pc.campaigns?.name || "—"}
+                        </td>
+                        <td className="py-2 px-3">{pc.campaigns?.type || "—"}</td>
+                        <td className="py-2 px-3">{pc.campaigns?.status || "—"}</td>
+                        <td className="py-2 px-3">{pc.linked_date ? format(new Date(pc.linked_date), "dd MMM yyyy") : "—"}</td>
+                        <td className="py-2 px-3 text-xs text-muted-foreground">{pc.linked_by ? `${String(pc.linked_by).slice(0, 8)}…` : "—"}</td>
+                        <td className="py-2 px-3">
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => unlinkCampaignFromPatient(pc.id, pc.campaigns?.id)}>
+                            <X className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </motion.div>
+        </TabsContent>
       </Tabs>
+
 
       <Dialog open={docTypeDialogOpen} onOpenChange={(o) => { if (!o) { setDocTypeDialogOpen(false); setPendingAttachmentFile(null); } }}>
         <DialogContent className="max-w-sm">

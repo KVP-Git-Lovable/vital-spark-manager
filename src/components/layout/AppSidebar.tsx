@@ -18,7 +18,6 @@ import {
   AlertCircle,
   ClipboardCheck,
   Building2,
-  Ruler,
   Tags,
   ChevronDown,
   FileText,
@@ -61,15 +60,18 @@ const mainItems = [
   { title: "Photos", url: "/photos", icon: Camera, moduleKey: "photos" },
   { title: "Pharmacy", url: "/pharma", icon: Pill, moduleKey: "pharmacy" },
   { title: "Billing", url: "/billing", icon: Receipt, moduleKey: "billing" },
-  { title: "Leave", url: "/leave", icon: CalendarDays, moduleKey: "leave" },
   { title: "Assets", url: "/assets", icon: Package, moduleKey: "assets" },
   { title: "Portal Orders", url: "/orders", icon: ShoppingBag, moduleKey: "portal_orders" },
   { title: "Expenses", url: "/expenses", icon: Wallet, moduleKey: "expenses" },
-  { title: "Staff", url: "/staff", icon: UserCog, moduleKey: "staff" },
-  { title: "Problem Areas", url: "/problem-areas", icon: AlertCircle, moduleKey: "problem_areas" },
   { title: "Reports", url: "/reports", icon: BarChart3, moduleKey: "reports" },
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart, moduleKey: "report_builder" },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone, moduleKey: "campaigns" },
+  { title: "User Management", url: "/user-management", icon: ShieldCheck, moduleKey: "user_management" },
+];
+
+const employeesSubItems = [
+  { title: "Staff", url: "/staff", icon: UserCog },
+  { title: "Leave", url: "/leave", icon: CalendarDays },
 ];
 
 const surveySubItems = [
@@ -81,7 +83,7 @@ const masterDataItems = [
   { title: "Service Master", url: "/services", icon: Stethoscope, moduleKey: "services" },
   { title: "Vendor Master", url: "/vendors", icon: Building2, moduleKey: "vendors" },
   { title: "Category Master", url: "/category-master", icon: Tags, moduleKey: "category_master" },
-  { title: "User Management", url: "/user-management", icon: ShieldCheck, moduleKey: "user_management" },
+  { title: "Problem Areas", url: "/problem-areas", icon: AlertCircle, moduleKey: "problem_areas" },
 ];
 
 const settingsItems = [
@@ -110,6 +112,10 @@ export function AppSidebar() {
   const filteredMain = mainItems.filter((i) => canView(i.moduleKey));
   const filteredMaster = masterDataItems.filter((i) => canView(i.moduleKey));
   const showSurveys = canView("surveys");
+  const showEmployees = canView("staff") || canView("leave");
+
+  const employeesPaths = ["/staff", "/leave"];
+  const masterPaths = masterDataItems.map((i) => i.url);
 
   return (
     <Sidebar collapsible="icon">
@@ -147,6 +153,47 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              {showEmployees && (
+                <Collapsible
+                  defaultOpen={employeesPaths.some((p) => currentPath.startsWith(p))}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip="Employees"
+                        isActive={employeesPaths.some((p) => currentPath.startsWith(p))}
+                      >
+                        <UserCog className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>Employees</span>}
+                        {!collapsed && (
+                          <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                        )}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {employeesSubItems
+                          .filter((sub) => canView(sub.url === "/staff" ? "staff" : "leave"))
+                          .map((sub) => (
+                            <SidebarMenuSubItem key={sub.url}>
+                              <SidebarMenuSubButton
+                                asChild
+                                isActive={isActive(sub.url)}
+                              >
+                                <Link to={sub.url}>
+                                  <sub.icon className="mr-2 h-3.5 w-3.5" />
+                                  <span>{sub.title}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              )}
 
               {showSurveys && (
                 <Collapsible
@@ -195,20 +242,42 @@ export function AppSidebar() {
             <SidebarGroupLabel>Master Data</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {filteredMaster.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                      <NavLink
-                        to={item.url}
-                        className="hover:bg-sidebar-accent"
-                        activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                <Collapsible
+                  defaultOpen={masterPaths.some((p) => currentPath.startsWith(p))}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip="Master Data"
+                        isActive={masterPaths.some((p) => currentPath.startsWith(p))}
                       >
-                        <item.icon className="mr-2 h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
+                        <Building2 className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>Master Data</span>}
+                        {!collapsed && (
+                          <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                        )}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {filteredMaster.map((item) => (
+                          <SidebarMenuSubItem key={item.title}>
+                            <SidebarMenuSubButton
+                              asChild
+                              isActive={isActive(item.url)}
+                            >
+                              <Link to={item.url}>
+                                <item.icon className="mr-2 h-3.5 w-3.5" />
+                                <span>{item.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
                   </SidebarMenuItem>
-                ))}
+                </Collapsible>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

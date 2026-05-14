@@ -66,7 +66,6 @@ const mainItems = [
   { title: "Reports", url: "/reports", icon: BarChart3, moduleKey: "reports" },
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart, moduleKey: "report_builder" },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone, moduleKey: "campaigns" },
-  { title: "User Management", url: "/user-management", icon: ShieldCheck, moduleKey: "user_management" },
 ];
 
 const employeesSubItems = [
@@ -232,6 +231,21 @@ export function AppSidebar() {
                     </CollapsibleContent>
                   </SidebarMenuItem>
                 </Collapsible>
+              )}
+
+              {canView("user_management") && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/user-management")}>
+                    <NavLink
+                      to="/user-management"
+                      className="hover:bg-sidebar-accent"
+                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                    >
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>User Management</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               )}
             </SidebarMenu>
           </SidebarGroupContent>

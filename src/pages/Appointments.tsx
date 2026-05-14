@@ -472,6 +472,7 @@ const Appointments = () => {
         capturedServiceName: serviceName,
         phone: patient?.phone,
         patientName,
+        patientGender: (patient as any)?.gender || null,
         firstStartDT: startDT,
         recurrencePattern,
         recurrenceEndDate: wasRecurring ? recurrenceEndDate : null,
@@ -517,6 +518,8 @@ const Appointments = () => {
               patientName: data.patientName,
               appointmentDate: format(data.firstStartDT, "dd MMM yyyy"),
               appointmentTime: format(data.firstStartDT, "hh:mm a"),
+              serviceName: data.capturedServiceName,
+              patientGender: data.patientGender,
             },
           })
           .then(({ error }) => {

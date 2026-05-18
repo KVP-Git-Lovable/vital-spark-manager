@@ -488,8 +488,9 @@ const Appointments = () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       toast.success("Appointment(s) created");
       if (data.phone) toast.info(`Patient phone: ${data.phone}`, { duration: 6000 });
-      // Send WhatsApp confirmation
-      if (data.phone && data.patientName && data.firstStartDT) {
+      // Send WhatsApp confirmation only for Confirmed or Cancelled appointments
+      const notifyStatuses = ["Confirmed", "Cancelled"];
+      if (data.phone && data.patientName && data.firstStartDT && notifyStatuses.includes(appointmentStatus)) {
         if (data.wasRecurring && data.recurrenceEndDate) {
           supabase.functions
             .invoke("send-recurring-appointment-whatsapp", {
@@ -511,24 +512,24 @@ const Appointments = () => {
               }
             });
         } else {
-        supabase.functions
-          .invoke("send-appointment-whatsapp", {
-            body: {
-              phone: data.phone,
-              patientName: data.patientName,
-              appointmentDate: format(data.firstStartDT, "dd MMM yyyy"),
-              appointmentTime: format(data.firstStartDT, "hh:mm a"),
-              serviceName: data.capturedServiceName,
-              patientGender: data.patientGender,
-            },
-          })
-          .then(({ error }) => {
-            if (error) {
-              console.error("WhatsApp send failed:", error);
-            } else {
-              toast.success("WhatsApp confirmation sent");
-            }
-          });
+          supabase.functions
+            .invoke("send-appointment-whatsapp", {
+              body: {
+                phone: data.phone,
+                patientName: data.patientName,
+                appointmentDate: format(data.firstStartDT, "dd MMM yyyy"),
+                appointmentTime: format(data.firstStartDT, "hh:mm a"),
+                serviceName: data.capturedServiceName,
+                patientGender: data.patientGender,
+              },
+            })
+            .then(({ error }) => {
+              if (error) {
+                console.error("WhatsApp send failed:", error);
+              } else {
+                toast.success("WhatsApp confirmation sent");
+              }
+            });
         }
       }
       // Survey: assign-to-patient (WhatsApp invite)

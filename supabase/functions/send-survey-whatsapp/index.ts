@@ -48,7 +48,9 @@ Deno.serve(async (req) => {
     const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
     const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
     const fromNumber = Deno.env.get("TWILIO_WHATSAPP_FROM");
-    const templateSid = Deno.env.get("SURVEY_WHATSAPP_TEMPLATE_SID");
+    const templateSid =
+      Deno.env.get("SURVEY_WHATSAPP_TEMPLATE_SID") ||
+      "HXbe9d1829421018953ce89df065820c40";
 
     if (!accountSid || !authToken || !fromNumber) {
       console.error("Missing Twilio credentials");
@@ -78,9 +80,10 @@ Deno.serve(async (req) => {
       params.ContentVariables = JSON.stringify({
         "1": patientName,
         "2": template_name,
+        "3": "https://clinic.quickapp.ai/portal/surveys",
       });
     } else {
-      params.Body = `Hi ${patientName}, your survey "${template_name}" has been submitted. Our doctor will review and approve it shortly.`;
+      params.Body = `Hi ${patientName}, please fill the "${template_name}" survey here: https://clinic.quickapp.ai/portal/surveys`;
     }
 
     const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;

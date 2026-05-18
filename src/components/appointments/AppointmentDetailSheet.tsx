@@ -1073,21 +1073,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                     <h3 className="text-sm font-semibold font-display flex items-center gap-2">
                       <ClipboardCheck className="h-4 w-4" /> Patient Survey
                     </h3>
-                    {appointment.patient_id && surveyTemplates.length > 0 && (
-                      <Select onValueChange={(templateId) => {
-                        setSelectedSurveyTemplateId(templateId);
-                        setSurveyFillOpen(true);
-                      }}>
-                        <SelectTrigger className="w-48 h-8 text-xs">
-                          <SelectValue placeholder="Fill a survey..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {surveyTemplates.map((t: any) => (
-                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
                   </div>
 
                   {!appointment.patient_id ? (
@@ -1095,7 +1080,57 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                   ) : surveyTemplates.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">No active survey templates available. Create one in the Surveys module.</p>
                   ) : (
-                    <SurveyRecommendations appointmentId={appointmentId!} />
+                    <>
+                      <div className="border rounded-lg p-3 space-y-3 bg-muted/20">
+                        <Label className="text-xs font-medium">Select Survey Template</Label>
+                        <Select
+                          value={selectedSurveyTemplateId || ""}
+                          onValueChange={(v) => setSelectedSurveyTemplateId(v)}
+                        >
+                          <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Choose a survey template..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {surveyTemplates.map((t: any) => (
+                              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 gap-1"
+                            disabled={!selectedSurveyTemplateId}
+                            onClick={async () => {
+                              const tpl = surveyTemplates.find((t: any) => t.id === selectedSurveyTemplateId);
+                              if (!tpl || !appointment.patient_id) return;
+                              const { error } = await supabase.functions.invoke("send-survey-whatsapp", {
+                                body: {
+                                  patient_id: appointment.patient_id,
+                                  template_name: tpl.name,
+                                  template_id: tpl.id,
+                                  appointment_id: appointmentId,
+                                },
+                              });
+                              if (error) toast.error("Failed to send survey link");
+                              else toast.success("Survey link sent on WhatsApp");
+                            }}
+                          >
+                            Send Survey Link
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="flex-1 gap-1"
+                            disabled={!selectedSurveyTemplateId}
+                            onClick={() => setSurveyFillOpen(true)}
+                          >
+                            Fill Now
+                          </Button>
+                        </div>
+                      </div>
+                      <SurveyRecommendations appointmentId={appointmentId!} />
+                    </>
                   )}
                 </TabsContent>
 

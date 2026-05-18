@@ -536,6 +536,23 @@ const Appointments = () => {
       // Survey: assign-to-patient (WhatsApp invite)
       if (data.assignSurveyTemplateId && data.capturedPatientId) {
         const tpl = activeSurveyTemplates.find((t: any) => t.id === data.assignSurveyTemplateId);
+        // Create a pending survey assignment so it shows in the patient portal
+        (async () => {
+          const { data: existing } = await supabase
+            .from("survey_assignments")
+            .select("id")
+            .eq("patient_id", data.capturedPatientId)
+            .eq("template_id", data.assignSurveyTemplateId)
+            .eq("status", "pending")
+            .maybeSingle();
+          if (!existing) {
+            await supabase.from("survey_assignments").insert({
+              patient_id: data.capturedPatientId,
+              template_id: data.assignSurveyTemplateId,
+              status: "pending",
+            });
+          }
+        })().catch((e) => console.error("Survey assignment insert failed:", e));
         supabase.functions
           .invoke("send-survey-whatsapp", {
             body: {
@@ -1094,6 +1111,21 @@ const Appointments = () => {
                               setSendingSurveyLink(true);
                               const loadingId = toast.loading("Sending survey link on WhatsApp...");
                               try {
+                                // Ensure a pending assignment exists so the portal shows this survey
+                                const { data: existing } = await supabase
+                                  .from("survey_assignments")
+                                  .select("id")
+                                  .eq("patient_id", patientId)
+                                  .eq("template_id", selectedTemplateId)
+                                  .eq("status", "pending")
+                                  .maybeSingle();
+                                if (!existing) {
+                                  await supabase.from("survey_assignments").insert({
+                                    patient_id: patientId,
+                                    template_id: selectedTemplateId,
+                                    status: "pending",
+                                  });
+                                }
                                 const { data: res, error } = await supabase.functions.invoke("send-survey-whatsapp", {
                                   body: { patient_id: patientId, template_name: tpl.name },
                                 });

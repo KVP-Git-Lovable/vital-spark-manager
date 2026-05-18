@@ -65,18 +65,6 @@ function PortalSurveysList({ patientId, onOpen }: { patientId: string; onOpen: (
     enabled: !!patientId,
   });
 
-  const { data: templates = [] } = useQuery({
-    queryKey: ["portal-available-surveys"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("survey_templates")
-        .select("id, name, description")
-        .eq("is_active", true)
-        .order("name");
-      return data || [];
-    },
-  });
-
   return (
     <div className="space-y-5">
       <div>
@@ -840,7 +828,6 @@ const Portal = () => {
                     onClose={() => setActiveSurvey(null)}
                     onSubmitted={() => {
                       queryClient.invalidateQueries({ queryKey: ["portal-assigned-surveys"] });
-                      queryClient.invalidateQueries({ queryKey: ["portal-available-surveys"] });
                     }}
                   />
                 ) : (

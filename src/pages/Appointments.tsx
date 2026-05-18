@@ -128,6 +128,7 @@ const Appointments = () => {
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date>();
   const [selectedProblemAreas, setSelectedProblemAreas] = useState<string[]>([]);
   const [assignSurveyTemplateId, setAssignSurveyTemplateId] = useState<string>("");
+  const [sendingSurveyLink, setSendingSurveyLink] = useState(false);
   const [fillNowSurveyTemplateId, setFillNowSurveyTemplateId] = useState<string>("");
   const [pendingFillNow, setPendingFillNow] = useState<{
     templateId: string;

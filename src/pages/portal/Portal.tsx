@@ -77,9 +77,6 @@ function PortalSurveysList({ patientId, onOpen }: { patientId: string; onOpen: (
     },
   });
 
-  const assignedTemplateIds = new Set(assigned.map((a: any) => a.template_id));
-  const available = templates.filter((t: any) => !assignedTemplateIds.has(t.id));
-
   return (
     <div className="space-y-5">
       <div>
@@ -102,33 +99,6 @@ function PortalSurveysList({ patientId, onOpen }: { patientId: string; onOpen: (
                     <p className="text-xs text-muted-foreground truncate mt-0.5">{a.survey_templates.description}</p>
                   )}
                   <Badge variant="secondary" className="mt-1.5 text-[10px]">Assigned by clinic</Badge>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <h2 className="font-bold text-lg mb-2">Available Surveys</h2>
-        {available.length === 0 ? (
-          <div className="bg-card rounded-xl border p-4 text-sm text-muted-foreground text-center">
-            No additional surveys available right now.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {available.map((t: any) => (
-              <button
-                key={t.id}
-                onClick={() => onOpen(t.id)}
-                className="w-full text-left bg-card rounded-xl border shadow-sm p-4 flex items-center justify-between gap-3 hover:bg-muted/40 transition-colors"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">{t.name}</p>
-                  {t.description && (
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{t.description}</p>
-                  )}
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </button>

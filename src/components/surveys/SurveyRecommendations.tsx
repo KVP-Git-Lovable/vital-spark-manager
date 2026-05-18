@@ -14,21 +14,27 @@ import { approveSurveyResponse } from "@/lib/surveyApproval";
 
 interface Props {
   appointmentId: string;
+  patientId?: string;
 }
 
-export function SurveyRecommendations({ appointmentId }: Props) {
+export function SurveyRecommendations({ appointmentId, patientId }: Props) {
   const queryClient = useQueryClient();
   const [drNotes, setDrNotes] = useState("");
   const [reviewAction, setReviewAction] = useState<string | null>(null);
 
   const { data: responses = [], isLoading } = useQuery({
-    queryKey: ["survey-responses", appointmentId],
+    queryKey: ["survey-responses", appointmentId, patientId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("survey_responses")
         .select("*, survey_templates(name), staff(first_name, last_name)")
-        .eq("appointment_id", appointmentId)
         .order("created_at", { ascending: false });
+      if (patientId) {
+        query = query.or(`appointment_id.eq.${appointmentId},patient_id.eq.${patientId}`);
+      } else {
+        query = query.eq("appointment_id", appointmentId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },

@@ -1137,7 +1137,7 @@ const Appointments = () => {
                             : !selectedTemplateId
                             ? "Pick a template, then choose an action"
                             : sendArmed
-                            ? "WhatsApp link will be sent to the patient on create"
+                            ? "WhatsApp link queued — will be sent on create"
                             : fillArmed
                             ? "Survey form will open after appointment is created"
                             : isRecurring

@@ -1086,13 +1086,35 @@ const Appointments = () => {
                             size="sm"
                             variant={sendArmed ? "default" : "outline"}
                             className="flex-1"
-                            disabled={!patientId || !selectedTemplateId}
-                            onClick={() => {
-                              setAssignSurveyTemplateId(selectedTemplateId);
-                              setFillNowSurveyTemplateId("");
+                            disabled={!patientId || !selectedTemplateId || sendingSurveyLink}
+                            onClick={async () => {
+                              const tpl = activeSurveyTemplates.find((t: any) => t.id === selectedTemplateId);
+                              if (!tpl) return;
+                              setSendingSurveyLink(true);
+                              const loadingId = toast.loading("Sending survey link on WhatsApp...");
+                              try {
+                                const { data: res, error } = await supabase.functions.invoke("send-survey-whatsapp", {
+                                  body: { patient_id: patientId, template_name: tpl.name },
+                                });
+                                if (error) throw error;
+                                if (res?.success === false && res?.reason === "no_phone") {
+                                  toast.error("Patient has no phone number on file", { id: loadingId });
+                                } else if (res?.error) {
+                                  toast.error(`Failed to send: ${res.error}`, { id: loadingId });
+                                } else {
+                                  toast.success("Survey link sent on WhatsApp", { id: loadingId });
+                                  // Clear arming so we don't re-send on appointment create
+                                  setAssignSurveyTemplateId("");
+                                  setFillNowSurveyTemplateId("");
+                                }
+                              } catch (e: any) {
+                                toast.error(`Failed to send: ${e?.message || "Unknown error"}`, { id: loadingId });
+                              } finally {
+                                setSendingSurveyLink(false);
+                              }
                             }}
                           >
-                            Send Survey Link
+                            {sendingSurveyLink ? "Sending..." : "Send Survey Link"}
                           </Button>
                           <Button
                             type="button"

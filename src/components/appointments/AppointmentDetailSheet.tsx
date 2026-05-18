@@ -1129,7 +1129,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                           </Button>
                         </div>
                       </div>
-                      <SurveyRecommendations appointmentId={appointmentId!} />
+                      <SurveyRecommendations appointmentId={appointmentId!} patientId={appointment.patient_id} />
                     </>
                   )}
                 </TabsContent>

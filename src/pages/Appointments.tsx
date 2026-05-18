@@ -1042,48 +1042,88 @@ const Appointments = () => {
                   <Label className="flex items-center gap-1.5">
                     <ClipboardCheck className="h-3.5 w-3.5" /> Survey <span className="text-xs font-normal text-muted-foreground">(optional)</span>
                   </Label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Assign to Patient</Label>
-                      <Select
-                        value={assignSurveyTemplateId || "__none__"}
-                        onValueChange={(v) => setAssignSurveyTemplateId(v === "__none__" ? "" : v)}
-                        disabled={!patientId}
-                      >
-                        <SelectTrigger className="mt-1.5">
-                          <SelectValue placeholder="Select template" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-60">
-                          <SelectItem value="__none__">None</SelectItem>
-                          {activeSurveyTemplates.map((t: any) => (
-                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[11px] text-muted-foreground mt-1">Sends WhatsApp link to patient</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Fill Now</Label>
-                      <Select
-                        value={fillNowSurveyTemplateId || "__none__"}
-                        onValueChange={(v) => setFillNowSurveyTemplateId(v === "__none__" ? "" : v)}
-                        disabled={!patientId || isRecurring}
-                      >
-                        <SelectTrigger className="mt-1.5">
-                          <SelectValue placeholder="Select template" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-60">
-                          <SelectItem value="__none__">None</SelectItem>
-                          {activeSurveyTemplates.map((t: any) => (
-                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        {isRecurring ? "Not available for recurring" : "Opens after appointment is created"}
-                      </p>
-                    </div>
-                  </div>
+                  {(() => {
+                    const selectedTemplateId = assignSurveyTemplateId || fillNowSurveyTemplateId || "";
+                    const setSelectedTemplate = (id: string) => {
+                      // Keep both state slots in sync with the picker; the actual
+                      // action (send link vs fill now) is decided by the buttons below.
+                      if (assignSurveyTemplateId) setAssignSurveyTemplateId(id);
+                      if (fillNowSurveyTemplateId) setFillNowSurveyTemplateId(id);
+                      if (!assignSurveyTemplateId && !fillNowSurveyTemplateId) {
+                        // Default to "Send Link" mode when nothing is armed yet
+                        setAssignSurveyTemplateId(id);
+                      }
+                    };
+                    const sendArmed = !!assignSurveyTemplateId;
+                    const fillArmed = !!fillNowSurveyTemplateId;
+                    return (
+                      <>
+                        <Select
+                          value={selectedTemplateId || "__none__"}
+                          onValueChange={(v) => {
+                            if (v === "__none__") {
+                              setAssignSurveyTemplateId("");
+                              setFillNowSurveyTemplateId("");
+                            } else {
+                              setSelectedTemplate(v);
+                            }
+                          }}
+                          disabled={!patientId}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select survey template" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            <SelectItem value="__none__">None</SelectItem>
+                            {activeSurveyTemplates.map((t: any) => (
+                              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={sendArmed ? "default" : "outline"}
+                            className="flex-1"
+                            disabled={!patientId || !selectedTemplateId}
+                            onClick={() => {
+                              setAssignSurveyTemplateId(selectedTemplateId);
+                              setFillNowSurveyTemplateId("");
+                            }}
+                          >
+                            Send Survey Link
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={fillArmed ? "default" : "outline"}
+                            className="flex-1"
+                            disabled={!patientId || !selectedTemplateId || isRecurring}
+                            onClick={() => {
+                              setFillNowSurveyTemplateId(selectedTemplateId);
+                              setAssignSurveyTemplateId("");
+                            }}
+                          >
+                            Fill Now
+                          </Button>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          {!patientId
+                            ? "Select a patient to enable surveys"
+                            : !selectedTemplateId
+                            ? "Pick a template, then choose an action"
+                            : sendArmed
+                            ? "WhatsApp link will be sent to the patient on create"
+                            : fillArmed
+                            ? "Survey form will open after appointment is created"
+                            : isRecurring
+                            ? "Fill Now is not available for recurring appointments"
+                            : ""}
+                        </p>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 <div>

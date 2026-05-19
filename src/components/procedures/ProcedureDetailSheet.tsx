@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CameraCapture } from "@/components/shared/CameraCapture";
+import { MicButton } from "@/components/shared/MicButton";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const statusOptions = ["Completed", "In Progress", "Cancelled"];
@@ -353,9 +354,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 <div>
                   <div className="flex items-center justify-between">
                     <Label>Symptoms</Label>
-                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("symptoms")} disabled={elaborating !== null}>
-                      {elaborating === "symptoms" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <MicButton value={editSymptoms} onChange={setEditSymptoms} />
+                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("symptoms")} disabled={elaborating !== null}>
+                        {elaborating === "symptoms" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                      </Button>
+                    </div>
                   </div>
                   <Textarea value={editSymptoms} onChange={(e) => setEditSymptoms(e.target.value)} className="mt-1.5" rows={2} placeholder="e.g. Redness, itching, dry patches..." />
                 </div>
@@ -363,9 +367,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 <div>
                   <div className="flex items-center justify-between">
                     <Label>Diagnosis</Label>
-                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("diagnosis")} disabled={elaborating !== null}>
-                      {elaborating === "diagnosis" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <MicButton value={editDiagnosis} onChange={setEditDiagnosis} />
+                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("diagnosis")} disabled={elaborating !== null}>
+                        {elaborating === "diagnosis" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                      </Button>
+                    </div>
                   </div>
                   <Textarea value={editDiagnosis} onChange={(e) => setEditDiagnosis(e.target.value)} className="mt-1.5" rows={2} />
                 </div>
@@ -373,9 +380,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 <div>
                   <div className="flex items-center justify-between">
                     <Label>Procedure Notes</Label>
-                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("procedure_notes")} disabled={elaborating !== null}>
-                      {elaborating === "procedure_notes" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <MicButton value={editProcedureNotes} onChange={setEditProcedureNotes} />
+                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("procedure_notes")} disabled={elaborating !== null}>
+                        {elaborating === "procedure_notes" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                      </Button>
+                    </div>
                   </div>
                   <Textarea value={editProcedureNotes} onChange={(e) => setEditProcedureNotes(e.target.value)} className="mt-1.5" rows={3} />
                 </div>
@@ -383,9 +393,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 <div>
                   <div className="flex items-center justify-between">
                     <Label>Recommendations</Label>
-                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("recommendations")} disabled={elaborating !== null}>
-                      {elaborating === "recommendations" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <MicButton value={editRecommendations} onChange={setEditRecommendations} />
+                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("recommendations")} disabled={elaborating !== null}>
+                        {elaborating === "recommendations" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                      </Button>
+                    </div>
                   </div>
                   <Textarea value={editRecommendations} onChange={(e) => setEditRecommendations(e.target.value)} className="mt-1.5" rows={3} />
                 </div>

@@ -37,6 +37,7 @@ import { toast } from "sonner";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
+import { MicButton } from "@/components/shared/MicButton";
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 // 15-min slots from 8:00 to 19:45
@@ -922,7 +923,55 @@ const Appointments = () => {
             </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto mx-2 sm:mx-auto">
               <DialogHeader>
-                <DialogTitle className="font-display">New Appointment</DialogTitle>
+                <DialogTitle className="font-display flex items-center justify-between gap-2">
+                  <span>New Appointment</span>
+                  <span className="flex items-center gap-2">
+                    <MicButton
+                      mode="replace"
+                      onChange={() => { /* handled via onTranscript */ }}
+                      onTranscript={async (transcript) => {
+                        try {
+                          toast.loading("Understanding voice…", { id: "voice-fill" });
+                          const { data, error } = await supabase.functions.invoke("voice-parse-appointment", {
+                            body: {
+                              transcript,
+                              patients: patients.map((p: any) => ({ id: p.id, name: `${p.first_name} ${p.last_name}`.trim(), phone: p.phone })),
+                              services: services.map((s: any) => ({ id: s.id, name: s.name })),
+                              today: format(new Date(), "yyyy-MM-dd"),
+                            },
+                          });
+                          if (error) throw error;
+                          const filled: string[] = [];
+                          const missed: string[] = [];
+                          if (data?.patient_id) { setPatientId(data.patient_id); filled.push("patient"); }
+                          else if (data?.patient_query) missed.push(`patient "${data.patient_query}"`);
+                          if (data?.service_id) { setServiceId(data.service_id); filled.push("service"); }
+                          else if (data?.service_query) missed.push(`service "${data.service_query}"`);
+                          if (data?.date) {
+                            const d = new Date(data.date + "T00:00:00");
+                            if (!isNaN(d.getTime())) { setStartDate(d); filled.push("date"); }
+                          }
+                          if (data?.time && /^\d{2}:\d{2}$/.test(data.time)) {
+                            setStartTime(data.time);
+                            const [h, m] = data.time.split(":").map(Number);
+                            const end = new Date(); end.setHours(h, m + 15);
+                            setEndTime(`${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`);
+                            filled.push("time");
+                          }
+                          toast.dismiss("voice-fill");
+                          if (filled.length) toast.success(`Filled: ${filled.join(", ")}`);
+                          if (missed.length) toast.warning(`Could not match: ${missed.join(", ")}`);
+                          if (!filled.length && !missed.length) toast.error("Could not understand the transcript");
+                        } catch (e: any) {
+                          toast.dismiss("voice-fill");
+                          toast.error(e?.message || "Voice fill failed");
+                        }
+                      }}
+                      title="Voice fill — speak patient, date, time, service"
+                    />
+                    <span className="text-xs text-muted-foreground font-normal">Voice fill</span>
+                  </span>
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">

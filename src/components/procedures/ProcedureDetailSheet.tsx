@@ -441,17 +441,17 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                             </Select>
                           </div>
                           <div>
-                            <Label className="text-xs text-muted-foreground">Dosage</Label>
+                            <Label className="text-xs text-muted-foreground flex items-center justify-between">Dosage <MicButton value={rx.dosage} onChange={(v) => updateRx(realIdx, "dosage", v)} mode="replace" /></Label>
                             <Input className="mt-1" placeholder="e.g. 500mg" value={rx.dosage} onChange={(e) => updateRx(realIdx, "dosage", e.target.value)} />
                           </div>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           <div>
-                            <Label className="text-xs text-muted-foreground">Frequency</Label>
+                            <Label className="text-xs text-muted-foreground flex items-center justify-between">Frequency <MicButton value={rx.frequency} onChange={(v) => updateRx(realIdx, "frequency", v)} mode="replace" /></Label>
                             <Input className="mt-1" placeholder="e.g. Twice daily" value={rx.frequency} onChange={(e) => updateRx(realIdx, "frequency", e.target.value)} />
                           </div>
                           <div>
-                            <Label className="text-xs text-muted-foreground">Duration</Label>
+                            <Label className="text-xs text-muted-foreground flex items-center justify-between">Duration <MicButton value={rx.duration} onChange={(v) => updateRx(realIdx, "duration", v)} mode="replace" /></Label>
                             <Input className="mt-1" placeholder="e.g. 7 days" value={rx.duration} onChange={(e) => updateRx(realIdx, "duration", e.target.value)} />
                           </div>
                           <div>
@@ -460,7 +460,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                           </div>
                         </div>
                         <div>
-                          <Label className="text-xs text-muted-foreground">Special Instructions</Label>
+                          <Label className="text-xs text-muted-foreground flex items-center justify-between">Special Instructions <MicButton value={rx.instructions} onChange={(v) => updateRx(realIdx, "instructions", v)} /></Label>
                           <Input className="mt-1" placeholder="e.g. After meals" value={rx.instructions} onChange={(e) => updateRx(realIdx, "instructions", e.target.value)} />
                         </div>
                       </div>

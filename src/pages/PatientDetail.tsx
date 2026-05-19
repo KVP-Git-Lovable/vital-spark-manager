@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MicButton } from "@/components/shared/MicButton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -1188,15 +1189,15 @@ const PatientDetail = () => {
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs">Dosage</Label>
+                    <Label className="text-xs flex items-center justify-between">Dosage <MicButton value={rxForm.dosage} onChange={(v) => setRxForm(p => ({ ...p, dosage: v }))} mode="replace" /></Label>
                     <Input value={rxForm.dosage} onChange={(e) => setRxForm(p => ({ ...p, dosage: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="e.g. 500mg" />
                   </div>
                   <div>
-                    <Label className="text-xs">Frequency</Label>
+                    <Label className="text-xs flex items-center justify-between">Frequency <MicButton value={rxForm.frequency} onChange={(v) => setRxForm(p => ({ ...p, frequency: v }))} mode="replace" /></Label>
                     <Input value={rxForm.frequency} onChange={(e) => setRxForm(p => ({ ...p, frequency: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="e.g. Twice daily" />
                   </div>
                   <div>
-                    <Label className="text-xs">Duration</Label>
+                    <Label className="text-xs flex items-center justify-between">Duration <MicButton value={rxForm.duration} onChange={(v) => setRxForm(p => ({ ...p, duration: v }))} mode="replace" /></Label>
                     <Input value={rxForm.duration} onChange={(e) => setRxForm(p => ({ ...p, duration: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="e.g. 7 days" />
                   </div>
                   <div>
@@ -1204,7 +1205,7 @@ const PatientDetail = () => {
                     <Input type="number" value={rxForm.quantity} onChange={(e) => setRxForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className="mt-1 h-8 text-sm" />
                   </div>
                   <div className="col-span-2 md:col-span-3">
-                    <Label className="text-xs">Instructions</Label>
+                    <Label className="text-xs flex items-center justify-between">Instructions <MicButton value={rxForm.instructions} onChange={(v) => setRxForm(p => ({ ...p, instructions: v }))} /></Label>
                     <Input value={rxForm.instructions} onChange={(e) => setRxForm(p => ({ ...p, instructions: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="e.g. After meals" />
                   </div>
                 </div>

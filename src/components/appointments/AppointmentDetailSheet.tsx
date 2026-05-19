@@ -3,6 +3,7 @@ import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from
 import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon, ClipboardCheck, NotebookPen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { MicButton } from "@/components/shared/MicButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -1241,9 +1242,12 @@ function TherapyNotesTab({ appointmentId, patientId }: { appointmentId: string; 
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold font-display flex items-center gap-2">
-        <NotebookPen className="h-4 w-4" /> Therapy Notes
-      </h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+          <NotebookPen className="h-4 w-4" /> Therapy Notes
+        </h3>
+        <MicButton value={noteText} onChange={setNoteText} />
+      </div>
 
       <div className="space-y-2">
         <Textarea

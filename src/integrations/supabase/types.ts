@@ -362,6 +362,85 @@ export type Database = {
           },
         ]
       }
+      bolna_booking_logs: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          doctor_name: string | null
+          error: string | null
+          id: string
+          message: string | null
+          patient_id: string | null
+          patient_name: string | null
+          patient_phone: string | null
+          request_payload: Json
+          requested_end: string | null
+          requested_start: string | null
+          service_name: string | null
+          staff_id: string | null
+          status_code: number | null
+          success: boolean
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          doctor_name?: string | null
+          error?: string | null
+          id?: string
+          message?: string | null
+          patient_id?: string | null
+          patient_name?: string | null
+          patient_phone?: string | null
+          request_payload: Json
+          requested_end?: string | null
+          requested_start?: string | null
+          service_name?: string | null
+          staff_id?: string | null
+          status_code?: number | null
+          success?: boolean
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          doctor_name?: string | null
+          error?: string | null
+          id?: string
+          message?: string | null
+          patient_id?: string | null
+          patient_name?: string | null
+          patient_phone?: string | null
+          request_payload?: Json
+          requested_end?: string | null
+          requested_start?: string | null
+          service_name?: string | null
+          staff_id?: string | null
+          status_code?: number | null
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bolna_booking_logs_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bolna_booking_logs_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bolna_booking_logs_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_updates: {
         Row: {
           campaign_id: string

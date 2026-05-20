@@ -392,23 +392,25 @@ const Portal = () => {
   };
 
   const getInvoicePdfUrl = async (inv: any): Promise<string | null> => {
-    if (inv?.pdf_url) return inv.pdf_url;
     if (!inv?.id) return null;
-    const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
+    // Always regenerate to pick up the latest line items, pricing, HSN, GST and
+    // clinic details. The cached pdf_url can be stale (older function version or
+    // CDN-cached) so we re-run the builder and cache-bust the resulting URL.
+    const { error } = await supabase.functions.invoke("generate-invoice-pdf", {
       body: { invoiceId: inv.id },
     });
     if (error) {
       console.error("PDF generate failed:", error);
-      return null;
+      // Fall back to the cached URL if regeneration failed
+      return inv?.pdf_url ? `${inv.pdf_url}?t=${Date.now()}` : null;
     }
-    // Edge fn may return queued; poll the row briefly for pdf_url
-    if ((data as any)?.url) return (data as any).url;
-    for (let i = 0; i < 8; i++) {
+    // Edge fn rebuilds in background; poll the row briefly for updated pdf_url
+    for (let i = 0; i < 10; i++) {
       await new Promise((r) => setTimeout(r, 800));
-      const { data: row } = await supabase.from("invoices").select("pdf_url").eq("id", inv.id).maybeSingle();
-      if (row?.pdf_url) return row.pdf_url;
+      const { data: row } = await supabase.from("invoices").select("pdf_url, updated_at").eq("id", inv.id).maybeSingle();
+      if (row?.pdf_url) return `${row.pdf_url}?t=${Date.now()}`;
     }
-    return null;
+    return inv?.pdf_url ? `${inv.pdf_url}?t=${Date.now()}` : null;
   };
 
   const viewInvoicePdf = async (inv: any) => {

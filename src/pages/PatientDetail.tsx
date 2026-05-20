@@ -24,6 +24,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
+import { CameraDialog } from "@/components/shared/CameraDialog";
 import { FamilyMembers } from "@/components/patients/FamilyMembers";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
@@ -77,6 +78,8 @@ const PatientDetail = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const photoCameraRef = useRef<HTMLInputElement>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [attachmentCameraOpen, setAttachmentCameraOpen] = useState(false);
   const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [otpCode, setOtpCode] = useState<string | null>(null);
   const [otpCopied, setOtpCopied] = useState(false);
@@ -574,7 +577,7 @@ const PatientDetail = () => {
             <div className="flex gap-2 flex-wrap">
               <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
               <CaseAnalysis patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
-              <Button variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => photoCameraRef.current?.click()}>
+              <Button variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => setCameraOpen(true)}>
                 <Camera className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Take</span> Photo
               </Button>
               <Button variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => setSkinTrackerOpen(true)}>

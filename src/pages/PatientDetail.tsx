@@ -1059,7 +1059,7 @@ const PatientDetail = () => {
         <TabsContent value="photos">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex justify-end mb-3">
-              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => photoCameraRef.current?.click()}>
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setCameraOpen(true)}>
                 <Plus className="h-3.5 w-3.5" /> Take Photo
               </Button>
             </div>
@@ -1419,8 +1419,7 @@ const PatientDetail = () => {
               </Select>
               <div className="flex gap-2">
                 <input type="file" ref={fileInputRef} className="hidden" onChange={handleAttachmentUpload} />
-                <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} className="hidden" onChange={handleAttachmentUpload} />
-                <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" disabled={uploadingAttachment} onClick={() => cameraInputRef.current?.click()}>
+                <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" disabled={uploadingAttachment} onClick={() => setAttachmentCameraOpen(true)}>
                   <Camera className="h-3.5 w-3.5" /> Take Photo
                 </Button>
                 <Button size="sm" className="gap-1.5 h-8 text-xs" disabled={uploadingAttachment} onClick={() => fileInputRef.current?.click()}>
@@ -1602,7 +1601,25 @@ const PatientDetail = () => {
         </DialogContent>
       </Dialog>
 
-      <input type="file" accept="image/*" capture="environment" ref={photoCameraRef} className="hidden" onChange={handlePhotoCapture} />
+      <CameraDialog
+        open={cameraOpen}
+        onOpenChange={setCameraOpen}
+        title="Take Patient Photo"
+        onCapture={(file) => {
+          setPendingPhotoFile(file);
+          setPhotoTypeDialogOpen(true);
+        }}
+      />
+      <CameraDialog
+        open={attachmentCameraOpen}
+        onOpenChange={setAttachmentCameraOpen}
+        title="Capture Attachment"
+        onCapture={(file) => {
+          setPendingAttachmentFile(file);
+          setSelectedDocType("Prescription");
+          setDocTypeDialogOpen(true);
+        }}
+      />
 
       <Dialog open={photoTypeDialogOpen} onOpenChange={(o) => { if (!o && !uploadingPhoto) { setPhotoTypeDialogOpen(false); setPendingPhotoFile(null); } }}>
         <DialogContent className="max-w-sm">

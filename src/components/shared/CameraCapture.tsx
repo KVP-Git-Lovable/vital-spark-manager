@@ -19,6 +19,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { CameraDialog } from "@/components/shared/CameraDialog";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -38,6 +39,7 @@ export function CameraCapture({ open, onOpenChange, patientId, patientName, cont
   const [notes, setNotes] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -139,12 +141,7 @@ export function CameraCapture({ open, onOpenChange, patientId, patientName, cont
                 <button
                   type="button"
                   className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => {
-                    if (fileInputRef.current) {
-                      fileInputRef.current.setAttribute("capture", "environment");
-                      fileInputRef.current.click();
-                    }
-                  }}
+                  onClick={() => setCameraOpen(true)}
                 >
                   <Camera className="h-8 w-8 mx-auto text-primary mb-2" />
                   <p className="text-xs font-medium">Camera</p>
@@ -175,6 +172,16 @@ export function CameraCapture({ open, onOpenChange, patientId, patientName, cont
             {uploadMutation.isPending ? "Uploading..." : "Upload Photo"}
           </Button>
         </div>
+        <CameraDialog
+          open={cameraOpen}
+          onOpenChange={setCameraOpen}
+          onCapture={(file) => {
+            setSelectedFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => setPreview(reader.result as string);
+            reader.readAsDataURL(file);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

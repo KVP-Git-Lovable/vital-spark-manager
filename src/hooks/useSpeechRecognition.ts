@@ -90,11 +90,11 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     lastProcessedResultIndexRef.current = -1;
     lastFinalRef.current = "";
     lastFinalAtRef.current = 0;
-    shouldRestartRef.current = !isMobile;
+    shouldRestartRef.current = true;
 
     const recog = new Ctor();
     recog.lang = language;
-    recog.continuous = isMobile ? false : continuous;
+    recog.continuous = continuous;
     recog.interimResults = interimResults;
     recog.maxAlternatives = 1;
 
@@ -143,9 +143,9 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     };
     recog.onerror = (ev) => {
       const err = ev.error || "Voice error";
-      // Benign desktop errors can be followed by onend auto-restart.
-      // Mobile must not restart: it causes duplicate text and repeated browser beeps.
-      if (!isMobile && (err === "no-speech" || err === "aborted" || err === "network")) {
+      // Benign errors are followed by onend auto-restart on both platforms.
+      // Dedupe guards (lastProcessedResultIndexRef + lastFinalRef window) prevent duplicates.
+      if (err === "no-speech" || err === "aborted" || err === "network") {
         return;
       }
       // Hard errors: stop for good
@@ -157,9 +157,9 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     };
     recog.onend = () => {
       isRecordingRef.current = false;
-      // Desktop only: keep the working continuous behavior across benign engine endings.
-      // Mobile: never auto-restart, because each restart triggers duplicate text and a beep loop.
-      if (!isMobile && shouldRestartRef.current) {
+      // Auto-restart on benign engine endings on both desktop and mobile so interim
+      // transcript streams live. User-initiated stop() sets shouldRestartRef = false first.
+      if (shouldRestartRef.current) {
         if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
         restartTimerRef.current = setTimeout(() => {
           if (!shouldRestartRef.current) return;

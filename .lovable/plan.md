@@ -1,47 +1,33 @@
+# Real-time interim transcript on mobile PWA
+
+## Problem
+
+On mobile PWA, words only appear after the user stops speaking. On desktop, they appear live while speaking. Root cause: in `src/hooks/useSpeechRecognition.ts`, mobile is forced to `continuous = false` and auto-restart is disabled, so the engine only emits `onresult` once per utterance — typically buffering until the end. The `interimTranscript` state therefore never updates mid-speech on mobile.
+
 ## Goal
 
-Fix two mobile-PWA-only bugs in voice-to-text input so behavior matches desktop. All voice fields (Symptoms, Diagnosis, Procedure Notes, Recommendations, and every other surface) flow through a single hook — `src/hooks/useSpeechRecognition.ts` consumed by `src/components/shared/MicButton.tsx` — so a one-file fix propagates everywhere automatically.
+Mobile PWA should behave like desktop: live interim text while speaking, finals appended as they arrive, recording continues until the user taps stop. No duplicates, no beep loop.
 
-## Bugs & Root Cause
+## Approach
 
-**1. Duplicate text on mobile PWA**
-Mobile Chrome occasionally fires `onresult` twice for the same final segment, and the current `start()` doesn't guard against a second `start()` call landing while the previous instance is still tearing down. Both contribute to "words appearing 2–3 times."
+Re-enable continuous mode + auto-restart on mobile, but keep the existing duplicate-suppression guards that already exist in the hook so the prior duplicate-word problem does not return.
 
-**2. Auto-stop on brief pause**
-Mobile Chrome's `SpeechRecognition` ends the session itself after a short silence (engine VAD timeout), regardless of `continuous = true`. On desktop, the same engine keeps going. The hook treats `onend` as "user stopped," so the timer/UI stop and the user has to tap mic again.
+### Changes (single file: `src/hooks/useSpeechRecognition.ts`)
 
-## Fix (in `src/hooks/useSpeechRecognition.ts`)
+1. **Use `continuous = true` on mobile** (line 97). The engine streams interim results live; without `continuous`, mobile Chrome batches results until the utterance ends.
+2. **Auto-restart on mobile in `onend`** (line 162). Mirror desktop's 150 ms `setTimeout` restart so a brief VAD-induced end does not stop recording. Recording still only truly stops when `shouldRestartRef.current === false` (set by user-initiated `stop()`).
+3. **Set `shouldRestartRef.current = true` for both desktop and mobile in `start()`** (line 93).
+4. **Keep the existing dedupe guards** so re-fired finals from mobile Chrome do not double-append:
+   - `lastProcessedResultIndexRef` — only process result indices we have not seen.
+   - `lastFinalRef` + `lastFinalAtRef` (800 ms window) — drop identical final chunks fired back-to-back.
+   - `isRecordingRef` single-instance guard in `start()`.
+5. **Benign-error handling on mobile**: in `onerror`, also treat `no-speech` / `aborted` / `network` as benign on mobile (return without stopping), so the auto-restart in `onend` can take over instead of surfacing an error.
+6. **Interim handling unchanged**: `onresult` already calls `setInterimTranscript(interim)` for both mobile and desktop — with `continuous=true` the engine will now actually emit interims mid-utterance on mobile.
 
-**A. Single-instance guard**
-- Add `isRecordingRef = useRef(false)` and a `shouldRestartRef = useRef(false)`.
-- In `start()`: if `isRecordingRef.current` is `true`, return immediately (ignore the duplicate call). Set it `true` only after `recog.start()` succeeds (inside `onstart`).
-- In `stop()`: set `shouldRestartRef.current = false` first, then call `recog.stop()`. This is the only path that truly ends the session.
+### Why this fixes the regression risk
 
-**B. Duplicate-result suppression**
-- Track `lastFinalRef = useRef<string>("")` plus a timestamp. In `onresult`, if the new final chunk equals the last final chunk emitted within ~800ms, skip it. (Cheap, safe — real repeated words from the user almost never arrive back-to-back identical within sub-second.)
-- Keep using `ev.resultIndex` so we only read new results, not the full accumulated buffer.
+The previous duplicate-words bug came from running multiple recognizer instances concurrently and re-processing the same `resultIndex`. Those root causes are already mitigated by `isRecordingRef`, `lastProcessedResultIndexRef`, and the 800 ms final-dedupe window — all retained.
 
-**C. Auto-restart on engine timeout (match desktop "keep listening")**
-- Set `shouldRestartRef.current = true` when the user starts.
-- In `onend`: if `shouldRestartRef.current` is still `true` (i.e., user hasn't pressed stop), call `recog.start()` again on the same instance after a 150ms `setTimeout` to let the engine release. Wrap in try/catch — on `InvalidStateError`, construct a fresh `SpeechRecognition` and start it.
-- Do NOT reset `elapsedMs` or `listening` UI during an auto-restart (only on a user-initiated stop). The timer should appear to run continuously across silent gaps.
-- In `onerror`: only auto-restart for benign errors (`no-speech`, `aborted`, `network`). For `not-allowed` / `service-not-allowed`, set `shouldRestartRef = false` and surface the error as today.
+### Out of scope
 
-**D. Lifecycle cleanup**
-- On unmount and on user `stop()`: `shouldRestartRef = false`, then `recog.stop()` and clear timer. Ensures we never leave a phantom recognizer running after navigation.
-
-## Why this works everywhere
-
-`MicButton` is the only consumer of the hook, and `MicButton` is the only voice entry point used by Symptoms, Diagnosis, Procedure Notes, Recommendations, and every other field across the app. Fixing the hook fixes every surface — no per-field changes needed.
-
-## Out of scope
-
-- No UI/visual changes to the mic button or transcript display.
-- No changes to PWA/service-worker configuration.
-- No changes to `CameraDialog`, Bolna endpoint, or any other feature.
-
-## Verification
-
-- Desktop Chrome: behavior unchanged (single instance, continuous, manual stop).
-- Mobile PWA (installed): speak → pause 3–5s → speak again → recording continues, timer keeps ticking, no duplicate words; tap mic to stop ends cleanly.
-- Tested on the four named fields plus at least one other (e.g., patient notes) to confirm hook-level fix propagates.
+No UI / `MicButton` changes. No edits to consumers (Symptoms, Diagnosis, Procedure Notes, Recommendations) — they automatically inherit the fix.

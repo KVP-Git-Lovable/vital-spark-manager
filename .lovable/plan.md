@@ -1,33 +1,46 @@
-# Real-time interim transcript on mobile PWA
+## Plan: Fix duplicate words in mobile PWA speech-to-text
 
-## Problem
+### Goal
+Make mobile PWA speech-to-text stop duplicating words by using a separate mobile-only result handling strategy, while keeping the current desktop behavior unchanged.
 
-On mobile PWA, words only appear after the user stops speaking. On desktop, they appear live while speaking. Root cause: in `src/hooks/useSpeechRecognition.ts`, mobile is forced to `continuous = false` and auto-restart is disabled, so the engine only emits `onresult` once per utterance — typically buffering until the end. The `interimTranscript` state therefore never updates mid-speech on mobile.
+### Files to change
+- `src/hooks/useSpeechRecognition.ts`
 
-## Goal
+### Implementation
+1. **Keep desktop behavior as-is**
+   - Desktop will continue using the existing `continuous`, auto-restart, interim, and final transcript flow.
 
-Mobile PWA should behave like desktop: live interim text while speaking, finals appended as they arrive, recording continues until the user taps stop. No duplicates, no beep loop.
+2. **Add mobile-only processed index tracking**
+   - Replace the current mobile `lastProcessedResultIndexRef` approach with a `Set<number>` ref, e.g. `processedIndicesRef`.
+   - In mobile `onresult`, iterate from `event.resultIndex` to `event.results.length`.
+   - Skip any index already present in the Set.
+   - Only add an index to the Set after processing a final result.
+   - Never process the same final result index twice.
 
-## Approach
+3. **Use mobile-only transcript accumulator**
+   - Maintain `mobileTranscriptRef` as the single accumulated mobile final transcript.
+   - On each new final result, append only the new transcript chunk to this accumulator.
+   - Call `onFinal` only with the newly accepted final chunk so existing fields append normally and do not re-append the entire transcript.
 
-Re-enable continuous mode + auto-restart on mobile, but keep the existing duplicate-suppression guards that already exist in the hook so the prior duplicate-word problem does not return.
+4. **Mobile recognition config**
+   - On mobile only:
+     - `recognition.continuous = false`
+     - `recognition.interimResults = true`
+   - Desktop continues using the existing passed options.
 
-### Changes (single file: `src/hooks/useSpeechRecognition.ts`)
+5. **Mobile restart behavior without resetting dedupe mid-session**
+   - On mobile `onend`, if the user has not tapped stop, restart recognition to keep recording alive.
+   - Do **not** clear `processedIndicesRef` or `mobileTranscriptRef` during automatic restarts.
+   - Clear them only when the user starts a new recording session or manually stops.
 
-1. **Use `continuous = true` on mobile** (line 97). The engine streams interim results live; without `continuous`, mobile Chrome batches results until the utterance ends.
-2. **Auto-restart on mobile in `onend`** (line 162). Mirror desktop's 150 ms `setTimeout` restart so a brief VAD-induced end does not stop recording. Recording still only truly stops when `shouldRestartRef.current === false` (set by user-initiated `stop()`).
-3. **Set `shouldRestartRef.current = true` for both desktop and mobile in `start()`** (line 93).
-4. **Keep the existing dedupe guards** so re-fired finals from mobile Chrome do not double-append:
-   - `lastProcessedResultIndexRef` — only process result indices we have not seen.
-   - `lastFinalRef` + `lastFinalAtRef` (800 ms window) — drop identical final chunks fired back-to-back.
-   - `isRecordingRef` single-instance guard in `start()`.
-5. **Benign-error handling on mobile**: in `onerror`, also treat `no-speech` / `aborted` / `network` as benign on mobile (return without stopping), so the auto-restart in `onend` can take over instead of surfacing an error.
-6. **Interim handling unchanged**: `onresult` already calls `setInterimTranscript(interim)` for both mobile and desktop — with `continuous=true` the engine will now actually emit interims mid-utterance on mobile.
+6. **Manual stop cleanup**
+   - When the user taps stop, disable restart, stop recognition, and reset mobile session state safely.
+   - This prevents stale processed indices from carrying into the next recording.
 
-### Why this fixes the regression risk
+7. **Preserve single-instance guard**
+   - Keep `isRecordingRef` / `recogRef` protection so mobile cannot run multiple recognition instances at the same time.
 
-The previous duplicate-words bug came from running multiple recognizer instances concurrently and re-processing the same `resultIndex`. Those root causes are already mitigated by `isRecordingRef`, `lastProcessedResultIndexRef`, and the 800 ms final-dedupe window — all retained.
-
-### Out of scope
-
-No UI / `MicButton` changes. No edits to consumers (Symptoms, Diagnosis, Procedure Notes, Recommendations) — they automatically inherit the fix.
+### Expected result
+- Mobile PWA: duplicate words are prevented because each final result index is processed once per recording session.
+- Mobile PWA: recording continues across browser `onend` events until the user taps stop.
+- Desktop: unchanged behavior.

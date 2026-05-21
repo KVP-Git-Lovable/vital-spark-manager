@@ -39,7 +39,7 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
   const isRecordingRef = useRef(false);
   const shouldRestartRef = useRef(false);
   const mobileTranscriptRef = useRef("");
-  const lastProcessedResultIndexRef = useRef(-1);
+  const processedIndicesRef = useRef<Set<number>>(new Set());
   const lastFinalRef = useRef<string>("");
   const lastFinalAtRef = useRef<number>(0);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,14 +87,15 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     setInterimTranscript("");
     setElapsedMs(0);
     mobileTranscriptRef.current = "";
-    lastProcessedResultIndexRef.current = -1;
+    processedIndicesRef.current = new Set();
     lastFinalRef.current = "";
     lastFinalAtRef.current = 0;
     shouldRestartRef.current = true;
 
     const recog = new Ctor();
     recog.lang = language;
-    recog.continuous = continuous;
+    // Mobile: continuous=false per browser quirks; desktop keeps caller's setting.
+    recog.continuous = isMobile ? false : continuous;
     recog.interimResults = interimResults;
     recog.maxAlternatives = 1;
 
@@ -112,16 +113,36 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
       }
     };
     recog.onresult = (ev) => {
+      if (isMobile) {
+        // Mobile: per-index Set dedupe. Never process the same final index twice.
+        let interim = "";
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          const r = ev.results[i];
+          const text = r[0]?.transcript || "";
+          if (r.isFinal) {
+            if (processedIndicesRef.current.has(i)) continue;
+            processedIndicesRef.current.add(i);
+            const trimmed = text.trim();
+            if (!trimmed) continue;
+            const sep = mobileTranscriptRef.current && !mobileTranscriptRef.current.endsWith(" ") ? " " : "";
+            mobileTranscriptRef.current = `${mobileTranscriptRef.current}${sep}${trimmed}`;
+            setInterimTranscript("");
+            onFinalRef.current?.(trimmed);
+          } else {
+            interim += text;
+          }
+        }
+        if (interim) setInterimTranscript(interim);
+        return;
+      }
+
+      // Desktop: original flow unchanged.
       let interim = "";
       let finalChunk = "";
-      const fromIndex = isMobile ? Math.max(ev.resultIndex, lastProcessedResultIndexRef.current + 1) : ev.resultIndex;
-      for (let i = fromIndex; i < ev.results.length; i++) {
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const r = ev.results[i];
         const text = r[0]?.transcript || "";
-        if (r.isFinal) {
-          finalChunk += text;
-          if (isMobile) lastProcessedResultIndexRef.current = i;
-        }
+        if (r.isFinal) finalChunk += text;
         else interim += text;
       }
       if (interim) setInterimTranscript(interim);
@@ -129,14 +150,9 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
         setInterimTranscript("");
         const trimmed = finalChunk.trim();
         const now = Date.now();
-        // Duplicate-suppression: mobile Chrome sometimes re-fires the same final segment
         if (trimmed && (trimmed !== lastFinalRef.current || now - lastFinalAtRef.current > 800)) {
           lastFinalRef.current = trimmed;
           lastFinalAtRef.current = now;
-          if (isMobile) {
-            const sep = mobileTranscriptRef.current && !mobileTranscriptRef.current.endsWith(" ") ? " " : "";
-            mobileTranscriptRef.current = `${mobileTranscriptRef.current}${sep}${trimmed}`;
-          }
           onFinalRef.current?.(trimmed);
         }
       }

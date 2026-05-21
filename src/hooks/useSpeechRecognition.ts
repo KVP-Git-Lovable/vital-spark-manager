@@ -86,13 +86,15 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     setError(null);
     setInterimTranscript("");
     setElapsedMs(0);
+    mobileTranscriptRef.current = "";
+    lastProcessedResultIndexRef.current = -1;
     lastFinalRef.current = "";
     lastFinalAtRef.current = 0;
-    shouldRestartRef.current = true;
+    shouldRestartRef.current = !isMobile;
 
     const recog = new Ctor();
     recog.lang = language;
-    recog.continuous = continuous;
+    recog.continuous = isMobile ? false : continuous;
     recog.interimResults = interimResults;
     recog.maxAlternatives = 1;
 
@@ -112,10 +114,14 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     recog.onresult = (ev) => {
       let interim = "";
       let finalChunk = "";
-      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const fromIndex = isMobile ? Math.max(ev.resultIndex, lastProcessedResultIndexRef.current + 1) : ev.resultIndex;
+      for (let i = fromIndex; i < ev.results.length; i++) {
         const r = ev.results[i];
         const text = r[0]?.transcript || "";
-        if (r.isFinal) finalChunk += text;
+        if (r.isFinal) {
+          finalChunk += text;
+          if (isMobile) lastProcessedResultIndexRef.current = i;
+        }
         else interim += text;
       }
       if (interim) setInterimTranscript(interim);
@@ -127,6 +133,10 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
         if (trimmed && (trimmed !== lastFinalRef.current || now - lastFinalAtRef.current > 800)) {
           lastFinalRef.current = trimmed;
           lastFinalAtRef.current = now;
+          if (isMobile) {
+            const sep = mobileTranscriptRef.current && !mobileTranscriptRef.current.endsWith(" ") ? " " : "";
+            mobileTranscriptRef.current = `${mobileTranscriptRef.current}${sep}${trimmed}`;
+          }
           onFinalRef.current?.(trimmed);
         }
       }

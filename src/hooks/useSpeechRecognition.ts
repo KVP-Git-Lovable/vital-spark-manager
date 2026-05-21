@@ -18,6 +18,7 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
   const { language = "en-IN", continuous = true, interimResults = true, onFinal } = opts;
   const Ctor = getSpeechRecognitionCtor();
   const supported = !!Ctor;
+  const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|Android/i.test(navigator.userAgent);
 
   const [listening, setListening] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState("");
@@ -30,12 +31,15 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
   const onFinalRef = useRef(onFinal);
   onFinalRef.current = onFinal;
 
-  // Mobile PWA hardening:
-  // - isRecordingRef: prevent concurrent SpeechRecognition instances (mobile Chrome can spawn dupes)
-  // - shouldRestartRef: auto-restart on engine VAD timeout so behavior matches desktop (continuous until user stops)
+  // SpeechRecognition hardening:
+  // - isRecordingRef: prevent concurrent instances (mobile Chrome can spawn dupes)
+  // - shouldRestartRef: desktop-only restart on benign engine endings
+  // - mobileTranscriptRef + lastProcessedResultIndexRef: append only new mobile finals
   // - lastFinalRef + lastFinalAtRef: suppress duplicate final results fired by mobile engine
   const isRecordingRef = useRef(false);
   const shouldRestartRef = useRef(false);
+  const mobileTranscriptRef = useRef("");
+  const lastProcessedResultIndexRef = useRef(-1);
   const lastFinalRef = useRef<string>("");
   const lastFinalAtRef = useRef<number>(0);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,13 +86,15 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     setError(null);
     setInterimTranscript("");
     setElapsedMs(0);
+    mobileTranscriptRef.current = "";
+    lastProcessedResultIndexRef.current = -1;
     lastFinalRef.current = "";
     lastFinalAtRef.current = 0;
-    shouldRestartRef.current = true;
+    shouldRestartRef.current = !isMobile;
 
     const recog = new Ctor();
     recog.lang = language;
-    recog.continuous = continuous;
+    recog.continuous = isMobile ? false : continuous;
     recog.interimResults = interimResults;
     recog.maxAlternatives = 1;
 
@@ -108,10 +114,14 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     recog.onresult = (ev) => {
       let interim = "";
       let finalChunk = "";
-      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const fromIndex = isMobile ? Math.max(ev.resultIndex, lastProcessedResultIndexRef.current + 1) : ev.resultIndex;
+      for (let i = fromIndex; i < ev.results.length; i++) {
         const r = ev.results[i];
         const text = r[0]?.transcript || "";
-        if (r.isFinal) finalChunk += text;
+        if (r.isFinal) {
+          finalChunk += text;
+          if (isMobile) lastProcessedResultIndexRef.current = i;
+        }
         else interim += text;
       }
       if (interim) setInterimTranscript(interim);
@@ -123,14 +133,19 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
         if (trimmed && (trimmed !== lastFinalRef.current || now - lastFinalAtRef.current > 800)) {
           lastFinalRef.current = trimmed;
           lastFinalAtRef.current = now;
+          if (isMobile) {
+            const sep = mobileTranscriptRef.current && !mobileTranscriptRef.current.endsWith(" ") ? " " : "";
+            mobileTranscriptRef.current = `${mobileTranscriptRef.current}${sep}${trimmed}`;
+          }
           onFinalRef.current?.(trimmed);
         }
       }
     };
     recog.onerror = (ev) => {
       const err = ev.error || "Voice error";
-      // Benign errors on mobile (engine timeout / transient network) — let onend auto-restart
-      if (err === "no-speech" || err === "aborted" || err === "network") {
+      // Benign desktop errors can be followed by onend auto-restart.
+      // Mobile must not restart: it causes duplicate text and repeated browser beeps.
+      if (!isMobile && (err === "no-speech" || err === "aborted" || err === "network")) {
         return;
       }
       // Hard errors: stop for good
@@ -142,8 +157,9 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     };
     recog.onend = () => {
       isRecordingRef.current = false;
-      // Mobile engine ends on brief silence; auto-restart to match desktop "keep listening" behavior
-      if (shouldRestartRef.current) {
+      // Desktop only: keep the working continuous behavior across benign engine endings.
+      // Mobile: never auto-restart, because each restart triggers duplicate text and a beep loop.
+      if (!isMobile && shouldRestartRef.current) {
         if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
         restartTimerRef.current = setTimeout(() => {
           if (!shouldRestartRef.current) return;
@@ -166,6 +182,7 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
         return;
       }
       // True stop (user clicked stop or hard error)
+      shouldRestartRef.current = false;
       startedAtRef.current = 0;
       cleanup();
     };
@@ -180,7 +197,7 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
       setError(e?.message || "Could not start voice input");
       cleanup();
     }
-  }, [Ctor, language, continuous, interimResults, cleanup]);
+  }, [Ctor, language, continuous, interimResults, cleanup, isMobile]);
 
   useEffect(() => {
     return () => {

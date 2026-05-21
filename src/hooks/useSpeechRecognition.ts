@@ -143,8 +143,9 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     };
     recog.onerror = (ev) => {
       const err = ev.error || "Voice error";
-      // Benign errors on mobile (engine timeout / transient network) — let onend auto-restart
-      if (err === "no-speech" || err === "aborted" || err === "network") {
+      // Benign desktop errors can be followed by onend auto-restart.
+      // Mobile must not restart: it causes duplicate text and repeated browser beeps.
+      if (!isMobile && (err === "no-speech" || err === "aborted" || err === "network")) {
         return;
       }
       // Hard errors: stop for good
@@ -156,8 +157,9 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     };
     recog.onend = () => {
       isRecordingRef.current = false;
-      // Mobile engine ends on brief silence; auto-restart to match desktop "keep listening" behavior
-      if (shouldRestartRef.current) {
+      // Desktop only: keep the working continuous behavior across benign engine endings.
+      // Mobile: never auto-restart, because each restart triggers duplicate text and a beep loop.
+      if (!isMobile && shouldRestartRef.current) {
         if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
         restartTimerRef.current = setTimeout(() => {
           if (!shouldRestartRef.current) return;
@@ -180,6 +182,7 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
         return;
       }
       // True stop (user clicked stop or hard error)
+      shouldRestartRef.current = false;
       startedAtRef.current = 0;
       cleanup();
     };
@@ -194,7 +197,7 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
       setError(e?.message || "Could not start voice input");
       cleanup();
     }
-  }, [Ctor, language, continuous, interimResults, cleanup]);
+  }, [Ctor, language, continuous, interimResults, cleanup, isMobile]);
 
   useEffect(() => {
     return () => {

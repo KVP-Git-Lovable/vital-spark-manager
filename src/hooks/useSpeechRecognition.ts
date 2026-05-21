@@ -18,6 +18,7 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
   const { language = "en-IN", continuous = true, interimResults = true, onFinal } = opts;
   const Ctor = getSpeechRecognitionCtor();
   const supported = !!Ctor;
+  const isMobile = typeof navigator !== "undefined" && /iPhone|iPad|Android/i.test(navigator.userAgent);
 
   const [listening, setListening] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState("");
@@ -30,12 +31,15 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
   const onFinalRef = useRef(onFinal);
   onFinalRef.current = onFinal;
 
-  // Mobile PWA hardening:
-  // - isRecordingRef: prevent concurrent SpeechRecognition instances (mobile Chrome can spawn dupes)
-  // - shouldRestartRef: auto-restart on engine VAD timeout so behavior matches desktop (continuous until user stops)
+  // SpeechRecognition hardening:
+  // - isRecordingRef: prevent concurrent instances (mobile Chrome can spawn dupes)
+  // - shouldRestartRef: desktop-only restart on benign engine endings
+  // - mobileTranscriptRef + lastProcessedResultIndexRef: append only new mobile finals
   // - lastFinalRef + lastFinalAtRef: suppress duplicate final results fired by mobile engine
   const isRecordingRef = useRef(false);
   const shouldRestartRef = useRef(false);
+  const mobileTranscriptRef = useRef("");
+  const lastProcessedResultIndexRef = useRef(-1);
   const lastFinalRef = useRef<string>("");
   const lastFinalAtRef = useRef<number>(0);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

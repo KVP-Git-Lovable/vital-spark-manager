@@ -30,6 +30,16 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
   const onFinalRef = useRef(onFinal);
   onFinalRef.current = onFinal;
 
+  // Mobile PWA hardening:
+  // - isRecordingRef: prevent concurrent SpeechRecognition instances (mobile Chrome can spawn dupes)
+  // - shouldRestartRef: auto-restart on engine VAD timeout so behavior matches desktop (continuous until user stops)
+  // - lastFinalRef + lastFinalAtRef: suppress duplicate final results fired by mobile engine
+  const isRecordingRef = useRef(false);
+  const shouldRestartRef = useRef(false);
+  const lastFinalRef = useRef<string>("");
+  const lastFinalAtRef = useRef<number>(0);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const stopTimer = () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -44,6 +54,12 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
   }, []);
 
   const stop = useCallback(() => {
+    // User-initiated stop: disable auto-restart first so onend doesn't re-spawn
+    shouldRestartRef.current = false;
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
     try {
       recogRef.current?.stop();
     } catch {
@@ -56,12 +72,19 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
       setError("Voice input not supported in this browser");
       return;
     }
+    // Single-instance guard: ignore duplicate start() calls while a recognizer is live
+    if (isRecordingRef.current) {
+      return;
+    }
     if (recogRef.current) {
       try { recogRef.current.abort(); } catch { /* ignore */ }
     }
     setError(null);
     setInterimTranscript("");
     setElapsedMs(0);
+    lastFinalRef.current = "";
+    lastFinalAtRef.current = 0;
+    shouldRestartRef.current = true;
 
     const recog = new Ctor();
     recog.lang = language;
@@ -70,12 +93,17 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     recog.maxAlternatives = 1;
 
     recog.onstart = () => {
+      isRecordingRef.current = true;
       setListening(true);
-      startedAtRef.current = Date.now();
-      stopTimer();
-      timerRef.current = setInterval(() => {
-        setElapsedMs(Date.now() - startedAtRef.current);
-      }, 250);
+      // Only (re)start the timer on the first start of this user session, not on auto-restarts
+      if (!startedAtRef.current) {
+        startedAtRef.current = Date.now();
+      }
+      if (!timerRef.current) {
+        timerRef.current = setInterval(() => {
+          setElapsedMs(Date.now() - startedAtRef.current);
+        }, 250);
+      }
     };
     recog.onresult = (ev) => {
       let interim = "";
@@ -89,14 +117,56 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
       if (interim) setInterimTranscript(interim);
       if (finalChunk) {
         setInterimTranscript("");
-        onFinalRef.current?.(finalChunk.trim());
+        const trimmed = finalChunk.trim();
+        const now = Date.now();
+        // Duplicate-suppression: mobile Chrome sometimes re-fires the same final segment
+        if (trimmed && (trimmed !== lastFinalRef.current || now - lastFinalAtRef.current > 800)) {
+          lastFinalRef.current = trimmed;
+          lastFinalAtRef.current = now;
+          onFinalRef.current?.(trimmed);
+        }
       }
     };
     recog.onerror = (ev) => {
-      setError(ev.error || "Voice error");
+      const err = ev.error || "Voice error";
+      // Benign errors on mobile (engine timeout / transient network) — let onend auto-restart
+      if (err === "no-speech" || err === "aborted" || err === "network") {
+        return;
+      }
+      // Hard errors: stop for good
+      shouldRestartRef.current = false;
+      setError(err);
+      isRecordingRef.current = false;
+      startedAtRef.current = 0;
       cleanup();
     };
     recog.onend = () => {
+      isRecordingRef.current = false;
+      // Mobile engine ends on brief silence; auto-restart to match desktop "keep listening" behavior
+      if (shouldRestartRef.current) {
+        if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = setTimeout(() => {
+          if (!shouldRestartRef.current) return;
+          try {
+            recog.start();
+          } catch {
+            // InvalidStateError or engine refused — rebuild a fresh recognizer
+            try {
+              recogRef.current = null;
+              isRecordingRef.current = false;
+              // Re-invoke start() to construct a new instance with the same handlers
+              start();
+            } catch {
+              shouldRestartRef.current = false;
+              startedAtRef.current = 0;
+              cleanup();
+            }
+          }
+        }, 150);
+        return;
+      }
+      // True stop (user clicked stop or hard error)
+      startedAtRef.current = 0;
       cleanup();
     };
 
@@ -104,6 +174,9 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
     try {
       recog.start();
     } catch (e: any) {
+      shouldRestartRef.current = false;
+      isRecordingRef.current = false;
+      startedAtRef.current = 0;
       setError(e?.message || "Could not start voice input");
       cleanup();
     }
@@ -111,6 +184,11 @@ export function useSpeechRecognition(opts: UseSpeechRecognitionOptions = {}) {
 
   useEffect(() => {
     return () => {
+      shouldRestartRef.current = false;
+      if (restartTimerRef.current) {
+        clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = null;
+      }
       stopTimer();
       try { recogRef.current?.abort(); } catch { /* ignore */ }
     };

@@ -1,45 +1,47 @@
-# Fix "Take Photo" opening File Manager instead of Camera
+## Goal
 
-## Root cause
+Fix two mobile-PWA-only bugs in voice-to-text input so behavior matches desktop. All voice fields (Symptoms, Diagnosis, Procedure Notes, Recommendations, and every other surface) flow through a single hook — `src/hooks/useSpeechRecognition.ts` consumed by `src/components/shared/MicButton.tsx` — so a one-file fix propagates everywhere automatically.
 
-Today every "Take Photo" button triggers a hidden `<input type="file" accept="image/*" capture="environment">`. The `capture` attribute is **ignored on desktop browsers** — desktops have no camera-capture intent, so the browser falls back to the standard file picker (the "File Manager" the user sees). On mobile Chrome it would open the camera, but on the desktop preview it cannot.
+## Bugs & Root Cause
 
-To make "Take Photo" actually open the camera on both desktop and mobile, we need to use the **`navigator.mediaDevices.getUserMedia`** API and render a live video preview + capture button inside a dialog.
+**1. Duplicate text on mobile PWA**
+Mobile Chrome occasionally fires `onresult` twice for the same final segment, and the current `start()` doesn't guard against a second `start()` call landing while the previous instance is still tearing down. Both contribute to "words appearing 2–3 times."
 
-A second, important constraint (per our Lovable knowledge base): `getUserMedia` must be invoked **synchronously inside the click handler**, otherwise some browsers silently fall back / block. The new component will respect that.
+**2. Auto-stop on brief pause**
+Mobile Chrome's `SpeechRecognition` ends the session itself after a short silence (engine VAD timeout), regardless of `continuous = true`. On desktop, the same engine keeps going. The hook treats `onend` as "user stopped," so the timer/UI stop and the user has to tap mic again.
 
-## What I'll build
+## Fix (in `src/hooks/useSpeechRecognition.ts`)
 
-### 1. New shared component: `src/components/shared/CameraDialog.tsx`
+**A. Single-instance guard**
+- Add `isRecordingRef = useRef(false)` and a `shouldRestartRef = useRef(false)`.
+- In `start()`: if `isRecordingRef.current` is `true`, return immediately (ignore the duplicate call). Set it `true` only after `recog.start()` succeeds (inside `onstart`).
+- In `stop()`: set `shouldRestartRef.current = false` first, then call `recog.stop()`. This is the only path that truly ends the session.
 
-A reusable in-app camera dialog:
+**B. Duplicate-result suppression**
+- Track `lastFinalRef = useRef<string>("")` plus a timestamp. In `onresult`, if the new final chunk equals the last final chunk emitted within ~800ms, skip it. (Cheap, safe — real repeated words from the user almost never arrive back-to-back identical within sub-second.)
+- Keep using `ev.resultIndex` so we only read new results, not the full accumulated buffer.
 
-- Opens a `<Dialog>` and immediately (synchronously on the trigger click, before the dialog mounts the video) calls `navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })`.
-- Shows live `<video>` preview, a circular Capture button, a Switch-camera button (front/back via `facingMode` toggle — useful on mobile), and a Retake/Use buttons after capture.
-- On capture, draws the current video frame to a `<canvas>`, converts to a `File` (JPEG, ~0.9 quality), and returns it via `onCapture(file)`.
-- Properly stops all tracks on close / unmount to release the camera.
-- Graceful fallback: if `getUserMedia` is unsupported or permission denied, shows an error state with a "Choose from device" button that falls back to the existing `<input type="file" accept="image/*">` flow.
-- Mobile-friendly: full-screen on small viewports, rounded card on desktop.
+**C. Auto-restart on engine timeout (match desktop "keep listening")**
+- Set `shouldRestartRef.current = true` when the user starts.
+- In `onend`: if `shouldRestartRef.current` is still `true` (i.e., user hasn't pressed stop), call `recog.start()` again on the same instance after a 150ms `setTimeout` to let the engine release. Wrap in try/catch — on `InvalidStateError`, construct a fresh `SpeechRecognition` and start it.
+- Do NOT reset `elapsedMs` or `listening` UI during an auto-restart (only on a user-initiated stop). The timer should appear to run continuously across silent gaps.
+- In `onerror`: only auto-restart for benign errors (`no-speech`, `aborted`, `network`). For `not-allowed` / `service-not-allowed`, set `shouldRestartRef = false` and surface the error as today.
 
-### 2. Wire it into the existing "Take Photo" surfaces
+**D. Lifecycle cleanup**
+- On unmount and on user `stop()`: `shouldRestartRef = false`, then `recog.stop()` and clear timer. Ensures we never leave a phantom recognizer running after navigation.
 
-Replace the hidden `<input capture>` + `ref.click()` pattern in:
+## Why this works everywhere
 
-- **`src/pages/PatientDetail.tsx`**
-  - Photos tab "Take Photo" button (line ~1059) and the header "Take Photo" button (line ~577) — both currently click `photoCameraRef`. Route both through `CameraDialog`; on capture, run the existing `handlePhotoCapture` upload logic with the returned `File`.
-  - Attachments tab "Take Photo" button (line ~1420) — route through `CameraDialog`; on capture, run the existing `handleAttachmentUpload` logic.
-- **`src/components/shared/CameraCapture.tsx`** — the "Camera" tile currently relies on the same `capture` attribute. Replace its click handler so it opens `CameraDialog` and feeds the resulting `File` into the existing preview/upload mutation. The "Gallery" tile keeps its current `<input type="file">` behavior (correct — that one is supposed to open the file picker).
-
-No other modules currently use the file-input "Take Photo" pattern, so scope is limited to the files above.
-
-## Behavior after fix
-
-- **Desktop Chrome/Edge:** click "Take Photo" → browser prompts for camera permission → live webcam preview opens in a dialog → click capture → photo uploads as before.
-- **Mobile Chrome/Android:** same flow, defaults to rear camera (`facingMode: "environment"`), with a button to flip to front.
-- **iOS Safari (limited Web Speech support, but `getUserMedia` works):** same dialog flow.
-- **Permission denied / unsupported browser:** dialog shows an inline error and a "Choose from device" button that opens the file picker as a fallback, so users are never stuck.
+`MicButton` is the only consumer of the hook, and `MicButton` is the only voice entry point used by Symptoms, Diagnosis, Procedure Notes, Recommendations, and every other field across the app. Fixing the hook fixes every surface — no per-field changes needed.
 
 ## Out of scope
 
-- No changes to the upload pipeline, storage bucket, RLS, or DB schema — only the capture step changes.
-- No changes to other voice/AI features.
+- No UI/visual changes to the mic button or transcript display.
+- No changes to PWA/service-worker configuration.
+- No changes to `CameraDialog`, Bolna endpoint, or any other feature.
+
+## Verification
+
+- Desktop Chrome: behavior unchanged (single instance, continuous, manual stop).
+- Mobile PWA (installed): speak → pause 3–5s → speak again → recording continues, timer keeps ticking, no duplicate words; tap mic to stop ends cleanly.
+- Tested on the four named fields plus at least one other (e.g., patient notes) to confirm hook-level fix propagates.

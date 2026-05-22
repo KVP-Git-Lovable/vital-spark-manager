@@ -193,8 +193,8 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   };
 
   const handleSave = async () => {
-    if (!form.first_name.trim() || !form.last_name.trim()) {
-      toast({ title: "Error", description: "First and last name are required", variant: "destructive" });
+    if (!form.first_name.trim()) {
+      toast({ title: "Error", description: "First name is required", variant: "destructive" });
       return;
     }
     setSaving(true);
@@ -276,7 +276,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                 />
               </div>
               <div>
-                <Label>Last Name *</Label>
+                <Label>Last Name</Label>
                 <Input
                   value={form.last_name}
                   onChange={(e) => updateField("last_name", e.target.value)}
@@ -350,7 +350,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
 
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <Label>City</Label>
+                <Label>Place</Label>
                 <Input
                   value={form.city || ""}
                   onChange={(e) => updateField("city", e.target.value)}

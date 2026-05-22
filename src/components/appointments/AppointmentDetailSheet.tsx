@@ -1180,6 +1180,16 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
         />
       )}
 
+      {scanProcOpen && appointment?.patient_id && (
+        <ScanProcedureDialog
+          open={scanProcOpen}
+          onOpenChange={setScanProcOpen}
+          appointmentId={appointmentId!}
+          patientId={appointment.patient_id}
+          staffId={appointment.staff_id}
+        />
+      )}
+
       <ProcedureDetailSheet procedureId={selectedProcId} onClose={() => setSelectedProcId(null)} />
 
       {surveyFillOpen && appointment?.patient_id && selectedSurveyTemplateId && (

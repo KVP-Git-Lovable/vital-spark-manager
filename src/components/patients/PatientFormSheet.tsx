@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -337,18 +339,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               </div>
             </div>
 
-            <div>
-              <Label>Address</Label>
-              <Textarea
-                value={form.address || ""}
-                onChange={(e) => updateField("address", e.target.value)}
-                placeholder="Street address"
-                className="mt-1.5"
-                rows={2}
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div>
                 <Label>Place</Label>
                 <Input
@@ -357,42 +348,62 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                   className="mt-1.5"
                 />
               </div>
-              <div>
-                <Label>State</Label>
-                <Input
-                  value={form.state || ""}
-                  onChange={(e) => updateField("state", e.target.value)}
-                  className="mt-1.5"
-                />
-              </div>
-              <div>
-                <Label>Pincode</Label>
-                <Input
-                  value={form.pincode || ""}
-                  onChange={(e) => updateField("pincode", e.target.value)}
-                  className="mt-1.5"
-                />
-              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Emergency Contact Name</Label>
-                <Input
-                  value={form.emergency_contact_name || ""}
-                  onChange={(e) => updateField("emergency_contact_name", e.target.value)}
-                  className="mt-1.5"
-                />
-              </div>
-              <div>
-                <Label>Emergency Contact Phone</Label>
-                <Input
-                  value={form.emergency_contact_phone || ""}
-                  onChange={(e) => updateField("emergency_contact_phone", e.target.value)}
-                  className="mt-1.5"
-                />
-              </div>
-            </div>
+            <Collapsible className="border rounded-md">
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/50 [&[data-state=open]>svg]:rotate-180">
+                Additional Info
+                <ChevronDown className="h-4 w-4 transition-transform" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="p-3 space-y-4 border-t">
+                <div>
+                  <Label>Address</Label>
+                  <Textarea
+                    value={form.address || ""}
+                    onChange={(e) => updateField("address", e.target.value)}
+                    placeholder="Street address"
+                    className="mt-1.5"
+                    rows={2}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>State</Label>
+                    <Input
+                      value={form.state || ""}
+                      onChange={(e) => updateField("state", e.target.value)}
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label>Pincode</Label>
+                    <Input
+                      value={form.pincode || ""}
+                      onChange={(e) => updateField("pincode", e.target.value)}
+                      className="mt-1.5"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Emergency Contact Name</Label>
+                    <Input
+                      value={form.emergency_contact_name || ""}
+                      onChange={(e) => updateField("emergency_contact_name", e.target.value)}
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label>Emergency Contact Phone</Label>
+                    <Input
+                      value={form.emergency_contact_phone || ""}
+                      onChange={(e) => updateField("emergency_contact_phone", e.target.value)}
+                      className="mt-1.5"
+                    />
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             <div className="grid grid-cols-2 gap-4">
               <div>

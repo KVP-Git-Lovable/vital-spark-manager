@@ -36,6 +36,7 @@ import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
+import { ScanProcedureDialog } from "@/components/procedures/ScanProcedureDialog";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { SurveyRecommendations } from "@/components/surveys/SurveyRecommendations";
@@ -231,6 +232,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
   const [procFormOpen, setProcFormOpen] = useState(false);
+  const [scanProcOpen, setScanProcOpen] = useState(false);
   const [selectedProcId, setSelectedProcId] = useState<string | null>(null);
   // Billing plan state
   const [billingTotal, setBillingTotal] = useState(0);
@@ -755,6 +757,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                         </h3>
                         <div className="flex gap-2">
                           <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
+                          <Button size="sm" variant="outline" className="gap-1" onClick={() => setScanProcOpen(true)}>
+                            <ScanEye className="h-3 w-3" /> Scan Procedure
+                          </Button>
                           <Button size="sm" variant="outline" className="gap-1" onClick={() => setProcFormOpen(true)}>
                             <Plus className="h-3 w-3" /> Add Procedure
                           </Button>
@@ -1172,6 +1177,16 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
           defaultAppointmentId={appointmentId!}
           defaultStaffId={appointment.staff_id}
           defaultServiceName={appointment.service}
+        />
+      )}
+
+      {scanProcOpen && appointment?.patient_id && (
+        <ScanProcedureDialog
+          open={scanProcOpen}
+          onOpenChange={setScanProcOpen}
+          appointmentId={appointmentId!}
+          patientId={appointment.patient_id}
+          staffId={appointment.staff_id}
         />
       )}
 

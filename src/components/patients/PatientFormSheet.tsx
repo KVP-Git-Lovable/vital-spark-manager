@@ -73,6 +73,7 @@ const emptyForm: TablesInsert<"patients"> = {
   source: "Walk-in",
   source_ad_details: null,
   source_referral_doctor: null,
+  source_other_text: null,
 };
 
 export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, onSuccess }: PatientFormSheetProps) {

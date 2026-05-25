@@ -220,11 +220,12 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
 
       // Sync patient_campaigns links
       if (patientId) {
+        const desiredIds = (form as any).source === "Campaign" ? selectedCampaignIds : [];
         const { data: existingLinks } = await (supabase.from("patient_campaigns") as any)
           .select("campaign_id")
           .eq("patient_id", patientId);
         const existing = new Set(((existingLinks as any[]) || []).map((r) => r.campaign_id));
-        const desired = new Set(selectedCampaignIds);
+        const desired = new Set(desiredIds);
         const toAdd = [...desired].filter((cid) => !existing.has(cid));
         const toRemove = [...existing].filter((cid) => !desired.has(cid));
         if (toAdd.length) {

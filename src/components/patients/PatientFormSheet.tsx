@@ -73,6 +73,7 @@ const emptyForm: TablesInsert<"patients"> = {
   source: "Walk-in",
   source_ad_details: null,
   source_referral_doctor: null,
+  source_other_text: null,
 };
 
 export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, onSuccess }: PatientFormSheetProps) {
@@ -152,6 +153,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         source: (patient as any).source || "Walk-in",
         source_ad_details: (patient as any).source_ad_details || null,
         source_referral_doctor: (patient as any).source_referral_doctor || null,
+        source_other_text: (patient as any).source_other_text || null,
         doctor_id: (patient as any).doctor_id || null,
       });
       // Set referral patient name if source is "Referred by Patient"
@@ -218,11 +220,12 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
 
       // Sync patient_campaigns links
       if (patientId) {
+        const desiredIds = (form as any).source === "Campaign" ? selectedCampaignIds : [];
         const { data: existingLinks } = await (supabase.from("patient_campaigns") as any)
           .select("campaign_id")
           .eq("patient_id", patientId);
         const existing = new Set(((existingLinks as any[]) || []).map((r) => r.campaign_id));
-        const desired = new Set(selectedCampaignIds);
+        const desired = new Set(desiredIds);
         const toAdd = [...desired].filter((cid) => !existing.has(cid));
         const toRemove = [...existing].filter((cid) => !desired.has(cid));
         if (toAdd.length) {
@@ -425,7 +428,13 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                 <Label>Source</Label>
                 <Select
                   value={(form as any).source || "Walk-in"}
-                  onValueChange={(v) => setForm((prev) => ({ ...prev, source: v, source_ad_details: v !== "Advertisement" ? null : (prev as any).source_ad_details, source_referral_doctor: (v !== "Dr. referral" && v !== "Referred by Patient") ? null : (prev as any).source_referral_doctor }))}
+                  onValueChange={(v) => setForm((prev) => ({
+                    ...prev,
+                    source: v,
+                    source_ad_details: v !== "Advertisement" ? null : (prev as any).source_ad_details,
+                    source_referral_doctor: (v !== "Dr. referral" && v !== "Referred by Patient") ? null : (prev as any).source_referral_doctor,
+                    source_other_text: v !== "Other" ? null : (prev as any).source_other_text,
+                  }))}
                 >
                   <SelectTrigger className="mt-1.5">
                     <SelectValue />
@@ -435,13 +444,15 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                     <SelectItem value="Advertisement">Advertisement</SelectItem>
                     <SelectItem value="Dr. referral">Dr. referral</SelectItem>
                     <SelectItem value="Referred by Patient">Referred by Patient</SelectItem>
+                    <SelectItem value="Campaign">Campaign</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             {(form as any).source === "Advertisement" && (
-              <div>
+              <div className="animate-fade-in">
                 <Label>Advertisement Details *</Label>
                 <Input
                   value={(form as any).source_ad_details || ""}
@@ -453,7 +464,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             )}
 
             {(form as any).source === "Dr. referral" && (
-              <div>
+              <div className="animate-fade-in">
                 <Label>Referred Doctor Name *</Label>
                 <Popover open={refDocOpen} onOpenChange={setRefDocOpen}>
                   <PopoverTrigger asChild>
@@ -519,7 +530,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             )}
 
             {(form as any).source === "Referred by Patient" && (
-              <div>
+              <div className="animate-fade-in">
                 <Label>Referring Patient *</Label>
                 <Popover open={referralPopoverOpen} onOpenChange={setReferralPopoverOpen}>
                   <PopoverTrigger asChild>
@@ -562,10 +573,26 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               </div>
             )}
 
-            <CampaignMultiSelectField
-              value={selectedCampaignIds}
-              onChange={setSelectedCampaignIds}
-            />
+            {(form as any).source === "Campaign" && (
+              <div className="animate-fade-in">
+                <CampaignMultiSelectField
+                  value={selectedCampaignIds}
+                  onChange={setSelectedCampaignIds}
+                />
+              </div>
+            )}
+
+            {(form as any).source === "Other" && (
+              <div className="animate-fade-in">
+                <Label>Specify Source *</Label>
+                <Input
+                  value={(form as any).source_other_text || ""}
+                  onChange={(e) => setForm((prev) => ({ ...prev, source_other_text: e.target.value || null }))}
+                  placeholder="Specify source…"
+                  className="mt-1.5"
+                />
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="medical" className="space-y-4 mt-4">

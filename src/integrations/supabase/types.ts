@@ -1352,6 +1352,7 @@ export type Database = {
           skin_type: string | null
           source: string | null
           source_ad_details: string | null
+          source_other_text: string | null
           source_referral_doctor: string | null
           state: string | null
           status: string
@@ -1391,6 +1392,7 @@ export type Database = {
           skin_type?: string | null
           source?: string | null
           source_ad_details?: string | null
+          source_other_text?: string | null
           source_referral_doctor?: string | null
           state?: string | null
           status?: string
@@ -1430,6 +1432,7 @@ export type Database = {
           skin_type?: string | null
           source?: string | null
           source_ad_details?: string | null
+          source_other_text?: string | null
           source_referral_doctor?: string | null
           state?: string | null
           status?: string

@@ -428,7 +428,13 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                 <Label>Source</Label>
                 <Select
                   value={(form as any).source || "Walk-in"}
-                  onValueChange={(v) => setForm((prev) => ({ ...prev, source: v, source_ad_details: v !== "Advertisement" ? null : (prev as any).source_ad_details, source_referral_doctor: (v !== "Dr. referral" && v !== "Referred by Patient") ? null : (prev as any).source_referral_doctor }))}
+                  onValueChange={(v) => setForm((prev) => ({
+                    ...prev,
+                    source: v,
+                    source_ad_details: v !== "Advertisement" ? null : (prev as any).source_ad_details,
+                    source_referral_doctor: (v !== "Dr. referral" && v !== "Referred by Patient") ? null : (prev as any).source_referral_doctor,
+                    source_other_text: v !== "Other" ? null : (prev as any).source_other_text,
+                  }))}
                 >
                   <SelectTrigger className="mt-1.5">
                     <SelectValue />
@@ -438,13 +444,15 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                     <SelectItem value="Advertisement">Advertisement</SelectItem>
                     <SelectItem value="Dr. referral">Dr. referral</SelectItem>
                     <SelectItem value="Referred by Patient">Referred by Patient</SelectItem>
+                    <SelectItem value="Campaign">Campaign</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             {(form as any).source === "Advertisement" && (
-              <div>
+              <div className="animate-fade-in">
                 <Label>Advertisement Details *</Label>
                 <Input
                   value={(form as any).source_ad_details || ""}
@@ -456,7 +464,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             )}
 
             {(form as any).source === "Dr. referral" && (
-              <div>
+              <div className="animate-fade-in">
                 <Label>Referred Doctor Name *</Label>
                 <Popover open={refDocOpen} onOpenChange={setRefDocOpen}>
                   <PopoverTrigger asChild>

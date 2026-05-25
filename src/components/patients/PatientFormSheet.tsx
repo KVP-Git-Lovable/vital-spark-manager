@@ -530,7 +530,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             )}
 
             {(form as any).source === "Referred by Patient" && (
-              <div>
+              <div className="animate-fade-in">
                 <Label>Referring Patient *</Label>
                 <Popover open={referralPopoverOpen} onOpenChange={setReferralPopoverOpen}>
                   <PopoverTrigger asChild>
@@ -573,10 +573,26 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               </div>
             )}
 
-            <CampaignMultiSelectField
-              value={selectedCampaignIds}
-              onChange={setSelectedCampaignIds}
-            />
+            {(form as any).source === "Campaign" && (
+              <div className="animate-fade-in">
+                <CampaignMultiSelectField
+                  value={selectedCampaignIds}
+                  onChange={setSelectedCampaignIds}
+                />
+              </div>
+            )}
+
+            {(form as any).source === "Other" && (
+              <div className="animate-fade-in">
+                <Label>Specify Source *</Label>
+                <Input
+                  value={(form as any).source_other_text || ""}
+                  onChange={(e) => setForm((prev) => ({ ...prev, source_other_text: e.target.value || null }))}
+                  placeholder="Specify source…"
+                  className="mt-1.5"
+                />
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="medical" className="space-y-4 mt-4">

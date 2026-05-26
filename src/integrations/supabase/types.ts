@@ -24,6 +24,7 @@ export type Database = {
           patient_id: string | null
           patient_name: string | null
           problem_area_ids: string[] | null
+          reason_for_consultation: string | null
           recurrence_end_date: string | null
           recurrence_pattern: string | null
           service: string
@@ -44,6 +45,7 @@ export type Database = {
           patient_id?: string | null
           patient_name?: string | null
           problem_area_ids?: string[] | null
+          reason_for_consultation?: string | null
           recurrence_end_date?: string | null
           recurrence_pattern?: string | null
           service: string
@@ -64,6 +66,7 @@ export type Database = {
           patient_id?: string | null
           patient_name?: string | null
           problem_area_ids?: string[] | null
+          reason_for_consultation?: string | null
           recurrence_end_date?: string | null
           recurrence_pattern?: string | null
           service?: string

@@ -76,14 +76,15 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   page.drawRectangle({ x: 0, y: height - bandH, width, height: bandH, color: mint });
 
   const clinicName = clinic?.name || "THE SKIN CLINIC";
-  const clinicPhone = clinic?.phone || "+91 6360-75-3030, 9620-12-3030";
-  const clinicEmail = clinic?.email || "theskinclinic30@gmail.com";
-  const clinicWebsite = clinic?.email ? `www.${String(clinic.email).split("@")[1]}` : "www.theskinclinic.org.in";
-  const clinicAddr = [clinic?.address, clinic?.city, clinic?.pincode].filter(Boolean).join(", ") || "VYAS RAO LANE, KADRI KAMBALA ROAD, MANGALORE- 575003";
+  const headerPhone = "+91 6360-75-3030, 9620-12-3030";
+  const headerWebsite = "www.theskinclinic.org.in";
+  const clinicAddr = "VYAS RAO LANE, KADRI KAMBALA ROAD, MANGALORE- 575003";
+  const footerPhone = "Clinic Phone: +91 6360 75 3030, 9620 12 3030 | Mob: +91 9845 39 3030";
+  const footerEmailWeb = "E-mail: theskinclinic30@gmail.com | Website: www.theskinclinic.org.in";
 
-  page.drawText(sanitize(clinicName.toUpperCase()), { x: 30, y: height - 30, size: 18, font: bold, color: dark });
-  page.drawText(sanitize(`PHONE: ${clinicPhone}  |  WEBSITE: ${clinicWebsite}`), { x: 30, y: height - 50, size: 9, font, color: dark });
-  page.drawText(sanitize(clinicAddr.toUpperCase()), { x: 30, y: height - 65, size: 9, font: bold, color: dark });
+  page.drawText(sanitize(clinicName.toUpperCase()), { x: 30, y: height - 32, size: 16, font: bold, color: dark });
+  page.drawText(sanitize(`PHONE: ${headerPhone} | WEBSITE: ${headerWebsite}`), { x: 30, y: height - 52, size: 9, font: bold, color: dark });
+  page.drawText(sanitize(clinicAddr), { x: 30, y: height - 66, size: 9, font: bold, color: dark });
 
   // Logo (try fetch clinic.logo_url)
   let logoEmbedded = false;
@@ -116,19 +117,21 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   const docPhone = staff.phone || clinicPhone.split(",")[0].replace(/\D/g, "").slice(-10);
 
   let yTop = height - bandH - 20;
-  page.drawText(sanitize(`${doctorName || "Dr. —"}  ${docTitle}`), { x: 30, y: yTop, size: 11, font: bold, color: dark });
-  page.drawText(sanitize(docRole), { x: 30, y: yTop - 15, size: 10, font, color: dark });
-  page.drawText(sanitize(docPhone), { x: 30, y: yTop - 30, size: 10, font, color: dark });
+  // Doctor block sits inside the mint band (template style)
+  const docBlockTop = height - 95;
+  page.drawText(sanitize(`${doctorName || "Dr. —"} ${docTitle}`), { x: 30, y: docBlockTop, size: 11, font: bold, color: dark });
+  page.drawText(sanitize(docRole), { x: 30, y: docBlockTop - 16, size: 10, font, color: dark });
+  page.drawText(sanitize(docPhone), { x: 30, y: docBlockTop - 32, size: 10, font, color: dark });
 
   // Prescription No / Date (right)
   const prescriptionNo = `D-${shortNumFromUuid(proc.id, 4)}`;
   const apptNo = `A-${shortNumFromUuid(proc.appointment_id || proc.id, 4)}`;
   const dateStr = new Date(proc.procedure_date).toLocaleDateString("en-GB");
-  page.drawText(sanitize(`Prescription No: ${prescriptionNo}`), { x: width - 250, y: yTop, size: 11, font, color: dark });
-  page.drawText(sanitize(`Date: ${dateStr}`), { x: width - 250, y: yTop - 15, size: 11, font, color: dark });
+  page.drawText(sanitize(`Prescription No: ${prescriptionNo}`), { x: width - 280, y: docBlockTop, size: 11, font, color: dark });
+  page.drawText(sanitize(`Date: ${dateStr}`), { x: width - 280, y: docBlockTop - 16, size: 11, font, color: dark });
 
-  // Title
-  let y = yTop - 60;
+  // Title (below mint band)
+  let y = height - bandH - 40;
   const title = "Prescription Document";
   const tw = font.widthOfTextAtSize(title, 18);
   page.drawText(title, { x: (width - tw) / 2, y, size: 18, font, color: dark });
@@ -202,12 +205,10 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
 
   // Footer
   const footerY = 60;
-  const footer1 = `Clinic Phone: ${clinicPhone}`;
-  const f1w = font.widthOfTextAtSize(sanitize(footer1), 10);
-  page.drawText(sanitize(footer1), { x: (width - f1w) / 2, y: footerY + 14, size: 10, font, color: dark });
-  const footer2 = `E-mail: ${clinicEmail}  |  Website: ${clinicWebsite}`;
-  const f2w = font.widthOfTextAtSize(sanitize(footer2), 10);
-  page.drawText(sanitize(footer2), { x: (width - f2w) / 2, y: footerY, size: 10, font, color: dark });
+  const f1w = font.widthOfTextAtSize(sanitize(footerPhone), 10);
+  page.drawText(sanitize(footerPhone), { x: (width - f1w) / 2, y: footerY + 14, size: 10, font, color: dark });
+  const f2w = font.widthOfTextAtSize(sanitize(footerEmailWeb), 10);
+  page.drawText(sanitize(footerEmailWeb), { x: (width - f2w) / 2, y: footerY, size: 10, font, color: dark });
 
   const bytes = await pdfDoc.save();
   const safeName = (patientName || "patient").replace(/[^A-Za-z0-9_-]+/g, "_");

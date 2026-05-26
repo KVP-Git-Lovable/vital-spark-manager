@@ -75,27 +75,131 @@ export function ProcedureFormDialog({
   const [stockMap, setStockMap] = useState<Record<number, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);
   const [autoFilled, setAutoFilled] = useState(false);
-  const [elaborating, setElaborating] = useState<null | "symptoms" | "diagnosis" | "procedure_notes" | "recommendations">(null);
 
-  const elaborate = async (fieldType: "symptoms" | "diagnosis" | "procedure_notes" | "recommendations") => {
-    const svcName = serviceName.trim() || "Consultation";
-    const currentText = fieldType === "symptoms" ? symptoms : fieldType === "diagnosis" ? diagnosis : fieldType === "procedure_notes" ? procedureNotes : recommendations;
-    setElaborating(fieldType);
+  // Unified AI bar state
+  const [dictation, setDictation] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const [elaboratingAll, setElaboratingAll] = useState(false);
+  const [recentlyFilled, setRecentlyFilled] = useState<Record<string, boolean>>({});
+  const parseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastParsedRef = useRef<string>("");
+
+  const speech = useSpeechRecognition({
+    language: "en-IN",
+    continuous: true,
+    interimResults: true,
+    onFinal: (chunk) => {
+      setDictation((prev) => (prev ? prev + " " : "") + chunk);
+    },
+  });
+
+  const flashFilled = (keys: string[]) => {
+    setRecentlyFilled((prev) => {
+      const next = { ...prev };
+      keys.forEach((k) => { next[k] = true; });
+      return next;
+    });
+    setTimeout(() => {
+      setRecentlyFilled((prev) => {
+        const next = { ...prev };
+        keys.forEach((k) => { delete next[k]; });
+        return next;
+      });
+    }, 1800);
+  };
+
+  const parseDictation = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || trimmed === lastParsedRef.current) return;
+    lastParsedRef.current = trimmed;
+    setParsing(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elaborate-text`, {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/procedure-ai-parse`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
-        body: JSON.stringify({ serviceName: svcName, fieldType, currentText }),
+        body: JSON.stringify({
+          transcript: trimmed,
+          currentFields: { service_name: serviceName, symptoms, diagnosis, procedure_notes: procedureNotes, recommendations },
+        }),
       });
-      if (!res.ok) { const err = await res.json().catch(() => ({ error: "AI request failed" })); throw new Error(err.error || "AI request failed"); }
-      const { text } = await res.json();
-      if (fieldType === "symptoms") setSymptoms(text);
-      else if (fieldType === "diagnosis") setDiagnosis(text);
-      else if (fieldType === "procedure_notes") setProcedureNotes(text);
-      else setRecommendations(text);
-      toast.success("Text elaborated");
-    } catch (e: any) { toast.error(e.message || "Failed to elaborate"); }
-    finally { setElaborating(null); }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Parse failed" }));
+        throw new Error(err.error || "Parse failed");
+      }
+      const data = await res.json();
+      const filled: string[] = [];
+      if (data.service_name) { setServiceName(data.service_name); filled.push("service"); }
+      if (data.symptoms) { setSymptoms(data.symptoms); filled.push("symptoms"); }
+      if (data.diagnosis) { setDiagnosis(data.diagnosis); filled.push("diagnosis"); }
+      if (data.procedure_notes) { setProcedureNotes(data.procedure_notes); filled.push("procedure_notes"); }
+      if (data.recommendations) { setRecommendations(data.recommendations); filled.push("recommendations"); }
+      if (Array.isArray(data.prescriptions) && data.prescriptions.length > 0) {
+        const newRx = data.prescriptions.map((p: any) => ({
+          product_id: "",
+          medicine_name: p.medicine_name || "",
+          frequency: p.frequency || "",
+          duration: p.duration || "",
+          instructions: p.instructions || "",
+          quantity: 1,
+        }));
+        setPrescriptions((prev) => [...prev, ...newRx]);
+        filled.push("prescriptions");
+      }
+      if (filled.length === 0) {
+        toast.info("Nothing matched — try mentioning symptoms, diagnosis, notes, or medicines.");
+      } else {
+        flashFilled(filled);
+        toast.success(`Filled ${filled.length} section${filled.length === 1 ? "" : "s"} from dictation`);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to parse dictation");
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  // Auto-parse 1.2s after dictation stops growing (and mic is not actively listening)
+  useEffect(() => {
+    if (parseTimerRef.current) clearTimeout(parseTimerRef.current);
+    if (!dictation.trim()) return;
+    if (speech.listening) return;
+    parseTimerRef.current = setTimeout(() => { parseDictation(dictation); }, 1200);
+    return () => { if (parseTimerRef.current) clearTimeout(parseTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dictation, speech.listening]);
+
+  const elaborateAll = async () => {
+    if (!symptoms && !diagnosis && !procedureNotes && !recommendations) {
+      toast.info("Fill at least one section first, then Elaborate All.");
+      return;
+    }
+    setElaboratingAll(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/procedure-ai-elaborate-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify({
+          serviceName: serviceName || "Consultation",
+          symptoms, diagnosis, procedure_notes: procedureNotes, recommendations,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Elaborate failed" }));
+        throw new Error(err.error || "Elaborate failed");
+      }
+      const data = await res.json();
+      const filled: string[] = [];
+      if (data.symptoms) { setSymptoms(data.symptoms); filled.push("symptoms"); }
+      if (data.diagnosis) { setDiagnosis(data.diagnosis); filled.push("diagnosis"); }
+      if (data.procedure_notes) { setProcedureNotes(data.procedure_notes); filled.push("procedure_notes"); }
+      if (data.recommendations) { setRecommendations(data.recommendations); filled.push("recommendations"); }
+      flashFilled(filled);
+      toast.success("Elaborated all sections");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to elaborate");
+    } finally {
+      setElaboratingAll(false);
+    }
   };
 
   const { data: patients = [] } = useQuery({

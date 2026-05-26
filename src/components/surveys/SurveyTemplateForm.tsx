@@ -285,6 +285,93 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
     !templateServices.some(ts => ts.service_id === s.id)
   );
 
+  // Parse spoken/typed dictation into form fields
+  const parseDictation = (text: string) => {
+    if (!text.trim() || text === lastParsedRef.current) return;
+    lastParsedRef.current = text;
+    let consumed = "";
+    const t = text.replace(/\s+/g, " ").trim();
+
+    const matchAndConsume = (re: RegExp, fn: (m: RegExpMatchArray) => void) => {
+      const m = t.match(re);
+      if (m) { fn(m); consumed += " " + m[0]; }
+    };
+
+    matchAndConsume(/template name (?:is |:\s*)([^.,;]+?)(?=(?:,|\.|$|\s+(?:description|age|problem|service|active|inactive)\b))/i,
+      (m) => setName(m[1].trim()));
+    matchAndConsume(/(?:description (?:is |:\s*)|this survey covers )([^.;]+?)(?=(?:\.|;|$|\s+(?:age|problem|service|active|inactive|template)\b))/i,
+      (m) => setDescription(m[1].trim()));
+    matchAndConsume(/age range (?:from )?(\d{1,3})\s*(?:to|-|–)\s*(\d{1,3})/i,
+      (m) => { setAgeMin(Number(m[1])); setAgeMax(Number(m[2])); });
+
+    matchAndConsume(/problem area (?:is |:\s*)([^.,;]+?)(?=(?:,|\.|$|\s+(?:service|age|active|inactive|template|description)\b))/i,
+      (m) => {
+        const term = m[1].trim().toLowerCase();
+        const hit = (problemAreas as any[]).find(p => p.name.toLowerCase() === term)
+          || (problemAreas as any[]).find(p => p.name.toLowerCase().includes(term) || term.includes(p.name.toLowerCase()));
+        if (hit) setProblemAreaId(hit.id);
+        else toast.info(`Problem area "${m[1].trim()}" not found`);
+      });
+
+    matchAndConsume(/service (?:type )?(?:is |:\s*)([^.,;]+?)(?=(?:,|\.|$|\s+(?:problem|age|active|inactive|template|description)\b))/i,
+      (m) => {
+        const term = m[1].trim().toLowerCase();
+        const hit = (services as any[]).find(s => s.name.toLowerCase() === term)
+          || (services as any[]).find(s => s.name.toLowerCase().includes(term) || term.includes(s.name.toLowerCase()));
+        if (hit) setServiceId(hit.id);
+        else toast.info(`Service "${m[1].trim()}" not found`);
+      });
+
+    if (/\binactive\b/i.test(t)) { setIsActive(false); consumed += " inactive"; }
+    else if (/\bactive\b/i.test(t)) { setIsActive(true); consumed += " active"; }
+
+    // Fallback: leftover text → append to description
+    let leftover = t;
+    consumed.split(/\s+/).filter(Boolean).forEach(w => {
+      leftover = leftover.replace(w, "");
+    });
+    leftover = leftover.replace(/\s+/g, " ").trim().replace(/^[,.;:\s-]+|[,.;:\s-]+$/g, "");
+    if (leftover && leftover.length > 6 && !/^(and|the|a|is|to)$/i.test(leftover)) {
+      setDescription((d) => d ? (d.trim().replace(/[.;]?\s*$/, ". ") + leftover) : leftover);
+    }
+    toast.success("Fields filled from dictation");
+  };
+
+  // Auto-parse 1.2s after dictation settles
+  useEffect(() => {
+    if (parseTimerRef.current) clearTimeout(parseTimerRef.current);
+    if (!dictation.trim() || speech.listening) return;
+    parseTimerRef.current = setTimeout(() => parseDictation(dictation), 1200);
+    return () => { if (parseTimerRef.current) clearTimeout(parseTimerRef.current); };
+  }, [dictation, speech.listening]);
+
+  const elaborateAll = async () => {
+    if (!name.trim() && !description.trim()) {
+      toast.info("Add a template name first, then Elaborate.");
+      return;
+    }
+    setElaborating(true);
+    setDescShimmer(true);
+    try {
+      const problemArea = (problemAreas as any[]).find(p => p.id === problemAreaId)?.name || "";
+      const serviceType = (services as any[]).find(s => s.id === serviceId)?.name || "";
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/survey-template-elaborate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify({ name, description, problemArea, serviceType, ageMin, ageMax }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Elaborate failed");
+      if (json.description) setDescription(json.description);
+      toast.success("Description elaborated");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to elaborate");
+    } finally {
+      setElaborating(false);
+      setTimeout(() => setDescShimmer(false), 400);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">

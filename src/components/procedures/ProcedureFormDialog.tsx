@@ -23,6 +23,7 @@ import { fetchAll } from "@/lib/supabasePaginate";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { MicButton } from "@/components/shared/MicButton";
 
 interface PrescriptionInput {
   product_id: string;

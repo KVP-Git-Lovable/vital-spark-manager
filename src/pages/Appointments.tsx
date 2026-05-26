@@ -5,6 +5,8 @@ import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDet
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -121,6 +123,8 @@ const Appointments = () => {
   const [serviceId, setServiceId] = useState("");
   const [appointmentStatus, setAppointmentStatus] = useState("Reserved");
   const [visitStatus, setVisitStatus] = useState("");
+  const [reasonForConsultation, setReasonForConsultation] = useState("");
+  const [additionalInfoOpen, setAdditionalInfoOpen] = useState(false);
   const [appointmentType, setAppointmentType] = useState<"Walk-in" | "Online">("Walk-in");
   const [startDate, setStartDate] = useState<Date>();
   const [startTime, setStartTime] = useState("09:00");
@@ -468,6 +472,7 @@ const Appointments = () => {
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
           appointment_type: appointmentType,
+          reason_for_consultation: reasonForConsultation || null,
         }));
         const { error } = await supabase.from("appointments").insert(rows as any);
         if (error) throw error;
@@ -485,6 +490,7 @@ const Appointments = () => {
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
           appointment_type: appointmentType,
+          reason_for_consultation: reasonForConsultation || null,
         } as any).select("id").single();
         if (error) throw error;
         newAppointmentId = (inserted as any)?.id || null;
@@ -669,6 +675,8 @@ const Appointments = () => {
     setServiceId("");
     setAppointmentStatus("Reserved");
     setVisitStatus("");
+    setReasonForConsultation("");
+    setAdditionalInfoOpen(false);
     setAppointmentType("Walk-in");
     setStartDate(undefined);
     setStartTime("09:00");

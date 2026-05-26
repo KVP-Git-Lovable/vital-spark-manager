@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,7 @@ import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { MicButton } from "@/components/shared/MicButton";
 
 interface PrescriptionInput {
@@ -74,27 +75,131 @@ export function ProcedureFormDialog({
   const [stockMap, setStockMap] = useState<Record<number, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);
   const [autoFilled, setAutoFilled] = useState(false);
-  const [elaborating, setElaborating] = useState<null | "symptoms" | "diagnosis" | "procedure_notes" | "recommendations">(null);
 
-  const elaborate = async (fieldType: "symptoms" | "diagnosis" | "procedure_notes" | "recommendations") => {
-    const svcName = serviceName.trim() || "Consultation";
-    const currentText = fieldType === "symptoms" ? symptoms : fieldType === "diagnosis" ? diagnosis : fieldType === "procedure_notes" ? procedureNotes : recommendations;
-    setElaborating(fieldType);
+  // Unified AI bar state
+  const [dictation, setDictation] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const [elaboratingAll, setElaboratingAll] = useState(false);
+  const [recentlyFilled, setRecentlyFilled] = useState<Record<string, boolean>>({});
+  const parseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastParsedRef = useRef<string>("");
+
+  const speech = useSpeechRecognition({
+    language: "en-IN",
+    continuous: true,
+    interimResults: true,
+    onFinal: (chunk) => {
+      setDictation((prev) => (prev ? prev + " " : "") + chunk);
+    },
+  });
+
+  const flashFilled = (keys: string[]) => {
+    setRecentlyFilled((prev) => {
+      const next = { ...prev };
+      keys.forEach((k) => { next[k] = true; });
+      return next;
+    });
+    setTimeout(() => {
+      setRecentlyFilled((prev) => {
+        const next = { ...prev };
+        keys.forEach((k) => { delete next[k]; });
+        return next;
+      });
+    }, 1800);
+  };
+
+  const parseDictation = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || trimmed === lastParsedRef.current) return;
+    lastParsedRef.current = trimmed;
+    setParsing(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elaborate-text`, {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/procedure-ai-parse`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
-        body: JSON.stringify({ serviceName: svcName, fieldType, currentText }),
+        body: JSON.stringify({
+          transcript: trimmed,
+          currentFields: { service_name: serviceName, symptoms, diagnosis, procedure_notes: procedureNotes, recommendations },
+        }),
       });
-      if (!res.ok) { const err = await res.json().catch(() => ({ error: "AI request failed" })); throw new Error(err.error || "AI request failed"); }
-      const { text } = await res.json();
-      if (fieldType === "symptoms") setSymptoms(text);
-      else if (fieldType === "diagnosis") setDiagnosis(text);
-      else if (fieldType === "procedure_notes") setProcedureNotes(text);
-      else setRecommendations(text);
-      toast.success("Text elaborated");
-    } catch (e: any) { toast.error(e.message || "Failed to elaborate"); }
-    finally { setElaborating(null); }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Parse failed" }));
+        throw new Error(err.error || "Parse failed");
+      }
+      const data = await res.json();
+      const filled: string[] = [];
+      if (data.service_name) { setServiceName(data.service_name); filled.push("service"); }
+      if (data.symptoms) { setSymptoms(data.symptoms); filled.push("symptoms"); }
+      if (data.diagnosis) { setDiagnosis(data.diagnosis); filled.push("diagnosis"); }
+      if (data.procedure_notes) { setProcedureNotes(data.procedure_notes); filled.push("procedure_notes"); }
+      if (data.recommendations) { setRecommendations(data.recommendations); filled.push("recommendations"); }
+      if (Array.isArray(data.prescriptions) && data.prescriptions.length > 0) {
+        const newRx = data.prescriptions.map((p: any) => ({
+          product_id: "",
+          medicine_name: p.medicine_name || "",
+          frequency: p.frequency || "",
+          duration: p.duration || "",
+          instructions: p.instructions || "",
+          quantity: 1,
+        }));
+        setPrescriptions((prev) => [...prev, ...newRx]);
+        filled.push("prescriptions");
+      }
+      if (filled.length === 0) {
+        toast.info("Nothing matched — try mentioning symptoms, diagnosis, notes, or medicines.");
+      } else {
+        flashFilled(filled);
+        toast.success(`Filled ${filled.length} section${filled.length === 1 ? "" : "s"} from dictation`);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to parse dictation");
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  // Auto-parse 1.2s after dictation stops growing (and mic is not actively listening)
+  useEffect(() => {
+    if (parseTimerRef.current) clearTimeout(parseTimerRef.current);
+    if (!dictation.trim()) return;
+    if (speech.listening) return;
+    parseTimerRef.current = setTimeout(() => { parseDictation(dictation); }, 1200);
+    return () => { if (parseTimerRef.current) clearTimeout(parseTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dictation, speech.listening]);
+
+  const elaborateAll = async () => {
+    if (!symptoms && !diagnosis && !procedureNotes && !recommendations) {
+      toast.info("Fill at least one section first, then Elaborate All.");
+      return;
+    }
+    setElaboratingAll(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/procedure-ai-elaborate-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify({
+          serviceName: serviceName || "Consultation",
+          symptoms, diagnosis, procedure_notes: procedureNotes, recommendations,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Elaborate failed" }));
+        throw new Error(err.error || "Elaborate failed");
+      }
+      const data = await res.json();
+      const filled: string[] = [];
+      if (data.symptoms) { setSymptoms(data.symptoms); filled.push("symptoms"); }
+      if (data.diagnosis) { setDiagnosis(data.diagnosis); filled.push("diagnosis"); }
+      if (data.procedure_notes) { setProcedureNotes(data.procedure_notes); filled.push("procedure_notes"); }
+      if (data.recommendations) { setRecommendations(data.recommendations); filled.push("recommendations"); }
+      flashFilled(filled);
+      toast.success("Elaborated all sections");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to elaborate");
+    } finally {
+      setElaboratingAll(false);
+    }
   };
 
   const { data: patients = [] } = useQuery({
@@ -313,9 +418,70 @@ export function ProcedureFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">New Procedure / Consultation</DialogTitle>
+          <DialogTitle className="font-display">New Procedure / Prescription</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
+          {/* Unified AI bar */}
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-primary">AI Assist — dictate or elaborate</span>
+                {parsing && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Filling fields…
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={speech.listening ? "destructive" : "outline"}
+                  className="h-8 gap-1.5"
+                  onClick={() => (speech.listening ? speech.stop() : speech.start())}
+                  disabled={!speech.supported}
+                  title={speech.supported ? "Voice dictation" : "Voice not supported in this browser"}
+                >
+                  {speech.listening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                  {speech.listening ? (
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+                      Listening
+                    </span>
+                  ) : "Dictate"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 gap-1.5"
+                  onClick={elaborateAll}
+                  disabled={elaboratingAll}
+                >
+                  {elaboratingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  AI Elaborate All
+                </Button>
+              </div>
+            </div>
+            <Textarea
+              value={dictation + (speech.interimTranscript ? (dictation ? " " : "") + speech.interimTranscript : "")}
+              onChange={(e) => setDictation(e.target.value)}
+              placeholder='Speak or type, e.g. "Patient has acne on forehead and cheeks, itching for 3 weeks. Diagnosis is mild rosacea. Prescribe Doxycycline 100mg twice daily for 14 days."'
+              rows={2}
+              className="bg-background"
+            />
+            {dictation && !speech.listening && (
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setDictation(""); lastParsedRef.current = ""; }}>
+                  Clear
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => parseDictation(dictation)} disabled={parsing}>
+                  Parse & Fill Fields
+                </Button>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Patient *</Label>
@@ -386,55 +552,23 @@ export function ProcedureFormDialog({
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
-              <Label>Symptoms</Label>
-              <div className="flex items-center gap-1">
-                <MicButton value={symptoms} onChange={setSymptoms} />
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("symptoms")} disabled={elaborating !== null}>
-                  {elaborating === "symptoms" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                </Button>
-              </div>
-            </div>
-            <Textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)} placeholder="e.g. Redness, itching, dry patches..." className="mt-1.5" rows={2} />
+            <Label>Symptoms</Label>
+            <Textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)} placeholder="e.g. Redness, itching, dry patches..." className={`mt-1.5 transition-all ${recentlyFilled.symptoms ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
-              <Label>Diagnosis</Label>
-              <div className="flex items-center gap-1">
-                <MicButton value={diagnosis} onChange={setDiagnosis} />
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("diagnosis")} disabled={elaborating !== null}>
-                  {elaborating === "diagnosis" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                </Button>
-              </div>
-            </div>
-            <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Patient diagnosis..." className="mt-1.5" rows={2} />
+            <Label>Diagnosis</Label>
+            <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Patient diagnosis..." className={`mt-1.5 transition-all ${recentlyFilled.diagnosis ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
-              <Label>Procedure Notes</Label>
-              <div className="flex items-center gap-1">
-                <MicButton value={procedureNotes} onChange={setProcedureNotes} />
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("procedure_notes")} disabled={elaborating !== null}>
-                  {elaborating === "procedure_notes" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                </Button>
-              </div>
-            </div>
-            <Textarea value={procedureNotes} onChange={(e) => setProcedureNotes(e.target.value)} placeholder="Details of the procedure performed..." className="mt-1.5" rows={3} />
+            <Label>Procedure Notes</Label>
+            <Textarea value={procedureNotes} onChange={(e) => setProcedureNotes(e.target.value)} placeholder="Details of the procedure performed..." className={`mt-1.5 transition-all ${recentlyFilled.procedure_notes ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={3} />
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
-              <Label>Recommendations</Label>
-              <div className="flex items-center gap-1">
-                <MicButton value={recommendations} onChange={setRecommendations} />
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("recommendations")} disabled={elaborating !== null}>
-                  {elaborating === "recommendations" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                </Button>
-              </div>
-            </div>
-            <Textarea value={recommendations} onChange={(e) => setRecommendations(e.target.value)} placeholder="Post-procedure recommendations..." className="mt-1.5" rows={3} />
+            <Label>Recommendations</Label>
+            <Textarea value={recommendations} onChange={(e) => setRecommendations(e.target.value)} placeholder="Post-procedure recommendations..." className={`mt-1.5 transition-all ${recentlyFilled.recommendations ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={3} />
           </div>
 
           {/* Prescriptions */}

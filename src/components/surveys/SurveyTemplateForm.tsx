@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, Trash2, GripVertical, Search, Copy, Send } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, Trash2, GripVertical, Search, Copy, Send, Mic, MicOff, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
 interface Question {
   id?: string;
@@ -63,6 +64,21 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
   const [problemAreaId, setProblemAreaId] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [isActive, setIsActive] = useState(true);
+
+  // AI bar
+  const [dictation, setDictation] = useState("");
+  const [elaborating, setElaborating] = useState(false);
+  const [descShimmer, setDescShimmer] = useState(false);
+  const lastParsedRef = useRef("");
+  const parseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speech = useSpeechRecognition({
+    language: "en-IN",
+    continuous: true,
+    interimResults: true,
+    onFinal: (text) => {
+      setDictation((prev) => (prev ? prev + " " : "") + text);
+    },
+  });
 
   // Questions
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -113,6 +129,7 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
     setProblemAreaId(""); setServiceId(""); setIsActive(true);
     setQuestions([]); setTemplateProducts([]); setTemplateServices([]);
     setTab("basic");
+    setDictation(""); lastParsedRef.current = "";
   };
 
   const loadTemplate = async () => {

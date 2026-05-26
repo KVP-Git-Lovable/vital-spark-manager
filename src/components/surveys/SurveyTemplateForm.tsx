@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, Trash2, GripVertical, Search, Copy, Send } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, Trash2, GripVertical, Search, Copy, Send, Mic, MicOff, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
 interface Question {
   id?: string;
@@ -63,6 +64,21 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
   const [problemAreaId, setProblemAreaId] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [isActive, setIsActive] = useState(true);
+
+  // AI bar
+  const [dictation, setDictation] = useState("");
+  const [elaborating, setElaborating] = useState(false);
+  const [descShimmer, setDescShimmer] = useState(false);
+  const lastParsedRef = useRef("");
+  const parseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speech = useSpeechRecognition({
+    language: "en-IN",
+    continuous: true,
+    interimResults: true,
+    onFinal: (text) => {
+      setDictation((prev) => (prev ? prev + " " : "") + text);
+    },
+  });
 
   // Questions
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -113,6 +129,7 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
     setProblemAreaId(""); setServiceId(""); setIsActive(true);
     setQuestions([]); setTemplateProducts([]); setTemplateServices([]);
     setTab("basic");
+    setDictation(""); lastParsedRef.current = "";
   };
 
   const loadTemplate = async () => {
@@ -268,6 +285,93 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
     !templateServices.some(ts => ts.service_id === s.id)
   );
 
+  // Parse spoken/typed dictation into form fields
+  const parseDictation = (text: string) => {
+    if (!text.trim() || text === lastParsedRef.current) return;
+    lastParsedRef.current = text;
+    let consumed = "";
+    const t = text.replace(/\s+/g, " ").trim();
+
+    const matchAndConsume = (re: RegExp, fn: (m: RegExpMatchArray) => void) => {
+      const m = t.match(re);
+      if (m) { fn(m); consumed += " " + m[0]; }
+    };
+
+    matchAndConsume(/template name (?:is |:\s*)([^.,;]+?)(?=(?:,|\.|$|\s+(?:description|age|problem|service|active|inactive)\b))/i,
+      (m) => setName(m[1].trim()));
+    matchAndConsume(/(?:description (?:is |:\s*)|this survey covers )([^.;]+?)(?=(?:\.|;|$|\s+(?:age|problem|service|active|inactive|template)\b))/i,
+      (m) => setDescription(m[1].trim()));
+    matchAndConsume(/age range (?:from )?(\d{1,3})\s*(?:to|-|–)\s*(\d{1,3})/i,
+      (m) => { setAgeMin(Number(m[1])); setAgeMax(Number(m[2])); });
+
+    matchAndConsume(/problem area (?:is |:\s*)([^.,;]+?)(?=(?:,|\.|$|\s+(?:service|age|active|inactive|template|description)\b))/i,
+      (m) => {
+        const term = m[1].trim().toLowerCase();
+        const hit = (problemAreas as any[]).find(p => p.name.toLowerCase() === term)
+          || (problemAreas as any[]).find(p => p.name.toLowerCase().includes(term) || term.includes(p.name.toLowerCase()));
+        if (hit) setProblemAreaId(hit.id);
+        else toast.info(`Problem area "${m[1].trim()}" not found`);
+      });
+
+    matchAndConsume(/service (?:type )?(?:is |:\s*)([^.,;]+?)(?=(?:,|\.|$|\s+(?:problem|age|active|inactive|template|description)\b))/i,
+      (m) => {
+        const term = m[1].trim().toLowerCase();
+        const hit = (services as any[]).find(s => s.name.toLowerCase() === term)
+          || (services as any[]).find(s => s.name.toLowerCase().includes(term) || term.includes(s.name.toLowerCase()));
+        if (hit) setServiceId(hit.id);
+        else toast.info(`Service "${m[1].trim()}" not found`);
+      });
+
+    if (/\binactive\b/i.test(t)) { setIsActive(false); consumed += " inactive"; }
+    else if (/\bactive\b/i.test(t)) { setIsActive(true); consumed += " active"; }
+
+    // Fallback: leftover text → append to description
+    let leftover = t;
+    consumed.split(/\s+/).filter(Boolean).forEach(w => {
+      leftover = leftover.replace(w, "");
+    });
+    leftover = leftover.replace(/\s+/g, " ").trim().replace(/^[,.;:\s-]+|[,.;:\s-]+$/g, "");
+    if (leftover && leftover.length > 6 && !/^(and|the|a|is|to)$/i.test(leftover)) {
+      setDescription((d) => d ? (d.trim().replace(/[.;]?\s*$/, ". ") + leftover) : leftover);
+    }
+    toast.success("Fields filled from dictation");
+  };
+
+  // Auto-parse 1.2s after dictation settles
+  useEffect(() => {
+    if (parseTimerRef.current) clearTimeout(parseTimerRef.current);
+    if (!dictation.trim() || speech.listening) return;
+    parseTimerRef.current = setTimeout(() => parseDictation(dictation), 1200);
+    return () => { if (parseTimerRef.current) clearTimeout(parseTimerRef.current); };
+  }, [dictation, speech.listening]);
+
+  const elaborateAll = async () => {
+    if (!name.trim() && !description.trim()) {
+      toast.info("Add a template name first, then Elaborate.");
+      return;
+    }
+    setElaborating(true);
+    setDescShimmer(true);
+    try {
+      const problemArea = (problemAreas as any[]).find(p => p.id === problemAreaId)?.name || "";
+      const serviceType = (services as any[]).find(s => s.id === serviceId)?.name || "";
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/survey-template-elaborate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify({ name, description, problemArea, serviceType, ageMin, ageMax }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Elaborate failed");
+      if (json.description) setDescription(json.description);
+      toast.success("Description elaborated");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to elaborate");
+    } finally {
+      setElaborating(false);
+      setTimeout(() => setDescShimmer(false), 400);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -284,13 +388,69 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
           </TabsList>
 
           <TabsContent value="basic" className="space-y-4 mt-4">
+            {/* Unified AI bar */}
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium text-primary">AI Assist — dictate or elaborate</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={speech.listening ? "destructive" : "outline"}
+                    className="h-8 gap-1.5"
+                    onClick={() => (speech.listening ? speech.stop() : speech.start())}
+                    disabled={!speech.supported}
+                    title={speech.supported ? "Voice dictation" : "Voice not supported in this browser"}
+                  >
+                    {speech.listening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                    {speech.listening ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+                        Listening
+                      </span>
+                    ) : "Dictate"}
+                  </Button>
+                  <Button type="button" size="sm" className="h-8 gap-1.5" onClick={elaborateAll} disabled={elaborating}>
+                    {elaborating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    AI Elaborate All
+                  </Button>
+                </div>
+              </div>
+              <Textarea
+                value={dictation + (speech.interimTranscript ? (dictation ? " " : "") + speech.interimTranscript : "")}
+                onChange={(e) => setDictation(e.target.value)}
+                placeholder='Speak or type, e.g. "Template name is Acne Assessment, age range 18 to 35, problem area is acne, service type is consultation, active."'
+                rows={2}
+                className="bg-background text-sm"
+              />
+              {dictation && !speech.listening && (
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setDictation(""); lastParsedRef.current = ""; }}>
+                    Clear
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => parseDictation(dictation)}>
+                    Parse & Fill Fields
+                  </Button>
+                </div>
+              )}
+            </div>
+
             <div>
               <Label>Template Name *</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Acne Assessment (18-35)" className="mt-1.5" />
             </div>
             <div>
               <Label>Description</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this survey covers..." className="mt-1.5" rows={2} />
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What this survey covers..."
+                rows={2}
+                className={`mt-1.5 transition-all ${descShimmer ? "opacity-60 animate-pulse" : ""}`}
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

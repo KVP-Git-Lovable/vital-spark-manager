@@ -78,6 +78,7 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
 const Appointments = () => {
   const queryClient = useQueryClient();
   const routerNavigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showBillingPrompt, setShowBillingPrompt] = useState(false);
   const [lastCreatedPatientId, setLastCreatedPatientId] = useState("");
   const [lastCreatedService, setLastCreatedService] = useState("");

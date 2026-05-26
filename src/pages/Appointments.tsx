@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Button } from "@/components/ui/button";
@@ -78,6 +78,7 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
 const Appointments = () => {
   const queryClient = useQueryClient();
   const routerNavigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showBillingPrompt, setShowBillingPrompt] = useState(false);
   const [lastCreatedPatientId, setLastCreatedPatientId] = useState("");
   const [lastCreatedService, setLastCreatedService] = useState("");
@@ -136,6 +137,26 @@ const Appointments = () => {
     appointmentId: string;
     patientId: string;
   } | null>(null);
+
+  const [lockPatient, setLockPatient] = useState(false);
+
+  // Auto-open New Appointment dialog with preselected patient (from Patient profile)
+  useEffect(() => {
+    const shouldOpen = searchParams.get("new") === "1";
+    const presetPatient = searchParams.get("patient_id");
+    if (shouldOpen) {
+      if (presetPatient) {
+        setPatientId(presetPatient);
+        setLockPatient(true);
+      }
+      setOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete("new");
+      next.delete("patient_id");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Queries
   const { data: patients = [] } = useQuery({
@@ -917,7 +938,7 @@ const Appointments = () => {
             <Button variant={view === "month" ? "default" : "ghost"} size="sm" onClick={() => setView("month")} className="text-xs h-7 md:h-8 px-2 md:px-3">Month</Button>
             <Button variant={view === "table" ? "default" : "ghost"} size="sm" onClick={() => setView("table")} className="text-xs h-7 md:h-8 px-2 md:px-3 gap-1"><List className="h-3 w-3" />List</Button>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setLockPatient(false); }}>
             <DialogTrigger asChild>
               <Button className="gap-2 h-8 md:h-9 text-xs md:text-sm"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">New</span> Appt</Button>
             </DialogTrigger>
@@ -983,6 +1004,7 @@ const Appointments = () => {
                       placeholder="Select patient"
                       className="mt-1.5"
                       withSource
+                      disabled={lockPatient}
                     />
                     {patientId && (() => {
                       const p = patients.find(pt => pt.id === patientId);

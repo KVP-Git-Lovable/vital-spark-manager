@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -22,7 +22,7 @@ import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { MicButton } from "@/components/shared/MicButton";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
 interface PrescriptionInput {
   product_id: string;

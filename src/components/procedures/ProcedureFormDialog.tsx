@@ -418,9 +418,70 @@ export function ProcedureFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">New Procedure / Consultation</DialogTitle>
+          <DialogTitle className="font-display">New Procedure / Prescription</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
+          {/* Unified AI bar */}
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-primary">AI Assist — dictate or elaborate</span>
+                {parsing && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Filling fields…
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={speech.listening ? "destructive" : "outline"}
+                  className="h-8 gap-1.5"
+                  onClick={() => (speech.listening ? speech.stop() : speech.start())}
+                  disabled={!speech.supported}
+                  title={speech.supported ? "Voice dictation" : "Voice not supported in this browser"}
+                >
+                  {speech.listening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                  {speech.listening ? (
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+                      Listening
+                    </span>
+                  ) : "Dictate"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 gap-1.5"
+                  onClick={elaborateAll}
+                  disabled={elaboratingAll}
+                >
+                  {elaboratingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  AI Elaborate All
+                </Button>
+              </div>
+            </div>
+            <Textarea
+              value={dictation + (speech.interimTranscript ? (dictation ? " " : "") + speech.interimTranscript : "")}
+              onChange={(e) => setDictation(e.target.value)}
+              placeholder='Speak or type, e.g. "Patient has acne on forehead and cheeks, itching for 3 weeks. Diagnosis is mild rosacea. Prescribe Doxycycline 100mg twice daily for 14 days."'
+              rows={2}
+              className="bg-background"
+            />
+            {dictation && !speech.listening && (
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setDictation(""); lastParsedRef.current = ""; }}>
+                  Clear
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => parseDictation(dictation)} disabled={parsing}>
+                  Parse & Fill Fields
+                </Button>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Patient *</Label>

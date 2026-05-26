@@ -929,7 +929,7 @@ const PatientDetail = () => {
         <TabsContent value="appointments">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex justify-end mb-3">
-              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate("/appointments")}>
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate(`/appointments?new=1&patient_id=${id}`)}>
                 <Plus className="h-3.5 w-3.5" /> Book Appointment
               </Button>
             </div>

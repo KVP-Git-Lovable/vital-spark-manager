@@ -132,7 +132,6 @@ export function PatientCombobox({
   const displayName = (p: PatientLite) => {
     const name = getRawName(p);
     if (hasMeaningfulName(p)) return name;
-    if (p.phone) return p.phone;
     if (name) return name;
     return "Unnamed";
   };
@@ -252,9 +251,6 @@ export function PatientCombobox({
                 />
                 <div className="flex-1 min-w-0">
                   <p className="truncate">{displayName(p)}</p>
-                  {p.phone && p.phone !== displayName(p) && (
-                    <p className="text-[10px] text-muted-foreground truncate">{p.phone}</p>
-                  )}
                 </div>
               </button>
             ))

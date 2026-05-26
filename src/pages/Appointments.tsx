@@ -1056,15 +1056,6 @@ const Appointments = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                   <div>
-                    <Label>Service</Label>
-                    <Select value={serviceId} onValueChange={setServiceId}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select service" /></SelectTrigger>
-                      <SelectContent>
-                        {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
                     <Label>Status</Label>
                     <Select value={appointmentStatus} onValueChange={setAppointmentStatus}>
                       <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
@@ -1073,9 +1064,7 @@ const Appointments = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-
-                <div>
+                  <div>
                   <Label>Visit Status (Investigation)</Label>
                   <Input
                     value={visitStatus}
@@ -1083,10 +1072,38 @@ const Appointments = () => {
                     placeholder="Enter visit/investigation details..."
                     className="mt-1.5"
                   />
+                  </div>
                 </div>
 
-                {/* Problem Areas */}
                 <div>
+                  <Label>Reason for Consultation</Label>
+                  <Textarea
+                    value={reasonForConsultation}
+                    onChange={(e) => setReasonForConsultation(e.target.value)}
+                    placeholder="Enter reason for consultation"
+                    className="mt-1.5"
+                  />
+                </div>
+
+                {/* Additional Info (collapsible) */}
+                <Collapsible open={additionalInfoOpen} onOpenChange={setAdditionalInfoOpen} className="border rounded-md">
+                  <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/40">
+                    <span>Additional Info</span>
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", additionalInfoOpen && "rotate-180")} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="px-3 pb-3 pt-1 space-y-4">
+                    <div>
+                      <Label>Service</Label>
+                      <Select value={serviceId} onValueChange={setServiceId}>
+                        <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select service" /></SelectTrigger>
+                        <SelectContent>
+                          {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Problem Areas */}
+                    <div>
                   <Label className="flex items-center gap-1.5">
                     <AlertCircle className="h-3.5 w-3.5" /> Problem Areas
                   </Label>
@@ -1132,7 +1149,9 @@ const Appointments = () => {
                       })}
                     </div>
                   )}
-                </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
 
                 {/* Survey (optional) */}
                 <div className="rounded-md border bg-muted/20 p-3 space-y-3">

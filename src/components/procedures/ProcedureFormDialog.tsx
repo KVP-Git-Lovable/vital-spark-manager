@@ -552,55 +552,23 @@ export function ProcedureFormDialog({
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
-              <Label>Symptoms</Label>
-              <div className="flex items-center gap-1">
-                <MicButton value={symptoms} onChange={setSymptoms} />
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("symptoms")} disabled={elaborating !== null}>
-                  {elaborating === "symptoms" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                </Button>
-              </div>
-            </div>
-            <Textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)} placeholder="e.g. Redness, itching, dry patches..." className="mt-1.5" rows={2} />
+            <Label>Symptoms</Label>
+            <Textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)} placeholder="e.g. Redness, itching, dry patches..." className={`mt-1.5 transition-all ${recentlyFilled.symptoms ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
-              <Label>Diagnosis</Label>
-              <div className="flex items-center gap-1">
-                <MicButton value={diagnosis} onChange={setDiagnosis} />
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("diagnosis")} disabled={elaborating !== null}>
-                  {elaborating === "diagnosis" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                </Button>
-              </div>
-            </div>
-            <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Patient diagnosis..." className="mt-1.5" rows={2} />
+            <Label>Diagnosis</Label>
+            <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Patient diagnosis..." className={`mt-1.5 transition-all ${recentlyFilled.diagnosis ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
-              <Label>Procedure Notes</Label>
-              <div className="flex items-center gap-1">
-                <MicButton value={procedureNotes} onChange={setProcedureNotes} />
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("procedure_notes")} disabled={elaborating !== null}>
-                  {elaborating === "procedure_notes" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                </Button>
-              </div>
-            </div>
-            <Textarea value={procedureNotes} onChange={(e) => setProcedureNotes(e.target.value)} placeholder="Details of the procedure performed..." className="mt-1.5" rows={3} />
+            <Label>Procedure Notes</Label>
+            <Textarea value={procedureNotes} onChange={(e) => setProcedureNotes(e.target.value)} placeholder="Details of the procedure performed..." className={`mt-1.5 transition-all ${recentlyFilled.procedure_notes ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={3} />
           </div>
 
           <div>
-            <div className="flex items-center justify-between">
-              <Label>Recommendations</Label>
-              <div className="flex items-center gap-1">
-                <MicButton value={recommendations} onChange={setRecommendations} />
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("recommendations")} disabled={elaborating !== null}>
-                  {elaborating === "recommendations" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                </Button>
-              </div>
-            </div>
-            <Textarea value={recommendations} onChange={(e) => setRecommendations(e.target.value)} placeholder="Post-procedure recommendations..." className="mt-1.5" rows={3} />
+            <Label>Recommendations</Label>
+            <Textarea value={recommendations} onChange={(e) => setRecommendations(e.target.value)} placeholder="Post-procedure recommendations..." className={`mt-1.5 transition-all ${recentlyFilled.recommendations ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={3} />
           </div>
 
           {/* Prescriptions */}

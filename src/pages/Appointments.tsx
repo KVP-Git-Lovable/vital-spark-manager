@@ -938,7 +938,7 @@ const Appointments = () => {
             <Button variant={view === "month" ? "default" : "ghost"} size="sm" onClick={() => setView("month")} className="text-xs h-7 md:h-8 px-2 md:px-3">Month</Button>
             <Button variant={view === "table" ? "default" : "ghost"} size="sm" onClick={() => setView("table")} className="text-xs h-7 md:h-8 px-2 md:px-3 gap-1"><List className="h-3 w-3" />List</Button>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setLockPatient(false); }}>
             <DialogTrigger asChild>
               <Button className="gap-2 h-8 md:h-9 text-xs md:text-sm"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">New</span> Appt</Button>
             </DialogTrigger>
@@ -1004,6 +1004,7 @@ const Appointments = () => {
                       placeholder="Select patient"
                       className="mt-1.5"
                       withSource
+                      disabled={lockPatient}
                     />
                     {patientId && (() => {
                       const p = patients.find(pt => pt.id === patientId);

@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { format } from "date-fns";
-import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2 } from "lucide-react";
+import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,6 +60,54 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [attachmentNotes, setAttachmentNotes] = useState("");
   const [uploading, setUploading] = useState(false);
   const [elaborating, setElaborating] = useState<null | "symptoms" | "diagnosis" | "procedure_notes" | "recommendations">(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [sendingWa, setSendingWa] = useState(false);
+
+  const handleDownloadPrescription = async () => {
+    if (!procedureId) return;
+    setDownloadingPdf(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-prescription-pdf", {
+        body: { procedureId },
+      });
+      if (error) throw error;
+      if (!data?.base64) throw new Error("No PDF returned");
+      const bin = atob(data.base64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename || "Prescription.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Prescription downloaded");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to generate prescription");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!procedureId) return;
+    setSendingWa(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-prescription-whatsapp", {
+        body: { procedureId },
+      });
+      if (error) throw error;
+      toast.success(data?.message || "Prescription queued for WhatsApp");
+      refetchAttachments();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send via WhatsApp");
+    } finally {
+      setSendingWa(false);
+    }
+  };
 
   const elaborate = async (fieldType: "symptoms" | "diagnosis" | "procedure_notes" | "recommendations") => {
     const svcName = (editServiceName || "Consultation").trim();
@@ -567,6 +615,30 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+                </div>
+
+                {/* Prescription delivery */}
+                <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 gap-2"
+                    onClick={handleDownloadPrescription}
+                    disabled={downloadingPdf || sendingWa}
+                  >
+                    {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    Download Prescription
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 gap-2 border-primary/40 text-primary hover:bg-primary/5"
+                    onClick={handleSendWhatsApp}
+                    disabled={downloadingPdf || sendingWa}
+                  >
+                    {sendingWa ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                    Send via WhatsApp
+                  </Button>
                 </div>
               </div>
             </>

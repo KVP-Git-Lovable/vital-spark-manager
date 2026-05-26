@@ -1,41 +1,62 @@
-## Changes to `src/components/procedures/ProcedureFormDialog.tsx`
+## Goal
+In the Procedures section, generate a prescription PDF that matches the uploaded Salesforce template (mint header band, clinic logo on right, doctor info on left, patient info two-column, Prescription / Symptoms / Diagnosis blocks, footer line). Expose two actions:
 
-### 1. Rename dialog heading
-- `New Procedure / Consultation` → `New Procedure / Prescription`
+- **Download Prescription** — generates and downloads the PDF
+- **Send via WhatsApp** — generates the PDF, uploads it, prepares the Twilio send (Twilio wiring stubbed for later)
 
-### 2. Add unified AI bar at the top of the form
-A new card-styled section, placed above the Patient/Doctor grid, using the teal brand color (`bg-primary/5 border-primary/20`, mic and Elaborate accents in `text-primary`). Contents:
+## Where the buttons go
+Add both buttons inside `ProcedureDetailSheet.tsx` (the only place procedure data is open, contains prescriptions). Place them in the existing action row near "Save"/"Delete", with `Download` icon and `MessageCircle` (WhatsApp) icon. Also add a small "Download Prescription" action on the Procedures list row menu (Procedures.tsx) for quick access.
 
-- **Mic button** (pulsing dot while listening) — uses existing `useSpeechRecognition` hook (`en-IN`, continuous, interim results)
-- **Live transcript textarea** — shows interim + final transcript; editable so doctor can correct before parsing
-- **"Parse & Fill Fields" auto-trigger** — fires after speech stops (debounced ~1.2s of silence) AND also exposed as a manual button
-- **"AI Elaborate All" button** — single call that elaborates every text section at once
+## Auto-filled fields
+Pulled from existing tables (`procedures` joined with `patients` and `staff`, plus `prescriptions` rows):
 
-### 3. New edge function `supabase/functions/procedure-ai-parse/index.ts`
-- Input: `{ transcript: string, currentFields: {...} }`
-- Uses Lovable AI Gateway (`google/gemini-3-flash-preview`) with tool-calling for structured JSON
-- Returns: `{ symptoms, diagnosis, procedure_notes, recommendations, service_name, prescriptions: [{medicine_name, frequency, duration, instructions}] }` — all optional/nullable
-- System prompt: parse free-form clinical dictation; only fill fields explicitly mentioned; preserve existing field values when transcript doesn't mention them
+- Patient Name → `patients.first_name + last_name`
+- Phone, Email, Sex, Age (from DOB) → `patients`
+- Doctor Name + qualifications → `staff.first_name/last_name`, plus `staff.qualifications`/`role` if present, else just "Dr. {name}"
+- Date → `procedure_date` formatted `DD/MM/YYYY`
+- Prescription No → `D-` + zero-padded short hash of procedure id (deterministic, e.g. `D-0012`)
+- Appointment No → if `procedures.appointment_id` exists use `A-` + short of that id; otherwise generate one from procedure id (`A-` + 4-digit short). No DB schema change required.
+- Prescription body → joined list of `prescriptions` rows (`medicine_name — dosage, frequency, duration. instructions`). If empty, fall back to `procedure_notes` / `consultation_notes`.
+- Symptoms → `procedures.consultation_notes` (current "Symptoms" field in form) — also check existing column naming when implementing
+- Diagnosis → `procedures.diagnosis`
 
-### 4. New edge function `supabase/functions/procedure-ai-elaborate-all/index.ts`
-- Input: `{ symptoms, diagnosis, procedure_notes, recommendations, serviceName }`
-- Single AI call returns elaborated versions of all four fields in one structured response
-- Empty fields are skipped (not invented)
+## New edge function: `generate-prescription-pdf`
+- Input: `{ procedureId: string }`
+- Loads procedure + patient + staff + prescriptions server-side via service role
+- Builds PDF with `pdf-lib` (same library used by `generate-invoice-pdf`)
+- Layout:
+  - Top mint-green band (`rgb(0.78, 0.88, 0.78)` approx) ~150px tall
+  - Left side: "THE SKIN CLINIC" bold, phone line, address line
+  - Right side: clinic logo (loaded from `branding` if available, otherwise omitted)
+  - Below band on left: Dr. name + qualifications + role + phone
+  - Below band on right: "Prescription No: D-xxxx", "Date: dd/mm/yyyy"
+  - Centered title "Prescription Document" + horizontal rule
+  - Two-column patient block: Patient Name / Appointment No, Phone No / Email Id, Age / Sex
+  - "Prescription:" block (teal heading)
+  - "Symptoms:" left + "Diagnosis:" right (teal headings)
+  - Footer band with clinic phones, email, website (sourced from clinic settings if available, else hardcoded fallback matching template)
+- Returns base64 PDF + filename `Prescription-{patientName}-{date}.pdf`
 
-### 5. Auto-fill UX
-- After parse, merge returned fields into state (only overwrite non-empty returns)
-- Apply a brief `animate-fade-in` + ring highlight (`ring-2 ring-primary/40`) on filled textareas for ~1.5s using per-field `recentlyFilled` state
-- Toast: "Filled N fields from dictation"
+## New edge function: `send-prescription-whatsapp` (Twilio stub)
+- Input: `{ procedureId: string }`
+- Calls `generate-prescription-pdf` internally, uploads result to `procedure-attachments` bucket at `prescriptions/{procedureId}/{filename}`, gets public URL
+- Inserts a row into `procedure_attachments` for audit
+- Returns `{ ok: true, public_url, phone, message: "WhatsApp send pending Twilio template config" }` — actual Twilio send code added later; mirrors structure of `send-invoice-whatsapp`
+- Toast on client: "Prescription uploaded. WhatsApp delivery will be enabled once Twilio template is configured."
 
-### 6. Elaborate All UX
-- All four textareas get a shimmer overlay (opacity pulse) while loading
-- On response, replace values and clear shimmer
+## Client wiring (ProcedureDetailSheet.tsx)
+- New `handleDownloadPrescription`: calls `generate-prescription-pdf`, decodes base64, triggers browser download
+- New `handleSendWhatsApp`: calls `send-prescription-whatsapp`, shows toast
+- Both buttons disabled while saving / when there's no patient or doctor selected
+- Loading states with spinner icon
 
-### 7. Remove per-field AI controls
-- Remove the inline `MicButton` and `Elaborate AI` buttons from Symptoms, Diagnosis, Procedure Notes, Recommendations
-- Remove now-unused `elaborate()` function and `elaborating` state
-- Keep field labels and textareas clean
+## Out of scope
+- Real Twilio media message sending (placeholder edge function returns success but does not actually send; ready to be wired with Twilio template SID later)
+- New DB columns for stored appointment/prescription numbers — deterministic IDs derived from UUIDs are sufficient until the user asks for real sequences
+- Editing the template visually in the app (the PDF is generated server-side only)
 
-### Out of scope
-- Prescriptions parsing from dictation is included in the parse schema but only appends new rows (does not delete existing). Asset rows are not auto-filled.
-- The `Procedures` page list and other call sites are unchanged.
+## Files
+- New: `supabase/functions/generate-prescription-pdf/index.ts`
+- New: `supabase/functions/send-prescription-whatsapp/index.ts`
+- Edit: `src/components/procedures/ProcedureDetailSheet.tsx` (two buttons + handlers)
+- Edit: `src/pages/Procedures.tsx` (optional row-level Download button)

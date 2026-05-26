@@ -138,6 +138,26 @@ const Appointments = () => {
     patientId: string;
   } | null>(null);
 
+  const [lockPatient, setLockPatient] = useState(false);
+
+  // Auto-open New Appointment dialog with preselected patient (from Patient profile)
+  useEffect(() => {
+    const shouldOpen = searchParams.get("new") === "1";
+    const presetPatient = searchParams.get("patient_id");
+    if (shouldOpen) {
+      if (presetPatient) {
+        setPatientId(presetPatient);
+        setLockPatient(true);
+      }
+      setOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete("new");
+      next.delete("patient_id");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Queries
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],

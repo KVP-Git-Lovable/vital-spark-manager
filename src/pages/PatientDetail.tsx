@@ -1682,19 +1682,6 @@ const PatientDetail = () => {
         }}
       />
 
-      {patient && (
-        <QuickAppointmentDialog
-          open={quickApptOpen}
-          onOpenChange={setQuickApptOpen}
-          patient={{
-            id: patient.id,
-            first_name: patient.first_name,
-            last_name: patient.last_name,
-            phone: patient.phone,
-          }}
-        />
-      )}
-
       {/* Survey detail moved to dedicated /surveys/:id route */}
     </div>
   );

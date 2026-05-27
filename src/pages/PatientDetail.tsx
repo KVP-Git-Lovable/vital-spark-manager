@@ -29,6 +29,7 @@ import { FamilyMembers } from "@/components/patients/FamilyMembers";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
+import { QuickAppointmentDialog } from "@/components/appointments/QuickAppointmentDialog";
 import { toast } from "sonner";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { approveSurveyResponse, enrichAiProducts, enrichAiServices } from "@/lib/surveyApproval";
@@ -106,6 +107,7 @@ const PatientDetail = () => {
   const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
   const [photoTypeDialogOpen, setPhotoTypeDialogOpen] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [quickApptOpen, setQuickApptOpen] = useState(false);
 
 
   const { data: patient, isLoading } = useQuery({
@@ -929,7 +931,7 @@ const PatientDetail = () => {
         <TabsContent value="appointments">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex justify-end mb-3">
-              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate(`/appointments?new=1&patient_id=${id}`)}>
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setQuickApptOpen(true)}>
                 <Plus className="h-3.5 w-3.5" /> Book Appointment
               </Button>
             </div>
@@ -1680,6 +1682,19 @@ const PatientDetail = () => {
           queryClient.invalidateQueries({ queryKey: ["patient-appointments", id] });
         }}
       />
+
+      {patient && (
+        <QuickAppointmentDialog
+          open={quickApptOpen}
+          onOpenChange={setQuickApptOpen}
+          patient={{
+            id: patient.id,
+            first_name: patient.first_name,
+            last_name: patient.last_name,
+            phone: patient.phone,
+          }}
+        />
+      )}
 
       {/* Survey detail moved to dedicated /surveys/:id route */}
     </div>

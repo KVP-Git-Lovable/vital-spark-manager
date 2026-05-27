@@ -114,7 +114,7 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   const doctorName = `Dr. ${staff.first_name || ""} ${staff.last_name || ""}`.trim();
   const docTitle = staff.qualifications || staff.specialization || "M.B.B.S. MD";
   const docRole = staff.role || "Dermatologist";
-  const docPhone = staff.phone || clinicPhone.split(",")[0].replace(/\D/g, "").slice(-10);
+  const docPhone = staff.phone || headerPhone.split(",")[0].replace(/\D/g, "").slice(-10);
 
   let yTop = height - bandH - 20;
   // Doctor block sits inside the mint band (template style)

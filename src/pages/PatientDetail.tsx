@@ -106,7 +106,6 @@ const PatientDetail = () => {
   const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
   const [photoTypeDialogOpen, setPhotoTypeDialogOpen] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [quickApptOpen, setQuickApptOpen] = useState(false);
 
 
   const { data: patient, isLoading } = useQuery({

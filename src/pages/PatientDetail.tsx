@@ -29,7 +29,6 @@ import { FamilyMembers } from "@/components/patients/FamilyMembers";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
-import { QuickAppointmentDialog } from "@/components/appointments/QuickAppointmentDialog";
 import { toast } from "sonner";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { approveSurveyResponse, enrichAiProducts, enrichAiServices } from "@/lib/surveyApproval";

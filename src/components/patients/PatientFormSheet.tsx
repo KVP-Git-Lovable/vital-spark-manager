@@ -262,10 +262,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         </SheetHeader>
 
         <Tabs defaultValue="personal" className="mt-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
             <TabsTrigger value="medical" className="text-xs">Medical</TabsTrigger>
-            <TabsTrigger value="derma" className="text-xs">Derma</TabsTrigger>
             <TabsTrigger value="social" className="text-xs">Social</TabsTrigger>
           </TabsList>
 
@@ -669,47 +668,55 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                 rows={3}
               />
             </div>
-          </TabsContent>
 
-          <TabsContent value="derma" className="space-y-4 mt-4">
-            <div>
-              <Label>Skin Type</Label>
-              <Select
-                value={form.skin_type || ""}
-                onValueChange={(v) => updateField("skin_type", v)}
-              >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="Select skin type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {["Normal", "Dry", "Oily", "Combination", "Sensitive"].map((st) => (
-                    <SelectItem key={st} value={st}>{st}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Collapsible className="border border-primary/30 rounded-md overflow-hidden">
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-semibold text-primary bg-primary/5 hover:bg-primary/10 [&[data-state=open]>svg]:rotate-180">
+                Dermatology
+                <ChevronDown className="h-4 w-4 transition-transform" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+                <div className="p-3 space-y-4 border-t">
+                  <div>
+                    <Label>Skin Type</Label>
+                    <Select
+                      value={form.skin_type || ""}
+                      onValueChange={(v) => updateField("skin_type", v)}
+                    >
+                      <SelectTrigger className="mt-1.5">
+                        <SelectValue placeholder="Select skin type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["Normal", "Dry", "Oily", "Combination", "Sensitive"].map((st) => (
+                          <SelectItem key={st} value={st}>{st}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            <div>
-              <Label>Skin Concerns</Label>
-              <Textarea
-                value={form.skin_concerns || ""}
-                onChange={(e) => updateField("skin_concerns", e.target.value)}
-                placeholder="Acne, pigmentation, aging, scars, rosacea..."
-                className="mt-1.5"
-                rows={3}
-              />
-            </div>
+                  <div>
+                    <Label>Skin Concerns</Label>
+                    <Textarea
+                      value={form.skin_concerns || ""}
+                      onChange={(e) => updateField("skin_concerns", e.target.value)}
+                      placeholder="Acne, pigmentation, aging, scars, rosacea..."
+                      className="mt-1.5"
+                      rows={3}
+                    />
+                  </div>
 
-            <div>
-              <Label>Previous Treatments</Label>
-              <Textarea
-                value={form.previous_treatments || ""}
-                onChange={(e) => updateField("previous_treatments", e.target.value)}
-                placeholder="Previous dermatological treatments received..."
-                className="mt-1.5"
-                rows={4}
-              />
-            </div>
+                  <div>
+                    <Label>Previous Treatments</Label>
+                    <Textarea
+                      value={form.previous_treatments || ""}
+                      onChange={(e) => updateField("previous_treatments", e.target.value)}
+                      placeholder="Previous dermatological treatments received..."
+                      className="mt-1.5"
+                      rows={4}
+                    />
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </TabsContent>
 
           <TabsContent value="social" className="space-y-4 mt-4">

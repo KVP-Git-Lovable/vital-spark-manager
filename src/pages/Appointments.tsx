@@ -185,6 +185,8 @@ const Appointments = () => {
     },
   });
 
+  const doctorsList = useMemo(() => (staffList as any[]).filter((s: any) => s.role === "Doctor"), [staffList]);
+
   const { data: services = [] } = useQuery({
     queryKey: ["services-list"],
     queryFn: async () => {
@@ -1048,7 +1050,7 @@ const Appointments = () => {
                     <Select value={staffId} onValueChange={setStaffId}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
-                        {staffList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
+                        {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1380,10 +1382,10 @@ const Appointments = () => {
               if (v === "all") setFilterDoctors(new Set());
               else setFilterDoctors(new Set([v]));
             }}>
-              <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Staff" /></SelectTrigger>
+              <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Doctors" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Staff</SelectItem>
-                {staffList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
+                <SelectItem value="all">All Doctors</SelectItem>
+                {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filterSource} onValueChange={setFilterSource}>
@@ -1593,7 +1595,7 @@ const Appointments = () => {
                               <Select value={editValues.staff_id} onValueChange={(val) => setEditValues({ ...editValues, staff_id: val })}>
                                 <SelectTrigger className="h-8 text-xs w-36"><SelectValue placeholder="Select" /></SelectTrigger>
                                 <SelectContent>
-                                  {staffList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
+                                  {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
                                 </SelectContent>
                               </Select>
                             </td>

@@ -1232,6 +1232,7 @@ const Billing = () => {
                   noneLabel="No doctor"
                   placeholder="Select doctor"
                   className="mt-1.5"
+                  roleFilter={["Doctor"]}
                 />
                 {doctorId && (() => {
                   const d: any = (doctorsList as any[]).find((x: any) => x.id === doctorId);

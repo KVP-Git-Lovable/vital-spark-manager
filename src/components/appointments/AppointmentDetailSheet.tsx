@@ -296,6 +296,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
     },
   });
 
+  const doctorsList = (staffList as any[]).filter((s: any) => s.role === "Doctor");
+
   const { data: servicesList = [] } = useQuery({
     queryKey: ["services-list"],
     queryFn: async () => {
@@ -695,12 +697,12 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                     </div>
                   </div>
                   <div>
-                    <Label>Staff</Label>
+                    <Label>Doctor</Label>
                     <Select value={editStaffId || "none"} onValueChange={(v) => setEditStaffId(v === "none" ? "" : v)}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select staff" /></SelectTrigger>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">No staff assigned</SelectItem>
-                        {staffList.map((d: any) => (
+                        <SelectItem value="none">No doctor assigned</SelectItem>
+                        {doctorsList.map((d: any) => (
                           <SelectItem key={d.id} value={d.id}>
                             {d.first_name} {d.last_name}
                           </SelectItem>

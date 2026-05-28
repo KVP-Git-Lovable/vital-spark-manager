@@ -596,14 +596,15 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
 
           <TabsContent value="medical" className="space-y-4 mt-4">
             <div>
-              <Label>Doctor / Staff</Label>
+              <Label>Doctor</Label>
               <div className="mt-1.5">
                 <StaffCombobox
                   value={(form as any).doctor_id || ""}
                   onValueChange={(v) => setForm((prev) => ({ ...prev, doctor_id: v || null }))}
-                  placeholder="Select staff member"
+                  placeholder="Select doctor"
                   allowNone
-                  noneLabel="No staff assigned"
+                  noneLabel="No doctor assigned"
+                  roleFilter={["Doctor"]}
                 />
               </div>
             </div>

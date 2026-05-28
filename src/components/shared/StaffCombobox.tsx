@@ -18,6 +18,7 @@ interface StaffComboboxProps {
   allowNone?: boolean;
   noneLabel?: string;
   className?: string;
+  roleFilter?: string[];
 }
 
 export function StaffCombobox({
@@ -27,18 +28,23 @@ export function StaffCombobox({
   allowNone = false,
   noneLabel = "No staff assigned",
   className,
+  roleFilter,
 }: StaffComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
   const { data: staffList = [] } = useQuery({
-    queryKey: ["staff-active-list"],
+    queryKey: ["staff-active-list", roleFilter?.join(",") || "all"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("staff")
         .select("id, first_name, last_name, role, specialization")
         .eq("is_active", true)
         .order("first_name");
+      if (roleFilter && roleFilter.length > 0) {
+        q = q.in("role", roleFilter);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return data;
     },

@@ -495,7 +495,7 @@ export function ProcedureFormDialog({
             </div>
             <div>
               <Label>Doctor</Label>
-              <StaffCombobox value={staffId} onValueChange={setStaffId} placeholder="Select doctor" className="mt-1.5" />
+              <StaffCombobox value={staffId} onValueChange={setStaffId} placeholder="Select doctor" className="mt-1.5" roleFilter={["Doctor"]} />
             </div>
             <div>
               <Label>Assisted By</Label>

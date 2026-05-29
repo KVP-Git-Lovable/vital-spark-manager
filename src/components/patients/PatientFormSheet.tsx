@@ -659,17 +659,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               />
             </div>
 
-            <div>
-              <Label>Additional Notes</Label>
-              <Textarea
-                value={form.notes || ""}
-                onChange={(e) => updateField("notes", e.target.value)}
-                placeholder="Any other important notes..."
-                className="mt-1.5"
-                rows={3}
-              />
-            </div>
-
             <Collapsible className="border border-primary/30 rounded-md overflow-hidden">
               <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-semibold text-primary bg-primary/5 hover:bg-primary/10 [&[data-state=open]>svg]:rotate-180">
                 Dermatology
@@ -762,6 +751,18 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             </div>
           </TabsContent>
         </Tabs>
+
+        <div className="mt-6 pt-4 border-t">
+          <Label htmlFor="patient-notes">Notes</Label>
+          <Textarea
+            id="patient-notes"
+            value={form.notes || ""}
+            onChange={(e) => updateField("notes", e.target.value)}
+            placeholder="Remarks, observations, referral details, special instructions..."
+            className="mt-1.5"
+            rows={4}
+          />
+        </div>
 
         <div className="flex gap-3 mt-6 pt-4 border-t">
           <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>

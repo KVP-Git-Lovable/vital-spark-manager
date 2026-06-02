@@ -2110,6 +2110,7 @@ export type Database = {
           procedure_date: string
           procedure_notes: string | null
           recommendations: string | null
+          review_notes: string | null
           service_name: string
           staff_id: string | null
           status: string
@@ -2128,6 +2129,7 @@ export type Database = {
           procedure_date?: string
           procedure_notes?: string | null
           recommendations?: string | null
+          review_notes?: string | null
           service_name: string
           staff_id?: string | null
           status?: string
@@ -2146,6 +2148,7 @@ export type Database = {
           procedure_date?: string
           procedure_notes?: string | null
           recommendations?: string | null
+          review_notes?: string | null
           service_name?: string
           staff_id?: string | null
           status?: string

@@ -338,6 +338,7 @@ export function ProcedureFormDialog({
           diagnosis,
           procedure_notes: procedureNotes,
           recommendations: recommendations || null,
+          review_notes: reviewNotes || null,
         } as any)
         .select()
         .single();

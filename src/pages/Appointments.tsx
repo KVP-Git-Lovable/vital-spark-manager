@@ -463,6 +463,7 @@ const Appointments = () => {
 
       if (wasRecurring) {
         const dates = generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate!);
+        const savedReasons = buildConsultationReasonsForSave(consultationReasons, othersAestheticText, othersClinicalText);
         const rows = dates.map((d) => ({
           patient_id: patientId || null,
           patient_name: patientName,
@@ -478,11 +479,13 @@ const Appointments = () => {
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
           appointment_type: appointmentType,
-          reason_for_consultation: reasonForConsultation || null,
+          consultation_type: consultationType || null,
+          consultation_reasons: savedReasons,
         }));
         const { error } = await supabase.from("appointments").insert(rows as any);
         if (error) throw error;
       } else {
+        const savedReasons = buildConsultationReasonsForSave(consultationReasons, othersAestheticText, othersClinicalText);
         const { data: inserted, error } = await supabase.from("appointments").insert({
           patient_id: patientId || null,
           patient_name: patientName,
@@ -496,7 +499,8 @@ const Appointments = () => {
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
           appointment_type: appointmentType,
-          reason_for_consultation: reasonForConsultation || null,
+          consultation_type: consultationType || null,
+          consultation_reasons: savedReasons,
         } as any).select("id").single();
         if (error) throw error;
         newAppointmentId = (inserted as any)?.id || null;

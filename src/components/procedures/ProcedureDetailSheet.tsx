@@ -196,6 +196,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     setEditDiagnosis(procedure.diagnosis || "");
     setEditProcedureNotes(procedure.procedure_notes || "");
     setEditRecommendations(procedure.recommendations || "");
+    setEditReviewNotes(procedure.review_notes || "");
     setInitialized(true);
   }
 

@@ -1088,15 +1088,16 @@ const Appointments = () => {
                   </div>
                 </div>
 
-                <div>
-                  <Label>Reason for Consultation</Label>
-                  <Textarea
-                    value={reasonForConsultation}
-                    onChange={(e) => setReasonForConsultation(e.target.value)}
-                    placeholder="Enter reason for consultation"
-                    className="mt-1.5"
-                  />
-                </div>
+                <ConsultationReasonPicker
+                  consultationType={consultationType}
+                  setConsultationType={setConsultationType}
+                  reasons={consultationReasons}
+                  setReasons={setConsultationReasons}
+                  othersAestheticText={othersAestheticText}
+                  setOthersAestheticText={setOthersAestheticText}
+                  othersClinicalText={othersClinicalText}
+                  setOthersClinicalText={setOthersClinicalText}
+                />
 
                 {/* Additional Info (collapsible) */}
                 <Collapsible open={additionalInfoOpen} onOpenChange={setAdditionalInfoOpen} className="border rounded-md">

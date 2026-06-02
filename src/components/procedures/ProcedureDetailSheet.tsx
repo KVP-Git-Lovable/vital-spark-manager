@@ -231,6 +231,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         diagnosis: editDiagnosis,
         procedure_notes: editProcedureNotes,
         recommendations: editRecommendations,
+        review_notes: editReviewNotes,
       }).eq("id", procedureId!);
       if (error) throw error;
 

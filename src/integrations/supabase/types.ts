@@ -17,6 +17,8 @@ export type Database = {
       appointments: {
         Row: {
           appointment_type: string
+          consultation_reasons: string[] | null
+          consultation_type: string | null
           created_at: string
           end_time: string
           id: string
@@ -38,6 +40,8 @@ export type Database = {
         }
         Insert: {
           appointment_type?: string
+          consultation_reasons?: string[] | null
+          consultation_type?: string | null
           created_at?: string
           end_time: string
           id?: string
@@ -59,6 +63,8 @@ export type Database = {
         }
         Update: {
           appointment_type?: string
+          consultation_reasons?: string[] | null
+          consultation_type?: string | null
           created_at?: string
           end_time?: string
           id?: string

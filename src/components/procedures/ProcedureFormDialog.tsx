@@ -71,6 +71,7 @@ export function ProcedureFormDialog({
   const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
   const [stockMap, setStockMap] = useState<Record<number, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);
@@ -337,6 +338,7 @@ export function ProcedureFormDialog({
           diagnosis,
           procedure_notes: procedureNotes,
           recommendations: recommendations || null,
+          review_notes: reviewNotes || null,
         } as any)
         .select()
         .single();
@@ -664,6 +666,11 @@ export function ProcedureFormDialog({
                 </div>
               </div>
             ))}
+          </div>
+
+          <div>
+            <Label>Review</Label>
+            <Textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} placeholder="e.g. Follow up in 3 months" className="mt-1.5" rows={2} />
           </div>
 
           <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!patientId || createMutation.isPending}>

@@ -56,6 +56,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [editDiagnosis, setEditDiagnosis] = useState("");
   const [editProcedureNotes, setEditProcedureNotes] = useState("");
   const [editRecommendations, setEditRecommendations] = useState("");
+  const [editReviewNotes, setEditReviewNotes] = useState("");
   const [editPrescriptions, setEditPrescriptions] = useState<PrescriptionRow[]>([]);
   const [attachmentNotes, setAttachmentNotes] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -195,6 +196,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     setEditDiagnosis(procedure.diagnosis || "");
     setEditProcedureNotes(procedure.procedure_notes || "");
     setEditRecommendations(procedure.recommendations || "");
+    setEditReviewNotes(procedure.review_notes || "");
     setInitialized(true);
   }
 
@@ -229,6 +231,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         diagnosis: editDiagnosis,
         procedure_notes: editProcedureNotes,
         recommendations: editRecommendations,
+        review_notes: editReviewNotes,
       }).eq("id", procedureId!);
       if (error) throw error;
 
@@ -449,6 +452,11 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     </div>
                   </div>
                   <Textarea value={editRecommendations} onChange={(e) => setEditRecommendations(e.target.value)} className="mt-1.5" rows={3} />
+                </div>
+
+                <div>
+                  <Label>Review</Label>
+                  <Textarea value={editReviewNotes} onChange={(e) => setEditReviewNotes(e.target.value)} placeholder="e.g. Follow up in 3 months" className="mt-1.5" rows={2} />
                 </div>
 
                 {procedure.staff && (

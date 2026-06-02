@@ -1,62 +1,60 @@
 ## Goal
-In the Procedures section, generate a prescription PDF that matches the uploaded Salesforce template (mint header band, clinic logo on right, doctor info on left, patient info two-column, Prescription / Symptoms / Diagnosis blocks, footer line). Expose two actions:
+Rewrite `supabase/functions/generate-prescription-pdf/index.ts` so the output mirrors the uploaded `PrescriptionPDFnew.pdf` template precisely.
 
-- **Download Prescription** — generates and downloads the PDF
-- **Send via WhatsApp** — generates the PDF, uploads it, prepares the Twilio send (Twilio wiring stubbed for later)
+## Reference layout (from uploaded PDF)
+- **Full-page sage-green background** (`rgb(0.72, 0.84, 0.71)` approx) — not just a top band. The footer and entire content sit on this background.
+- **Top-left header block**:
+  - `THE SKIN CLINIC` — bold, ~16pt
+  - `VYAS RAO LANE, KADRI KAMBALA ROAD, MANGALORE- 575003` — bold, ~10pt
+  - Horizontal rule under header
+- **Top-right**: white square panel containing the clinic logo (loaded from `clinic_settings.logo_url`; fallback to a placeholder "The Skin Clinic" text panel)
+- **Doctor block (left, below header rule)**:
+  - `Dr. {first} {last} {qualifications}` (e.g. `Dr. Vindhya Pai M.B.B.S. MD`)
+  - `{role}` (e.g. `Dermatologist`)
+  - `{phone}`
+  - Each line prefixed with a small icon glyph (use unicode bullet/symbol since pdf-lib Helvetica only supports basic ascii — fallback to `•` or skip if not renderable). Will use simple text glyphs that render in Helvetica: `*`, `>`, `#` as low-key markers, OR omit icons and just indent — confirm choice below.
+- **Top-right of same row**: `Prescription No: D-xxxx` and `Date: dd/mm/yyyy`
+- **Centered title**: `Prescription Document` (~20pt, regular) with horizontal rule below
+- **Patient info — 2 columns, 3 rows**:
+  - Left: `Patient name`, `Phone No`, `Age`
+  - Right: `Appointment No`, `Email id`, `Sex`
+- **Body — 2 columns**:
+  - Left col: `Prescription` (blue heading) + body text
+  - Right col: `Symptoms` + body, `Diagnosis` + body, `Procedure Details` + body (each a blue heading)
+  - Blue heading color ≈ `rgb(0.36, 0.55, 0.78)`
+- **Footer (bottom of page, centered, on green bg)**:
+  - `Clinic Phone: +91 6360 75 3030, 9620 12 3030 | Mob: +91 9845 39 3030`
+  - `E-mail: theskinclinic30@gmail.com | Website: www.theskinclinic.org.in`
 
-## Where the buttons go
-Add both buttons inside `ProcedureDetailSheet.tsx` (the only place procedure data is open, contains prescriptions). Place them in the existing action row near "Save"/"Delete", with `Download` icon and `MessageCircle` (WhatsApp) icon. Also add a small "Download Prescription" action on the Procedures list row menu (Procedures.tsx) for quick access.
-
-## Auto-filled fields
-Pulled from existing tables (`procedures` joined with `patients` and `staff`, plus `prescriptions` rows):
-
-- Patient Name → `patients.first_name + last_name`
-- Phone, Email, Sex, Age (from DOB) → `patients`
-- Doctor Name + qualifications → `staff.first_name/last_name`, plus `staff.qualifications`/`role` if present, else just "Dr. {name}"
-- Date → `procedure_date` formatted `DD/MM/YYYY`
-- Prescription No → `D-` + zero-padded short hash of procedure id (deterministic, e.g. `D-0012`)
-- Appointment No → if `procedures.appointment_id` exists use `A-` + short of that id; otherwise generate one from procedure id (`A-` + 4-digit short). No DB schema change required.
-- Prescription body → joined list of `prescriptions` rows (`medicine_name — dosage, frequency, duration. instructions`). If empty, fall back to `procedure_notes` / `consultation_notes`.
-- Symptoms → `procedures.consultation_notes` (current "Symptoms" field in form) — also check existing column naming when implementing
+## Data mapping (no DB changes)
+- Doctor name/qualifications/role/phone → `procedures.staff` join (already loaded)
+- Patient name/phone/email/age/sex → `procedures.patients`
+- Prescription body → joined `prescriptions` rows, fallback to `procedure_notes`/`recommendations`
+- Symptoms → `procedures.symptoms` (fallback `consultation_notes`)
 - Diagnosis → `procedures.diagnosis`
+- **Procedure Details → `procedures.procedure_notes`** (new section in PDF; currently not rendered)
+- Prescription No → `D-` + 4-digit deterministic hash of procedure id
+- Appointment No → `A-` + 4-digit hash of `appointment_id || procedure.id`
+- Date → `dd/mm/yyyy` from `procedure_date`
+- Clinic name / phones / address / logo → `clinic_settings` (fallback to the hardcoded values from the template)
 
-## New edge function: `generate-prescription-pdf`
-- Input: `{ procedureId: string }`
-- Loads procedure + patient + staff + prescriptions server-side via service role
-- Builds PDF with `pdf-lib` (same library used by `generate-invoice-pdf`)
-- Layout:
-  - Top mint-green band (`rgb(0.78, 0.88, 0.78)` approx) ~150px tall
-  - Left side: "THE SKIN CLINIC" bold, phone line, address line
-  - Right side: clinic logo (loaded from `branding` if available, otherwise omitted)
-  - Below band on left: Dr. name + qualifications + role + phone
-  - Below band on right: "Prescription No: D-xxxx", "Date: dd/mm/yyyy"
-  - Centered title "Prescription Document" + horizontal rule
-  - Two-column patient block: Patient Name / Appointment No, Phone No / Email Id, Age / Sex
-  - "Prescription:" block (teal heading)
-  - "Symptoms:" left + "Diagnosis:" right (teal headings)
-  - Footer band with clinic phones, email, website (sourced from clinic settings if available, else hardcoded fallback matching template)
-- Returns base64 PDF + filename `Prescription-{patientName}-{date}.pdf`
-
-## New edge function: `send-prescription-whatsapp` (Twilio stub)
-- Input: `{ procedureId: string }`
-- Calls `generate-prescription-pdf` internally, uploads result to `procedure-attachments` bucket at `prescriptions/{procedureId}/{filename}`, gets public URL
-- Inserts a row into `procedure_attachments` for audit
-- Returns `{ ok: true, public_url, phone, message: "WhatsApp send pending Twilio template config" }` — actual Twilio send code added later; mirrors structure of `send-invoice-whatsapp`
-- Toast on client: "Prescription uploaded. WhatsApp delivery will be enabled once Twilio template is configured."
-
-## Client wiring (ProcedureDetailSheet.tsx)
-- New `handleDownloadPrescription`: calls `generate-prescription-pdf`, decodes base64, triggers browser download
-- New `handleSendWhatsApp`: calls `send-prescription-whatsapp`, shows toast
-- Both buttons disabled while saving / when there's no patient or doctor selected
-- Loading states with spinner icon
+## Implementation steps
+1. Replace `buildPrescriptionPdf` in `supabase/functions/generate-prescription-pdf/index.ts`:
+   - Fill the entire page rect with sage green first.
+   - Draw header (title + address + rule) and right-side white logo panel (~120×120 with logo image or fallback text).
+   - Draw doctor block (left) and prescription/date block (right) under the rule.
+   - Draw centered `Prescription Document` title and a horizontal rule.
+   - Draw the patient 2×3 grid using a `drawKV(x, y, label, value)` helper with a fixed label column width so values align like in the template.
+   - Draw the body 2-column section: compute left column width and right column width, render Prescription on the left; render Symptoms → Diagnosis → Procedure Details stacked on the right. Use the existing `wrap()` helper.
+   - Draw the footer (two centered lines) ~30pt from the bottom.
+2. Keep the existing `Deno.serve` entrypoint, `mode: "upload"` flow, audit insert, and base64 download response unchanged.
+3. No changes to `send-prescription-whatsapp/index.ts` or any client code.
 
 ## Out of scope
-- Real Twilio media message sending (placeholder edge function returns success but does not actually send; ready to be wired with Twilio template SID later)
-- New DB columns for stored appointment/prescription numbers — deterministic IDs derived from UUIDs are sufficient until the user asks for real sequences
-- Editing the template visually in the app (the PDF is generated server-side only)
+- New DB columns; client UI changes; Twilio wiring; multi-page support (single A4 page only, matching the template).
 
 ## Files
-- New: `supabase/functions/generate-prescription-pdf/index.ts`
-- New: `supabase/functions/send-prescription-whatsapp/index.ts`
-- Edit: `src/components/procedures/ProcedureDetailSheet.tsx` (two buttons + handlers)
-- Edit: `src/pages/Procedures.tsx` (optional row-level Download button)
+- Edit: `supabase/functions/generate-prescription-pdf/index.ts`
+
+## Open question
+The uploaded template shows small icons (stethoscope / phone / logo thumbnail) next to the doctor lines. pdf-lib's standard Helvetica can't render those glyphs. Confirm: should I (a) omit the icons entirely (cleanest), or (b) use simple ASCII markers like `•`?

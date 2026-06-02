@@ -668,6 +668,11 @@ export function ProcedureFormDialog({
             ))}
           </div>
 
+          <div>
+            <Label>Review</Label>
+            <Textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} placeholder="e.g. Follow up in 3 months" className="mt-1.5" rows={2} />
+          </div>
+
           <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!patientId || createMutation.isPending}>
             {createMutation.isPending ? "Saving..." : "Save Procedure"}
           </Button>

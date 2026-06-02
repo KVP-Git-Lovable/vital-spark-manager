@@ -71,17 +71,21 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   const blueHead = rgb(0.30, 0.50, 0.78);
   const blueLine = rgb(0.35, 0.55, 0.75);
 
-  // White header band + sage green body
-  const HEADER_H = 170;
-  page.drawRectangle({ x: 0, y: 0, width, height: height - HEADER_H, color: sage });
-  page.drawRectangle({ x: 0, y: height - HEADER_H, width, height: HEADER_H, color: rgb(1, 1, 1) });
+  const M = 40; // left/right margin
+  const lw = 110, lh = 110;
+  const lx = width - M - lw;
+  const ly = height - 20 - lh;
+  const headerDividerY = ly - 12;
+
+  // Paint the whole page sage first, then overlay only the header in white.
+  // This guarantees the body starts exactly at the header divider with no white gaps.
+  page.drawRectangle({ x: 0, y: 0, width, height, color: sage });
+  page.drawRectangle({ x: 0, y: headerDividerY, width, height: height - headerDividerY, color: rgb(1, 1, 1) });
 
   const clinicName = clinic?.name || "THE SKIN CLINIC";
   const clinicAddr = clinic?.address || "VYAS RAO LANE, KADRI KAMBALA ROAD, MANGALORE- 575003";
   const footerPhone = "Clinic Phone: +91 6360 75 3030, 9620 12 3030 | Mob: +91 9845 39 3030";
   const footerEmailWeb = "E-mail: theskinclinic30@gmail.com | Website: www.theskinclinic.org.in";
-
-  const M = 40; // left/right margin
 
   // === Header (top-left) ===
   page.drawText(sanitize(clinicName.toUpperCase()), { x: M, y: height - 40, size: 16, font: bold, color: dark });
@@ -90,9 +94,6 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   page.drawText(addrLine, { x: M, y: height - 58, size: 10, font: bold, color: dark });
 
   // === Logo (top-right inside white header) ===
-  const lw = 110, lh = 110;
-  const lx = width - M - lw;
-  const ly = height - 20 - lh;
   let logoEmbedded = false;
   if (clinic?.logo_url) {
     try {
@@ -139,8 +140,11 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   page.drawText(sanitize(`Prescription No:   ${prescriptionNo}`), { x: metaX, y: ruleY - 16, size: 11, font, color: dark });
   page.drawText(sanitize(`Date:   ${dateStr}`), { x: metaX, y: ruleY - 30, size: 11, font, color: dark });
 
+  // Bottom divider: sage green body begins immediately below this line.
+  page.drawLine({ start: { x: 0, y: headerDividerY }, end: { x: width, y: headerDividerY }, thickness: 0.8, color: blueLine });
+
   // === Title ===
-  let y = height - HEADER_H - 24; // below white header band
+  let y = headerDividerY - 28; // below white header band, on sage background
   const title = "Prescription Document";
   const tw = font.widthOfTextAtSize(title, 20);
   page.drawText(title, { x: (width - tw) / 2, y, size: 20, font, color: dark });

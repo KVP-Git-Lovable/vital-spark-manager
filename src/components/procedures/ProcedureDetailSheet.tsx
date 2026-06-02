@@ -56,6 +56,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [editDiagnosis, setEditDiagnosis] = useState("");
   const [editProcedureNotes, setEditProcedureNotes] = useState("");
   const [editRecommendations, setEditRecommendations] = useState("");
+  const [editReviewNotes, setEditReviewNotes] = useState("");
   const [editPrescriptions, setEditPrescriptions] = useState<PrescriptionRow[]>([]);
   const [attachmentNotes, setAttachmentNotes] = useState("");
   const [uploading, setUploading] = useState(false);

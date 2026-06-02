@@ -65,28 +65,31 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const italic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-  const mint = rgb(0.78, 0.88, 0.78);
-  const teal = rgb(0.18, 0.46, 0.55);
+  const sage = rgb(0.72, 0.84, 0.71);
   const dark = rgb(0.1, 0.1, 0.1);
   const grey = rgb(0.45, 0.45, 0.45);
+  const blueHead = rgb(0.30, 0.50, 0.78);
   const blueLine = rgb(0.35, 0.55, 0.75);
 
-  // === Header band ===
-  const bandH = 130;
-  page.drawRectangle({ x: 0, y: height - bandH, width, height: bandH, color: mint });
+  // Full-page sage background
+  page.drawRectangle({ x: 0, y: 0, width, height, color: sage });
 
   const clinicName = clinic?.name || "THE SKIN CLINIC";
-  const headerPhone = "+91 6360-75-3030, 9620-12-3030";
-  const headerWebsite = "www.theskinclinic.org.in";
-  const clinicAddr = "VYAS RAO LANE, KADRI KAMBALA ROAD, MANGALORE- 575003";
+  const clinicAddr = clinic?.address || "VYAS RAO LANE, KADRI KAMBALA ROAD, MANGALORE- 575003";
   const footerPhone = "Clinic Phone: +91 6360 75 3030, 9620 12 3030 | Mob: +91 9845 39 3030";
   const footerEmailWeb = "E-mail: theskinclinic30@gmail.com | Website: www.theskinclinic.org.in";
 
-  page.drawText(sanitize(clinicName.toUpperCase()), { x: 30, y: height - 32, size: 16, font: bold, color: dark });
-  page.drawText(sanitize(`PHONE: ${headerPhone} | WEBSITE: ${headerWebsite}`), { x: 30, y: height - 52, size: 9, font: bold, color: dark });
-  page.drawText(sanitize(clinicAddr), { x: 30, y: height - 66, size: 9, font: bold, color: dark });
+  const M = 40; // left/right margin
 
-  // Logo (try fetch clinic.logo_url)
+  // === Header (top-left) ===
+  page.drawText(sanitize(clinicName.toUpperCase()), { x: M, y: height - 50, size: 16, font: bold, color: dark });
+  page.drawText(sanitize(clinicAddr), { x: M, y: height - 70, size: 10, font: bold, color: dark });
+
+  // === Logo panel (top-right, white square) ===
+  const lw = 130, lh = 130;
+  const lx = width - M - lw;
+  const ly = height - 30 - lh;
+  page.drawRectangle({ x: lx, y: ly, width: lw, height: lh, color: rgb(1, 1, 1) });
   let logoEmbedded = false;
   if (clinic?.logo_url) {
     try {
@@ -95,70 +98,77 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
         const ab = new Uint8Array(await r.arrayBuffer());
         const ct = r.headers.get("content-type") || "";
         const img = ct.includes("png") ? await pdfDoc.embedPng(ab) : await pdfDoc.embedJpg(ab);
-        const lw = 90, lh = 90;
-        page.drawRectangle({ x: width - 30 - lw - 4, y: height - 30 - lh - 4, width: lw + 8, height: lh + 8, color: rgb(1, 1, 1) });
-        page.drawImage(img, { x: width - 30 - lw, y: height - 30 - lh, width: lw, height: lh });
+        const pad = 8;
+        const dims = img.scaleToFit(lw - pad * 2, lh - pad * 2);
+        page.drawImage(img, { x: lx + (lw - dims.width) / 2, y: ly + (lh - dims.height) / 2, width: dims.width, height: dims.height });
         logoEmbedded = true;
       }
     } catch (_) { /* ignore */ }
   }
   if (!logoEmbedded) {
-    // Placeholder white box
-    page.drawRectangle({ x: width - 130, y: height - 120, width: 100, height: 100, color: rgb(1, 1, 1), borderColor: grey, borderWidth: 0.5 });
     const cn = "The Skin Clinic";
-    const cnw = bold.widthOfTextAtSize(cn, 11);
-    page.drawText(cn, { x: width - 130 + (100 - cnw) / 2, y: height - 75, size: 11, font: bold, color: teal });
+    const cnw = bold.widthOfTextAtSize(cn, 13);
+    page.drawText(cn, { x: lx + (lw - cnw) / 2, y: ly + lh / 2 - 6, size: 13, font: bold, color: rgb(0.30, 0.50, 0.42) });
   }
 
-  // Doctor block (below header band)
-  const doctorName = `Dr. ${staff.first_name || ""} ${staff.last_name || ""}`.trim();
-  const docTitle = staff.qualifications || staff.specialization || "M.B.B.S. MD";
+  // Header rule (only across the area to the left of the logo panel)
+  const ruleY = height - 90;
+  page.drawLine({ start: { x: M, y: ruleY }, end: { x: lx - 10, y: ruleY }, thickness: 0.6, color: dark });
+
+  // === Doctor block (left, under rule) ===
+  const doctorName = `Dr. ${staff.first_name || ""} ${staff.last_name || ""}`.trim() || "Dr. —";
+  const docQual = staff.qualifications || staff.specialization || "";
   const docRole = staff.role || "Dermatologist";
-  const docPhone = staff.phone || headerPhone.split(",")[0].replace(/\D/g, "").slice(-10);
+  const docPhone = staff.phone || "";
 
-  let yTop = height - bandH - 20;
-  // Doctor block sits inside the mint band (template style)
-  const docBlockTop = height - 95;
-  page.drawText(sanitize(`${doctorName || "Dr. —"} ${docTitle}`), { x: 30, y: docBlockTop, size: 11, font: bold, color: dark });
-  page.drawText(sanitize(docRole), { x: 30, y: docBlockTop - 16, size: 10, font, color: dark });
-  page.drawText(sanitize(docPhone), { x: 30, y: docBlockTop - 32, size: 10, font, color: dark });
+  let docY = ruleY - 18;
+  page.drawText(sanitize(`${doctorName}${docQual ? " " + docQual : ""}`), { x: M, y: docY, size: 11, font: bold, color: dark });
+  docY -= 16;
+  page.drawText(sanitize(docRole), { x: M, y: docY, size: 10, font, color: dark });
+  docY -= 14;
+  if (docPhone) page.drawText(sanitize(docPhone), { x: M, y: docY, size: 10, font, color: dark });
 
-  // Prescription No / Date (right)
+  // === Prescription No / Date (right of doctor block, left of logo panel) ===
   const prescriptionNo = `D-${shortNumFromUuid(proc.id, 4)}`;
   const apptNo = `A-${shortNumFromUuid(proc.appointment_id || proc.id, 4)}`;
   const dateStr = new Date(proc.procedure_date).toLocaleDateString("en-GB");
-  page.drawText(sanitize(`Prescription No: ${prescriptionNo}`), { x: width - 280, y: docBlockTop, size: 11, font, color: dark });
-  page.drawText(sanitize(`Date: ${dateStr}`), { x: width - 280, y: docBlockTop - 16, size: 11, font, color: dark });
+  const metaX = lx - 200;
+  page.drawText(sanitize(`Prescription No:   ${prescriptionNo}`), { x: metaX, y: ruleY - 18, size: 11, font, color: dark });
+  page.drawText(sanitize(`Date:   ${dateStr}`), { x: metaX, y: ruleY - 34, size: 11, font, color: dark });
 
-  // Title (below mint band)
-  let y = height - bandH - 40;
+  // === Title ===
+  let y = ly - 30; // below logo panel
   const title = "Prescription Document";
-  const tw = font.widthOfTextAtSize(title, 18);
-  page.drawText(title, { x: (width - tw) / 2, y, size: 18, font, color: dark });
-  y -= 12;
-  page.drawLine({ start: { x: 30, y }, end: { x: width - 30, y }, thickness: 1, color: blueLine });
+  const tw = font.widthOfTextAtSize(title, 20);
+  page.drawText(title, { x: (width - tw) / 2, y, size: 20, font, color: dark });
+  y -= 14;
+  page.drawLine({ start: { x: M, y }, end: { x: width - M, y }, thickness: 1, color: blueLine });
 
-  // Patient info grid
-  y -= 30;
-  const colL = 30, colR = width / 2 + 10;
+  // === Patient info grid (2 columns x 3 rows) ===
+  y -= 32;
+  const colL = M;
+  const colR = width / 2 + 10;
+  const labelW = 110;
   const patientName = `${patient.first_name || ""} ${patient.last_name || ""}`.trim() || "—";
   const drawKV = (x: number, yy: number, k: string, v: string) => {
-    page.drawText(sanitize(k), { x, y: yy, size: 11, font: bold, color: dark });
-    const kw = bold.widthOfTextAtSize(sanitize(k), 11);
-    page.drawText(sanitize(v), { x: x + kw + 5, y: yy, size: 11, font, color: dark });
+    page.drawText(sanitize(k), { x, y: yy, size: 11, font, color: dark });
+    page.drawText(sanitize(v), { x: x + labelW, y: yy, size: 11, font, color: dark });
   };
-  drawKV(colL, y, "Patient Name:", patientName);
+  drawKV(colL, y, "Patient name:", patientName);
   drawKV(colR, y, "Appointment No:", apptNo);
-  y -= 18;
-  drawKV(colL, y, "Phone No:", patient.phone || "—");
-  drawKV(colR, y, "Email Id:", patient.email || "—");
-  y -= 18;
-  drawKV(colL, y, "Age:", ageFromDob(patient.date_of_birth) || "—");
-  drawKV(colR, y, "Sex:", patient.gender || "—");
+  y -= 20;
+  drawKV(colL, y, "Phone No:", patient.phone || "");
+  drawKV(colR, y, "Email id:", patient.email || "");
+  y -= 20;
+  drawKV(colL, y, "Age:", ageFromDob(patient.date_of_birth) || "");
+  drawKV(colR, y, "Sex:", patient.gender || "");
 
-  // Prescription body
-  y -= 40;
-  page.drawText("Prescription:", { x: colL, y, size: 12, font: bold, color: teal });
+  // === Body 2 columns ===
+  y -= 50;
+  const bodyTop = y;
+  const colWidth = (width / 2) - M - 10;
+
+  // Build prescription text
   let prescriptionText = "";
   if (rxs && rxs.length > 0) {
     prescriptionText = rxs.map((r: any, i: number) => {
@@ -171,40 +181,35 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
       return line;
     }).join("\n");
   } else {
-    prescriptionText = proc.recommendations || proc.procedure_notes || "—";
+    prescriptionText = proc.recommendations || "";
   }
-  const presLabelW = bold.widthOfTextAtSize("Prescription:", 12);
-  const presLines = prescriptionText.split("\n").flatMap(l => wrap(l, font, 11, width - 60 - presLabelW - 10));
-  let py = y;
-  let firstLineOffset = presLabelW + 10;
-  for (let i = 0; i < presLines.length; i++) {
-    const xx = i === 0 ? colL + firstLineOffset : colL;
-    page.drawText(sanitize(presLines[i]), { x: xx, y: py, size: 11, font, color: dark });
-    py -= 16;
-  }
-  y = py - 10;
+  if (!prescriptionText) prescriptionText = "—";
 
-  // Symptoms (left) and Diagnosis (right)
-  y -= 10;
-  page.drawText("Symptoms:", { x: colL, y, size: 12, font: bold, color: teal });
-  page.drawText("Diagnosis:", { x: colR, y, size: 12, font: bold, color: teal });
-  y -= 18;
-  const sympLines = wrap(proc.symptoms || proc.consultation_notes || "—", font, 11, (width / 2) - 50);
-  const diagLines = wrap(proc.diagnosis || "—", font, 11, (width / 2) - 50);
-  const rows = Math.max(sympLines.length, diagLines.length);
-  for (let i = 0; i < rows; i++) {
-    if (sympLines[i]) page.drawText(sanitize(sympLines[i]), { x: colL, y, size: 11, font, color: dark });
-    if (diagLines[i]) page.drawText(sanitize(diagLines[i]), { x: colR, y, size: 11, font, color: dark });
-    y -= 15;
-  }
+  const drawSection = (x: number, startY: number, heading: string, body: string): number => {
+    let yy = startY;
+    page.drawText(heading, { x, y: yy, size: 13, font: bold, color: blueHead });
+    yy -= 18;
+    const lines = body.split("\n").flatMap(l => wrap(l || " ", font, 11, colWidth));
+    for (const ln of lines) {
+      page.drawText(sanitize(ln), { x, y: yy, size: 11, font, color: dark });
+      yy -= 15;
+    }
+    return yy;
+  };
 
-  // Two horizontal rules near bottom (signature area)
-  const sigY = 150;
-  page.drawLine({ start: { x: 30, y: sigY + 30 }, end: { x: width - 30, y: sigY + 30 }, thickness: 0.6, color: dark });
-  page.drawLine({ start: { x: 30, y: sigY }, end: { x: width - 30, y: sigY }, thickness: 0.6, color: dark });
+  // Left column: Prescription
+  drawSection(colL, bodyTop, "Prescription", prescriptionText);
 
-  // Footer
-  const footerY = 60;
+  // Right column: Symptoms, Diagnosis, Procedure Details
+  let ry = bodyTop;
+  ry = drawSection(colR, ry, "Symptoms", proc.symptoms || proc.consultation_notes || "—");
+  ry -= 14;
+  ry = drawSection(colR, ry, "Diagnosis", proc.diagnosis || "—");
+  ry -= 14;
+  ry = drawSection(colR, ry, "Procedure Details", proc.procedure_notes || "—");
+
+  // === Footer ===
+  const footerY = 50;
   const f1w = font.widthOfTextAtSize(sanitize(footerPhone), 10);
   page.drawText(sanitize(footerPhone), { x: (width - f1w) / 2, y: footerY + 14, size: 10, font, color: dark });
   const f2w = font.widthOfTextAtSize(sanitize(footerEmailWeb), 10);

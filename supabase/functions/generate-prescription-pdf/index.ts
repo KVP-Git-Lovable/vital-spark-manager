@@ -45,7 +45,7 @@ function wrap(text: string, font: any, size: number, maxWidth: number): string[]
 async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise<{ bytes: Uint8Array; filename: string; patient: any }> {
   const { data: proc, error: procErr } = await supabase
     .from("procedures")
-    .select("*, patients(*), staff(*)")
+    .select("*, patients(*), staff(*), appointments(*, staff(*))")
     .eq("id", procedureId)
     .single();
   if (procErr || !proc) throw new Error(procErr?.message || "Procedure not found");
@@ -56,7 +56,7 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   ]);
 
   const patient = proc.patients || {};
-  const staff = proc.staff || {};
+  const staff = proc.staff || proc.appointments?.staff || {};
 
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595, 842]); // A4
@@ -65,14 +65,16 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const italic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
 
-  const sage = rgb(0.72, 0.84, 0.71);
+  const sage = rgb(0.784, 0.847, 0.784);
   const dark = rgb(0.1, 0.1, 0.1);
   const grey = rgb(0.45, 0.45, 0.45);
   const blueHead = rgb(0.30, 0.50, 0.78);
   const blueLine = rgb(0.35, 0.55, 0.75);
 
-  // Full-page sage background
-  page.drawRectangle({ x: 0, y: 0, width, height, color: sage });
+  // White header band + sage green body
+  const HEADER_H = 170;
+  page.drawRectangle({ x: 0, y: 0, width, height: height - HEADER_H, color: sage });
+  page.drawRectangle({ x: 0, y: height - HEADER_H, width, height: HEADER_H, color: rgb(1, 1, 1) });
 
   const clinicName = clinic?.name || "THE SKIN CLINIC";
   const clinicAddr = clinic?.address || "VYAS RAO LANE, KADRI KAMBALA ROAD, MANGALORE- 575003";
@@ -82,14 +84,15 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   const M = 40; // left/right margin
 
   // === Header (top-left) ===
-  page.drawText(sanitize(clinicName.toUpperCase()), { x: M, y: height - 50, size: 16, font: bold, color: dark });
-  page.drawText(sanitize(clinicAddr), { x: M, y: height - 70, size: 10, font: bold, color: dark });
+  page.drawText(sanitize(clinicName.toUpperCase()), { x: M, y: height - 40, size: 16, font: bold, color: dark });
+  const addrLines = sanitize(clinicAddr).split(/\\n|,\\s*/).map(s => s.trim()).filter(Boolean);
+  const addrLine = addrLines.join(", ");
+  page.drawText(addrLine, { x: M, y: height - 58, size: 10, font: bold, color: dark });
 
-  // === Logo panel (top-right, white square) ===
-  const lw = 130, lh = 130;
+  // === Logo (top-right inside white header) ===
+  const lw = 110, lh = 110;
   const lx = width - M - lw;
-  const ly = height - 30 - lh;
-  page.drawRectangle({ x: lx, y: ly, width: lw, height: lh, color: rgb(1, 1, 1) });
+  const ly = height - 20 - lh;
   let logoEmbedded = false;
   if (clinic?.logo_url) {
     try {
@@ -98,8 +101,7 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
         const ab = new Uint8Array(await r.arrayBuffer());
         const ct = r.headers.get("content-type") || "";
         const img = ct.includes("png") ? await pdfDoc.embedPng(ab) : await pdfDoc.embedJpg(ab);
-        const pad = 8;
-        const dims = img.scaleToFit(lw - pad * 2, lh - pad * 2);
+        const dims = img.scaleToFit(lw, lh);
         page.drawImage(img, { x: lx + (lw - dims.width) / 2, y: ly + (lh - dims.height) / 2, width: dims.width, height: dims.height });
         logoEmbedded = true;
       }
@@ -111,21 +113,22 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
     page.drawText(cn, { x: lx + (lw - cnw) / 2, y: ly + lh / 2 - 6, size: 13, font: bold, color: rgb(0.30, 0.50, 0.42) });
   }
 
-  // Header rule (only across the area to the left of the logo panel)
-  const ruleY = height - 90;
+  // Header rule under clinic name/address
+  const ruleY = height - 78;
   page.drawLine({ start: { x: M, y: ruleY }, end: { x: lx - 10, y: ruleY }, thickness: 0.6, color: dark });
 
   // === Doctor block (left, under rule) ===
-  const doctorName = `Dr. ${staff.first_name || ""} ${staff.last_name || ""}`.trim() || "Dr. —";
-  const docQual = staff.qualifications || staff.specialization || "";
+  const nameParts = [staff.first_name, staff.last_name].filter(Boolean).join(" ").trim();
+  const doctorName = nameParts ? `Dr. ${nameParts}` : "Dr. —";
+  const docQual = staff.specialization || "";
   const docRole = staff.role || "Dermatologist";
   const docPhone = staff.phone || "";
 
-  let docY = ruleY - 18;
-  page.drawText(sanitize(`${doctorName}${docQual ? " " + docQual : ""}`), { x: M, y: docY, size: 11, font: bold, color: dark });
-  docY -= 16;
-  page.drawText(sanitize(docRole), { x: M, y: docY, size: 10, font, color: dark });
+  let docY = ruleY - 16;
+  page.drawText(sanitize(`${doctorName}${docQual ? "  " + docQual : ""}`), { x: M, y: docY, size: 11, font: bold, color: dark });
   docY -= 14;
+  page.drawText(sanitize(docRole), { x: M, y: docY, size: 10, font, color: dark });
+  docY -= 12;
   if (docPhone) page.drawText(sanitize(docPhone), { x: M, y: docY, size: 10, font, color: dark });
 
   // === Prescription No / Date (right of doctor block, left of logo panel) ===
@@ -133,11 +136,11 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   const apptNo = `A-${shortNumFromUuid(proc.appointment_id || proc.id, 4)}`;
   const dateStr = new Date(proc.procedure_date).toLocaleDateString("en-GB");
   const metaX = lx - 200;
-  page.drawText(sanitize(`Prescription No:   ${prescriptionNo}`), { x: metaX, y: ruleY - 18, size: 11, font, color: dark });
-  page.drawText(sanitize(`Date:   ${dateStr}`), { x: metaX, y: ruleY - 34, size: 11, font, color: dark });
+  page.drawText(sanitize(`Prescription No:   ${prescriptionNo}`), { x: metaX, y: ruleY - 16, size: 11, font, color: dark });
+  page.drawText(sanitize(`Date:   ${dateStr}`), { x: metaX, y: ruleY - 30, size: 11, font, color: dark });
 
   // === Title ===
-  let y = ly - 30; // below logo panel
+  let y = height - HEADER_H - 24; // below white header band
   const title = "Prescription Document";
   const tw = font.widthOfTextAtSize(title, 20);
   page.drawText(title, { x: (width - tw) / 2, y, size: 20, font, color: dark });

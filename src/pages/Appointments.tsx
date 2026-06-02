@@ -40,6 +40,7 @@ import { fetchAll } from "@/lib/supabasePaginate";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { MicButton } from "@/components/shared/MicButton";
+import { ConsultationReasonPicker, buildConsultationReasonsForSave, ConsultationType } from "@/components/appointments/ConsultationReasonPicker";
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 // 15-min slots from 8:00 to 19:45
@@ -123,7 +124,10 @@ const Appointments = () => {
   const [serviceId, setServiceId] = useState("");
   const [appointmentStatus, setAppointmentStatus] = useState("Reserved");
   const [visitStatus, setVisitStatus] = useState("");
-  const [reasonForConsultation, setReasonForConsultation] = useState("");
+  const [consultationType, setConsultationType] = useState<ConsultationType | "">("");
+  const [consultationReasons, setConsultationReasons] = useState<string[]>([]);
+  const [othersAestheticText, setOthersAestheticText] = useState("");
+  const [othersClinicalText, setOthersClinicalText] = useState("");
   const [additionalInfoOpen, setAdditionalInfoOpen] = useState(false);
   const [appointmentType, setAppointmentType] = useState<"Walk-in" | "Online">("Walk-in");
   const [startDate, setStartDate] = useState<Date>();
@@ -459,6 +463,7 @@ const Appointments = () => {
 
       if (wasRecurring) {
         const dates = generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate!);
+        const savedReasons = buildConsultationReasonsForSave(consultationReasons, othersAestheticText, othersClinicalText);
         const rows = dates.map((d) => ({
           patient_id: patientId || null,
           patient_name: patientName,
@@ -474,11 +479,13 @@ const Appointments = () => {
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
           appointment_type: appointmentType,
-          reason_for_consultation: reasonForConsultation || null,
+          consultation_type: consultationType || null,
+          consultation_reasons: savedReasons,
         }));
         const { error } = await supabase.from("appointments").insert(rows as any);
         if (error) throw error;
       } else {
+        const savedReasons = buildConsultationReasonsForSave(consultationReasons, othersAestheticText, othersClinicalText);
         const { data: inserted, error } = await supabase.from("appointments").insert({
           patient_id: patientId || null,
           patient_name: patientName,
@@ -492,7 +499,8 @@ const Appointments = () => {
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
           appointment_type: appointmentType,
-          reason_for_consultation: reasonForConsultation || null,
+          consultation_type: consultationType || null,
+          consultation_reasons: savedReasons,
         } as any).select("id").single();
         if (error) throw error;
         newAppointmentId = (inserted as any)?.id || null;
@@ -677,7 +685,10 @@ const Appointments = () => {
     setServiceId("");
     setAppointmentStatus("Reserved");
     setVisitStatus("");
-    setReasonForConsultation("");
+    setConsultationType("");
+    setConsultationReasons([]);
+    setOthersAestheticText("");
+    setOthersClinicalText("");
     setAdditionalInfoOpen(false);
     setAppointmentType("Walk-in");
     setStartDate(undefined);
@@ -1077,15 +1088,16 @@ const Appointments = () => {
                   </div>
                 </div>
 
-                <div>
-                  <Label>Reason for Consultation</Label>
-                  <Textarea
-                    value={reasonForConsultation}
-                    onChange={(e) => setReasonForConsultation(e.target.value)}
-                    placeholder="Enter reason for consultation"
-                    className="mt-1.5"
-                  />
-                </div>
+                <ConsultationReasonPicker
+                  consultationType={consultationType}
+                  setConsultationType={setConsultationType}
+                  reasons={consultationReasons}
+                  setReasons={setConsultationReasons}
+                  othersAestheticText={othersAestheticText}
+                  setOthersAestheticText={setOthersAestheticText}
+                  othersClinicalText={othersClinicalText}
+                  setOthersClinicalText={setOthersClinicalText}
+                />
 
                 {/* Additional Info (collapsible) */}
                 <Collapsible open={additionalInfoOpen} onOpenChange={setAdditionalInfoOpen} className="border rounded-md">

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Phone, Loader2, User as UserIcon, IdCard } from "lucide-react";
@@ -11,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { shortPatientId } from "@/lib/utils";
+import { ConsultationReasonPicker, buildConsultationReasonsForSave, ConsultationType } from "./ConsultationReasonPicker";
 
 interface QuickAppointmentDialogProps {
   open: boolean;
@@ -34,11 +34,16 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
   const [date, setDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("10:30");
-  const [reason, setReason] = useState("");
+  const [consultationType, setConsultationType] = useState<ConsultationType | "">("");
+  const [consultationReasons, setConsultationReasons] = useState<string[]>([]);
+  const [othersAestheticText, setOthersAestheticText] = useState("");
+  const [othersClinicalText, setOthersClinicalText] = useState("");
 
   useEffect(() => {
     if (!open) {
-      setStaffId(""); setServiceId(""); setReason("");
+      setStaffId(""); setServiceId("");
+      setConsultationType(""); setConsultationReasons([]);
+      setOthersAestheticText(""); setOthersClinicalText("");
       setAppointmentStatus("Reserved"); setAppointmentType("Walk-in");
       setDate(format(new Date(), "yyyy-MM-dd"));
       setStartTime("10:00"); setEndTime("10:30");
@@ -74,6 +79,7 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
       if (end <= start) throw new Error("End time must be after start time");
       if (start < new Date()) throw new Error("Cannot book appointments in the past");
       const serviceName = services.find((s: any) => s.id === serviceId)?.name || "";
+      const savedReasons = buildConsultationReasonsForSave(consultationReasons, othersAestheticText, othersClinicalText);
       const { error } = await supabase.from("appointments").insert({
         patient_id: patient.id,
         patient_name: `${patient.first_name} ${patient.last_name}`.trim(),
@@ -85,7 +91,8 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
         is_recurring: false,
         source: "Walk-in",
         appointment_type: appointmentType,
-        reason_for_consultation: reason || null,
+        consultation_type: consultationType || null,
+        consultation_reasons: savedReasons,
       } as any);
       if (error) throw error;
     },
@@ -177,10 +184,16 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
             </div>
           </div>
 
-          <div>
-            <Label>Reason for consultation</Label>
-            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1.5" rows={2} />
-          </div>
+          <ConsultationReasonPicker
+            consultationType={consultationType}
+            setConsultationType={setConsultationType}
+            reasons={consultationReasons}
+            setReasons={setConsultationReasons}
+            othersAestheticText={othersAestheticText}
+            setOthersAestheticText={setOthersAestheticText}
+            othersClinicalText={othersClinicalText}
+            setOthersClinicalText={setOthersClinicalText}
+          />
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

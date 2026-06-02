@@ -40,6 +40,7 @@ import { fetchAll } from "@/lib/supabasePaginate";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { MicButton } from "@/components/shared/MicButton";
+import { ConsultationReasonPicker, buildConsultationReasonsForSave, ConsultationType } from "@/components/appointments/ConsultationReasonPicker";
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 // 15-min slots from 8:00 to 19:45
@@ -123,7 +124,10 @@ const Appointments = () => {
   const [serviceId, setServiceId] = useState("");
   const [appointmentStatus, setAppointmentStatus] = useState("Reserved");
   const [visitStatus, setVisitStatus] = useState("");
-  const [reasonForConsultation, setReasonForConsultation] = useState("");
+  const [consultationType, setConsultationType] = useState<ConsultationType | "">("");
+  const [consultationReasons, setConsultationReasons] = useState<string[]>([]);
+  const [othersAestheticText, setOthersAestheticText] = useState("");
+  const [othersClinicalText, setOthersClinicalText] = useState("");
   const [additionalInfoOpen, setAdditionalInfoOpen] = useState(false);
   const [appointmentType, setAppointmentType] = useState<"Walk-in" | "Online">("Walk-in");
   const [startDate, setStartDate] = useState<Date>();
@@ -677,7 +681,10 @@ const Appointments = () => {
     setServiceId("");
     setAppointmentStatus("Reserved");
     setVisitStatus("");
-    setReasonForConsultation("");
+    setConsultationType("");
+    setConsultationReasons([]);
+    setOthersAestheticText("");
+    setOthersClinicalText("");
     setAdditionalInfoOpen(false);
     setAppointmentType("Walk-in");
     setStartDate(undefined);

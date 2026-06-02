@@ -1,60 +1,41 @@
 ## Goal
-Rewrite `supabase/functions/generate-prescription-pdf/index.ts` so the output mirrors the uploaded `PrescriptionPDFnew.pdf` template precisely.
+Fix `supabase/functions/generate-prescription-pdf/index.ts` to match the uploaded template: white header band, sage-green body, doctor name/qualifications populated, butterfly logo top-right.
 
-## Reference layout (from uploaded PDF)
-- **Full-page sage-green background** (`rgb(0.72, 0.84, 0.71)` approx) — not just a top band. The footer and entire content sit on this background.
-- **Top-left header block**:
-  - `THE SKIN CLINIC` — bold, ~16pt
-  - `VYAS RAO LANE, KADRI KAMBALA ROAD, MANGALORE- 575003` — bold, ~10pt
-  - Horizontal rule under header
-- **Top-right**: white square panel containing the clinic logo (loaded from `clinic_settings.logo_url`; fallback to a placeholder "The Skin Clinic" text panel)
-- **Doctor block (left, below header rule)**:
-  - `Dr. {first} {last} {qualifications}` (e.g. `Dr. Vindhya Pai M.B.B.S. MD`)
-  - `{role}` (e.g. `Dermatologist`)
-  - `{phone}`
-  - Each line prefixed with a small icon glyph (use unicode bullet/symbol since pdf-lib Helvetica only supports basic ascii — fallback to `•` or skip if not renderable). Will use simple text glyphs that render in Helvetica: `*`, `>`, `#` as low-key markers, OR omit icons and just indent — confirm choice below.
-- **Top-right of same row**: `Prescription No: D-xxxx` and `Date: dd/mm/yyyy`
-- **Centered title**: `Prescription Document` (~20pt, regular) with horizontal rule below
-- **Patient info — 2 columns, 3 rows**:
-  - Left: `Patient name`, `Phone No`, `Age`
-  - Right: `Appointment No`, `Email id`, `Sex`
-- **Body — 2 columns**:
-  - Left col: `Prescription` (blue heading) + body text
-  - Right col: `Symptoms` + body, `Diagnosis` + body, `Procedure Details` + body (each a blue heading)
-  - Blue heading color ≈ `rgb(0.36, 0.55, 0.78)`
-- **Footer (bottom of page, centered, on green bg)**:
-  - `Clinic Phone: +91 6360 75 3030, 9620 12 3030 | Mob: +91 9845 39 3030`
-  - `E-mail: theskinclinic30@gmail.com | Website: www.theskinclinic.org.in`
+## Changes
 
-## Data mapping (no DB changes)
-- Doctor name/qualifications/role/phone → `procedures.staff` join (already loaded)
-- Patient name/phone/email/age/sex → `procedures.patients`
-- Prescription body → joined `prescriptions` rows, fallback to `procedure_notes`/`recommendations`
-- Symptoms → `procedures.symptoms` (fallback `consultation_notes`)
-- Diagnosis → `procedures.diagnosis`
-- **Procedure Details → `procedures.procedure_notes`** (new section in PDF; currently not rendered)
-- Prescription No → `D-` + 4-digit deterministic hash of procedure id
-- Appointment No → `A-` + 4-digit hash of `appointment_id || procedure.id`
-- Date → `dd/mm/yyyy` from `procedure_date`
-- Clinic name / phones / address / logo → `clinic_settings` (fallback to the hardcoded values from the template)
+1. **Background split**
+   - Remove the full-page sage fill.
+   - Draw a **white header band** from `y = height - 170` to `y = height` across full page width.
+   - Draw a **sage green band** (`rgb(0.784, 0.847, 0.784)` ≈ `#C8D8C8`) from `y = 0` up to `y = height - 170` covering the rest of the page (including footer area).
 
-## Implementation steps
-1. Replace `buildPrescriptionPdf` in `supabase/functions/generate-prescription-pdf/index.ts`:
-   - Fill the entire page rect with sage green first.
-   - Draw header (title + address + rule) and right-side white logo panel (~120×120 with logo image or fallback text).
-   - Draw doctor block (left) and prescription/date block (right) under the rule.
-   - Draw centered `Prescription Document` title and a horizontal rule.
-   - Draw the patient 2×3 grid using a `drawKV(x, y, label, value)` helper with a fixed label column width so values align like in the template.
-   - Draw the body 2-column section: compute left column width and right column width, render Prescription on the left; render Symptoms → Diagnosis → Procedure Details stacked on the right. Use the existing `wrap()` helper.
-   - Draw the footer (two centered lines) ~30pt from the bottom.
-2. Keep the existing `Deno.serve` entrypoint, `mode: "upload"` flow, audit insert, and base64 download response unchanged.
-3. No changes to `send-prescription-whatsapp/index.ts` or any client code.
+2. **Logo top-right (in white header)**
+   - Replace the 130×130 white panel with a transparent logo placement: fetch `clinic_settings.logo_url`, embed (png/jpg), and draw scaled-to-fit ~90×90 at top-right of the header band (`x = width - M - 90`, vertically centered in header).
+   - Fallback: small "The Skin Clinic" text if no logo.
 
-## Out of scope
-- New DB columns; client UI changes; Twilio wiring; multi-page support (single A4 page only, matching the template).
+3. **Doctor name fix**
+   - Current bug: `staff.first_name` / `staff.last_name` come back empty because `staff` table uses `full_name` (verify via schema). Update select to alias and read whichever fields exist:
+     - Pull `staff.full_name` first; fallback to `${first_name} ${last_name}`.
+     - Pull `staff.qualifications` (string or array — join if array).
+     - Pull `staff.specialization` for the role line, fallback to `staff.role` or `"Dermatologist"`.
+     - Pull `staff.phone` / `staff.contact_number`.
+   - Render `Dr. {name} {qualifications}` in bold; role and phone underneath, all in dark text inside the white header.
+
+4. **Header layout (white band)**
+   - Top-left: `THE SKIN CLINIC` (16pt bold) + address (10pt bold).
+   - Thin horizontal rule across header width.
+   - Below rule (still inside white band): doctor block (left) + `Prescription No` / `Date` (right of doctor, left of logo).
+   - Logo sits top-right inside the white band, vertically spanning header height.
+
+5. **Body (sage green)**
+   - `Prescription Document` centered title sits **on the sage area**, just below the white header, with blue rule.
+   - Patient 2×3 grid, then 2-column body (Prescription | Symptoms/Diagnosis/Procedure Details) — unchanged layout, drawn on sage.
+   - Footer text (phone, email, website) centered at bottom on sage.
+
+6. **Verification step**
+   - Confirm `staff` table column names via `supabase--read_query` before finalizing the field mapping (avoid another empty-name bug).
 
 ## Files
 - Edit: `supabase/functions/generate-prescription-pdf/index.ts`
 
-## Open question
-The uploaded template shows small icons (stethoscope / phone / logo thumbnail) next to the doctor lines. pdf-lib's standard Helvetica can't render those glyphs. Confirm: should I (a) omit the icons entirely (cleanest), or (b) use simple ASCII markers like `•`?
+## Out of scope
+- DB schema changes, client UI, Twilio wiring.

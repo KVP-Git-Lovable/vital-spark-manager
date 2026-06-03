@@ -86,12 +86,25 @@ Deno.serve(async (req) => {
     const title = titleFromGender(patientGender);
     const namedPatient = title ? `${title} ${patientName}`.trim() : patientName;
 
+    // Format date as "Friday, 23 May 2026"
+    const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const d = new Date(appointmentDate);
+    let dayAndDate = appointmentDate;
+    if (!isNaN(d.getTime())) {
+      const dayName = dayNames[d.getDay()];
+      const day = d.getDate();
+      const month = monthNames[d.getMonth()];
+      const year = d.getFullYear();
+      dayAndDate = `${dayName}, ${day} ${month} ${year}`;
+    }
+
     const contentVariables = JSON.stringify({
       "1": namedPatient,
-      "2": appointmentTime,
-      "3": serviceName || "Consultation",
-      "4": clinicPhone || "-",
-      "5": clinicCity || "-",
+      "2": dayAndDate,
+      "3": appointmentTime,
+      "4": "+91 96201 23030 / +91 63607 53030",
+      "5": "Mangalore",
     });
 
     const body = new URLSearchParams({

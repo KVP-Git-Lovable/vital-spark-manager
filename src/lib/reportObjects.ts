@@ -55,9 +55,13 @@ export const REPORT_OBJECTS: ReportObject[] = [
       { key: "source", label: "Source", type: "text" },
       { key: "is_recurring", label: "Is Recurring", type: "boolean" },
       { key: "created_at", label: "Created At", type: "date" },
+      { key: "staff_id", label: "Doctor ID", type: "text" },
+      { key: "_doctor_name", label: "Doctor Name", type: "text" },
+      { key: "_month", label: "Month", type: "text" },
     ],
     relations: [
       { objectKey: "patients", foreignKey: "patient_id", label: "Patients" },
+      { objectKey: "staff", foreignKey: "staff_id", label: "Doctor" },
     ],
   },
   {
@@ -94,9 +98,18 @@ export const REPORT_OBJECTS: ReportObject[] = [
       { key: "payment_type", label: "Payment Type", type: "text" },
       { key: "payment_mode", label: "Payment Mode", type: "text" },
       { key: "created_at", label: "Created At", type: "date" },
+      { key: "doctor_id", label: "Doctor ID", type: "text" },
+      { key: "_doctor_name", label: "Doctor Name", type: "text" },
+      { key: "_month", label: "Month", type: "text" },
+      { key: "_sum_total_amount", label: "Total Revenue", type: "number" },
+      { key: "_sum_paid_amount", label: "Total Collected", type: "number" },
+      { key: "_count", label: "Transaction Count", type: "number" },
+      { key: "_count_distinct_patient_id", label: "Number of Patients", type: "number" },
     ],
     relations: [
       { objectKey: "patients", foreignKey: "patient_id", label: "Patients" },
+      { objectKey: "appointments", foreignKey: "appointment_id", label: "Appointments" },
+      { objectKey: "staff", foreignKey: "doctor_id", label: "Doctor" },
     ],
   },
   {
@@ -125,6 +138,7 @@ export const REPORT_OBJECTS: ReportObject[] = [
       { key: "email", label: "Email", type: "text" },
       { key: "phone", label: "Phone", type: "text" },
       { key: "created_at", label: "Created At", type: "date" },
+      { key: "_full_name", label: "Full Name", type: "text" },
     ],
   },
   {

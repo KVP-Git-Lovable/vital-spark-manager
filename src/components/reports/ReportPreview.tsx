@@ -52,6 +52,78 @@ const RECORD_ROUTES: Record<string, string> = {
   vendors: "/assets",
 };
 
+// ---- Virtual / aggregate field helpers ----
+// Field keys starting with "_" are computed client-side. They fall into:
+//   _doctor_name              -> embed staff(first_name,last_name), join on FK
+//   _full_name                -> derived from staff.first_name + last_name
+//   _month                    -> YYYY-MM bucket from `created_at` (or start_time fallback)
+//   _count                    -> COUNT(*) aggregate
+//   _sum_<col> / _avg_<col>   -> SUM/AVG aggregate over <col>
+//   _count_distinct_<col>     -> COUNT(DISTINCT <col>)
+
+type AggInfo =
+  | { fn: "count" }
+  | { fn: "sum" | "avg" | "min" | "max"; col: string }
+  | { fn: "count_distinct"; col: string };
+
+function parseAgg(fieldKey: string): AggInfo | null {
+  if (fieldKey === "_count") return { fn: "count" };
+  let m = fieldKey.match(/^_count_distinct_(.+)$/);
+  if (m) return { fn: "count_distinct", col: m[1] };
+  m = fieldKey.match(/^_(sum|avg|min|max)_(.+)$/);
+  if (m) return { fn: m[1] as any, col: m[2] };
+  return null;
+}
+
+function virtualRealDeps(fieldKey: string): string[] {
+  if (fieldKey === "_month") return ["created_at"];
+  if (fieldKey === "_full_name") return ["first_name", "last_name"];
+  if (fieldKey === "_doctor_name") return []; // handled via embed
+  const agg = parseAgg(fieldKey);
+  if (agg) {
+    if (agg.fn === "count") return [];
+    return [agg.col];
+  }
+  return [];
+}
+
+function isVirtualField(fieldKey: string): boolean {
+  return fieldKey.startsWith("_");
+}
+
+function isAggField(fieldKey: string): boolean {
+  return parseAgg(fieldKey) !== null;
+}
+
+function monthBucket(val: any): string {
+  if (!val) return "";
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// FK column on the parent table that links to "staff" for the doctor relation.
+const DOCTOR_FK_BY_OBJECT: Record<string, string> = {
+  invoices: "doctor_id",
+  appointments: "staff_id",
+};
+
+// Resolve a stored filter value, expanding special tokens.
+function resolveFilterValue(v: string): string {
+  if (v === "__today__") {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  }
+  if (v === "__start_of_month__") {
+    const d = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  }
+  return v;
+}
+
 export function ReportPreview({
   primaryObject,
   relatedObject,
@@ -86,35 +158,70 @@ export function ReportPreview({
       .filter((fk) => isValidFieldKey(fk, allowed));
 
     const primaryValidFieldSet = new Set(primaryObj.fields.map((f) => f.key));
-    const primaryFieldKeys = allFieldKeys
+    // Expand virtual fields to their real DB column dependencies. Only keep
+    // real columns in the actual SELECT — virtuals are computed in JS below.
+    const expandToReal = (fieldKey: string): string[] => {
+      if (!isVirtualField(fieldKey)) return [fieldKey];
+      return virtualRealDeps(fieldKey);
+    };
+    const primaryRequested = allFieldKeys
       .filter((fk) => fk.startsWith(`${primaryObject}.`))
-      .map((fk) => fk.split(".")[1])
-      .filter((k) => primaryValidFieldSet.has(k));
+      .map((fk) => fk.split(".")[1]);
+    const primaryNeedsDoctorName = primaryRequested.includes("_doctor_name");
+    const primaryFieldKeys = Array.from(
+      new Set(primaryRequested.flatMap(expandToReal))
+    ).filter((k) => primaryValidFieldSet.has(k));
+    // Pull the doctor FK so we can resolve names client-side as a fallback.
+    if (primaryNeedsDoctorName) {
+      const fk = DOCTOR_FK_BY_OBJECT[primaryObject];
+      if (fk && primaryValidFieldSet.has(fk) && !primaryFieldKeys.includes(fk)) {
+        primaryFieldKeys.push(fk);
+      }
+    }
     if (!primaryFieldKeys.includes("id")) primaryFieldKeys.push("id");
 
     if (allFieldKeys.length === 0) {
       primaryObj.fields.forEach((f) => {
+        if (isVirtualField(f.key)) return;
         if (!primaryFieldKeys.includes(f.key)) primaryFieldKeys.push(f.key);
       });
     }
 
     const relatedObj = relatedObject ? getObjectByKey(relatedObject) : null;
     const relatedValidFieldSet = new Set(relatedObj?.fields.map((f) => f.key) || []);
-    const relatedFieldKeys = relatedObj
+    const relatedRequested = relatedObj
       ? allFieldKeys
           .filter((fk) => fk.startsWith(`${relatedObject}.`))
           .map((fk) => fk.split(".")[1])
-          .filter((k) => relatedValidFieldSet.has(k))
       : [];
+    const relatedNeedsDoctorName = relatedRequested.includes("_doctor_name");
+    const relatedFieldKeys = Array.from(
+      new Set(relatedRequested.flatMap(expandToReal))
+    ).filter((k) => relatedValidFieldSet.has(k));
+    if (relatedNeedsDoctorName && relatedObject) {
+      const fk = DOCTOR_FK_BY_OBJECT[relatedObject];
+      if (fk && relatedValidFieldSet.has(fk) && !relatedFieldKeys.includes(fk)) {
+        relatedFieldKeys.push(fk);
+      }
+    }
 
     let selectStr = primaryFieldKeys.join(",");
+    // Embed staff for primary-side doctor_name
+    if (primaryNeedsDoctorName && DOCTOR_FK_BY_OBJECT[primaryObject]) {
+      selectStr += `,staff(first_name,last_name)`;
+    }
     let foreignKey = "";
     if (relatedObj && relatedObject) {
       const relation = primaryObj.relations?.find((r) => r.objectKey === relatedObject);
       if (relation) {
         foreignKey = relation.foreignKey;
-        const relFields = relatedFieldKeys.length > 0 ? relatedFieldKeys : relatedObj.fields.map((f) => f.key);
-        selectStr += `,${relatedObj.table}(${relFields.join(",")})`;
+        const relFields = relatedFieldKeys.length > 0
+          ? relatedFieldKeys
+          : relatedObj.fields.filter((f) => !isVirtualField(f.key)).map((f) => f.key);
+        const relSelect = relatedNeedsDoctorName && DOCTOR_FK_BY_OBJECT[relatedObject]
+          ? `${relFields.join(",")},staff(first_name,last_name)`
+          : relFields.join(",");
+        selectStr += `,${relatedObj.table}(${relSelect})`;
         // Only include the FK column in the primary select when it actually
         // exists on the primary table (i.e. primary is the "child" side of the
         // relation). For one-to-many where the FK lives on the related table,
@@ -126,8 +233,13 @@ export function ReportPreview({
       } else {
         const reverseRelation = relatedObj.relations?.find((r) => r.objectKey === primaryObject);
         if (reverseRelation) {
-          const relFields = relatedFieldKeys.length > 0 ? relatedFieldKeys : relatedObj.fields.map((f) => f.key);
-          selectStr += `,${relatedObj.table}(${relFields.join(",")})`;
+          const relFields = relatedFieldKeys.length > 0
+            ? relatedFieldKeys
+            : relatedObj.fields.filter((f) => !isVirtualField(f.key)).map((f) => f.key);
+          const relSelect = relatedNeedsDoctorName && DOCTOR_FK_BY_OBJECT[relatedObject]
+            ? `${relFields.join(",")},staff(first_name,last_name)`
+            : relFields.join(",");
+          selectStr += `,${relatedObj.table}(${relSelect})`;
         }
       }
     }
@@ -135,17 +247,21 @@ export function ReportPreview({
     let query = supabase.from(primaryObj.table as any).select(selectStr);
     filters
       .filter((f) => f.field.startsWith(`${primaryObject}.`))
-      .filter((f) => primaryValidFieldSet.has(f.field.split(".")[1]))
+      .filter((f) => {
+        const c = f.field.split(".")[1];
+        return primaryValidFieldSet.has(c) && !isVirtualField(c);
+      })
       .forEach((f) => {
         const col = f.field.split(".")[1];
+        const v = resolveFilterValue(f.value);
         switch (f.operator) {
-          case "equals": query = query.eq(col, f.value); break;
-          case "not_equals": query = query.neq(col, f.value); break;
-          case "contains": query = query.ilike(col, `%${f.value}%`); break;
-          case "gt": query = query.gt(col, f.value); break;
-          case "lt": query = query.lt(col, f.value); break;
-          case "gte": query = query.gte(col, f.value); break;
-          case "lte": query = query.lte(col, f.value); break;
+          case "equals": query = query.eq(col, v); break;
+          case "not_equals": query = query.neq(col, v); break;
+          case "contains": query = query.ilike(col, `%${v}%`); break;
+          case "gt": query = query.gt(col, v); break;
+          case "lt": query = query.lt(col, v); break;
+          case "gte": query = query.gte(col, v); break;
+          case "lte": query = query.lte(col, v); break;
           case "is_null": query = query.is(col, null); break;
           case "is_not_null": query = query.not(col, "is", null); break;
         }
@@ -171,34 +287,67 @@ export function ReportPreview({
           const nested = row[key];
           if (nested && typeof nested === "object" && !Array.isArray(nested)) {
             for (const nk of Object.keys(nested)) flat[`__related__.${nk}`] = nested[nk];
+            // Surface a doctor_name embedded under the related row.
+            if (nested.staff && typeof nested.staff === "object" && !Array.isArray(nested.staff)) {
+              const fn = nested.staff.first_name ?? "";
+              const ln = nested.staff.last_name ?? "";
+              flat[`__related__._doctor_name`] = `${fn} ${ln}`.trim() || null;
+            }
           } else if (Array.isArray(nested) && nested.length > 0) {
             for (const nk of Object.keys(nested[0])) flat[`__related__.${nk}`] = nested[0][nk];
+            const nestStaff = nested[0].staff;
+            if (nestStaff && typeof nestStaff === "object" && !Array.isArray(nestStaff)) {
+              const fn = nestStaff.first_name ?? "";
+              const ln = nestStaff.last_name ?? "";
+              flat[`__related__._doctor_name`] = `${fn} ${ln}`.trim() || null;
+            }
+          }
+        } else if (key === "staff") {
+          // Primary-side staff embed -> doctor_name
+          const s = row[key];
+          if (s && typeof s === "object" && !Array.isArray(s)) {
+            const fn = s.first_name ?? "";
+            const ln = s.last_name ?? "";
+            flat["_doctor_name"] = `${fn} ${ln}`.trim() || null;
           }
         } else {
           flat[key] = row[key];
         }
+      }
+      // Derive _month / _full_name on primary side
+      if (flat.created_at) flat["_month"] = monthBucket(flat.created_at);
+      if (flat.first_name !== undefined || flat.last_name !== undefined) {
+        flat["_full_name"] = `${flat.first_name ?? ""} ${flat.last_name ?? ""}`.trim();
+      }
+      // Derive _month on related side
+      if (flat["__related__.created_at"]) {
+        flat["__related__._month"] = monthBucket(flat["__related__.created_at"]);
       }
       return flat;
     });
 
     const relatedFilters = filters
       .filter((f) => relatedObject && f.field.startsWith(`${relatedObject}.`))
-      .filter((f) => relatedValidFieldSet.has(f.field.split(".")[1]));
+      .filter((f) => {
+        const c = f.field.split(".")[1];
+        return relatedValidFieldSet.has(c) && !isVirtualField(c);
+      });
     let filteredData = flattenedData;
     if (relatedFilters.length > 0) {
       filteredData = flattenedData.filter((row) => {
         return relatedFilters.every((f) => {
           const col = f.field.split(".")[1];
           const val = row[`__related__.${col}`];
+          const fv = resolveFilterValue(f.value);
           const strVal = String(val ?? "");
           switch (f.operator) {
-            case "equals": return strVal === f.value;
-            case "not_equals": return strVal !== f.value;
-            case "contains": return strVal.toLowerCase().includes(f.value.toLowerCase());
-            case "gt": return Number(val) > Number(f.value);
-            case "lt": return Number(val) < Number(f.value);
-            case "gte": return Number(val) >= Number(f.value);
-            case "lte": return Number(val) <= Number(f.value);
+            case "equals": return strVal === fv;
+            case "not_equals": return strVal !== fv;
+            case "contains": return strVal.toLowerCase().includes(fv.toLowerCase());
+            case "gt": return Number(val) > Number(fv);
+            case "lt": return Number(val) < Number(fv);
+            case "gte": return new Date(val).getTime() > 0 ? new Date(val) >= new Date(fv) : Number(val) >= Number(fv);
+            case "lte": return new Date(val).getTime() > 0 ? new Date(val) <= new Date(fv) : Number(val) <= Number(fv);
             case "is_null": return val === null || val === undefined;
             case "is_not_null": return val !== null && val !== undefined;
             default: return true;
@@ -207,9 +356,85 @@ export function ReportPreview({
       });
     }
 
-    setData(filteredData);
+    // ---- Aggregation pass ----
+    // If any selected column / groupColumn is an aggregate AND we have group_rows,
+    // collapse the rows into one row per group with computed aggregate values.
+    const allRequested = [...columns, ...groupColumns];
+    const hasAgg = allRequested.some((fk) => {
+      const k = fk.split(".")[1];
+      return k && isAggField(k);
+    });
+    if (hasAgg && groupRows.length > 0) {
+      const groupKeys = groupRows; // array of fully-qualified field keys
+      const keyFor = (row: any) =>
+        groupKeys.map((gk) => String(row[resolveDataKeyStatic(gk)] ?? "")).join("||");
+      const buckets = new Map<string, any[]>();
+      filteredData.forEach((row) => {
+        const k = keyFor(row);
+        if (!buckets.has(k)) buckets.set(k, []);
+        buckets.get(k)!.push(row);
+      });
+      const aggregated: any[] = [];
+      buckets.forEach((rows) => {
+        const out: any = {};
+        // Carry group keys
+        groupKeys.forEach((gk) => {
+          const dk = resolveDataKeyStatic(gk);
+          out[dk] = rows[0][dk];
+        });
+        // Compute each aggregate column
+        allRequested.forEach((fk) => {
+          const [objKey, fieldKey] = fk.split(".");
+          const agg = parseAgg(fieldKey);
+          if (!agg) {
+            // Carry through a representative value for non-agg, non-group cols
+            const dk = resolveDataKeyStatic(fk);
+            if (out[dk] === undefined) out[dk] = rows[0][dk];
+            return;
+          }
+          const dk = resolveDataKeyStatic(fk);
+          if (agg.fn === "count") {
+            out[dk] = rows.length;
+          } else if (agg.fn === "count_distinct") {
+            const srcKey =
+              objKey === primaryObject ? agg.col : `__related__.${agg.col}`;
+            out[dk] = new Set(rows.map((r) => r[srcKey]).filter((v) => v !== null && v !== undefined)).size;
+          } else {
+            const srcKey =
+              objKey === primaryObject ? agg.col : `__related__.${agg.col}`;
+            const nums = rows
+              .map((r) => Number(r[srcKey]))
+              .filter((n) => !isNaN(n));
+            if (nums.length === 0) {
+              out[dk] = 0;
+            } else if (agg.fn === "sum") {
+              out[dk] = nums.reduce((a, b) => a + b, 0);
+            } else if (agg.fn === "avg") {
+              out[dk] = nums.reduce((a, b) => a + b, 0) / nums.length;
+            } else if (agg.fn === "min") {
+              out[dk] = Math.min(...nums);
+            } else if (agg.fn === "max") {
+              out[dk] = Math.max(...nums);
+            }
+          }
+        });
+        aggregated.push(out);
+      });
+      setData(aggregated);
+    } else {
+      setData(filteredData);
+    }
     setLoading(false);
   };
+
+  // Static helper duplicated from instance method so we can use it inside fetchData
+  // without `this` ordering issues (fetchData is defined before `resolveDataKey`).
+  function resolveDataKeyStatic(fk: string): string {
+    const [objKey, fieldKey] = fk.split(".");
+    if (objKey === primaryObject) return fieldKey;
+    if (objKey === relatedObject) return `__related__.${fieldKey}`;
+    return fieldKey;
+  }
 
   const resolveDataKey = (fk: string): string => {
     const [objKey, fieldKey] = fk.split(".");

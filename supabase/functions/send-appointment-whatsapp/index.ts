@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const TEMPLATE_SID = "HX1750d865022c866cf68dc134cd93c6eb";
+const TEMPLATE_SID = "HX49e0e577486046abaf37bb7a45090d8c";
 
 function normalizePhone(phone: string): string | null {
   if (!phone) return null;

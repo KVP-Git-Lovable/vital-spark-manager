@@ -1,12 +1,10 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
 
-const TEMPLATE_SID = "HX1750d865022c866cf68dc134cd93c6eb";
+const TEMPLATE_SID = "HX49e0e577486046abaf37bb7a45090d8c";
 
 function normalizePhone(phone: string): string | null {
   if (!phone) return null;
@@ -65,33 +63,28 @@ Deno.serve(async (req) => {
     const fromFormatted = fromNumber.startsWith("whatsapp:") ? fromNumber : `whatsapp:${fromNumber}`;
     const toFormatted = `whatsapp:${toNumber}`;
 
-    // Fetch clinic phone + city for template variables 4 & 5
-    let clinicPhone = "";
-    let clinicCity = "";
-    try {
-      const supaUrl = Deno.env.get("SUPABASE_URL")!;
-      const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const supa = createClient(supaUrl, supaKey);
-      const { data: clinic } = await supa
-        .from("clinic_settings")
-        .select("phone, city")
-        .limit(1)
-        .maybeSingle();
-      clinicPhone = clinic?.phone || "";
-      clinicCity = clinic?.city || "";
-    } catch (e) {
-      console.error("clinic_settings fetch failed", e);
-    }
-
     const title = titleFromGender(patientGender);
     const namedPatient = title ? `${title} ${patientName}`.trim() : patientName;
 
+    // Format date as "Friday, 23 May 2026"
+    const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const d = new Date(appointmentDate);
+    let dayAndDate = appointmentDate;
+    if (!isNaN(d.getTime())) {
+      const dayName = dayNames[d.getDay()];
+      const day = d.getDate();
+      const month = monthNames[d.getMonth()];
+      const year = d.getFullYear();
+      dayAndDate = `${dayName}, ${day} ${month} ${year}`;
+    }
+
     const contentVariables = JSON.stringify({
       "1": namedPatient,
-      "2": appointmentTime,
-      "3": serviceName || "Consultation",
-      "4": clinicPhone || "-",
-      "5": clinicCity || "-",
+      "2": dayAndDate,
+      "3": appointmentTime,
+      "4": "+91 96201 23030 / +91 63607 53030",
+      "5": "Mangalore",
     });
 
     const body = new URLSearchParams({

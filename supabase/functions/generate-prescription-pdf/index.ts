@@ -68,8 +68,8 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   const sage = rgb(0.784, 0.847, 0.784);
   const dark = rgb(0.1, 0.1, 0.1);
   const grey = rgb(0.45, 0.45, 0.45);
-  const blueHead = rgb(0.30, 0.50, 0.78);
-  const blueLine = rgb(0.35, 0.55, 0.75);
+  const blueHead = rgb(0.114, 0.620, 0.459); // teal #1D9E75
+  const blueLine = rgb(0.114, 0.620, 0.459); // teal #1D9E75
 
   const M = 40; // left/right margin
   const lw = 110, lh = 110;

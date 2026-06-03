@@ -65,24 +65,6 @@ Deno.serve(async (req) => {
     const fromFormatted = fromNumber.startsWith("whatsapp:") ? fromNumber : `whatsapp:${fromNumber}`;
     const toFormatted = `whatsapp:${toNumber}`;
 
-    // Fetch clinic phone + city for template variables 4 & 5
-    let clinicPhone = "";
-    let clinicCity = "";
-    try {
-      const supaUrl = Deno.env.get("SUPABASE_URL")!;
-      const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const supa = createClient(supaUrl, supaKey);
-      const { data: clinic } = await supa
-        .from("clinic_settings")
-        .select("phone, city")
-        .limit(1)
-        .maybeSingle();
-      clinicPhone = clinic?.phone || "";
-      clinicCity = clinic?.city || "";
-    } catch (e) {
-      console.error("clinic_settings fetch failed", e);
-    }
-
     const title = titleFromGender(patientGender);
     const namedPatient = title ? `${title} ${patientName}`.trim() : patientName;
 

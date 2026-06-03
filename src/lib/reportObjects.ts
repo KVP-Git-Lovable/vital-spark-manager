@@ -235,6 +235,28 @@ export const REPORT_OBJECTS: ReportObject[] = [
       { objectKey: "vendors", foreignKey: "vendor_id", label: "Vendors" },
     ],
   },
+  {
+    key: "patient_feedback",
+    label: "Patient Feedback",
+    table: "patient_feedback",
+    fields: [
+      { key: "id", label: "Feedback ID", type: "text" },
+      { key: "appointment_id", label: "Appointment ID", type: "text" },
+      { key: "patient_id", label: "Patient ID", type: "text" },
+      { key: "patient_name", label: "Patient Name", type: "text" },
+      { key: "nps_score", label: "NPS Score", type: "number" },
+      { key: "service_rating", label: "Star Rating", type: "number" },
+      { key: "created_at", label: "Submitted At", type: "date" },
+      { key: "_month", label: "Month", type: "text" },
+      { key: "_avg_nps_score", label: "Average NPS Score", type: "number" },
+      { key: "_avg_service_rating", label: "Average Star Rating", type: "number" },
+      { key: "_count", label: "Total Submissions", type: "number" },
+    ],
+    relations: [
+      { objectKey: "appointments", foreignKey: "appointment_id", label: "Appointments" },
+      { objectKey: "patients", foreignKey: "patient_id", label: "Patients" },
+    ],
+  },
 ];
 
 export const getObjectByKey = (key: string) =>

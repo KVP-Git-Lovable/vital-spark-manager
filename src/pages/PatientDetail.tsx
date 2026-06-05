@@ -746,7 +746,13 @@ const PatientDetail = () => {
                 <div>
                   <Label className="text-xs text-muted-foreground">{label}</Label>
                   {readOnly ? (
-                    <p className="text-sm mt-1">{value || <span className="text-muted-foreground/50">—</span>}</p>
+                    <p className="text-sm mt-1">{
+                      value
+                        ? (type === "date" && typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)
+                            ? `${value.slice(8,10)}/${value.slice(5,7)}/${value.slice(0,4)}`
+                            : value)
+                        : <span className="text-muted-foreground/50">—</span>
+                    }</p>
                   ) : (
                     <Input type={type} value={value || ""} onChange={(e) => upd(field, e.target.value)} className="mt-1 h-8 text-sm" />
                   )}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -543,14 +543,34 @@ export function ProcedureFormDialog({
 
           <div>
             <Label>Service / Procedure Name</Label>
-            <Select value={serviceId} onValueChange={handleServiceSelect}>
-              <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select service (optional)" /></SelectTrigger>
-              <SelectContent>
-                {services.map((s: any) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" className="mt-1.5 w-full justify-between font-normal">
+                  {serviceId ? (services.find((s: any) => s.id === serviceId)?.name || "Select service") : "Select service (optional)"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search service..." />
+                  <CommandList>
+                    <CommandEmpty>No service found.</CommandEmpty>
+                    <CommandGroup>
+                      {services.map((s: any) => (
+                        <CommandItem
+                          key={s.id}
+                          value={s.name}
+                          onSelect={() => handleServiceSelect(s.id)}
+                        >
+                          <Check className={`mr-2 h-4 w-4 ${serviceId === s.id ? "opacity-100" : "opacity-0"}`} />
+                          {s.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div>

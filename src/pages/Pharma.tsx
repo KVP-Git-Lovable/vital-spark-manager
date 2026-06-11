@@ -291,6 +291,52 @@ const Pharma = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deleteAllProducts = useMutation({
+    mutationFn: async () => {
+      const sentinel = "00000000-0000-0000-0000-000000000000";
+      // Remove dependents first to avoid FK errors
+      await supabase.from("service_medicines").delete().neq("product_id", sentinel);
+      await supabase.from("pharma_product_units").delete().neq("product_id", sentinel);
+      await supabase.from("pharma_inventory").delete().neq("product_id", sentinel);
+      const { error } = await supabase.from("pharma_products").delete().neq("id", sentinel);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-product-units"] });
+      toast.success("All products deleted");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const _unusedAddStock = useMutation({
+    mutationFn: async () => {
+      const mrp = Number(stockForm.mrp) || 0;
+      const sp = Number(stockForm.selling_price) || mrp;
+      const { error } = await supabase.from("pharma_inventory").insert({
+        product_id: stockForm.product_id,
+        batch_number: stockForm.batch_number,
+        expiry_date: stockForm.expiry_date,
+        quantity: Number(stockForm.quantity),
+        purchase_price: Number(stockForm.purchase_price),
+        mrp,
+        selling_price: sp,
+        supplier: stockForm.supplier || null,
+        invoice_number: stockForm.invoice_number || null,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pharma-inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
+      toast.success("Stock added");
+      setStockForm({ ...emptyStock });
+      setStockOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const createBill = useMutation({
     mutationFn: async () => {
       // Validate stock availability before creating bill

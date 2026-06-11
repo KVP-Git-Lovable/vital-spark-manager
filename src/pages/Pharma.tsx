@@ -30,7 +30,7 @@ import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/c
 import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
 const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {
@@ -238,6 +238,9 @@ const Pharma = () => {
         qty_per_unit: defaultRow ? Number(defaultRow.conversion_value) || 1 : 1,
         hsn_code: productForm.hsn_code || null,
         gst_percent: Number(productForm.gst_percent) || 0,
+        default_frequency: productForm.default_frequency || null,
+        default_duration: productForm.default_duration || null,
+        default_instructions: productForm.default_instructions || null,
       };
       const { data: inserted, error } = await supabase.from("pharma_products").insert(payload).select().single();
       if (error) throw error;
@@ -389,6 +392,9 @@ const Pharma = () => {
       vendor_ids: product.vendor_id ? [product.vendor_id] : [],
       hsn_code: product.hsn_code || "",
       gst_percent: Number(product.gst_percent) || 0,
+      default_frequency: product.default_frequency || "",
+      default_duration: product.default_duration || "",
+      default_instructions: product.default_instructions || "",
     });
     // Seed conversion rows from existing units (if any) or from legacy fields.
     const existing = unitsByProduct[product.id] || [];
@@ -517,6 +523,14 @@ const Pharma = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
                   <div><Label>GST %</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                </div>
+                <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prescription Defaults</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Default Frequency</Label><Input className="mt-1" placeholder="e.g. Twice daily" value={productForm.default_frequency} onChange={(e) => setProductForm({ ...productForm, default_frequency: e.target.value })} /></div>
+                    <div><Label>Default Duration</Label><Input className="mt-1" placeholder="e.g. 7 days" value={productForm.default_duration} onChange={(e) => setProductForm({ ...productForm, default_duration: e.target.value })} /></div>
+                  </div>
+                  <div><Label>Default Special Instructions</Label><Input className="mt-1" placeholder="e.g. Apply after cleansing" value={productForm.default_instructions} onChange={(e) => setProductForm({ ...productForm, default_instructions: e.target.value })} /></div>
                 </div>
                 <div className="rounded-md bg-muted/50 border border-dashed px-3 py-2 text-xs text-muted-foreground">
                   💡 Pricing (MRP / Selling Price) is captured per batch in <strong>Inward Stock</strong>.

@@ -680,6 +680,14 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 <div><Label>HSN Code</Label><Input className="mt-1" value={form.hsn_code || ""} onChange={(e) => setForm({ ...form, hsn_code: e.target.value })} /></div>
                 <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={form.reorder_level || 10} onChange={(e) => setForm({ ...form, reorder_level: parseInt(e.target.value) || 10 })} /></div>
               </div>
+              <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prescription Defaults</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Default Frequency</Label><Input className="mt-1" placeholder="e.g. Twice daily" value={form.default_frequency || ""} onChange={(e) => setForm({ ...form, default_frequency: e.target.value })} /></div>
+                  <div><Label>Default Duration</Label><Input className="mt-1" placeholder="e.g. 7 days" value={form.default_duration || ""} onChange={(e) => setForm({ ...form, default_duration: e.target.value })} /></div>
+                </div>
+                <div><Label>Default Special Instructions</Label><Input className="mt-1" placeholder="e.g. Apply after cleansing" value={form.default_instructions || ""} onChange={(e) => setForm({ ...form, default_instructions: e.target.value })} /></div>
+              </div>
               <p className="text-xs text-muted-foreground italic">Note: To change MRP, Selling Price or GST%, use "New Price" in view mode to preserve price history.</p>
               <div className="flex gap-2 pt-2">
                 <Button onClick={() => updateProduct.mutate()} disabled={updateProduct.isPending}>{updateProduct.isPending ? "Saving..." : "Save"}</Button>

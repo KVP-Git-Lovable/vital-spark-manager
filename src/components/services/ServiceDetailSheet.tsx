@@ -80,9 +80,10 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
   const { data: products = [] } = useQuery({
     queryKey: ["pharma-products-lookup"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("pharma_products").select("id, name").order("name");
-      // include defaults for auto-fill
-      // (kept on a separate line above for diff clarity)
+      const { data, error } = await supabase
+        .from("pharma_products")
+        .select("id, name, default_frequency, default_duration, default_instructions")
+        .order("name");
       if (error) throw error;
       return data;
     },
@@ -246,7 +247,15 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
   const updateMedicine = (i: number, field: keyof MedicineInput, value: string) => {
     const updated = [...medicines];
     updated[i][field] = value;
-    if (field === "product_id") { updated[i].product_name = products.find((p) => p.id === value)?.name || ""; }
+    if (field === "product_id") {
+      const prod: any = products.find((p: any) => p.id === value);
+      updated[i].product_name = prod?.name || "";
+      if (prod) {
+        if (!updated[i].frequency) updated[i].frequency = prod.default_frequency || "";
+        if (!updated[i].duration) updated[i].duration = prod.default_duration || "";
+        if (!updated[i].instructions) updated[i].instructions = prod.default_instructions || "";
+      }
+    }
     setMedicines(updated);
   };
   const removeMedicine = (i: number) => setMedicines(medicines.filter((_, idx) => idx !== i));

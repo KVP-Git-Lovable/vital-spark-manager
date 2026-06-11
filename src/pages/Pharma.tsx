@@ -295,6 +295,14 @@ const Pharma = () => {
     mutationFn: async () => {
       const sentinel = "00000000-0000-0000-0000-000000000000";
       // Remove dependents first to avoid FK errors
+      await supabase.from("pharma_bill_items").delete().neq("product_id", sentinel);
+      await supabase.from("portal_order_items").delete().neq("product_id", sentinel);
+      await supabase.from("cart_items").delete().neq("product_id", sentinel);
+      await supabase.from("patient_pharma_requests").delete().neq("product_id", sentinel);
+      await supabase.from("prescriptions").delete().neq("product_id", sentinel);
+      await supabase.from("survey_template_products").delete().neq("product_id", sentinel);
+      await supabase.from("tax_master_products").delete().neq("product_id", sentinel);
+      await supabase.from("product_prices").delete().neq("product_id", sentinel);
       await supabase.from("service_medicines").delete().neq("product_id", sentinel);
       await supabase.from("pharma_product_units").delete().neq("product_id", sentinel);
       await supabase.from("pharma_inventory").delete().neq("product_id", sentinel);

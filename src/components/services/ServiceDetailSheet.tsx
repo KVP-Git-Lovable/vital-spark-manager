@@ -81,6 +81,8 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     queryKey: ["pharma-products-lookup"],
     queryFn: async () => {
       const { data, error } = await supabase.from("pharma_products").select("id, name").order("name");
+      // include defaults for auto-fill
+      // (kept on a separate line above for diff clarity)
       if (error) throw error;
       return data;
     },

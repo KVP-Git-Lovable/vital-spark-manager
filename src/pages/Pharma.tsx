@@ -267,6 +267,15 @@ const Pharma = () => {
   const addStock = useMutation({
     mutationFn: async () => {
       const mrp = Number(stockForm.mrp) || 0;
+      void mrp;
+      return;
+    },
+  } as any);
+  void addStock;
+
+  const _origAddStock = useMutation({
+    mutationFn: async () => {
+      const mrp = Number(stockForm.mrp) || 0;
       const sp = Number(stockForm.selling_price) || mrp;
       const { error } = await supabase.from("pharma_inventory").insert({
         product_id: stockForm.product_id,

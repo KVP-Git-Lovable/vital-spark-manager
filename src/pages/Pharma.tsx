@@ -30,7 +30,7 @@ import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/c
 import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
 const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "" };
 
 interface BillItemInput {
@@ -238,6 +238,9 @@ const Pharma = () => {
         qty_per_unit: defaultRow ? Number(defaultRow.conversion_value) || 1 : 1,
         hsn_code: productForm.hsn_code || null,
         gst_percent: Number(productForm.gst_percent) || 0,
+        default_frequency: productForm.default_frequency || null,
+        default_duration: productForm.default_duration || null,
+        default_instructions: productForm.default_instructions || null,
       };
       const { data: inserted, error } = await supabase.from("pharma_products").insert(payload).select().single();
       if (error) throw error;

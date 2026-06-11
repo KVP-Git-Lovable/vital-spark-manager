@@ -1693,6 +1693,9 @@ export type Database = {
           category: string
           conversion_value: number
           created_at: string
+          default_duration: string | null
+          default_frequency: string | null
+          default_instructions: string | null
           expiry_date: string | null
           generic_name: string | null
           gst_percent: number
@@ -1715,6 +1718,9 @@ export type Database = {
           category?: string
           conversion_value?: number
           created_at?: string
+          default_duration?: string | null
+          default_frequency?: string | null
+          default_instructions?: string | null
           expiry_date?: string | null
           generic_name?: string | null
           gst_percent?: number
@@ -1737,6 +1743,9 @@ export type Database = {
           category?: string
           conversion_value?: number
           created_at?: string
+          default_duration?: string | null
+          default_frequency?: string | null
+          default_instructions?: string | null
           expiry_date?: string | null
           generic_name?: string | null
           gst_percent?: number

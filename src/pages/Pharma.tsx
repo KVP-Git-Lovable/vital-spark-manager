@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
-import { Plus, Search, Package, ShoppingCart, AlertTriangle, Settings } from "lucide-react";
+import { Plus, Search, Package, ShoppingCart, AlertTriangle, Settings, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -287,6 +291,25 @@ const Pharma = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deleteAllProducts = useMutation({
+    mutationFn: async () => {
+      const sentinel = "00000000-0000-0000-0000-000000000000";
+      // Remove dependents first to avoid FK errors
+      await supabase.from("service_medicines").delete().neq("product_id", sentinel);
+      await supabase.from("pharma_product_units").delete().neq("product_id", sentinel);
+      await supabase.from("pharma_inventory").delete().neq("product_id", sentinel);
+      const { error } = await supabase.from("pharma_products").delete().neq("id", sentinel);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-product-units"] });
+      toast.success("All products deleted");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const createBill = useMutation({
     mutationFn: async () => {
       // Validate stock availability before creating bill
@@ -466,6 +489,31 @@ const Pharma = () => {
           <p className="page-subtitle">Products, inventory & billing</p>
         </div>
         <div className="flex gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive">
+                <Trash2 className="h-4 w-4" /> Delete All
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete all products?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all pharmacy products along with their inventory batches and unit conversions. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => deleteAllProducts.mutate()}
+                  disabled={deleteAllProducts.isPending}
+                >
+                  {deleteAllProducts.isPending ? "Deleting..." : "Delete All"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <Dialog open={productOpen} onOpenChange={setProductOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="gap-2"><Package className="h-4 w-4" /> Add Product</Button>

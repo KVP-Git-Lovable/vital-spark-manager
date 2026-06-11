@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
-import { Plus, Search, Package, ShoppingCart, AlertTriangle, Settings } from "lucide-react";
+import { Plus, Search, Package, ShoppingCart, AlertTriangle, Settings, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";

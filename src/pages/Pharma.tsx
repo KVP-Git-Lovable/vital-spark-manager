@@ -489,6 +489,31 @@ const Pharma = () => {
           <p className="page-subtitle">Products, inventory & billing</p>
         </div>
         <div className="flex gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive">
+                <Trash2 className="h-4 w-4" /> Delete All
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete all products?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all pharmacy products along with their inventory batches and unit conversions. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => deleteAllProducts.mutate()}
+                  disabled={deleteAllProducts.isPending}
+                >
+                  {deleteAllProducts.isPending ? "Deleting..." : "Delete All"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <Dialog open={productOpen} onOpenChange={setProductOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="gap-2"><Package className="h-4 w-4" /> Add Product</Button>

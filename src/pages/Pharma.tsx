@@ -392,6 +392,9 @@ const Pharma = () => {
       vendor_ids: product.vendor_id ? [product.vendor_id] : [],
       hsn_code: product.hsn_code || "",
       gst_percent: Number(product.gst_percent) || 0,
+      default_frequency: product.default_frequency || "",
+      default_duration: product.default_duration || "",
+      default_instructions: product.default_instructions || "",
     });
     // Seed conversion rows from existing units (if any) or from legacy fields.
     const existing = unitsByProduct[product.id] || [];

@@ -133,7 +133,7 @@ const Services = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pharma_products")
-        .select("id, name")
+        .select("id, name, default_frequency, default_duration, default_instructions")
         .order("name");
       if (error) throw error;
       return data;
@@ -271,8 +271,13 @@ const Services = () => {
     const updated = [...medicines];
     updated[index][field] = value;
     if (field === "product_id") {
-      const prod = products.find((p) => p.id === value);
+      const prod: any = products.find((p: any) => p.id === value);
       updated[index].product_name = prod?.name || "";
+      if (prod) {
+        if (!updated[index].frequency) updated[index].frequency = prod.default_frequency || "";
+        if (!updated[index].duration) updated[index].duration = prod.default_duration || "";
+        if (!updated[index].instructions) updated[index].instructions = prod.default_instructions || "";
+      }
     }
     setMedicines(updated);
   };

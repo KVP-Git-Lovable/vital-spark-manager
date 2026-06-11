@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, Edit2, Trash2, Clock, IndianRupee, Pill, Sparkles, Loader2 } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Clock, IndianRupee, Pill, Sparkles, Loader2, Wrench } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -31,6 +42,13 @@ interface MedicineInput {
   frequency: string;
   duration: string;
   instructions: string;
+}
+
+interface AssetLinkInput {
+  asset_id: string;
+  asset_name: string;
+  usage_guideline: string;
+  time_taken: string;
 }
 
 const categories = ["All", "Skin Treatment", "Injectable", "Laser Treatment", "Regenerative", "General"];
@@ -54,6 +72,7 @@ const Services = () => {
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [medicines, setMedicines] = useState<MedicineInput[]>([]);
+  const [assetLinks, setAssetLinks] = useState<AssetLinkInput[]>([]);
   const [elaborating, setElaborating] = useState<string | null>(null);
 
   const elaborate = async (fieldType: "symptoms" | "diagnosis" | "procedure_notes" | "recommendations") => {
@@ -121,6 +140,19 @@ const Services = () => {
     },
   });
 
+  const { data: allAssets = [] } = useQuery({
+    queryKey: ["assets-lookup"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("assets")
+        .select("id, name")
+        .eq("status", "Active")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const recs = recommendations.split("\n").filter((r) => r.trim());
@@ -157,11 +189,27 @@ const Services = () => {
           if (mErr) throw mErr;
         }
       }
+
+      if (assetLinks.length > 0) {
+        const aRows = assetLinks
+          .filter((a) => a.asset_id)
+          .map((a) => ({
+            service_id: svc.id,
+            asset_id: a.asset_id,
+            usage_guideline: a.usage_guideline || null,
+            time_taken: a.time_taken ? parseInt(a.time_taken) : null,
+          }));
+        if (aRows.length > 0) {
+          const { error: aErr } = await supabase.from("asset_service_links").insert(aRows);
+          if (aErr) throw aErr;
+        }
+      }
       return svc;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
       queryClient.invalidateQueries({ queryKey: ["service-medicines"] });
+      queryClient.invalidateQueries({ queryKey: ["service-asset-links"] });
       toast.success("Service created successfully");
       resetForm();
       setDialogOpen(false);
@@ -171,6 +219,8 @@ const Services = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      await supabase.from("service_medicines").delete().eq("service_id", id);
+      await supabase.from("asset_service_links").delete().eq("service_id", id);
       const { error } = await supabase.from("services").delete().eq("id", id);
       if (error) throw error;
     },
@@ -178,6 +228,22 @@ const Services = () => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
       queryClient.invalidateQueries({ queryKey: ["service-medicines"] });
       toast.success("Service deleted");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const deleteAllMutation = useMutation({
+    mutationFn: async () => {
+      await supabase.from("service_medicines").delete().neq("service_id", "00000000-0000-0000-0000-000000000000");
+      await supabase.from("asset_service_links").delete().neq("service_id", "00000000-0000-0000-0000-000000000000");
+      const { error } = await supabase.from("services").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["services"] });
+      queryClient.invalidateQueries({ queryKey: ["service-medicines"] });
+      queryClient.invalidateQueries({ queryKey: ["service-asset-links"] });
+      toast.success("All services deleted");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -194,6 +260,7 @@ const Services = () => {
     setProcedureNotes("");
     setRecommendations("");
     setMedicines([]);
+    setAssetLinks([]);
   };
 
   const addMedicine = () => {
@@ -214,6 +281,19 @@ const Services = () => {
     setMedicines(medicines.filter((_, i) => i !== index));
   };
 
+  const addAssetLink = () =>
+    setAssetLinks([...assetLinks, { asset_id: "", asset_name: "", usage_guideline: "", time_taken: "" }]);
+  const updateAssetLink = (index: number, field: keyof AssetLinkInput, value: string) => {
+    const updated = [...assetLinks];
+    (updated[index] as any)[field] = value;
+    if (field === "asset_id") {
+      updated[index].asset_name = allAssets.find((a) => a.id === value)?.name || "";
+    }
+    setAssetLinks(updated);
+  };
+  const removeAssetLink = (index: number) =>
+    setAssetLinks(assetLinks.filter((_, i) => i !== index));
+
   const filtered = services.filter((s: any) => {
     const matchesSearch =
       s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -233,6 +313,28 @@ const Services = () => {
           <h1 className="page-title">Service Master</h1>
           <p className="page-subtitle">Manage clinic services, medicines and recommendations</p>
         </div>
+        <div className="flex gap-2 w-fit">
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive" disabled={services.length === 0 || deleteAllMutation.isPending}>
+              <Trash2 className="h-4 w-4" /> Delete All
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete all services?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete all {services.length} services along with their linked medicines and assets. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => deleteAllMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Delete All
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2 w-fit">
@@ -351,12 +453,45 @@ const Services = () => {
                 ))}
               </div>
 
+              {/* Required Assets */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <Label className="text-base font-display font-semibold flex items-center gap-2">
+                    <Wrench className="h-4 w-4" /> Required Assets
+                  </Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addAssetLink}>
+                    <Plus className="h-3 w-3 mr-1" /> Add Asset
+                  </Button>
+                </div>
+                {assetLinks.map((al, i) => (
+                  <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-muted/30">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">Asset {i + 1}</span>
+                      <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeAssetLink(i)}>Remove</Button>
+                    </div>
+                    <Select value={al.asset_id} onValueChange={(v) => updateAssetLink(i, "asset_id", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select asset" /></SelectTrigger>
+                      <SelectContent>
+                        {allAssets.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input placeholder="Usage guideline" value={al.usage_guideline} onChange={(e) => updateAssetLink(i, "usage_guideline", e.target.value)} />
+                      <Input type="number" placeholder="Time taken (mins)" value={al.time_taken} onChange={(e) => updateAssetLink(i, "time_taken", e.target.value)} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!name || createMutation.isPending}>
                 {createMutation.isPending ? "Saving..." : "Create Service"}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -406,13 +541,31 @@ const Services = () => {
                     <h3 className="font-display font-semibold">{service.name}</h3>
                     <Badge variant="secondary" className="mt-1 text-xs">{service.category}</Badge>
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-1">
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setSelectedServiceId(service.id); }}>
                       <Edit2 className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(service.id); }}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => e.stopPropagation()}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete this service?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            "{service.name}" and its linked medicines/assets will be permanently removed.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteMutation.mutate(service.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
 

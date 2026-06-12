@@ -503,6 +503,31 @@ GENERAL GUIDELINES:
 
     const aiMessages: any[] = [{ role: "system", content: systemPrompt }, ...messages];
 
+    // Short-circuit: if the latest user message is a cancel/reschedule request,
+    // respond directly with the redirect message without calling the model.
+    const lastUser = [...messages].reverse().find((m: any) => m.role === "user");
+    const lastUserText: string = (lastUser?.content || "").toString().toLowerCase().trim();
+    const cancelIntent = /\b(cancel|cancell|reschedul|postpone|change\s+(?:my\s+)?appointment|move\s+(?:my\s+)?appointment)\b/i.test(lastUserText);
+    // Also catch "yes" confirmations when the previous assistant turn asked about cancellation
+    const lastAssistant = [...messages].slice(0, -1).reverse().find((m: any) => m.role === "assistant");
+    const prevAssistantText: string = (lastAssistant?.content || "").toString().toLowerCase();
+    const isYesToCancel = /^(yes|yep|yeah|y|confirm|ok|okay|sure|please do|go ahead|proceed)\b/i.test(lastUserText)
+      && /(cancel|reschedul)/i.test(prevAssistantText);
+    if (cancelIntent || isYesToCancel) {
+      const redirect =
+        "To cancel or reschedule your appointment, please contact our clinic directly at +91 96201 23030 / +91 63607 53030, and our front desk team will assist you.";
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          const sseData = JSON.stringify({ choices: [{ delta: { content: redirect } }] });
+          controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      });
+      return new Response(stream, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
+    }
+
     const MAX_TOOL_ROUNDS = 8;
     let round = 0;
 
@@ -550,7 +575,29 @@ GENERAL GUIDELINES:
       }
 
       // Final text response - stream as SSE
-      const content = assistantMessage.content || "";
+      let content = assistantMessage.content || "";
+
+      // Hard safety net: if the model hallucinates a cancellation / reschedule
+      // action, override the response with the redirect message. This protects
+      // against prompt-instruction drift even though there is no cancel tool.
+      const forbiddenPatterns = [
+        /successfully\s+cancell?ed/i,
+        /has\s+been\s+cancell?ed/i,
+        /i['' ]?ve\s+cancell?ed/i,
+        /i\s+will\s+cancell?/i,
+        /i['' ]?ll\s+cancell?/i,
+        /let\s+me\s+cancell?/i,
+        /proceed\s+with\s+the\s+cancell?ation/i,
+        /cancell?ing\s+(?:your|the)\s+appointment/i,
+        /(?:has|have)\s+been\s+rescheduled/i,
+        /i['' ]?ve\s+rescheduled/i,
+        /i\s+(?:will|can)\s+reschedul/i,
+      ];
+      if (forbiddenPatterns.some((re) => re.test(content))) {
+        console.warn("Blocked forbidden cancel/reschedule claim from model:", content);
+        content =
+          "To cancel or reschedule your appointment, please contact our clinic directly at +91 96201 23030 / +91 63607 53030, and our front desk team will assist you.";
+      }
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
         start(controller) {

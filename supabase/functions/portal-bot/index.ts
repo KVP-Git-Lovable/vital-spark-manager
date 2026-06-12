@@ -58,38 +58,8 @@ const tools = [
     type: "function",
     function: {
       name: "list_patient_appointments",
-      description: "List the patient's upcoming appointments. Use this when the patient wants to cancel or reschedule, so you can show them which appointments they have.",
+      description: "List the patient's upcoming appointments. Use this to show them which appointments they have booked before redirecting cancel/reschedule requests to the clinic.",
       parameters: { type: "object", properties: {}, required: [] },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "cancel_appointment",
-      description: "Cancel a specific appointment by its ID. Only call after the patient explicitly confirms cancellation.",
-      parameters: {
-        type: "object",
-        properties: {
-          appointment_id: { type: "string", description: "UUID of the appointment to cancel" },
-        },
-        required: ["appointment_id"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "reschedule_appointment",
-      description: "Reschedule an existing appointment to a new date/time. First check doctor availability for the new slot, then call this.",
-      parameters: {
-        type: "object",
-        properties: {
-          appointment_id: { type: "string", description: "UUID of the appointment to reschedule" },
-          new_date: { type: "string", description: "New date in YYYY-MM-DD format" },
-          new_time: { type: "string", description: "New time in HH:MM format (24h)" },
-        },
-        required: ["appointment_id", "new_date", "new_time"],
-      },
     },
   },
   {

@@ -20,6 +20,7 @@ interface QuickAppointmentDialogProps {
     first_name: string;
     last_name: string;
     phone?: string | null;
+    gender?: string | null;
   };
 }
 
@@ -95,11 +96,48 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
         consultation_reasons: savedReasons,
       } as any);
       if (error) throw error;
+      return { start, serviceName };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success("Appointment created");
       queryClient.invalidateQueries({ queryKey: ["patient-appointments", patient.id] });
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      // Send WhatsApp confirmation for Confirmed or Cancelled status
+      const notifyStatuses = ["Confirmed", "Cancelled"];
+      if (patient.phone && data && notifyStatuses.includes(appointmentStatus)) {
+        const patientName = `${patient.first_name} ${patient.last_name}`.trim();
+        if (appointmentStatus === "Confirmed") {
+          supabase.functions.invoke("send-appointment-whatsapp", {
+            body: {
+              phone: patient.phone,
+              patientName,
+              appointmentDate: format(data.start, "dd MMM yyyy"),
+              appointmentTime: format(data.start, "hh:mm a"),
+              serviceName: data.serviceName,
+              patientGender: patient.gender,
+            },
+          }).then(({ error }) => {
+            if (error) console.error("WhatsApp send failed:", error);
+            else toast.success("WhatsApp confirmation sent");
+          });
+        } else {
+          supabase.functions.invoke("send-appointment-update-whatsapp", {
+            body: {
+              phone: patient.phone,
+              patientName,
+              status: appointmentStatus,
+              appointmentDate: format(data.start, "dd MMM yyyy"),
+              appointmentTime: format(data.start, "hh:mm a"),
+              serviceName: data.serviceName,
+              kind: "cancelled",
+              patientGender: patient.gender,
+            },
+          }).then(({ error }) => {
+            if (error) console.error("WhatsApp send failed:", error);
+            else toast.success("WhatsApp notification sent");
+          });
+        }
+      }
       onOpenChange(false);
     },
     onError: (e: any) => toast.error(e.message || "Failed to create appointment"),

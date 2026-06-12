@@ -503,6 +503,30 @@ GENERAL GUIDELINES:
 
     const aiMessages: any[] = [{ role: "system", content: systemPrompt }, ...messages];
 
+    // Short-circuit: if the latest user message is a cancel/reschedule request,
+    // respond directly with the redirect message without calling the model.
+    const lastUser = [...messages].reverse().find((m: any) => m.role === "user");
+    const lastUserText: string = (lastUser?.content || "").toString().toLowerCase().trim();
+    const cancelIntent = /\b(cancel|cancell|reschedul|postpone|change\s+(?:my\s+)?appointment|move\s+(?:my\s+)?appointment)\b/i.test(lastUserText);
+    // Also catch "yes" confirmations when the previous assistant turn asked about cancellation
+    const lastAssistant = [...messages].slice(0, -1).reverse().find((m: any) => m.role === "assistant");
+    const prevAssistantText: string = (lastAssistant?.content || "").toString().toLowerCase();
+    const isYesToCancel = /^(yes|yep|yeah|y|confirm|ok|okay|sure|please do|go ahead|proceed)\b/i.test(lastUserText)
+      && /(cancel|reschedul)/i.test(prevAssistantText);
+    if (cancelIntent || isYesToCancel) {
+      const redirect =
+        "To cancel or reschedule your appointment, please contact our clinic directly at +91 96201 23030 / +91 63607 53030, and our front desk team will assist you.";
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: redirect })}\n\n`));
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          controller.close();
+        },
+      });
+      return new Response(stream, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
+    }
+
     const MAX_TOOL_ROUNDS = 8;
     let round = 0;
 

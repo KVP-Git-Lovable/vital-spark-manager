@@ -213,8 +213,8 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
         appointment: {
           id: appt.id,
           doctor: staffInfo ? `${staffInfo.first_name} ${staffInfo.last_name}` : "Staff",
-          date: new Date(appt.start_time).toLocaleDateString("en-IN"),
-          time: new Date(appt.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+          date: fmtISTDate(appt.start_time),
+          time: fmtISTTime(appt.start_time),
           service: appt.service, status: appt.status,
         },
       });
@@ -232,65 +232,12 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
       const appointments = (data || []).map((a: any) => ({
         id: a.id,
         service: a.service,
-        date: new Date(a.start_time).toLocaleDateString("en-IN"),
-        time: new Date(a.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+        date: fmtISTDate(a.start_time),
+        time: fmtISTTime(a.start_time),
         status: a.status,
         doctor: a.staff ? `Dr. ${a.staff.first_name} ${a.staff.last_name}` : "Not assigned",
       }));
       return JSON.stringify({ upcoming_appointments: appointments, count: appointments.length });
-    }
-
-    case "cancel_appointment": {
-      const { appointment_id } = args;
-      // Verify it belongs to this patient
-      const { data: appt } = await sb.from("appointments").select("id, patient_id, service, start_time, status").eq("id", appointment_id).single();
-      if (!appt) return JSON.stringify({ success: false, error: "Appointment not found." });
-      if (appt.patient_id !== patientId) return JSON.stringify({ success: false, error: "This appointment doesn't belong to you." });
-      if (appt.status === "Cancelled") return JSON.stringify({ success: false, error: "This appointment is already cancelled." });
-
-      const { error } = await sb.from("appointments").update({ status: "Cancelled" }).eq("id", appointment_id);
-      if (error) return JSON.stringify({ success: false, error: error.message });
-
-      return JSON.stringify({
-        success: true,
-        cancelled_appointment: {
-          id: appt.id,
-          service: appt.service,
-          date: new Date(appt.start_time).toLocaleDateString("en-IN"),
-          time: new Date(appt.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
-        },
-      });
-    }
-
-    case "reschedule_appointment": {
-      const { appointment_id, new_date, new_time } = args;
-      const { data: appt } = await sb.from("appointments").select("id, patient_id, staff_id, service, status").eq("id", appointment_id).single();
-      if (!appt) return JSON.stringify({ success: false, error: "Appointment not found." });
-      if (appt.patient_id !== patientId) return JSON.stringify({ success: false, error: "This appointment doesn't belong to you." });
-      if (appt.status === "Cancelled") return JSON.stringify({ success: false, error: "Cannot reschedule a cancelled appointment." });
-
-      const newStart = new Date(`${new_date}T${new_time}:00`);
-      const newEnd = new Date(newStart.getTime() + 30 * 60000);
-
-      const { error } = await sb.from("appointments").update({
-        start_time: newStart.toISOString(),
-        end_time: newEnd.toISOString(),
-        status: "Rescheduled",
-      }).eq("id", appointment_id);
-
-      if (error) return JSON.stringify({ success: false, error: error.message });
-
-      const { data: staffInfo } = await sb.from("staff").select("first_name, last_name").eq("id", appt.staff_id).single();
-      return JSON.stringify({
-        success: true,
-        rescheduled_appointment: {
-          id: appt.id,
-          service: appt.service,
-          doctor: staffInfo ? `${staffInfo.first_name} ${staffInfo.last_name}` : "Staff",
-          new_date: newStart.toLocaleDateString("en-IN"),
-          new_time: newStart.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
-        },
-      });
     }
 
     case "list_shop_products": {

@@ -27,6 +27,21 @@ function titleFromGender(gender?: string | null): string {
   return "";
 }
 
+// If an ISO timestamp is passed instead of a pre-formatted string, render it
+// in IST (Asia/Kolkata). Already-formatted strings like "12:00 PM" pass through.
+function ensureIstTime(value: string): string {
+  if (!value) return value;
+  if (!/T\d{2}:\d{2}/.test(value)) return value;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return d.toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -82,7 +97,7 @@ Deno.serve(async (req) => {
       contentVariables = JSON.stringify({
         "1": patientName,
         "2": appointmentDate,
-        "3": appointmentTime,
+        "3": ensureIstTime(appointmentTime),
       });
     } else {
       templateSid = UPDATE_TEMPLATE_SID;
@@ -110,7 +125,7 @@ Deno.serve(async (req) => {
 
       contentVariables = JSON.stringify({
         "1": namedPatient,
-        "2": appointmentTime,
+        "2": ensureIstTime(appointmentTime),
         "3": serviceName || "Consultation",
         "4": clinicPhone || "-",
         "5": clinicCity || "-",

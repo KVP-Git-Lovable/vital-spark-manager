@@ -6,6 +6,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const IST = "Asia/Kolkata";
+const fmtISTDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-IN", { timeZone: IST, day: "2-digit", month: "short", year: "numeric" });
+const fmtISTTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString("en-IN", { timeZone: IST, hour: "2-digit", minute: "2-digit", hour12: true });
+
 const tools = [
   {
     type: "function",
@@ -52,38 +58,8 @@ const tools = [
     type: "function",
     function: {
       name: "list_patient_appointments",
-      description: "List the patient's upcoming appointments. Use this when the patient wants to cancel or reschedule, so you can show them which appointments they have.",
+      description: "List the patient's upcoming appointments. Use this to show them which appointments they have booked before redirecting cancel/reschedule requests to the clinic.",
       parameters: { type: "object", properties: {}, required: [] },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "cancel_appointment",
-      description: "Cancel a specific appointment by its ID. Only call after the patient explicitly confirms cancellation.",
-      parameters: {
-        type: "object",
-        properties: {
-          appointment_id: { type: "string", description: "UUID of the appointment to cancel" },
-        },
-        required: ["appointment_id"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "reschedule_appointment",
-      description: "Reschedule an existing appointment to a new date/time. First check doctor availability for the new slot, then call this.",
-      parameters: {
-        type: "object",
-        properties: {
-          appointment_id: { type: "string", description: "UUID of the appointment to reschedule" },
-          new_date: { type: "string", description: "New date in YYYY-MM-DD format" },
-          new_time: { type: "string", description: "New time in HH:MM format (24h)" },
-        },
-        required: ["appointment_id", "new_date", "new_time"],
-      },
     },
   },
   {
@@ -237,8 +213,8 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
         appointment: {
           id: appt.id,
           doctor: staffInfo ? `${staffInfo.first_name} ${staffInfo.last_name}` : "Staff",
-          date: new Date(appt.start_time).toLocaleDateString("en-IN"),
-          time: new Date(appt.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+          date: fmtISTDate(appt.start_time),
+          time: fmtISTTime(appt.start_time),
           service: appt.service, status: appt.status,
         },
       });
@@ -256,65 +232,12 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
       const appointments = (data || []).map((a: any) => ({
         id: a.id,
         service: a.service,
-        date: new Date(a.start_time).toLocaleDateString("en-IN"),
-        time: new Date(a.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+        date: fmtISTDate(a.start_time),
+        time: fmtISTTime(a.start_time),
         status: a.status,
         doctor: a.staff ? `Dr. ${a.staff.first_name} ${a.staff.last_name}` : "Not assigned",
       }));
       return JSON.stringify({ upcoming_appointments: appointments, count: appointments.length });
-    }
-
-    case "cancel_appointment": {
-      const { appointment_id } = args;
-      // Verify it belongs to this patient
-      const { data: appt } = await sb.from("appointments").select("id, patient_id, service, start_time, status").eq("id", appointment_id).single();
-      if (!appt) return JSON.stringify({ success: false, error: "Appointment not found." });
-      if (appt.patient_id !== patientId) return JSON.stringify({ success: false, error: "This appointment doesn't belong to you." });
-      if (appt.status === "Cancelled") return JSON.stringify({ success: false, error: "This appointment is already cancelled." });
-
-      const { error } = await sb.from("appointments").update({ status: "Cancelled" }).eq("id", appointment_id);
-      if (error) return JSON.stringify({ success: false, error: error.message });
-
-      return JSON.stringify({
-        success: true,
-        cancelled_appointment: {
-          id: appt.id,
-          service: appt.service,
-          date: new Date(appt.start_time).toLocaleDateString("en-IN"),
-          time: new Date(appt.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
-        },
-      });
-    }
-
-    case "reschedule_appointment": {
-      const { appointment_id, new_date, new_time } = args;
-      const { data: appt } = await sb.from("appointments").select("id, patient_id, staff_id, service, status").eq("id", appointment_id).single();
-      if (!appt) return JSON.stringify({ success: false, error: "Appointment not found." });
-      if (appt.patient_id !== patientId) return JSON.stringify({ success: false, error: "This appointment doesn't belong to you." });
-      if (appt.status === "Cancelled") return JSON.stringify({ success: false, error: "Cannot reschedule a cancelled appointment." });
-
-      const newStart = new Date(`${new_date}T${new_time}:00`);
-      const newEnd = new Date(newStart.getTime() + 30 * 60000);
-
-      const { error } = await sb.from("appointments").update({
-        start_time: newStart.toISOString(),
-        end_time: newEnd.toISOString(),
-        status: "Rescheduled",
-      }).eq("id", appointment_id);
-
-      if (error) return JSON.stringify({ success: false, error: error.message });
-
-      const { data: staffInfo } = await sb.from("staff").select("first_name, last_name").eq("id", appt.staff_id).single();
-      return JSON.stringify({
-        success: true,
-        rescheduled_appointment: {
-          id: appt.id,
-          service: appt.service,
-          doctor: staffInfo ? `${staffInfo.first_name} ${staffInfo.last_name}` : "Staff",
-          new_date: newStart.toLocaleDateString("en-IN"),
-          new_time: newStart.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
-        },
-      });
     }
 
     case "list_shop_products": {
@@ -373,7 +296,7 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
         payment_status: o.payment_status,
         delivery: o.delivery_method,
         tracking: o.tracking_number,
-        date: new Date(o.created_at).toLocaleDateString("en-IN"),
+        date: fmtISTDate(o.created_at),
       }));
       return JSON.stringify({ orders, count: orders.length });
     }
@@ -437,8 +360,8 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
           id: order.id, total: order.total_amount, status: order.status,
           payment_status: order.payment_status, delivery: order.delivery_method,
           tracking_number: order.tracking_number || "Not yet assigned",
-          ordered_on: new Date(order.created_at).toLocaleDateString("en-IN"),
-          last_updated: new Date(order.updated_at).toLocaleDateString("en-IN"),
+          ordered_on: fmtISTDate(order.created_at),
+          last_updated: fmtISTDate(order.updated_at),
           delivery_address: order.delivery_method === "delivery" ? `${order.address || ""}, ${order.city || ""}, ${order.state || ""} ${order.pincode || ""}`.trim() : "Clinic Pickup",
           notes: order.notes,
           items: (items || []).map((i: any) => ({ name: i.product_name, qty: i.quantity, price: i.unit_price, total: i.total_price })),
@@ -496,7 +419,7 @@ serve(async (req) => {
     const pastAppts = appointments.filter((a: any) => new Date(a.start_time) < new Date());
     const totalDue = invoices.filter((i: any) => i.status !== "Paid").reduce((s: number, i: any) => s + (Number(i.total_amount) - Number(i.paid_amount)), 0);
 
-    const today = new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    const today = new Date().toLocaleDateString("en-IN", { timeZone: IST, weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
     const systemPrompt = `You are DermaCare AI, a friendly and professional health assistant for a dermatology clinic's patient portal. You are chatting with ${patientName}. Today is ${today}.
 
@@ -513,11 +436,11 @@ PATIENT PROFILE:
 
 APPOINTMENTS:
 - Upcoming: ${upcomingAppts.length} appointments
-${upcomingAppts.slice(0, 5).map((a: any) => `  - [ID: ${a.id}] ${a.service} on ${new Date(a.start_time).toLocaleDateString("en-IN")} at ${new Date(a.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} (${a.status})${a.staff ? ` with Dr. ${a.staff.first_name} ${a.staff.last_name}` : ""}`).join("\n")}
+${upcomingAppts.slice(0, 5).map((a: any) => `  - [ID: ${a.id}] ${a.service} on ${fmtISTDate(a.start_time)} at ${fmtISTTime(a.start_time)} (${a.status})${a.staff ? ` with Dr. ${a.staff.first_name} ${a.staff.last_name}` : ""}`).join("\n")}
 - Past: ${pastAppts.length} appointments
 
 PROCEDURE HISTORY (recent):
-${procedures.slice(0, 10).map((p: any) => `- ${p.service_name} on ${new Date(p.procedure_date).toLocaleDateString("en-IN")} | Diagnosis: ${p.diagnosis || "N/A"} | Notes: ${p.consultation_notes || "N/A"}${p.staff ? ` | Dr. ${p.staff.first_name} ${p.staff.last_name}` : ""}`).join("\n") || "No procedures recorded"}
+${procedures.slice(0, 10).map((p: any) => `- ${p.service_name} on ${fmtISTDate(p.procedure_date)} | Diagnosis: ${p.diagnosis || "N/A"} | Notes: ${p.consultation_notes || "N/A"}${p.staff ? ` | Dr. ${p.staff.first_name} ${p.staff.last_name}` : ""}`).join("\n") || "No procedures recorded"}
 
 PRESCRIPTIONS:
 ${prescriptions.slice(0, 15).map((rx: any) => `- ${rx.medicine_name} | Dosage: ${rx.dosage || "N/A"} | Frequency: ${rx.frequency || "N/A"} | Duration: ${rx.duration || "N/A"}`).join("\n") || "No prescriptions"}
@@ -525,10 +448,10 @@ ${prescriptions.slice(0, 15).map((rx: any) => `- ${rx.medicine_name} | Dosage: $
 BILLING:
 - Outstanding balance: ₹${totalDue}
 - Total invoices: ${invoices.length}
-${invoices.slice(0, 5).map((i: any) => `- ${i.invoice_number}: ₹${i.total_amount} (${i.status}) - ${new Date(i.created_at).toLocaleDateString("en-IN")}`).join("\n")}
+${invoices.slice(0, 5).map((i: any) => `- ${i.invoice_number}: ₹${i.total_amount} (${i.status}) - ${fmtISTDate(i.created_at)}`).join("\n")}
 
 RECENT ORDERS:
-${orders.slice(0, 5).map((o: any) => `- [ID: ${o.id}] ₹${o.total_amount} | Status: ${o.status} | Payment: ${o.payment_status} | ${o.delivery_method} | Tracking: ${o.tracking_number || "N/A"} | ${new Date(o.created_at).toLocaleDateString("en-IN")}`).join("\n") || "No orders"}
+${orders.slice(0, 5).map((o: any) => `- [ID: ${o.id}] ₹${o.total_amount} | Status: ${o.status} | Payment: ${o.payment_status} | ${o.delivery_method} | Tracking: ${o.tracking_number || "N/A"} | ${fmtISTDate(o.created_at)}`).join("\n") || "No orders"}
 
 AVAILABLE SERVICES:
 ${(servicesRes.data || []).slice(0, 20).map((s: any) => `- ${s.name} (${s.category}) - ₹${s.price}`).join("\n")}
@@ -545,18 +468,8 @@ You can book appointments using tools. Follow this flow:
 5. Summarize details and ask for explicit confirmation.
 6. Only after confirmation, call book_appointment.
 
-APPOINTMENT CANCELLATION GUIDELINES:
-1. Call list_patient_appointments to show their upcoming appointments.
-2. Ask which one they want to cancel.
-3. Confirm with the patient before calling cancel_appointment.
-4. Confirm the cancellation.
-
-APPOINTMENT RESCHEDULE GUIDELINES:
-1. Call list_patient_appointments to show their upcoming appointments.
-2. Ask which one to reschedule and the new preferred date/time.
-3. Call check_doctor_availability for the new slot (use the staff_id from the appointment).
-4. If available, confirm with patient, then call reschedule_appointment.
-5. Confirm the new schedule.
+APPOINTMENT CANCELLATION / RESCHEDULE POLICY:
+Never cancel, reschedule, or change the status of any appointment. You do not have tools to do this and must not pretend to. If the patient asks to cancel or reschedule, you may first call list_patient_appointments to show them what they have booked, then reply with exactly this message: "To cancel or reschedule your appointment, please contact our clinic directly at +91 96201 23030 / +91 63607 53030, and our front desk team will assist you." Do not promise to cancel or reschedule on their behalf under any circumstance.
 
 PRODUCT ORDERING GUIDELINES:
 1. When the patient wants to buy products, call list_shop_products to show options.

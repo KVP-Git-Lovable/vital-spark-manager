@@ -29,6 +29,7 @@ import { FamilyMembers } from "@/components/patients/FamilyMembers";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
+import { QuickAppointmentDialog } from "@/components/appointments/QuickAppointmentDialog";
 import { toast } from "sonner";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { approveSurveyResponse, enrichAiProducts, enrichAiServices } from "@/lib/surveyApproval";
@@ -91,6 +92,7 @@ const PatientDetail = () => {
   const [rxForm, setRxForm] = useState({ medicine_name: "", dosage: "", frequency: "", duration: "", quantity: 1, instructions: "", procedure_id: "" });
   const [selectedProcedureId, setSelectedProcedureId] = useState<string | null>(null);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  const [quickApptOpen, setQuickApptOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -935,7 +937,7 @@ const PatientDetail = () => {
         <TabsContent value="appointments">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex justify-end mb-3">
-              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate(`/appointments?new=1&patient_id=${id}`)}>
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setQuickApptOpen(true)}>
                 <Plus className="h-3.5 w-3.5" /> Book Appointment
               </Button>
             </div>

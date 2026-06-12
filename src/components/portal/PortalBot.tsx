@@ -18,7 +18,6 @@ interface PortalBotProps {
 
 const quickActions = [
   "Book an appointment",
-  "Cancel or reschedule appointment",
   "Order products",
   "Track my order",
   "Reorder previous purchase",

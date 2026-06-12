@@ -296,7 +296,7 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
         payment_status: o.payment_status,
         delivery: o.delivery_method,
         tracking: o.tracking_number,
-        date: new Date(o.created_at).toLocaleDateString("en-IN"),
+        date: fmtISTDate(o.created_at),
       }));
       return JSON.stringify({ orders, count: orders.length });
     }
@@ -360,8 +360,8 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
           id: order.id, total: order.total_amount, status: order.status,
           payment_status: order.payment_status, delivery: order.delivery_method,
           tracking_number: order.tracking_number || "Not yet assigned",
-          ordered_on: new Date(order.created_at).toLocaleDateString("en-IN"),
-          last_updated: new Date(order.updated_at).toLocaleDateString("en-IN"),
+          ordered_on: fmtISTDate(order.created_at),
+          last_updated: fmtISTDate(order.updated_at),
           delivery_address: order.delivery_method === "delivery" ? `${order.address || ""}, ${order.city || ""}, ${order.state || ""} ${order.pincode || ""}`.trim() : "Clinic Pickup",
           notes: order.notes,
           items: (items || []).map((i: any) => ({ name: i.product_name, qty: i.quantity, price: i.unit_price, total: i.total_price })),

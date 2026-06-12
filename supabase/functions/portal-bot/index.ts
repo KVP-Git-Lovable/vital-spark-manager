@@ -419,7 +419,7 @@ serve(async (req) => {
     const pastAppts = appointments.filter((a: any) => new Date(a.start_time) < new Date());
     const totalDue = invoices.filter((i: any) => i.status !== "Paid").reduce((s: number, i: any) => s + (Number(i.total_amount) - Number(i.paid_amount)), 0);
 
-    const today = new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    const today = new Date().toLocaleDateString("en-IN", { timeZone: IST, weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
     const systemPrompt = `You are DermaCare AI, a friendly and professional health assistant for a dermatology clinic's patient portal. You are chatting with ${patientName}. Today is ${today}.
 
@@ -436,11 +436,11 @@ PATIENT PROFILE:
 
 APPOINTMENTS:
 - Upcoming: ${upcomingAppts.length} appointments
-${upcomingAppts.slice(0, 5).map((a: any) => `  - [ID: ${a.id}] ${a.service} on ${new Date(a.start_time).toLocaleDateString("en-IN")} at ${new Date(a.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} (${a.status})${a.staff ? ` with Dr. ${a.staff.first_name} ${a.staff.last_name}` : ""}`).join("\n")}
+${upcomingAppts.slice(0, 5).map((a: any) => `  - [ID: ${a.id}] ${a.service} on ${fmtISTDate(a.start_time)} at ${fmtISTTime(a.start_time)} (${a.status})${a.staff ? ` with Dr. ${a.staff.first_name} ${a.staff.last_name}` : ""}`).join("\n")}
 - Past: ${pastAppts.length} appointments
 
 PROCEDURE HISTORY (recent):
-${procedures.slice(0, 10).map((p: any) => `- ${p.service_name} on ${new Date(p.procedure_date).toLocaleDateString("en-IN")} | Diagnosis: ${p.diagnosis || "N/A"} | Notes: ${p.consultation_notes || "N/A"}${p.staff ? ` | Dr. ${p.staff.first_name} ${p.staff.last_name}` : ""}`).join("\n") || "No procedures recorded"}
+${procedures.slice(0, 10).map((p: any) => `- ${p.service_name} on ${fmtISTDate(p.procedure_date)} | Diagnosis: ${p.diagnosis || "N/A"} | Notes: ${p.consultation_notes || "N/A"}${p.staff ? ` | Dr. ${p.staff.first_name} ${p.staff.last_name}` : ""}`).join("\n") || "No procedures recorded"}
 
 PRESCRIPTIONS:
 ${prescriptions.slice(0, 15).map((rx: any) => `- ${rx.medicine_name} | Dosage: ${rx.dosage || "N/A"} | Frequency: ${rx.frequency || "N/A"} | Duration: ${rx.duration || "N/A"}`).join("\n") || "No prescriptions"}
@@ -448,10 +448,10 @@ ${prescriptions.slice(0, 15).map((rx: any) => `- ${rx.medicine_name} | Dosage: $
 BILLING:
 - Outstanding balance: ₹${totalDue}
 - Total invoices: ${invoices.length}
-${invoices.slice(0, 5).map((i: any) => `- ${i.invoice_number}: ₹${i.total_amount} (${i.status}) - ${new Date(i.created_at).toLocaleDateString("en-IN")}`).join("\n")}
+${invoices.slice(0, 5).map((i: any) => `- ${i.invoice_number}: ₹${i.total_amount} (${i.status}) - ${fmtISTDate(i.created_at)}`).join("\n")}
 
 RECENT ORDERS:
-${orders.slice(0, 5).map((o: any) => `- [ID: ${o.id}] ₹${o.total_amount} | Status: ${o.status} | Payment: ${o.payment_status} | ${o.delivery_method} | Tracking: ${o.tracking_number || "N/A"} | ${new Date(o.created_at).toLocaleDateString("en-IN")}`).join("\n") || "No orders"}
+${orders.slice(0, 5).map((o: any) => `- [ID: ${o.id}] ₹${o.total_amount} | Status: ${o.status} | Payment: ${o.payment_status} | ${o.delivery_method} | Tracking: ${o.tracking_number || "N/A"} | ${fmtISTDate(o.created_at)}`).join("\n") || "No orders"}
 
 AVAILABLE SERVICES:
 ${(servicesRes.data || []).slice(0, 20).map((s: any) => `- ${s.name} (${s.category}) - ₹${s.price}`).join("\n")}
@@ -468,18 +468,8 @@ You can book appointments using tools. Follow this flow:
 5. Summarize details and ask for explicit confirmation.
 6. Only after confirmation, call book_appointment.
 
-APPOINTMENT CANCELLATION GUIDELINES:
-1. Call list_patient_appointments to show their upcoming appointments.
-2. Ask which one they want to cancel.
-3. Confirm with the patient before calling cancel_appointment.
-4. Confirm the cancellation.
-
-APPOINTMENT RESCHEDULE GUIDELINES:
-1. Call list_patient_appointments to show their upcoming appointments.
-2. Ask which one to reschedule and the new preferred date/time.
-3. Call check_doctor_availability for the new slot (use the staff_id from the appointment).
-4. If available, confirm with patient, then call reschedule_appointment.
-5. Confirm the new schedule.
+APPOINTMENT CANCELLATION / RESCHEDULE POLICY:
+Never cancel, reschedule, or change the status of any appointment. You do not have tools to do this and must not pretend to. If the patient asks to cancel or reschedule, you may first call list_patient_appointments to show them what they have booked, then reply with exactly this message: "To cancel or reschedule your appointment, please contact our clinic directly at +91 96201 23030 / +91 63607 53030, and our front desk team will assist you." Do not promise to cancel or reschedule on their behalf under any circumstance.
 
 PRODUCT ORDERING GUIDELINES:
 1. When the patient wants to buy products, call list_shop_products to show options.

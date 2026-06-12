@@ -1698,6 +1698,7 @@ const PatientDetail = () => {
             first_name: patient.first_name,
             last_name: patient.last_name,
             phone: patient.phone,
+            gender: patient.gender,
           }}
         />
       )}

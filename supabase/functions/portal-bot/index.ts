@@ -550,7 +550,29 @@ GENERAL GUIDELINES:
       }
 
       // Final text response - stream as SSE
-      const content = assistantMessage.content || "";
+      let content = assistantMessage.content || "";
+
+      // Hard safety net: if the model hallucinates a cancellation / reschedule
+      // action, override the response with the redirect message. This protects
+      // against prompt-instruction drift even though there is no cancel tool.
+      const forbiddenPatterns = [
+        /successfully\s+cancell?ed/i,
+        /has\s+been\s+cancell?ed/i,
+        /i['' ]?ve\s+cancell?ed/i,
+        /i\s+will\s+cancell?/i,
+        /i['' ]?ll\s+cancell?/i,
+        /let\s+me\s+cancell?/i,
+        /proceed\s+with\s+the\s+cancell?ation/i,
+        /cancell?ing\s+(?:your|the)\s+appointment/i,
+        /(?:has|have)\s+been\s+rescheduled/i,
+        /i['' ]?ve\s+rescheduled/i,
+        /i\s+(?:will|can)\s+reschedul/i,
+      ];
+      if (forbiddenPatterns.some((re) => re.test(content))) {
+        console.warn("Blocked forbidden cancel/reschedule claim from model:", content);
+        content =
+          "To cancel or reschedule your appointment, please contact our clinic directly at +91 96201 23030 / +91 63607 53030, and our front desk team will assist you.";
+      }
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
         start(controller) {

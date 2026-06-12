@@ -519,12 +519,13 @@ GENERAL GUIDELINES:
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
         start(controller) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: redirect })}\n\n`));
-          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          const sseData = JSON.stringify({ choices: [{ delta: { content: redirect } }] });
+          controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         },
       });
-      return new Response(stream, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } });
+      return new Response(stream, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
     }
 
     const MAX_TOOL_ROUNDS = 8;

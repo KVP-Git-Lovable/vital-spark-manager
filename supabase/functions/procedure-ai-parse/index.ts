@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     }
 
     const fmt = (list: any[]) =>
-      (list || []).slice(0, 800).map((x) => `${x.id}|${x.name}`).join("\n") || "(none)";
+      (list || []).slice(0, 800).map((x) => x.name).join("\n") || "(none)";
 
     const system = `You parse a doctor's free-form clinical dictation into structured procedure fields.
 Only populate fields the doctor explicitly mentioned. For fields not mentioned, return null.

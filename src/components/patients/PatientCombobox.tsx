@@ -132,8 +132,18 @@ export function PatientCombobox({
   const displayName = (p: PatientLite) => {
     const name = getRawName(p);
     if (hasMeaningfulName(p)) return name;
-    if (name) return name;
     return "Unnamed";
+  };
+
+  const displayRow = (p: PatientLite) => {
+    const name = displayName(p);
+    const phone = (p.phone || "").trim();
+    // If the stored name is itself the phone, just show the phone once.
+    const rawName = getRawName(p);
+    const nameIsPhone = !!rawName && PHONE_LIKE_NAME.test(rawName);
+    if (phone && !nameIsPhone) return `${name} — ${phone}`;
+    if (phone && nameIsPhone) return `Unnamed — ${phone}`;
+    return name;
   };
 
   const sorted = useMemo(() => {
@@ -250,7 +260,7 @@ export function PatientCombobox({
                   )}
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="truncate">{displayName(p)}</p>
+                  <p className="truncate">{displayRow(p)}</p>
                 </div>
               </button>
             ))

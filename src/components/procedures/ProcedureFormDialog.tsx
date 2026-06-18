@@ -121,12 +121,31 @@ export function ProcedureFormDialog({
     lastParsedRef.current = trimmed;
     setParsing(true);
     try {
+      const patientList = (patients || []).map((p: any) => ({
+        id: p.id,
+        name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+      }));
+      const doctorList = (allStaff || [])
+        .filter((s: any) => (s.role || "").toLowerCase() === "doctor")
+        .map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}`.trim() }));
+      const assistantList = (allStaff || [])
+        .filter((s: any) => {
+          const r = (s.role || "").toLowerCase();
+          return r === "nurse" || r === "therapist" || r === "staff" || r === "assistant";
+        })
+        .map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}`.trim() }));
+      const problemAreaList = (problemAreas || []).map((p: any) => ({ id: p.id, name: p.name }));
+
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/procedure-ai-parse`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
         body: JSON.stringify({
           transcript: trimmed,
           currentFields: { service_name: serviceName, symptoms, diagnosis, procedure_notes: procedureNotes, recommendations },
+          patients: patientList,
+          doctors: doctorList,
+          assistants: assistantList,
+          problemAreas: problemAreaList,
         }),
       });
       if (!res.ok) {
@@ -135,6 +154,44 @@ export function ProcedureFormDialog({
       }
       const data = await res.json();
       const filled: string[] = [];
+      const nextHints: typeof unmatchedHints = {};
+
+      // Patient
+      if (data.patient_id && patientList.some((p) => p.id === data.patient_id)) {
+        setPatientId(data.patient_id);
+        filled.push("patient");
+      } else if (data.patient_query) {
+        nextHints.patient = data.patient_query;
+      }
+      // Doctor
+      if (data.doctor_id && doctorList.some((p) => p.id === data.doctor_id)) {
+        setStaffId(data.doctor_id);
+        filled.push("doctor");
+      } else if (data.doctor_query) {
+        nextHints.doctor = data.doctor_query;
+      }
+      // Assistant
+      if (data.assistant_id && assistantList.some((p) => p.id === data.assistant_id)) {
+        setAssistedBy(data.assistant_id);
+        filled.push("assistant");
+      } else if (data.assistant_query) {
+        nextHints.assistant = data.assistant_query;
+      }
+      // Problem areas (merge)
+      if (Array.isArray(data.problem_area_ids) && data.problem_area_ids.length) {
+        const valid = data.problem_area_ids.filter((id: string) =>
+          problemAreaList.some((pa) => pa.id === id)
+        );
+        if (valid.length) {
+          setSelectedProblemAreas((prev) => Array.from(new Set([...prev, ...valid])));
+          filled.push("problem_areas");
+        }
+      }
+      if (Array.isArray(data.problem_area_unmatched) && data.problem_area_unmatched.length) {
+        nextHints.problemAreas = data.problem_area_unmatched;
+      }
+      setUnmatchedHints(nextHints);
+
       if (data.service_name) { setServiceName(data.service_name); filled.push("service"); }
       if (data.symptoms) { setSymptoms(data.symptoms); filled.push("symptoms"); }
       if (data.diagnosis) { setDiagnosis(data.diagnosis); filled.push("diagnosis"); }

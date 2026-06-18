@@ -6,9 +6,6 @@ Deno.serve(async (req) => {
     const {
       transcript,
       currentFields = {},
-      patients = [],
-      doctors = [],
-      assistants = [],
       problemAreas = [],
     } = await req.json();
     if (!transcript || typeof transcript !== "string") {
@@ -31,21 +28,15 @@ Only populate fields the doctor explicitly mentioned. For fields not mentioned, 
 Do NOT invent clinical content. Keep wording close to the doctor's words; light cleanup only.
 If the doctor mentioned medicines, return each as a prescription row.
 
-DROPDOWN MATCHING RULES (very important):
-- For patient, doctor, assistant, and problem areas, you MUST map the spoken phrase to the
-  closest option in the provided lists using fuzzy / word-overlap matching.
-- Tolerate transcription noise: missing/extra honorifics (Dr., nurse), word order, partial
-  names, minor spelling variants, plural/singular ("pimples" -> "Acne", "wrinkles" -> "Anti Aging").
-- Return the EXACT id from the list when you find a reasonable match (do not invent ids).
-- If you are NOT confident in a match, set the id (or omit it from the array) and return the
-  raw spoken phrase in the corresponding *_query / *_unmatched field so the UI can show a hint.
-- problem_area_ids is an array — include every confident match; put unmatched phrases in
-  problem_area_unmatched.
+EXTRACTION RULES:
+- patient_name: full name of the patient mentioned, exactly as spoken (strip honorifics).
+- doctor_name: full name of the doctor mentioned (strip "Dr.", "doctor").
+- assistant_name: full name of any nurse / assistant / therapist mentioned.
+- problem_areas: array of concern phrases (e.g. "acne", "anti aging"). Map to the
+  closest names from the PROBLEM AREAS list below when possible; otherwise return the
+  raw spoken phrase. The client performs final fuzzy matching.
 
-PATIENTS (id|name):\n${fmt(patients)}\n
-DOCTORS (id|name):\n${fmt(doctors)}\n
-ASSISTANTS (id|name, nurses & support staff):\n${fmt(assistants)}\n
-PROBLEM AREAS (id|name):\n${fmt(problemAreas)}`;
+PROBLEM AREAS (names):\n${fmt(problemAreas)}`;
 
     const user = `TRANSCRIPT:\n${transcript}\n\nCURRENT FIELDS (for context, do not duplicate if unchanged):\n${JSON.stringify(currentFields)}`;
 
@@ -66,17 +57,10 @@ PROBLEM AREAS (id|name):\n${fmt(problemAreas)}`;
             parameters: {
               type: "object",
               properties: {
-                patient_id: { type: ["string", "null"] },
-                patient_query: { type: ["string", "null"] },
-                doctor_id: { type: ["string", "null"] },
-                doctor_query: { type: ["string", "null"] },
-                assistant_id: { type: ["string", "null"] },
-                assistant_query: { type: ["string", "null"] },
-                problem_area_ids: {
-                  type: "array",
-                  items: { type: "string" },
-                },
-                problem_area_unmatched: {
+                patient_name: { type: ["string", "null"] },
+                doctor_name: { type: ["string", "null"] },
+                assistant_name: { type: ["string", "null"] },
+                problem_areas: {
                   type: "array",
                   items: { type: "string" },
                 },

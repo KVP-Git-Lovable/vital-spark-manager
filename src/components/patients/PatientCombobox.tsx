@@ -136,22 +136,25 @@ export function PatientCombobox({
   };
 
   const displayRow = (p: PatientLite) => {
-    const name = displayName(p);
+    // Deterministic label builder — guarantees a row never renders as a bare phone.
+    const name = hasMeaningfulName(p) ? getRawName(p) : "Unnamed";
     const phone = (p.phone || "").trim();
-    // If the stored name is itself the phone, just show the phone once.
-    const rawName = getRawName(p);
-    const nameIsPhone = !!rawName && PHONE_LIKE_NAME.test(rawName);
-    if (phone && !nameIsPhone) return `${name} — ${phone}`;
-    if (phone && nameIsPhone) return `Unnamed — ${phone}`;
-    return name;
+    const label = phone ? `${name} — ${phone}` : name;
+    // Final guard: if for any reason the label is still phone-like, prepend "Unnamed — ".
+    if (PHONE_LIKE_NAME.test(label)) return `Unnamed — ${label}`;
+    return label;
   };
 
   const sorted = useMemo(() => {
+    // Sort order: named patients first (alphabetical by name),
+    // then unnamed/phone-only patients at the bottom (sorted by phone).
     return [...list].sort((a, b) => {
       const an = hasMeaningfulName(a);
       const bn = hasMeaningfulName(b);
       if (an !== bn) return an ? -1 : 1;
-      return displayName(a).localeCompare(displayName(b), undefined, {
+      const keyA = an ? getRawName(a) : (a.phone || "").trim();
+      const keyB = bn ? getRawName(b) : (b.phone || "").trim();
+      return keyA.localeCompare(keyB, undefined, {
         numeric: true,
         sensitivity: "base",
       });
@@ -195,7 +198,7 @@ export function PatientCombobox({
           className={cn("w-full justify-between font-normal", className)}
         >
           <span className="truncate">
-            {selected ? displayName(selected) : placeholder}
+            {selected ? displayRow(selected) : placeholder}
           </span>
           <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button>
@@ -244,6 +247,7 @@ export function PatientCombobox({
               <button
                 type="button"
                 key={p.id}
+                data-testid="patient-row"
                 className={cn(
                   "w-full text-left px-2 py-1.5 text-sm rounded flex items-center gap-2 hover:bg-accent",
                   value === p.id && "bg-accent"

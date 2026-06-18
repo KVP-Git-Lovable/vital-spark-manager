@@ -563,19 +563,28 @@ export function ProcedureFormDialog({
               <Label>Patient *</Label>
               <PatientCombobox
                 value={patientId}
-                onValueChange={setPatientId}
+                onValueChange={(v) => { setPatientId(v); setUnmatchedHints((h) => ({ ...h, patient: undefined })); }}
                 placeholder="Select patient"
                 className="mt-1.5"
                 disabled={isFromAppointment}
               />
+              {unmatchedHints.patient && (
+                <p className="text-xs text-amber-600 mt-1">Couldn't match "{unmatchedHints.patient}" — please select manually.</p>
+              )}
             </div>
             <div>
               <Label>Doctor</Label>
-              <StaffCombobox value={staffId} onValueChange={setStaffId} placeholder="Select doctor" className="mt-1.5" roleFilter={["Doctor"]} />
+              <StaffCombobox value={staffId} onValueChange={(v) => { setStaffId(v); setUnmatchedHints((h) => ({ ...h, doctor: undefined })); }} placeholder="Select doctor" className="mt-1.5" roleFilter={["Doctor"]} />
+              {unmatchedHints.doctor && (
+                <p className="text-xs text-amber-600 mt-1">Couldn't match "{unmatchedHints.doctor}" — please select manually.</p>
+              )}
             </div>
             <div>
               <Label>Assisted By</Label>
-              <StaffCombobox value={assistedBy} onValueChange={setAssistedBy} placeholder="Select assistant" allowNone noneLabel="No assistant" className="mt-1.5" />
+              <StaffCombobox value={assistedBy} onValueChange={(v) => { setAssistedBy(v); setUnmatchedHints((h) => ({ ...h, assistant: undefined })); }} placeholder="Select assistant" allowNone noneLabel="No assistant" className="mt-1.5" />
+              {unmatchedHints.assistant && (
+                <p className="text-xs text-amber-600 mt-1">Couldn't match "{unmatchedHints.assistant}" — please select manually.</p>
+              )}
             </div>
             <div>
               <Label>Problem Areas</Label>
@@ -612,6 +621,9 @@ export function ProcedureFormDialog({
                   </Command>
                 </PopoverContent>
               </Popover>
+              {unmatchedHints.problemAreas && unmatchedHints.problemAreas.length > 0 && (
+                <p className="text-xs text-amber-600 mt-1">Couldn't match: {unmatchedHints.problemAreas.map((q) => `"${q}"`).join(", ")} — please select manually.</p>
+              )}
             </div>
           </div>
 

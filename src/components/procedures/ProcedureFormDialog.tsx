@@ -231,6 +231,17 @@ export function ProcedureFormDialog({
     },
   });
 
+  const { data: allStaff = [] } = useQuery({
+    queryKey: ["staff-active-all-for-ai"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff")
+        .select("id, first_name, last_name, role")
+        .eq("is_active", true);
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const { data: services = [] } = useQuery({
     queryKey: ["services-lookup"],

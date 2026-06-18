@@ -82,6 +82,12 @@ export function ProcedureFormDialog({
   const [parsing, setParsing] = useState(false);
   const [elaboratingAll, setElaboratingAll] = useState(false);
   const [recentlyFilled, setRecentlyFilled] = useState<Record<string, boolean>>({});
+  const [unmatchedHints, setUnmatchedHints] = useState<{
+    patient?: string;
+    doctor?: string;
+    assistant?: string;
+    problemAreas?: string[];
+  }>({});
   const parseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastParsedRef = useRef<string>("");
 

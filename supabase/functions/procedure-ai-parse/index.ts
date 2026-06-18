@@ -3,7 +3,14 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { transcript, currentFields = {} } = await req.json();
+    const {
+      transcript,
+      currentFields = {},
+      patients = [],
+      doctors = [],
+      assistants = [],
+      problemAreas = [],
+    } = await req.json();
     if (!transcript || typeof transcript !== "string") {
       return new Response(JSON.stringify({ error: "transcript required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -16,10 +23,29 @@ Deno.serve(async (req) => {
       });
     }
 
+    const fmt = (list: any[]) =>
+      (list || []).slice(0, 800).map((x) => `${x.id}|${x.name}`).join("\n") || "(none)";
+
     const system = `You parse a doctor's free-form clinical dictation into structured procedure fields.
-Only populate fields that the doctor explicitly mentioned in the transcript. For fields not mentioned, return null.
+Only populate fields the doctor explicitly mentioned. For fields not mentioned, return null.
 Do NOT invent clinical content. Keep wording close to the doctor's words; light cleanup only.
-If the doctor mentioned medicines, return each as a prescription row.`;
+If the doctor mentioned medicines, return each as a prescription row.
+
+DROPDOWN MATCHING RULES (very important):
+- For patient, doctor, assistant, and problem areas, you MUST map the spoken phrase to the
+  closest option in the provided lists using fuzzy / word-overlap matching.
+- Tolerate transcription noise: missing/extra honorifics (Dr., nurse), word order, partial
+  names, minor spelling variants, plural/singular ("pimples" -> "Acne", "wrinkles" -> "Anti Aging").
+- Return the EXACT id from the list when you find a reasonable match (do not invent ids).
+- If you are NOT confident in a match, set the id (or omit it from the array) and return the
+  raw spoken phrase in the corresponding *_query / *_unmatched field so the UI can show a hint.
+- problem_area_ids is an array — include every confident match; put unmatched phrases in
+  problem_area_unmatched.
+
+PATIENTS (id|name):\n${fmt(patients)}\n
+DOCTORS (id|name):\n${fmt(doctors)}\n
+ASSISTANTS (id|name, nurses & support staff):\n${fmt(assistants)}\n
+PROBLEM AREAS (id|name):\n${fmt(problemAreas)}`;
 
     const user = `TRANSCRIPT:\n${transcript}\n\nCURRENT FIELDS (for context, do not duplicate if unchanged):\n${JSON.stringify(currentFields)}`;
 
@@ -40,6 +66,20 @@ If the doctor mentioned medicines, return each as a prescription row.`;
             parameters: {
               type: "object",
               properties: {
+                patient_id: { type: ["string", "null"] },
+                patient_query: { type: ["string", "null"] },
+                doctor_id: { type: ["string", "null"] },
+                doctor_query: { type: ["string", "null"] },
+                assistant_id: { type: ["string", "null"] },
+                assistant_query: { type: ["string", "null"] },
+                problem_area_ids: {
+                  type: "array",
+                  items: { type: "string" },
+                },
+                problem_area_unmatched: {
+                  type: "array",
+                  items: { type: "string" },
+                },
                 service_name: { type: ["string", "null"] },
                 symptoms: { type: ["string", "null"] },
                 diagnosis: { type: ["string", "null"] },

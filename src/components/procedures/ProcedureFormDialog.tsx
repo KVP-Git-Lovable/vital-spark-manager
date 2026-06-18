@@ -142,9 +142,6 @@ export function ProcedureFormDialog({
         body: JSON.stringify({
           transcript: trimmed,
           currentFields: { service_name: serviceName, symptoms, diagnosis, procedure_notes: procedureNotes, recommendations },
-          patients: patientList,
-          doctors: doctorList,
-          assistants: assistantList,
           problemAreas: problemAreaList,
         }),
       });
@@ -153,42 +150,67 @@ export function ProcedureFormDialog({
         throw new Error(err.error || "Parse failed");
       }
       const data = await res.json();
+      console.log("[procedure-ai-parse] response", data);
       const filled: string[] = [];
       const nextHints: typeof unmatchedHints = {};
 
+      // Local fuzzy matching against full lists (DB has 17k+ patients — cannot send all to AI)
+      const norm = (s: string) =>
+        s.toLowerCase().replace(/\b(dr|doctor|mr|mrs|ms|nurse)\b\.?/g, "").replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+      const fuzzyMatch = (query: string, list: { id: string; name: string }[]) => {
+        const q = norm(query);
+        if (!q) return null;
+        const qTokens = q.split(" ").filter(Boolean);
+        let best: { id: string; score: number } | null = null;
+        for (const item of list) {
+          const n = norm(item.name);
+          if (!n) continue;
+          let score = 0;
+          if (n === q) score = 1000;
+          else if (n.includes(q) || q.includes(n)) score = 500;
+          else {
+            const nTokens = new Set(n.split(" "));
+            const hits = qTokens.filter((t) => nTokens.has(t)).length;
+            if (hits === 0) continue;
+            score = hits * 100 - Math.abs(n.length - q.length);
+          }
+          if (!best || score > best.score) best = { id: item.id, score };
+        }
+        return best && best.score >= 100 ? best.id : null;
+      };
+
       // Patient
-      if (data.patient_id && patientList.some((p) => p.id === data.patient_id)) {
-        setPatientId(data.patient_id);
-        filled.push("patient");
-      } else if (data.patient_query) {
-        nextHints.patient = data.patient_query;
+      if (data.patient_name) {
+        const id = fuzzyMatch(data.patient_name, patientList);
+        if (id) { setPatientId(id); filled.push("patient"); }
+        else nextHints.patient = data.patient_name;
       }
       // Doctor
-      if (data.doctor_id && doctorList.some((p) => p.id === data.doctor_id)) {
-        setStaffId(data.doctor_id);
-        filled.push("doctor");
-      } else if (data.doctor_query) {
-        nextHints.doctor = data.doctor_query;
+      if (data.doctor_name) {
+        const id = fuzzyMatch(data.doctor_name, doctorList);
+        if (id) { setStaffId(id); filled.push("doctor"); }
+        else nextHints.doctor = data.doctor_name;
       }
       // Assistant
-      if (data.assistant_id && assistantList.some((p) => p.id === data.assistant_id)) {
-        setAssistedBy(data.assistant_id);
-        filled.push("assistant");
-      } else if (data.assistant_query) {
-        nextHints.assistant = data.assistant_query;
+      if (data.assistant_name) {
+        const id = fuzzyMatch(data.assistant_name, assistantList);
+        if (id) { setAssistedBy(id); filled.push("assistant"); }
+        else nextHints.assistant = data.assistant_name;
       }
-      // Problem areas (merge)
-      if (Array.isArray(data.problem_area_ids) && data.problem_area_ids.length) {
-        const valid = data.problem_area_ids.filter((id: string) =>
-          problemAreaList.some((pa) => pa.id === id)
-        );
-        if (valid.length) {
-          setSelectedProblemAreas((prev) => Array.from(new Set([...prev, ...valid])));
+      // Problem areas
+      if (Array.isArray(data.problem_areas) && data.problem_areas.length) {
+        const matchedIds: string[] = [];
+        const unmatched: string[] = [];
+        for (const phrase of data.problem_areas) {
+          const id = fuzzyMatch(phrase, problemAreaList);
+          if (id) matchedIds.push(id);
+          else unmatched.push(phrase);
+        }
+        if (matchedIds.length) {
+          setSelectedProblemAreas((prev) => Array.from(new Set([...prev, ...matchedIds])));
           filled.push("problem_areas");
         }
-      }
-      if (Array.isArray(data.problem_area_unmatched) && data.problem_area_unmatched.length) {
-        nextHints.problemAreas = data.problem_area_unmatched;
+        if (unmatched.length) nextHints.problemAreas = unmatched;
       }
       setUnmatchedHints(nextHints);
 

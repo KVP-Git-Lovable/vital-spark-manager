@@ -82,6 +82,12 @@ export function ProcedureFormDialog({
   const [parsing, setParsing] = useState(false);
   const [elaboratingAll, setElaboratingAll] = useState(false);
   const [recentlyFilled, setRecentlyFilled] = useState<Record<string, boolean>>({});
+  const [unmatchedHints, setUnmatchedHints] = useState<{
+    patient?: string;
+    doctor?: string;
+    assistant?: string;
+    problemAreas?: string[];
+  }>({});
   const parseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastParsedRef = useRef<string>("");
 
@@ -115,12 +121,31 @@ export function ProcedureFormDialog({
     lastParsedRef.current = trimmed;
     setParsing(true);
     try {
+      const patientList = (patients || []).map((p: any) => ({
+        id: p.id,
+        name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+      }));
+      const doctorList = (allStaff || [])
+        .filter((s: any) => (s.role || "").toLowerCase() === "doctor")
+        .map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}`.trim() }));
+      const assistantList = (allStaff || [])
+        .filter((s: any) => {
+          const r = (s.role || "").toLowerCase();
+          return r === "nurse" || r === "therapist" || r === "staff" || r === "assistant";
+        })
+        .map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}`.trim() }));
+      const problemAreaList = (problemAreas || []).map((p: any) => ({ id: p.id, name: p.name }));
+
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/procedure-ai-parse`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
         body: JSON.stringify({
           transcript: trimmed,
           currentFields: { service_name: serviceName, symptoms, diagnosis, procedure_notes: procedureNotes, recommendations },
+          patients: patientList,
+          doctors: doctorList,
+          assistants: assistantList,
+          problemAreas: problemAreaList,
         }),
       });
       if (!res.ok) {
@@ -129,6 +154,44 @@ export function ProcedureFormDialog({
       }
       const data = await res.json();
       const filled: string[] = [];
+      const nextHints: typeof unmatchedHints = {};
+
+      // Patient
+      if (data.patient_id && patientList.some((p) => p.id === data.patient_id)) {
+        setPatientId(data.patient_id);
+        filled.push("patient");
+      } else if (data.patient_query) {
+        nextHints.patient = data.patient_query;
+      }
+      // Doctor
+      if (data.doctor_id && doctorList.some((p) => p.id === data.doctor_id)) {
+        setStaffId(data.doctor_id);
+        filled.push("doctor");
+      } else if (data.doctor_query) {
+        nextHints.doctor = data.doctor_query;
+      }
+      // Assistant
+      if (data.assistant_id && assistantList.some((p) => p.id === data.assistant_id)) {
+        setAssistedBy(data.assistant_id);
+        filled.push("assistant");
+      } else if (data.assistant_query) {
+        nextHints.assistant = data.assistant_query;
+      }
+      // Problem areas (merge)
+      if (Array.isArray(data.problem_area_ids) && data.problem_area_ids.length) {
+        const valid = data.problem_area_ids.filter((id: string) =>
+          problemAreaList.some((pa) => pa.id === id)
+        );
+        if (valid.length) {
+          setSelectedProblemAreas((prev) => Array.from(new Set([...prev, ...valid])));
+          filled.push("problem_areas");
+        }
+      }
+      if (Array.isArray(data.problem_area_unmatched) && data.problem_area_unmatched.length) {
+        nextHints.problemAreas = data.problem_area_unmatched;
+      }
+      setUnmatchedHints(nextHints);
+
       if (data.service_name) { setServiceName(data.service_name); filled.push("service"); }
       if (data.symptoms) { setSymptoms(data.symptoms); filled.push("symptoms"); }
       if (data.diagnosis) { setDiagnosis(data.diagnosis); filled.push("diagnosis"); }
@@ -225,6 +288,17 @@ export function ProcedureFormDialog({
     },
   });
 
+  const { data: allStaff = [] } = useQuery({
+    queryKey: ["staff-active-all-for-ai"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff")
+        .select("id, first_name, last_name, role")
+        .eq("is_active", true);
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const { data: services = [] } = useQuery({
     queryKey: ["services-lookup"],
@@ -489,19 +563,28 @@ export function ProcedureFormDialog({
               <Label>Patient *</Label>
               <PatientCombobox
                 value={patientId}
-                onValueChange={setPatientId}
+                onValueChange={(v) => { setPatientId(v); setUnmatchedHints((h) => ({ ...h, patient: undefined })); }}
                 placeholder="Select patient"
                 className="mt-1.5"
                 disabled={isFromAppointment}
               />
+              {unmatchedHints.patient && (
+                <p className="text-xs text-amber-600 mt-1">Couldn't match "{unmatchedHints.patient}" — please select manually.</p>
+              )}
             </div>
             <div>
               <Label>Doctor</Label>
-              <StaffCombobox value={staffId} onValueChange={setStaffId} placeholder="Select doctor" className="mt-1.5" roleFilter={["Doctor"]} />
+              <StaffCombobox value={staffId} onValueChange={(v) => { setStaffId(v); setUnmatchedHints((h) => ({ ...h, doctor: undefined })); }} placeholder="Select doctor" className="mt-1.5" roleFilter={["Doctor"]} />
+              {unmatchedHints.doctor && (
+                <p className="text-xs text-amber-600 mt-1">Couldn't match "{unmatchedHints.doctor}" — please select manually.</p>
+              )}
             </div>
             <div>
               <Label>Assisted By</Label>
-              <StaffCombobox value={assistedBy} onValueChange={setAssistedBy} placeholder="Select assistant" allowNone noneLabel="No assistant" className="mt-1.5" />
+              <StaffCombobox value={assistedBy} onValueChange={(v) => { setAssistedBy(v); setUnmatchedHints((h) => ({ ...h, assistant: undefined })); }} placeholder="Select assistant" allowNone noneLabel="No assistant" className="mt-1.5" />
+              {unmatchedHints.assistant && (
+                <p className="text-xs text-amber-600 mt-1">Couldn't match "{unmatchedHints.assistant}" — please select manually.</p>
+              )}
             </div>
             <div>
               <Label>Problem Areas</Label>
@@ -538,6 +621,9 @@ export function ProcedureFormDialog({
                   </Command>
                 </PopoverContent>
               </Popover>
+              {unmatchedHints.problemAreas && unmatchedHints.problemAreas.length > 0 && (
+                <p className="text-xs text-amber-600 mt-1">Couldn't match: {unmatchedHints.problemAreas.map((q) => `"${q}"`).join(", ")} — please select manually.</p>
+              )}
             </div>
           </div>
 

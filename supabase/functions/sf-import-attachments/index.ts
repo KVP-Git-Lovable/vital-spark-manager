@@ -34,8 +34,15 @@ const DOC_TYPE_MAP: Record<string, string> = {
   "Skin Clinic Doctor Notes": "Previous Doctor Report",
 };
 
-// Cap per (patient, document_type) so a single run stays bounded.
-const PER_TYPE_LIMIT = 10;
+// Cap per (patient, document_type). Set high so a single run imports all
+// available records for the mapped patients.
+const PER_TYPE_LIMIT = 500;
+
+const EXT_CONTENT_TYPE: Record<string, string> = {
+  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif",
+  webp: "image/webp", heic: "image/heic", heif: "image/heif", bmp: "image/bmp",
+  pdf: "application/pdf",
+};
 
 async function sfQuery(soql: string): Promise<any> {
   const r = await fetch(`${GATEWAY}/query?q=${encodeURIComponent(soql)}`, {
@@ -48,7 +55,7 @@ async function sfQuery(soql: string): Promise<any> {
   return r.json();
 }
 
-async function sfDownload(versionId: string): Promise<{ bytes: Uint8Array; contentType: string }> {
+async function sfDownload(versionId: string, ext?: string): Promise<{ bytes: Uint8Array; contentType: string }> {
   const r = await fetch(`${GATEWAY}/sobjects/ContentVersion/${versionId}/VersionData`, {
     headers: {
       Authorization: `Bearer ${LOVABLE_API_KEY}`,
@@ -57,7 +64,10 @@ async function sfDownload(versionId: string): Promise<{ bytes: Uint8Array; conte
   });
   if (!r.ok) throw new Error(`SF download failed [${r.status}]: ${await r.text()}`);
   const bytes = new Uint8Array(await r.arrayBuffer());
-  const contentType = r.headers.get("content-type") || "application/octet-stream";
+  const raw = r.headers.get("content-type") || "";
+  const contentType = (!raw || raw.includes("octet-stream"))
+    ? (EXT_CONTENT_TYPE[(ext || "").toLowerCase()] || "application/octet-stream")
+    : raw;
   return { bytes, contentType };
 }
 
@@ -67,9 +77,19 @@ Deno.serve(async (req) => {
   const results: any[] = [];
   const errors: any[] = [];
   const sfTypes = Object.keys(DOC_TYPE_MAP).map((t) => `'${t}'`).join(",");
+  const url = new URL(req.url);
+  const reset = url.searchParams.get("reset") === "true";
+  const only = url.searchParams.get("only") || "";
+  const targets = only ? MAPPING.filter((m) => m.name.toLowerCase().includes(only.toLowerCase()) || m.lovable_id === only) : MAPPING;
 
   try {
-    for (const p of MAPPING) {
+    if (reset) {
+      for (const p of targets) {
+        await admin.from("procedure_attachments").delete().eq("patient_id", p.lovable_id).ilike("notes", "%sf_np_id=%");
+      }
+    }
+
+    for (const p of targets) {
       const patientLog: any = { patient: p.name, imported: 0, skipped: 0, items: [] };
 
       // 1. Pull latest N of each non-Pictures type. Salesforce SOQL doesn't
@@ -116,22 +136,7 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const tag = `sf_np_id=${np.Id}`;
-
-        // Idempotency: skip if we already imported this np id (stored in file_name)
-        const { data: existing } = await admin
-          .from("procedure_attachments")
-          .select("id")
-          .eq("patient_id", p.lovable_id)
-          .ilike("file_name", `%${tag}%`)
-          .maybeSingle();
-        if (existing?.id) {
-          patientLog.skipped++;
-          patientLog.items.push({ np_id: np.Id, type: np.Document_Type__c, status: "already-imported" });
-          continue;
-        }
-
-        for (const link of links.slice(0, 1)) {
+        for (const link of links) {
           const versionId = link.ContentDocument?.LatestPublishedVersionId;
           const title = link.ContentDocument?.Title || np.Name || "attachment";
           const ext = (link.ContentDocument?.FileExtension || link.ContentDocument?.FileType || "bin").toLowerCase();
@@ -140,9 +145,22 @@ Deno.serve(async (req) => {
             continue;
           }
 
+          const tag = `sf_np_id=${np.Id} sf_cv_id=${versionId}`;
+          const { data: existing } = await admin
+            .from("procedure_attachments")
+            .select("id")
+            .eq("patient_id", p.lovable_id)
+            .ilike("notes", `%sf_cv_id=${versionId}%`)
+            .maybeSingle();
+          if (existing?.id) {
+            patientLog.skipped++;
+            patientLog.items.push({ np_id: np.Id, cv_id: versionId, type: np.Document_Type__c, status: "already-imported" });
+            continue;
+          }
+
           try {
-            const { bytes, contentType } = await sfDownload(versionId);
-            const path = `${p.lovable_id}/sf-att-${np.Id}.${ext}`;
+            const { bytes, contentType } = await sfDownload(versionId, ext);
+            const path = `${p.lovable_id}/sf-att-${np.Id}-${versionId}.${ext}`;
             const { error: upErr } = await admin.storage
               .from("patient-photos")
               .upload(path, bytes, { contentType, upsert: true });
@@ -150,20 +168,24 @@ Deno.serve(async (req) => {
 
             const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${path}`;
             const appDocType = DOC_TYPE_MAP[np.Document_Type__c] || "Other";
-            const fileName = `${title}.${ext} [${tag}]`;
+            // Preserve exact Salesforce title. Only append the extension when
+            // the title doesn't already carry one.
+            const hasExt = /\.[A-Za-z0-9]{2,5}$/.test(title);
+            const fileName = hasExt ? title : `${title}.${ext}`;
+            const notesText = [np.Notes_if_any__c || null, tag].filter(Boolean).join("\n");
 
             const { error: insErr } = await admin.from("procedure_attachments").insert({
               patient_id: p.lovable_id,
               file_name: fileName,
               file_url: publicUrl,
               document_type: appDocType,
-              notes: np.Notes_if_any__c || null,
+              notes: notesText,
               created_at: np.CreatedDate,
             } as any);
             if (insErr) throw insErr;
 
             patientLog.imported++;
-            patientLog.items.push({ np_id: np.Id, type: appDocType, status: "imported", url: publicUrl, date: np.CreatedDate });
+            patientLog.items.push({ np_id: np.Id, cv_id: versionId, type: appDocType, status: "imported", url: publicUrl, date: np.CreatedDate, name: fileName });
           } catch (e) {
             const msg = (e as Error).message;
             patientLog.items.push({ np_id: np.Id, type: np.Document_Type__c, status: "error", error: msg });

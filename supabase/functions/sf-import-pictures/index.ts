@@ -26,7 +26,15 @@ const MAPPING: Array<{ lovable_id: string; sf_id: string; name: string }> = [
   { lovable_id: "3f2ae043-6ffa-47f4-b623-38b763b754fc", sf_id: "a0D2w00000265v7EAA", name: "Casilla Peter" },
 ];
 
-const PICTURES_PER_PATIENT = 3;
+// Cap SF Notes_Pictures records fetched per patient. Set very high so we
+// import every Picture record available for the mapped patients.
+const PICTURES_PER_PATIENT = 500;
+
+const EXT_CONTENT_TYPE: Record<string, string> = {
+  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif",
+  webp: "image/webp", heic: "image/heic", heif: "image/heif", bmp: "image/bmp",
+  pdf: "application/pdf",
+};
 
 async function sfQuery(soql: string): Promise<any> {
   const r = await fetch(`${GATEWAY}/query?q=${encodeURIComponent(soql)}`, {
@@ -39,7 +47,7 @@ async function sfQuery(soql: string): Promise<any> {
   return r.json();
 }
 
-async function sfDownload(versionId: string): Promise<{ bytes: Uint8Array; contentType: string }> {
+async function sfDownload(versionId: string, ext?: string): Promise<{ bytes: Uint8Array; contentType: string }> {
   const r = await fetch(`${GATEWAY}/sobjects/ContentVersion/${versionId}/VersionData`, {
     headers: {
       Authorization: `Bearer ${LOVABLE_API_KEY}`,
@@ -48,7 +56,10 @@ async function sfDownload(versionId: string): Promise<{ bytes: Uint8Array; conte
   });
   if (!r.ok) throw new Error(`SF download failed [${r.status}]: ${await r.text()}`);
   const bytes = new Uint8Array(await r.arrayBuffer());
-  const contentType = r.headers.get("content-type") || "image/jpeg";
+  const raw = r.headers.get("content-type") || "";
+  const contentType = (!raw || raw.includes("octet-stream"))
+    ? (EXT_CONTENT_TYPE[(ext || "").toLowerCase()] || "image/jpeg")
+    : raw;
   return { bytes, contentType };
 }
 
@@ -57,9 +68,19 @@ Deno.serve(async (req) => {
 
   const results: any[] = [];
   const errors: any[] = [];
+  const url = new URL(req.url);
+  const reset = url.searchParams.get("reset") === "true";
+  const only = url.searchParams.get("only") || "";
+  const targets = only ? MAPPING.filter((m) => m.name.toLowerCase().includes(only.toLowerCase()) || m.lovable_id === only) : MAPPING;
 
   try {
-    for (const p of MAPPING) {
+    if (reset) {
+      for (const p of targets) {
+        await admin.from("patient_photos").delete().eq("patient_id", p.lovable_id).ilike("notes", "%sf_np_id=%");
+      }
+    }
+
+    for (const p of targets) {
       const patientLog: any = { patient: p.name, lovable_id: p.lovable_id, sf_id: p.sf_id, imported: 0, skipped: 0, items: [] };
 
       // 1. Fetch the top N Pictures records for this patient
@@ -86,7 +107,6 @@ Deno.serve(async (req) => {
         cdlByNp.set(link.LinkedEntityId, arr);
       }
 
-      // 3. For each Notes_Pictures record, take the first attachment (or all)
       for (const np of npRecords) {
         const links = cdlByNp.get(np.Id) || [];
         if (links.length === 0) {
@@ -94,32 +114,32 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Idempotency: skip if we already imported this NP id
-        const tag = `sf_np_id=${np.Id}`;
-        const { data: existing } = await admin
-          .from("patient_photos")
-          .select("id")
-          .eq("patient_id", p.lovable_id)
-          .ilike("notes", `%${tag}%`)
-          .maybeSingle();
-        if (existing?.id) {
-          patientLog.skipped++;
-          patientLog.items.push({ np_id: np.Id, status: "already-imported" });
-          continue;
-        }
-
-        // Only take first image per NP (most SF records have one image)
-        for (const link of links.slice(0, 1)) {
+        // Import every attachment linked to this Notes_Pictures record (parallel).
+        await Promise.all(links.map(async (link: any) => {
           const versionId = link.ContentDocument?.LatestPublishedVersionId;
           const ext = (link.ContentDocument?.FileExtension || link.ContentDocument?.FileType || "jpg").toLowerCase();
           if (!versionId) {
             patientLog.items.push({ np_id: np.Id, status: "no-version" });
-            continue;
+            return;
+          }
+
+          // Idempotency: skip if we already imported this ContentVersion for this patient.
+          const tag = `sf_np_id=${np.Id} sf_cv_id=${versionId}`;
+          const { data: existing } = await admin
+            .from("patient_photos")
+            .select("id")
+            .eq("patient_id", p.lovable_id)
+            .ilike("notes", `%sf_cv_id=${versionId}%`)
+            .maybeSingle();
+          if (existing?.id) {
+            patientLog.skipped++;
+            patientLog.items.push({ np_id: np.Id, cv_id: versionId, status: "already-imported" });
+            return;
           }
 
           try {
-            const { bytes, contentType } = await sfDownload(versionId);
-            const path = `${p.lovable_id}/sf-${np.Id}.${ext}`;
+            const { bytes, contentType } = await sfDownload(versionId, ext);
+            const path = `${p.lovable_id}/sf-${np.Id}-${versionId}.${ext}`;
             const { error: upErr } = await admin.storage
               .from("patient-photos")
               .upload(path, bytes, { contentType, upsert: true });
@@ -142,13 +162,13 @@ Deno.serve(async (req) => {
             if (insErr) throw insErr;
 
             patientLog.imported++;
-            patientLog.items.push({ np_id: np.Id, status: "imported", url: publicUrl });
+            patientLog.items.push({ np_id: np.Id, cv_id: versionId, status: "imported", url: publicUrl });
           } catch (e) {
             const msg = (e as Error).message;
-            patientLog.items.push({ np_id: np.Id, status: "error", error: msg });
+            patientLog.items.push({ np_id: np.Id, cv_id: versionId, status: "error", error: msg });
             errors.push({ patient: p.name, np_id: np.Id, error: msg });
           }
-        }
+        }));
       }
 
       results.push(patientLog);

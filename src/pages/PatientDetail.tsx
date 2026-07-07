@@ -98,6 +98,7 @@ const PatientDetail = () => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [pendingAttachmentFile, setPendingAttachmentFile] = useState<File | null>(null);
   const [docTypeDialogOpen, setDocTypeDialogOpen] = useState(false);
+  const [viewingAttachment, setViewingAttachment] = useState<any>(null);
   const [selectedDocType, setSelectedDocType] = useState<string>("Prescription");
   const [attachmentFilter, setAttachmentFilter] = useState<string>("all");
   const [surveyTemplateSelectOpen, setSurveyTemplateSelectOpen] = useState(false);
@@ -1472,8 +1473,13 @@ const PatientDetail = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
-                          <a href={att.file_url} target="_blank" rel="noopener noreferrer">View</a>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => setViewingAttachment(att)}
+                        >
+                          View
                         </Button>
                         <Button
                           variant="ghost"
@@ -1704,6 +1710,45 @@ const PatientDetail = () => {
       )}
 
       {/* Survey detail moved to dedicated /surveys/:id route */}
+
+      <Dialog open={!!viewingAttachment} onOpenChange={(o) => { if (!o) setViewingAttachment(null); }}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="font-display truncate pr-8">{viewingAttachment?.file_name}</DialogTitle>
+          </DialogHeader>
+          {viewingAttachment && (() => {
+            const url: string = viewingAttachment.file_url || "";
+            const name: string = viewingAttachment.file_name || url;
+            const lower = name.toLowerCase();
+            const isImage = /\.(jpe?g|png|gif|webp|bmp|heic|heif|svg)$/i.test(lower) || /\.(jpe?g|png|gif|webp|bmp)$/i.test(url.split("?")[0]);
+            const isPdf = /\.pdf$/i.test(lower) || /\.pdf(\?|$)/i.test(url);
+            return (
+              <div className="space-y-3">
+                <div className="bg-muted/40 rounded-lg overflow-hidden flex items-center justify-center" style={{ minHeight: 400 }}>
+                  {isImage ? (
+                    <img src={url} alt={name} className="max-h-[70vh] w-auto object-contain" />
+                  ) : isPdf ? (
+                    <iframe src={url} title={name} className="w-full h-[70vh]" />
+                  ) : (
+                    <div className="p-8 text-center">
+                      <FileText className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">Preview not available for this file type.</p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={url} target="_blank" rel="noopener noreferrer">Open in new tab</a>
+                  </Button>
+                  <Button size="sm" asChild>
+                    <a href={url} download={name}>Download</a>
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

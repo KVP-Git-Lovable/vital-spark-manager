@@ -114,13 +114,13 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Import every attachment linked to this Notes_Pictures record.
-        for (const link of links) {
+        // Import every attachment linked to this Notes_Pictures record (parallel).
+        await Promise.all(links.map(async (link: any) => {
           const versionId = link.ContentDocument?.LatestPublishedVersionId;
           const ext = (link.ContentDocument?.FileExtension || link.ContentDocument?.FileType || "jpg").toLowerCase();
           if (!versionId) {
             patientLog.items.push({ np_id: np.Id, status: "no-version" });
-            continue;
+            return;
           }
 
           // Idempotency: skip if we already imported this ContentVersion for this patient.
@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
           if (existing?.id) {
             patientLog.skipped++;
             patientLog.items.push({ np_id: np.Id, cv_id: versionId, status: "already-imported" });
-            continue;
+            return;
           }
 
           try {
@@ -168,7 +168,7 @@ Deno.serve(async (req) => {
             patientLog.items.push({ np_id: np.Id, cv_id: versionId, status: "error", error: msg });
             errors.push({ patient: p.name, np_id: np.Id, error: msg });
           }
-        }
+        }));
       }
 
       results.push(patientLog);

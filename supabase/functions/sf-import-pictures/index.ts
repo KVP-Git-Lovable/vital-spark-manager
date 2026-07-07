@@ -72,28 +72,8 @@ Deno.serve(async (req) => {
   const reset = url.searchParams.get("reset") === "true";
   const only = url.searchParams.get("only") || "";
   const targets = only ? MAPPING.filter((m) => m.name.toLowerCase().includes(only.toLowerCase()) || m.lovable_id === only) : MAPPING;
-  const background = url.searchParams.get("bg") === "true";
-  const maxItems = parseInt(url.searchParams.get("max") || "20", 10);
 
   try {
-    if (background) {
-      // Fire and forget so the HTTP request returns immediately.
-      // @ts-ignore EdgeRuntime is available in Supabase edge functions
-      EdgeRuntime.waitUntil((async () => {
-        try {
-          if (reset) {
-            for (const p of targets) {
-              await admin.from("patient_photos").delete().eq("patient_id", p.lovable_id).ilike("notes", "%sf_np_id=%");
-            }
-          }
-          for (const p of targets) {
-            await runPatient(p, maxItems);
-          }
-        } catch (e) { console.error("bg import error", e); }
-      })());
-      return new Response(JSON.stringify({ ok: true, background: true, targets: targets.map((t) => t.name) }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
     if (reset) {
       for (const p of targets) {
         await admin.from("patient_photos").delete().eq("patient_id", p.lovable_id).ilike("notes", "%sf_np_id=%");

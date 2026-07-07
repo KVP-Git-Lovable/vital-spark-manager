@@ -168,10 +168,12 @@ Deno.serve(async (req) => {
 
             const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${path}`;
             const appDocType = DOC_TYPE_MAP[np.Document_Type__c] || "Other";
-            // Preserve exact Salesforce title. Only append the extension when
-            // the title doesn't already carry one.
-            const hasExt = /\.[A-Za-z0-9]{2,5}$/.test(title);
-            const fileName = hasExt ? title : `${title}.${ext}`;
+            // Use the Salesforce Notes_Pictures__c record Name (the label the
+            // user gave the entry in SF), falling back to the ContentDocument
+            // title. Append extension when missing.
+            const baseName = (np.Name && String(np.Name).trim()) || title;
+            const hasExt = /\.[A-Za-z0-9]{2,5}$/.test(baseName);
+            const fileName = hasExt ? baseName : `${baseName}.${ext}`;
             const notesText = [np.Notes_if_any__c || null, tag].filter(Boolean).join("\n");
 
             const { error: insErr } = await admin.from("procedure_attachments").insert({

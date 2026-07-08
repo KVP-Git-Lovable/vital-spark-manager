@@ -529,7 +529,7 @@ function Testimonials() {
 
 function GoogleReviews() {
   return (
-    <Section eyebrow="Google Reviews" title="4.9 ★ from 1,200+ verified reviews."
+    <Section eyebrow="Google Reviews" title="4.6 ★ from 481+ verified reviews."
       subtitle="Real feedback from real patients on Google.">
       <div className="grid md:grid-cols-3 gap-6">
         {REVIEWS.map((r, i) => (
@@ -550,7 +550,7 @@ function GoogleReviews() {
       </div>
       <div className="text-center mt-10">
         <Button variant="outline" asChild className="rounded-full">
-          <a href="https://www.google.com/search?q=the+skin+clinic" target="_blank" rel="noreferrer">View all on Google <ArrowRight className="ml-2 w-4 h-4" /></a>
+          <a href="https://maps.google.com/?cid=5768419635675091400" target="_blank" rel="noreferrer">View all on Google <ArrowRight className="ml-2 w-4 h-4" /></a>
         </Button>
       </div>
     </Section>

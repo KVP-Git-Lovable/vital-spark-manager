@@ -45,6 +45,7 @@ import ShopCart from "./pages/shop/ShopCart";
 import ShopCheckout from "./pages/shop/ShopCheckout";
 import ShopOrders from "./pages/shop/ShopOrders";
 import Website from "./pages/Website";
+import Landing from "./pages/clinic/Landing";
 import ProblemAreas from "./pages/ProblemAreas";
 import SurveyTemplates from "./pages/SurveyTemplates";
 import SurveyTemplateDetail from "./pages/SurveyTemplateDetail";
@@ -105,6 +106,7 @@ const App = () => (
           <Routes>
             {/* Marketing website */}
             <Route path="/website" element={<Website />} />
+            <Route path="/clinic" element={<Landing />} />
 
             {/* Auth pages */}
             <Route path="/login" element={<Login />} />

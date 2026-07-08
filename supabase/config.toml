@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.bolna-book-appointment]
 verify_jwt = false
+
+[functions.sf-import-clinical]
+verify_jwt = false

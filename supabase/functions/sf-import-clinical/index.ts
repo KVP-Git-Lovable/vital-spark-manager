@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
         `SELECT Id, Name, Appointment__c, Billing_Date__c, Discount__c, GST__c, Quantity__c, Total_Amount__c, Total_Price__c, Total_Tax_Applicable__c, Total_Service_Fee__c, Payment_Mode__c, Procedure_Type__c, Procedure_Type_2__c, Procedure_Type_3__c, Doctor_Name__c, CreatedDate FROM Billing__c WHERE Patient__c = '${p.sf_id}'`,
       );
       const diagnoses = await sfQuery(
-        `SELECT Id, Appointment__c, Diagnosis__c, Diagnoses__c, Symptoms__c, Prescription__c, Advice__c, Procedure_Type__c, Type_Of_Appointment__c, Special_Instructions__c, Follow_Up_Date__c, Consultation_Fee__c, CreatedDate FROM Diagnosis__c WHERE Patient__c = '${p.sf_id}'`,
+        `SELECT Id, Appointment__c, Diagnosis__c, Diagnoses__c, Symptoms__c, Symptoms_all__c, Prescription__c, Advice__c, Dietary_Advice__c, Procedure_Type__c, Treatment__c, Service_Type__c, Type_Of_Appointment__c, Visit_type__c, Special_Instructions__c, Payment_Instruction__c, Required_Lab_Test_s__c, History__c, Review__c, Follow_Up_Date__c, Consultation_Fee__c, CreatedDate FROM Diagnosis__c WHERE Patient__c = '${p.sf_id}'`,
       );
 
       // 3. Insert appointments and build sf_appt_id -> uuid map
@@ -176,22 +176,65 @@ Deno.serve(async (req) => {
         log.invoices += batch.length;
       }
 
-      // 5. Insert procedures
-      const procRows = diagnoses.map((d) => ({
-        patient_id: p.lovable_id,
-        service_name: d.Procedure_Type__c || d.Type_Of_Appointment__c || "Consultation",
-        procedure_date: d.CreatedDate,
-        status: "Completed",
-        appointment_id: d.Appointment__c ? apptIdMap.get(d.Appointment__c) || null : null,
-        diagnosis: [d.Diagnosis__c, d.Diagnoses__c].filter(Boolean).join("\n") || null,
-        symptoms: d.Symptoms__c || null,
-        procedure_notes: d.Prescription__c || null,
-        consultation_notes: d.Advice__c || null,
-        recommendations: d.Special_Instructions__c || null,
-        review_notes: `[sf_diag_id=${d.Id}]`,
-        created_at: d.CreatedDate,
-        updated_at: d.CreatedDate,
-      }));
+      // Build sf_appt_id -> appointment.service and sf_appt_id -> billing.Procedure_Type__c maps
+      // for fallback service_name when Diagnosis has none.
+      const apptServiceBySfId = new Map<string, string>();
+      appts.forEach((a) => {
+        const svc = a.Investigation__c || a.Description__c;
+        if (svc) apptServiceBySfId.set(a.Id, String(svc));
+      });
+      const billingProcBySfApptId = new Map<string, string>();
+      billings.forEach((b) => {
+        if (b.Appointment__c) {
+          const proc = [b.Procedure_Type__c, b.Procedure_Type_2__c, b.Procedure_Type_3__c].filter(Boolean).join(", ");
+          if (proc) billingProcBySfApptId.set(b.Appointment__c, proc);
+        }
+      });
+
+      // 5. Insert procedures — preserve every non-empty SF field
+      const procRows = diagnoses.map((d) => {
+        const treatment = d.Treatment__c ? String(d.Treatment__c).replace(/;/g, ", ") : null;
+        const serviceName =
+          treatment ||
+          d.Procedure_Type__c ||
+          d.Service_Type__c ||
+          (d.Appointment__c && billingProcBySfApptId.get(d.Appointment__c)) ||
+          (d.Appointment__c && apptServiceBySfId.get(d.Appointment__c)) ||
+          d.Type_Of_Appointment__c ||
+          "Consultation";
+        const symptoms = [d.Symptoms__c, d.Symptoms_all__c && d.Symptoms_all__c !== d.Symptoms__c ? d.Symptoms_all__c : null]
+          .filter(Boolean).join("\n") || null;
+        const consultationParts = [
+          d.Advice__c && `Advice: ${d.Advice__c}`,
+          d.Dietary_Advice__c && `Dietary Advice: ${d.Dietary_Advice__c}`,
+          d.History__c && `History: ${d.History__c}`,
+          d.Required_Lab_Test_s__c && `Lab Tests: ${d.Required_Lab_Test_s__c}`,
+          d.Payment_Instruction__c && `Payment Instruction: ${d.Payment_Instruction__c}`,
+          d.Consultation_Fee__c ? `Consultation Fee: ₹${d.Consultation_Fee__c}` : null,
+        ].filter(Boolean);
+        const reviewBits = [
+          `[sf_diag_id=${d.Id}]`,
+          d.Review__c && `Review: ${d.Review__c}`,
+          d.Visit_type__c && `Visit Type: ${d.Visit_type__c}`,
+          d.Type_Of_Appointment__c && `Type: ${d.Type_Of_Appointment__c}`,
+          d.Follow_Up_Date__c && `Follow-Up: ${d.Follow_Up_Date__c}`,
+        ].filter(Boolean);
+        return {
+          patient_id: p.lovable_id,
+          service_name: String(serviceName).slice(0, 500),
+          procedure_date: d.CreatedDate,
+          status: "Completed",
+          appointment_id: d.Appointment__c ? apptIdMap.get(d.Appointment__c) || null : null,
+          diagnosis: [d.Diagnosis__c, d.Diagnoses__c].filter(Boolean).join("\n") || null,
+          symptoms,
+          procedure_notes: d.Prescription__c || null,
+          consultation_notes: consultationParts.length ? consultationParts.join("\n") : null,
+          recommendations: d.Special_Instructions__c || null,
+          review_notes: reviewBits.join(" | "),
+          created_at: d.CreatedDate,
+          updated_at: d.CreatedDate,
+        };
+      });
       for (const batch of chunk(procRows, 100)) {
         const { error } = await admin.from("procedures").insert(batch);
         if (error) { log.errors.push({ step: "procedures", error: error.message }); continue; }

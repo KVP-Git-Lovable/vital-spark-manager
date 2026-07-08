@@ -13,12 +13,21 @@ import { toast } from "sonner";
 
 import hero from "@/assets/clinic/hero.jpg";
 import about from "@/assets/clinic/about.jpg";
-import tSkin from "@/assets/clinic/treatment-skin.jpg";
-import tLaser from "@/assets/clinic/treatment-laser.jpg";
-import tHair from "@/assets/clinic/treatment-hair.jpg";
-import tAesthetic from "@/assets/clinic/treatment-aesthetic.jpg";
-import doc1 from "@/assets/clinic/doctor-1.jpg";
-import doc2 from "@/assets/clinic/doctor-2.jpg";
+import logo from "@/assets/skin-clinic-logo.png";
+import docVindhya from "@/assets/clinic/real/dr-vindhya.jpg";
+import docPunya from "@/assets/clinic/real/dr-punya.png";
+import docSuraksha from "@/assets/clinic/real/dr-suraksha.jpg";
+import docAshwini from "@/assets/clinic/real/dr-ashwini.jpg";
+import tHairLoss from "@/assets/clinic/real/t-hair-loss.png";
+import tLaser from "@/assets/clinic/real/t-laser.png";
+import tTattoo from "@/assets/clinic/real/t-tattoo.png";
+import tFatLoss from "@/assets/clinic/real/t-fatloss.jpg";
+import tBrightening from "@/assets/clinic/real/t-brightening.jpg";
+import tTightening from "@/assets/clinic/real/t-tightening.png";
+import tClinical from "@/assets/clinic/real/t-clinical.jpg";
+import blogAges from "@/assets/clinic/real/blog-ages.jpg";
+import blogDiet from "@/assets/clinic/real/blog-diet.jpg";
+import blogAcne from "@/assets/clinic/real/blog-acne.jpg";
 
 /* ─────────── data (easy to swap) ─────────── */
 
@@ -36,64 +45,94 @@ const NAV = [
 
 const STATS = [
   { value: 25000, suffix: "+", label: "Happy Patients" },
-  { value: 15, suffix: "+", label: "Years of Excellence" },
-  { value: 50000, suffix: "+", label: "Procedures Performed" },
-  { value: 4.9, suffix: "★", label: "Google Rating", decimals: 1 },
+  { value: 7, suffix: "+", label: "Years at Mallikatte" },
+  { value: 481, suffix: "+", label: "Google Reviews" },
+  { value: 4.6, suffix: "★", label: "Google Rating", decimals: 1 },
 ];
 
 const TREATMENTS = [
-  { icon: Droplet, title: "Advanced Skincare", desc: "Hydrafacials, peels, medi-facials tailored to your skin type.", img: tSkin },
-  { icon: Zap, title: "Laser Treatments", desc: "Painless laser hair reduction, tattoo & pigmentation removal.", img: tLaser },
-  { icon: Scissors, title: "Hair Restoration", desc: "PRP, GFC, mesotherapy and hair transplant solutions.", img: tHair },
-  { icon: Flower2, title: "Aesthetic Enhancement", desc: "Botox, fillers, threads — subtle, natural, refined.", img: tAesthetic },
-  { icon: Sun, title: "Anti-Ageing", desc: "HIFU, RF micro-needling & skin tightening protocols.", img: about },
-  { icon: Activity, title: "Acne & Scars", desc: "Evidence-based acne care, scar revision & resurfacing.", img: tSkin },
+  { icon: Zap, title: "Laser Hair Reduction", desc: "Painless, precise laser hair reduction for face and body.", img: tLaser },
+  { icon: Scissors, title: "Hair Loss Treatments", desc: "PRP, GFC and medical management for hair fall and thinning.", img: tHairLoss },
+  { icon: Droplet, title: "Clinical Dermatology", desc: "Diagnosis and treatment of acne, eczema, psoriasis and more.", img: tClinical },
+  { icon: Sparkles, title: "Skin Brightening", desc: "Medi-facials, peels and lasers for radiant, even-toned skin.", img: tBrightening },
+  { icon: Sun, title: "Skin Tightening", desc: "HIFU, RF and Legend Pro for firm, lifted, youthful skin.", img: tTightening },
+  { icon: Activity, title: "Tattoo Removal", desc: "Q-switched laser tattoo removal — safe, effective, gradual.", img: tTattoo },
+  { icon: Flower2, title: "Pre-Wedding Skin Care", desc: "Personalised bridal & groom glow-up plans months ahead.", img: tBrightening },
+  { icon: HeartPulse, title: "Fat Loss & Body Contouring", desc: "Non-surgical inch loss and body sculpting treatments.", img: tFatLoss },
 ];
 
 const DOCTORS = [
-  { name: "Dr. Vindhya Pai", title: "Chief Dermatologist, MD (Derm)", bio: "15+ years of clinical excellence in aesthetic and medical dermatology.", img: doc1 },
-  { name: "Dr. Punya Suvarna", title: "Consultant Dermatologist, DVD", bio: "Specialist in laser, hair restoration and cosmetic procedures.", img: doc2 },
+  { name: "Dr. Vindhya A. Pai", title: "Founder & Chief Dermatologist", qual: "MD Dermatology, Venereology & Leprology (KMC Mangalore)", bio: "Fellowship-trained in aesthetic dermatology, with observerships in New York and Italy. Founded The Skin Clinic in 2018. IADVL-recognised centre for aesthetic dermatology observerships.", img: docVindhya },
+  { name: "Dr. Punya Suvarna", title: "Consultant Dermatologist", qual: "MBBS, MD Dermatology, Venereology & Leprosy", bio: "Special interest in laser, hair reduction and cosmetic dermatology.", img: docPunya },
+  { name: "Dr. P. Suraksha", title: "Consultant Dermatologist", qual: "MBBS, MD Dermatology, Venereology & Leprosy (RGUHS)", bio: "Focused on clinical dermatology and evidence-based skin care.", img: docSuraksha },
+  { name: "Dr. Ashwini Ashokan", title: "Consultant Dermatologist", qual: "MBBS, MD Dermatology, Venereology & Leprosy", bio: "Skilled in medical and aesthetic dermatology procedures.", img: docAshwini },
 ];
 
+// Before/after — placeholders until real cases are uploaded
 const BEFORE_AFTER = [
-  { label: "Acne & Scar Revival", before: tSkin, after: tSkin },
-  { label: "Laser Hair Reduction", before: tHair, after: tHair },
-  { label: "Pigmentation Care", before: tAesthetic, after: tAesthetic },
+  { label: "Acne & Scar Revival", before: tClinical, after: tBrightening },
+  { label: "Laser Hair Reduction", before: tHairLoss, after: tLaser },
+  { label: "Pigmentation Care", before: tClinical, after: tBrightening },
 ];
 
+// Real testimonials from the reference site
 const TESTIMONIALS = [
-  { name: "Ananya S.", role: "Bengaluru", rating: 5, quote: "The team is meticulous and genuinely caring. My skin has never looked better." },
-  { name: "Rohit K.", role: "Mangaluru", rating: 5, quote: "Painless laser treatment and impeccable hygiene. Highly recommended." },
-  { name: "Priya M.", role: "Udupi", rating: 5, quote: "Dr. Vindhya explained everything clearly. Real, natural-looking results." },
-  { name: "Neha R.", role: "Chennai", rating: 5, quote: "Luxurious ambience with clinical precision — a rare combination." },
+  { name: "Megha Shetty", role: "Verified patient", rating: 5, quote: "The doctors here are incredibly knowledgeable, listened carefully to my concerns and explained every option. The procedure was done with utmost care and my skin has improved significantly." },
+  { name: "Esha Suresh", role: "Verified patient", rating: 5, quote: "I have been a regular at The Skin Clinic for 10 months and the experience gets better every visit. Dr. Punya is skilled and takes that extra effort to keep clients comfortable. Highly recommend it!" },
+  { name: "Sheryl D'souza", role: "Verified patient", rating: 5, quote: "My skin has improved drastically under Dr. Vindhya Pai. The staff is friendly and guides you through every step. Always grateful." },
+  { name: "Sahana A.", role: "Verified patient", rating: 5, quote: "I consulted this clinic for my acne scars. After a few sessions of treatment I can see a real difference in my skin — thanks to Dr. Vindhya Pai and team." },
+  { name: "Harshitha Rao", role: "Verified patient", rating: 5, quote: "Dr. Punya helped a lot with my skin concern and recommended the glow-up treatment. My skin has improved a lot and the staff are very kind." },
 ];
 
 const REVIEWS = [
-  { name: "Meera P.", rating: 5, text: "Best skin clinic experience I've had. Professional, warm, and effective." },
-  { name: "Kiran D.", rating: 5, text: "Modern equipment, gentle staff. Loved the hydrafacial results." },
-  { name: "Sana A.", rating: 5, text: "Went for pigmentation — saw visible improvement in just 3 sittings." },
+  { name: "Srihari K", rating: 5, text: "The doctors took time to understand my rare skin condition (cholinergic urticaria) instead of just prescribing painkillers. Great place for any skin issues." },
+  { name: "N R Arundhathi", rating: 5, text: "Laser hair reduction sessions were smooth, comfortable and professionally handled. Significant improvement — highly recommend." },
+  { name: "Srisha Nayak", rating: 5, text: "Attentive team from the first consultation. My acne is much more controlled and my complexion is clearing up beautifully." },
+  { name: "Varsha Rani", rating: 5, text: "Dr. Vindhya knows the exact antidote for any skin problem. Latest equipment, real results — worth every rupee." },
+  { name: "Sharvari Shetty", rating: 5, text: "Dr. Vindhya is passionate and remembers her patients' details. She even guides you on diet. The place and people are a delight." },
+  { name: "Prithvi K", rating: 5, text: "Doing facial hair reduction with Dr. Punya Suvarna for a year. She's gentle and kind, staff are understanding. Trust the process to see the progress." },
 ];
 
-const IG_TILES = [tSkin, tLaser, tHair, tAesthetic, about, hero, doc1, doc2];
+const IG_TILES = [tLaser, tHairLoss, tClinical, tBrightening, tTightening, tTattoo, tFatLoss, about];
 
+// Real Skin Talks + user-provided YouTube content
 const YT_SHORTS = [
-  { id: "BOHwC9WgrRk", title: "Glow Up Journey" },
-  { id: "CiCE_ZQEOB8", title: "Inside The Clinic" },
-  // add more IDs any time
+  { id: "0Nk93IayGzs", title: "Vindhya Pai — Success Story", ratio: "16/9" as const },
+  { id: "UkSKe3p2KE4", title: "Skin Talks by Dr Vindhya Pai", ratio: "16/9" as const },
+  { id: "3uRFY00obxg", title: "Skin Talks Ep 1 — Melasma", ratio: "16/9" as const },
+  { id: "oETsUP9D7Ig", title: "Skin Talk by Dr Vindhya Pai", ratio: "16/9" as const },
+  { id: "PP2r5LTJm9M", title: "Skin Talks by Dr Vindhya Pai", ratio: "16/9" as const },
+  { id: "BOHwC9WgrRk", title: "The Skin Clinic — Short", ratio: "9/16" as const },
+  { id: "CiCE_ZQEOB8", title: "Inside The Skin Clinic", ratio: "9/16" as const },
 ];
 
 const BLOG = [
-  { title: "5 Habits for Truly Glowing Skin", excerpt: "Simple daily rituals dermatologists swear by.", read: "4 min", img: tSkin },
-  { title: "Laser Hair Reduction: Myths vs Facts", excerpt: "Everything you need to know before your first session.", read: "6 min", img: tLaser },
-  { title: "Understanding Acne — A Doctor's Guide", excerpt: "Types, triggers and evidence-based treatments.", read: "5 min", img: tAesthetic },
+  { title: "Skincare for all ages", excerpt: "Skin-care routines for your 20s, 30s and beyond.", read: "4 min", img: blogAges, href: "https://www.theskinclinic.org.in/skincare-for-all-ages/" },
+  { title: "How your diet affects your skin", excerpt: "The truth about fad diets and their impact on skin health.", read: "5 min", img: blogDiet, href: "https://www.theskinclinic.org.in/how-your-diet-affects-your-skin/" },
+  { title: "Medical Acne Treatments", excerpt: "Understanding acne and evidence-based treatment options.", read: "6 min", img: blogAcne, href: "https://www.theskinclinic.org.in/medical-acne-treatments/" },
 ];
 
 const FAQS = [
-  { q: "Are consultations by appointment only?", a: "Yes, we recommend booking in advance to ensure adequate time with your dermatologist." },
-  { q: "Do you offer EMI options?", a: "Yes, we partner with leading providers for flexible EMI on select treatment packages." },
-  { q: "Is laser treatment painful?", a: "Modern lasers are virtually painless. Most patients describe a mild warm sensation." },
-  { q: "How many sessions will I need?", a: "It depends on the concern — your dermatologist will craft a personalised plan on day one." },
+  { q: "Are consultations by appointment only?", a: "Yes — we practice no-rush appointments so your time with the dermatologist is truly yours. Please book in advance." },
+  { q: "Where is The Skin Clinic located?", a: "Vyasa Rao Road, Kadri Kambla Rd, Mallikatte, Kadri, Mangaluru, Karnataka 575003." },
+  { q: "Is laser hair reduction painful?", a: "Our USFDA-approved lasers are virtually painless — most patients describe a mild warm sensation." },
+  { q: "How many sessions will I need?", a: "It depends on the concern and your skin type — your dermatologist will craft a personalised plan on your first visit." },
+  { q: "Do you treat children?", a: "Yes — Dr. Vindhya has a special interest in paediatric dermatology alongside adult care." },
 ];
+
+const PHONES = [
+  { label: "+91 96201 23030", href: "tel:+919620123030" },
+  { label: "+91 63607 53030", href: "tel:+916360753030" },
+];
+const WHATSAPP = "https://wa.me/919620123030";
+const ADDRESS = "Vyasa Rao Road, Kadri Kambla Rd, Mallikatte, Kadri, Mangaluru, Karnataka 575003";
+const MAPS_EMBED = "https://www.google.com/maps?q=The+Skin+Clinic+Kadri+Kambla+Mangaluru&output=embed";
+const SOCIALS = {
+  instagram: "https://www.instagram.com/theskinclinic_mangalore/",
+  facebook: "https://www.facebook.com/theskinclinicmangalore/",
+  twitter: "https://twitter.com/theskinclinic17/",
+  youtube: "https://www.youtube.com/channel/UCi9XPgx3UhtimTMLFmeC69A",
+};
 
 /* ─────────── helpers ─────────── */
 
@@ -136,11 +175,9 @@ function TopNav() {
   return (
     <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/80 backdrop-blur-xl border-b border-border/60 shadow-sm" : "bg-transparent"}`}>
       <div className="container mx-auto flex items-center justify-between h-16 md:h-20 px-4">
-        <a href="#home" className="flex items-center gap-2 font-display font-bold text-lg md:text-xl">
-          <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-emerald flex items-center justify-center text-white shadow-md">
-            <Sparkles className="w-5 h-5" />
-          </span>
-          <span className={scrolled ? "text-foreground" : "text-white drop-shadow"}>The Skin Clinic</span>
+        <a href="#home" className="flex items-center gap-2.5 font-display font-bold text-lg md:text-xl">
+          <img src={logo} alt="The Skin Clinic" className={`h-10 md:h-11 w-auto object-contain transition-all ${scrolled ? "" : "drop-shadow-lg"}`} />
+          <span className={`hidden sm:inline ${scrolled ? "text-foreground" : "text-white drop-shadow"}`}>The Skin Clinic</span>
         </a>
         <nav className="hidden lg:flex items-center gap-7">
           {NAV.map((n) => (
@@ -151,7 +188,7 @@ function TopNav() {
         </nav>
         <div className="hidden md:flex items-center gap-2">
           <Button asChild variant="ghost" className={scrolled ? "" : "text-white hover:bg-white/10 hover:text-white"}>
-            <Link to="/portal/login">Login</Link>
+            <Link to="/login">Login</Link>
           </Button>
           <Button asChild className="bg-gradient-to-r from-primary to-emerald text-white shadow-lg hover:shadow-xl">
             <Link to="/portal/login?next=/portal/appointments">Book Appointment</Link>
@@ -172,7 +209,7 @@ function TopNav() {
                 </a>
               ))}
               <div className="flex gap-2 pt-3 border-t border-border mt-2">
-                <Button asChild variant="outline" className="flex-1"><Link to="/portal/login">Login</Link></Button>
+                <Button asChild variant="outline" className="flex-1"><Link to="/login">Login</Link></Button>
                 <Button asChild className="flex-1 bg-gradient-to-r from-primary to-emerald text-white">
                   <Link to="/portal/login?next=/portal/appointments">Book</Link>
                 </Button>
@@ -384,18 +421,19 @@ function Treatments() {
 
 function Doctors() {
   return (
-    <Section id="doctors" eyebrow="Our Team" title="Led by celebrated dermatologists." subtitle="Meet the specialists who make your journey personal." className="bg-card">
-      <div className="grid sm:grid-cols-2 lg:grid-cols-2 max-w-4xl mx-auto gap-8">
+    <Section id="doctors" eyebrow="Our Team" title="Meet our dermatologists." subtitle="Board-certified specialists dedicated to your skin, hair and confidence." className="bg-card">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {DOCTORS.map((d, i) => (
-          <motion.div key={d.name} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+          <motion.div key={d.name} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
             className="group relative rounded-3xl overflow-hidden bg-background shadow-sm hover:shadow-[var(--shadow-luxe)] transition-all">
-            <div className="aspect-[4/5] overflow-hidden">
-              <img src={d.img} alt={d.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" loading="lazy" />
+            <div className="aspect-[4/5] overflow-hidden bg-gradient-to-br from-accent to-card">
+              <img src={d.img} alt={d.name} className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700" loading="lazy" />
             </div>
-            <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/85 via-black/50 to-transparent text-white">
-              <div className="text-xs uppercase tracking-widest text-gold font-semibold">{d.title}</div>
-              <h3 className="font-display font-bold text-2xl mt-1">{d.name}</h3>
-              <p className="mt-2 text-sm text-white/85 max-h-0 group-hover:max-h-24 overflow-hidden transition-all duration-500">{d.bio}</p>
+            <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-black/90 via-black/60 to-transparent text-white">
+              <div className="text-[10px] uppercase tracking-widest text-gold font-semibold">{d.title}</div>
+              <h3 className="font-display font-bold text-lg md:text-xl mt-1 leading-tight">{d.name}</h3>
+              <p className="mt-1 text-[11px] text-white/80 leading-snug">{d.qual}</p>
+              <p className="mt-2 text-xs text-white/85 max-h-0 group-hover:max-h-32 overflow-hidden transition-all duration-500">{d.bio}</p>
             </div>
           </motion.div>
         ))}
@@ -491,7 +529,7 @@ function Testimonials() {
 
 function GoogleReviews() {
   return (
-    <Section eyebrow="Google Reviews" title="4.9 ★ from 1,200+ verified reviews."
+    <Section eyebrow="Google Reviews" title="4.6 ★ from 481+ verified reviews."
       subtitle="Real feedback from real patients on Google.">
       <div className="grid md:grid-cols-3 gap-6">
         {REVIEWS.map((r, i) => (
@@ -512,7 +550,7 @@ function GoogleReviews() {
       </div>
       <div className="text-center mt-10">
         <Button variant="outline" asChild className="rounded-full">
-          <a href="https://www.google.com/search?q=the+skin+clinic" target="_blank" rel="noreferrer">View all on Google <ArrowRight className="ml-2 w-4 h-4" /></a>
+          <a href="https://maps.google.com/?cid=5768419635675091400" target="_blank" rel="noreferrer">View all on Google <ArrowRight className="ml-2 w-4 h-4" /></a>
         </Button>
       </div>
     </Section>
@@ -521,10 +559,10 @@ function GoogleReviews() {
 
 function InstagramGallery() {
   return (
-    <Section eyebrow="Instagram" title="@theskinclinic" subtitle="A window into our world — treatments, transformations, team." className="bg-card">
+    <Section eyebrow="Instagram" title="@theskinclinic_mangalore" subtitle="A window into our world — treatments, transformations, team." className="bg-card">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {IG_TILES.map((src, i) => (
-          <motion.a key={i} href="#" initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
+          <motion.a key={i} href={SOCIALS.instagram} target="_blank" rel="noreferrer" initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
             className="group relative aspect-square overflow-hidden rounded-2xl">
             <img src={src} alt="Instagram" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" />
             <div className="absolute inset-0 bg-gradient-to-br from-primary/0 to-emerald/0 group-hover:from-primary/60 group-hover:to-emerald/60 transition-all flex items-center justify-center">
@@ -539,20 +577,21 @@ function InstagramGallery() {
 
 function VideoReels() {
   const [active, setActive] = useState<string | null>(null);
+  const activeVideo = YT_SHORTS.find((v) => v.id === active);
   return (
-    <Section id="videos" eyebrow="Watch" title="Real moments from our clinic." subtitle="Tap any short to play.">
-      <div className="flex gap-5 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory">
+    <Section id="videos" eyebrow="Videos & Shorts" title="Skin Talks by Dr Vindhya Pai." subtitle="Watch our clinic in action — expert talks, real stories and reels.">
+      <div className="flex gap-5 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory scrollbar-thin">
         {YT_SHORTS.map((v, i) => (
-          <motion.button key={v.id} onClick={() => setActive(v.id)} initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
-            className="shrink-0 w-[260px] md:w-[300px] aspect-[9/16] rounded-3xl overflow-hidden relative group snap-start shadow-[var(--shadow-luxe)]">
+          <motion.button key={v.id} onClick={() => setActive(v.id)} initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.06 }}
+            className={`shrink-0 rounded-3xl overflow-hidden relative group snap-start shadow-[var(--shadow-luxe)] ${v.ratio === "9/16" ? "w-[240px] md:w-[280px] aspect-[9/16]" : "w-[340px] md:w-[440px] aspect-video"}`}>
             <img src={`https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`} alt={v.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-16 h-16 rounded-full bg-white/95 backdrop-blur flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+              <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-white/95 backdrop-blur flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
                 <Play className="w-6 h-6 text-primary fill-primary ml-1" />
               </div>
             </div>
-            <div className="absolute bottom-4 left-4 right-4 text-white font-semibold text-left">{v.title}</div>
+            <div className="absolute bottom-3 left-4 right-4 text-white font-semibold text-sm text-left drop-shadow">{v.title}</div>
           </motion.button>
         ))}
       </div>
@@ -562,9 +601,9 @@ function VideoReels() {
             onClick={() => setActive(null)}
             className="fixed inset-0 z-[100] bg-black/90 backdrop-blur flex items-center justify-center p-4">
             <button className="absolute top-6 right-6 text-white p-2" onClick={() => setActive(null)}><X className="w-8 h-8" /></button>
-            <div className="relative w-full max-w-md aspect-[9/16] rounded-2xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className={`relative w-full rounded-2xl overflow-hidden shadow-2xl ${activeVideo?.ratio === "9/16" ? "max-w-md aspect-[9/16]" : "max-w-4xl aspect-video"}`} onClick={(e) => e.stopPropagation()}>
               <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${active}?autoplay=1`}
-                title="YouTube Short" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
+                title={activeVideo?.title ?? "YouTube video"} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
             </div>
           </motion.div>
         )}
@@ -587,7 +626,7 @@ function Blog() {
               <div className="text-xs text-muted-foreground font-medium">{b.read} read</div>
               <h3 className="mt-2 font-display font-bold text-xl leading-snug">{b.title}</h3>
               <p className="mt-2 text-sm text-muted-foreground">{b.excerpt}</p>
-              <a href="#" className="mt-4 inline-flex items-center text-primary font-semibold text-sm">Read article <ArrowRight className="ml-1 w-4 h-4" /></a>
+              <a href={b.href} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center text-primary font-semibold text-sm">Read article <ArrowRight className="ml-1 w-4 h-4" /></a>
             </div>
           </motion.article>
         ))}
@@ -647,14 +686,14 @@ function Contact() {
 
         <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
           <div className="rounded-3xl overflow-hidden border border-border h-64 shadow-sm">
-            <iframe title="Clinic Location" src="https://www.google.com/maps?q=Mangalore&output=embed" className="w-full h-full" loading="lazy" />
+            <iframe title="The Skin Clinic — Mangaluru" src={MAPS_EMBED} className="w-full h-full" loading="lazy" />
           </div>
           <div className="grid sm:grid-cols-2 gap-3">
             {[
-              { icon: Phone, label: "Call us", value: "+91 98765 43210", href: "tel:+919876543210" },
-              { icon: MessageCircle, label: "WhatsApp", value: "Chat with us", href: "https://wa.me/919876543210" },
-              { icon: Mail, label: "Email", value: "hello@theskinclinic.in", href: "mailto:hello@theskinclinic.in" },
-              { icon: Clock, label: "Hours", value: "Mon–Sat · 10am – 8pm" },
+              { icon: Phone, label: "Call us", value: "+91 96201 23030", href: "tel:+919620123030" },
+              { icon: Phone, label: "Alt. line", value: "+91 63607 53030", href: "tel:+916360753030" },
+              { icon: MessageCircle, label: "WhatsApp", value: "Chat instantly", href: WHATSAPP },
+              { icon: MapPin, label: "Visit", value: "Kadri Kambla, Mangaluru", href: "https://maps.google.com/?cid=5768419635675091400" },
             ].map((c) => {
               const inner = (
                 <>
@@ -675,7 +714,7 @@ function Contact() {
               );
             })}
           </div>
-          <a href="https://wa.me/919876543210" target="_blank" rel="noreferrer"
+          <a href={WHATSAPP} target="_blank" rel="noreferrer"
             className="flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-emerald to-primary text-white font-semibold shadow-lg hover:shadow-xl transition-shadow">
             <MessageCircle className="w-5 h-5" /> Chat on WhatsApp — instant reply
             <ArrowRight className="ml-auto w-5 h-5" />
@@ -691,22 +730,20 @@ function Footer() {
     <footer className="bg-sidebar text-sidebar-foreground pt-16 pb-8">
       <div className="container mx-auto px-4 grid md:grid-cols-4 gap-10">
         <div className="md:col-span-2">
-          <div className="flex items-center gap-2 font-display font-bold text-xl text-white">
-            <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-emerald flex items-center justify-center">
-              <Sparkles className="w-5 h-5" />
-            </span>
+          <div className="flex items-center gap-2.5 font-display font-bold text-xl text-white">
+            <img src={logo} alt="The Skin Clinic" className="h-11 w-auto object-contain bg-white/10 rounded-lg p-1" />
             The Skin Clinic
           </div>
           <p className="mt-4 text-sm text-sidebar-foreground/70 max-w-md">
-            Premier dermatology and aesthetic care — where science meets serenity.
+            Full-spectrum family dermatology in Mangaluru — clinical care, aesthetics and laser, delivered by board-certified specialists.
           </p>
           <div className="mt-5 flex gap-3">
             {[
-              { icon: Instagram, href: "#" },
-              { icon: Facebook, href: "#" },
-              { icon: Youtube, href: "#" },
+              { icon: Instagram, href: SOCIALS.instagram },
+              { icon: Facebook, href: SOCIALS.facebook },
+              { icon: Youtube, href: SOCIALS.youtube },
             ].map((s, i) => (
-              <a key={i} href={s.href} className="w-10 h-10 rounded-full bg-sidebar-accent hover:bg-primary text-white flex items-center justify-center transition-colors">
+              <a key={i} href={s.href} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-sidebar-accent hover:bg-primary text-white flex items-center justify-center transition-colors">
                 <s.icon className="w-4 h-4" />
               </a>
             ))}
@@ -723,9 +760,10 @@ function Footer() {
         <div>
           <div className="text-white font-semibold mb-4">Reach us</div>
           <ul className="space-y-2 text-sm text-sidebar-foreground/80">
-            <li className="flex items-start gap-2"><MapPin className="w-4 h-4 mt-0.5 shrink-0" /> Mangaluru, Karnataka</li>
-            <li className="flex items-center gap-2"><Phone className="w-4 h-4" /> +91 98765 43210</li>
-            <li className="flex items-center gap-2"><Mail className="w-4 h-4" /> hello@theskinclinic.in</li>
+            <li className="flex items-start gap-2"><MapPin className="w-4 h-4 mt-0.5 shrink-0" /> {ADDRESS}</li>
+            {PHONES.map((p) => (
+              <li key={p.href} className="flex items-center gap-2"><Phone className="w-4 h-4" /> <a href={p.href} className="hover:text-white">{p.label}</a></li>
+            ))}
           </ul>
         </div>
       </div>
@@ -777,7 +815,7 @@ export default function Landing() {
       <Footer />
 
       {/* Floating WhatsApp CTA */}
-      <a href="https://wa.me/919876543210" target="_blank" rel="noreferrer"
+      <a href={WHATSAPP} target="_blank" rel="noreferrer"
         className="fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full bg-gradient-to-br from-emerald to-primary text-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
         <MessageCircle className="w-6 h-6" />
       </a>

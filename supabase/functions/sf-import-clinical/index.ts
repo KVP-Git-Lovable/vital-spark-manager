@@ -128,6 +128,7 @@ Deno.serve(async (req) => {
           appointment_type: a.Visit_Type__c || a.Appointment_type__c || "Walk-in",
           reason_for_consultation: `${a.Investigation__c || ""}\n[sf_appt_id=${a.Id}${a.Doctor_Name__c ? `; doctor=${a.Doctor_Name__c}` : ""}]`.trim(),
           source: "salesforce",
+          staff_id: doctorFor(a.Doctor_Name__c),
           created_at: a.CreatedDate,
           updated_at: a.CreatedDate,
           _sf_id: a.Id,

@@ -421,18 +421,19 @@ function Treatments() {
 
 function Doctors() {
   return (
-    <Section id="doctors" eyebrow="Our Team" title="Led by celebrated dermatologists." subtitle="Meet the specialists who make your journey personal." className="bg-card">
-      <div className="grid sm:grid-cols-2 lg:grid-cols-2 max-w-4xl mx-auto gap-8">
+    <Section id="doctors" eyebrow="Our Team" title="Meet our dermatologists." subtitle="Board-certified specialists dedicated to your skin, hair and confidence." className="bg-card">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {DOCTORS.map((d, i) => (
-          <motion.div key={d.name} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+          <motion.div key={d.name} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
             className="group relative rounded-3xl overflow-hidden bg-background shadow-sm hover:shadow-[var(--shadow-luxe)] transition-all">
-            <div className="aspect-[4/5] overflow-hidden">
-              <img src={d.img} alt={d.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" loading="lazy" />
+            <div className="aspect-[4/5] overflow-hidden bg-gradient-to-br from-accent to-card">
+              <img src={d.img} alt={d.name} className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700" loading="lazy" />
             </div>
-            <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/85 via-black/50 to-transparent text-white">
-              <div className="text-xs uppercase tracking-widest text-gold font-semibold">{d.title}</div>
-              <h3 className="font-display font-bold text-2xl mt-1">{d.name}</h3>
-              <p className="mt-2 text-sm text-white/85 max-h-0 group-hover:max-h-24 overflow-hidden transition-all duration-500">{d.bio}</p>
+            <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-black/90 via-black/60 to-transparent text-white">
+              <div className="text-[10px] uppercase tracking-widest text-gold font-semibold">{d.title}</div>
+              <h3 className="font-display font-bold text-lg md:text-xl mt-1 leading-tight">{d.name}</h3>
+              <p className="mt-1 text-[11px] text-white/80 leading-snug">{d.qual}</p>
+              <p className="mt-2 text-xs text-white/85 max-h-0 group-hover:max-h-32 overflow-hidden transition-all duration-500">{d.bio}</p>
             </div>
           </motion.div>
         ))}

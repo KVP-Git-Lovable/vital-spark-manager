@@ -577,20 +577,21 @@ function InstagramGallery() {
 
 function VideoReels() {
   const [active, setActive] = useState<string | null>(null);
+  const activeVideo = YT_SHORTS.find((v) => v.id === active);
   return (
-    <Section id="videos" eyebrow="Watch" title="Real moments from our clinic." subtitle="Tap any short to play.">
-      <div className="flex gap-5 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory">
+    <Section id="videos" eyebrow="Videos & Shorts" title="Skin Talks by Dr Vindhya Pai." subtitle="Watch our clinic in action — expert talks, real stories and reels.">
+      <div className="flex gap-5 overflow-x-auto pb-4 -mx-4 px-4 snap-x snap-mandatory scrollbar-thin">
         {YT_SHORTS.map((v, i) => (
-          <motion.button key={v.id} onClick={() => setActive(v.id)} initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
-            className="shrink-0 w-[260px] md:w-[300px] aspect-[9/16] rounded-3xl overflow-hidden relative group snap-start shadow-[var(--shadow-luxe)]">
+          <motion.button key={v.id} onClick={() => setActive(v.id)} initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.06 }}
+            className={`shrink-0 rounded-3xl overflow-hidden relative group snap-start shadow-[var(--shadow-luxe)] ${v.ratio === "9/16" ? "w-[240px] md:w-[280px] aspect-[9/16]" : "w-[340px] md:w-[440px] aspect-video"}`}>
             <img src={`https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`} alt={v.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-16 h-16 rounded-full bg-white/95 backdrop-blur flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+              <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-white/95 backdrop-blur flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
                 <Play className="w-6 h-6 text-primary fill-primary ml-1" />
               </div>
             </div>
-            <div className="absolute bottom-4 left-4 right-4 text-white font-semibold text-left">{v.title}</div>
+            <div className="absolute bottom-3 left-4 right-4 text-white font-semibold text-sm text-left drop-shadow">{v.title}</div>
           </motion.button>
         ))}
       </div>
@@ -600,9 +601,9 @@ function VideoReels() {
             onClick={() => setActive(null)}
             className="fixed inset-0 z-[100] bg-black/90 backdrop-blur flex items-center justify-center p-4">
             <button className="absolute top-6 right-6 text-white p-2" onClick={() => setActive(null)}><X className="w-8 h-8" /></button>
-            <div className="relative w-full max-w-md aspect-[9/16] rounded-2xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className={`relative w-full rounded-2xl overflow-hidden shadow-2xl ${activeVideo?.ratio === "9/16" ? "max-w-md aspect-[9/16]" : "max-w-4xl aspect-video"}`} onClick={(e) => e.stopPropagation()}>
               <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${active}?autoplay=1`}
-                title="YouTube Short" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
+                title={activeVideo?.title ?? "YouTube video"} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
             </div>
           </motion.div>
         )}

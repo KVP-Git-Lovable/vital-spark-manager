@@ -52,11 +52,18 @@
     --info: 210 80% 55%;
     --info-foreground: 0 0% 100%;
 
+    --gold: 42 65% 55%;
+    --gold-foreground: 210 40% 10%;
+    --emerald: 158 64% 42%;
+
     --font-display: 'Plus Jakarta Sans', sans-serif;
     --font-body: 'Inter', sans-serif;
 
     --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
     --shadow-elevated: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+    --shadow-luxe: 0 30px 60px -20px hsl(174 62% 20% / 0.25), 0 18px 36px -18px hsl(174 62% 20% / 0.15);
+    --gradient-hero: linear-gradient(135deg, hsl(174 62% 38% / 0.85) 0%, hsl(158 64% 42% / 0.7) 50%, hsl(210 40% 10% / 0.6) 100%);
+    --gradient-luxe: linear-gradient(135deg, hsl(174 62% 38%) 0%, hsl(158 64% 42%) 100%);
   }
 
   .dark {

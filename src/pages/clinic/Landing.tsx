@@ -626,7 +626,7 @@ function Blog() {
               <div className="text-xs text-muted-foreground font-medium">{b.read} read</div>
               <h3 className="mt-2 font-display font-bold text-xl leading-snug">{b.title}</h3>
               <p className="mt-2 text-sm text-muted-foreground">{b.excerpt}</p>
-              <a href="#" className="mt-4 inline-flex items-center text-primary font-semibold text-sm">Read article <ArrowRight className="ml-1 w-4 h-4" /></a>
+              <a href={b.href} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center text-primary font-semibold text-sm">Read article <ArrowRight className="ml-1 w-4 h-4" /></a>
             </div>
           </motion.article>
         ))}
@@ -686,14 +686,14 @@ function Contact() {
 
         <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
           <div className="rounded-3xl overflow-hidden border border-border h-64 shadow-sm">
-            <iframe title="Clinic Location" src="https://www.google.com/maps?q=Mangalore&output=embed" className="w-full h-full" loading="lazy" />
+            <iframe title="The Skin Clinic — Mangaluru" src={MAPS_EMBED} className="w-full h-full" loading="lazy" />
           </div>
           <div className="grid sm:grid-cols-2 gap-3">
             {[
-              { icon: Phone, label: "Call us", value: "+91 98765 43210", href: "tel:+919876543210" },
-              { icon: MessageCircle, label: "WhatsApp", value: "Chat with us", href: "https://wa.me/919876543210" },
-              { icon: Mail, label: "Email", value: "hello@theskinclinic.in", href: "mailto:hello@theskinclinic.in" },
-              { icon: Clock, label: "Hours", value: "Mon–Sat · 10am – 8pm" },
+              { icon: Phone, label: "Call us", value: "+91 96201 23030", href: "tel:+919620123030" },
+              { icon: Phone, label: "Alt. line", value: "+91 63607 53030", href: "tel:+916360753030" },
+              { icon: MessageCircle, label: "WhatsApp", value: "Chat instantly", href: WHATSAPP },
+              { icon: MapPin, label: "Visit", value: "Kadri Kambla, Mangaluru", href: "https://maps.google.com/?cid=5768419635675091400" },
             ].map((c) => {
               const inner = (
                 <>
@@ -714,7 +714,7 @@ function Contact() {
               );
             })}
           </div>
-          <a href="https://wa.me/919876543210" target="_blank" rel="noreferrer"
+          <a href={WHATSAPP} target="_blank" rel="noreferrer"
             className="flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-emerald to-primary text-white font-semibold shadow-lg hover:shadow-xl transition-shadow">
             <MessageCircle className="w-5 h-5" /> Chat on WhatsApp — instant reply
             <ArrowRight className="ml-auto w-5 h-5" />

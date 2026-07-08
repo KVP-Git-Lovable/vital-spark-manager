@@ -175,11 +175,9 @@ function TopNav() {
   return (
     <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/80 backdrop-blur-xl border-b border-border/60 shadow-sm" : "bg-transparent"}`}>
       <div className="container mx-auto flex items-center justify-between h-16 md:h-20 px-4">
-        <a href="#home" className="flex items-center gap-2 font-display font-bold text-lg md:text-xl">
-          <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-emerald flex items-center justify-center text-white shadow-md">
-            <Sparkles className="w-5 h-5" />
-          </span>
-          <span className={scrolled ? "text-foreground" : "text-white drop-shadow"}>The Skin Clinic</span>
+        <a href="#home" className="flex items-center gap-2.5 font-display font-bold text-lg md:text-xl">
+          <img src={logo} alt="The Skin Clinic" className={`h-10 md:h-11 w-auto object-contain transition-all ${scrolled ? "" : "drop-shadow-lg"}`} />
+          <span className={`hidden sm:inline ${scrolled ? "text-foreground" : "text-white drop-shadow"}`}>The Skin Clinic</span>
         </a>
         <nav className="hidden lg:flex items-center gap-7">
           {NAV.map((n) => (
@@ -190,7 +188,7 @@ function TopNav() {
         </nav>
         <div className="hidden md:flex items-center gap-2">
           <Button asChild variant="ghost" className={scrolled ? "" : "text-white hover:bg-white/10 hover:text-white"}>
-            <Link to="/portal/login">Login</Link>
+            <Link to="/login">Login</Link>
           </Button>
           <Button asChild className="bg-gradient-to-r from-primary to-emerald text-white shadow-lg hover:shadow-xl">
             <Link to="/portal/login?next=/portal/appointments">Book Appointment</Link>
@@ -211,7 +209,7 @@ function TopNav() {
                 </a>
               ))}
               <div className="flex gap-2 pt-3 border-t border-border mt-2">
-                <Button asChild variant="outline" className="flex-1"><Link to="/portal/login">Login</Link></Button>
+                <Button asChild variant="outline" className="flex-1"><Link to="/login">Login</Link></Button>
                 <Button asChild className="flex-1 bg-gradient-to-r from-primary to-emerald text-white">
                   <Link to="/portal/login?next=/portal/appointments">Book</Link>
                 </Button>

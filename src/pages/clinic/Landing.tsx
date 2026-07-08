@@ -13,12 +13,21 @@ import { toast } from "sonner";
 
 import hero from "@/assets/clinic/hero.jpg";
 import about from "@/assets/clinic/about.jpg";
-import tSkin from "@/assets/clinic/treatment-skin.jpg";
-import tLaser from "@/assets/clinic/treatment-laser.jpg";
-import tHair from "@/assets/clinic/treatment-hair.jpg";
-import tAesthetic from "@/assets/clinic/treatment-aesthetic.jpg";
-import doc1 from "@/assets/clinic/doctor-1.jpg";
-import doc2 from "@/assets/clinic/doctor-2.jpg";
+import logo from "@/assets/skin-clinic-logo.png";
+import docVindhya from "@/assets/clinic/real/dr-vindhya.jpg";
+import docPunya from "@/assets/clinic/real/dr-punya.png";
+import docSuraksha from "@/assets/clinic/real/dr-suraksha.jpg";
+import docAshwini from "@/assets/clinic/real/dr-ashwini.jpg";
+import tHairLoss from "@/assets/clinic/real/t-hair-loss.png";
+import tLaser from "@/assets/clinic/real/t-laser.png";
+import tTattoo from "@/assets/clinic/real/t-tattoo.png";
+import tFatLoss from "@/assets/clinic/real/t-fatloss.jpg";
+import tBrightening from "@/assets/clinic/real/t-brightening.jpg";
+import tTightening from "@/assets/clinic/real/t-tightening.png";
+import tClinical from "@/assets/clinic/real/t-clinical.jpg";
+import blogAges from "@/assets/clinic/real/blog-ages.jpg";
+import blogDiet from "@/assets/clinic/real/blog-diet.jpg";
+import blogAcne from "@/assets/clinic/real/blog-acne.jpg";
 
 /* ─────────── data (easy to swap) ─────────── */
 
@@ -36,64 +45,94 @@ const NAV = [
 
 const STATS = [
   { value: 25000, suffix: "+", label: "Happy Patients" },
-  { value: 15, suffix: "+", label: "Years of Excellence" },
-  { value: 50000, suffix: "+", label: "Procedures Performed" },
-  { value: 4.9, suffix: "★", label: "Google Rating", decimals: 1 },
+  { value: 7, suffix: "+", label: "Years at Mallikatte" },
+  { value: 481, suffix: "+", label: "Google Reviews" },
+  { value: 4.6, suffix: "★", label: "Google Rating", decimals: 1 },
 ];
 
 const TREATMENTS = [
-  { icon: Droplet, title: "Advanced Skincare", desc: "Hydrafacials, peels, medi-facials tailored to your skin type.", img: tSkin },
-  { icon: Zap, title: "Laser Treatments", desc: "Painless laser hair reduction, tattoo & pigmentation removal.", img: tLaser },
-  { icon: Scissors, title: "Hair Restoration", desc: "PRP, GFC, mesotherapy and hair transplant solutions.", img: tHair },
-  { icon: Flower2, title: "Aesthetic Enhancement", desc: "Botox, fillers, threads — subtle, natural, refined.", img: tAesthetic },
-  { icon: Sun, title: "Anti-Ageing", desc: "HIFU, RF micro-needling & skin tightening protocols.", img: about },
-  { icon: Activity, title: "Acne & Scars", desc: "Evidence-based acne care, scar revision & resurfacing.", img: tSkin },
+  { icon: Zap, title: "Laser Hair Reduction", desc: "Painless, precise laser hair reduction for face and body.", img: tLaser },
+  { icon: Scissors, title: "Hair Loss Treatments", desc: "PRP, GFC and medical management for hair fall and thinning.", img: tHairLoss },
+  { icon: Droplet, title: "Clinical Dermatology", desc: "Diagnosis and treatment of acne, eczema, psoriasis and more.", img: tClinical },
+  { icon: Sparkles, title: "Skin Brightening", desc: "Medi-facials, peels and lasers for radiant, even-toned skin.", img: tBrightening },
+  { icon: Sun, title: "Skin Tightening", desc: "HIFU, RF and Legend Pro for firm, lifted, youthful skin.", img: tTightening },
+  { icon: Activity, title: "Tattoo Removal", desc: "Q-switched laser tattoo removal — safe, effective, gradual.", img: tTattoo },
+  { icon: Flower2, title: "Pre-Wedding Skin Care", desc: "Personalised bridal & groom glow-up plans months ahead.", img: tBrightening },
+  { icon: HeartPulse, title: "Fat Loss & Body Contouring", desc: "Non-surgical inch loss and body sculpting treatments.", img: tFatLoss },
 ];
 
 const DOCTORS = [
-  { name: "Dr. Vindhya Pai", title: "Chief Dermatologist, MD (Derm)", bio: "15+ years of clinical excellence in aesthetic and medical dermatology.", img: doc1 },
-  { name: "Dr. Punya Suvarna", title: "Consultant Dermatologist, DVD", bio: "Specialist in laser, hair restoration and cosmetic procedures.", img: doc2 },
+  { name: "Dr. Vindhya A. Pai", title: "Founder & Chief Dermatologist", qual: "MD Dermatology, Venereology & Leprology (KMC Mangalore)", bio: "Fellowship-trained in aesthetic dermatology, with observerships in New York and Italy. Founded The Skin Clinic in 2018. IADVL-recognised centre for aesthetic dermatology observerships.", img: docVindhya },
+  { name: "Dr. Punya Suvarna", title: "Consultant Dermatologist", qual: "MBBS, MD Dermatology, Venereology & Leprosy", bio: "Special interest in laser, hair reduction and cosmetic dermatology.", img: docPunya },
+  { name: "Dr. P. Suraksha", title: "Consultant Dermatologist", qual: "MBBS, MD Dermatology, Venereology & Leprosy (RGUHS)", bio: "Focused on clinical dermatology and evidence-based skin care.", img: docSuraksha },
+  { name: "Dr. Ashwini Ashokan", title: "Consultant Dermatologist", qual: "MBBS, MD Dermatology, Venereology & Leprosy", bio: "Skilled in medical and aesthetic dermatology procedures.", img: docAshwini },
 ];
 
+// Before/after — placeholders until real cases are uploaded
 const BEFORE_AFTER = [
-  { label: "Acne & Scar Revival", before: tSkin, after: tSkin },
-  { label: "Laser Hair Reduction", before: tHair, after: tHair },
-  { label: "Pigmentation Care", before: tAesthetic, after: tAesthetic },
+  { label: "Acne & Scar Revival", before: tClinical, after: tBrightening },
+  { label: "Laser Hair Reduction", before: tHairLoss, after: tLaser },
+  { label: "Pigmentation Care", before: tClinical, after: tBrightening },
 ];
 
+// Real testimonials from the reference site
 const TESTIMONIALS = [
-  { name: "Ananya S.", role: "Bengaluru", rating: 5, quote: "The team is meticulous and genuinely caring. My skin has never looked better." },
-  { name: "Rohit K.", role: "Mangaluru", rating: 5, quote: "Painless laser treatment and impeccable hygiene. Highly recommended." },
-  { name: "Priya M.", role: "Udupi", rating: 5, quote: "Dr. Vindhya explained everything clearly. Real, natural-looking results." },
-  { name: "Neha R.", role: "Chennai", rating: 5, quote: "Luxurious ambience with clinical precision — a rare combination." },
+  { name: "Megha Shetty", role: "Verified patient", rating: 5, quote: "The doctors here are incredibly knowledgeable, listened carefully to my concerns and explained every option. The procedure was done with utmost care and my skin has improved significantly." },
+  { name: "Esha Suresh", role: "Verified patient", rating: 5, quote: "I have been a regular at The Skin Clinic for 10 months and the experience gets better every visit. Dr. Punya is skilled and takes that extra effort to keep clients comfortable. Highly recommend it!" },
+  { name: "Sheryl D'souza", role: "Verified patient", rating: 5, quote: "My skin has improved drastically under Dr. Vindhya Pai. The staff is friendly and guides you through every step. Always grateful." },
+  { name: "Sahana A.", role: "Verified patient", rating: 5, quote: "I consulted this clinic for my acne scars. After a few sessions of treatment I can see a real difference in my skin — thanks to Dr. Vindhya Pai and team." },
+  { name: "Harshitha Rao", role: "Verified patient", rating: 5, quote: "Dr. Punya helped a lot with my skin concern and recommended the glow-up treatment. My skin has improved a lot and the staff are very kind." },
 ];
 
 const REVIEWS = [
-  { name: "Meera P.", rating: 5, text: "Best skin clinic experience I've had. Professional, warm, and effective." },
-  { name: "Kiran D.", rating: 5, text: "Modern equipment, gentle staff. Loved the hydrafacial results." },
-  { name: "Sana A.", rating: 5, text: "Went for pigmentation — saw visible improvement in just 3 sittings." },
+  { name: "Srihari K", rating: 5, text: "The doctors took time to understand my rare skin condition (cholinergic urticaria) instead of just prescribing painkillers. Great place for any skin issues." },
+  { name: "N R Arundhathi", rating: 5, text: "Laser hair reduction sessions were smooth, comfortable and professionally handled. Significant improvement — highly recommend." },
+  { name: "Srisha Nayak", rating: 5, text: "Attentive team from the first consultation. My acne is much more controlled and my complexion is clearing up beautifully." },
+  { name: "Varsha Rani", rating: 5, text: "Dr. Vindhya knows the exact antidote for any skin problem. Latest equipment, real results — worth every rupee." },
+  { name: "Sharvari Shetty", rating: 5, text: "Dr. Vindhya is passionate and remembers her patients' details. She even guides you on diet. The place and people are a delight." },
+  { name: "Prithvi K", rating: 5, text: "Doing facial hair reduction with Dr. Punya Suvarna for a year. She's gentle and kind, staff are understanding. Trust the process to see the progress." },
 ];
 
-const IG_TILES = [tSkin, tLaser, tHair, tAesthetic, about, hero, doc1, doc2];
+const IG_TILES = [tLaser, tHairLoss, tClinical, tBrightening, tTightening, tTattoo, tFatLoss, about];
 
+// Real Skin Talks + user-provided YouTube content
 const YT_SHORTS = [
-  { id: "BOHwC9WgrRk", title: "Glow Up Journey" },
-  { id: "CiCE_ZQEOB8", title: "Inside The Clinic" },
-  // add more IDs any time
+  { id: "0Nk93IayGzs", title: "Vindhya Pai — Success Story", ratio: "16/9" as const },
+  { id: "UkSKe3p2KE4", title: "Skin Talks by Dr Vindhya Pai", ratio: "16/9" as const },
+  { id: "3uRFY00obxg", title: "Skin Talks Ep 1 — Melasma", ratio: "16/9" as const },
+  { id: "oETsUP9D7Ig", title: "Skin Talk by Dr Vindhya Pai", ratio: "16/9" as const },
+  { id: "PP2r5LTJm9M", title: "Skin Talks by Dr Vindhya Pai", ratio: "16/9" as const },
+  { id: "BOHwC9WgrRk", title: "The Skin Clinic — Short", ratio: "9/16" as const },
+  { id: "CiCE_ZQEOB8", title: "Inside The Skin Clinic", ratio: "9/16" as const },
 ];
 
 const BLOG = [
-  { title: "5 Habits for Truly Glowing Skin", excerpt: "Simple daily rituals dermatologists swear by.", read: "4 min", img: tSkin },
-  { title: "Laser Hair Reduction: Myths vs Facts", excerpt: "Everything you need to know before your first session.", read: "6 min", img: tLaser },
-  { title: "Understanding Acne — A Doctor's Guide", excerpt: "Types, triggers and evidence-based treatments.", read: "5 min", img: tAesthetic },
+  { title: "Skincare for all ages", excerpt: "Skin-care routines for your 20s, 30s and beyond.", read: "4 min", img: blogAges, href: "https://www.theskinclinic.org.in/skincare-for-all-ages/" },
+  { title: "How your diet affects your skin", excerpt: "The truth about fad diets and their impact on skin health.", read: "5 min", img: blogDiet, href: "https://www.theskinclinic.org.in/how-your-diet-affects-your-skin/" },
+  { title: "Medical Acne Treatments", excerpt: "Understanding acne and evidence-based treatment options.", read: "6 min", img: blogAcne, href: "https://www.theskinclinic.org.in/medical-acne-treatments/" },
 ];
 
 const FAQS = [
-  { q: "Are consultations by appointment only?", a: "Yes, we recommend booking in advance to ensure adequate time with your dermatologist." },
-  { q: "Do you offer EMI options?", a: "Yes, we partner with leading providers for flexible EMI on select treatment packages." },
-  { q: "Is laser treatment painful?", a: "Modern lasers are virtually painless. Most patients describe a mild warm sensation." },
-  { q: "How many sessions will I need?", a: "It depends on the concern — your dermatologist will craft a personalised plan on day one." },
+  { q: "Are consultations by appointment only?", a: "Yes — we practice no-rush appointments so your time with the dermatologist is truly yours. Please book in advance." },
+  { q: "Where is The Skin Clinic located?", a: "Vyasa Rao Road, Kadri Kambla Rd, Mallikatte, Kadri, Mangaluru, Karnataka 575003." },
+  { q: "Is laser hair reduction painful?", a: "Our USFDA-approved lasers are virtually painless — most patients describe a mild warm sensation." },
+  { q: "How many sessions will I need?", a: "It depends on the concern and your skin type — your dermatologist will craft a personalised plan on your first visit." },
+  { q: "Do you treat children?", a: "Yes — Dr. Vindhya has a special interest in paediatric dermatology alongside adult care." },
 ];
+
+const PHONES = [
+  { label: "+91 96201 23030", href: "tel:+919620123030" },
+  { label: "+91 63607 53030", href: "tel:+916360753030" },
+];
+const WHATSAPP = "https://wa.me/919620123030";
+const ADDRESS = "Vyasa Rao Road, Kadri Kambla Rd, Mallikatte, Kadri, Mangaluru, Karnataka 575003";
+const MAPS_EMBED = "https://www.google.com/maps?q=The+Skin+Clinic+Kadri+Kambla+Mangaluru&output=embed";
+const SOCIALS = {
+  instagram: "https://www.instagram.com/theskinclinic_mangalore/",
+  facebook: "https://www.facebook.com/theskinclinicmangalore/",
+  twitter: "https://twitter.com/theskinclinic17/",
+  youtube: "https://www.youtube.com/channel/UCi9XPgx3UhtimTMLFmeC69A",
+};
 
 /* ─────────── helpers ─────────── */
 

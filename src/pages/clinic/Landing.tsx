@@ -559,10 +559,10 @@ function GoogleReviews() {
 
 function InstagramGallery() {
   return (
-    <Section eyebrow="Instagram" title="@theskinclinic" subtitle="A window into our world — treatments, transformations, team." className="bg-card">
+    <Section eyebrow="Instagram" title="@theskinclinic_mangalore" subtitle="A window into our world — treatments, transformations, team." className="bg-card">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {IG_TILES.map((src, i) => (
-          <motion.a key={i} href="#" initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
+          <motion.a key={i} href={SOCIALS.instagram} target="_blank" rel="noreferrer" initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}
             className="group relative aspect-square overflow-hidden rounded-2xl">
             <img src={src} alt="Instagram" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" />
             <div className="absolute inset-0 bg-gradient-to-br from-primary/0 to-emerald/0 group-hover:from-primary/60 group-hover:to-emerald/60 transition-all flex items-center justify-center">

@@ -426,6 +426,21 @@ const Billing = () => {
     }
   }, [searchParams, serviceMaster]);
 
+  // Open a specific invoice via ?viewInvoice=<id> (e.g. from Patient detail)
+  useEffect(() => {
+    const viewId = searchParams.get("viewInvoice");
+    if (!viewId || !invoices?.length) return;
+    const inv = (invoices as any[]).find((i: any) => i.id === viewId);
+    if (inv) {
+      setViewInvoice(inv);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("viewInvoice");
+        return next;
+      }, { replace: true });
+    }
+  }, [searchParams, invoices]);
+
   // Unique doctors and services for filter dropdowns
   const uniqueDoctors = useMemo(() => {
     const docs = new Map<string, string>();

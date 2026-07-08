@@ -730,22 +730,20 @@ function Footer() {
     <footer className="bg-sidebar text-sidebar-foreground pt-16 pb-8">
       <div className="container mx-auto px-4 grid md:grid-cols-4 gap-10">
         <div className="md:col-span-2">
-          <div className="flex items-center gap-2 font-display font-bold text-xl text-white">
-            <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-emerald flex items-center justify-center">
-              <Sparkles className="w-5 h-5" />
-            </span>
+          <div className="flex items-center gap-2.5 font-display font-bold text-xl text-white">
+            <img src={logo} alt="The Skin Clinic" className="h-11 w-auto object-contain bg-white/10 rounded-lg p-1" />
             The Skin Clinic
           </div>
           <p className="mt-4 text-sm text-sidebar-foreground/70 max-w-md">
-            Premier dermatology and aesthetic care — where science meets serenity.
+            Full-spectrum family dermatology in Mangaluru — clinical care, aesthetics and laser, delivered by board-certified specialists.
           </p>
           <div className="mt-5 flex gap-3">
             {[
-              { icon: Instagram, href: "#" },
-              { icon: Facebook, href: "#" },
-              { icon: Youtube, href: "#" },
+              { icon: Instagram, href: SOCIALS.instagram },
+              { icon: Facebook, href: SOCIALS.facebook },
+              { icon: Youtube, href: SOCIALS.youtube },
             ].map((s, i) => (
-              <a key={i} href={s.href} className="w-10 h-10 rounded-full bg-sidebar-accent hover:bg-primary text-white flex items-center justify-center transition-colors">
+              <a key={i} href={s.href} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-sidebar-accent hover:bg-primary text-white flex items-center justify-center transition-colors">
                 <s.icon className="w-4 h-4" />
               </a>
             ))}
@@ -762,9 +760,10 @@ function Footer() {
         <div>
           <div className="text-white font-semibold mb-4">Reach us</div>
           <ul className="space-y-2 text-sm text-sidebar-foreground/80">
-            <li className="flex items-start gap-2"><MapPin className="w-4 h-4 mt-0.5 shrink-0" /> Mangaluru, Karnataka</li>
-            <li className="flex items-center gap-2"><Phone className="w-4 h-4" /> +91 98765 43210</li>
-            <li className="flex items-center gap-2"><Mail className="w-4 h-4" /> hello@theskinclinic.in</li>
+            <li className="flex items-start gap-2"><MapPin className="w-4 h-4 mt-0.5 shrink-0" /> {ADDRESS}</li>
+            {PHONES.map((p) => (
+              <li key={p.href} className="flex items-center gap-2"><Phone className="w-4 h-4" /> <a href={p.href} className="hover:text-white">{p.label}</a></li>
+            ))}
           </ul>
         </div>
       </div>
@@ -816,7 +815,7 @@ export default function Landing() {
       <Footer />
 
       {/* Floating WhatsApp CTA */}
-      <a href="https://wa.me/919876543210" target="_blank" rel="noreferrer"
+      <a href={WHATSAPP} target="_blank" rel="noreferrer"
         className="fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full bg-gradient-to-br from-emerald to-primary text-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
         <MessageCircle className="w-6 h-6" />
       </a>

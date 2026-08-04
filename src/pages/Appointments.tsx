@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useModal } from "@/hooks/useModal";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,7 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
 const Appointments = () => {
   const queryClient = useQueryClient();
   const routerNavigate = useNavigate();
+  const { setOpenModal } = useModal();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showBillingPrompt, setShowBillingPrompt] = useState(false);
   const [lastCreatedPatientId, setLastCreatedPatientId] = useState("");
@@ -917,7 +919,7 @@ const Appointments = () => {
         compact ? "px-1.5 py-0.5 text-[10px]" : "p-2 text-xs mb-1"
       )}
       onMouseDown={(e) => { e.stopPropagation(); }}
-      onClick={(e) => { e.stopPropagation(); window.open(`/appointments/${apt.id}`, "_blank", "noopener"); }}
+      onClick={(e) => { e.stopPropagation(); setOpenModal("appointmentDetail", apt.id); }}
     >
       <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name || "—"}</p>
       {!compact && <p className="opacity-70 truncate">{apt.service}</p>}
@@ -1639,7 +1641,7 @@ const Appointments = () => {
                       }
 
                       return (
-                        <tr key={apt.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors" onClick={() => window.open(`/appointments/${apt.id}`, "_blank", "noopener")}>
+                        <tr key={apt.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors" onClick={() => setOpenModal("appointmentDetail", apt.id)}>
                           <td className="p-3">
                             <p className="font-medium">{format(new Date(apt.start_time), "MMM d, yyyy")}</p>
                             <p className="text-xs text-muted-foreground">{format(new Date(apt.start_time), "h:mm a")} - {format(new Date(apt.end_time), "h:mm a")}</p>

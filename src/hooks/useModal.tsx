@@ -1,15 +1,17 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 
-export type ModalType = "appointments" | null;
+export type ModalType = "appointments" | "appointmentDetail" | null;
 
 interface ModalContextType {
   openModal: ModalType;
-  setOpenModal: (modal: ModalType) => void;
+  selectedAppointmentId: string | null;
+  setOpenModal: (modal: ModalType, appointmentId?: string) => void;
   closeModal: () => void;
 }
 
 const ModalContext = createContext<ModalContextType>({
   openModal: null,
+  selectedAppointmentId: null,
   setOpenModal: () => {},
   closeModal: () => {},
 });
@@ -17,12 +19,23 @@ const ModalContext = createContext<ModalContextType>({
 export const useModal = () => useContext(ModalContext);
 
 export function ModalProvider({ children }: { children: ReactNode }) {
-  const [openModal, setOpenModal] = useState<ModalType>(null);
+  const [openModal, setOpenModalState] = useState<ModalType>(null);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
 
-  const closeModal = () => setOpenModal(null);
+  const setOpenModal = (modal: ModalType, appointmentId?: string) => {
+    setOpenModalState(modal);
+    if (appointmentId) {
+      setSelectedAppointmentId(appointmentId);
+    }
+  };
+
+  const closeModal = () => {
+    setOpenModalState(null);
+    setSelectedAppointmentId(null);
+  };
 
   return (
-    <ModalContext.Provider value={{ openModal, setOpenModal, closeModal }}>
+    <ModalContext.Provider value={{ openModal, selectedAppointmentId, setOpenModal, closeModal }}>
       {children}
     </ModalContext.Provider>
   );

@@ -77,7 +77,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
       try {
         // Try to load from database first
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from("staff")
           .select("theme_preference")
           .eq("id", staffProfile.id)
@@ -124,7 +124,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     // Try to save to database, but don't fail if not available
     try {
-      await supabase
+      await (supabase as any)
         .from("staff")
         .update({ theme_preference: newTheme })
         .eq("id", staffProfile.id);

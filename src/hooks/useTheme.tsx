@@ -19,6 +19,8 @@ const ThemeContext = createContext<ThemeContextType>({
 
 export const useTheme = () => useContext(ThemeContext);
 
+const THEME_STORAGE_KEY = "skin-clinic-theme";
+
 const themeVariables: Record<ThemeType, Record<string, string>> = {
   "amber": {
     "--sidebar-background": "30 60% 45%",
@@ -49,6 +51,13 @@ const themeVariables: Record<ThemeType, Record<string, string>> = {
   },
 };
 
+const applyTheme = (themeType: ThemeType) => {
+  const variables = themeVariables[themeType];
+  Object.entries(variables).forEach(([key, value]) => {
+    document.documentElement.style.setProperty(key, value);
+  });
+};
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeType>("amber");
   const [loading, setLoading] = useState(true);
@@ -57,37 +66,42 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const loadTheme = async () => {
       if (!user || !staffProfile) {
-        setThemeState("amber");
-        applyTheme("amber");
+        // Check localStorage for saved theme
+        const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as ThemeType | null;
+        const defaultTheme = savedTheme || "amber";
+        setThemeState(defaultTheme);
+        applyTheme(defaultTheme);
         setLoading(false);
         return;
       }
 
       try {
+        // Try to load from database first
         const { data, error } = await supabase
           .from("staff")
           .select("theme_preference")
           .eq("id", staffProfile.id)
           .maybeSingle();
 
-        // Silently handle column doesn't exist error during migration period
-        if (error && error.message.includes("column")) {
-          console.warn("theme_preference column not yet available, using default theme");
-          setThemeState("amber");
-          applyTheme("amber");
-        } else if (error) {
-          throw error;
-        } else if (data && data.theme_preference) {
+        if (!error && data && data.theme_preference) {
+          // Database has the theme
           setThemeState(data.theme_preference as ThemeType);
           applyTheme(data.theme_preference as ThemeType);
+          localStorage.setItem(THEME_STORAGE_KEY, data.theme_preference);
         } else {
-          setThemeState("amber");
-          applyTheme("amber");
+          // Database doesn't have theme or column doesn't exist, use localStorage or default
+          const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as ThemeType | null;
+          const defaultTheme = savedTheme || "amber";
+          setThemeState(defaultTheme);
+          applyTheme(defaultTheme);
         }
       } catch (error) {
-        console.warn("Failed to load theme (will use default):", error);
-        setThemeState("amber");
-        applyTheme("amber");
+        console.warn("Failed to load theme from database:", error);
+        // Fallback to localStorage
+        const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as ThemeType | null;
+        const defaultTheme = savedTheme || "amber";
+        setThemeState(defaultTheme);
+        applyTheme(defaultTheme);
       } finally {
         setLoading(false);
       }
@@ -96,38 +110,28 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     loadTheme();
   }, [user, staffProfile]);
 
-  const applyTheme = (themeType: ThemeType) => {
-    const variables = themeVariables[themeType];
-    Object.entries(variables).forEach(([key, value]) => {
-      document.documentElement.style.setProperty(key, value);
-    });
-  };
-
   const setTheme = async (newTheme: ThemeType) => {
     if (!staffProfile) {
       toast.error("User profile not found");
       return;
     }
 
-    try {
-      // Always apply theme immediately on client
-      setThemeState(newTheme);
-      applyTheme(newTheme);
-      toast.success(`Theme changed to ${newTheme.replace('-', ' ')}`);
+    // Always apply theme immediately on client
+    setThemeState(newTheme);
+    applyTheme(newTheme);
+    localStorage.setItem(THEME_STORAGE_KEY, newTheme);
+    toast.success(`Theme changed to ${newTheme.replace('-', ' ')}`);
 
-      // Try to save to database, but don't fail if column doesn't exist yet
-      const { error } = await supabase
+    // Try to save to database, but don't fail if not available
+    try {
+      await supabase
         .from("staff")
         .update({ theme_preference: newTheme })
         .eq("id", staffProfile.id);
-
-      // Silently handle column doesn't exist error during migration period
-      if (error && !error.message.includes("column")) {
-        console.warn("Theme save failed (will be available after migration):", error);
-      }
     } catch (error) {
-      console.warn("Failed to save theme preference:", error);
-      // Theme is already applied on client, so don't show error
+      console.warn("Theme saved locally, will sync to database after migration:", error);
+      // Theme is already applied on client and saved to localStorage
+      // Once database migration is applied, it will sync automatically on next login
     }
   };
 

@@ -10,8 +10,9 @@ export function AppointmentDetailModal() {
 
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-auto">
-      {/* Close Button */}
-      <div className="sticky top-0 right-0 flex justify-end p-4 bg-background border-b z-10">
+      {/* Header with Close Button */}
+      <div className="sticky top-0 z-10 flex justify-between items-center p-4 bg-background border-b">
+        <h2 className="text-lg font-semibold">Appointment Details</h2>
         <Button
           variant="ghost"
           size="icon"

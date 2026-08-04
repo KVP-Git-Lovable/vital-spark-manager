@@ -10,8 +10,9 @@ export function AppointmentsModal() {
 
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-auto">
-      {/* Close Button */}
-      <div className="sticky top-0 right-0 flex justify-end p-4 bg-background border-b">
+      {/* Close Button - Header */}
+      <div className="sticky top-0 z-10 flex justify-between items-center p-4 bg-background border-b">
+        <h2 className="text-lg font-semibold">Appointments</h2>
         <Button
           variant="ghost"
           size="icon"
@@ -23,7 +24,7 @@ export function AppointmentsModal() {
       </div>
 
       {/* Modal Content */}
-      <div className="p-6">
+      <div className="w-full px-3 md:px-6 py-6">
         <Appointments />
       </div>
     </div>

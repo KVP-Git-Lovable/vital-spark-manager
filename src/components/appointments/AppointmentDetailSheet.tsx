@@ -1032,7 +1032,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   {appointmentPhotos.length > 0 && (
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-2">This Appointment</p>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                         {appointmentPhotos.map((photo: any) => (
                           <div key={photo.id} className="relative group cursor-pointer" onClick={() => setViewPhoto(photo)}>
                             <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover rounded-lg border transition-transform group-hover:scale-[1.02]" />
@@ -1046,7 +1046,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   {otherPhotos.length > 0 && (
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-2">All Patient Photos</p>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                         {otherPhotos.map((photo: any) => (
                           <div key={photo.id} className="relative group cursor-pointer" onClick={() => setViewPhoto(photo)}>
                             <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover rounded-lg border transition-transform group-hover:scale-[1.02]" />

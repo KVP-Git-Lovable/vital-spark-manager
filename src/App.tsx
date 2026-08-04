@@ -108,8 +108,8 @@ const App = () => (
             <Toaster />
             <Sonner />
             <InstallBanner />
-            <AppointmentsModal />
           <BrowserRouter>
+          <AppointmentsModal />
           <Routes>
             {/* Marketing website */}
             <Route path="/website" element={<Website />} />

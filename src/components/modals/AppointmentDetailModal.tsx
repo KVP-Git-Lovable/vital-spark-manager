@@ -24,7 +24,7 @@ export function AppointmentDetailModal() {
       </div>
 
       {/* Modal Content - Full Width with minimal padding */}
-      <div className="w-full px-3 md:px-6 py-6">
+      <div className="w-full px-3 md:px-6 py-4">
         <AppointmentDetail appointmentId={selectedAppointmentId} />
       </div>
     </div>

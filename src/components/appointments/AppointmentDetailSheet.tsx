@@ -236,6 +236,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [procFormOpen, setProcFormOpen] = useState(false);
   const [scanProcOpen, setScanProcOpen] = useState(false);
   const [selectedProcId, setSelectedProcId] = useState<string | null>(null);
+  const [viewPhoto, setViewPhoto] = useState<any>(null);
   // Billing plan state
   const [billingTotal, setBillingTotal] = useState(0);
   const [billingType, setBillingType] = useState<"one-time" | "recurring">("one-time");
@@ -1031,10 +1032,10 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   {appointmentPhotos.length > 0 && (
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-2">This Appointment</p>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                         {appointmentPhotos.map((photo: any) => (
-                          <div key={photo.id} className="relative group">
-                            <img src={photo.photo_url} alt="" className="w-full h-24 object-cover rounded-lg border" />
+                          <div key={photo.id} className="relative group cursor-pointer" onClick={() => setViewPhoto(photo)}>
+                            <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover rounded-lg border transition-transform group-hover:scale-[1.02]" />
                             <Badge variant="secondary" className="absolute top-1 left-1 text-[10px]">{photo.photo_type}</Badge>
                           </div>
                         ))}
@@ -1045,10 +1046,10 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   {otherPhotos.length > 0 && (
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-2">All Patient Photos</p>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                         {otherPhotos.map((photo: any) => (
-                          <div key={photo.id} className="relative group">
-                            <img src={photo.photo_url} alt="" className="w-full h-24 object-cover rounded-lg border" />
+                          <div key={photo.id} className="relative group cursor-pointer" onClick={() => setViewPhoto(photo)}>
+                            <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover rounded-lg border transition-transform group-hover:scale-[1.02]" />
                             <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] p-1 rounded-b-lg">
                               {photo.photo_type} · {format(new Date(photo.taken_at), "MMM d")}
                             </div>
@@ -1152,13 +1153,25 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   return (
     <>
       {isPage ? (
-        <div className="w-full max-w-7xl mx-auto rounded-xl border bg-card overflow-hidden">{inner}</div>
+        <div className="w-full rounded-xl border bg-card overflow-hidden">{inner}</div>
       ) : (
         <Sheet open={!!appointmentId} onOpenChange={(open) => { if (!open) handleClose(); }}>
           <SheetContent className="sm:max-w-xl w-full overflow-y-auto p-0">{inner}</SheetContent>
         </Sheet>
       )}
 
+      <Dialog open={!!viewPhoto} onOpenChange={(o) => { if (!o) setViewPhoto(null); }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="font-display">
+              {viewPhoto ? `${viewPhoto.photo_type} · ${format(new Date(viewPhoto.taken_at), "MMM d, yyyy")}` : "Photo"}
+            </DialogTitle>
+          </DialogHeader>
+          {viewPhoto && (
+            <img src={viewPhoto.photo_url} alt="" className="w-full max-h-[75vh] object-contain rounded-lg bg-muted" />
+          )}
+        </DialogContent>
+      </Dialog>
       {cameraOpen && appointment?.patient_id && (
         <CameraCapture
           open={cameraOpen}

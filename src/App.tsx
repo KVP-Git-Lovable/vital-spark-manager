@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { ThemeProvider } from "@/hooks/useTheme";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { ShopLayout } from "@/components/shop/ShopLayout";
@@ -100,9 +101,10 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
-        <Toaster />
-        <Sonner />
-        <InstallBanner />
+        <ThemeProvider>
+          <Toaster />
+          <Sonner />
+          <InstallBanner />
         <BrowserRouter>
           <Routes>
             {/* Marketing website */}
@@ -179,6 +181,7 @@ const App = () => (
             />
           </Routes>
         </BrowserRouter>
+        </ThemeProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

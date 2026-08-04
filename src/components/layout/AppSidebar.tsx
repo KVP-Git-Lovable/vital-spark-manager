@@ -118,7 +118,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 theme-header">
         <div className="flex items-center gap-3">
           <img src={skinClinicLogo} alt="The Skin Clinic" className="h-9 w-9 rounded-lg shrink-0 object-contain" />
           {!collapsed && (

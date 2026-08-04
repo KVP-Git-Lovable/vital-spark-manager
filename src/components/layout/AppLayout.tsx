@@ -26,6 +26,7 @@ import {
 import { useState } from "react";
 import { BackToReportBar } from "@/components/reports/BackToReportBar";
 import { MicButton } from "@/components/shared/MicButton";
+import { ThemeSelector } from "@/components/theme/ThemeSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -129,6 +130,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <Bell className="h-4 w-4 md:h-5 md:w-5" />
                 <span className="absolute top-1 right-1 md:top-1.5 md:right-1.5 h-2 w-2 rounded-full bg-destructive" />
               </Button>
+
+              <ThemeSelector />
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

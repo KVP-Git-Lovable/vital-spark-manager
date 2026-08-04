@@ -139,4 +139,9 @@
     @apply bg-card rounded-xl border border-border overflow-hidden;
     box-shadow: var(--shadow-card);
   }
+
+  .theme-header {
+    background: var(--sidebar-header-bg);
+    border-radius: 0.75rem;
+  }
 }

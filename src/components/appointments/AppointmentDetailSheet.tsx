@@ -223,9 +223,11 @@ function FeedbackTabContent({
 interface AppointmentDetailSheetProps {
   appointmentId: string | null;
   onClose: () => void;
+  variant?: "sheet" | "page";
 }
 
-export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDetailSheetProps) {
+export function AppointmentDetailSheet({ appointmentId, onClose, variant = "sheet" }: AppointmentDetailSheetProps) {
+  const isPage = variant === "page";
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -582,11 +584,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
   const appointmentPhotos = photos.filter((p: any) => p.appointment_id === appointmentId);
   const otherPhotos = photos.filter((p: any) => p.appointment_id !== appointmentId);
 
-  return (
-    <>
-      <Sheet open={!!appointmentId} onOpenChange={(open) => { if (!open) handleClose(); }}>
-        <SheetContent className="sm:max-w-xl w-full overflow-y-auto p-0">
-          {isLoading || !appointment ? (
+  const TitleTag: any = isPage ? "h1" : SheetTitle;
+
+  const inner = (isLoading || !appointment ? (
             <div className="p-6 text-center text-muted-foreground">Loading...</div>
           ) : (
             <>
@@ -594,7 +594,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                 <div className="flex items-start justify-between">
                   <div>
                     <Badge variant="outline" className="text-[10px] text-muted-foreground mb-1.5 font-normal">Appointment</Badge>
-                    <SheetTitle className="font-display text-lg flex items-center gap-2">
+                    <TitleTag className="font-display text-lg font-semibold flex items-center gap-2">
                       <button
                         className="hover:text-primary underline-offset-2 hover:underline transition-colors text-left"
                         onClick={() => {
@@ -607,7 +607,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                         {patientName}
                       </button>
                       {patientId && <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />}
-                    </SheetTitle>
+                    </TitleTag>
                     <p className="text-sm text-muted-foreground mt-1">
                       {format(new Date(appointment.start_time), "EEE, MMM d, yyyy · h:mm a")}
                     </p>
@@ -635,7 +635,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                   <TabsTrigger value="therapy-notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Therapy Notes</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="details" className="p-6 space-y-4 mt-0">
+                <TabsContent value="details" className={isPage ? "p-6 grid gap-4 md:grid-cols-2 md:items-start mt-0" : "p-6 space-y-4 mt-0"}>
                   <div>
                     <Label>Patient</Label>
                     <div className="mt-1.5">
@@ -1147,9 +1147,17 @@ export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDe
                 </TabsContent>
               </Tabs>
             </>
-          )}
-        </SheetContent>
-      </Sheet>
+          ));
+
+  return (
+    <>
+      {isPage ? (
+        <div className="w-full max-w-7xl mx-auto rounded-xl border bg-card overflow-hidden">{inner}</div>
+      ) : (
+        <Sheet open={!!appointmentId} onOpenChange={(open) => { if (!open) handleClose(); }}>
+          <SheetContent className="sm:max-w-xl w-full overflow-y-auto p-0">{inner}</SheetContent>
+        </Sheet>
+      )}
 
       {cameraOpen && appointment?.patient_id && (
         <CameraCapture

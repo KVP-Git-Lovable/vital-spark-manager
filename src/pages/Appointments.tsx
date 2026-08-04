@@ -959,6 +959,18 @@ const Appointments = () => {
             <Button variant={view === "month" ? "default" : "ghost"} size="sm" onClick={() => setView("month")} className="text-xs h-7 md:h-8 px-2 md:px-3">Month</Button>
             <Button variant={view === "table" ? "default" : "ghost"} size="sm" onClick={() => setView("table")} className="text-xs h-7 md:h-8 px-2 md:px-3 gap-1"><List className="h-3 w-3" />List</Button>
           </div>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 md:h-9 md:w-9 relative"
+            title="Filters & Search"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="h-4 w-4" />
+            {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all" || filterAppointmentType !== "all") && (
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary" />
+            )}
+          </Button>
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setLockPatient(false); }}>
             <DialogTrigger asChild>
               <Button className="gap-2 h-8 md:h-9 text-xs md:text-sm"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">New</span> Appt</Button>
@@ -1377,13 +1389,7 @@ const Appointments = () => {
       </div>
 
       {/* Collapsible Filters Bar */}
-      <div className="mb-4">
-        <Button variant="outline" size="sm" className="gap-2 text-xs mb-2" onClick={() => setShowFilters(!showFilters)}>
-          <Filter className="h-3.5 w-3.5" />
-          Filters & Search
-          {showFilters ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all" || filterAppointmentType !== "all") && <Badge className="h-4 px-1.5 text-[10px]">Active</Badge>}
-        </Button>
+      <div className={showFilters ? "mb-4" : ""}>
         {showFilters && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex flex-wrap items-center gap-3 p-3 bg-muted/30 rounded-lg border overflow-hidden">
             <div className="relative flex-1 min-w-[180px] max-w-xs">

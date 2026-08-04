@@ -1147,9 +1147,17 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                 </TabsContent>
               </Tabs>
             </>
-          )}
-        </SheetContent>
-      </Sheet>
+          ));
+
+  return (
+    <>
+      {isPage ? (
+        <div className="w-full max-w-7xl mx-auto rounded-xl border bg-card overflow-hidden">{inner}</div>
+      ) : (
+        <Sheet open={!!appointmentId} onOpenChange={(open) => { if (!open) handleClose(); }}>
+          <SheetContent className="sm:max-w-xl w-full overflow-y-auto p-0">{inner}</SheetContent>
+        </Sheet>
+      )}
 
       {cameraOpen && appointment?.patient_id && (
         <CameraCapture

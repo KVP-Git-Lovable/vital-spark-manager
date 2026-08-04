@@ -106,12 +106,12 @@ const App = () => (
       <AuthProvider>
         <ThemeProvider>
           <ModalProvider>
+          <BrowserRouter>
             <Toaster />
             <Sonner />
             <InstallBanner />
             <AppointmentsModal />
             <AppointmentDetailModal />
-          <BrowserRouter>
           <Routes>
             {/* Marketing website */}
             <Route path="/website" element={<Website />} />

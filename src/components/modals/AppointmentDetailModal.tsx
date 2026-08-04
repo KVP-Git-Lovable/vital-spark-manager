@@ -11,7 +11,7 @@ export function AppointmentDetailModal() {
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-auto">
       {/* Close Button */}
-      <div className="sticky top-0 right-0 flex justify-end p-4 bg-background border-b">
+      <div className="sticky top-0 right-0 flex justify-end p-4 bg-background border-b z-10">
         <Button
           variant="ghost"
           size="icon"
@@ -22,8 +22,8 @@ export function AppointmentDetailModal() {
         </Button>
       </div>
 
-      {/* Modal Content */}
-      <div className="p-6">
+      {/* Modal Content - Full Width with minimal padding */}
+      <div className="w-full px-3 md:px-6 py-6">
         <AppointmentDetail appointmentId={selectedAppointmentId} />
       </div>
     </div>

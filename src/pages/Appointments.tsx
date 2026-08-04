@@ -86,7 +86,7 @@ const Appointments = () => {
   const [lastCreatedPatientId, setLastCreatedPatientId] = useState("");
   const [lastCreatedService, setLastCreatedService] = useState("");
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-  const [view, setView] = useState<"week" | "day" | "month" | "table">(isMobile ? "day" : "week");
+  const [view, setView] = useState<"week" | "day" | "month" | "table">("table");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [open, setOpen] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
@@ -917,7 +917,7 @@ const Appointments = () => {
         compact ? "px-1.5 py-0.5 text-[10px]" : "p-2 text-xs mb-1"
       )}
       onMouseDown={(e) => { e.stopPropagation(); }}
-      onClick={(e) => { e.stopPropagation(); setSelectedAppointmentId(apt.id); }}
+      onClick={(e) => { e.stopPropagation(); window.open(`/appointments/${apt.id}`, "_blank", "noopener"); }}
     >
       <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name || "—"}</p>
       {!compact && <p className="opacity-70 truncate">{apt.service}</p>}
@@ -1633,7 +1633,7 @@ const Appointments = () => {
                       }
 
                       return (
-                        <tr key={apt.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors" onClick={() => setSelectedAppointmentId(apt.id)}>
+                        <tr key={apt.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors" onClick={() => window.open(`/appointments/${apt.id}`, "_blank", "noopener")}>
                           <td className="p-3">
                             <p className="font-medium">{format(new Date(apt.start_time), "MMM d, yyyy")}</p>
                             <p className="text-xs text-muted-foreground">{format(new Date(apt.start_time), "h:mm a")} - {format(new Date(apt.end_time), "h:mm a")}</p>

@@ -23,13 +23,13 @@ const THEME_STORAGE_KEY = "skin-clinic-theme";
 
 const themeVariables: Record<ThemeType, Record<string, string>> = {
   "amber": {
-    "--sidebar-background": "30 60% 45%",
+    "--sidebar-background": "35 85% 48%",
     "--sidebar-foreground": "210 15% 95%",
-    "--sidebar-accent": "30 60% 35%",
+    "--sidebar-accent": "35 85% 38%",
     "--sidebar-accent-foreground": "210 15% 95%",
-    "--primary": "39 89% 47%",
+    "--primary": "35 85% 50%",
     "--primary-foreground": "0 0% 100%",
-    "--sidebar-header-bg": "linear-gradient(135deg, #ff9f43 0%, #d97706 100%)",
+    "--sidebar-header-bg": "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
   },
   "blue-black": {
     "--sidebar-background": "210 30% 12%",
@@ -41,13 +41,13 @@ const themeVariables: Record<ThemeType, Record<string, string>> = {
     "--sidebar-header-bg": "linear-gradient(135deg, #0d9488 0%, #000000 100%)",
   },
   "light-pink": {
-    "--sidebar-background": "280 50% 50%",
+    "--sidebar-background": "280 45% 48%",
     "--sidebar-foreground": "210 15% 95%",
-    "--sidebar-accent": "280 50% 40%",
+    "--sidebar-accent": "280 45% 38%",
     "--sidebar-accent-foreground": "210 15% 95%",
-    "--primary": "330 81% 60%",
+    "--primary": "290 70% 55%",
     "--primary-foreground": "0 0% 100%",
-    "--sidebar-header-bg": "linear-gradient(135deg, #ec4899 0%, #a855f7 100%)",
+    "--sidebar-header-bg": "linear-gradient(135deg, #c084fc 0%, #a855f7 100%)",
   },
 };
 

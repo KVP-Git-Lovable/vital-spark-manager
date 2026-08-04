@@ -10,6 +10,8 @@ import {
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
+import { ModalProvider } from "@/hooks/useModal";
+import { AppointmentsModal } from "@/components/modals/AppointmentsModal";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { ShopLayout } from "@/components/shop/ShopLayout";
@@ -102,10 +104,12 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <ThemeProvider>
-          <Toaster />
-          <Sonner />
-          <InstallBanner />
-        <BrowserRouter>
+          <ModalProvider>
+            <Toaster />
+            <Sonner />
+            <InstallBanner />
+            <AppointmentsModal />
+          <BrowserRouter>
           <Routes>
             {/* Marketing website */}
             <Route path="/website" element={<Website />} />
@@ -180,7 +184,8 @@ const App = () => (
               }
             />
           </Routes>
-        </BrowserRouter>
+          </BrowserRouter>
+        </ModalProvider>
         </ThemeProvider>
       </AuthProvider>
     </TooltipProvider>

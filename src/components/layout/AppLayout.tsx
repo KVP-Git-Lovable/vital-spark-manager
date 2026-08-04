@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, Navigate } from "react-router-dom";
+import { AppointmentsModal } from "@/components/modals/AppointmentsModal";
+import { AppointmentDetailModal } from "@/components/modals/AppointmentDetailModal";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -101,7 +103,11 @@ export function AppLayout({ children }: AppLayoutProps) {
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <AppSidebar />
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 relative">
+          {/* Modals */}
+          <AppointmentsModal />
+          <AppointmentDetailModal />
+
           <header className="h-14 md:h-16 flex items-center justify-between border-b bg-card px-3 md:px-4 gap-2 md:gap-4 shrink-0">
             <div className="flex items-center gap-2 md:gap-3 min-w-0">
               <SidebarTrigger className="shrink-0" />

@@ -9,7 +9,7 @@ export function AppointmentDetailModal() {
   if (openModal !== "appointmentDetail" || !selectedAppointmentId) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background overflow-auto">
+    <div className="absolute inset-0 z-50 bg-background overflow-auto">
       {/* Header with Close Button */}
       <div className="sticky top-0 z-10 flex justify-between items-center p-4 bg-background border-b">
         <h2 className="text-lg font-semibold">Appointment Details</h2>

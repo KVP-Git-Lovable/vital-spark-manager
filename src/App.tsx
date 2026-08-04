@@ -11,8 +11,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { ModalProvider } from "@/hooks/useModal";
-import { AppointmentsModal } from "@/components/modals/AppointmentsModal";
-import { AppointmentDetailModal } from "@/components/modals/AppointmentDetailModal";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { ShopLayout } from "@/components/shop/ShopLayout";
@@ -110,8 +108,6 @@ const App = () => (
             <Toaster />
             <Sonner />
             <InstallBanner />
-            <AppointmentsModal />
-            <AppointmentDetailModal />
           <Routes>
             {/* Marketing website */}
             <Route path="/website" element={<Website />} />

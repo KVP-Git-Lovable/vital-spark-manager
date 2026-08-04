@@ -223,9 +223,11 @@ function FeedbackTabContent({
 interface AppointmentDetailSheetProps {
   appointmentId: string | null;
   onClose: () => void;
+  variant?: "sheet" | "page";
 }
 
-export function AppointmentDetailSheet({ appointmentId, onClose }: AppointmentDetailSheetProps) {
+export function AppointmentDetailSheet({ appointmentId, onClose, variant = "sheet" }: AppointmentDetailSheetProps) {
+  const isPage = variant === "page";
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [cameraOpen, setCameraOpen] = useState(false);

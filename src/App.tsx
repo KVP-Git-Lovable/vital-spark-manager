@@ -16,6 +16,7 @@ import Index from "./pages/Index";
 import Patients from "./pages/Patients";
 import PatientDetail from "./pages/PatientDetail";
 import Appointments from "./pages/Appointments";
+import AppointmentDetail from "./pages/AppointmentDetail";
 import Services from "./pages/Services";
 import Billing from "./pages/Billing";
 import Reports from "./pages/Reports";
@@ -139,6 +140,7 @@ const App = () => (
                     <Route path="/patients/:id" element={<ProtectedRoute moduleKey="patients"><PatientDetail /></ProtectedRoute>} />
                     <Route path="/leave" element={<ProtectedRoute moduleKey="leave"><LeaveManagement /></ProtectedRoute>} />
                     <Route path="/appointments" element={<ProtectedRoute moduleKey="appointments"><Appointments /></ProtectedRoute>} />
+                    <Route path="/appointments/:id" element={<ProtectedRoute moduleKey="appointments"><AppointmentDetail /></ProtectedRoute>} />
                     <Route path="/services" element={<ProtectedRoute moduleKey="services"><Services /></ProtectedRoute>} />
                     <Route path="/billing" element={<ProtectedRoute moduleKey="billing"><Billing /></ProtectedRoute>} />
                     <Route path="/reports" element={<ProtectedRoute moduleKey="reports"><Reports /></ProtectedRoute>} />

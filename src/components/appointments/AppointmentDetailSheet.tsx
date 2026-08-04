@@ -1160,9 +1160,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         </Sheet>
       )}
 
-      {cameraOpen && appointment?.patient_id && (
-        <></>
-      )}
       <Dialog open={!!viewPhoto} onOpenChange={(o) => { if (!o) setViewPhoto(null); }}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>

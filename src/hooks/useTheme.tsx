@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
 
-export type ThemeType = "amber" | "blue-black" | "light-pink";
+export type ThemeType = "amber" | "blue-black" | "light-pink" | "forest-green" | "ocean-blue" | "purple" | "slate";
 
 interface ThemeContextType {
   theme: ThemeType;
@@ -29,7 +29,7 @@ const themeVariables: Record<ThemeType, Record<string, string>> = {
     "--sidebar-accent-foreground": "0 0% 95%",
     "--primary": "38 72% 52%",
     "--primary-foreground": "0 0% 100%",
-    "--sidebar-header-bg": "linear-gradient(135deg, #d4a574 0%, #b8860b 100%)",
+    "--sidebar-header-bg": "linear-gradient(180deg, #e8b976 0%, #d4a574 50%, #b8860b 100%)",
   },
   "blue-black": {
     "--sidebar-background": "210 30% 12%",
@@ -38,7 +38,7 @@ const themeVariables: Record<ThemeType, Record<string, string>> = {
     "--sidebar-accent-foreground": "210 15% 90%",
     "--primary": "174 62% 38%",
     "--primary-foreground": "0 0% 100%",
-    "--sidebar-header-bg": "linear-gradient(135deg, #0d9488 0%, #000000 100%)",
+    "--sidebar-header-bg": "linear-gradient(180deg, #20c997 0%, #0d9488 50%, #0a3f38 100%)",
   },
   "light-pink": {
     "--sidebar-background": "340 60% 54%",
@@ -47,7 +47,43 @@ const themeVariables: Record<ThemeType, Record<string, string>> = {
     "--sidebar-accent-foreground": "0 0% 95%",
     "--primary": "340 60% 56%",
     "--primary-foreground": "0 0% 100%",
-    "--sidebar-header-bg": "linear-gradient(135deg, #d8a8c8 0%, #b8889c 100%)",
+    "--sidebar-header-bg": "linear-gradient(180deg, #e9b8d4 0%, #d8a8c8 50%, #b8889c 100%)",
+  },
+  "forest-green": {
+    "--sidebar-background": "132 60% 40%",
+    "--sidebar-foreground": "0 0% 95%",
+    "--sidebar-accent": "132 60% 30%",
+    "--sidebar-accent-foreground": "0 0% 95%",
+    "--primary": "132 60% 40%",
+    "--primary-foreground": "0 0% 100%",
+    "--sidebar-header-bg": "linear-gradient(180deg, #6ee7b7 0%, #4ade80 50%, #15803d 100%)",
+  },
+  "ocean-blue": {
+    "--sidebar-background": "199 89% 48%",
+    "--sidebar-foreground": "0 0% 95%",
+    "--sidebar-accent": "199 89% 38%",
+    "--sidebar-accent-foreground": "0 0% 95%",
+    "--primary": "199 89% 48%",
+    "--primary-foreground": "0 0% 100%",
+    "--sidebar-header-bg": "linear-gradient(180deg, #38bdf8 0%, #0ea5e9 50%, #0c4a6e 100%)",
+  },
+  "purple": {
+    "--sidebar-background": "270 70% 50%",
+    "--sidebar-foreground": "0 0% 95%",
+    "--sidebar-accent": "270 70% 40%",
+    "--sidebar-accent-foreground": "0 0% 95%",
+    "--primary": "270 70% 50%",
+    "--primary-foreground": "0 0% 100%",
+    "--sidebar-header-bg": "linear-gradient(180deg, #e9d5ff 0%, #d8b4fe 50%, #7c3aed 100%)",
+  },
+  "slate": {
+    "--sidebar-background": "215 28% 25%",
+    "--sidebar-foreground": "0 0% 95%",
+    "--sidebar-accent": "215 28% 18%",
+    "--sidebar-accent-foreground": "0 0% 95%",
+    "--primary": "215 28% 25%",
+    "--primary-foreground": "0 0% 100%",
+    "--sidebar-header-bg": "linear-gradient(180deg, #94a3b8 0%, #64748b 50%, #1e293b 100%)",
   },
 };
 

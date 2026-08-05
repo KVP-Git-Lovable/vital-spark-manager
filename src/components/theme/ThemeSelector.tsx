@@ -20,20 +20,44 @@ const themes = [
   {
     id: "amber",
     name: "Amber",
-    description: "Warm orange theme",
+    description: "Warm golden theme",
     icon: "🟠",
   },
   {
     id: "blue-black",
     name: "Blue & Black",
-    description: "Cool blue theme",
+    description: "Cool teal theme",
     icon: "🔵",
   },
   {
     id: "light-pink",
     name: "Light Pink",
-    description: "Soft pink theme",
+    description: "Soft rose theme",
     icon: "🩷",
+  },
+  {
+    id: "forest-green",
+    name: "Forest Green",
+    description: "Natural green theme",
+    icon: "🟢",
+  },
+  {
+    id: "ocean-blue",
+    name: "Ocean Blue",
+    description: "Professional blue theme",
+    icon: "🌊",
+  },
+  {
+    id: "purple",
+    name: "Purple",
+    description: "Modern purple theme",
+    icon: "💜",
+  },
+  {
+    id: "slate",
+    name: "Slate",
+    description: "Sleek dark theme",
+    icon: "⚫",
   },
 ];
 

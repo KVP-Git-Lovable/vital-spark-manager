@@ -9,9 +9,9 @@ export function AppointmentsModal() {
   if (openModal !== "appointments") return null;
 
   return (
-    <div className="absolute inset-0 z-50 bg-background overflow-auto">
+    <div className="absolute inset-0 z-50 bg-background flex flex-col overflow-hidden">
       {/* Close Button - Header */}
-      <div className="sticky top-0 z-10 flex justify-between items-center p-4 bg-background border-b">
+      <div className="flex justify-between items-center p-4 bg-background border-b shrink-0">
         <h2 className="text-lg font-semibold">Appointments</h2>
         <Button
           variant="ghost"
@@ -23,9 +23,11 @@ export function AppointmentsModal() {
         </Button>
       </div>
 
-      {/* Modal Content */}
-      <div className="w-full px-3 md:px-6 py-6">
-        <Appointments />
+      {/* Modal Content - Scrollable */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="w-full px-3 md:px-6 py-6">
+          <Appointments />
+        </div>
       </div>
     </div>
   );

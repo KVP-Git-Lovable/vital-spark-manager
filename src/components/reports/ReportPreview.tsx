@@ -729,6 +729,11 @@ export function ReportPreview({
             <tr className="border-b border-border bg-muted/30">
               <th className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground w-10">#</th>
               <th className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground">{groupLabel}</th>
+              {groupField2 && (
+                <th className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground">
+                  {getFieldLabel(groupRowFields[1])}
+                </th>
+              )}
               {finalDisplayCols.map((c) => (
                 <th key={c} className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground whitespace-nowrap">
                   {getFieldLabel(c)}
@@ -740,54 +745,87 @@ export function ReportPreview({
             {Object.entries(grouped).map(([g1Key, node]) => {
               groupCounter++;
               const currentGroupNum = groupCounter;
+              const rowLimit = compact ? (groupField2 ? 3 : 5) : 50;
+              const showSub = opts.show_subtotals && numericDisplayCols.length > 0;
 
               if (groupField2 && node.subGroups) {
-                let subCounter = 0;
                 const subEntries = Object.entries(node.subGroups);
+                // total rows the merged G1 cell spans
+                const g1Span = subEntries.reduce((s, [, sn]) => {
+                  const vis = Math.min(sn.rows.length, rowLimit);
+                  return s + vis + (showSub ? 1 : 0);
+                }, 0);
+                let emittedG1Cell = false;
+                let subCounter = 0;
+
                 return (
                   <React.Fragment key={`g1-${g1Key}`}>
-                    <tr className="bg-primary/5 border-b border-border">
-                      <td className="py-1.5 px-3 text-xs font-bold text-primary">G{currentGroupNum}</td>
-                      <td colSpan={finalDisplayCols.length + 1} className="py-1.5 px-3 text-xs font-semibold text-foreground">
-                        {g1Key}
-                        {opts.show_row_counts && (
-                          <span className="text-[9px] ml-2 text-muted-foreground">({node.rows.length})</span>
-                        )}
-                      </td>
-                    </tr>
                     {subEntries.map(([g2Key, subNode]) => {
                       subCounter++;
+                      const visRows = subNode.rows.slice(0, rowLimit);
+                      const g2Span = visRows.length;
                       return (
                         <React.Fragment key={`g2-${g1Key}-${g2Key}`}>
-                          <tr className="bg-muted/20 border-b border-border/50">
-                            <td className="py-1 px-3 pl-6 text-[10px] text-muted-foreground font-medium">
-                              {currentGroupNum}.{subCounter}
-                            </td>
-                            <td colSpan={finalDisplayCols.length + 1} className="py-1 px-3 text-[11px] font-medium text-foreground">
-                              {g2Key}
-                              {opts.show_row_counts && (
-                                <span className="text-[9px] ml-2 text-muted-foreground">({subNode.rows.length})</span>
-                              )}
-                            </td>
-                          </tr>
-                          {subNode.rows.slice(0, compact ? 3 : 50).map((row, ri) => (
-                            <tr
-                              key={`row-${g1Key}-${g2Key}-${ri}`}
-                              className="border-b border-border/30 hover:bg-accent/20 cursor-pointer transition-colors"
-                              onClick={() => handleRecordClick(row)}
-                            >
-                              <td className="py-1 px-3 text-[10px] text-muted-foreground pl-10"></td>
-                              <td className="py-1 px-3 text-xs text-muted-foreground"></td>
-                              {finalDisplayCols.map((c) => (
-                                <td key={c} className="py-1 px-3 whitespace-nowrap text-xs">
-                                  <span className="text-primary underline cursor-pointer">{formatVal(row[resolveDataKey(c)])}</span>
+                          {visRows.map((row, ri) => {
+                            const cells: JSX.Element[] = [];
+                            if (!emittedG1Cell) {
+                              emittedG1Cell = true;
+                              cells.push(
+                                <td
+                                  key="gnum"
+                                  rowSpan={g1Span}
+                                  className="py-1.5 px-3 text-xs font-bold text-primary align-top bg-primary/5 border-r border-border"
+                                >
+                                  G{currentGroupNum}
                                 </td>
-                              ))}
-                            </tr>
-                          ))}
-                          {opts.show_subtotals && numericDisplayCols.length > 0 && (
+                              );
+                              cells.push(
+                                <td
+                                  key="g1"
+                                  rowSpan={g1Span}
+                                  className="py-1.5 px-3 text-xs font-semibold text-foreground align-top bg-primary/5 border-r border-border whitespace-nowrap"
+                                >
+                                  {g1Key}
+                                  {opts.show_row_counts && (
+                                    <span className="text-[9px] ml-2 text-muted-foreground">({node.rows.length})</span>
+                                  )}
+                                </td>
+                              );
+                            }
+                            if (ri === 0) {
+                              cells.push(
+                                <td
+                                  key="g2"
+                                  rowSpan={g2Span}
+                                  className="py-1 px-3 text-[11px] font-medium text-foreground align-top bg-muted/20 border-r border-border/50 whitespace-nowrap"
+                                >
+                                  {g2Key}
+                                  {opts.show_row_counts && (
+                                    <span className="text-[9px] ml-2 text-muted-foreground">({subNode.rows.length})</span>
+                                  )}
+                                </td>
+                              );
+                            }
+                            return (
+                              <tr
+                                key={`row-${g1Key}-${g2Key}-${ri}`}
+                                className="border-b border-border/30 hover:bg-accent/20 cursor-pointer transition-colors"
+                                onClick={() => handleRecordClick(row)}
+                              >
+                                {cells}
+                                {finalDisplayCols.map((c) => (
+                                  <td key={c} className="py-1 px-3 whitespace-nowrap text-xs">
+                                    <span className="text-primary underline cursor-pointer">{formatVal(row[resolveDataKey(c)])}</span>
+                                  </td>
+                                ))}
+                              </tr>
+                            );
+                          })}
+                          {showSub && (
                             <tr className="bg-muted/10 border-b border-border/30">
-                              <td className="py-1 px-3" colSpan={2}></td>
+                              <td className="py-1 px-3 text-[10px] font-semibold text-muted-foreground border-r border-border/50">
+                                Subtotal
+                              </td>
                               {finalDisplayCols.map((c) => (
                                 <td key={c} className="py-1 px-3 text-[10px] font-semibold text-muted-foreground">
                                   {isNumericField(c) ? formatVal(sumColumn(subNode.rows, c)) : ""}
@@ -798,9 +836,9 @@ export function ReportPreview({
                         </React.Fragment>
                       );
                     })}
-                    {opts.show_subtotals && numericDisplayCols.length > 0 && (
+                    {showSub && (
                       <tr className="bg-primary/5 border-b border-border">
-                        <td className="py-1 px-3" colSpan={2}>
+                        <td className="py-1 px-3" colSpan={3}>
                           <span className="text-[10px] font-semibold text-primary">Subtotal — {g1Key}</span>
                         </td>
                         {finalDisplayCols.map((c) => (
@@ -814,26 +852,36 @@ export function ReportPreview({
                 );
               }
 
-              // Single-level group
+              // Single-level group — merged group cell across its rows
+              const visRows = node.rows.slice(0, rowLimit);
+              const span = visRows.length;
               return (
                 <React.Fragment key={`g1-${g1Key}`}>
-                  <tr className="bg-primary/5 border-b border-border">
-                    <td className="py-1.5 px-3 text-xs font-bold text-primary">G{currentGroupNum}</td>
-                    <td colSpan={finalDisplayCols.length + 1} className="py-1.5 px-3 text-xs font-semibold text-foreground">
-                      {g1Key}
-                      {opts.show_row_counts && (
-                        <span className="text-[9px] ml-2 text-muted-foreground">({node.rows.length})</span>
-                      )}
-                    </td>
-                  </tr>
-                  {node.rows.slice(0, compact ? 5 : 50).map((row, ri) => (
+                  {visRows.map((row, ri) => (
                     <tr
                       key={`row-${g1Key}-${ri}`}
                       className="border-b border-border/30 hover:bg-accent/20 cursor-pointer transition-colors"
                       onClick={() => handleRecordClick(row)}
                     >
-                      <td className="py-1 px-3 text-[10px] text-muted-foreground"></td>
-                      <td className="py-1 px-3 text-xs text-muted-foreground"></td>
+                      {ri === 0 && (
+                        <>
+                          <td
+                            rowSpan={span}
+                            className="py-1.5 px-3 text-xs font-bold text-primary align-top bg-primary/5 border-r border-border"
+                          >
+                            G{currentGroupNum}
+                          </td>
+                          <td
+                            rowSpan={span}
+                            className="py-1.5 px-3 text-xs font-semibold text-foreground align-top bg-primary/5 border-r border-border whitespace-nowrap"
+                          >
+                            {g1Key}
+                            {opts.show_row_counts && (
+                              <span className="text-[9px] ml-2 text-muted-foreground">({node.rows.length})</span>
+                            )}
+                          </td>
+                        </>
+                      )}
                       {finalDisplayCols.map((c) => (
                         <td key={c} className="py-1 px-3 whitespace-nowrap text-xs">
                           <span className="text-primary underline cursor-pointer">{formatVal(row[resolveDataKey(c)])}</span>
@@ -841,7 +889,7 @@ export function ReportPreview({
                       ))}
                     </tr>
                   ))}
-                  {opts.show_subtotals && numericDisplayCols.length > 0 && (
+                  {showSub && (
                     <tr className="bg-primary/5 border-b border-border">
                       <td className="py-1 px-3" colSpan={2}>
                         <span className="text-[10px] font-semibold text-primary">Subtotal</span>
@@ -853,10 +901,10 @@ export function ReportPreview({
                       ))}
                     </tr>
                   )}
-                  {node.rows.length > (compact ? 5 : 50) && (
+                  {node.rows.length > rowLimit && (
                     <tr>
                       <td colSpan={finalDisplayCols.length + 2} className="text-xs text-muted-foreground text-center py-1">
-                        +{node.rows.length - (compact ? 5 : 50)} more
+                        +{node.rows.length - rowLimit} more
                       </td>
                     </tr>
                   )}
@@ -865,7 +913,7 @@ export function ReportPreview({
             })}
             {opts.show_grand_total && (
               <tr className="bg-muted/30 font-semibold">
-                <td className="py-1.5 px-3 text-xs" colSpan={2}>Grand Total</td>
+                <td className="py-1.5 px-3 text-xs" colSpan={groupField2 ? 3 : 2}>Grand Total</td>
                 {finalDisplayCols.map((c) => (
                   <td key={c} className="py-1.5 px-3 text-xs font-bold text-primary">
                     {isNumericField(c) ? formatVal(sumColumn(data, c)) : ""}

@@ -134,6 +134,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
               <Button variant="ghost" size="icon" className="relative h-8 w-8 md:h-9 md:w-9">
                 <Bell className="h-4 w-4 md:h-5 md:w-5" />
+                <span className="sr-only">Notifications</span>
                 <span className="absolute top-1 right-1 md:top-1.5 md:right-1.5 h-2 w-2 rounded-full bg-destructive" />
               </Button>
 

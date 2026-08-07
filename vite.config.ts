@@ -18,11 +18,27 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
+      injectRegister: null,
+      devOptions: { enabled: false },
       includeAssets: ["favicon.png", "skin-clinic-logo.png", "apple-touch-icon.png"],
       workbox: {
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         navigateFallbackDenylist: [/^\/~oauth/],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: { cacheName: "skin-clinic-pages" },
+          },
+          {
+            urlPattern: ({ request, url }) =>
+              url.origin === self.location.origin &&
+              ["script", "style", "font", "image"].includes(request.destination),
+            handler: "CacheFirst",
+            options: { cacheName: "skin-clinic-assets" },
+          },
+        ],
       },
       manifest: {
         name: "The Skin Clinic",

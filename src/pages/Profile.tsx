@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { User, Lock, Save } from "lucide-react";
+import { ThemePicker } from "@/components/theme/ThemePicker";
 
 export default function Profile() {
   const { staffProfile, user } = useAuth();
@@ -130,6 +131,8 @@ export default function Profile() {
           </Button>
         </CardContent>
       </Card>
+
+      <ThemePicker />
     </div>
   );
 }

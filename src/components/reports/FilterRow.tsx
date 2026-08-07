@@ -18,9 +18,10 @@ interface Props {
   fieldKeyFn: (f: { objectKey: string; key: string }) => string;
   onChange: (patch: Partial<ReportFilter>) => void;
   onRemove: () => void;
+  lockField?: boolean;
 }
 
-export function FilterRow({ filter, allFields, fieldKeyFn, onChange, onRemove }: Props) {
+export function FilterRow({ filter, allFields, fieldKeyFn, onChange, onRemove, lockField }: Props) {
   const [distinctValues, setDistinctValues] = useState<string[]>([]);
 
   useEffect(() => {
@@ -67,6 +68,14 @@ export function FilterRow({ filter, allFields, fieldKeyFn, onChange, onRemove }:
   return (
     <div className="flex flex-col gap-1 p-1.5 bg-muted/30 rounded text-[11px]">
       <div className="flex gap-1 items-center">
+        {lockField ? (
+          <div className="flex-1 truncate font-medium px-1 py-0.5 rounded bg-background border border-border/50">
+            {(() => {
+              const f = allFields.find((af) => fieldKeyFn(af) === filter.field);
+              return f ? `${f.prefix}.${f.label}` : filter.field;
+            })()}
+          </div>
+        ) : (
         <Select value={filter.field} onValueChange={(v) => onChange({ field: v })}>
           <SelectTrigger className="h-6 text-[11px] flex-1">
             <SelectValue />
@@ -79,9 +88,12 @@ export function FilterRow({ filter, allFields, fieldKeyFn, onChange, onRemove }:
             ))}
           </SelectContent>
         </Select>
-        <Button size="icon" variant="ghost" className="h-5 w-5 shrink-0" onClick={onRemove}>
-          <Trash2 className="h-3 w-3 text-destructive" />
-        </Button>
+        )}
+        {!lockField && (
+          <Button size="icon" variant="ghost" className="h-5 w-5 shrink-0" onClick={onRemove}>
+            <Trash2 className="h-3 w-3 text-destructive" />
+          </Button>
+        )}
       </div>
       <div className="flex gap-1">
         <Select value={filter.operator} onValueChange={(v: any) => onChange({ operator: v })}>

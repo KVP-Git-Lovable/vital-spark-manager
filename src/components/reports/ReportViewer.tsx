@@ -16,8 +16,8 @@ import {
   PieChart,
   LineChart,
   Hash,
-  Lock,
   PanelRightClose,
+  RotateCcw,
   Pin,
   PinOff,
 } from "lucide-react";
@@ -113,7 +113,14 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
 
   const [chartType, setChartType] = useState(report.chart_type);
   const [tempFilters, setTempFilters] = useState<ReportFilter[]>([]);
+  // Saved filters are editable at run time (operator + value); the field stays locked.
+  const [runFilters, setRunFilters] = useState<ReportFilter[]>(safeFilters);
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    setRunFilters(report.filters.filter((f) => isValidFieldKey(f.field, allowed)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report.id]);
   const [displayOptions, setDisplayOptions] = useState<ReportDisplayOptions>(
     report.display_options || { ...DEFAULT_DISPLAY_OPTIONS }
   );
@@ -141,7 +148,13 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
     return obj?.fields.find((f) => f.key === fldKey)?.label || fk;
   };
 
-  const activeFilters = [...safeFilters, ...tempFilters];
+  const activeFilters = [...runFilters, ...tempFilters];
+
+  const updateRunFilter = (idx: number, patch: Partial<ReportFilter>) => {
+    setRunFilters((p) => p.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
+  };
+
+  const resetRunFilters = () => setRunFilters(safeFilters);
 
   const addTempFilter = () => {
     if (allFields.length === 0) return;
@@ -291,21 +304,32 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
               </Button>
             </div>
 
-            {safeFilters.length > 0 && (
+            {runFilters.length > 0 && (
               <>
-                <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2 block">
-                  Saved Filters
-                </Label>
-                {safeFilters.map((filter, idx) => (
-                  <div key={`saved-${idx}`} className="flex flex-col gap-1 p-1.5 bg-muted/30 rounded text-[11px] mb-2 opacity-80">
-                    <div className="flex items-center gap-1">
-                      <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
-                      <span className="truncate font-medium">{getFieldLabel(filter.field)}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <span>{filter.operator.replace("_", " ")}</span>
-                      {filter.value && <span className="text-foreground font-medium">"{filter.value}"</span>}
-                    </div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                    Saved Filters
+                  </Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1 text-[10px] gap-1"
+                    onClick={resetRunFilters}
+                    title="Reset to saved values"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Reset
+                  </Button>
+                </div>
+                {runFilters.map((filter, idx) => (
+                  <div key={`saved-${idx}`} className="mb-2">
+                    <FilterRow
+                      filter={filter}
+                      allFields={allFields}
+                      fieldKeyFn={fieldKeyStr}
+                      lockField
+                      onChange={(patch) => updateRunFilter(idx, patch)}
+                      onRemove={() => {}}
+                    />
                   </div>
                 ))}
               </>

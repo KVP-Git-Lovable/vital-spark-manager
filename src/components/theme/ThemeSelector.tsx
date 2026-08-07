@@ -62,13 +62,7 @@ const themes = [
 ];
 
 export function ThemeSelector() {
-  const { theme, setTheme, loading } = useTheme();
-
-  if (loading) {
-    return null;
-  }
-
-  const currentTheme = themes.find((t) => t.id === theme);
+  const { theme, setTheme } = useTheme();
 
   return (
     <DropdownMenu>

@@ -45,6 +45,7 @@ import {
   SidebarHeader,
   SidebarFooter,
   useSidebar,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import {
   Collapsible,
@@ -120,17 +121,20 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4 theme-header">
-        <div className="flex items-center gap-3">
-          <img src={skinClinicLogo} alt="The Skin Clinic" className="h-9 w-9 rounded-lg shrink-0 object-contain" />
+      <SidebarHeader className="p-3 theme-header">
+        <div className="flex items-center gap-2">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/95 shadow-sm ring-1 ring-black/5">
+            <img src={skinClinicLogo} alt="The Skin Clinic" className="h-7 w-7 object-contain" />
+          </span>
           {!collapsed && (
-            <div>
-              <h2 className="font-display text-sm font-bold text-sidebar-accent-foreground">
+            <div className="min-w-0 flex-1">
+              <h2 className="font-display text-sm font-bold leading-tight drop-shadow-sm truncate">
                 The Skin Clinic
               </h2>
-              <p className="text-xs text-sidebar-foreground">Clinic Manager</p>
+              <p className="text-xs opacity-90 leading-tight">Clinic Manager</p>
             </div>
           )}
+          <SidebarTrigger className="shrink-0 hover:bg-white/20" />
         </div>
       </SidebarHeader>
 

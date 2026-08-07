@@ -32,8 +32,7 @@ export default defineConfig(({ mode }) => ({
             options: { cacheName: "skin-clinic-pages" },
           },
           {
-            urlPattern: ({ request, url }) =>
-              url.origin === self.location.origin &&
+            urlPattern: ({ request }) =>
               ["script", "style", "font", "image"].includes(request.destination),
             handler: "CacheFirst",
             options: { cacheName: "skin-clinic-assets" },

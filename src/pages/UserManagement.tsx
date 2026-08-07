@@ -496,6 +496,10 @@ export default function UserManagement() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="appearance">
+          <ThemePicker />
+        </TabsContent>
       </Tabs>
 
       <CreateUserDialog

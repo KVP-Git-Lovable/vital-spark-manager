@@ -136,7 +136,11 @@ export function AppSidebar() {
               <p className="text-xs opacity-90 leading-tight">Clinic Manager</p>
             </div>
           )}
-          <SidebarTrigger className="shrink-0 hover:bg-white/20" />
+          <SidebarTrigger
+            className="h-8 w-8 shrink-0 hover:bg-white/20"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          />
         </div>
       </SidebarHeader>
 

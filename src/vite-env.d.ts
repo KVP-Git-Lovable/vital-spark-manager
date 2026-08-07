@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference types="vite-plugin-pwa/client" />
 
 // Web Speech API typings (Chrome/Edge/Android Chrome)
 interface SpeechRecognitionAlternative {

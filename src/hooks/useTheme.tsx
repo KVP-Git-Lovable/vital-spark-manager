@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
@@ -20,6 +20,8 @@ const ThemeContext = createContext<ThemeContextType>({
 export const useTheme = () => useContext(ThemeContext);
 
 const THEME_STORAGE_KEY = "skin-clinic-theme";
+const THEME_PENDING_KEY = "skin-clinic-theme-pending";
+const THEME_MIGRATED_KEY = "skin-clinic-theme-migrated";
 
 const themeVariables: Record<ThemeType, Record<string, string>> = {
   // All themes use a soft, light sidebar — no black surfaces.
@@ -144,77 +146,151 @@ const applyTheme = (themeType: ThemeType) => {
   });
 };
 
+const isThemeType = (value: string | null): value is ThemeType =>
+  value !== null && Object.prototype.hasOwnProperty.call(themeVariables, value);
+
+const readStoredTheme = () => {
+  if (typeof window === "undefined") return "amber" as ThemeType;
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  return isThemeType(savedTheme) ? savedTheme : "amber";
+};
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeType>("amber");
+  const [theme, setThemeState] = useState<ThemeType>(() => {
+    const initialTheme = readStoredTheme();
+    applyTheme(initialTheme);
+    return initialTheme;
+  });
   const [loading, setLoading] = useState(true);
-  const { staffProfile, user } = useAuth();
+  const { staffProfile, user, loading: authLoading } = useAuth();
+  const loadedStaffIdRef = useRef<string | null>(null);
+  const changedDuringLoadRef = useRef(false);
 
   useEffect(() => {
     const loadTheme = async () => {
-      if (!user || !staffProfile) {
-        // Check localStorage for saved theme
-        const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as ThemeType | null;
-        const defaultTheme = savedTheme || "amber";
-        setThemeState(defaultTheme);
-        applyTheme(defaultTheme);
+      if (!user) {
+        const storedTheme = readStoredTheme();
+        setThemeState(storedTheme);
+        applyTheme(storedTheme);
         setLoading(false);
         return;
       }
 
+      // Auth can resolve before the staff profile. Wait rather than repainting
+      // the theme while the staff lookup is still in progress.
+      if (authLoading) return;
+      if (!staffProfile) {
+        const storedTheme = readStoredTheme();
+        setThemeState(storedTheme);
+        applyTheme(storedTheme);
+        setLoading(false);
+        return;
+      }
+      if (loadedStaffIdRef.current === staffProfile.id) return;
+
+      loadedStaffIdRef.current = staffProfile.id;
+      changedDuringLoadRef.current = false;
+      setLoading(true);
+
       try {
-        // Try to load from database first
         const { data, error } = await (supabase as any)
           .from("staff")
           .select("theme_preference")
           .eq("id", staffProfile.id)
           .maybeSingle();
 
-        if (!error && data && data.theme_preference) {
-          // Database has the theme
-          setThemeState(data.theme_preference as ThemeType);
-          applyTheme(data.theme_preference as ThemeType);
-          localStorage.setItem(THEME_STORAGE_KEY, data.theme_preference);
-        } else {
-          // Database doesn't have theme or column doesn't exist, use localStorage or default
-          const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as ThemeType | null;
-          const defaultTheme = savedTheme || "amber";
-          setThemeState(defaultTheme);
-          applyTheme(defaultTheme);
+        if (error) throw error;
+        if (changedDuringLoadRef.current) return;
+
+        const pendingTheme = localStorage.getItem(`${THEME_PENDING_KEY}:${staffProfile.id}`);
+        const migrationKey = `${THEME_MIGRATED_KEY}:${staffProfile.id}`;
+        const hasMigratedLegacyTheme = localStorage.getItem(migrationKey) === "true";
+        const storedTheme = readStoredTheme();
+        const databaseTheme = isThemeType(data?.theme_preference) ? data.theme_preference : null;
+
+        if (isThemeType(pendingTheme)) {
+          const { data: syncedRows, error: syncError } = await (supabase as any)
+            .from("staff")
+            .update({ theme_preference: pendingTheme })
+            .eq("id", staffProfile.id)
+            .select("id");
+
+          if (!syncError && syncedRows?.length === 1) {
+            localStorage.removeItem(`${THEME_PENDING_KEY}:${staffProfile.id}`);
+          }
+          if (!changedDuringLoadRef.current) {
+            setThemeState(pendingTheme);
+            applyTheme(pendingTheme);
+            localStorage.setItem(THEME_STORAGE_KEY, pendingTheme);
+          }
+        } else if (!hasMigratedLegacyTheme && storedTheme !== "amber" && databaseTheme === "amber") {
+          // Older versions could apply a theme locally while silently failing to
+          // persist it. Migrate that existing choice once instead of allowing the
+          // database default to erase it on the first load after this fix.
+          const { data: migratedRows, error: migrationError } = await (supabase as any)
+            .from("staff")
+            .update({ theme_preference: storedTheme })
+            .eq("id", staffProfile.id)
+            .select("id");
+
+          if (migrationError || migratedRows?.length !== 1) {
+            localStorage.setItem(`${THEME_PENDING_KEY}:${staffProfile.id}`, storedTheme);
+          } else {
+            localStorage.setItem(migrationKey, "true");
+          }
+          if (!changedDuringLoadRef.current) {
+            setThemeState(storedTheme);
+            applyTheme(storedTheme);
+          }
+        } else if (databaseTheme) {
+          setThemeState(databaseTheme);
+          applyTheme(databaseTheme);
+          localStorage.setItem(THEME_STORAGE_KEY, databaseTheme);
+          localStorage.setItem(migrationKey, "true");
         }
       } catch (error) {
         console.warn("Failed to load theme from database:", error);
-        // Fallback to localStorage
-        const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as ThemeType | null;
-        const defaultTheme = savedTheme || "amber";
-        setThemeState(defaultTheme);
-        applyTheme(defaultTheme);
+        if (!changedDuringLoadRef.current) {
+          const storedTheme = readStoredTheme();
+          setThemeState(storedTheme);
+          applyTheme(storedTheme);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     loadTheme();
-  }, [user, staffProfile]);
+  }, [user, staffProfile, authLoading]);
 
   const setTheme = async (newTheme: ThemeType) => {
-    // Always apply theme immediately on client
+    changedDuringLoadRef.current = true;
     setThemeState(newTheme);
     applyTheme(newTheme);
     localStorage.setItem(THEME_STORAGE_KEY, newTheme);
-    toast.success(`Theme changed to ${newTheme.replace('-', ' ')}`);
 
-    if (!staffProfile) return;
+    if (!staffProfile) {
+      toast.success(`Theme changed to ${newTheme.replace('-', ' ')}`);
+      return;
+    }
 
-    // Try to save to database, but don't fail if not available
     try {
-      await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("staff")
         .update({ theme_preference: newTheme })
-        .eq("id", staffProfile.id);
+        .eq("id", staffProfile.id)
+        .select("id");
+
+      if (error) throw error;
+      if (!data || data.length !== 1) throw new Error("Your staff profile could not be updated.");
+
+      localStorage.removeItem(`${THEME_PENDING_KEY}:${staffProfile.id}`);
+      localStorage.setItem(`${THEME_MIGRATED_KEY}:${staffProfile.id}`, "true");
+      toast.success(`Theme saved as ${newTheme.replace('-', ' ')}`);
     } catch (error) {
-      console.warn("Theme saved locally, will sync to database after migration:", error);
-      // Theme is already applied on client and saved to localStorage
-      // Once database migration is applied, it will sync automatically on next login
+      console.warn("Theme is applied locally but could not be saved to the profile:", error);
+      localStorage.setItem(`${THEME_PENDING_KEY}:${staffProfile.id}`, newTheme);
+      toast.warning("Theme applied on this device. We'll retry saving it to your profile next time.");
     }
   };
 

@@ -122,10 +122,12 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-3 theme-header">
-        <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/95 shadow-sm ring-1 ring-black/5">
-            <img src={skinClinicLogo} alt="The Skin Clinic" className="h-7 w-7 object-contain" />
-          </span>
+        <div className={collapsed ? "flex items-center justify-center" : "flex items-center gap-2"}>
+          {!collapsed && (
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/95 shadow-sm ring-1 ring-black/5">
+              <img src={skinClinicLogo} alt="The Skin Clinic" className="h-7 w-7 object-contain" />
+            </span>
+          )}
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <h2 className="font-display text-sm font-bold leading-tight drop-shadow-sm truncate">

@@ -8,15 +8,14 @@ export const THEME_OPTIONS: {
   name: string;
   description: string;
   swatches: string[];
-  header: string;
 }[] = [
-  { id: "amber", name: "Warm Amber", description: "Soft ivory sidebar, amber accents", swatches: ["#fbf7f2", "#fdebd6", "#e07b1f", "#b95a10"], header: "linear-gradient(135deg,#f5a councils)" },
-  { id: "blue-black", name: "Clinic Teal", description: "Cool mint sidebar, teal accents", swatches: ["#f4faf9", "#d5f0ea", "#25a08c", "#1d7c74"], header: "" },
-  { id: "light-pink", name: "Blush Rose", description: "Soft blush sidebar, rose accents", swatches: ["#fdf5f8", "#fadfe9", "#d1497f", "#a83a76"], header: "" },
-  { id: "forest-green", name: "Forest", description: "Pale sage sidebar, green accents", swatches: ["#f5faf6", "#dcf0e4", "#2b7d54", "#1f6045"], header: "" },
-  { id: "ocean-blue", name: "Ocean", description: "Airy blue sidebar, deep blue accents", swatches: ["#f6fafd", "#dbeefb", "#2374b5", "#1a5a92"], header: "" },
-  { id: "purple", name: "Lavender", description: "Light lilac sidebar, violet accents", swatches: ["#faf7fd", "#ece0f8", "#7a45ba", "#5f3a94"], header: "" },
-  { id: "slate", name: "Slate", description: "Neutral grey sidebar, steel accents", swatches: ["#f6f8fa", "#e2e9f1", "#476085", "#33455f"], header: "" },
+  { id: "amber", name: "Warm Amber", description: "Soft ivory sidebar, amber accents", swatches: ["#fbf7f2", "#fdebd6", "#e07b1f", "#b95a10"] },
+  { id: "blue-black", name: "Clinic Teal", description: "Cool mint sidebar, teal accents", swatches: ["#f4faf9", "#d5f0ea", "#25a08c", "#1d7c74"] },
+  { id: "light-pink", name: "Blush Rose", description: "Soft blush sidebar, rose accents", swatches: ["#fdf5f8", "#fadfe9", "#d1497f", "#a83a76"] },
+  { id: "forest-green", name: "Forest", description: "Pale sage sidebar, green accents", swatches: ["#f5faf6", "#dcf0e4", "#2b7d54", "#1f6045"] },
+  { id: "ocean-blue", name: "Ocean", description: "Airy blue sidebar, deep blue accents", swatches: ["#f6fafd", "#dbeefb", "#2374b5", "#1a5a92"] },
+  { id: "purple", name: "Lavender", description: "Light lilac sidebar, violet accents", swatches: ["#faf7fd", "#ece0f8", "#7a45ba", "#5f3a94"] },
+  { id: "slate", name: "Slate", description: "Neutral grey sidebar, steel accents", swatches: ["#f6f8fa", "#e2e9f1", "#476085", "#33455f"] },
 ];
 
 export function ThemePicker() {

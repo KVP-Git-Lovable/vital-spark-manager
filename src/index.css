@@ -36,14 +36,16 @@
 
     --radius: 0.75rem;
 
-    --sidebar-background: 210 30% 12%;
-    --sidebar-foreground: 210 15% 80%;
-    --sidebar-primary: 174 62% 50%;
+    /* Soft, light default sidebar (Warm Amber) */
+    --sidebar-background: 34 40% 97%;
+    --sidebar-foreground: 28 18% 32%;
+    --sidebar-primary: 26 84% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 25% 18%;
-    --sidebar-accent-foreground: 210 15% 90%;
-    --sidebar-border: 210 25% 20%;
-    --sidebar-ring: 174 62% 50%;
+    --sidebar-accent: 32 78% 94%;
+    --sidebar-accent-foreground: 26 78% 38%;
+    --sidebar-border: 32 30% 90%;
+    --sidebar-ring: 26 84% 48%;
+    --sidebar-header-bg: linear-gradient(135deg, hsl(30 92% 55%) 0%, hsl(22 88% 46%) 100%);
 
     --success: 152 60% 40%;
     --success-foreground: 0 0% 100%;
@@ -143,5 +145,14 @@
   .theme-header {
     background: var(--sidebar-header-bg);
     border-radius: 0.75rem;
+  }
+
+  .theme-header,
+  .theme-header * {
+    color: hsl(0 0% 100%);
+  }
+
+  [data-sidebar="sidebar"] {
+    border-right: 1px solid hsl(var(--sidebar-border));
   }
 }

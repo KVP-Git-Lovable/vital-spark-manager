@@ -21,6 +21,7 @@ export const useTheme = () => useContext(ThemeContext);
 
 const THEME_STORAGE_KEY = "skin-clinic-theme";
 const THEME_PENDING_KEY = "skin-clinic-theme-pending";
+const THEME_MIGRATED_KEY = "skin-clinic-theme-migrated";
 
 const themeVariables: Record<ThemeType, Record<string, string>> = {
   // All themes use a soft, light sidebar — no black surfaces.
@@ -161,7 +162,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return initialTheme;
   });
   const [loading, setLoading] = useState(true);
-  const { staffProfile, user } = useAuth();
+  const { staffProfile, user, loading: authLoading } = useAuth();
   const loadedStaffIdRef = useRef<string | null>(null);
   const changedDuringLoadRef = useRef(false);
 
@@ -175,9 +176,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Auth can resolve before the staff profile. Wait rather than treating this
-      // as a signed-out state and then repainting the theme twice.
-      if (!staffProfile) return;
+      // Auth can resolve before the staff profile. Wait rather than repainting
+      // the theme while the staff lookup is still in progress.
+      if (authLoading) return;
+      if (!staffProfile) {
+        const storedTheme = readStoredTheme();
+        setThemeState(storedTheme);
+        applyTheme(storedTheme);
+        setLoading(false);
+        return;
+      }
       if (loadedStaffIdRef.current === staffProfile.id) return;
 
       loadedStaffIdRef.current = staffProfile.id;
@@ -195,6 +203,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         if (changedDuringLoadRef.current) return;
 
         const pendingTheme = localStorage.getItem(`${THEME_PENDING_KEY}:${staffProfile.id}`);
+        const migrationKey = `${THEME_MIGRATED_KEY}:${staffProfile.id}`;
+        const hasMigratedLegacyTheme = localStorage.getItem(migrationKey) === "true";
+        const storedTheme = readStoredTheme();
         const databaseTheme = isThemeType(data?.theme_preference) ? data.theme_preference : null;
 
         if (isThemeType(pendingTheme)) {
@@ -212,10 +223,30 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
             applyTheme(pendingTheme);
             localStorage.setItem(THEME_STORAGE_KEY, pendingTheme);
           }
+        } else if (!hasMigratedLegacyTheme && storedTheme !== "amber" && databaseTheme === "amber") {
+          // Older versions could apply a theme locally while silently failing to
+          // persist it. Migrate that existing choice once instead of allowing the
+          // database default to erase it on the first load after this fix.
+          const { data: migratedRows, error: migrationError } = await (supabase as any)
+            .from("staff")
+            .update({ theme_preference: storedTheme })
+            .eq("id", staffProfile.id)
+            .select("id");
+
+          if (migrationError || migratedRows?.length !== 1) {
+            localStorage.setItem(`${THEME_PENDING_KEY}:${staffProfile.id}`, storedTheme);
+          } else {
+            localStorage.setItem(migrationKey, "true");
+          }
+          if (!changedDuringLoadRef.current) {
+            setThemeState(storedTheme);
+            applyTheme(storedTheme);
+          }
         } else if (databaseTheme) {
           setThemeState(databaseTheme);
           applyTheme(databaseTheme);
           localStorage.setItem(THEME_STORAGE_KEY, databaseTheme);
+          localStorage.setItem(migrationKey, "true");
         }
       } catch (error) {
         console.warn("Failed to load theme from database:", error);
@@ -230,7 +261,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     };
 
     loadTheme();
-  }, [user, staffProfile]);
+  }, [user, staffProfile, authLoading]);
 
   const setTheme = async (newTheme: ThemeType) => {
     changedDuringLoadRef.current = true;
@@ -254,6 +285,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (!data || data.length !== 1) throw new Error("Your staff profile could not be updated.");
 
       localStorage.removeItem(`${THEME_PENDING_KEY}:${staffProfile.id}`);
+      localStorage.setItem(`${THEME_MIGRATED_KEY}:${staffProfile.id}`, "true");
       toast.success(`Theme saved as ${newTheme.replace('-', ' ')}`);
     } catch (error) {
       console.warn("Theme is applied locally but could not be saved to the profile:", error);

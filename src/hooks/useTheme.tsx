@@ -197,16 +197,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [user, staffProfile]);
 
   const setTheme = async (newTheme: ThemeType) => {
-    if (!staffProfile) {
-      toast.error("User profile not found");
-      return;
-    }
-
     // Always apply theme immediately on client
     setThemeState(newTheme);
     applyTheme(newTheme);
     localStorage.setItem(THEME_STORAGE_KEY, newTheme);
     toast.success(`Theme changed to ${newTheme.replace('-', ' ')}`);
+
+    if (!staffProfile) return;
 
     // Try to save to database, but don't fail if not available
     try {

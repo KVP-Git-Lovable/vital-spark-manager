@@ -2479,6 +2479,7 @@ export type Database = {
           role: string
           role_id: string | null
           specialization: string | null
+          theme_preference: string
           updated_at: string
           work_end_time: string | null
           work_start_time: string | null
@@ -2498,6 +2499,7 @@ export type Database = {
           role: string
           role_id?: string | null
           specialization?: string | null
+          theme_preference?: string
           updated_at?: string
           work_end_time?: string | null
           work_start_time?: string | null
@@ -2517,6 +2519,7 @@ export type Database = {
           role?: string
           role_id?: string | null
           specialization?: string | null
+          theme_preference?: string
           updated_at?: string
           work_end_time?: string | null
           work_start_time?: string | null

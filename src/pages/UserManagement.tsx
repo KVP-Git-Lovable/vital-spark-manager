@@ -19,6 +19,7 @@ import { ShieldCheck, Plus, Save, Search, UserPlus, KeyRound, Trash2, Pencil } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import CreateUserDialog from "@/components/users/CreateUserDialog";
 import EditUserDialog from "@/components/users/EditUserDialog";
+import { ThemePicker } from "@/components/theme/ThemePicker";
 
 const ALL_MODULES = [
   { key: "dashboard", label: "Dashboard" },
@@ -274,6 +275,7 @@ export default function UserManagement() {
         <TabsList>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="roles">Roles & Permissions</TabsTrigger>
+          <TabsTrigger value="appearance">Appearance</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users">
@@ -493,6 +495,10 @@ export default function UserManagement() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="appearance">
+          <ThemePicker />
         </TabsContent>
       </Tabs>
 

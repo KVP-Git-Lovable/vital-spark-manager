@@ -29,7 +29,6 @@ import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import skinClinicLogo from "@/assets/skin-clinic-logo.png";
-import { useModal } from "@/hooks/useModal";
 import {
   Sidebar,
   SidebarContent,
@@ -97,7 +96,6 @@ export function AppSidebar() {
   const location = useLocation();
   const currentPath = location.pathname;
   const { isAdmin, permissions } = useAuth();
-  const { setOpenModal } = useModal();
 
   useEffect(() => {
     if (isMobile) setOpenMobile(false);
@@ -151,15 +149,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {filteredMain.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  {item.title === "Appointments" ? (
-                    <SidebarMenuButton
-                      onClick={() => setOpenModal("appointments")}
-                      className="hover:bg-sidebar-accent cursor-pointer"
-                    >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </SidebarMenuButton>
-                  ) : (
+                  {(
                     <SidebarMenuButton asChild isActive={isActive(item.url)}>
                       <NavLink
                         to={item.url}

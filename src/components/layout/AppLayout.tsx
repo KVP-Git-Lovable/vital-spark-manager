@@ -4,7 +4,7 @@ import { Bell, Search, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, useLocation } from "react-router-dom";
 import { AppointmentsModal } from "@/components/modals/AppointmentsModal";
 import { AppointmentDetailModal } from "@/components/modals/AppointmentDetailModal";
 import { Badge } from "@/components/ui/badge";
@@ -25,11 +25,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BackToReportBar } from "@/components/reports/BackToReportBar";
 import { MicButton } from "@/components/shared/MicButton";
 import { ThemeSelector } from "@/components/theme/ThemeSelector";
 import { supabase } from "@/integrations/supabase/client";
+import { useModal } from "@/hooks/useModal";
 import { toast } from "sonner";
 
 interface AppLayoutProps {
@@ -39,6 +40,18 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const { staffProfile, user, loading, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { closeModal } = useModal();
+  const lastPathRef = useRef(location.pathname);
+
+  // Close any full-screen overlay modal when the route changes, so the
+  // rendered page always matches the URL.
+  useEffect(() => {
+    if (lastPathRef.current !== location.pathname) {
+      lastPathRef.current = location.pathname;
+      closeModal();
+    }
+  }, [location.pathname, closeModal]);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
 

@@ -97,7 +97,6 @@ export function AppSidebar() {
   const location = useLocation();
   const currentPath = location.pathname;
   const { isAdmin, permissions } = useAuth();
-  const { setOpenModal } = useModal();
 
   useEffect(() => {
     if (isMobile) setOpenMobile(false);

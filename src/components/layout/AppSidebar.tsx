@@ -151,15 +151,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {filteredMain.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  {item.title === "Appointments" ? (
-                    <SidebarMenuButton
-                      onClick={() => setOpenModal("appointments")}
-                      className="hover:bg-sidebar-accent cursor-pointer"
-                    >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </SidebarMenuButton>
-                  ) : (
+                  {(
                     <SidebarMenuButton asChild isActive={isActive(item.url)}>
                       <NavLink
                         to={item.url}

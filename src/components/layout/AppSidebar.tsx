@@ -29,7 +29,6 @@ import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import skinClinicLogo from "@/assets/skin-clinic-logo.png";
-import { useModal } from "@/hooks/useModal";
 import {
   Sidebar,
   SidebarContent,

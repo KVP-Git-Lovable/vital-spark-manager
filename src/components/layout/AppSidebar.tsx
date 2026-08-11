@@ -23,6 +23,7 @@ import {
   FileText,
   ListChecks,
   ShieldCheck,
+  SlidersHorizontal,
   Megaphone,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";

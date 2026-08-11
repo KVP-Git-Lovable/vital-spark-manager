@@ -3295,6 +3295,51 @@ export type Database = {
         }
         Relationships: []
       }
+      validation_rules: {
+        Row: {
+          config: Json
+          created_at: string
+          created_by: string | null
+          description: string | null
+          execute_when: string
+          field_key: string
+          id: string
+          is_active: boolean
+          name: string
+          object_key: string
+          updated_at: string
+          validate_on: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          execute_when?: string
+          field_key: string
+          id?: string
+          is_active?: boolean
+          name: string
+          object_key: string
+          updated_at?: string
+          validate_on?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          execute_when?: string
+          field_key?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          object_key?: string
+          updated_at?: string
+          validate_on?: string
+        }
+        Relationships: []
+      }
       vendor_contacts: {
         Row: {
           contact_name: string

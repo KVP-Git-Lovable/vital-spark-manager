@@ -111,9 +111,9 @@ export function AppSidebar() {
     path === "/" ? currentPath === "/" : currentPath.startsWith(path);
 
   const canView = (moduleKey: string) => {
-    if (isAdmin) return true;
-    // Allow viewing if explicitly allowed OR if no permissions are set (new users)
-    return permissions[moduleKey]?.can_view ?? (Object.keys(permissions).length === 0);
+    // For now, allow all logged-in users to view all modules
+    // This enables new accounts and patients to access the clinic
+    return true;
   };
 
   const filteredMain = mainItems.filter((i) => canView(i.moduleKey));

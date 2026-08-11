@@ -112,7 +112,8 @@ export function AppSidebar() {
 
   const canView = (moduleKey: string) => {
     if (isAdmin) return true;
-    return permissions[moduleKey]?.can_view ?? false;
+    // Allow viewing if explicitly allowed OR if no permissions are set (new users)
+    return permissions[moduleKey]?.can_view ?? (Object.keys(permissions).length === 0);
   };
 
   const filteredMain = mainItems.filter((i) => canView(i.moduleKey));

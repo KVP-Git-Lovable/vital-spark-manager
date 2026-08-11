@@ -280,6 +280,25 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
           </SheetTitle>
         </SheetHeader>
 
+        {validationMessages.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {validationMessages.map((m, i) => (
+              <div
+                key={i}
+                className={
+                  "flex items-start gap-2 rounded-md border px-3 py-2 text-xs " +
+                  (m.severity === "error"
+                    ? "border-destructive/40 bg-destructive/10 text-destructive"
+                    : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400")
+                }
+              >
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>{m.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <Tabs defaultValue="personal" className="mt-6">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>

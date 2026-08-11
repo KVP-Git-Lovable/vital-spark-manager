@@ -32,6 +32,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAll } from "@/lib/supabasePaginate";
+import { useValidator } from "@/hooks/useValidationRules";
+import type { ValidationMessage } from "@/lib/validation/engine";
+import { AlertCircle } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
@@ -196,11 +199,27 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     setForm((prev) => ({ ...prev, [field]: value || null }));
   };
 
+  const validate = useValidator("patients");
+  const [validationMessages, setValidationMessages] = useState<ValidationMessage[]>([]);
+
   const handleSave = async () => {
     if (!form.first_name.trim()) {
       toast({ title: "Error", description: "First name is required", variant: "destructive" });
       return;
     }
+
+    // Admin-configured validation rules
+    const messages = validate(form as Record<string, any>, { isEdit: isEditing });
+    setValidationMessages(messages);
+    const blocking = messages.filter((m) => m.severity === "error");
+    if (blocking.length) {
+      toast({ title: "Validation failed", description: blocking[0].message, variant: "destructive" });
+      return;
+    }
+    messages
+      .filter((m) => m.severity === "alert")
+      .forEach((m) => toast({ title: "Alert", description: m.message }));
+
     setSaving(true);
     try {
       let patientId: string | null = patient?.id || null;
@@ -260,6 +279,25 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             {isEditing ? "Edit Patient" : "Add New Patient"}
           </SheetTitle>
         </SheetHeader>
+
+        {validationMessages.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {validationMessages.map((m, i) => (
+              <div
+                key={i}
+                className={
+                  "flex items-start gap-2 rounded-md border px-3 py-2 text-xs " +
+                  (m.severity === "error"
+                    ? "border-destructive/40 bg-destructive/10 text-destructive"
+                    : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400")
+                }
+              >
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>{m.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <Tabs defaultValue="personal" className="mt-6">
           <TabsList className="grid w-full grid-cols-3">

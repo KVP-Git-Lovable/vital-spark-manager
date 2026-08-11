@@ -43,7 +43,7 @@ const Signup = () => {
       toast.error(error.message);
     } else {
       toast.success("Account created! You can now sign in.");
-      navigate("/shop");
+      navigate("/login");
     }
   };
 

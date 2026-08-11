@@ -89,6 +89,7 @@ const masterDataItems = [
 const settingsItems = [
   { title: "Settings", url: "/settings", icon: Settings, moduleKey: "settings" },
   { title: "Validation Rules", url: "/validation-rules", icon: ShieldCheck, moduleKey: "settings" },
+  { title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal, moduleKey: "settings" },
 ];
 
 export function AppSidebar() {

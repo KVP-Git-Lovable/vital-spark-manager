@@ -32,6 +32,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAll } from "@/lib/supabasePaginate";
+import { useValidator } from "@/hooks/useValidationRules";
+import type { ValidationMessage } from "@/lib/validation/engine";
+import { AlertCircle } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
@@ -201,6 +204,19 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
       toast({ title: "Error", description: "First name is required", variant: "destructive" });
       return;
     }
+
+    // Admin-configured validation rules
+    const messages = validate(form as Record<string, any>, { isEdit: isEditing });
+    setValidationMessages(messages);
+    const blocking = messages.filter((m) => m.severity === "error");
+    if (blocking.length) {
+      toast({ title: "Validation failed", description: blocking[0].message, variant: "destructive" });
+      return;
+    }
+    messages
+      .filter((m) => m.severity === "alert")
+      .forEach((m) => toast({ title: "Alert", description: m.message }));
+
     setSaving(true);
     try {
       let patientId: string | null = patient?.id || null;

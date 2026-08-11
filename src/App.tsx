@@ -59,6 +59,8 @@ import SurveyNew from "./pages/SurveyNew";
 import Vendors from "./pages/Vendors";
 import UserManagement from "./pages/UserManagement";
 import UnitMaster from "./pages/UnitMaster";
+import ValidationRules from "./pages/ValidationRules";
+import ValidationRuleBuilder from "./pages/ValidationRuleBuilder";
 import CategoryMaster from "./pages/CategoryMaster";
 import Profile from "./pages/Profile";
 import AccessDenied from "./pages/AccessDenied";
@@ -172,6 +174,8 @@ const App = () => (
                     <Route path="/Unit-master" element={<Navigate to="/unit-master" replace />} />
                     <Route path="/category-master" element={<ProtectedRoute moduleKey="category_master"><CategoryMaster /></ProtectedRoute>} />
                     <Route path="/user-management" element={<ProtectedRoute moduleKey="user_management"><UserManagement /></ProtectedRoute>} />
+                    <Route path="/validation-rules" element={<ProtectedRoute moduleKey="settings"><ValidationRules /></ProtectedRoute>} />
+                    <Route path="/validation-rules/:id" element={<ProtectedRoute moduleKey="settings"><ValidationRuleBuilder /></ProtectedRoute>} />
                     <Route path="/settings" element={<ProtectedRoute moduleKey="settings"><Settings /></ProtectedRoute>} />
                     <Route path="/settings/tax-master/new" element={<ProtectedRoute moduleKey="settings"><TaxMasterForm /></ProtectedRoute>} />
                     <Route path="/settings/tax-master/:id" element={<ProtectedRoute moduleKey="settings"><TaxMasterForm /></ProtectedRoute>} />

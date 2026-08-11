@@ -3617,6 +3617,7 @@ export type Database = {
         Args: { _column: string; _table: string }
         Returns: undefined
       }
+      is_admin_staff: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

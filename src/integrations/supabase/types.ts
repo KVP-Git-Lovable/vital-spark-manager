@@ -638,6 +638,107 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_field_sections: {
+        Row: {
+          column_count: number
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          name: string
+          object_key: string
+          updated_at: string
+        }
+        Insert: {
+          column_count?: number
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name: string
+          object_key: string
+          updated_at?: string
+        }
+        Update: {
+          column_count?: number
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name?: string
+          object_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      custom_fields: {
+        Row: {
+          column_name: string
+          created_at: string
+          decimal_places: number | null
+          default_value: string | null
+          display_order: number
+          field_type: string
+          help_text: string | null
+          id: string
+          is_active: boolean
+          is_required: boolean
+          label: string
+          max_length: number | null
+          object_key: string
+          options: Json
+          placeholder: string | null
+          section_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          column_name: string
+          created_at?: string
+          decimal_places?: number | null
+          default_value?: string | null
+          display_order?: number
+          field_type: string
+          help_text?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          label: string
+          max_length?: number | null
+          object_key: string
+          options?: Json
+          placeholder?: string | null
+          section_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          column_name?: string
+          created_at?: string
+          decimal_places?: number | null
+          default_value?: string | null
+          display_order?: number
+          field_type?: string
+          help_text?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          label?: string
+          max_length?: number | null
+          object_key?: string
+          options?: Json
+          placeholder?: string | null
+          section_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_fields_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "custom_field_sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dashboard_pins: {
         Row: {
           created_at: string
@@ -3508,7 +3609,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_custom_field_column: {
+        Args: { _column: string; _sql_type: string; _table: string }
+        Returns: undefined
+      }
+      drop_custom_field_column: {
+        Args: { _column: string; _table: string }
+        Returns: undefined
+      }
+      is_admin_staff: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

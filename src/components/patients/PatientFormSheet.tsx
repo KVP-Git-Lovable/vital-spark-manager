@@ -33,6 +33,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { useValidator } from "@/hooks/useValidationRules";
+import { useCustomFields } from "@/lib/custom-fields/api";
+import { CustomFieldsRenderer, validateCustomFields } from "@/components/custom-fields/CustomFieldsRenderer";
 import type { ValidationMessage } from "@/lib/validation/engine";
 import { AlertCircle } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
@@ -202,9 +204,31 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const validate = useValidator("patients");
   const [validationMessages, setValidationMessages] = useState<ValidationMessage[]>([]);
 
+  // Admin-configured custom fields
+  const { data: customFieldDefs = [] } = useCustomFields("patients", true);
+  const [customValues, setCustomValues] = useState<Record<string, any>>({});
+  const [customErrors, setCustomErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    const next: Record<string, any> = {};
+    for (const f of customFieldDefs) {
+      next[f.column_name] = patient ? (patient as any)[f.column_name] ?? null : null;
+    }
+    setCustomValues(next);
+    setCustomErrors({});
+  }, [open, patient, customFieldDefs]);
+
   const handleSave = async () => {
     if (!form.first_name.trim()) {
       toast({ title: "Error", description: "First name is required", variant: "destructive" });
+      return;
+    }
+
+    const cfErrors = validateCustomFields(customFieldDefs, customValues);
+    setCustomErrors(cfErrors);
+    if (Object.keys(cfErrors).length) {
+      toast({ title: "Validation failed", description: String(Object.values(cfErrors)[0]), variant: "destructive" });
       return;
     }
 
@@ -223,15 +247,16 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     setSaving(true);
     try {
       let patientId: string | null = patient?.id || null;
+      const payload = { ...form, ...customValues } as any;
       if (isEditing && patient) {
         const { error } = await supabase
           .from("patients")
-          .update(form)
+          .update(payload)
           .eq("id", patient.id);
         if (error) throw error;
         toast({ title: "Patient updated successfully" });
       } else {
-        const { data: created, error } = await supabase.from("patients").insert(form).select("id").single();
+        const { data: created, error } = await supabase.from("patients").insert(payload).select("id").single();
         if (error) throw error;
         patientId = (created as any)?.id || null;
         toast({ title: "Patient created successfully" });
@@ -799,6 +824,15 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             placeholder="Remarks, observations, referral details, special instructions..."
             className="mt-1.5"
             rows={4}
+          />
+        </div>
+
+        <div className="mt-6">
+          <CustomFieldsRenderer
+            objectKey="patients"
+            values={customValues}
+            onChange={(col, val) => setCustomValues((prev) => ({ ...prev, [col]: val }))}
+            errors={customErrors}
           />
         </div>
 

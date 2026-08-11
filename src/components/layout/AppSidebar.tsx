@@ -89,8 +89,11 @@ const masterDataItems = [
 
 const settingsItems = [
   { title: "Settings", url: "/settings", icon: Settings, moduleKey: "settings" },
-  { title: "Validation Rules", url: "/validation-rules", icon: ShieldCheck, moduleKey: "settings" },
-  { title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal, moduleKey: "settings" },
+];
+
+const adminSubItems = [
+  { title: "Validation Rules", url: "/validation-rules", icon: ShieldCheck },
+  { title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal },
 ];
 
 export function AppSidebar() {
@@ -118,7 +121,9 @@ export function AppSidebar() {
   const showEmployees = canView("staff") || canView("leave");
 
   const employeesPaths = ["/staff", "/leave"];
-  const masterPaths = masterDataItems.map((i) => i.url);
+  const adminPaths = ["/admin", ...adminSubItems.map((i) => i.url)];
+  const showAdmin = canView("settings");
+  const masterPaths = [...masterDataItems.map((i) => i.url), ...adminPaths];
 
   return (
     <Sidebar collapsible="icon">
@@ -266,7 +271,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {filteredMaster.length > 0 && (
+        {(filteredMaster.length > 0 || showAdmin) && (
           <SidebarGroup>
             <SidebarGroupLabel>Master Data</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -303,6 +308,28 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         ))}
+                        {showAdmin && (
+                          <>
+                            <SidebarMenuSubItem>
+                              <SidebarMenuSubButton asChild isActive={currentPath === "/admin"}>
+                                <Link to="/admin">
+                                  <Settings className="mr-2 h-3.5 w-3.5" />
+                                  <span>Admin</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                            {adminSubItems.map((item) => (
+                              <SidebarMenuSubItem key={item.title} className="pl-3">
+                                <SidebarMenuSubButton asChild isActive={isActive(item.url)}>
+                                  <Link to={item.url}>
+                                    <item.icon className="mr-2 h-3.5 w-3.5" />
+                                    <span>{item.title}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </>
+                        )}
                       </SidebarMenuSub>
                     </CollapsibleContent>
                   </SidebarMenuItem>

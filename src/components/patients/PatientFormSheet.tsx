@@ -33,6 +33,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { useValidator } from "@/hooks/useValidationRules";
+import { useCustomFields } from "@/lib/custom-fields/api";
+import { CustomFieldsRenderer, validateCustomFields } from "@/components/custom-fields/CustomFieldsRenderer";
 import type { ValidationMessage } from "@/lib/validation/engine";
 import { AlertCircle } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
@@ -226,7 +228,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     const cfErrors = validateCustomFields(customFieldDefs, customValues);
     setCustomErrors(cfErrors);
     if (Object.keys(cfErrors).length) {
-      toast({ title: "Validation failed", description: Object.values(cfErrors)[0], variant: "destructive" });
+      toast({ title: "Validation failed", description: String(Object.values(cfErrors)[0]), variant: "destructive" });
       return;
     }
 

@@ -199,6 +199,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     setForm((prev) => ({ ...prev, [field]: value || null }));
   };
 
+  const validate = useValidator("patients");
+  const [validationMessages, setValidationMessages] = useState<ValidationMessage[]>([]);
+
   const handleSave = async () => {
     if (!form.first_name.trim()) {
       toast({ title: "Error", description: "First name is required", variant: "destructive" });

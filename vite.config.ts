@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => ({
       devOptions: { enabled: false },
       includeAssets: ["favicon.png", "skin-clinic-logo.png", "apple-touch-icon.png"],
       workbox: {
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallbackDenylist: [/^\/~oauth/],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [

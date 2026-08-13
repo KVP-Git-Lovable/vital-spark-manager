@@ -260,6 +260,8 @@ const Billing = () => {
   const [recurringDueDates, setRecurringDueDates] = useState<Date[]>([new Date()]);
   const [recurringStatuses, setRecurringStatuses] = useState<string[]>(["Pending"]);
   const [serviceSearchOpen, setServiceSearchOpen] = useState<number | null>(null);
+  const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
+  const [invoiceSeq, setInvoiceSeq] = useState<string>(() => Date.now().toString().slice(-6));
 
   const handleRecurringCountChange = (count: number) => {
     const c = Math.max(1, count);
@@ -600,7 +602,8 @@ const Billing = () => {
 
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
-      const baseNum = Date.now().toString().slice(-6);
+      const baseNum = invoiceSeq;
+      const createdAt = invoiceDate ? invoiceDate.toISOString() : new Date().toISOString();
       // Per-line tax aggregation: sum cgst/sgst/igst from each service & pharma line by its own mapped rate
       const aggregateLineTax = (svcAmounts: { name: string; price: number }[], pharma: PharmaLineItem[], scale: number) => {
         let cgstAmount = 0, sgstAmount = 0, igstAmount = 0;
@@ -633,6 +636,7 @@ const Billing = () => {
           else if (stage.paid > 0) status = "Partial";
           return {
             invoice_number: `INV-${baseNum}-S${i + 1}`,
+            created_at: createdAt,
             patient_id: patientId || null,
             patient_name: patientName,
             services: allServices,
@@ -671,6 +675,7 @@ const Billing = () => {
           const dueDate = recurringDueDates[i] || addMonths(new Date(), i);
           return {
             invoice_number: `INV-${baseNum}-R${i + 1}`,
+            created_at: createdAt,
             patient_id: patientId || null,
             patient_name: patientName,
             services: allServices,
@@ -725,6 +730,7 @@ const Billing = () => {
 
         const { data: insertedInv, error } = await supabase.from("invoices").insert({
           invoice_number: `INV-${baseNum}`,
+          created_at: createdAt,
           patient_id: patientId || null,
           patient_name: patientName,
           services: allServices,
@@ -1034,6 +1040,8 @@ const Billing = () => {
   const resetForm = () => {
     setPatientId("");
     setDoctorId("");
+    setInvoiceDate(new Date());
+    setInvoiceSeq(Date.now().toString().slice(-6));
     setServiceInputs([{ name: "", price: 0, hsn: "", gst: 0 }]);
     setPaidAmount(0);
     setPaymentType("One-time");

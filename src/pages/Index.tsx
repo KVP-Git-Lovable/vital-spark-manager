@@ -329,7 +329,7 @@ const Index = () => {
   const invoicedRevenue = filteredInvoices.reduce((s, inv: any) => s + Number(inv.total_amount || 0), 0);
   const completedCount = filtered.filter((a: any) => a.status === "Completed").length;
   const scheduledCount = filtered.filter((a: any) => a.status === "Scheduled").length;
-  const confirmedAppts = filtered.filter((a: any) => a.status === "Confirmed" || a.status === "Scheduled");
+  const confirmedAppts = filtered.filter((a: any) => a.status === "Confirmed");
   const completedAppts = filtered.filter((a: any) => a.status === "Completed");
   const checkedInStaff = todayAttendance.filter((a: any) => a.check_in_time).length;
   const pendingAmount = pendingInvoices.reduce((s, inv: any) => s + (Number(inv.total_amount) - Number(inv.paid_amount)), 0);

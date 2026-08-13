@@ -260,6 +260,8 @@ const Billing = () => {
   const [recurringDueDates, setRecurringDueDates] = useState<Date[]>([new Date()]);
   const [recurringStatuses, setRecurringStatuses] = useState<string[]>(["Pending"]);
   const [serviceSearchOpen, setServiceSearchOpen] = useState<number | null>(null);
+  const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
+  const [invoiceSeq, setInvoiceSeq] = useState<string>(() => Date.now().toString().slice(-6));
 
   const handleRecurringCountChange = (count: number) => {
     const c = Math.max(1, count);
@@ -429,6 +431,7 @@ const Billing = () => {
   // Open a specific invoice via ?viewInvoice=<id> (e.g. from Patient detail)
   useEffect(() => {
     const viewId = searchParams.get("viewInvoice");
+    if (viewId === "__new__") return;
     if (!viewId || !invoices?.length) return;
     const inv = (invoices as any[]).find((i: any) => i.id === viewId);
     if (inv) {
@@ -440,6 +443,72 @@ const Billing = () => {
       }, { replace: true });
     }
   }, [searchParams, invoices]);
+
+  // Pre-fill the Create Invoice form from an appointment ("New Bill" flow).
+  // Payload is stashed in sessionStorage to avoid huge URLs.
+  useEffect(() => {
+    if (searchParams.get("newInvoice") !== "1") return;
+    const raw = sessionStorage.getItem("billing_prefill");
+    let payload: any = null;
+    if (raw) { try { payload = JSON.parse(raw); } catch { payload = null; } }
+    sessionStorage.removeItem("billing_prefill");
+
+    if (payload?.patientId) setPatientId(payload.patientId);
+    if (payload?.doctorId) setDoctorId(payload.doctorId);
+
+    const names: string[] = Array.isArray(payload?.services) ? payload.services.filter(Boolean) : [];
+    if (names.length) {
+      setServiceInputs(
+        names.map((n: string) => {
+          const svc = (serviceMaster as any[]).find(
+            (s: any) => String(s?.name || "").toLowerCase() === n.toLowerCase(),
+          );
+          return {
+            name: svc?.name || n,
+            price: Number(svc?.price) || 0,
+            hsn: svc?.hsn_code || "",
+            gst: Number(svc?.gst_percent) || 0,
+            service_id: svc?.id,
+          };
+        }),
+      );
+    }
+
+    const products: any[] = Array.isArray(payload?.products) ? payload.products : [];
+    if (products.length && (pharmaInventory as any[]).length) {
+      const lines: PharmaLineItem[] = [];
+      for (const p of products) {
+        const pname = String(p?.name || "").toLowerCase();
+        if (!pname) continue;
+        const batch = (pharmaInventory as any[])
+          .filter(
+            (inv: any) =>
+              inv.quantity > 0 &&
+              new Date(inv.expiry_date) > new Date() &&
+              String(inv.pharma_products?.name || "").toLowerCase() === pname,
+          )
+          .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)))[0];
+        if (!batch) continue;
+        lines.push({
+          inventory_id: batch.id,
+          product_id: batch.product_id,
+          product_name: batch.pharma_products?.name || p.name,
+          batch_number: batch.batch_number,
+          quantity: Math.max(1, Number(p.quantity) || 1),
+          unit_price:
+            Number(batch.selling_price) || Number(batch.mrp) || Number(batch.pharma_products?.selling_price) || 0,
+          available: batch.quantity,
+        });
+      }
+      if (lines.length) setPharmaItems(lines);
+    }
+
+    setInvoiceDate(new Date());
+    setInvoiceSeq(Date.now().toString().slice(-6));
+    setOpen(true);
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, serviceMaster, pharmaInventory]);
 
   // Unique doctors and services for filter dropdowns
   const uniqueDoctors = useMemo(() => {
@@ -600,7 +669,8 @@ const Billing = () => {
 
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
-      const baseNum = Date.now().toString().slice(-6);
+      const baseNum = invoiceSeq;
+      const createdAt = invoiceDate ? invoiceDate.toISOString() : new Date().toISOString();
       // Per-line tax aggregation: sum cgst/sgst/igst from each service & pharma line by its own mapped rate
       const aggregateLineTax = (svcAmounts: { name: string; price: number }[], pharma: PharmaLineItem[], scale: number) => {
         let cgstAmount = 0, sgstAmount = 0, igstAmount = 0;
@@ -633,6 +703,7 @@ const Billing = () => {
           else if (stage.paid > 0) status = "Partial";
           return {
             invoice_number: `INV-${baseNum}-S${i + 1}`,
+            created_at: createdAt,
             patient_id: patientId || null,
             patient_name: patientName,
             services: allServices,
@@ -671,6 +742,7 @@ const Billing = () => {
           const dueDate = recurringDueDates[i] || addMonths(new Date(), i);
           return {
             invoice_number: `INV-${baseNum}-R${i + 1}`,
+            created_at: createdAt,
             patient_id: patientId || null,
             patient_name: patientName,
             services: allServices,
@@ -725,6 +797,7 @@ const Billing = () => {
 
         const { data: insertedInv, error } = await supabase.from("invoices").insert({
           invoice_number: `INV-${baseNum}`,
+          created_at: createdAt,
           patient_id: patientId || null,
           patient_name: patientName,
           services: allServices,
@@ -1034,6 +1107,8 @@ const Billing = () => {
   const resetForm = () => {
     setPatientId("");
     setDoctorId("");
+    setInvoiceDate(new Date());
+    setInvoiceSeq(Date.now().toString().slice(-6));
     setServiceInputs([{ name: "", price: 0, hsn: "", gst: 0 }]);
     setPaidAmount(0);
     setPaymentType("One-time");
@@ -1215,7 +1290,7 @@ const Billing = () => {
           <h1 className="page-title">Billing</h1>
           <p className="page-subtitle">Manage invoices and payments</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setInvoiceSeq(Date.now().toString().slice(-6)); }}>
           <DialogTrigger asChild>
             <Button className="gap-2 w-fit">
               <IndianRupee className="h-4 w-4" />
@@ -1226,8 +1301,28 @@ const Billing = () => {
             <DialogHeader className="px-6 pt-6 pb-3 border-b">
               <DialogTitle className="font-display">Create Invoice</DialogTitle>
             </DialogHeader>
-            <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-0 max-h-[calc(92vh-5rem)]">
-            <div className="space-y-4 px-6 py-4 overflow-y-auto lg:max-h-[calc(92vh-5rem)]">
+            <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-0 max-h-[calc(92vh-5rem)] overflow-x-auto">
+            <div className="space-y-4 px-6 py-4 overflow-y-auto overflow-x-auto lg:max-h-[calc(92vh-5rem)] min-w-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label>Invoice #</Label>
+                  <Input value={`INV-${invoiceSeq}`} readOnly className="mt-1.5 bg-muted/50 font-mono" />
+                </div>
+                <div>
+                  <Label>Invoice Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("mt-1.5 w-full justify-start text-left font-normal", !invoiceDate && "text-muted-foreground")}>
+                        <CalendarClock className="mr-2 h-4 w-4" />
+                        {invoiceDate ? format(invoiceDate, "dd MMM yyyy") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={invoiceDate} onSelect={(d) => d && setInvoiceDate(d)} initialFocus className={cn("p-3 pointer-events-auto")} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
               <div>
                 <Label>Patient</Label>
                 <PatientCombobox

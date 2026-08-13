@@ -370,13 +370,55 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         .from("invoices")
         .select("*")
         .eq("patient_id", appointment.patient_id)
-        .order("created_at", { ascending: false })
-        .limit(10);
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
     enabled: !!appointment?.patient_id,
   });
+
+  // Prescribed pharma products across this appointment's procedures (for New Bill prefill)
+  const procedureIds = (procedures as any[]).map((p: any) => p.id);
+  const { data: procPrescriptions = [] } = useQuery({
+    queryKey: ["appointment-prescriptions", appointmentId, procedureIds.join(",")],
+    queryFn: async () => {
+      if (procedureIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("prescriptions")
+        .select("medicine_name, quantity, product_id")
+        .in("procedure_id", procedureIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: procedureIds.length > 0,
+  });
+
+  // Open the Billing module's Create Invoice dialog pre-filled from this appointment
+  const handleNewBill = () => {
+    const services = Array.from(
+      new Set(
+        [
+          ...(procedures as any[]).map((p: any) => p.service_name),
+          ...(procedures.length === 0 && appointment?.service ? [appointment.service] : []),
+        ].filter(Boolean),
+      ),
+    );
+    const products = (procPrescriptions as any[])
+      .filter((p: any) => p.medicine_name)
+      .map((p: any) => ({ name: p.medicine_name, quantity: Number(p.quantity) || 1 }));
+
+    sessionStorage.setItem(
+      "billing_prefill",
+      JSON.stringify({
+        patientId: appointment?.patient_id || "",
+        doctorId: appointment?.staff_id || "",
+        services,
+        products,
+      }),
+    );
+    handleClose();
+    navigate("/billing?newInvoice=1");
+  };
 
   const { data: photos = [] } = useQuery({
     queryKey: ["appointment-photos", appointmentId, appointment?.patient_id],
@@ -794,8 +836,57 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                 </TabsContent>
 
                 <TabsContent value="billing" className="p-6 space-y-4 mt-0">
-                  <h3 className="text-sm font-semibold font-display flex items-center gap-2">
-                    <IndianRupee className="h-4 w-4" /> Billing Plan
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+                      <IndianRupee className="h-4 w-4" /> Billing
+                    </h3>
+                    {appointment.patient_id && (
+                      <Button size="sm" className="gap-2" onClick={handleNewBill}>
+                        <Plus className="h-4 w-4" /> New Bill
+                      </Button>
+                    )}
+                  </div>
+
+                  {appointment.patient_id && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground">Past Bills ({invoices.length})</p>
+                      {invoices.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-4 text-center border rounded-lg bg-muted/20">
+                          No bills yet. Click "New Bill" to create one.
+                        </p>
+                      ) : (
+                        invoices.map((inv: any) => (
+                          <div
+                            key={inv.id}
+                            className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => { handleClose(); navigate(`/billing?viewInvoice=${inv.id}`); }}
+                            title="Open bill"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-medium text-sm">{inv.invoice_number}</p>
+                                <ExternalLink className="h-3 w-3 text-primary" />
+                              </div>
+                              <Badge variant="secondary" className={`text-xs ${inv.status === "Paid" ? "bg-success/10 text-success" : inv.status === "Partial" ? "bg-warning/10 text-warning" : "bg-destructive/10 text-destructive"}`}>
+                                {inv.status}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {format(new Date(inv.created_at), "dd MMM yyyy")} · {inv.services?.join(", ")}
+                            </p>
+                            <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+                              <span>Total: ₹{Number(inv.total_amount).toLocaleString()}</span>
+                              <span>Paid: ₹{Number(inv.paid_amount).toLocaleString()}</span>
+                              <span>Balance: ₹{(Number(inv.total_amount) - Number(inv.paid_amount)).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  <h3 className="text-sm font-semibold font-display flex items-center gap-2 pt-2 border-t">
+                    <CalendarClock className="h-4 w-4" /> Billing Plan
                   </h3>
 
                   {appointment.patient_id ? (
@@ -974,38 +1065,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         </div>
                       )}
 
-                      {/* Existing invoices */}
-                      {invoices.length > 0 && (
-                        <div className="pt-4 border-t space-y-2">
-                          <p className="text-xs font-semibold text-muted-foreground">Existing Invoices</p>
-                          {invoices.map((inv: any) => (
-                            <div
-                              key={inv.id}
-                              className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => { handleClose(); navigate("/billing"); }}
-                              title="Open in Billing"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  <p className="font-medium text-sm">{inv.invoice_number}</p>
-                                  <ExternalLink className="h-3 w-3 text-primary" />
-                                </div>
-                                <Badge variant="secondary" className={`text-xs ${inv.status === "Paid" ? "bg-success/10 text-success" : inv.status === "Partial" ? "bg-warning/10 text-warning" : "bg-destructive/10 text-destructive"}`}>
-                                  {inv.status}
-                                </Badge>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {inv.services?.join(", ")} · ₹{Number(inv.total_amount).toLocaleString()}
-                                {inv.notes && ` · ${inv.notes}`}
-                              </p>
-                              <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                                <span>Paid: ₹{Number(inv.paid_amount).toLocaleString()}</span>
-                                <span>Balance: ₹{(Number(inv.total_amount) - Number(inv.paid_amount)).toLocaleString()}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-8">No patient linked to this appointment.</p>

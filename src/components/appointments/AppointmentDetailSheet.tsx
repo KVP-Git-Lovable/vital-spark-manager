@@ -836,8 +836,57 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                 </TabsContent>
 
                 <TabsContent value="billing" className="p-6 space-y-4 mt-0">
-                  <h3 className="text-sm font-semibold font-display flex items-center gap-2">
-                    <IndianRupee className="h-4 w-4" /> Billing Plan
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+                      <IndianRupee className="h-4 w-4" /> Billing
+                    </h3>
+                    {appointment.patient_id && (
+                      <Button size="sm" className="gap-2" onClick={handleNewBill}>
+                        <Plus className="h-4 w-4" /> New Bill
+                      </Button>
+                    )}
+                  </div>
+
+                  {appointment.patient_id && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground">Past Bills ({invoices.length})</p>
+                      {invoices.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-4 text-center border rounded-lg bg-muted/20">
+                          No bills yet. Click "New Bill" to create one.
+                        </p>
+                      ) : (
+                        invoices.map((inv: any) => (
+                          <div
+                            key={inv.id}
+                            className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => { handleClose(); navigate(`/billing?viewInvoice=${inv.id}`); }}
+                            title="Open bill"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-medium text-sm">{inv.invoice_number}</p>
+                                <ExternalLink className="h-3 w-3 text-primary" />
+                              </div>
+                              <Badge variant="secondary" className={`text-xs ${inv.status === "Paid" ? "bg-success/10 text-success" : inv.status === "Partial" ? "bg-warning/10 text-warning" : "bg-destructive/10 text-destructive"}`}>
+                                {inv.status}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {format(new Date(inv.created_at), "dd MMM yyyy")} · {inv.services?.join(", ")}
+                            </p>
+                            <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+                              <span>Total: ₹{Number(inv.total_amount).toLocaleString()}</span>
+                              <span>Paid: ₹{Number(inv.paid_amount).toLocaleString()}</span>
+                              <span>Balance: ₹{(Number(inv.total_amount) - Number(inv.paid_amount)).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  <h3 className="text-sm font-semibold font-display flex items-center gap-2 pt-2 border-t">
+                    <CalendarClock className="h-4 w-4" /> Billing Plan
                   </h3>
 
                   {appointment.patient_id ? (

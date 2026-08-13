@@ -19,6 +19,7 @@ import {
   ClipboardCheck,
   Building2,
   Tags,
+  Percent,
   ChevronDown,
   FileText,
   ListChecks,

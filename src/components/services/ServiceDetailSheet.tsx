@@ -111,6 +111,21 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     enabled: !!serviceId,
   });
 
+  const { data: hsnTaxes = [] } = useQuery({
+    queryKey: ["hsn-tax-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hsn_tax_master")
+        .select("id, hsn_code, igst, cgst")
+        .eq("is_active", true)
+        .order("hsn_code");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const selectedHsn = hsnTaxes.find((h: any) => h.hsn_code === hsnCode);
+
   useEffect(() => {
     if (service && !initialized) {
       setName(service.name);

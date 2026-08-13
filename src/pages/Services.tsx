@@ -153,6 +153,21 @@ const Services = () => {
     },
   });
 
+  const { data: hsnTaxes = [] } = useQuery({
+    queryKey: ["hsn-tax-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hsn_tax_master")
+        .select("id, hsn_code, igst, cgst")
+        .eq("is_active", true)
+        .order("hsn_code");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const selectedHsn = hsnTaxes.find((h: any) => h.hsn_code === hsnCode);
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const recs = recommendations.split("\n").filter((r) => r.trim());
@@ -164,7 +179,7 @@ const Services = () => {
           duration: parseInt(duration) || 30,
           price: parseFloat(price) || 0,
           hsn_code: hsnCode || null,
-          gst_percent: parseFloat(gstPercent) || 0,
+          gst_percent: selectedHsn ? Number(selectedHsn.igst || 0) + Number(selectedHsn.cgst || 0) : 0,
           symptoms: symptoms || null,
           diagnosis: diagnosis || null,
           procedure_notes: procedureNotes || null,
@@ -366,18 +381,26 @@ const Services = () => {
                   <Input type="number" placeholder="45" className="mt-1.5" value={duration} onChange={(e) => setDuration(e.target.value)} />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Price (₹)</Label>
                   <Input type="number" placeholder="3500" className="mt-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
                 </div>
                 <div>
                   <Label>HSN Code</Label>
-                  <Input placeholder="9993" className="mt-1.5" value={hsnCode} onChange={(e) => setHsnCode(e.target.value)} />
-                </div>
-                <div>
-                  <Label>GST %</Label>
-                  <Input type="number" placeholder="18" className="mt-1.5" value={gstPercent} onChange={(e) => setGstPercent(e.target.value)} />
+                  <Select value={hsnCode} onValueChange={setHsnCode}>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select HSN code" /></SelectTrigger>
+                    <SelectContent>
+                      {hsnTaxes.map((h: any) => (
+                        <SelectItem key={h.id} value={h.hsn_code}>{h.hsn_code}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedHsn && (
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      IGST {Number(selectedHsn.igst)}% · CGST {Number(selectedHsn.cgst)}% · Total {Number(selectedHsn.igst) + Number(selectedHsn.cgst)}%
+                    </p>
+                  )}
                 </div>
               </div>
               {/* Symptoms */}

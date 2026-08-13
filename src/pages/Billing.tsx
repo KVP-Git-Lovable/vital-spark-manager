@@ -328,6 +328,18 @@ const Billing = () => {
     },
   });
 
+  const { data: hsnTaxes = [] } = useQuery({
+    queryKey: ["hsn-tax-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hsn_tax_master")
+        .select("id, hsn_code, igst, cgst")
+        .eq("is_active", true);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: taxProductLinks = [] } = useQuery({
     queryKey: ["tax-master-products-active"],
     queryFn: async () => {
@@ -557,6 +569,28 @@ const Billing = () => {
     const svc = (serviceMaster as any[]).find((s) => s.name === serviceName);
     return svc ? serviceTaxMap.get(svc.id) : undefined;
   };
+
+  // HSN-based tax (Tax Master): service → HSN code → IGST + CGST
+  const hsnTaxMap = useMemo(() => {
+    const m = new Map<string, any>();
+    (hsnTaxes as any[]).forEach((h) => m.set(String(h.hsn_code), h));
+    return m;
+  }, [hsnTaxes]);
+
+  const getServiceLineTax = (serviceName: string, amount: number, lineHsn?: string) => {
+    const svc = (serviceMaster as any[]).find((s) => s.name === serviceName);
+    const hsn = (lineHsn && lineHsn.trim()) || svc?.hsn_code || "";
+    const hsnTax = hsn ? hsnTaxMap.get(String(hsn)) : undefined;
+    if (hsnTax) {
+      const igst = Number(hsnTax.igst) || 0;
+      const cgst = Number(hsnTax.cgst) || 0;
+      const igstAmt = (amount * igst) / 100;
+      const cgstAmt = (amount * cgst) / 100;
+      return { rate: igst + cgst, cgst: cgstAmt, sgst: 0, igst: igstAmt, taxAmount: igstAmt + cgstAmt };
+    }
+    return getLineTax(getServiceTaxId(serviceName), amount);
+  };
+
   const getProductTaxId = (productId: string): string | undefined => productTaxMap.get(productId);
 
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
@@ -676,7 +710,7 @@ const Billing = () => {
         let cgstAmount = 0, sgstAmount = 0, igstAmount = 0;
         svcAmounts.forEach((s) => {
           if (!s.name.trim() || !s.price) return;
-          const t = getLineTax(getServiceTaxId(s.name), s.price * scale);
+          const t = getServiceLineTax(s.name, s.price * scale, (s as any).hsn);
           cgstAmount += t.cgst; sgstAmount += t.sgst; igstAmount += t.igst;
         });
         pharma.forEach((p) => {
@@ -1419,11 +1453,11 @@ const Billing = () => {
                       )}
                     </div>
                     {s.price > 0 && (() => {
-                      const lineTax = getLineTax(getServiceTaxId(s.name), s.price);
+                      const lineTax = getServiceLineTax(s.name, s.price, (s as any).hsn);
                       return (
                         <div className="text-xs text-muted-foreground text-right pr-7 mt-0.5">
                           {lineTax.rate > 0
-                            ? `Tax (${lineTax.rate}%): ₹${lineTax.taxAmount.toFixed(2)}`
+                            ? `IGST ${((lineTax.igst / (s.price || 1)) * 100).toFixed(0)}% + CGST ${((lineTax.cgst / (s.price || 1)) * 100).toFixed(0)}% = Tax (${lineTax.rate}%): ₹${lineTax.taxAmount.toFixed(2)}`
                             : "No tax"}
                         </div>
                       );
@@ -1631,7 +1665,7 @@ const Billing = () => {
                     let totalCgst = 0, totalSgst = 0, totalIgst = 0;
                     serviceInputs.forEach((s) => {
                       if (!s.name.trim() || !s.price) return;
-                      const lt = getLineTax(getServiceTaxId(s.name), s.price);
+                      const lt = getServiceLineTax(s.name, s.price, (s as any).hsn);
                       totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
                     });
                     pharmaItems.forEach((p) => {
@@ -1825,7 +1859,7 @@ const Billing = () => {
                   let totalCgst = 0, totalSgst = 0, totalIgst = 0;
                   serviceInputs.forEach((s) => {
                     if (!s.name.trim() || !s.price) return;
-                    const lt = getLineTax(getServiceTaxId(s.name), s.price);
+                    const lt = getServiceLineTax(s.name, s.price, (s as any).hsn);
                     totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
                   });
                   pharmaItems.forEach((p) => {

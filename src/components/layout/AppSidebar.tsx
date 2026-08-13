@@ -19,6 +19,7 @@ import {
   ClipboardCheck,
   Building2,
   Tags,
+  Percent,
   ChevronDown,
   FileText,
   ListChecks,
@@ -84,6 +85,7 @@ const masterDataItems = [
   { title: "Service Master", url: "/services", icon: Stethoscope, moduleKey: "services" },
   { title: "Vendor Master", url: "/vendors", icon: Building2, moduleKey: "vendors" },
   { title: "Category Master", url: "/category-master", icon: Tags, moduleKey: "category_master" },
+  { title: "Tax Master", url: "/tax-master", icon: Percent, moduleKey: "settings" },
   { title: "Problem Areas", url: "/problem-areas", icon: AlertCircle, moduleKey: "problem_areas" },
 ];
 

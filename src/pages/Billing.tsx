@@ -328,6 +328,18 @@ const Billing = () => {
     },
   });
 
+  const { data: hsnTaxes = [] } = useQuery({
+    queryKey: ["hsn-tax-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hsn_tax_master")
+        .select("id, hsn_code, igst, cgst")
+        .eq("is_active", true);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: taxProductLinks = [] } = useQuery({
     queryKey: ["tax-master-products-active"],
     queryFn: async () => {

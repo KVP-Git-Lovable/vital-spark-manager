@@ -329,25 +329,62 @@ const Index = () => {
   const invoicedRevenue = filteredInvoices.reduce((s, inv: any) => s + Number(inv.total_amount || 0), 0);
   const completedCount = filtered.filter((a: any) => a.status === "Completed").length;
   const scheduledCount = filtered.filter((a: any) => a.status === "Scheduled").length;
+  const confirmedAppts = filtered.filter((a: any) => a.status === "Confirmed" || a.status === "Scheduled");
+  const completedAppts = filtered.filter((a: any) => a.status === "Completed");
   const checkedInStaff = todayAttendance.filter((a: any) => a.check_in_time).length;
   const pendingAmount = pendingInvoices.reduce((s, inv: any) => s + (Number(inv.total_amount) - Number(inv.paid_amount)), 0);
   const dateLabel = DATE_RANGE_OPTIONS.find((o) => o.key === selectedDateRange)?.label || "Today";
 
   // Drill-down
-  const handleChartClick = (type: string) => {
-    const titles: Record<string, string> = {
-      appointment_status: "Appointments — Status Breakdown",
-      appointments_by_dr: "Appointments — By Staff",
-      billing_by_dr: "Billing — By Staff",
-      revenue_by_date: "Revenue — Detail",
-    };
-    setDrillDown({ open: true, type, title: titles[type] || "Details" });
-  };
+  const openDrill = (
+    kind: "invoices" | "appointments" | "patients",
+    title: string,
+    records: any[]
+  ) => setDrillDown({ open: true, kind, title, records });
 
-  const drillDownRecords = useMemo(() => {
-    if (drillDown.type === "revenue_by_date" || drillDown.type === "billing_by_dr") return filteredInvoices;
-    return filtered;
-  }, [drillDown.type, filtered, filteredInvoices]);
+  const handleChartClick = (type: string, key?: string) => {
+    const suffix = key ? ` — ${key}` : "";
+    switch (type) {
+      case "appointment_status":
+        return openDrill(
+          "appointments",
+          `Appointments — Status${suffix}`,
+          key ? filtered.filter((a: any) => a.status === key) : filtered
+        );
+      case "appointments_by_dr":
+        return openDrill(
+          "appointments",
+          `Appointments — By Staff${suffix}`,
+          key ? filtered.filter((a: any) => a._staffName === key) : filtered
+        );
+      case "revenue_by_dr":
+        return openDrill(
+          "invoices",
+          `Revenue by Doctor${suffix}`,
+          key ? filteredInvoices.filter((i: any) => i._doctorName === key) : filteredInvoices
+        );
+      case "revenue_by_problem_area":
+        return openDrill(
+          "invoices",
+          `Revenue by Problem Area${suffix}`,
+          key
+            ? filteredInvoices.filter((i: any) =>
+                key === "Unspecified" ? !i._areas?.length : i._areas?.includes(key)
+              )
+            : filteredInvoices
+        );
+      case "revenue_by_payment_mode":
+        return openDrill(
+          "invoices",
+          `Revenue by Payment Mode${suffix}`,
+          key
+            ? filteredInvoices.filter((i: any) => (i.payment_mode || "Unspecified") === key)
+            : filteredInvoices
+        );
+      default:
+        return openDrill("invoices", "Revenue — Detail", filteredInvoices);
+    }
+  };
 
   // Today appointments for the list (always today, unfiltered by date range)
   const todayStart = startOfDay(new Date()).toISOString();
@@ -377,11 +414,27 @@ const Index = () => {
         onServiceChange={setSelectedService}
       />
 
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
+        <div className="cursor-pointer" onClick={() => openDrill("appointments", `Total Appointments — ${dateLabel}`, filtered)}>
+          <StatCard title="Total Appointments" value={filtered.length} change={dateLabel} changeType="neutral" icon={Calendar} iconColor="bg-info/10 text-info" delay={0} />
+        </div>
+        <div className="cursor-pointer" onClick={() => openDrill("appointments", `Confirmed Appointments — ${dateLabel}`, confirmedAppts)}>
+          <StatCard title="Confirmed Appointments" value={confirmedAppts.length} change={`${scheduledCount} scheduled • ${dateLabel}`} changeType="neutral" icon={ClipboardList} iconColor="bg-primary/10 text-primary" delay={0.05} />
+        </div>
+        <div className="cursor-pointer" onClick={() => openDrill("appointments", `Completed Appointments — ${dateLabel}`, completedAppts)}>
+          <StatCard title="Completed Appointments" value={completedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} />
+        </div>
+        <div className="cursor-pointer" onClick={() => openDrill("patients", `New Patients — ${dateLabel}`, newPatientsRaw as any[])}>
+          <StatCard title="New Patients Added" value={(newPatientsRaw as any[]).length} change={dateLabel} changeType="neutral" icon={Users} delay={0.15} />
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-        <StatCard title={`Appointments`} value={filtered.length} change={`${completedCount} completed • ${scheduledCount} scheduled • ${dateLabel}`} changeType="neutral" icon={Calendar} iconColor="bg-info/10 text-info" delay={0} />
-        <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.05} />
-        <StatCard title={`Revenue`} value={`₹${paidRevenue.toLocaleString()}`} change={`of ₹${invoicedRevenue.toLocaleString()} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.1} />
-        <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.15} />
+        <div className="cursor-pointer" onClick={() => openDrill("invoices", `Revenue — ${dateLabel}`, filteredInvoices)}>
+          <StatCard title="Revenue" value={`₹${paidRevenue.toLocaleString()}`} change={`of ₹${invoicedRevenue.toLocaleString()} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.2} />
+        </div>
+        <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.22} />
+        <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.24} />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">

@@ -710,7 +710,7 @@ const Billing = () => {
         let cgstAmount = 0, sgstAmount = 0, igstAmount = 0;
         svcAmounts.forEach((s) => {
           if (!s.name.trim() || !s.price) return;
-          const t = getLineTax(getServiceTaxId(s.name), s.price * scale);
+          const t = getServiceLineTax(s.name, s.price * scale, (s as any).hsn);
           cgstAmount += t.cgst; sgstAmount += t.sgst; igstAmount += t.igst;
         });
         pharma.forEach((p) => {
@@ -1453,7 +1453,7 @@ const Billing = () => {
                       )}
                     </div>
                     {s.price > 0 && (() => {
-                      const lineTax = getLineTax(getServiceTaxId(s.name), s.price);
+                      const lineTax = getServiceLineTax(s.name, s.price, (s as any).hsn);
                       return (
                         <div className="text-xs text-muted-foreground text-right pr-7 mt-0.5">
                           {lineTax.rate > 0
@@ -1665,7 +1665,7 @@ const Billing = () => {
                     let totalCgst = 0, totalSgst = 0, totalIgst = 0;
                     serviceInputs.forEach((s) => {
                       if (!s.name.trim() || !s.price) return;
-                      const lt = getLineTax(getServiceTaxId(s.name), s.price);
+                      const lt = getServiceLineTax(s.name, s.price, (s as any).hsn);
                       totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
                     });
                     pharmaItems.forEach((p) => {
@@ -1859,7 +1859,7 @@ const Billing = () => {
                   let totalCgst = 0, totalSgst = 0, totalIgst = 0;
                   serviceInputs.forEach((s) => {
                     if (!s.name.trim() || !s.price) return;
-                    const lt = getLineTax(getServiceTaxId(s.name), s.price);
+                    const lt = getServiceLineTax(s.name, s.price, (s as any).hsn);
                     totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
                   });
                   pharmaItems.forEach((p) => {

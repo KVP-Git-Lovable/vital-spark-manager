@@ -898,6 +898,42 @@ export type Database = {
           },
         ]
       }
+      hsn_tax_master: {
+        Row: {
+          active_from: string | null
+          cgst: number
+          created_at: string
+          hsn_code: string
+          id: string
+          igst: number
+          inactive_from: string | null
+          is_active: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          active_from?: string | null
+          cgst?: number
+          created_at?: string
+          hsn_code: string
+          id?: string
+          igst?: number
+          inactive_from?: string | null
+          is_active?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          active_from?: string | null
+          cgst?: number
+          created_at?: string
+          hsn_code?: string
+          id?: string
+          igst?: number
+          inactive_from?: string | null
+          is_active?: boolean | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           appointment_id: string | null

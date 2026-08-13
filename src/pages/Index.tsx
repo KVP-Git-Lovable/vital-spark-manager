@@ -63,8 +63,8 @@ const Index = () => {
   const [selectedStaff, setSelectedStaff] = useState("all");
   const [selectedDateRange, setSelectedDateRange] = useState("today");
   const [selectedService, setSelectedService] = useState("all");
-  const [drillDown, setDrillDown] = useState<{ open: boolean; type: string; title: string }>({
-    open: false, type: "", title: "",
+  const [drillDown, setDrillDown] = useState<{ open: boolean; kind: "invoices" | "appointments" | "patients"; title: string; records: any[] }>({
+    open: false, kind: "appointments", title: "", records: [],
   });
 
   const { start, end } = useMemo(() => getDateRange(selectedDateRange), [selectedDateRange]);
@@ -157,6 +157,29 @@ const Index = () => {
       const { data, error } = await supabase.from("campaigns" as any).select("id, amount_spent").eq("status", "Active");
       if (error) throw error;
       return (data as any[]) || [];
+    },
+  });
+
+  const { data: problemAreas = [] } = useQuery({
+    queryKey: ["dashboard-problem-areas"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("problem_areas").select("id, name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: newPatientsRaw = [] } = useQuery({
+    queryKey: ["dashboard-new-patients", startISO, endISO],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, phone, email, gender, created_at")
+        .gte("created_at", startISO)
+        .lte("created_at", endISO)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
     },
   });
 

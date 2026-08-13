@@ -9,6 +9,7 @@ import {
 const STATUS_COLORS: Record<string, string> = {
   Completed: "hsl(152, 60%, 40%)",
   Scheduled: "hsl(210, 80%, 55%)",
+  Confirmed: "hsl(174, 62%, 38%)",
   "In Progress": "hsl(38, 92%, 50%)",
   "No Show": "hsl(0, 72%, 51%)",
   "No-show": "hsl(0, 72%, 51%)",
@@ -23,131 +24,141 @@ const BAR_COLORS = [
   "hsl(38, 92%, 50%)", "hsl(280, 60%, 55%)", "hsl(0, 72%, 51%)",
 ];
 
+interface NameValue { name: string; value: number }
+
 interface ChartData {
-  appointmentStatus: { name: string; value: number }[];
-  appointmentsByDr: { name: string; value: number }[];
-  billingByDr: { name: string; paid: number; invoiced: number }[];
+  appointmentStatus: NameValue[];
+  appointmentsByDr: NameValue[];
+  revenueByDr: { name: string; paid: number; invoiced: number }[];
+  revenueByProblemArea: NameValue[];
+  revenueByPaymentMode: NameValue[];
   revenueByDate: { date: string; paid: number; invoiced: number }[];
 }
 
 interface Props {
   data: ChartData;
-  onChartClick: (type: string, payload?: any) => void;
+  onChartClick: (type: string, key?: string) => void;
 }
+
+function ChartCard({
+  title, delay, empty, onClick, children,
+}: { title: string; delay: number; empty: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
+      <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={onClick}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">{title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {empty ? <p className="text-sm text-muted-foreground text-center py-8">No data</p> : children}
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+const money = (v: number, n: string) => [`₹${Number(v).toLocaleString()}`, n] as [string, string];
 
 export function DashboardCharts({ data, onChartClick }: Props) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-      {/* Appointment Status Pie */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => onChartClick("appointment_status")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Appointment Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.appointmentStatus.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No data</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={data.appointmentStatus}
-                    cx="50%" cy="50%"
-                    innerRadius={50} outerRadius={80}
-                    paddingAngle={3} dataKey="value"
-                    label={({ name, value }) => `${name}: ${value}`}
-                  >
-                    {data.appointmentStatus.map((entry) => (
-                      <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || "hsl(210, 15%, 50%)"} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
+      <ChartCard title="Appointment Status" delay={0.2} empty={data.appointmentStatus.length === 0} onClick={() => onChartClick("appointment_status")}>
+        <ResponsiveContainer width="100%" height={220}>
+          <PieChart>
+            <Pie
+              data={data.appointmentStatus}
+              cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+              paddingAngle={3} dataKey="value"
+              label={({ name, value }) => `${name}: ${value}`}
+              onClick={(e: any) => onChartClick("appointment_status", e?.name)}
+            >
+              {data.appointmentStatus.map((entry) => (
+                <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || "hsl(210, 15%, 50%)"} />
+              ))}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartCard>
 
-      {/* Appointments by Dr */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => onChartClick("appointments_by_dr")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Appointments by Staff</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.appointmentsByDr.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No data</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={data.appointmentsByDr}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="value" name="Appointments" radius={[4, 4, 0, 0]}>
-                    {data.appointmentsByDr.map((_, i) => (
-                      <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
+      <ChartCard title="Appointments by Staff" delay={0.25} empty={data.appointmentsByDr.length === 0} onClick={() => onChartClick("appointments_by_dr")}>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={data.appointmentsByDr}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Bar dataKey="value" name="Appointments" radius={[4, 4, 0, 0]} onClick={(e: any) => onChartClick("appointments_by_dr", e?.name)}>
+              {data.appointmentsByDr.map((_, i) => (
+                <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
 
-      {/* Billing by Dr */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => onChartClick("billing_by_dr")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Billing by Staff (₹)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.billingByDr.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No data</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={data.billingByDr}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number, n: string) => [`₹${Number(v).toLocaleString()}`, n]} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="paid" name="Paid" fill="hsl(152, 60%, 40%)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="invoiced" name="Invoiced" fill="hsl(210, 80%, 55%)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
+      <ChartCard title="Revenue by Doctor (₹)" delay={0.3} empty={data.revenueByDr.length === 0} onClick={() => onChartClick("revenue_by_dr")}>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={data.revenueByDr}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip formatter={money} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="paid" name="Paid" fill="hsl(152, 60%, 40%)" radius={[4, 4, 0, 0]} onClick={(e: any) => onChartClick("revenue_by_dr", e?.name)} />
+            <Bar dataKey="invoiced" name="Invoiced" fill="hsl(210, 80%, 55%)" radius={[4, 4, 0, 0]} onClick={(e: any) => onChartClick("revenue_by_dr", e?.name)} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
 
-      {/* Revenue by Date */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => onChartClick("revenue_by_date")}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Revenue Trend (₹)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.revenueByDate.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No data</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={data.revenueByDate}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number, n: string) => [`₹${Number(v).toLocaleString()}`, n]} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Line type="monotone" dataKey="paid" name="Paid" stroke="hsl(152, 60%, 40%)" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="invoiced" name="Invoiced" stroke="hsl(210, 80%, 55%)" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 2 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
+      <ChartCard title="Revenue by Problem Area (₹)" delay={0.32} empty={data.revenueByProblemArea.length === 0} onClick={() => onChartClick("revenue_by_problem_area")}>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={data.revenueByProblemArea} layout="vertical">
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <XAxis type="number" tick={{ fontSize: 11 }} />
+            <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10 }} />
+            <Tooltip formatter={money} />
+            <Bar dataKey="value" name="Paid" radius={[0, 4, 4, 0]} onClick={(e: any) => onChartClick("revenue_by_problem_area", e?.name)}>
+              {data.revenueByProblemArea.map((_, i) => (
+                <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="Revenue by Payment Mode (₹)" delay={0.34} empty={data.revenueByPaymentMode.length === 0} onClick={() => onChartClick("revenue_by_payment_mode")}>
+        <ResponsiveContainer width="100%" height={220}>
+          <PieChart>
+            <Pie
+              data={data.revenueByPaymentMode}
+              cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+              paddingAngle={3} dataKey="value"
+              label={({ name, value }) => `${name}: ₹${Number(value).toLocaleString()}`}
+              onClick={(e: any) => onChartClick("revenue_by_payment_mode", e?.name)}
+            >
+              {data.revenueByPaymentMode.map((_, i) => (
+                <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip formatter={money} />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="Revenue Trend (₹)" delay={0.36} empty={data.revenueByDate.length === 0} onClick={() => onChartClick("revenue_by_date")}>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={data.revenueByDate}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip formatter={money} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Line type="monotone" dataKey="paid" name="Paid" stroke="hsl(152, 60%, 40%)" strokeWidth={2} dot={{ r: 3 }} />
+            <Line type="monotone" dataKey="invoiced" name="Invoiced" stroke="hsl(210, 80%, 55%)" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 2 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartCard>
     </div>
   );
 }

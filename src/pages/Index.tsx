@@ -237,10 +237,8 @@ const Index = () => {
 
     // Appointments by Staff
     const drApptMap: Record<string, number> = {};
-    const doctorLookup = new Map(staffList.map(d => [d.id, `${d.first_name} ${d.last_name}`]));
     filtered.forEach((a: any) => {
-      const name = a.staff_id ? (doctorLookup.get(a.staff_id) || "Unassigned") : "Unassigned";
-      drApptMap[name] = (drApptMap[name] || 0) + 1;
+      drApptMap[a._staffName] = (drApptMap[a._staffName] || 0) + 1;
     });
     let appointmentsByDr = Object.entries(drApptMap)
       .map(([name, value]) => ({ name, value }))
@@ -252,24 +250,36 @@ const Index = () => {
       appointmentsByDr = [...top, { name: "Other", value: other }];
     }
 
-    // Billing by Staff — link invoice → appointment → staff; fall back to "Walk-in / Direct"
+    // Revenue by Doctor
     const drBillPaid: Record<string, number> = {};
     const drBillInvoiced: Record<string, number> = {};
-    const apptStaffMap: Record<string, string> = {};
-    appointments.forEach((a: any) => {
-      apptStaffMap[a.id] = a.staff_id ? (doctorLookup.get(a.staff_id) || "Unassigned") : "Unassigned";
-    });
+    const areaRevenue: Record<string, number> = {};
+    const modeRevenue: Record<string, number> = {};
     filteredInvoices.forEach((inv: any) => {
-      const drName = inv.appointment_id
-        ? (apptStaffMap[inv.appointment_id] || "Unassigned")
-        : "Walk-in / Direct";
-      drBillPaid[drName] = (drBillPaid[drName] || 0) + Number(inv.paid_amount || 0);
+      const drName = inv._doctorName || "Walk-in / Direct";
+      const paid = Number(inv.paid_amount || 0);
+      drBillPaid[drName] = (drBillPaid[drName] || 0) + paid;
       drBillInvoiced[drName] = (drBillInvoiced[drName] || 0) + Number(inv.total_amount || 0);
+
+      const areas: string[] = inv._areas?.length ? inv._areas : ["Unspecified"];
+      areas.forEach((a) => { areaRevenue[a] = (areaRevenue[a] || 0) + paid / areas.length; });
+
+      const mode = inv.payment_mode || "Unspecified";
+      modeRevenue[mode] = (modeRevenue[mode] || 0) + paid;
     });
-    const billingByDr = Object.keys({ ...drBillPaid, ...drBillInvoiced })
+    const revenueByDr = Object.keys({ ...drBillPaid, ...drBillInvoiced })
       .map((name) => ({ name, paid: drBillPaid[name] || 0, invoiced: drBillInvoiced[name] || 0 }))
       .sort((a, b) => b.invoiced - a.invoiced)
       .slice(0, 10);
+    const revenueByProblemArea = Object.entries(areaRevenue)
+      .map(([name, value]) => ({ name, value: Math.round(value) }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+    const revenueByPaymentMode = Object.entries(modeRevenue)
+      .map(([name, value]) => ({ name, value: Math.round(value) }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value);
 
     // Revenue Trend — bucket by hour / day / week based on selected range length
     const rangeDays = Math.max(1, differenceInDays(end, start) + 1);
@@ -311,8 +321,8 @@ const Index = () => {
       invoiced: invByBucket[k],
     }));
 
-    return { appointmentStatus, appointmentsByDr, billingByDr, revenueByDate };
-  }, [filtered, filteredInvoices, appointments, staffList, start, end]);
+    return { appointmentStatus, appointmentsByDr, revenueByDr, revenueByProblemArea, revenueByPaymentMode, revenueByDate };
+  }, [filtered, filteredInvoices, start, end]);
 
   // Stat card values
   const paidRevenue = filteredInvoices.reduce((s, inv: any) => s + Number(inv.paid_amount || 0), 0);

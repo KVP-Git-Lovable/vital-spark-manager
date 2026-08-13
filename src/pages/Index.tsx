@@ -183,20 +183,50 @@ const Index = () => {
     },
   });
 
+  const doctorLookup = useMemo(
+    () => new Map(staffList.map((d: any) => [d.id, `${d.first_name} ${d.last_name}`])),
+    [staffList]
+  );
+  const areaLookup = useMemo(
+    () => new Map((problemAreas as any[]).map((p) => [p.id, p.name])),
+    [problemAreas]
+  );
+  const apptById = useMemo(() => new Map(appointments.map((a: any) => [a.id, a])), [appointments]);
+
   // Filter appointments
   const filtered = useMemo(() => {
-    let list = appointments;
+    let list = appointments as any[];
     if (selectedStaff !== "all") list = list.filter((a: any) => a.staff_id === selectedStaff);
     if (selectedService !== "all") list = list.filter((a: any) => a.service === selectedService);
-    return list;
-  }, [appointments, selectedStaff, selectedService]);
+    return list.map((a: any) => ({
+      ...a,
+      _staffName: a.staff_id ? doctorLookup.get(a.staff_id) || "Unassigned" : "Unassigned",
+    }));
+  }, [appointments, selectedStaff, selectedService, doctorLookup]);
 
-  // Filter invoices by staff (via appointment_id match)
+  // Filter invoices by staff/service (via doctor_id or linked appointment) and enrich
   const filteredInvoices = useMemo(() => {
-    if (selectedStaff === "all" && selectedService === "all") return invoices;
     const apptIds = new Set(filtered.map((a: any) => a.id));
-    return invoices.filter((inv: any) => inv.appointment_id && apptIds.has(inv.appointment_id));
-  }, [invoices, filtered, selectedStaff, selectedService]);
+    let list = invoices as any[];
+    if (selectedStaff !== "all" || selectedService !== "all") {
+      list = list.filter(
+        (inv: any) =>
+          (inv.appointment_id && apptIds.has(inv.appointment_id)) ||
+          (selectedService === "all" && selectedStaff !== "all" && inv.doctor_id === selectedStaff)
+      );
+    }
+    return list.map((inv: any) => {
+      const appt = inv.appointment_id ? apptById.get(inv.appointment_id) : null;
+      const staffId = inv.doctor_id || appt?.staff_id;
+      return {
+        ...inv,
+        _doctorName: staffId ? doctorLookup.get(staffId) || "Unassigned" : "Walk-in / Direct",
+        _areas: ((appt?.problem_area_ids as string[]) || [])
+          .map((id) => areaLookup.get(id))
+          .filter(Boolean) as string[],
+      };
+    });
+  }, [invoices, filtered, selectedStaff, selectedService, apptById, doctorLookup, areaLookup]);
 
   // Chart data
   const chartData = useMemo(() => {

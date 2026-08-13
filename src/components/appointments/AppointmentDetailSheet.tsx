@@ -1065,38 +1065,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         </div>
                       )}
 
-                      {/* Existing invoices */}
-                      {invoices.length > 0 && (
-                        <div className="pt-4 border-t space-y-2">
-                          <p className="text-xs font-semibold text-muted-foreground">Existing Invoices</p>
-                          {invoices.map((inv: any) => (
-                            <div
-                              key={inv.id}
-                              className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => { handleClose(); navigate("/billing"); }}
-                              title="Open in Billing"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  <p className="font-medium text-sm">{inv.invoice_number}</p>
-                                  <ExternalLink className="h-3 w-3 text-primary" />
-                                </div>
-                                <Badge variant="secondary" className={`text-xs ${inv.status === "Paid" ? "bg-success/10 text-success" : inv.status === "Partial" ? "bg-warning/10 text-warning" : "bg-destructive/10 text-destructive"}`}>
-                                  {inv.status}
-                                </Badge>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {inv.services?.join(", ")} · ₹{Number(inv.total_amount).toLocaleString()}
-                                {inv.notes && ` · ${inv.notes}`}
-                              </p>
-                              <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                                <span>Paid: ₹{Number(inv.paid_amount).toLocaleString()}</span>
-                                <span>Balance: ₹{(Number(inv.total_amount) - Number(inv.paid_amount)).toLocaleString()}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-8">No patient linked to this appointment.</p>

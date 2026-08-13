@@ -1457,7 +1457,7 @@ const Billing = () => {
                       return (
                         <div className="text-xs text-muted-foreground text-right pr-7 mt-0.5">
                           {lineTax.rate > 0
-                            ? `Tax (${lineTax.rate}%): ₹${lineTax.taxAmount.toFixed(2)}`
+                            ? `IGST ${((lineTax.igst / (s.price || 1)) * 100).toFixed(0)}% + CGST ${((lineTax.cgst / (s.price || 1)) * 100).toFixed(0)}% = Tax (${lineTax.rate}%): ₹${lineTax.taxAmount.toFixed(2)}`
                             : "No tax"}
                         </div>
                       );

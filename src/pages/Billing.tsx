@@ -1223,7 +1223,7 @@ const Billing = () => {
           <h1 className="page-title">Billing</h1>
           <p className="page-subtitle">Manage invoices and payments</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setInvoiceSeq(Date.now().toString().slice(-6)); }}>
           <DialogTrigger asChild>
             <Button className="gap-2 w-fit">
               <IndianRupee className="h-4 w-4" />
@@ -1234,8 +1234,28 @@ const Billing = () => {
             <DialogHeader className="px-6 pt-6 pb-3 border-b">
               <DialogTitle className="font-display">Create Invoice</DialogTitle>
             </DialogHeader>
-            <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-0 max-h-[calc(92vh-5rem)]">
-            <div className="space-y-4 px-6 py-4 overflow-y-auto lg:max-h-[calc(92vh-5rem)]">
+            <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-0 max-h-[calc(92vh-5rem)] overflow-x-auto">
+            <div className="space-y-4 px-6 py-4 overflow-y-auto overflow-x-auto lg:max-h-[calc(92vh-5rem)] min-w-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label>Invoice #</Label>
+                  <Input value={`INV-${invoiceSeq}`} readOnly className="mt-1.5 bg-muted/50 font-mono" />
+                </div>
+                <div>
+                  <Label>Invoice Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("mt-1.5 w-full justify-start text-left font-normal", !invoiceDate && "text-muted-foreground")}>
+                        <CalendarClock className="mr-2 h-4 w-4" />
+                        {invoiceDate ? format(invoiceDate, "dd MMM yyyy") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={invoiceDate} onSelect={(d) => d && setInvoiceDate(d)} initialFocus className={cn("p-3 pointer-events-auto")} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
               <div>
                 <Label>Patient</Label>
                 <PatientCombobox

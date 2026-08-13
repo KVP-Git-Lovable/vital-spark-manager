@@ -202,7 +202,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
         name, category: category || "General", duration: parseInt(duration) || 30,
         price: parseFloat(price) || 0,
         hsn_code: hsnCode || null,
-        gst_percent: parseFloat(gstPercent) || 0,
+        gst_percent: selectedHsn ? Number(selectedHsn.igst || 0) + Number(selectedHsn.cgst || 0) : 0,
         symptoms: symptoms || null, diagnosis: diagnosis || null,
         procedure_notes: procedureNotes || null, recommendations: recs,
       } as any).eq("id", serviceId!);
@@ -309,18 +309,26 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
                 <Input type="number" className="mt-1.5" value={duration} onChange={(e) => setDuration(e.target.value)} />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Price (₹)</Label>
                 <Input type="number" className="mt-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
               </div>
               <div>
                 <Label>HSN Code</Label>
-                <Input className="mt-1.5" placeholder="9993" value={hsnCode} onChange={(e) => setHsnCode(e.target.value)} />
-              </div>
-              <div>
-                <Label>GST %</Label>
-                <Input type="number" className="mt-1.5" placeholder="18" value={gstPercent} onChange={(e) => setGstPercent(e.target.value)} />
+                <Select value={hsnCode} onValueChange={setHsnCode}>
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select HSN code" /></SelectTrigger>
+                  <SelectContent>
+                    {hsnTaxes.map((h: any) => (
+                      <SelectItem key={h.id} value={h.hsn_code}>{h.hsn_code}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedHsn && (
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    IGST {Number(selectedHsn.igst)}% · CGST {Number(selectedHsn.cgst)}% · Total {Number(selectedHsn.igst) + Number(selectedHsn.cgst)}%
+                  </p>
+                )}
               </div>
             </div>
 

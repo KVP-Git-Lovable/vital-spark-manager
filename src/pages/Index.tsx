@@ -261,11 +261,12 @@ const Index = () => {
       drBillPaid[drName] = (drBillPaid[drName] || 0) + paid;
       drBillInvoiced[drName] = (drBillInvoiced[drName] || 0) + Number(inv.total_amount || 0);
 
+      const billed = Number(inv.total_amount || 0);
       const areas: string[] = inv._areas?.length ? inv._areas : ["Unspecified"];
-      areas.forEach((a) => { areaRevenue[a] = (areaRevenue[a] || 0) + paid / areas.length; });
+      areas.forEach((a) => { areaRevenue[a] = (areaRevenue[a] || 0) + billed / areas.length; });
 
       const mode = inv.payment_mode || "Unspecified";
-      modeRevenue[mode] = (modeRevenue[mode] || 0) + paid;
+      modeRevenue[mode] = (modeRevenue[mode] || 0) + billed;
     });
     const revenueByDr = Object.keys({ ...drBillPaid, ...drBillInvoiced })
       .map((name) => ({ name, paid: drBillPaid[name] || 0, invoiced: drBillInvoiced[name] || 0 }))

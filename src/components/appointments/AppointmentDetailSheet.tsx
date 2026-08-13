@@ -370,13 +370,55 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         .from("invoices")
         .select("*")
         .eq("patient_id", appointment.patient_id)
-        .order("created_at", { ascending: false })
-        .limit(10);
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
     enabled: !!appointment?.patient_id,
   });
+
+  // Prescribed pharma products across this appointment's procedures (for New Bill prefill)
+  const procedureIds = (procedures as any[]).map((p: any) => p.id);
+  const { data: procPrescriptions = [] } = useQuery({
+    queryKey: ["appointment-prescriptions", appointmentId, procedureIds.join(",")],
+    queryFn: async () => {
+      if (procedureIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("prescriptions")
+        .select("medicine_name, quantity, product_id")
+        .in("procedure_id", procedureIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: procedureIds.length > 0,
+  });
+
+  // Open the Billing module's Create Invoice dialog pre-filled from this appointment
+  const handleNewBill = () => {
+    const services = Array.from(
+      new Set(
+        [
+          ...(procedures as any[]).map((p: any) => p.service_name),
+          ...(procedures.length === 0 && appointment?.service ? [appointment.service] : []),
+        ].filter(Boolean),
+      ),
+    );
+    const products = (procPrescriptions as any[])
+      .filter((p: any) => p.medicine_name)
+      .map((p: any) => ({ name: p.medicine_name, quantity: Number(p.quantity) || 1 }));
+
+    sessionStorage.setItem(
+      "billing_prefill",
+      JSON.stringify({
+        patientId: appointment?.patient_id || "",
+        doctorId: appointment?.staff_id || "",
+        services,
+        products,
+      }),
+    );
+    handleClose();
+    navigate("/billing?newInvoice=1");
+  };
 
   const { data: photos = [] } = useQuery({
     queryKey: ["appointment-photos", appointmentId, appointment?.patient_id],

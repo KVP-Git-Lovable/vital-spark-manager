@@ -557,6 +557,28 @@ const Billing = () => {
     const svc = (serviceMaster as any[]).find((s) => s.name === serviceName);
     return svc ? serviceTaxMap.get(svc.id) : undefined;
   };
+
+  // HSN-based tax (Tax Master): service → HSN code → IGST + CGST
+  const hsnTaxMap = useMemo(() => {
+    const m = new Map<string, any>();
+    (hsnTaxes as any[]).forEach((h) => m.set(String(h.hsn_code), h));
+    return m;
+  }, [hsnTaxes]);
+
+  const getServiceLineTax = (serviceName: string, amount: number, lineHsn?: string) => {
+    const svc = (serviceMaster as any[]).find((s) => s.name === serviceName);
+    const hsn = (lineHsn && lineHsn.trim()) || svc?.hsn_code || "";
+    const hsnTax = hsn ? hsnTaxMap.get(String(hsn)) : undefined;
+    if (hsnTax) {
+      const igst = Number(hsnTax.igst) || 0;
+      const cgst = Number(hsnTax.cgst) || 0;
+      const igstAmt = (amount * igst) / 100;
+      const cgstAmt = (amount * cgst) / 100;
+      return { rate: igst + cgst, cgst: cgstAmt, sgst: 0, igst: igstAmt, taxAmount: igstAmt + cgstAmt };
+    }
+    return getLineTax(getServiceTaxId(serviceName), amount);
+  };
+
   const getProductTaxId = (productId: string): string | undefined => productTaxMap.get(productId);
 
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);

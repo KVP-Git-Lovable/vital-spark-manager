@@ -431,6 +431,7 @@ const Billing = () => {
   // Open a specific invoice via ?viewInvoice=<id> (e.g. from Patient detail)
   useEffect(() => {
     const viewId = searchParams.get("viewInvoice");
+    if (viewId === "__new__") return;
     if (!viewId || !invoices?.length) return;
     const inv = (invoices as any[]).find((i: any) => i.id === viewId);
     if (inv) {
@@ -442,6 +443,72 @@ const Billing = () => {
       }, { replace: true });
     }
   }, [searchParams, invoices]);
+
+  // Pre-fill the Create Invoice form from an appointment ("New Bill" flow).
+  // Payload is stashed in sessionStorage to avoid huge URLs.
+  useEffect(() => {
+    if (searchParams.get("newInvoice") !== "1") return;
+    const raw = sessionStorage.getItem("billing_prefill");
+    let payload: any = null;
+    if (raw) { try { payload = JSON.parse(raw); } catch { payload = null; } }
+    sessionStorage.removeItem("billing_prefill");
+
+    if (payload?.patientId) setPatientId(payload.patientId);
+    if (payload?.doctorId) setDoctorId(payload.doctorId);
+
+    const names: string[] = Array.isArray(payload?.services) ? payload.services.filter(Boolean) : [];
+    if (names.length) {
+      setServiceInputs(
+        names.map((n: string) => {
+          const svc = (serviceMaster as any[]).find(
+            (s: any) => String(s?.name || "").toLowerCase() === n.toLowerCase(),
+          );
+          return {
+            name: svc?.name || n,
+            price: Number(svc?.price) || 0,
+            hsn: svc?.hsn_code || "",
+            gst: Number(svc?.gst_percent) || 0,
+            service_id: svc?.id,
+          };
+        }),
+      );
+    }
+
+    const products: any[] = Array.isArray(payload?.products) ? payload.products : [];
+    if (products.length && (pharmaInventory as any[]).length) {
+      const lines: PharmaLineItem[] = [];
+      for (const p of products) {
+        const pname = String(p?.name || "").toLowerCase();
+        if (!pname) continue;
+        const batch = (pharmaInventory as any[])
+          .filter(
+            (inv: any) =>
+              inv.quantity > 0 &&
+              new Date(inv.expiry_date) > new Date() &&
+              String(inv.pharma_products?.name || "").toLowerCase() === pname,
+          )
+          .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)))[0];
+        if (!batch) continue;
+        lines.push({
+          inventory_id: batch.id,
+          product_id: batch.product_id,
+          product_name: batch.pharma_products?.name || p.name,
+          batch_number: batch.batch_number,
+          quantity: Math.max(1, Number(p.quantity) || 1),
+          unit_price:
+            Number(batch.selling_price) || Number(batch.mrp) || Number(batch.pharma_products?.selling_price) || 0,
+          available: batch.quantity,
+        });
+      }
+      if (lines.length) setPharmaItems(lines);
+    }
+
+    setInvoiceDate(new Date());
+    setInvoiceSeq(Date.now().toString().slice(-6));
+    setOpen(true);
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, serviceMaster, pharmaInventory]);
 
   // Unique doctors and services for filter dropdowns
   const uniqueDoctors = useMemo(() => {

@@ -459,8 +459,8 @@ const Index = () => {
         open={drillDown.open}
         onOpenChange={(open) => setDrillDown((p) => ({ ...p, open }))}
         title={drillDown.title}
-        records={drillDownRecords}
-        type={drillDown.type}
+        records={drillDown.records}
+        kind={drillDown.kind}
       />
 
       {/* Lists section */}

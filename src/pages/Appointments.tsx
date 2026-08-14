@@ -61,7 +61,7 @@ const DOCTOR_PALETTE = [
   { bg: "bg-accent", border: "border-accent-foreground/30", text: "text-accent-foreground", dot: "bg-accent-foreground" },
 ];
 
-const statusOptions = ["Reserved", "Confirmed", "Cancelled", "Follow Up"];
+const statusOptions = ["Reserved", "Confirmed", "Cancelled", "Follow Up", "Recurring appointment"];
 
 // Status → tailwind classes for calendar cards (background + border + text)
 const STATUS_CARD_CLASSES: Record<string, string> = {

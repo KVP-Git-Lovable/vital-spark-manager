@@ -44,7 +44,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-const statusOptions = ["Reserved", "Confirmed", "Cancelled", "Follow Up"];
+const statusOptions = ["Reserved", "Confirmed", "Cancelled", "Follow Up", "Recurring appointment"];
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
   Reserved: "bg-info/15 text-info border-info/30",

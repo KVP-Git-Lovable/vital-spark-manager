@@ -618,6 +618,32 @@ const Billing = () => {
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
   const servicesSubtotal = useMemo(() => serviceInputs.reduce((sum, s) => sum + (Number(s.price) || 0), 0), [serviceInputs]);
 
+  // Tax for a share of the bill (used by installments): each line taxed at its own rate, scaled.
+  const scaledLineTax = (scale: number) => {
+    let cgst = 0, sgst = 0, igst = 0;
+    serviceInputs.forEach((s: any) => {
+      if (!String(s.name || "").trim() || !s.price) return;
+      const t = getServiceLineTax(s.name, Number(s.price) * scale, s.hsn);
+      cgst += t.cgst; sgst += t.sgst; igst += t.igst;
+    });
+    pharmaItems.forEach((p) => {
+      const amt = p.quantity * p.unit_price;
+      if (!p.product_id || !amt) return;
+      const t = getProductLineTax(p.product_id, amt * scale);
+      cgst += t.cgst; sgst += t.sgst; igst += t.igst;
+    });
+    return { cgst, sgst, igst, tax: cgst + sgst + igst };
+  };
+
+  // Per-installment tax + total (recurring plans)
+  const installmentTax = useMemo(() => {
+    const base = servicesSubtotal + pharmaSubtotal;
+    const scale = base > 0 ? recurringAmount / base : 0;
+    return scaledLineTax(scale);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servicesSubtotal, pharmaSubtotal, recurringAmount, serviceInputs, pharmaItems, serviceTaxMap, productTaxMap, taxRows]);
+  const installmentTotal = recurringAmount + installmentTax.tax;
+
   // Auto-fill Recurring Total Amount from services + products subtotal, and recompute per-installment amount
   useEffect(() => {
     if (paymentType !== "Recurring") return;

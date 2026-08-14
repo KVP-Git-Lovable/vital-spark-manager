@@ -487,11 +487,14 @@ const Billing = () => {
     }
 
     const products: any[] = Array.isArray(payload?.products) ? payload.products : [];
-    if (products.length && (pharmaInventory as any[]).length) {
+    if (products.length) {
       const lines: PharmaLineItem[] = [];
       for (const p of products) {
         const pname = String(p?.name || "").toLowerCase();
         if (!pname) continue;
+        const master = (pharmaProducts as any[]).find(
+          (m: any) => String(m?.name || "").toLowerCase() === pname || m?.id === p?.product_id,
+        );
         const batch = (pharmaInventory as any[])
           .filter(
             (inv: any) =>
@@ -500,16 +503,20 @@ const Billing = () => {
               String(inv.pharma_products?.name || "").toLowerCase() === pname,
           )
           .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)))[0];
-        if (!batch) continue;
+        if (!batch && !master) continue;
         lines.push({
-          inventory_id: batch.id,
-          product_id: batch.product_id,
-          product_name: batch.pharma_products?.name || p.name,
-          batch_number: batch.batch_number,
+          inventory_id: batch?.id || "",
+          product_id: batch?.product_id || master?.id || "",
+          product_name: batch?.pharma_products?.name || master?.name || p.name,
+          batch_number: batch?.batch_number || "",
           quantity: Math.max(1, Number(p.quantity) || 1),
           unit_price:
-            Number(batch.selling_price) || Number(batch.mrp) || Number(batch.pharma_products?.selling_price) || 0,
-          available: batch.quantity,
+            Number(batch?.selling_price) ||
+            Number(batch?.mrp) ||
+            Number(master?.selling_price) ||
+            Number(master?.mrp) ||
+            0,
+          available: batch?.quantity || 0,
         });
       }
       if (lines.length) setPharmaItems(lines);
@@ -520,7 +527,7 @@ const Billing = () => {
     setOpen(true);
     setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, serviceMaster, pharmaInventory]);
+  }, [searchParams, serviceMaster, pharmaInventory, pharmaProducts]);
 
   // Unique doctors and services for filter dropdowns
   const uniqueDoctors = useMemo(() => {
@@ -1527,13 +1534,14 @@ const Billing = () => {
                           onValueChange={(v) => updatePharmaItem(idx, "inventory_id", v === "placeholder" ? "" : v)}
                           disabled={!item.product_id}
                         >
-                          <SelectTrigger className="mt-1"><SelectValue placeholder={item.product_id ? "Select batch" : "Select product first"} /></SelectTrigger>
+                          <SelectTrigger className="mt-1"><SelectValue placeholder={item.product_id ? "No batch" : "Select product first"} /></SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="placeholder">No batch</SelectItem>
                             {(pharmaInventory as any[])
                               .filter((i: any) => i.product_id === item.product_id && i.quantity > 0 && new Date(i.expiry_date) > new Date())
                               .map((i: any) => (
                                 <SelectItem key={i.id} value={i.id}>
-                                  {i.batch_number}
+                                  {i.batch_number} · {i.quantity} left
                                 </SelectItem>
                               ))}
                           </SelectContent>
@@ -1543,7 +1551,7 @@ const Billing = () => {
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <Label className="text-xs">Qty</Label>
-                        <Input type="number" className="mt-1 h-8" min={1} max={item.available} value={item.quantity} onChange={(e) => updatePharmaItem(idx, "quantity", parseInt(e.target.value) || 1)} />
+                        <Input type="number" className="mt-1 h-8" min={1} max={item.inventory_id ? item.available : undefined} value={item.quantity} onChange={(e) => updatePharmaItem(idx, "quantity", parseInt(e.target.value) || 1)} />
                       </div>
                       <div>
                         <Label className="text-xs">Price (₹)</Label>

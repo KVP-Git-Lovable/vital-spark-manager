@@ -259,6 +259,9 @@ const Billing = () => {
   const [recurringTotalAmount, setRecurringTotalAmount] = useState(0);
   const [recurringDueDates, setRecurringDueDates] = useState<Date[]>([new Date()]);
   const [recurringStatuses, setRecurringStatuses] = useState<string[]>(["Pending"]);
+  // Appointment this invoice originated from (installment #1 links to it)
+  const [sourceAppointmentId, setSourceAppointmentId] = useState<string | null>(null);
+  const [sourceAppointment, setSourceAppointment] = useState<any>(null);
   const [serviceSearchOpen, setServiceSearchOpen] = useState<number | null>(null);
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [invoiceSeq, setInvoiceSeq] = useState<string>(() => Date.now().toString().slice(-6));

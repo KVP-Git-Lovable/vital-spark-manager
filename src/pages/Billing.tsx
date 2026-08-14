@@ -470,6 +470,7 @@ const Billing = () => {
 
     if (payload?.patientId) setPatientId(payload.patientId);
     if (payload?.doctorId) setDoctorId(payload.doctorId);
+    if (payload?.appointmentId) setSourceAppointmentId(payload.appointmentId);
 
     const names: string[] = Array.isArray(payload?.services) ? payload.services.filter(Boolean) : [];
     if (names.length) {

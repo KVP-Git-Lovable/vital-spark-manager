@@ -873,7 +873,8 @@ const Billing = () => {
               staff_id: doctorId || parentAppt?.staff_id || null,
               is_recurring: true,
               parent_appointment_id: parentId,
-              notes: `Auto-created for installment ${i + 1} of ${recurringCount}`,
+              reason_for_consultation: `Installment ${i + 1} of ${recurringCount}`,
+              appointment_type: parentAppt?.appointment_type || "Walk-in",
             };
             let inserted: any = null;
             let res = await supabase.from("appointments").insert(basePayload).select("id").single();

@@ -378,6 +378,55 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   });
 
   // Prescribed pharma products across this appointment's procedures (for New Bill prefill)
+  // Recurring plan: parent appointment + every installment invoice in the family
+  const rootAppointmentId = (appointment as any)?.parent_appointment_id || appointmentId || null;
+
+  const { data: parentAppointment } = useQuery({
+    queryKey: ["parent-appointment", (appointment as any)?.parent_appointment_id],
+    queryFn: async () => {
+      const pid = (appointment as any)?.parent_appointment_id;
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("id, service, start_time, status, patient_name")
+        .eq("id", pid)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!(appointment as any)?.parent_appointment_id,
+  });
+
+  const { data: recurringFamily = [] } = useQuery({
+    queryKey: ["recurring-family", rootAppointmentId],
+    queryFn: async () => {
+      if (!rootAppointmentId) return [];
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("id, start_time, status")
+        .or(`id.eq.${rootAppointmentId},parent_appointment_id.eq.${rootAppointmentId}`);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!rootAppointmentId,
+  });
+
+  const familyIds = (recurringFamily as any[]).map((a: any) => a.id);
+  const { data: installments = [] } = useQuery({
+    queryKey: ["recurring-installments", familyIds.join(",")],
+    queryFn: async () => {
+      if (familyIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("*")
+        .in("appointment_id", familyIds)
+        .eq("payment_type", "Recurring")
+        .order("installment_number", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: familyIds.length > 0,
+  });
+
   const procedureIds = (procedures as any[]).map((p: any) => p.id);
   const { data: procPrescriptions = [] } = useQuery({
     queryKey: ["appointment-prescriptions", appointmentId, procedureIds.join(",")],

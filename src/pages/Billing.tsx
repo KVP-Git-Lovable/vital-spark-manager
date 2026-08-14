@@ -1932,16 +1932,37 @@ const Billing = () => {
                               updated[i] = parseFloat(e.target.value) || 0;
                               setRecurringCollected(updated);
                             }} />
+                            <div className="col-span-5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                              <span>Tax ₹{installmentTax.tax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                              <span className="font-medium text-foreground">Total ₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                              <span className="flex items-center gap-1">
+                                <CalendarClock className="h-3 w-3" />
+                                {i === 0 && sourceAppointmentId
+                                  ? "Linked to current appointment"
+                                  : `Recurring appointment will be created on ${format(dueDate, "dd MMM yyyy")}`}
+                              </span>
+                            </div>
                           </div>
                         );
                       })}
                     </div>
                   )}
                   <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Total ({recurringCount} × ₹{recurringAmount.toLocaleString()})</span><span className="font-semibold">₹{recurringTotal.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Installment 1 of {recurringCount}</span><span>₹{recurringAmount.toLocaleString()}</span></div>
+                    {installmentTax.cgst > 0 && (
+                      <>
+                        <div className="flex justify-between text-xs"><span className="text-muted-foreground">CGST</span><span>₹{installmentTax.cgst.toFixed(2)}</span></div>
+                        <div className="flex justify-between text-xs"><span className="text-muted-foreground">SGST</span><span>₹{installmentTax.sgst.toFixed(2)}</span></div>
+                      </>
+                    )}
+                    {installmentTax.igst > 0 && (
+                      <div className="flex justify-between text-xs"><span className="text-muted-foreground">IGST</span><span>₹{installmentTax.igst.toFixed(2)}</span></div>
+                    )}
+                    <div className="flex justify-between text-primary font-semibold border-t pt-1"><span>Payable now (incl. tax)</span><span>₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                    <div className="flex justify-between pt-1"><span className="text-muted-foreground">Plan total ({recurringCount} × ₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })})</span><span className="font-semibold">₹{(installmentTotal * recurringCount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{recurringPaidTotal.toLocaleString()}</span></div>
-                    <div className="flex justify-between text-primary font-semibold"><span>Balance</span><span>₹{(recurringTotal - recurringPaidTotal).toLocaleString()}</span></div>
-                    <p className="text-xs text-muted-foreground mt-1">{recurringCount} invoice(s) will be created</p>
+                    <div className="flex justify-between font-semibold"><span>Balance</span><span>₹{(installmentTotal * recurringCount - recurringPaidTotal).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                    <p className="text-xs text-muted-foreground mt-1">{recurringCount} invoice(s) and {sourceAppointmentId ? recurringCount - 1 : recurringCount} recurring appointment(s) will be created</p>
                   </div>
                 </div>
               )}

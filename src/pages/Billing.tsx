@@ -1558,7 +1558,7 @@ const Billing = () => {
                             </Button>
                           </div>
                           {(() => {
-                            const lineTax = getLineTax(getProductTaxId(item.product_id), item.quantity * item.unit_price);
+                            const lineTax = getProductLineTax(item.product_id, item.quantity * item.unit_price);
                             return (
                               <span className="text-xs text-muted-foreground mt-0.5 pr-9">
                                 {lineTax.rate > 0
@@ -1700,7 +1700,7 @@ const Billing = () => {
                     pharmaItems.forEach((p) => {
                       const amt = p.quantity * p.unit_price;
                       if (!p.product_id || !amt) return;
-                      const lt = getLineTax(getProductTaxId(p.product_id), amt);
+                      const lt = getProductLineTax(p.product_id, amt);
                       totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
                     });
                     const totalTax = totalCgst + totalSgst + totalIgst;
@@ -1894,7 +1894,7 @@ const Billing = () => {
                   pharmaItems.forEach((p) => {
                     const amt = p.quantity * p.unit_price;
                     if (!p.product_id || !amt) return;
-                    const lt = getLineTax(getProductTaxId(p.product_id), amt);
+                    const lt = getProductLineTax(p.product_id, amt);
                     totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
                   });
                   const totalTax = totalCgst + totalSgst + totalIgst;

@@ -1998,10 +1998,21 @@ const Billing = () => {
                   if (paymentType === "Recurring") {
                     return (
                       <div className="space-y-1">
-                        <div className="flex justify-between"><span className="text-muted-foreground">Total ({recurringCount} × ₹{recurringAmount.toLocaleString()})</span><span className="font-semibold">₹{recurringTotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Installment 1 of {recurringCount}</span><span>₹{recurringAmount.toLocaleString()}</span></div>
+                        {installmentTax.cgst > 0 && (
+                          <>
+                            <div className="flex justify-between text-xs"><span className="text-muted-foreground">CGST</span><span>₹{installmentTax.cgst.toFixed(2)}</span></div>
+                            <div className="flex justify-between text-xs"><span className="text-muted-foreground">SGST</span><span>₹{installmentTax.sgst.toFixed(2)}</span></div>
+                          </>
+                        )}
+                        {installmentTax.igst > 0 && (
+                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">IGST</span><span>₹{installmentTax.igst.toFixed(2)}</span></div>
+                        )}
+                        <div className="flex justify-between text-primary font-semibold border-t pt-2 mt-2"><span>Payable now (incl. tax)</span><span>₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        <div className="flex justify-between pt-1"><span className="text-muted-foreground">Plan total</span><span className="font-semibold">₹{(installmentTotal * recurringCount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
                         <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{recurringPaidTotal.toLocaleString()}</span></div>
-                        <div className="flex justify-between text-primary font-semibold border-t pt-2 mt-2"><span>Balance</span><span>₹{(recurringTotal - recurringPaidTotal).toLocaleString()}</span></div>
-                        <p className="text-xs text-muted-foreground mt-1">{recurringCount} invoice(s) will be created</p>
+                        <div className="flex justify-between font-semibold"><span>Balance</span><span>₹{(installmentTotal * recurringCount - recurringPaidTotal).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        <p className="text-xs text-muted-foreground mt-1">{recurringCount} invoice(s) and {sourceAppointmentId ? recurringCount - 1 : recurringCount} recurring appointment(s) will be created</p>
                       </div>
                     );
                   }

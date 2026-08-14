@@ -939,6 +939,59 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                     </div>
                   )}
 
+                  {(parentAppointment || installments.length > 0) && (
+                    <div className="space-y-2 pt-2 border-t">
+                      <p className="text-xs font-semibold text-muted-foreground">Recurring Installments</p>
+                      {parentAppointment && (
+                        <button
+                          className="w-full text-left border rounded-lg p-2 bg-muted/20 hover:bg-muted/40 transition-colors"
+                          onClick={() => { handleClose(); navigate(`/appointments/${(parentAppointment as any).id}`); }}
+                        >
+                          <span className="text-xs text-muted-foreground">Parent appointment</span>
+                          <p className="text-sm font-medium flex items-center gap-1.5">
+                            {(parentAppointment as any).service || "Appointment"}
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date((parentAppointment as any).start_time), "dd MMM yyyy, h:mm a")}
+                            </span>
+                            <ExternalLink className="h-3 w-3 text-primary" />
+                          </p>
+                        </button>
+                      )}
+                      {installments.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No installments recorded for this plan.</p>
+                      ) : (
+                        (installments as any[]).map((inv: any) => {
+                          const balance = Number(inv.total_amount) - Number(inv.paid_amount);
+                          const open = balance > 0.5;
+                          return (
+                            <div
+                              key={inv.id}
+                              className="border rounded-lg p-2.5 cursor-pointer hover:bg-muted/40 transition-colors"
+                              onClick={() => { handleClose(); navigate(`/billing?viewInvoice=${inv.id}`); }}
+                            >
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-medium">
+                                  Installment {inv.installment_number || "—"} of {inv.installment_count || "—"}
+                                  {inv.appointment_id === appointmentId && (
+                                    <span className="ml-2 text-[10px] text-primary">this appointment</span>
+                                  )}
+                                </p>
+                                <Badge variant="secondary" className={`text-xs ${open ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>
+                                  {open ? "Open" : "Closed"}
+                                </Badge>
+                              </div>
+                              <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+                                <span>Due {inv.due_date ? format(new Date(inv.due_date), "dd MMM yyyy") : "—"}</span>
+                                <span>Total ₹{Number(inv.total_amount).toLocaleString()}</span>
+                                <span>Balance ₹{balance.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+
                   <h3 className="text-sm font-semibold font-display flex items-center gap-2 pt-2 border-t">
                     <CalendarClock className="h-4 w-4" /> Billing Plan
                   </h3>

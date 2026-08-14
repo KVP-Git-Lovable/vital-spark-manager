@@ -416,6 +416,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       JSON.stringify({
         patientId: appointment?.patient_id || "",
         doctorId: appointment?.staff_id || "",
+        appointmentId: appointmentId || "",
         services,
         products,
       }),

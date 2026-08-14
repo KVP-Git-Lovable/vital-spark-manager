@@ -44,7 +44,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-const statusOptions = ["Reserved", "Confirmed", "Cancelled", "Follow Up"];
+const statusOptions = ["Reserved", "Confirmed", "Cancelled", "Follow Up", "Recurring appointment"];
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
   Reserved: "bg-info/15 text-info border-info/30",
@@ -378,6 +378,55 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   });
 
   // Prescribed pharma products across this appointment's procedures (for New Bill prefill)
+  // Recurring plan: parent appointment + every installment invoice in the family
+  const rootAppointmentId = (appointment as any)?.parent_appointment_id || appointmentId || null;
+
+  const { data: parentAppointment } = useQuery({
+    queryKey: ["parent-appointment", (appointment as any)?.parent_appointment_id],
+    queryFn: async () => {
+      const pid = (appointment as any)?.parent_appointment_id;
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("id, service, start_time, status, patient_name")
+        .eq("id", pid)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!(appointment as any)?.parent_appointment_id,
+  });
+
+  const { data: recurringFamily = [] } = useQuery({
+    queryKey: ["recurring-family", rootAppointmentId],
+    queryFn: async () => {
+      if (!rootAppointmentId) return [];
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("id, start_time, status")
+        .or(`id.eq.${rootAppointmentId},parent_appointment_id.eq.${rootAppointmentId}`);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!rootAppointmentId,
+  });
+
+  const familyIds = (recurringFamily as any[]).map((a: any) => a.id);
+  const { data: installments = [] } = useQuery({
+    queryKey: ["recurring-installments", familyIds.join(",")],
+    queryFn: async () => {
+      if (familyIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("*")
+        .in("appointment_id", familyIds)
+        .eq("payment_type", "Recurring")
+        .order("installment_number", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: familyIds.length > 0,
+  });
+
   const procedureIds = (procedures as any[]).map((p: any) => p.id);
   const { data: procPrescriptions = [] } = useQuery({
     queryKey: ["appointment-prescriptions", appointmentId, procedureIds.join(",")],
@@ -416,6 +465,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       JSON.stringify({
         patientId: appointment?.patient_id || "",
         doctorId: appointment?.staff_id || "",
+        appointmentId: appointmentId || "",
         services,
         products,
       }),
@@ -715,6 +765,19 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       </SelectContent>
                     </Select>
                   </div>
+                  {parentAppointment && (
+                    <div>
+                      <Label>Parent Appointment</Label>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start font-normal text-left mt-1.5"
+                        onClick={() => { handleClose(); navigate(`/appointments/${(parentAppointment as any).id}`); }}
+                      >
+                        {(parentAppointment as any).service || "Appointment"} · {format(new Date((parentAppointment as any).start_time), "dd MMM yyyy")}
+                        <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
+                      </Button>
+                    </div>
+                  )}
                   <div>
                     <Label>Status</Label>
                     <Select value={editStatus} onValueChange={setEditStatus}>
@@ -885,6 +948,59 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                             </div>
                           </div>
                         ))
+                      )}
+                    </div>
+                  )}
+
+                  {(parentAppointment || installments.length > 0) && (
+                    <div className="space-y-2 pt-2 border-t">
+                      <p className="text-xs font-semibold text-muted-foreground">Recurring Installments</p>
+                      {parentAppointment && (
+                        <button
+                          className="w-full text-left border rounded-lg p-2 bg-muted/20 hover:bg-muted/40 transition-colors"
+                          onClick={() => { handleClose(); navigate(`/appointments/${(parentAppointment as any).id}`); }}
+                        >
+                          <span className="text-xs text-muted-foreground">Parent appointment</span>
+                          <p className="text-sm font-medium flex items-center gap-1.5">
+                            {(parentAppointment as any).service || "Appointment"}
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date((parentAppointment as any).start_time), "dd MMM yyyy, h:mm a")}
+                            </span>
+                            <ExternalLink className="h-3 w-3 text-primary" />
+                          </p>
+                        </button>
+                      )}
+                      {installments.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No installments recorded for this plan.</p>
+                      ) : (
+                        (installments as any[]).map((inv: any) => {
+                          const balance = Number(inv.total_amount) - Number(inv.paid_amount);
+                          const open = balance > 0.5;
+                          return (
+                            <div
+                              key={inv.id}
+                              className="border rounded-lg p-2.5 cursor-pointer hover:bg-muted/40 transition-colors"
+                              onClick={() => { handleClose(); navigate(`/billing?viewInvoice=${inv.id}`); }}
+                            >
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-medium">
+                                  Installment {inv.installment_number || "—"} of {inv.installment_count || "—"}
+                                  {inv.appointment_id === appointmentId && (
+                                    <span className="ml-2 text-[10px] text-primary">this appointment</span>
+                                  )}
+                                </p>
+                                <Badge variant="secondary" className={`text-xs ${open ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>
+                                  {open ? "Open" : "Closed"}
+                                </Badge>
+                              </div>
+                              <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+                                <span>Due {inv.due_date ? format(new Date(inv.due_date), "dd MMM yyyy") : "—"}</span>
+                                <span>Total ₹{Number(inv.total_amount).toLocaleString()}</span>
+                                <span>Balance ₹{balance.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          );
+                        })
                       )}
                     </div>
                   )}

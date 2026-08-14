@@ -487,11 +487,14 @@ const Billing = () => {
     }
 
     const products: any[] = Array.isArray(payload?.products) ? payload.products : [];
-    if (products.length && (pharmaInventory as any[]).length) {
+    if (products.length) {
       const lines: PharmaLineItem[] = [];
       for (const p of products) {
         const pname = String(p?.name || "").toLowerCase();
         if (!pname) continue;
+        const master = (pharmaProducts as any[]).find(
+          (m: any) => String(m?.name || "").toLowerCase() === pname || m?.id === p?.product_id,
+        );
         const batch = (pharmaInventory as any[])
           .filter(
             (inv: any) =>
@@ -500,16 +503,20 @@ const Billing = () => {
               String(inv.pharma_products?.name || "").toLowerCase() === pname,
           )
           .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)))[0];
-        if (!batch) continue;
+        if (!batch && !master) continue;
         lines.push({
-          inventory_id: batch.id,
-          product_id: batch.product_id,
-          product_name: batch.pharma_products?.name || p.name,
-          batch_number: batch.batch_number,
+          inventory_id: batch?.id || "",
+          product_id: batch?.product_id || master?.id || "",
+          product_name: batch?.pharma_products?.name || master?.name || p.name,
+          batch_number: batch?.batch_number || "",
           quantity: Math.max(1, Number(p.quantity) || 1),
           unit_price:
-            Number(batch.selling_price) || Number(batch.mrp) || Number(batch.pharma_products?.selling_price) || 0,
-          available: batch.quantity,
+            Number(batch?.selling_price) ||
+            Number(batch?.mrp) ||
+            Number(master?.selling_price) ||
+            Number(master?.mrp) ||
+            0,
+          available: batch?.quantity || 0,
         });
       }
       if (lines.length) setPharmaItems(lines);
@@ -520,7 +527,7 @@ const Billing = () => {
     setOpen(true);
     setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, serviceMaster, pharmaInventory]);
+  }, [searchParams, serviceMaster, pharmaInventory, pharmaProducts]);
 
   // Unique doctors and services for filter dropdowns
   const uniqueDoctors = useMemo(() => {
@@ -593,6 +600,17 @@ const Billing = () => {
 
   const getProductTaxId = (productId: string): string | undefined => productTaxMap.get(productId);
 
+  // Product line tax: tax master mapping first, else the product's own GST %.
+  const getProductLineTax = (productId: string, amount: number) => {
+    const mapped = getLineTax(getProductTaxId(productId), amount);
+    if (mapped.rate > 0) return mapped;
+    const prod = (pharmaProducts as any[]).find((p) => p.id === productId);
+    const rate = Number(prod?.gst_percent) || 0;
+    if (!rate || !amount) return { rate: 0, cgst: 0, sgst: 0, igst: 0, taxAmount: 0 };
+    const half = (amount * rate) / 200;
+    return { rate, cgst: half, sgst: half, igst: 0, taxAmount: half * 2 };
+  };
+
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
   const servicesSubtotal = useMemo(() => serviceInputs.reduce((sum, s) => sum + (Number(s.price) || 0), 0), [serviceInputs]);
 
@@ -628,16 +646,18 @@ const Billing = () => {
     setPharmaItems([...pharmaItems, { inventory_id: "", product_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0 }]);
   };
 
-  // Get unique products from inventory
+  // All pharma products are selectable (batch is optional — clinics may bill
+  // products that have no inventory batch recorded yet).
   const pharmaProductOptions = useMemo(() => {
     const map = new Map<string, string>();
+    for (const p of pharmaProducts as any[]) {
+      if (p?.id && p?.name) map.set(p.id, p.name);
+    }
     for (const i of pharmaInventory as any[]) {
-      if (i.quantity > 0 && new Date(i.expiry_date) > new Date() && i.pharma_products?.name) {
-        map.set(i.product_id, i.pharma_products.name);
-      }
+      if (i?.product_id && i.pharma_products?.name) map.set(i.product_id, i.pharma_products.name);
     }
     return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [pharmaInventory]);
+  }, [pharmaProducts, pharmaInventory]);
 
   const updatePharmaItem = (idx: number, field: string, value: any) => {
     const updated = [...pharmaItems];
@@ -649,8 +669,21 @@ const Billing = () => {
       updated[idx].product_name = prod?.name || "";
       updated[idx].inventory_id = "";
       updated[idx].batch_number = "";
-      updated[idx].unit_price = 0;
       updated[idx].available = 0;
+      // Default price: newest usable batch → product selling price → MRP
+      const batches = (pharmaInventory as any[])
+        .filter((i: any) => i.product_id === value && i.quantity > 0 && new Date(i.expiry_date) > new Date())
+        .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)));
+      const master = (pharmaProducts as any[]).find((p: any) => p.id === value);
+      if (batches[0]) {
+        const b = batches[0];
+        updated[idx].inventory_id = b.id;
+        updated[idx].batch_number = b.batch_number;
+        updated[idx].available = b.quantity;
+        updated[idx].unit_price = Number(b.selling_price) || Number(b.mrp) || Number(master?.selling_price) || Number(master?.mrp) || 0;
+      } else {
+        updated[idx].unit_price = Number(master?.selling_price) || Number(master?.mrp) || 0;
+      }
     }
     if (field === "inventory_id") {
       const inv = pharmaInventory.find((i: any) => i.id === value) as any;
@@ -659,6 +692,9 @@ const Billing = () => {
         // Per-batch pricing: prefer batch selling_price → batch mrp → legacy product price
         updated[idx].unit_price = Number(inv.selling_price) || Number(inv.mrp) || Number(inv.pharma_products?.selling_price) || 0;
         updated[idx].available = inv.quantity;
+      } else {
+        updated[idx].batch_number = "";
+        updated[idx].available = 0;
       }
     }
     setPharmaItems(updated);
@@ -695,7 +731,7 @@ const Billing = () => {
             qty: i.quantity,
             price: Number(i.unit_price) || 0,
             hsn: "",
-            gst: 0,
+            gst: getProductLineTax(i.product_id, 100).rate,
             product_id: i.product_id || null,
             batch_number: i.batch_number || null,
           })),
@@ -716,7 +752,7 @@ const Billing = () => {
         pharma.forEach((p) => {
           const amt = p.quantity * p.unit_price;
           if (!p.product_id || !amt) return;
-          const t = getLineTax(getProductTaxId(p.product_id), amt * scale);
+          const t = getProductLineTax(p.product_id, amt * scale);
           cgstAmount += t.cgst; sgstAmount += t.sgst; igstAmount += t.igst;
         });
         return { cgst_amount: cgstAmount, sgst_amount: sgstAmount, igst_amount: igstAmount, tax_amount: cgstAmount + sgstAmount + igstAmount };
@@ -1203,7 +1239,7 @@ const Billing = () => {
 
   const canCreateInvoice = () => {
     const hasServices = serviceInputs.some(s => s.name.trim());
-    const hasPharma = pharmaItems.some(i => i.inventory_id && i.quantity > 0);
+    const hasPharma = pharmaItems.some(i => i.product_id && i.quantity > 0 && i.unit_price > 0);
     const hasLineItems = hasServices || hasPharma;
     if (!hasLineItems) return false;
     if (paymentType === "Staged") return stages.some((s) => s.amount > 0);
@@ -1498,13 +1534,14 @@ const Billing = () => {
                           onValueChange={(v) => updatePharmaItem(idx, "inventory_id", v === "placeholder" ? "" : v)}
                           disabled={!item.product_id}
                         >
-                          <SelectTrigger className="mt-1"><SelectValue placeholder={item.product_id ? "Select batch" : "Select product first"} /></SelectTrigger>
+                          <SelectTrigger className="mt-1"><SelectValue placeholder={item.product_id ? "No batch" : "Select product first"} /></SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="placeholder">No batch</SelectItem>
                             {(pharmaInventory as any[])
                               .filter((i: any) => i.product_id === item.product_id && i.quantity > 0 && new Date(i.expiry_date) > new Date())
                               .map((i: any) => (
                                 <SelectItem key={i.id} value={i.id}>
-                                  {i.batch_number}
+                                  {i.batch_number} · {i.quantity} left
                                 </SelectItem>
                               ))}
                           </SelectContent>
@@ -1514,7 +1551,7 @@ const Billing = () => {
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <Label className="text-xs">Qty</Label>
-                        <Input type="number" className="mt-1 h-8" min={1} max={item.available} value={item.quantity} onChange={(e) => updatePharmaItem(idx, "quantity", parseInt(e.target.value) || 1)} />
+                        <Input type="number" className="mt-1 h-8" min={1} max={item.inventory_id ? item.available : undefined} value={item.quantity} onChange={(e) => updatePharmaItem(idx, "quantity", parseInt(e.target.value) || 1)} />
                       </div>
                       <div>
                         <Label className="text-xs">Price (₹)</Label>
@@ -1529,7 +1566,7 @@ const Billing = () => {
                             </Button>
                           </div>
                           {(() => {
-                            const lineTax = getLineTax(getProductTaxId(item.product_id), item.quantity * item.unit_price);
+                            const lineTax = getProductLineTax(item.product_id, item.quantity * item.unit_price);
                             return (
                               <span className="text-xs text-muted-foreground mt-0.5 pr-9">
                                 {lineTax.rate > 0
@@ -1671,7 +1708,7 @@ const Billing = () => {
                     pharmaItems.forEach((p) => {
                       const amt = p.quantity * p.unit_price;
                       if (!p.product_id || !amt) return;
-                      const lt = getLineTax(getProductTaxId(p.product_id), amt);
+                      const lt = getProductLineTax(p.product_id, amt);
                       totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
                     });
                     const totalTax = totalCgst + totalSgst + totalIgst;
@@ -1865,7 +1902,7 @@ const Billing = () => {
                   pharmaItems.forEach((p) => {
                     const amt = p.quantity * p.unit_price;
                     if (!p.product_id || !amt) return;
-                    const lt = getLineTax(getProductTaxId(p.product_id), amt);
+                    const lt = getProductLineTax(p.product_id, amt);
                     totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
                   });
                   const totalTax = totalCgst + totalSgst + totalIgst;

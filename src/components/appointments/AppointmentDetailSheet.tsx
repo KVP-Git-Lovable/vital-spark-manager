@@ -404,8 +404,12 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       ),
     );
     const products = (procPrescriptions as any[])
-      .filter((p: any) => p.medicine_name)
-      .map((p: any) => ({ name: p.medicine_name, quantity: Number(p.quantity) || 1 }));
+      .filter((p: any) => p.medicine_name || p.product_id)
+      .map((p: any) => ({
+        name: p.medicine_name,
+        product_id: p.product_id || null,
+        quantity: Number(p.quantity) || 1,
+      }));
 
     sessionStorage.setItem(
       "billing_prefill",

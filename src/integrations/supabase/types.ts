@@ -23,6 +23,7 @@ export type Database = {
           end_time: string
           id: string
           is_recurring: boolean | null
+          parent_appointment_id: string | null
           patient_id: string | null
           patient_name: string | null
           problem_area_ids: string[] | null
@@ -46,6 +47,7 @@ export type Database = {
           end_time: string
           id?: string
           is_recurring?: boolean | null
+          parent_appointment_id?: string | null
           patient_id?: string | null
           patient_name?: string | null
           problem_area_ids?: string[] | null
@@ -69,6 +71,7 @@ export type Database = {
           end_time?: string
           id?: string
           is_recurring?: boolean | null
+          parent_appointment_id?: string | null
           patient_id?: string | null
           patient_name?: string | null
           problem_area_ids?: string[] | null
@@ -85,6 +88,13 @@ export type Database = {
           visit_status?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "appointments_parent_appointment_id_fkey"
+            columns: ["parent_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "appointments_patient_id_fkey"
             columns: ["patient_id"]
@@ -940,8 +950,11 @@ export type Database = {
           cgst_amount: number | null
           created_at: string
           doctor_id: string | null
+          due_date: string | null
           id: string
           igst_amount: number | null
+          installment_count: number | null
+          installment_number: number | null
           invoice_number: string
           line_items: Json | null
           notes: string | null
@@ -952,6 +965,7 @@ export type Database = {
           payment_splits: Json | null
           payment_type: string
           pdf_url: string | null
+          recurring_group_id: string | null
           services: string[]
           sgst_amount: number | null
           status: string
@@ -966,8 +980,11 @@ export type Database = {
           cgst_amount?: number | null
           created_at?: string
           doctor_id?: string | null
+          due_date?: string | null
           id?: string
           igst_amount?: number | null
+          installment_count?: number | null
+          installment_number?: number | null
           invoice_number: string
           line_items?: Json | null
           notes?: string | null
@@ -978,6 +995,7 @@ export type Database = {
           payment_splits?: Json | null
           payment_type?: string
           pdf_url?: string | null
+          recurring_group_id?: string | null
           services?: string[]
           sgst_amount?: number | null
           status?: string
@@ -992,8 +1010,11 @@ export type Database = {
           cgst_amount?: number | null
           created_at?: string
           doctor_id?: string | null
+          due_date?: string | null
           id?: string
           igst_amount?: number | null
+          installment_count?: number | null
+          installment_number?: number | null
           invoice_number?: string
           line_items?: Json | null
           notes?: string | null
@@ -1004,6 +1025,7 @@ export type Database = {
           payment_splits?: Json | null
           payment_type?: string
           pdf_url?: string | null
+          recurring_group_id?: string | null
           services?: string[]
           sgst_amount?: number | null
           status?: string

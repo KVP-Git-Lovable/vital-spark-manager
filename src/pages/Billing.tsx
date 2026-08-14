@@ -833,6 +833,63 @@ const Billing = () => {
       } else if (paymentType === "Recurring") {
         const t = splitTax(recurringAmount);
         const totalPerInst = recurringAmount + t.tax_amount;
+        const groupId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`) as string;
+
+        // Recurring installments are tied to appointments: #1 to the current
+        // appointment, the rest to auto-created "Recurring appointment" visits
+        // on each installment's due date, all pointing at the parent.
+        const appointmentIds: (string | null)[] = Array.from({ length: recurringCount }, () => null);
+        let parentAppt: any = null;
+        if (sourceAppointmentId) {
+          const { data: pa } = await supabase.from("appointments").select("*").eq("id", sourceAppointmentId).maybeSingle();
+          parentAppt = pa || null;
+          appointmentIds[0] = sourceAppointmentId;
+        }
+
+        if (patientId) {
+          const durationMs = parentAppt?.start_time && parentAppt?.end_time
+            ? new Date(parentAppt.end_time).getTime() - new Date(parentAppt.start_time).getTime()
+            : 30 * 60 * 1000;
+          const startFrom = appointmentIds[0] ? 1 : 0;
+          let parentId = appointmentIds[0];
+
+          for (let i = startFrom; i < recurringCount; i++) {
+            const due = recurringDueDates[i] || addMonths(new Date(), i);
+            const start = new Date(due);
+            if (parentAppt?.start_time) {
+              const src = new Date(parentAppt.start_time);
+              start.setHours(src.getHours(), src.getMinutes(), 0, 0);
+            } else {
+              start.setHours(10, 0, 0, 0);
+            }
+            const end = new Date(start.getTime() + durationMs);
+            const basePayload: any = {
+              patient_id: patientId,
+              patient_name: patientName,
+              service: parentAppt?.service || allServices[0] || "Installment payment",
+              start_time: start.toISOString(),
+              end_time: end.toISOString(),
+              status: "Recurring appointment",
+              staff_id: doctorId || parentAppt?.staff_id || null,
+              is_recurring: true,
+              parent_appointment_id: parentId,
+              notes: `Auto-created for installment ${i + 1} of ${recurringCount}`,
+            };
+            let inserted: any = null;
+            let res = await supabase.from("appointments").insert(basePayload).select("id").single();
+            if (res.error) {
+              // Slot clash with the assigned doctor — book without a doctor rather than fail the plan
+              res = await supabase.from("appointments").insert({ ...basePayload, staff_id: null }).select("id").single();
+            }
+            if (!res.error) inserted = res.data;
+            appointmentIds[i] = inserted?.id || null;
+            if (!parentId && inserted?.id) {
+              parentId = inserted.id;
+              appointmentIds[i] = inserted.id;
+            }
+          }
+        }
+
         const rows = Array.from({ length: recurringCount }, (_, i) => {
           const collected = recurringCollected[i] || 0;
           const instStatus = recurringStatuses[i] || "Pending";
@@ -848,6 +905,11 @@ const Billing = () => {
             services: allServices,
             line_items: lineItemsSnapshot,
             doctor_id: doctorId || null,
+            appointment_id: appointmentIds[i],
+            recurring_group_id: groupId,
+            installment_number: i + 1,
+            installment_count: recurringCount,
+            due_date: format(dueDate, "yyyy-MM-dd"),
             total_amount: totalPerInst,
             paid_amount: collected,
             status,

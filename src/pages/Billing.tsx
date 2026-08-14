@@ -1287,6 +1287,7 @@ const Billing = () => {
     setRecurringTotalAmount(0);
     setRecurringDueDates([new Date()]);
     setRecurringStatuses(["Pending"]);
+    setSourceAppointmentId(null);
     setServiceSearchOpen(null);
   };
 

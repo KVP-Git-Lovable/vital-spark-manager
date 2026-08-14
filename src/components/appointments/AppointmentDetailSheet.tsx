@@ -765,6 +765,19 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       </SelectContent>
                     </Select>
                   </div>
+                  {parentAppointment && (
+                    <div>
+                      <Label>Parent Appointment</Label>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start font-normal text-left mt-1.5"
+                        onClick={() => { handleClose(); navigate(`/appointments/${(parentAppointment as any).id}`); }}
+                      >
+                        {(parentAppointment as any).service || "Appointment"} · {format(new Date((parentAppointment as any).start_time), "dd MMM yyyy")}
+                        <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
+                      </Button>
+                    </div>
+                  )}
                   <div>
                     <Label>Status</Label>
                     <Select value={editStatus} onValueChange={setEditStatus}>

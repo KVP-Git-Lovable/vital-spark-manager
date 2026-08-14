@@ -641,7 +641,7 @@ const Billing = () => {
     const scale = base > 0 ? recurringAmount / base : 0;
     return scaledLineTax(scale);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [servicesSubtotal, pharmaSubtotal, recurringAmount, serviceInputs, pharmaItems, serviceTaxMap, productTaxMap, taxRows]);
+  }, [servicesSubtotal, pharmaSubtotal, recurringAmount, serviceInputs, pharmaItems, serviceTaxMap, productTaxMap]);
   const installmentTotal = recurringAmount + installmentTax.tax;
 
   // Auto-fill Recurring Total Amount from services + products subtotal, and recompute per-installment amount

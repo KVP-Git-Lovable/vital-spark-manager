@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatProductUnit } from "@/lib/unitDisplay";
+import { getUomOptions, getSaleUom, getBaseUnit, toUomQty, fmtQty, type UomOption } from "@/lib/uom";
 import { getActiveBatchPrice } from "@/lib/productPricing";
 import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/components/pharma/UnitConversionsEditor";
 import { useProductUnits } from "@/hooks/usePharmaProductUnits";
@@ -32,7 +34,9 @@ import {
 // ─── Product Detail ──────────────────────────────────────
 export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: { productId: string | null; onClose: () => void; onClone?: (product: any) => void; onAddStock?: (productId: string) => void }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
+  const [summaryUom, setSummaryUom] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [form, setForm] = useState<any>({});
   const [editConversions, setEditConversions] = useState<ConversionRow[]>([]);

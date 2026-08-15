@@ -1762,11 +1762,13 @@ export type Database = {
       pharma_inventory: {
         Row: {
           batch_number: string
+          cgst_percent: number
           created_at: string
           expiry_date: string
           gst_percent: number
           hsn_code: string | null
           id: string
+          igst_percent: number
           invoice_number: string | null
           mrp: number
           product_id: string
@@ -1778,11 +1780,13 @@ export type Database = {
         }
         Insert: {
           batch_number: string
+          cgst_percent?: number
           created_at?: string
           expiry_date: string
           gst_percent?: number
           hsn_code?: string | null
           id?: string
+          igst_percent?: number
           invoice_number?: string | null
           mrp?: number
           product_id: string
@@ -1794,11 +1798,13 @@ export type Database = {
         }
         Update: {
           batch_number?: string
+          cgst_percent?: number
           created_at?: string
           expiry_date?: string
           gst_percent?: number
           hsn_code?: string | null
           id?: string
+          igst_percent?: number
           invoice_number?: string | null
           mrp?: number
           product_id?: string
@@ -1866,6 +1872,7 @@ export type Database = {
         Row: {
           base_unit: string | null
           category: string
+          cgst_percent: number
           conversion_value: number
           created_at: string
           default_duration: string | null
@@ -1876,6 +1883,7 @@ export type Database = {
           gst_percent: number
           hsn_code: string | null
           id: string
+          igst_percent: number
           image_url: string | null
           manufacturer: string | null
           mrp: number
@@ -1891,6 +1899,7 @@ export type Database = {
         Insert: {
           base_unit?: string | null
           category?: string
+          cgst_percent?: number
           conversion_value?: number
           created_at?: string
           default_duration?: string | null
@@ -1901,6 +1910,7 @@ export type Database = {
           gst_percent?: number
           hsn_code?: string | null
           id?: string
+          igst_percent?: number
           image_url?: string | null
           manufacturer?: string | null
           mrp?: number
@@ -1916,6 +1926,7 @@ export type Database = {
         Update: {
           base_unit?: string | null
           category?: string
+          cgst_percent?: number
           conversion_value?: number
           created_at?: string
           default_duration?: string | null
@@ -1926,6 +1937,7 @@ export type Database = {
           gst_percent?: number
           hsn_code?: string | null
           id?: string
+          igst_percent?: number
           image_url?: string | null
           manufacturer?: string | null
           mrp?: number

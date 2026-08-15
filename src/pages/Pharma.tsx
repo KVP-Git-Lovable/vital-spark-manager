@@ -895,21 +895,39 @@ const Pharma = () => {
                           <Select value={item.inventory_id} onValueChange={(v) => updateBillItem(idx, "inventory_id", v)}>
                             <SelectTrigger className="mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
                             <SelectContent>
-                              {inventory.filter((i: any) => i.quantity > 0 && new Date(i.expiry_date) > new Date()).map((i: any) => (
-                                <SelectItem key={i.id} value={i.id}>
-                                  {i.pharma_products?.name} — Batch: {i.batch_number} (Qty: {i.quantity})
-                                </SelectItem>
-                              ))}
+                              {inventory.filter((i: any) => i.quantity > 0 && new Date(i.expiry_date) > new Date()).map((i: any) => {
+                                const prod = products.find((p: any) => p.id === i.product_id);
+                                const su = getSaleUom(prod, unitsByProduct[i.product_id]);
+                                return (
+                                  <SelectItem key={i.id} value={i.id}>
+                                    {i.pharma_products?.name} — Batch: {i.batch_number} ({fmtQty(toUomQty(Number(i.quantity), su.factor))} {su.name}, exp {new Date(i.expiry_date).toLocaleDateString()})
+                                  </SelectItem>
+                                );
+                              })}
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div><Label className="text-xs">Qty</Label><Input type="number" className="mt-1" value={item.quantity} onChange={(e) => updateBillItem(idx, "quantity", parseInt(e.target.value) || 1)} max={item.available} /></div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <Label className="text-xs">UOM</Label>
+                            {(() => {
+                              const prod = products.find((p: any) => p.id === item.product_id);
+                              const opts = prod ? getUomOptions(prod, unitsByProduct[prod.id]) : [];
+                              return (
+                                <Select value={item.uom} onValueChange={(v) => updateBillItem(idx, "uom", v)} disabled={!prod}>
+                                  <SelectTrigger className="mt-1"><SelectValue placeholder="Unit" /></SelectTrigger>
+                                  <SelectContent>{opts.map((o) => <SelectItem key={o.name} value={o.name}>{o.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                              );
+                            })()}
+                          </div>
+                          <div><Label className="text-xs">Qty</Label><Input type="number" className="mt-1" value={item.quantity} onChange={(e) => updateBillItem(idx, "quantity", parseFloat(e.target.value) || 0)} max={item.available} /></div>
                           <div><Label className="text-xs">Price (₹)</Label><Input type="number" className="mt-1" value={item.unit_price} onChange={(e) => updateBillItem(idx, "unit_price", parseFloat(e.target.value) || 0)} /></div>
                         </div>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">
+                          {item.inventory_id && <>In stock: {fmtQty(item.available)} {item.uom} · </>}
                           Subtotal: ₹{(item.quantity * item.unit_price).toFixed(2)}
                           {item.gst_percent > 0 && ` + GST ${item.gst_percent}% (IGST ${item.igst_percent || 0}% + CGST ${item.cgst_percent || 0}%): ₹${(item.quantity * item.unit_price * item.gst_percent / 100).toFixed(2)}`}
                         </span>

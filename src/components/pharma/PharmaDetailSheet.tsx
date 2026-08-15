@@ -424,8 +424,16 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
 
 
               {/* Purchase Info */}
+              {(() => {
+              const saleUom = getSaleUom(product, existingUnits as any);
+              const f = Number(saleUom.factor) || 1;
+              const perUom = (v: number) => Number(v || 0) / f;
+              return (
               <div>
-                <h3 className="font-display font-semibold text-sm mb-3">Purchase Info</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-display font-semibold text-sm">Purchase Info</h3>
+                  <span className="text-[11px] text-muted-foreground">Shown per Selling UOM: {saleUom.name}</span>
+                </div>
                 {inventoryItems.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-4 text-center">No purchase batches recorded yet</p>
                 ) : (
@@ -436,10 +444,10 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                           <TableHead className="text-xs">Date</TableHead>
                           <TableHead className="text-xs">Batch</TableHead>
                           <TableHead className="text-xs">Supplier</TableHead>
-                          <TableHead className="text-xs">Qty</TableHead>
-                          <TableHead className="text-xs">Buy ₹</TableHead>
-                          <TableHead className="text-xs">MRP ₹</TableHead>
-                          <TableHead className="text-xs">Sell ₹</TableHead>
+                          <TableHead className="text-xs">Qty ({saleUom.name})</TableHead>
+                          <TableHead className="text-xs">Buy ₹/{saleUom.name}</TableHead>
+                          <TableHead className="text-xs">MRP ₹/{saleUom.name}</TableHead>
+                          <TableHead className="text-xs">Sell ₹/{saleUom.name}</TableHead>
                           <TableHead className="text-xs">GST%</TableHead>
                           <TableHead className="text-xs">Expiry</TableHead>
                           <TableHead className="text-xs">Status</TableHead>
@@ -460,10 +468,10 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                               <TableCell className="text-xs">{format(new Date(inv.received_date), "dd MMM yyyy")}</TableCell>
                               <TableCell className="text-xs">{inv.batch_number}</TableCell>
                               <TableCell className="text-xs">{supplierName}</TableCell>
-                              <TableCell className="text-xs">{inv.quantity}</TableCell>
-                              <TableCell className="text-xs">₹{Number(inv.purchase_price).toFixed(2)}</TableCell>
-                              <TableCell className="text-xs">₹{Number(inv.mrp || 0).toFixed(2)}</TableCell>
-                              <TableCell className="text-xs">₹{Number(inv.selling_price || inv.mrp || 0).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">{fmtQty(toUomQty(Number(inv.quantity), f))}</TableCell>
+                              <TableCell className="text-xs">₹{perUom(Number(inv.purchase_price)).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">₹{perUom(Number(inv.mrp || 0)).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">₹{perUom(Number(inv.selling_price || inv.mrp || 0)).toFixed(2)}</TableCell>
                               <TableCell className="text-xs">{product.gst_percent ? `${product.gst_percent}%` : "—"}</TableCell>
                               <TableCell className="text-xs">{format(new Date(inv.expiry_date), "dd MMM yyyy")}</TableCell>
                               <TableCell>
@@ -479,6 +487,8 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                   </div>
                 )}
               </div>
+              );
+              })()}
 
               {/* Batch Detail Modal */}
               <Dialog open={!!selectedBatch} onOpenChange={(open) => !open && setSelectedBatch(null)}>

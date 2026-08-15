@@ -168,6 +168,10 @@ interface PharmaLineItem {
   quantity: number;
   unit_price: number;
   available: number;
+  /** UOM this line is billed in (defaults to the product's selling UOM) */
+  uom?: string;
+  /** Units of `uom` per one base unit */
+  uom_factor?: number;
 }
 
 const getDrName = (inv: any) => {

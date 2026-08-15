@@ -356,8 +356,9 @@ const Pharma = () => {
         if (!inv || inv.quantity <= 0) {
           throw new Error(`Insufficient stock for ${item.product_name || "selected product"}`);
         }
-        if (item.quantity > inv.quantity) {
-          throw new Error(`Insufficient stock for ${item.product_name}. Available: ${inv.quantity}, Requested: ${item.quantity}`);
+        const availableInUom = toUomQty(Number(inv.quantity), item.uom_factor || 1);
+        if (item.quantity > availableInUom + 1e-6) {
+          throw new Error(`Insufficient stock for ${item.product_name}. Available: ${fmtQty(availableInUom)} ${item.uom}, Requested: ${fmtQty(item.quantity)} ${item.uom}`);
         }
       }
 
@@ -386,16 +387,20 @@ const Pharma = () => {
         product_name: i.product_name,
         batch_number: i.batch_number,
         quantity: i.quantity,
+        uom: i.uom || null,
+        uom_conversion: i.uom_factor || 1,
         unit_price: i.unit_price,
         total_price: i.quantity * i.unit_price,
-      }));
+      })) as any;
       const { error: itemErr } = await supabase.from("pharma_bill_items").insert(items);
       if (itemErr) throw itemErr;
 
       for (const item of billItems) {
         const invRecord = inventory.find((inv: any) => inv.id === item.inventory_id);
         if (invRecord) {
-          await supabase.from("pharma_inventory").update({ quantity: (invRecord as any).quantity - item.quantity }).eq("id", item.inventory_id);
+          const deductBase = toBaseQty(item.quantity, item.uom_factor || 1);
+          const remaining = Math.max(0, Number((invRecord as any).quantity) - deductBase);
+          await supabase.from("pharma_inventory").update({ quantity: remaining }).eq("id", item.inventory_id);
         }
       }
     },
@@ -415,7 +420,7 @@ const Pharma = () => {
   });
 
   const addBillItem = () => {
-    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0, gst_percent: 0, igst_percent: 0, cgst_percent: 0 }]);
+    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0, gst_percent: 0, igst_percent: 0, cgst_percent: 0, uom: "", uom_factor: 1 }]);
   };
 
   const updateBillItem = (idx: number, field: string, value: any) => {
@@ -425,12 +430,17 @@ const Pharma = () => {
       const inv = inventory.find((i: any) => i.id === value) as any;
       if (inv) {
         const prod = products.find((p: any) => p.id === inv.product_id) as any;
+        // Default to the product's selling UOM; stock is held in base units.
+        const saleUom = getSaleUom(prod, unitsByProduct[inv.product_id]);
         updated[idx].product_id = inv.product_id;
         updated[idx].product_name = prod?.name || "";
         updated[idx].batch_number = inv.batch_number;
-        // Prefer batch selling_price → batch mrp → legacy product fields
-        updated[idx].unit_price = Number(inv.selling_price) || Number(inv.mrp) || Number(prod?.selling_price) || Number(prod?.mrp) || 0;
-        updated[idx].available = inv.quantity;
+        updated[idx].uom = saleUom.name;
+        updated[idx].uom_factor = saleUom.factor;
+        // Prefer batch selling_price → batch mrp → legacy product fields (all per base unit)
+        const basePrice = Number(inv.selling_price) || Number(inv.mrp) || Number(prod?.selling_price) || Number(prod?.mrp) || 0;
+        updated[idx].unit_price = basePrice / (saleUom.factor || 1);
+        updated[idx].available = toUomQty(Number(inv.quantity), saleUom.factor);
         // Tax is driven by the inward batch, falling back to the product master.
         const bIgst = Number(inv.igst_percent) || 0;
         const bCgst = Number(inv.cgst_percent) || 0;
@@ -448,8 +458,20 @@ const Pharma = () => {
         }
       }
     }
+    if (field === "uom") {
+      const inv = inventory.find((i: any) => i.id === updated[idx].inventory_id) as any;
+      const prod = products.find((p: any) => p.id === updated[idx].product_id) as any;
+      if (inv && prod) {
+        const uom = findUom(prod, unitsByProduct[prod.id], value);
+        const basePrice = Number(inv.selling_price) || Number(inv.mrp) || Number(prod?.selling_price) || Number(prod?.mrp) || 0;
+        updated[idx].uom = uom.name;
+        updated[idx].uom_factor = uom.factor;
+        updated[idx].unit_price = basePrice / (uom.factor || 1);
+        updated[idx].available = toUomQty(Number(inv.quantity), uom.factor);
+      }
+    }
     if (field === "quantity" && updated[idx].available > 0 && value > updated[idx].available) {
-      toast.warning(`Only ${updated[idx].available} units available for ${updated[idx].product_name}`);
+      toast.warning(`Only ${fmtQty(updated[idx].available)} ${updated[idx].uom || "units"} available for ${updated[idx].product_name}`);
     }
     setBillItems(updated);
   };
@@ -462,6 +484,8 @@ const Pharma = () => {
       category: product.category || "General",
       manufacturer: product.manufacturer || "",
       base_unit: product.base_unit || product.unit || "",
+      purchase_unit: product.purchase_unit || product.base_unit || product.unit || "",
+      sale_unit: product.sale_unit || product.purchase_unit || product.base_unit || product.unit || "",
       reorder_level: product.reorder_level || 10,
       vendor_ids: product.vendor_id ? [product.vendor_id] : [],
       hsn_code: product.hsn_code || "",
@@ -501,8 +525,9 @@ const Pharma = () => {
       product_id: inv.product_id || "",
       batch_number: "",
       expiry_date: "",
-      quantity: inv.quantity || 0,
-      purchase_price: inv.purchase_price || 0,
+      quantity: Number(inv.purchase_quantity ?? inv.quantity) || 0,
+      purchase_unit: inv.purchase_unit || "",
+      purchase_price: Number(inv.purchase_price) || 0,
       mrp: Number(inv.mrp) || 0,
       selling_price: Number(inv.selling_price) || 0,
       supplier: inv.supplier || "",

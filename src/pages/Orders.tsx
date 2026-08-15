@@ -137,7 +137,17 @@ const Orders = () => {
       </motion.div>
 
       {/* Order Detail Sheet */}
-      <OrderDetailSheet order={selectedOrder} onClose={() => setSelectedOrderId(null)} />
+      <OrderDetailSheet
+        order={selectedOrder}
+        onClose={() => {
+          setSelectedOrderId(null);
+          if (searchParams.get("id")) {
+            const next = new URLSearchParams(searchParams);
+            next.delete("id");
+            setSearchParams(next, { replace: true });
+          }
+        }}
+      />
     </div>
   );
 };

@@ -67,6 +67,7 @@ const Services = () => {
   const [price, setPrice] = useState("");
   const [hsnCode, setHsnCode] = useState("");
   const [gstPercent, setGstPercent] = useState("");
+  const [problemAreaIds, setProblemAreaIds] = useState<string[]>([]);
   const [symptoms, setSymptoms] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
@@ -168,6 +169,19 @@ const Services = () => {
 
   const selectedHsn = hsnTaxes.find((h: any) => h.hsn_code === hsnCode);
 
+  const { data: problemAreas = [] } = useQuery({
+    queryKey: ["problem-areas-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("problem_areas")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const recs = recommendations.split("\n").filter((r) => r.trim());
@@ -180,6 +194,7 @@ const Services = () => {
           price: parseFloat(price) || 0,
           hsn_code: hsnCode || null,
           gst_percent: selectedHsn ? Number(selectedHsn.igst || 0) + Number(selectedHsn.cgst || 0) : 0,
+          problem_area_ids: problemAreaIds,
           symptoms: symptoms || null,
           diagnosis: diagnosis || null,
           procedure_notes: procedureNotes || null,
@@ -270,6 +285,7 @@ const Services = () => {
     setPrice("");
     setHsnCode("");
     setGstPercent("");
+    setProblemAreaIds([]);
     setSymptoms("");
     setDiagnosis("");
     setProcedureNotes("");
@@ -401,6 +417,35 @@ const Services = () => {
                       IGST {Number(selectedHsn.igst)}% · CGST {Number(selectedHsn.cgst)}% · Total {Number(selectedHsn.igst) + Number(selectedHsn.cgst)}%
                     </p>
                   )}
+                </div>
+              </div>
+              <div>
+                <Label>Primary Concern</Label>
+                <div className="mt-1.5 flex flex-wrap gap-2 rounded-md border p-2">
+                  {problemAreas.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No primary concerns defined yet</p>
+                  )}
+                  {problemAreas.map((pa: any) => {
+                    const active = problemAreaIds.includes(pa.id);
+                    return (
+                      <button
+                        key={pa.id}
+                        type="button"
+                        onClick={() =>
+                          setProblemAreaIds((prev) =>
+                            active ? prev.filter((id) => id !== pa.id) : [...prev, pa.id]
+                          )
+                        }
+                        className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                          active
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background text-muted-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {pa.name}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               {/* Symptoms */}

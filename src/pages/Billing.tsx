@@ -1782,20 +1782,41 @@ const Billing = () => {
                               .filter((i: any) => i.product_id === item.product_id && i.quantity > 0 && new Date(i.expiry_date) > new Date())
                               .map((i: any) => (
                                 <SelectItem key={i.id} value={i.id}>
-                                  {i.batch_number} · {i.quantity} left
+                                  {i.batch_number} · {fmtQty(toUomQty(Number(i.quantity), item.uom_factor || 1))} {item.uom || ""} left
                                 </SelectItem>
                               ))}
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-4 gap-2">
                       <div>
-                        <Label className="text-xs">Qty</Label>
-                        <Input type="number" className="mt-1 h-8" min={1} max={item.inventory_id ? item.available : undefined} value={item.quantity} onChange={(e) => updatePharmaItem(idx, "quantity", parseInt(e.target.value) || 1)} />
+                        <Label className="text-xs">UOM</Label>
+                        <Select
+                          value={item.uom || ""}
+                          onValueChange={(v) => updatePharmaItem(idx, "uom", v)}
+                          disabled={!item.product_id}
+                        >
+                          <SelectTrigger className="mt-1 h-8"><SelectValue placeholder="Unit" /></SelectTrigger>
+                          <SelectContent>
+                            {getUomOptions(
+                              (pharmaProducts as any[]).find((p: any) => p.id === item.product_id),
+                              unitsByProduct[item.product_id],
+                            ).map((u) => (
+                              <SelectItem key={u.name} value={u.name}>{u.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
-                        <Label className="text-xs">Price (₹)</Label>
+                        <Label className="text-xs">Qty</Label>
+                        <Input type="number" className="mt-1 h-8" min={1} max={item.inventory_id ? item.available : undefined} value={item.quantity} onChange={(e) => updatePharmaItem(idx, "quantity", parseFloat(e.target.value) || 1)} />
+                        {item.inventory_id && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{fmtQty(item.available)} {item.uom} available</p>
+                        )}
+                      </div>
+                      <div>
+                        <Label className="text-xs">Price / {item.uom || "unit"} (₹)</Label>
                         <Input type="number" className="mt-1 h-8" value={item.unit_price} onChange={(e) => updatePharmaItem(idx, "unit_price", parseFloat(e.target.value) || 0)} />
                       </div>
                       <div className="flex items-end justify-end">

@@ -797,7 +797,7 @@ const Pharma = () => {
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">
                           Subtotal: ₹{(item.quantity * item.unit_price).toFixed(2)}
-                          {item.gst_percent > 0 && ` + GST ${item.gst_percent}%: ₹${(item.quantity * item.unit_price * item.gst_percent / 100).toFixed(2)}`}
+                          {item.gst_percent > 0 && ` + GST ${item.gst_percent}% (IGST ${item.igst_percent || 0}% + CGST ${item.cgst_percent || 0}%): ₹${(item.quantity * item.unit_price * item.gst_percent / 100).toFixed(2)}`}
                         </span>
                         <Button type="button" variant="ghost" size="sm" className="h-5 text-xs text-destructive" onClick={() => setBillItems(billItems.filter((_, i) => i !== idx))}>Remove</Button>
                       </div>
@@ -808,7 +808,15 @@ const Pharma = () => {
                 <div className="border-t pt-3 space-y-2">
                   <div className="flex justify-between text-sm"><span>Subtotal</span><span>₹{billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0).toFixed(2)}</span></div>
                   <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>GST (per-item)</span>
+                    <span>IGST</span>
+                    <span>₹{billItems.reduce((s, i) => s + (i.quantity * i.unit_price * (i.igst_percent || 0)) / 100, 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>CGST</span>
+                    <span>₹{billItems.reduce((s, i) => s + (i.quantity * i.unit_price * (i.cgst_percent || 0)) / 100, 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Total GST (per-item)</span>
                     <span>₹{billItems.reduce((s, i) => s + (i.quantity * i.unit_price * i.gst_percent) / 100, 0).toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">

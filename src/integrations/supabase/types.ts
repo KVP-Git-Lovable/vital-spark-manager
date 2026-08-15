@@ -957,6 +957,7 @@ export type Database = {
           installment_number: number | null
           invoice_number: string
           line_items: Json | null
+          merged_into_invoice_id: string | null
           notes: string | null
           paid_amount: number
           patient_id: string | null
@@ -987,6 +988,7 @@ export type Database = {
           installment_number?: number | null
           invoice_number: string
           line_items?: Json | null
+          merged_into_invoice_id?: string | null
           notes?: string | null
           paid_amount?: number
           patient_id?: string | null
@@ -1017,6 +1019,7 @@ export type Database = {
           installment_number?: number | null
           invoice_number?: string
           line_items?: Json | null
+          merged_into_invoice_id?: string | null
           notes?: string | null
           paid_amount?: number
           patient_id?: string | null
@@ -1048,6 +1051,13 @@ export type Database = {
             columns: ["doctor_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_merged_into_invoice_id_fkey"
+            columns: ["merged_into_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
           {

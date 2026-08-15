@@ -1804,6 +1804,7 @@ const Billing = () => {
               </div>
 
               {/* Tax is auto-applied per item from Tax Master mappings — no manual selector */}
+              </div>
 
               {paymentType === "One-time" && (
                 <div className="space-y-3 lg:hidden">

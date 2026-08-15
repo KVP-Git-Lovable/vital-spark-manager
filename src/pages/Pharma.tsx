@@ -243,7 +243,9 @@ const Pharma = () => {
         vendor_id: productForm.vendor_ids.length > 0 ? productForm.vendor_ids[0] : null,
         qty_per_unit: defaultRow ? Number(defaultRow.conversion_value) || 1 : 1,
         hsn_code: productForm.hsn_code || null,
-        gst_percent: Number(productForm.gst_percent) || 0,
+        igst_percent: Number(productForm.igst_percent) || 0,
+        cgst_percent: Number(productForm.cgst_percent) || 0,
+        gst_percent: (Number(productForm.igst_percent) || 0) + (Number(productForm.cgst_percent) || 0),
         default_frequency: productForm.default_frequency || null,
         default_duration: productForm.default_duration || null,
         default_instructions: productForm.default_instructions || null,
@@ -281,7 +283,9 @@ const Pharma = () => {
         supplier: stockForm.supplier || null,
         invoice_number: stockForm.invoice_number || null,
         hsn_code: stockForm.hsn_code || null,
-        gst_percent: Number(stockForm.gst_percent) || 0,
+        igst_percent: Number(stockForm.igst_percent) || 0,
+        cgst_percent: Number(stockForm.cgst_percent) || 0,
+        gst_percent: (Number(stockForm.igst_percent) || 0) + (Number(stockForm.cgst_percent) || 0),
       } as any);
       if (error) throw error;
     },
@@ -389,7 +393,7 @@ const Pharma = () => {
   });
 
   const addBillItem = () => {
-    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0, gst_percent: 0 }]);
+    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0, gst_percent: 0, igst_percent: 0, cgst_percent: 0 }]);
   };
 
   const updateBillItem = (idx: number, field: string, value: any) => {
@@ -405,7 +409,18 @@ const Pharma = () => {
         // Prefer batch selling_price → batch mrp → legacy product fields
         updated[idx].unit_price = Number(inv.selling_price) || Number(inv.mrp) || Number(prod?.selling_price) || Number(prod?.mrp) || 0;
         updated[idx].available = inv.quantity;
-        updated[idx].gst_percent = Number(prod?.gst_percent) || 0;
+        // Tax is driven by the inward batch, falling back to the product master.
+        const bIgst = Number(inv.igst_percent) || 0;
+        const bCgst = Number(inv.cgst_percent) || 0;
+        const pIgst = Number(prod?.igst_percent) || 0;
+        const pCgst = Number(prod?.cgst_percent) || 0;
+        const igstP = bIgst + bCgst > 0 ? bIgst : pIgst;
+        const cgstP = bIgst + bCgst > 0 ? bCgst : pCgst;
+        updated[idx].igst_percent = igstP;
+        updated[idx].cgst_percent = cgstP;
+        updated[idx].gst_percent = igstP + cgstP > 0
+          ? igstP + cgstP
+          : (Number(inv.gst_percent) || Number(prod?.gst_percent) || 0);
         if (inv.quantity <= 0) {
           toast.warning(`Insufficient stock for ${prod?.name || "this product"}`);
         }
@@ -428,6 +443,8 @@ const Pharma = () => {
       reorder_level: product.reorder_level || 10,
       vendor_ids: product.vendor_id ? [product.vendor_id] : [],
       hsn_code: product.hsn_code || "",
+      igst_percent: Number(product.igst_percent) || 0,
+      cgst_percent: Number(product.cgst_percent) || 0,
       gst_percent: Number(product.gst_percent) || 0,
       default_frequency: product.default_frequency || "",
       default_duration: product.default_duration || "",
@@ -469,6 +486,8 @@ const Pharma = () => {
       supplier: inv.supplier || "",
       invoice_number: "",
       hsn_code: inv.hsn_code || "",
+      igst_percent: Number(inv.igst_percent) || 0,
+      cgst_percent: Number(inv.cgst_percent) || 0,
       gst_percent: Number(inv.gst_percent) || 0,
     });
     setStockOpen(true);

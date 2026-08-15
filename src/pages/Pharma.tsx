@@ -32,10 +32,11 @@ import { formatProductUnit } from "@/lib/unitDisplay";
 import { getActiveBatchPrice } from "@/lib/productPricing";
 import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/components/pharma/UnitConversionsEditor";
 import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
+import { getUomOptions, getSaleUom, getPurchaseUom, findUom, toUomQty, toBaseQty, fmtQty, getBaseUnit } from "@/lib/uom";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
-const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "", hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", purchase_unit: "", sale_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
+const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_unit: "", purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "", hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0 };
 
 interface BillItemInput {
   product_id: string;
@@ -48,6 +49,10 @@ interface BillItemInput {
   gst_percent: number;
   igst_percent: number;
   cgst_percent: number;
+  /** UOM this line is sold in */
+  uom: string;
+  /** Units of `uom` per one base unit */
+  uom_factor: number;
 }
 
 function ToggleRow({ label, desc, checked, onChange }: { label: string; desc?: string; checked: boolean; onChange: (v: boolean) => void }) {

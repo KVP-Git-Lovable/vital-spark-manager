@@ -634,14 +634,34 @@ const Billing = () => {
   };
 
   // Product line tax priority:
-  // 1. Inward stock batch GST/HSN (captured at Inward Stock)
-  // 2. HSN Tax Master entry for that HSN
-  // 3. Tax Master product mapping
-  // 4. Product master GST %
+  // 1. Inward stock batch IGST/CGST (captured at Inward Stock)
+  // 2. Product master IGST/CGST
+  // 3. Inward stock batch GST % + HSN Tax Master split
+  // 4. HSN Tax Master entry for that HSN
+  // 5. Tax Master product mapping
+  // 6. Product master GST %
   const getProductLineTax = (productId: string, amount: number, inventoryId?: string) => {
     const batch = inventoryId ? (pharmaInventory as any[]).find((i) => i.id === inventoryId) : undefined;
+    const prodRow = (pharmaProducts as any[]).find((p) => p.id === productId);
     const hsn = getProductHsn(productId, inventoryId);
     const hsnTax = hsn ? hsnTaxMap.get(String(hsn)) : undefined;
+
+    // Explicit IGST/CGST split — batch first, then product master.
+    const splitIgst = Number(batch?.igst_percent) || 0;
+    const splitCgst = Number(batch?.cgst_percent) || 0;
+    const pIgst = Number(prodRow?.igst_percent) || 0;
+    const pCgst = Number(prodRow?.cgst_percent) || 0;
+    const igstP = splitIgst + splitCgst > 0 ? splitIgst : pIgst;
+    const cgstP = splitIgst + splitCgst > 0 ? splitCgst : pCgst;
+    if (igstP + cgstP > 0 && amount) {
+      return {
+        rate: igstP + cgstP,
+        cgst: (amount * cgstP) / 100,
+        sgst: 0,
+        igst: (amount * igstP) / 100,
+        taxAmount: (amount * (igstP + cgstP)) / 100,
+      };
+    }
 
     const batchRate = Number(batch?.gst_percent) || 0;
     if (batchRate > 0 && amount) {

@@ -523,15 +523,18 @@ const Pharma = () => {
   };
 
   const handleCloneInventory = (inv: any) => {
+    const prod = products.find((p: any) => p.id === inv.product_id) as any;
+    const uom = findUom(prod, unitsByProduct[inv.product_id], inv.purchase_unit || prod?.purchase_unit);
+    const f = uom?.factor || 1;
     setStockForm({
       product_id: inv.product_id || "",
       batch_number: "",
       expiry_date: "",
-      quantity: Number(inv.purchase_quantity ?? inv.quantity) || 0,
-      purchase_unit: inv.purchase_unit || "",
-      purchase_price: Number(inv.purchase_price) || 0,
-      mrp: Number(inv.mrp) || 0,
-      selling_price: Number(inv.selling_price) || 0,
+      quantity: Number(inv.purchase_quantity ?? toUomQty(Number(inv.quantity) || 0, f)) || 0,
+      purchase_unit: uom?.name || "",
+      purchase_price: (Number(inv.purchase_price) || 0) / f,
+      mrp: (Number(inv.mrp) || 0) / f,
+      selling_price: (Number(inv.selling_price) || 0) / f,
       supplier: inv.supplier || "",
       invoice_number: "",
       hsn_code: inv.hsn_code || "",

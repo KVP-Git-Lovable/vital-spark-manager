@@ -175,7 +175,18 @@ const Procedures = () => {
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ["procedures"] })}
       />
 
-      <ProcedureDetailSheet procedureId={selectedId} onClose={() => setSelectedId(null)} onSaved={handleProcedureSaved} />
+      <ProcedureDetailSheet
+        procedureId={selectedId}
+        onClose={() => {
+          setSelectedId(null);
+          if (searchParams.get("id")) {
+            const next = new URLSearchParams(searchParams);
+            next.delete("id");
+            setSearchParams(next, { replace: true });
+          }
+        }}
+        onSaved={handleProcedureSaved}
+      />
 
       {cameraProc && (
         <CameraCapture

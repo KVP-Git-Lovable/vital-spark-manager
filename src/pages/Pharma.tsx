@@ -1052,13 +1052,23 @@ const Pharma = () => {
         </TabsContent>
 
         <TabsContent value="inventory">
+          <div className="flex items-center gap-2 mb-3">
+            <Label className="text-xs text-muted-foreground">Show stock in</Label>
+            <Select value={inventoryUomView} onValueChange={(v) => setInventoryUomView(v as "sale" | "base")}>
+              <SelectTrigger className="h-8 w-[190px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sale">Selling UOM</SelectItem>
+                <SelectItem value="base">Buying / Base UOM</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="data-table">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Product</TableHead>
                   <TableHead>Batch</TableHead>
-                  <TableHead>Qty</TableHead>
+                  <TableHead>Stock in hand</TableHead>
                   <TableHead>Purchase</TableHead>
                   <TableHead>MRP</TableHead>
                   <TableHead>Selling</TableHead>
@@ -1075,14 +1085,28 @@ const Pharma = () => {
                   const daysLeft = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                   const isExpired = daysLeft <= 0;
                   const isNear = daysLeft > 0 && daysLeft <= 90;
+                  const prod = products.find((p: any) => p.id === i.product_id);
+                  const pUnits = unitsByProduct[i.product_id];
+                  const baseUnit = prod ? getBaseUnit(prod) : "";
+                  const viewUom = inventoryUomView === "sale"
+                    ? getSaleUom(prod, pUnits)
+                    : findUom(prod, pUnits, i.purchase_unit || prod?.purchase_unit || baseUnit);
+                  const baseQty = Number(i.quantity) || 0;
+                  const shownQty = toUomQty(baseQty, viewUom.factor);
+                  const priceIn = (perBase: number) => perBase / (viewUom.factor || 1);
                   return (
                     <TableRow key={i.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setSelectedInventoryId(i.id)}>
                       <TableCell className="font-medium">{i.pharma_products?.name}</TableCell>
                       <TableCell>{i.batch_number}</TableCell>
-                      <TableCell>{i.quantity}</TableCell>
-                      <TableCell>₹{Number(i.purchase_price).toFixed(2)}</TableCell>
-                      <TableCell>₹{Number(i.mrp || 0).toFixed(2)}</TableCell>
-                      <TableCell>₹{Number(i.selling_price || i.mrp || 0).toFixed(2)}</TableCell>
+                      <TableCell>
+                        <span className="font-medium">{fmtQty(shownQty)} {viewUom.name}</span>
+                        {!viewUom.isBase && baseUnit && (
+                          <div className="text-[11px] text-muted-foreground">{fmtQty(baseQty)} {baseUnit}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>₹{priceIn(Number(i.purchase_price) || 0).toFixed(2)}<div className="text-[11px] text-muted-foreground">/{viewUom.name}</div></TableCell>
+                      <TableCell>₹{priceIn(Number(i.mrp) || 0).toFixed(2)}</TableCell>
+                      <TableCell>₹{priceIn(Number(i.selling_price || i.mrp) || 0).toFixed(2)}</TableCell>
                       <TableCell>{exp.toLocaleDateString()}</TableCell>
                       <TableCell className="text-muted-foreground">{(() => {
                         if (!i.supplier) return "—";

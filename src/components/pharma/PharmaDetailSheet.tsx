@@ -16,7 +16,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatProductUnit } from "@/lib/unitDisplay";
-import { getUomOptions, getSaleUom, getBaseUnit, toUomQty, fmtQty, type UomOption } from "@/lib/uom";
+import { getUomOptions, getSaleUom, toUomQty, fmtQty, type UomOption } from "@/lib/uom";
 import { getActiveBatchPrice } from "@/lib/productPricing";
 import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/components/pharma/UnitConversionsEditor";
 import { useProductUnits } from "@/hooks/usePharmaProductUnits";

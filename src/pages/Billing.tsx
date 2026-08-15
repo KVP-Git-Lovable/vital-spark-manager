@@ -776,7 +776,7 @@ const Billing = () => {
   }, [recurringAmount, recurringStatuses, recurringCount, paymentType]);
 
   const addPharmaItem = () => {
-    setPharmaItems([...pharmaItems, { inventory_id: "", product_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0 }]);
+    setPharmaItems([...pharmaItems, { inventory_id: "", product_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0, uom: "", uom_factor: 1 }]);
   };
 
   // All pharma products are selectable (batch is optional — clinics may bill
@@ -808,27 +808,44 @@ const Billing = () => {
         .filter((i: any) => i.product_id === value && i.quantity > 0 && new Date(i.expiry_date) > new Date())
         .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)));
       const master = (pharmaProducts as any[]).find((p: any) => p.id === value);
+      // Default to the product's selling UOM; stock is stored in base units.
+      const saleUom = getSaleUom(master, unitsByProduct[value]);
+      updated[idx].uom = saleUom.name;
+      updated[idx].uom_factor = saleUom.factor;
       if (batches[0]) {
         const b = batches[0];
         updated[idx].inventory_id = b.id;
         updated[idx].batch_number = b.batch_number;
-        updated[idx].available = b.quantity;
-        updated[idx].unit_price = Number(b.selling_price) || Number(b.mrp) || Number(master?.selling_price) || Number(master?.mrp) || 0;
+        updated[idx].available = toUomQty(Number(b.quantity), saleUom.factor);
+        updated[idx].unit_price = (Number(b.selling_price) || Number(b.mrp) || Number(master?.selling_price) || Number(master?.mrp) || 0) / (saleUom.factor || 1);
       } else {
-        updated[idx].unit_price = Number(master?.selling_price) || Number(master?.mrp) || 0;
+        updated[idx].unit_price = (Number(master?.selling_price) || Number(master?.mrp) || 0) / (saleUom.factor || 1);
       }
     }
     if (field === "inventory_id") {
       const inv = pharmaInventory.find((i: any) => i.id === value) as any;
+      const factor = updated[idx].uom_factor || 1;
       if (inv) {
         updated[idx].batch_number = inv.batch_number;
         // Per-batch pricing: prefer batch selling_price → batch mrp → legacy product price
-        updated[idx].unit_price = Number(inv.selling_price) || Number(inv.mrp) || Number(inv.pharma_products?.selling_price) || 0;
-        updated[idx].available = inv.quantity;
+        updated[idx].unit_price = (Number(inv.selling_price) || Number(inv.mrp) || Number(inv.pharma_products?.selling_price) || 0) / factor;
+        updated[idx].available = toUomQty(Number(inv.quantity), factor);
       } else {
         updated[idx].batch_number = "";
         updated[idx].available = 0;
       }
+    }
+    if (field === "uom") {
+      const master = (pharmaProducts as any[]).find((p: any) => p.id === updated[idx].product_id);
+      const uom = findUom(master, unitsByProduct[updated[idx].product_id], value);
+      const inv = (pharmaInventory as any[]).find((i: any) => i.id === updated[idx].inventory_id);
+      const basePrice = inv
+        ? (Number(inv.selling_price) || Number(inv.mrp) || Number(master?.selling_price) || Number(master?.mrp) || 0)
+        : (Number(master?.selling_price) || Number(master?.mrp) || 0);
+      updated[idx].uom = uom.name;
+      updated[idx].uom_factor = uom.factor;
+      updated[idx].unit_price = basePrice / (uom.factor || 1);
+      if (inv) updated[idx].available = toUomQty(Number(inv.quantity), uom.factor);
     }
     setPharmaItems(updated);
   };

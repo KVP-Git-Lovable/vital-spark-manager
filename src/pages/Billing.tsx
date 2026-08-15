@@ -1122,8 +1122,9 @@ const Billing = () => {
         if (item.inventory_id && item.quantity > 0) {
           const invRecord = pharmaInventory.find((inv: any) => inv.id === item.inventory_id) as any;
           if (invRecord) {
+            const baseQty = toBaseQty(item.quantity, item.uom_factor || 1);
             await supabase.from("pharma_inventory").update({
-              quantity: Math.max(0, invRecord.quantity - item.quantity)
+              quantity: Math.max(0, Number(invRecord.quantity) - baseQty)
             }).eq("id", item.inventory_id);
           }
         }

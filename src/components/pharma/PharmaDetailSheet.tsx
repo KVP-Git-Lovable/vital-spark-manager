@@ -676,6 +676,37 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 unitOptions={unitMaster as any}
                 baseUnit={form.base_unit || form.unit}
               />
+              {(() => {
+                const base = form.base_unit || form.unit || "";
+                const uomNames = [
+                  ...(base ? [base] : []),
+                  ...editConversions
+                    .filter((r) => r.is_active && r.sub_unit && Number(r.conversion_value) > 0)
+                    .map((r) => r.sub_unit),
+                ].filter((v, i, a) => v && a.indexOf(v) === i);
+                return (
+                  <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Units of Measure</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Buying UOM</Label>
+                        <Select value={form.purchase_unit || base} onValueChange={(v) => setForm({ ...form, purchase_unit: v })}>
+                          <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. Box" /></SelectTrigger>
+                          <SelectContent>{uomNames.map((u: string) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Selling UOM</Label>
+                        <Select value={form.sale_unit || base} onValueChange={(v) => setForm({ ...form, sale_unit: v })}>
+                          <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. Tube" /></SelectTrigger>
+                          <SelectContent>{uomNames.map((u: string) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Stock is kept in the Base Unit; billing defaults to the Selling UOM.</p>
+                  </div>
+                );
+              })()}
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>HSN Code</Label><Input className="mt-1" value={form.hsn_code || ""} onChange={(e) => setForm({ ...form, hsn_code: e.target.value })} /></div>
                 <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={form.reorder_level || 10} onChange={(e) => setForm({ ...form, reorder_level: parseInt(e.target.value) || 10 })} /></div>

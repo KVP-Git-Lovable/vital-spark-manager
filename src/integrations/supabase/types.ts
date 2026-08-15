@@ -1638,6 +1638,8 @@ export type Database = {
           quantity: number
           total_price: number
           unit_price: number
+          uom: string | null
+          uom_conversion: number
         }
         Insert: {
           batch_number?: string | null
@@ -1650,6 +1652,8 @@ export type Database = {
           quantity?: number
           total_price?: number
           unit_price?: number
+          uom?: string | null
+          uom_conversion?: number
         }
         Update: {
           batch_number?: string | null
@@ -1662,6 +1666,8 @@ export type Database = {
           quantity?: number
           total_price?: number
           unit_price?: number
+          uom?: string | null
+          uom_conversion?: number
         }
         Relationships: [
           {
@@ -1773,6 +1779,8 @@ export type Database = {
           mrp: number
           product_id: string
           purchase_price: number
+          purchase_quantity: number | null
+          purchase_unit: string | null
           quantity: number
           received_date: string
           selling_price: number
@@ -1791,6 +1799,8 @@ export type Database = {
           mrp?: number
           product_id: string
           purchase_price?: number
+          purchase_quantity?: number | null
+          purchase_unit?: string | null
           quantity?: number
           received_date?: string
           selling_price?: number
@@ -1809,6 +1819,8 @@ export type Database = {
           mrp?: number
           product_id?: string
           purchase_price?: number
+          purchase_quantity?: number | null
+          purchase_unit?: string | null
           quantity?: number
           received_date?: string
           selling_price?: number
@@ -1888,8 +1900,10 @@ export type Database = {
           manufacturer: string | null
           mrp: number
           name: string
+          purchase_unit: string | null
           qty_per_unit: number | null
           reorder_level: number
+          sale_unit: string | null
           selling_price: number
           sub_unit: string | null
           unit: string
@@ -1915,8 +1929,10 @@ export type Database = {
           manufacturer?: string | null
           mrp?: number
           name: string
+          purchase_unit?: string | null
           qty_per_unit?: number | null
           reorder_level?: number
+          sale_unit?: string | null
           selling_price?: number
           sub_unit?: string | null
           unit?: string
@@ -1942,8 +1958,10 @@ export type Database = {
           manufacturer?: string | null
           mrp?: number
           name?: string
+          purchase_unit?: string | null
           qty_per_unit?: number | null
           reorder_level?: number
+          sale_unit?: string | null
           selling_price?: number
           sub_unit?: string | null
           unit?: string

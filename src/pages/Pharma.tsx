@@ -32,10 +32,11 @@ import { formatProductUnit } from "@/lib/unitDisplay";
 import { getActiveBatchPrice } from "@/lib/productPricing";
 import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/components/pharma/UnitConversionsEditor";
 import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
+import { getUomOptions, getSaleUom, getPurchaseUom, findUom, toUomQty, toBaseQty, fmtQty, getBaseUnit } from "@/lib/uom";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
-const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "", hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", purchase_unit: "", sale_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
+const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_unit: "", purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "", hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0 };
 
 interface BillItemInput {
   product_id: string;
@@ -48,6 +49,10 @@ interface BillItemInput {
   gst_percent: number;
   igst_percent: number;
   cgst_percent: number;
+  /** UOM this line is sold in */
+  uom: string;
+  /** Units of `uom` per one base unit */
+  uom_factor: number;
 }
 
 function ToggleRow({ label, desc, checked, onChange }: { label: string; desc?: string; checked: boolean; onChange: (v: boolean) => void }) {
@@ -71,6 +76,8 @@ const Pharma = () => {
   const [productForm, setProductForm] = useState({ ...emptyProduct });
   const [stockForm, setStockForm] = useState({ ...emptyStock });
   const [productUnitRows, setProductUnitRows] = useState<ConversionRow[]>([]);
+  // Inventory tab: show stock in the selling UOM or the buying/base UOM.
+  const [inventoryUomView, setInventoryUomView] = useState<"sale" | "base">("sale");
   // For Inward Stock: which sub-unit the operator entered prices in.
   // null = entering at Base Unit. A row id means convert from sub-unit price → base.
   const [stockSubUnitIdx, setStockSubUnitIdx] = useState<number | null>(null);
@@ -236,6 +243,8 @@ const Pharma = () => {
         category: productForm.category,
         manufacturer: productForm.manufacturer || null,
         base_unit: productForm.base_unit || null,
+        purchase_unit: productForm.purchase_unit || productForm.base_unit || null,
+        sale_unit: productForm.sale_unit || productForm.purchase_unit || productForm.base_unit || null,
         sub_unit: defaultRow?.sub_unit || null,
         conversion_value: defaultRow ? Number(defaultRow.conversion_value) || 1 : 1,
         unit: productForm.base_unit || "Nos", // legacy fallback
@@ -270,20 +279,28 @@ const Pharma = () => {
 
   const addStock = useMutation({
     mutationFn: async () => {
+      const prod = products.find((p: any) => p.id === stockForm.product_id) as any;
+      const uomOpts = getUomOptions(prod, unitsByProduct[stockForm.product_id]);
+      const uom = uomOpts.find((o) => o.name === stockForm.purchase_unit) || uomOpts[0];
       const mrp = Number(stockForm.mrp) || 0;
       const sp = Number(stockForm.selling_price) || mrp;
       const pp = Number(stockForm.purchase_price) || 0;
       if (mrp <= 0) throw new Error("MRP is required");
       if (pp > mrp) throw new Error("Purchase price cannot be higher than MRP");
       if (sp > mrp) throw new Error("Selling price cannot be higher than MRP");
+      // Prices are entered per buying UOM; stock is always kept in base units.
+      const factor = uom?.factor || 1;
+      const enteredQty = Number(stockForm.quantity) || 0;
       const { error } = await supabase.from("pharma_inventory").insert({
         product_id: stockForm.product_id,
         batch_number: stockForm.batch_number,
         expiry_date: stockForm.expiry_date,
-        quantity: Number(stockForm.quantity),
-        purchase_price: pp,
-        mrp,
-        selling_price: sp,
+        quantity: toBaseQty(enteredQty, factor),
+        purchase_unit: uom?.name || null,
+        purchase_quantity: enteredQty,
+        purchase_price: pp * factor,
+        mrp: mrp * factor,
+        selling_price: sp * factor,
         supplier: stockForm.supplier || null,
         invoice_number: stockForm.invoice_number || null,
         hsn_code: stockForm.hsn_code || null,
@@ -341,8 +358,9 @@ const Pharma = () => {
         if (!inv || inv.quantity <= 0) {
           throw new Error(`Insufficient stock for ${item.product_name || "selected product"}`);
         }
-        if (item.quantity > inv.quantity) {
-          throw new Error(`Insufficient stock for ${item.product_name}. Available: ${inv.quantity}, Requested: ${item.quantity}`);
+        const availableInUom = toUomQty(Number(inv.quantity), item.uom_factor || 1);
+        if (item.quantity > availableInUom + 1e-6) {
+          throw new Error(`Insufficient stock for ${item.product_name}. Available: ${fmtQty(availableInUom)} ${item.uom}, Requested: ${fmtQty(item.quantity)} ${item.uom}`);
         }
       }
 
@@ -371,16 +389,20 @@ const Pharma = () => {
         product_name: i.product_name,
         batch_number: i.batch_number,
         quantity: i.quantity,
+        uom: i.uom || null,
+        uom_conversion: i.uom_factor || 1,
         unit_price: i.unit_price,
         total_price: i.quantity * i.unit_price,
-      }));
+      })) as any;
       const { error: itemErr } = await supabase.from("pharma_bill_items").insert(items);
       if (itemErr) throw itemErr;
 
       for (const item of billItems) {
         const invRecord = inventory.find((inv: any) => inv.id === item.inventory_id);
         if (invRecord) {
-          await supabase.from("pharma_inventory").update({ quantity: (invRecord as any).quantity - item.quantity }).eq("id", item.inventory_id);
+          const deductBase = toBaseQty(item.quantity, item.uom_factor || 1);
+          const remaining = Math.max(0, Number((invRecord as any).quantity) - deductBase);
+          await supabase.from("pharma_inventory").update({ quantity: remaining }).eq("id", item.inventory_id);
         }
       }
     },
@@ -400,7 +422,7 @@ const Pharma = () => {
   });
 
   const addBillItem = () => {
-    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0, gst_percent: 0, igst_percent: 0, cgst_percent: 0 }]);
+    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0, gst_percent: 0, igst_percent: 0, cgst_percent: 0, uom: "", uom_factor: 1 }]);
   };
 
   const updateBillItem = (idx: number, field: string, value: any) => {
@@ -410,12 +432,17 @@ const Pharma = () => {
       const inv = inventory.find((i: any) => i.id === value) as any;
       if (inv) {
         const prod = products.find((p: any) => p.id === inv.product_id) as any;
+        // Default to the product's selling UOM; stock is held in base units.
+        const saleUom = getSaleUom(prod, unitsByProduct[inv.product_id]);
         updated[idx].product_id = inv.product_id;
         updated[idx].product_name = prod?.name || "";
         updated[idx].batch_number = inv.batch_number;
-        // Prefer batch selling_price → batch mrp → legacy product fields
-        updated[idx].unit_price = Number(inv.selling_price) || Number(inv.mrp) || Number(prod?.selling_price) || Number(prod?.mrp) || 0;
-        updated[idx].available = inv.quantity;
+        updated[idx].uom = saleUom.name;
+        updated[idx].uom_factor = saleUom.factor;
+        // Prefer batch selling_price → batch mrp → legacy product fields (all per base unit)
+        const basePrice = Number(inv.selling_price) || Number(inv.mrp) || Number(prod?.selling_price) || Number(prod?.mrp) || 0;
+        updated[idx].unit_price = basePrice / (saleUom.factor || 1);
+        updated[idx].available = toUomQty(Number(inv.quantity), saleUom.factor);
         // Tax is driven by the inward batch, falling back to the product master.
         const bIgst = Number(inv.igst_percent) || 0;
         const bCgst = Number(inv.cgst_percent) || 0;
@@ -433,8 +460,20 @@ const Pharma = () => {
         }
       }
     }
+    if (field === "uom") {
+      const inv = inventory.find((i: any) => i.id === updated[idx].inventory_id) as any;
+      const prod = products.find((p: any) => p.id === updated[idx].product_id) as any;
+      if (inv && prod) {
+        const uom = findUom(prod, unitsByProduct[prod.id], value);
+        const basePrice = Number(inv.selling_price) || Number(inv.mrp) || Number(prod?.selling_price) || Number(prod?.mrp) || 0;
+        updated[idx].uom = uom.name;
+        updated[idx].uom_factor = uom.factor;
+        updated[idx].unit_price = basePrice / (uom.factor || 1);
+        updated[idx].available = toUomQty(Number(inv.quantity), uom.factor);
+      }
+    }
     if (field === "quantity" && updated[idx].available > 0 && value > updated[idx].available) {
-      toast.warning(`Only ${updated[idx].available} units available for ${updated[idx].product_name}`);
+      toast.warning(`Only ${fmtQty(updated[idx].available)} ${updated[idx].uom || "units"} available for ${updated[idx].product_name}`);
     }
     setBillItems(updated);
   };
@@ -447,6 +486,8 @@ const Pharma = () => {
       category: product.category || "General",
       manufacturer: product.manufacturer || "",
       base_unit: product.base_unit || product.unit || "",
+      purchase_unit: product.purchase_unit || product.base_unit || product.unit || "",
+      sale_unit: product.sale_unit || product.purchase_unit || product.base_unit || product.unit || "",
       reorder_level: product.reorder_level || 10,
       vendor_ids: product.vendor_id ? [product.vendor_id] : [],
       hsn_code: product.hsn_code || "",
@@ -482,14 +523,18 @@ const Pharma = () => {
   };
 
   const handleCloneInventory = (inv: any) => {
+    const prod = products.find((p: any) => p.id === inv.product_id) as any;
+    const uom = findUom(prod, unitsByProduct[inv.product_id], inv.purchase_unit || prod?.purchase_unit);
+    const f = uom?.factor || 1;
     setStockForm({
       product_id: inv.product_id || "",
       batch_number: "",
       expiry_date: "",
-      quantity: inv.quantity || 0,
-      purchase_price: inv.purchase_price || 0,
-      mrp: Number(inv.mrp) || 0,
-      selling_price: Number(inv.selling_price) || 0,
+      quantity: Number(inv.purchase_quantity ?? toUomQty(Number(inv.quantity) || 0, f)) || 0,
+      purchase_unit: uom?.name || "",
+      purchase_price: (Number(inv.purchase_price) || 0) / f,
+      mrp: (Number(inv.mrp) || 0) / f,
+      selling_price: (Number(inv.selling_price) || 0) / f,
       supplier: inv.supplier || "",
       invoice_number: "",
       hsn_code: inv.hsn_code || "",
@@ -610,6 +655,38 @@ const Pharma = () => {
                   unitOptions={unitMaster as any}
                   baseUnit={productForm.base_unit}
                 />
+                {(() => {
+                  const uomNames = [
+                    ...(productForm.base_unit ? [productForm.base_unit] : []),
+                    ...productUnitRows
+                      .filter((r) => r.is_active && r.sub_unit && Number(r.conversion_value) > 0)
+                      .map((r) => r.sub_unit),
+                  ].filter((v, i, a) => v && a.indexOf(v) === i);
+                  return (
+                    <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Units of Measure</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label>Buying UOM</Label>
+                          <Select value={productForm.purchase_unit || productForm.base_unit} onValueChange={(v) => setProductForm({ ...productForm, purchase_unit: v })}>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. Box" /></SelectTrigger>
+                            <SelectContent>{uomNames.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Selling UOM</Label>
+                          <Select value={productForm.sale_unit || productForm.base_unit} onValueChange={(v) => setProductForm({ ...productForm, sale_unit: v })}>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. Tube" /></SelectTrigger>
+                            <SelectContent>{uomNames.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Stock is kept in the Base Unit. Buying UOM is used by default in Inward Stock, Selling UOM in billing — both can be changed per transaction.
+                      </p>
+                    </div>
+                  );
+                })()}
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
                   <div><Label>GST % (total)</Label><Input type="number" readOnly className="mt-1 bg-muted/50" value={(Number(productForm.igst_percent) || 0) + (Number(productForm.cgst_percent) || 0)} /></div>
@@ -648,9 +725,11 @@ const Pharma = () => {
                   <Label>Product *</Label>
                   <Select value={stockForm.product_id} onValueChange={(v) => {
                     const prod = products.find((p: any) => p.id === v) as any;
+                    const buyUom = getPurchaseUom(prod, unitsByProduct[v]);
                     setStockForm({
                       ...stockForm,
                       product_id: v,
+                      purchase_unit: buyUom.name,
                       hsn_code: prod?.hsn_code || "",
                       igst_percent: Number(prod?.igst_percent) || 0,
                       cgst_percent: Number(prod?.cgst_percent) || 0,
@@ -698,34 +777,65 @@ const Pharma = () => {
                 <p className="text-[11px] text-muted-foreground -mt-1">HSN, IGST & CGST default from the product master; edit here to apply batch-specific tax at billing. GST % = IGST + CGST.</p>
                 {(() => {
                   const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
-                  const baseUnit = sp?.base_unit || sp?.unit || "";
-                  const activeUnits = sp ? (unitsByProduct[sp.id] || []).filter((u: any) => u.is_active && u.sub_unit && Number(u.conversion_value) > 1) : [];
-                  const defaultUnit = activeUnits.find((u: any) => u.is_default) || activeUnits[0] || null;
-                  const sub = defaultUnit?.sub_unit || sp?.sub_unit;
-                  const conv = Number(defaultUnit?.conversion_value ?? sp?.conversion_value ?? sp?.qty_per_unit ?? 1) || 1;
-                  const perBase = baseUnit ? ` (per ${baseUnit})` : "";
-                  const subHint = (price: number) => (sub && conv > 1 && price > 0)
-                    ? `= ₹${(price / conv).toFixed(2)} per ${sub}` : "";
+                  const baseUnit = sp ? getBaseUnit(sp) : "";
+                  const uomOpts = sp ? getUomOptions(sp, unitsByProduct[sp.id]) : [];
+                  const buyUom = sp ? findUom(sp, unitsByProduct[sp.id], stockForm.purchase_unit) : null;
+                  const saleUom = sp ? getSaleUom(sp, unitsByProduct[sp.id]) : null;
+                  const buyName = buyUom?.name || baseUnit;
+                  const perUom = buyName ? ` (per ${buyName})` : "";
+                  // Prices are entered per buying UOM; show the equivalent selling-UOM price.
+                  const saleHint = (price: number) => {
+                    if (!sp || !saleUom || !buyUom || price <= 0 || saleUom.name === buyUom.name) return "";
+                    const perBasePrice = price * buyUom.factor;
+                    return `= ₹${(perBasePrice / saleUom.factor).toFixed(2)} per ${saleUom.name}`;
+                  };
+                  const enteredQty = Number(stockForm.quantity) || 0;
+                  const baseQty = buyUom ? toBaseQty(enteredQty, buyUom.factor) : enteredQty;
                   return (
                     <>
+                      {sp && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Buying UOM *</Label>
+                            <Select value={buyName} onValueChange={(v) => setStockForm({ ...stockForm, purchase_unit: v })}>
+                              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {uomOpts.map((o) => (
+                                  <SelectItem key={o.name} value={o.name}>
+                                    {o.name}{o.isBase ? " (base)" : ` — ${o.factor} per ${baseUnit}`}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground self-end">
+                            <div><strong>Selling UOM:</strong> {saleUom?.name || baseUnit}</div>
+                            {enteredQty > 0 && saleUom && (
+                              <div>
+                                {fmtQty(enteredQty)} {buyName} = {fmtQty(toUomQty(baseQty, saleUom.factor))} {saleUom.name}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       <div className="grid grid-cols-3 gap-3">
-                        <div><Label>Quantity{baseUnit ? ` (${baseUnit})` : ""} *</Label><Input type="number" className="mt-1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: parseInt(e.target.value) || 0 })} /></div>
+                        <div><Label>Quantity{buyName ? ` (${buyName})` : ""} *</Label><Input type="number" className="mt-1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: parseFloat(e.target.value) || 0 })} /></div>
                         <div>
-                          <Label>Purchase Price{perBase}</Label>
+                          <Label>Purchase Price{perUom}</Label>
                           <Input type="number" className="mt-1" value={stockForm.purchase_price} onChange={(e) => setStockForm({ ...stockForm, purchase_price: parseFloat(e.target.value) || 0 })} />
-                          {subHint(stockForm.purchase_price) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.purchase_price)}</p>}
+                          {saleHint(stockForm.purchase_price) && <p className="text-[11px] text-muted-foreground mt-1">{saleHint(stockForm.purchase_price)}</p>}
                           {stockForm.mrp > 0 && stockForm.purchase_price > stockForm.mrp && <p className="text-[11px] text-destructive mt-1">Cannot exceed MRP</p>}
                         </div>
                         <div>
-                          <Label>MRP{perBase} *</Label>
+                          <Label>MRP{perUom} *</Label>
                           <Input type="number" className="mt-1" value={stockForm.mrp} onChange={(e) => setStockForm({ ...stockForm, mrp: parseFloat(e.target.value) || 0 })} />
-                          {subHint(stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.mrp)}</p>}
+                          {saleHint(stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{saleHint(stockForm.mrp)}</p>}
                         </div>
                       </div>
                       <div>
-                        <Label>Selling Price{perBase} <span className="text-muted-foreground text-xs">(optional, defaults to MRP)</span></Label>
+                        <Label>Selling Price{perUom} <span className="text-muted-foreground text-xs">(optional, defaults to MRP)</span></Label>
                         <Input type="number" className="mt-1" value={stockForm.selling_price} onChange={(e) => setStockForm({ ...stockForm, selling_price: parseFloat(e.target.value) || 0 })} placeholder={stockForm.mrp ? `${stockForm.mrp}` : ""} />
-                        {subHint(stockForm.selling_price || stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.selling_price || stockForm.mrp)}</p>}
+                        {saleHint(stockForm.selling_price || stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{saleHint(stockForm.selling_price || stockForm.mrp)}</p>}
                         {stockForm.mrp > 0 && stockForm.selling_price > stockForm.mrp && <p className="text-[11px] text-destructive mt-1">Cannot exceed MRP</p>}
                       </div>
                     </>
@@ -790,21 +900,39 @@ const Pharma = () => {
                           <Select value={item.inventory_id} onValueChange={(v) => updateBillItem(idx, "inventory_id", v)}>
                             <SelectTrigger className="mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
                             <SelectContent>
-                              {inventory.filter((i: any) => i.quantity > 0 && new Date(i.expiry_date) > new Date()).map((i: any) => (
-                                <SelectItem key={i.id} value={i.id}>
-                                  {i.pharma_products?.name} — Batch: {i.batch_number} (Qty: {i.quantity})
-                                </SelectItem>
-                              ))}
+                              {inventory.filter((i: any) => i.quantity > 0 && new Date(i.expiry_date) > new Date()).map((i: any) => {
+                                const prod = products.find((p: any) => p.id === i.product_id);
+                                const su = getSaleUom(prod, unitsByProduct[i.product_id]);
+                                return (
+                                  <SelectItem key={i.id} value={i.id}>
+                                    {i.pharma_products?.name} — Batch: {i.batch_number} ({fmtQty(toUomQty(Number(i.quantity), su.factor))} {su.name}, exp {new Date(i.expiry_date).toLocaleDateString()})
+                                  </SelectItem>
+                                );
+                              })}
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div><Label className="text-xs">Qty</Label><Input type="number" className="mt-1" value={item.quantity} onChange={(e) => updateBillItem(idx, "quantity", parseInt(e.target.value) || 1)} max={item.available} /></div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <Label className="text-xs">UOM</Label>
+                            {(() => {
+                              const prod = products.find((p: any) => p.id === item.product_id);
+                              const opts = prod ? getUomOptions(prod, unitsByProduct[prod.id]) : [];
+                              return (
+                                <Select value={item.uom} onValueChange={(v) => updateBillItem(idx, "uom", v)} disabled={!prod}>
+                                  <SelectTrigger className="mt-1"><SelectValue placeholder="Unit" /></SelectTrigger>
+                                  <SelectContent>{opts.map((o) => <SelectItem key={o.name} value={o.name}>{o.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                              );
+                            })()}
+                          </div>
+                          <div><Label className="text-xs">Qty</Label><Input type="number" className="mt-1" value={item.quantity} onChange={(e) => updateBillItem(idx, "quantity", parseFloat(e.target.value) || 0)} max={item.available} /></div>
                           <div><Label className="text-xs">Price (₹)</Label><Input type="number" className="mt-1" value={item.unit_price} onChange={(e) => updateBillItem(idx, "unit_price", parseFloat(e.target.value) || 0)} /></div>
                         </div>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">
+                          {item.inventory_id && <>In stock: {fmtQty(item.available)} {item.uom} · </>}
                           Subtotal: ₹{(item.quantity * item.unit_price).toFixed(2)}
                           {item.gst_percent > 0 && ` + GST ${item.gst_percent}% (IGST ${item.igst_percent || 0}% + CGST ${item.cgst_percent || 0}%): ₹${(item.quantity * item.unit_price * item.gst_percent / 100).toFixed(2)}`}
                         </span>
@@ -918,7 +1046,12 @@ const Pharma = () => {
                       {price.hasBatch || price.sellingPrice > 0 ? `₹${price.sellingPrice.toFixed(2)}` : "—"}
                     </TableCell>
                     <TableCell>{Number(p.gst_percent)}%</TableCell>
-                    <TableCell>{formatProductUnit(p, productUnits)}</TableCell>
+                    <TableCell>
+                      {formatProductUnit(p, productUnits)}
+                      <div className="text-[11px] text-muted-foreground">
+                        Buy: {getPurchaseUom(p, productUnits).name} · Sell: {getSaleUom(p, productUnits).name}
+                      </div>
+                    </TableCell>
                     <TableCell>{p.reorder_level}</TableCell>
                   </TableRow>
                   );
@@ -929,13 +1062,23 @@ const Pharma = () => {
         </TabsContent>
 
         <TabsContent value="inventory">
+          <div className="flex items-center gap-2 mb-3">
+            <Label className="text-xs text-muted-foreground">Show stock in</Label>
+            <Select value={inventoryUomView} onValueChange={(v) => setInventoryUomView(v as "sale" | "base")}>
+              <SelectTrigger className="h-8 w-[190px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sale">Selling UOM</SelectItem>
+                <SelectItem value="base">Buying / Base UOM</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="data-table">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Product</TableHead>
                   <TableHead>Batch</TableHead>
-                  <TableHead>Qty</TableHead>
+                  <TableHead>Stock in hand</TableHead>
                   <TableHead>Purchase</TableHead>
                   <TableHead>MRP</TableHead>
                   <TableHead>Selling</TableHead>
@@ -952,14 +1095,28 @@ const Pharma = () => {
                   const daysLeft = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                   const isExpired = daysLeft <= 0;
                   const isNear = daysLeft > 0 && daysLeft <= 90;
+                  const prod = products.find((p: any) => p.id === i.product_id);
+                  const pUnits = unitsByProduct[i.product_id];
+                  const baseUnit = prod ? getBaseUnit(prod) : "";
+                  const viewUom = inventoryUomView === "sale"
+                    ? getSaleUom(prod, pUnits)
+                    : findUom(prod, pUnits, i.purchase_unit || prod?.purchase_unit || baseUnit);
+                  const baseQty = Number(i.quantity) || 0;
+                  const shownQty = toUomQty(baseQty, viewUom.factor);
+                  const priceIn = (perBase: number) => perBase / (viewUom.factor || 1);
                   return (
                     <TableRow key={i.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setSelectedInventoryId(i.id)}>
                       <TableCell className="font-medium">{i.pharma_products?.name}</TableCell>
                       <TableCell>{i.batch_number}</TableCell>
-                      <TableCell>{i.quantity}</TableCell>
-                      <TableCell>₹{Number(i.purchase_price).toFixed(2)}</TableCell>
-                      <TableCell>₹{Number(i.mrp || 0).toFixed(2)}</TableCell>
-                      <TableCell>₹{Number(i.selling_price || i.mrp || 0).toFixed(2)}</TableCell>
+                      <TableCell>
+                        <span className="font-medium">{fmtQty(shownQty)} {viewUom.name}</span>
+                        {!viewUom.isBase && baseUnit && (
+                          <div className="text-[11px] text-muted-foreground">{fmtQty(baseQty)} {baseUnit}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>₹{priceIn(Number(i.purchase_price) || 0).toFixed(2)}<div className="text-[11px] text-muted-foreground">/{viewUom.name}</div></TableCell>
+                      <TableCell>₹{priceIn(Number(i.mrp) || 0).toFixed(2)}</TableCell>
+                      <TableCell>₹{priceIn(Number(i.selling_price || i.mrp) || 0).toFixed(2)}</TableCell>
                       <TableCell>{exp.toLocaleDateString()}</TableCell>
                       <TableCell className="text-muted-foreground">{(() => {
                         if (!i.supplier) return "—";

@@ -45,6 +45,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { fetchAll } from "@/lib/supabasePaginate";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
+import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
+import { getUomOptions, getSaleUom, findUom, toUomQty, toBaseQty, fmtQty } from "@/lib/uom";
 
 const statusStyles: Record<string, string> = {
   Paid: "bg-success/10 text-success",
@@ -168,6 +170,10 @@ interface PharmaLineItem {
   quantity: number;
   unit_price: number;
   available: number;
+  /** UOM this line is billed in (defaults to the product's selling UOM) */
+  uom?: string;
+  /** Units of `uom` per one base unit */
+  uom_factor?: number;
 }
 
 const getDrName = (inv: any) => {
@@ -414,6 +420,9 @@ const Billing = () => {
     },
   });
 
+  const { data: productUnitsData } = usePharmaProductUnits();
+  const unitsByProduct = productUnitsData?.byProduct || {};
+
   const { data: pharmaInventory = [] } = useQuery({
     queryKey: ["pharma-inventory-billing"],
     queryFn: async () => {
@@ -532,19 +541,23 @@ const Billing = () => {
           )
           .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)))[0];
         if (!batch && !master) continue;
+        const saleUom = getSaleUom(master, unitsByProduct[(batch?.product_id || master?.id) as string]);
+        const basePrice =
+          Number(batch?.selling_price) ||
+          Number(batch?.mrp) ||
+          Number(master?.selling_price) ||
+          Number(master?.mrp) ||
+          0;
         lines.push({
           inventory_id: batch?.id || "",
           product_id: batch?.product_id || master?.id || "",
           product_name: batch?.pharma_products?.name || master?.name || p.name,
           batch_number: batch?.batch_number || "",
           quantity: Math.max(1, Number(p.quantity) || 1),
-          unit_price:
-            Number(batch?.selling_price) ||
-            Number(batch?.mrp) ||
-            Number(master?.selling_price) ||
-            Number(master?.mrp) ||
-            0,
-          available: batch?.quantity || 0,
+          unit_price: basePrice / (saleUom.factor || 1),
+          available: toUomQty(Number(batch?.quantity || 0), saleUom.factor),
+          uom: saleUom.name,
+          uom_factor: saleUom.factor,
         });
       }
       if (lines.length) setPharmaItems(lines);
@@ -770,7 +783,7 @@ const Billing = () => {
   }, [recurringAmount, recurringStatuses, recurringCount, paymentType]);
 
   const addPharmaItem = () => {
-    setPharmaItems([...pharmaItems, { inventory_id: "", product_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0 }]);
+    setPharmaItems([...pharmaItems, { inventory_id: "", product_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0, uom: "", uom_factor: 1 }]);
   };
 
   // All pharma products are selectable (batch is optional — clinics may bill
@@ -802,27 +815,44 @@ const Billing = () => {
         .filter((i: any) => i.product_id === value && i.quantity > 0 && new Date(i.expiry_date) > new Date())
         .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)));
       const master = (pharmaProducts as any[]).find((p: any) => p.id === value);
+      // Default to the product's selling UOM; stock is stored in base units.
+      const saleUom = getSaleUom(master, unitsByProduct[value]);
+      updated[idx].uom = saleUom.name;
+      updated[idx].uom_factor = saleUom.factor;
       if (batches[0]) {
         const b = batches[0];
         updated[idx].inventory_id = b.id;
         updated[idx].batch_number = b.batch_number;
-        updated[idx].available = b.quantity;
-        updated[idx].unit_price = Number(b.selling_price) || Number(b.mrp) || Number(master?.selling_price) || Number(master?.mrp) || 0;
+        updated[idx].available = toUomQty(Number(b.quantity), saleUom.factor);
+        updated[idx].unit_price = (Number(b.selling_price) || Number(b.mrp) || Number(master?.selling_price) || Number(master?.mrp) || 0) / (saleUom.factor || 1);
       } else {
-        updated[idx].unit_price = Number(master?.selling_price) || Number(master?.mrp) || 0;
+        updated[idx].unit_price = (Number(master?.selling_price) || Number(master?.mrp) || 0) / (saleUom.factor || 1);
       }
     }
     if (field === "inventory_id") {
       const inv = pharmaInventory.find((i: any) => i.id === value) as any;
+      const factor = updated[idx].uom_factor || 1;
       if (inv) {
         updated[idx].batch_number = inv.batch_number;
         // Per-batch pricing: prefer batch selling_price → batch mrp → legacy product price
-        updated[idx].unit_price = Number(inv.selling_price) || Number(inv.mrp) || Number(inv.pharma_products?.selling_price) || 0;
-        updated[idx].available = inv.quantity;
+        updated[idx].unit_price = (Number(inv.selling_price) || Number(inv.mrp) || Number(inv.pharma_products?.selling_price) || 0) / factor;
+        updated[idx].available = toUomQty(Number(inv.quantity), factor);
       } else {
         updated[idx].batch_number = "";
         updated[idx].available = 0;
       }
+    }
+    if (field === "uom") {
+      const master = (pharmaProducts as any[]).find((p: any) => p.id === updated[idx].product_id);
+      const uom = findUom(master, unitsByProduct[updated[idx].product_id], value);
+      const inv = (pharmaInventory as any[]).find((i: any) => i.id === updated[idx].inventory_id);
+      const basePrice = inv
+        ? (Number(inv.selling_price) || Number(inv.mrp) || Number(master?.selling_price) || Number(master?.mrp) || 0)
+        : (Number(master?.selling_price) || Number(master?.mrp) || 0);
+      updated[idx].uom = uom.name;
+      updated[idx].uom_factor = uom.factor;
+      updated[idx].unit_price = basePrice / (uom.factor || 1);
+      if (inv) updated[idx].available = toUomQty(Number(inv.quantity), uom.factor);
     }
     setPharmaItems(updated);
   };
@@ -861,6 +891,8 @@ const Billing = () => {
             gst: getProductLineTax(i.product_id, 100, i.inventory_id).rate,
             product_id: i.product_id || null,
             batch_number: i.batch_number || null,
+            uom: i.uom || null,
+            uom_factor: i.uom_factor || 1,
           })),
       ];
 
@@ -1096,8 +1128,9 @@ const Billing = () => {
         if (item.inventory_id && item.quantity > 0) {
           const invRecord = pharmaInventory.find((inv: any) => inv.id === item.inventory_id) as any;
           if (invRecord) {
+            const baseQty = toBaseQty(item.quantity, item.uom_factor || 1);
             await supabase.from("pharma_inventory").update({
-              quantity: Math.max(0, invRecord.quantity - item.quantity)
+              quantity: Math.max(0, Number(invRecord.quantity) - baseQty)
             }).eq("id", item.inventory_id);
           }
         }
@@ -1755,20 +1788,41 @@ const Billing = () => {
                               .filter((i: any) => i.product_id === item.product_id && i.quantity > 0 && new Date(i.expiry_date) > new Date())
                               .map((i: any) => (
                                 <SelectItem key={i.id} value={i.id}>
-                                  {i.batch_number} · {i.quantity} left
+                                  {i.batch_number} · {fmtQty(toUomQty(Number(i.quantity), item.uom_factor || 1))} {item.uom || ""} left
                                 </SelectItem>
                               ))}
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-4 gap-2">
                       <div>
-                        <Label className="text-xs">Qty</Label>
-                        <Input type="number" className="mt-1 h-8" min={1} max={item.inventory_id ? item.available : undefined} value={item.quantity} onChange={(e) => updatePharmaItem(idx, "quantity", parseInt(e.target.value) || 1)} />
+                        <Label className="text-xs">UOM</Label>
+                        <Select
+                          value={item.uom || ""}
+                          onValueChange={(v) => updatePharmaItem(idx, "uom", v)}
+                          disabled={!item.product_id}
+                        >
+                          <SelectTrigger className="mt-1 h-8"><SelectValue placeholder="Unit" /></SelectTrigger>
+                          <SelectContent>
+                            {getUomOptions(
+                              (pharmaProducts as any[]).find((p: any) => p.id === item.product_id),
+                              unitsByProduct[item.product_id],
+                            ).map((u) => (
+                              <SelectItem key={u.name} value={u.name}>{u.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
-                        <Label className="text-xs">Price (₹)</Label>
+                        <Label className="text-xs">Qty</Label>
+                        <Input type="number" className="mt-1 h-8" min={1} max={item.inventory_id ? item.available : undefined} value={item.quantity} onChange={(e) => updatePharmaItem(idx, "quantity", parseFloat(e.target.value) || 1)} />
+                        {item.inventory_id && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{fmtQty(item.available)} {item.uom} available</p>
+                        )}
+                      </div>
+                      <div>
+                        <Label className="text-xs">Price / {item.uom || "unit"} (₹)</Label>
                         <Input type="number" className="mt-1 h-8" value={item.unit_price} onChange={(e) => updatePharmaItem(idx, "unit_price", parseFloat(e.target.value) || 0)} />
                       </div>
                       <div className="flex items-end justify-end">

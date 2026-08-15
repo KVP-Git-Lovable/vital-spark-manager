@@ -1901,21 +1901,25 @@ const Billing = () => {
                   {((servicesSubtotal + pharmaSubtotal) > 0) && (() => {
                     const subtotal = servicesSubtotal + pharmaSubtotal;
                     // Sum per-line tax across services and pharma
-                    let totalCgst = 0, totalSgst = 0, totalIgst = 0;
-                    serviceInputs.forEach((s) => {
-                      if (!s.name.trim() || !s.price) return;
-                      const lt = getServiceLineTax(s.name, s.price, (s as any).hsn);
-                      totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
-                    });
-                    pharmaItems.forEach((p) => {
-                      const amt = p.quantity * p.unit_price;
-                      if (!p.product_id || !amt) return;
-                      const lt = getProductLineTax(p.product_id, amt);
-                      totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
-                    });
+                    const totalCgst = lineTaxRows.reduce((s, r) => s + r.cgst, 0);
+                    const totalSgst = lineTaxRows.reduce((s, r) => s + r.sgst, 0);
+                    const totalIgst = lineTaxRows.reduce((s, r) => s + r.igst, 0);
                     const totalTax = totalCgst + totalSgst + totalIgst;
                     return (
                       <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+                        {lineTaxRows.length > 0 && (
+                          <div className="rounded-md border bg-background/70 overflow-hidden mb-2">
+                            {lineTaxRows.map((r) => (
+                              <div key={r.key} className="flex justify-between gap-2 px-2 py-1.5 text-[11px] border-b last:border-b-0">
+                                <span className="min-w-0 truncate">
+                                  {r.name}
+                                  <span className="text-muted-foreground"> · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}</span>
+                                </span>
+                                <span className="tabular-nums whitespace-nowrap">₹{r.amount.toFixed(0)} + ₹{r.tax.toFixed(2)} = <strong>₹{(r.amount + r.tax).toFixed(2)}</strong></span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {servicesSubtotal > 0 && (
                           <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
                         )}

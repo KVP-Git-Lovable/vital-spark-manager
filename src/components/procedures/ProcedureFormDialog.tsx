@@ -334,7 +334,10 @@ export function ProcedureFormDialog({
   const { data: products = [] } = useQuery({
     queryKey: ["pharma-products-lookup"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("pharma_products").select("id, name").order("name");
+      const { data, error } = await supabase
+        .from("pharma_products")
+        .select("id, name, default_frequency, default_duration, default_instructions")
+        .order("name");
       if (error) throw error;
       return data;
     },
@@ -475,21 +478,25 @@ export function ProcedureFormDialog({
 
   const fetchStock = async (productId: string, index: number) => {
     setStockMap((prev) => ({ ...prev, [index]: { available: 0, loading: true } }));
-    const [{ data: invData }, { data: billData }] = await Promise.all([
-      supabase.from("pharma_inventory").select("quantity").eq("product_id", productId),
-      supabase.from("pharma_bill_items").select("quantity").eq("product_id", productId),
-    ]);
+    // Inventory rows are decremented at the point of sale, so they already reflect live stock.
+    const { data: invData } = await supabase
+      .from("pharma_inventory")
+      .select("quantity")
+      .eq("product_id", productId);
     const totalStock = (invData || []).reduce((s, i) => s + Number(i.quantity), 0);
-    const consumed = (billData || []).reduce((s, i) => s + Number(i.quantity), 0);
-    setStockMap((prev) => ({ ...prev, [index]: { available: Math.max(0, totalStock - consumed), loading: false } }));
+    setStockMap((prev) => ({ ...prev, [index]: { available: Math.max(0, totalStock), loading: false } }));
   };
 
   const updatePrescription = (index: number, field: keyof PrescriptionInput, value: string | number) => {
     const updated = [...prescriptions];
     if (field === "product_id") {
-      const prod = products.find((p) => p.id === value);
+      const prod = products.find((p) => p.id === value) as any;
       updated[index].product_id = value as string;
       updated[index].medicine_name = prod?.name || "";
+      // Prescription defaults from the product master (only fill blanks).
+      if (!updated[index].frequency) updated[index].frequency = prod?.default_frequency || "";
+      if (!updated[index].duration) updated[index].duration = prod?.default_duration || "";
+      if (!updated[index].instructions) updated[index].instructions = prod?.default_instructions || "";
       fetchStock(value as string, index);
     } else {
       (updated[index] as any)[field] = value;

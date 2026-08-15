@@ -2129,23 +2129,37 @@ const Billing = () => {
                   }
                   // One-time
                   const subtotal = servicesSubtotal + pharmaSubtotal;
-                  let totalCgst = 0, totalSgst = 0, totalIgst = 0;
-                  serviceInputs.forEach((s) => {
-                    if (!s.name.trim() || !s.price) return;
-                    const lt = getServiceLineTax(s.name, s.price, (s as any).hsn);
-                    totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
-                  });
-                  pharmaItems.forEach((p) => {
-                    const amt = p.quantity * p.unit_price;
-                    if (!p.product_id || !amt) return;
-                    const lt = getProductLineTax(p.product_id, amt);
-                    totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
-                  });
+                  const totalCgst = lineTaxRows.reduce((s, r) => s + r.cgst, 0);
+                  const totalSgst = lineTaxRows.reduce((s, r) => s + r.sgst, 0);
+                  const totalIgst = lineTaxRows.reduce((s, r) => s + r.igst, 0);
                   const totalTax = totalCgst + totalSgst + totalIgst;
                   const grand = subtotal + totalTax;
                   const balance = grand - (Number(paidAmount) || 0);
                   return (
                     <div className="space-y-1">
+                      {lineTaxRows.length > 0 && (
+                        <div className="rounded-lg border bg-background/70 overflow-hidden mb-3">
+                          <div className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/60">
+                            <span>Line item</span>
+                            <span className="text-right">Amt</span>
+                            <span className="text-right">Tax</span>
+                            <span className="text-right">Total</span>
+                          </div>
+                          {lineTaxRows.map((r) => (
+                            <div key={r.key} className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[11px] border-t items-start">
+                              <span className="min-w-0">
+                                <span className="block truncate font-medium">{r.name}</span>
+                                <span className="block text-[10px] text-muted-foreground">
+                                  {r.kind}{r.qty > 1 ? ` · x${r.qty}` : ""}{r.hsn ? ` · HSN ${r.hsn}` : ""} · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}
+                                </span>
+                              </span>
+                              <span className="text-right tabular-nums">₹{r.amount.toFixed(0)}</span>
+                              <span className="text-right tabular-nums">₹{r.tax.toFixed(2)}</span>
+                              <span className="text-right tabular-nums font-medium">₹{(r.amount + r.tax).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {servicesSubtotal > 0 && (
                         <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
                       )}

@@ -431,6 +431,96 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   });
 
   const procedureIds = (procedures as any[]).map((p: any) => p.id);
+
+  // ---- Recurring installments: due-today collection & merged payment ----
+  const todayKey = format(new Date(), "yyyy-MM-dd");
+  const instBalance = (inv: any) => Number(inv.total_amount || 0) - Number(inv.paid_amount || 0);
+  const isDueNow = (inv: any) => !!inv.due_date && String(inv.due_date).slice(0, 10) <= todayKey;
+  const isCollectable = (inv: any) => instBalance(inv) > 0.5 && inv.status !== "Merged" && isDueNow(inv);
+  const instTax = (inv: any) => {
+    const base = instBalance(inv);
+    const rate = Number(inv.tax_rate) || 0;
+    const tax = Math.round(base * rate) / 100;
+    return { base, tax, total: base + tax };
+  };
+  const selectedRows = (installments as any[]).filter((i: any) => selectedInstallments.includes(i.id));
+  const selectedTotals = selectedRows.reduce(
+    (acc, inv) => {
+      const { base, tax, total } = instTax(inv);
+      return { base: acc.base + base, tax: acc.tax + tax, total: acc.total + total };
+    },
+    { base: 0, tax: 0, total: 0 },
+  );
+
+  const collectSelected = async () => {
+    if (selectedRows.length === 0) return;
+    setCollecting(true);
+    try {
+      if (selectedRows.length === 1) {
+        const inv = selectedRows[0];
+        const { base, tax, total } = instTax(inv);
+        const { error } = await supabase
+          .from("invoices")
+          .update({
+            total_amount: total,
+            tax_amount: tax,
+            cgst_amount: tax / 2,
+            sgst_amount: tax / 2,
+            paid_amount: total,
+            status: "Paid",
+            payment_mode: collectMode,
+            notes: `${inv.notes || ""} | Collected ${format(new Date(), "dd MMM yyyy")}`.trim(),
+          } as any)
+          .eq("id", inv.id);
+        if (error) throw error;
+        toast.success(`Collected ₹${total.toLocaleString()} (incl. tax ₹${tax.toFixed(2)})`);
+      } else {
+        const number = `INV-${Date.now().toString().slice(-6)}-M`;
+        const { data: merged, error: mErr } = await supabase
+          .from("invoices")
+          .insert({
+            invoice_number: number,
+            patient_id: appointment?.patient_id || null,
+            patient_name: appointment?.patient_name || patientName,
+            services: selectedRows[0]?.services || [],
+            line_items: selectedRows[0]?.line_items || null,
+            doctor_id: appointment?.staff_id || null,
+            appointment_id: appointmentId || null,
+            recurring_group_id: selectedRows[0]?.recurring_group_id || null,
+            total_amount: selectedTotals.total,
+            paid_amount: selectedTotals.total,
+            status: "Paid",
+            payment_type: "Recurring",
+            payment_mode: collectMode,
+            tax_amount: selectedTotals.tax,
+            cgst_amount: selectedTotals.tax / 2,
+            sgst_amount: selectedTotals.tax / 2,
+            igst_amount: 0,
+            notes: `Merged payment for installments ${selectedRows
+              .map((r: any) => r.installment_number)
+              .join(", ")}`,
+          } as any)
+          .select("id")
+          .single();
+        if (mErr) throw mErr;
+        const { error: uErr } = await supabase
+          .from("invoices")
+          .update({ status: "Merged", merged_into_invoice_id: merged.id } as any)
+          .in("id", selectedRows.map((r: any) => r.id));
+        if (uErr) throw uErr;
+        toast.success(`Merged into ${number} — ₹${selectedTotals.total.toLocaleString()} collected`);
+      }
+      setSelectedInstallments([]);
+      queryClient.invalidateQueries({ queryKey: ["recurring-installments"] });
+      queryClient.invalidateQueries({ queryKey: ["appointment-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    } catch (e: any) {
+      toast.error(e.message || "Could not collect payment");
+    } finally {
+      setCollecting(false);
+    }
+  };
+
   const { data: procPrescriptions = [] } = useQuery({
     queryKey: ["appointment-prescriptions", appointmentId, procedureIds.join(",")],
     queryFn: async () => {

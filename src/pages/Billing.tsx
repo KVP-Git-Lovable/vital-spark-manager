@@ -420,6 +420,9 @@ const Billing = () => {
     },
   });
 
+  const { data: productUnitsData } = usePharmaProductUnits();
+  const unitsByProduct = productUnitsData?.byProduct || {};
+
   const { data: pharmaInventory = [] } = useQuery({
     queryKey: ["pharma-inventory-billing"],
     queryFn: async () => {

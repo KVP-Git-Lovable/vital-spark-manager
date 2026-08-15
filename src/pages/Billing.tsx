@@ -1605,18 +1605,31 @@ const Billing = () => {
               </div>
 
               {/* Pharma Products */}
-              <div className="border-t pt-4">
-                <div className="flex items-center justify-between mb-1.5">
-                  <Label className="flex items-center gap-1.5"><Pill className="h-3.5 w-3.5" /> Pharma Products</Label>
-                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs" onClick={addPharmaItem}>
-                    <Plus className="h-3 w-3 mr-1" /> Add Product
+              <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                      <Pill className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <Label className="text-sm font-semibold">Pharmacy</Label>
+                      <p className="text-[11px] text-muted-foreground">Medicines & products billed with this invoice</p>
+                    </div>
+                    {pharmaItems.length > 0 && (
+                      <Badge variant="secondary" className="ml-1">{pharmaItems.length}</Badge>
+                    )}
+                  </div>
+                  <Button type="button" size="sm" className="h-8 text-xs shadow-sm" onClick={addPharmaItem}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Product
                   </Button>
                 </div>
                 {pharmaItems.length === 0 && (
-                  <p className="text-xs text-muted-foreground">No pharma products added. Click "Add Product" to include medicines in this invoice.</p>
+                  <div className="rounded-lg border border-dashed border-primary/40 bg-background/60 px-3 py-4 text-center">
+                    <p className="text-xs text-muted-foreground">No pharmacy products added yet — use <span className="font-medium text-foreground">Add Product</span> to bill medicines.</p>
+                  </div>
                 )}
                 {pharmaItems.map((item, idx) => (
-                  <div key={idx} className="border rounded-lg p-3 mb-2 space-y-2 bg-muted/30">
+                  <div key={idx} className="border rounded-lg p-3 mb-2 space-y-2 bg-background">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <Label className="text-xs">Product</Label>
@@ -1683,12 +1696,18 @@ const Billing = () => {
                   </div>
                 ))}
                 {pharmaItems.length > 0 && (
-                  <div className="text-right text-sm font-medium text-muted-foreground">
+                  <div className="text-right text-sm font-semibold text-foreground">
                     Products subtotal: ₹{pharmaSubtotal.toLocaleString()}
                   </div>
                 )}
               </div>
 
+              {/* Commercial */}
+              <div className="rounded-xl border bg-muted/20 p-4 space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Commercial</h3>
+                  <p className="text-[11px] text-muted-foreground">Payment terms, mode and collection details</p>
+                </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Payment Type</Label>

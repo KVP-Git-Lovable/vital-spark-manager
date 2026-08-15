@@ -45,6 +45,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { fetchAll } from "@/lib/supabasePaginate";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
+import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
+import { getUomOptions, getSaleUom, findUom, toUomQty, toBaseQty, fmtQty } from "@/lib/uom";
 
 const statusStyles: Record<string, string> = {
   Paid: "bg-success/10 text-success",

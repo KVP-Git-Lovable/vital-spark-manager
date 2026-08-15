@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatProductUnit } from "@/lib/unitDisplay";
+import { getUomOptions, getSaleUom, toUomQty, fmtQty, type UomOption } from "@/lib/uom";
 import { getActiveBatchPrice } from "@/lib/productPricing";
 import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/components/pharma/UnitConversionsEditor";
 import { useProductUnits } from "@/hooks/usePharmaProductUnits";
@@ -32,7 +34,9 @@ import {
 // ─── Product Detail ──────────────────────────────────────
 export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: { productId: string | null; onClose: () => void; onClone?: (product: any) => void; onAddStock?: (productId: string) => void }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
+  const [summaryUom, setSummaryUom] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [form, setForm] = useState<any>({});
   const [editConversions, setEditConversions] = useState<ConversionRow[]>([]);
@@ -328,6 +332,10 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 const availableStock = Math.max(0, totalStock - consumedStock);
                 const isLowStock = availableStock > 0 && availableStock <= (product.reorder_level || 0);
                 const noStockAdded = totalStock === 0 && consumedStock > 0;
+                const uomOpts = getUomOptions(product, existingUnits as any);
+                const selUom: UomOption =
+                  uomOpts.find((o) => o.name === summaryUom) || getSaleUom(product, existingUnits as any);
+                const conv = (n: number) => fmtQty(toUomQty(n, selUom.factor));
                 // Find nearest expiry from inventory batches
                 const nearestExpiry = inventoryItems.length > 0
                   ? inventoryItems.reduce((nearest: any, item: any) => {
@@ -338,7 +346,22 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 const nearestExpiryDays = nearestExpiry ? Math.ceil((new Date(nearestExpiry.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
                 return (
                   <div className="space-y-2">
-                    <h3 className="font-display font-semibold text-sm">Inventory Summary</h3>
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-display font-semibold text-sm">Inventory Summary</h3>
+                      <Select value={selUom.name} onValueChange={(v) => setSummaryUom(v)}>
+                        <SelectTrigger className="h-7 w-[150px] text-xs">
+                          <SelectValue placeholder="UOM" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {uomOpts.map((o) => (
+                            <SelectItem key={o.name} value={o.name} className="text-xs">
+                              {o.name}{o.isBase ? " (Base)" : ""}
+                              {product.sale_unit === o.name && !o.isBase ? " · Sell" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     {noStockAdded && (
                       <div className="flex items-start gap-2 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-3">
                         <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
@@ -352,12 +375,14 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                       <div className="rounded-lg border bg-muted/30 p-3 text-center">
                         <Package className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
                         <p className="text-xs text-muted-foreground">Total Stock</p>
-                        <p className="text-xl font-bold">{totalStock}</p>
+                        <p className="text-xl font-bold">{conv(totalStock)}</p>
+                        <p className="text-[10px] text-muted-foreground">{selUom.name}</p>
                       </div>
                       <div className={`rounded-lg border p-3 text-center ${isLowStock || availableStock === 0 ? "border-destructive bg-destructive/10" : "bg-muted/30"}`}>
                         {isLowStock || availableStock === 0 ? <AlertTriangle className="h-4 w-4 mx-auto text-destructive mb-1" /> : <Package className="h-4 w-4 mx-auto text-muted-foreground mb-1" />}
                         <p className="text-xs text-muted-foreground">Available Stock</p>
-                        <p className={`text-xl font-bold ${isLowStock || availableStock === 0 ? "text-destructive" : ""}`}>{availableStock}</p>
+                        <p className={`text-xl font-bold ${isLowStock || availableStock === 0 ? "text-destructive" : ""}`}>{conv(availableStock)}</p>
+                        <p className="text-[10px] text-muted-foreground">{selUom.name}</p>
                         {isLowStock && <Badge variant="destructive" className="text-[10px] mt-1">Low Stock</Badge>}
                         {availableStock === 0 && <Badge variant="destructive" className="text-[10px] mt-1">Out of Stock</Badge>}
                       </div>
@@ -399,8 +424,16 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
 
 
               {/* Purchase Info */}
+              {(() => {
+              const saleUom = getSaleUom(product, existingUnits as any);
+              const f = Number(saleUom.factor) || 1;
+              const perUom = (v: number) => Number(v || 0) / f;
+              return (
               <div>
-                <h3 className="font-display font-semibold text-sm mb-3">Purchase Info</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-display font-semibold text-sm">Purchase Info</h3>
+                  <span className="text-[11px] text-muted-foreground">Shown per Selling UOM: {saleUom.name}</span>
+                </div>
                 {inventoryItems.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-4 text-center">No purchase batches recorded yet</p>
                 ) : (
@@ -411,10 +444,10 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                           <TableHead className="text-xs">Date</TableHead>
                           <TableHead className="text-xs">Batch</TableHead>
                           <TableHead className="text-xs">Supplier</TableHead>
-                          <TableHead className="text-xs">Qty</TableHead>
-                          <TableHead className="text-xs">Buy ₹</TableHead>
-                          <TableHead className="text-xs">MRP ₹</TableHead>
-                          <TableHead className="text-xs">Sell ₹</TableHead>
+                          <TableHead className="text-xs">Qty ({saleUom.name})</TableHead>
+                          <TableHead className="text-xs">Buy ₹/{saleUom.name}</TableHead>
+                          <TableHead className="text-xs">MRP ₹/{saleUom.name}</TableHead>
+                          <TableHead className="text-xs">Sell ₹/{saleUom.name}</TableHead>
                           <TableHead className="text-xs">GST%</TableHead>
                           <TableHead className="text-xs">Expiry</TableHead>
                           <TableHead className="text-xs">Status</TableHead>
@@ -435,10 +468,10 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                               <TableCell className="text-xs">{format(new Date(inv.received_date), "dd MMM yyyy")}</TableCell>
                               <TableCell className="text-xs">{inv.batch_number}</TableCell>
                               <TableCell className="text-xs">{supplierName}</TableCell>
-                              <TableCell className="text-xs">{inv.quantity}</TableCell>
-                              <TableCell className="text-xs">₹{Number(inv.purchase_price).toFixed(2)}</TableCell>
-                              <TableCell className="text-xs">₹{Number(inv.mrp || 0).toFixed(2)}</TableCell>
-                              <TableCell className="text-xs">₹{Number(inv.selling_price || inv.mrp || 0).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">{fmtQty(toUomQty(Number(inv.quantity), f))}</TableCell>
+                              <TableCell className="text-xs">₹{perUom(Number(inv.purchase_price)).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">₹{perUom(Number(inv.mrp || 0)).toFixed(2)}</TableCell>
+                              <TableCell className="text-xs">₹{perUom(Number(inv.selling_price || inv.mrp || 0)).toFixed(2)}</TableCell>
                               <TableCell className="text-xs">{product.gst_percent ? `${product.gst_percent}%` : "—"}</TableCell>
                               <TableCell className="text-xs">{format(new Date(inv.expiry_date), "dd MMM yyyy")}</TableCell>
                               <TableCell>
@@ -454,6 +487,8 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                   </div>
                 )}
               </div>
+              );
+              })()}
 
               {/* Batch Detail Modal */}
               <Dialog open={!!selectedBatch} onOpenChange={(open) => !open && setSelectedBatch(null)}>
@@ -565,8 +600,14 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                             const sp = Number(product?.selling_price) || 0;
                             const qty = Number(item.quantity);
                             return (
-                              <TableRow key={idx}>
-                                <TableCell className="text-xs">{item.patient_name}</TableCell>
+                              <TableRow
+                                key={idx}
+                                className={item.procedure_id ? "cursor-pointer hover:bg-muted/50" : ""}
+                                onClick={() => { if (item.procedure_id) { onClose(); navigate(`/procedures?id=${item.procedure_id}`); } }}
+                              >
+                                <TableCell className="text-xs">
+                                  <span className="inline-flex items-center gap-1.5">{item.patient_name}{item.procedure_id && <Eye className="h-3 w-3 text-muted-foreground" />}</span>
+                                </TableCell>
                                 <TableCell className="text-xs">{item.date ? format(new Date(item.date), "dd MMM yyyy") : "—"}</TableCell>
                                 <TableCell className="text-xs text-right">{qty}</TableCell>
                                 <TableCell className="text-xs text-right">₹{sp.toFixed(2)}</TableCell>
@@ -601,8 +642,14 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                         </TableHeader>
                         <TableBody>
                           {portalSalesItems.map((item: any, idx: number) => (
-                            <TableRow key={idx}>
-                              <TableCell className="text-xs">{item.patient_name}</TableCell>
+                            <TableRow
+                              key={idx}
+                              className={item.order_id ? "cursor-pointer hover:bg-muted/50" : ""}
+                              onClick={() => { if (item.order_id) { onClose(); navigate(`/orders?id=${item.order_id}`); } }}
+                            >
+                              <TableCell className="text-xs">
+                                <span className="inline-flex items-center gap-1.5">{item.patient_name}{item.order_id && <Eye className="h-3 w-3 text-muted-foreground" />}</span>
+                              </TableCell>
                               <TableCell className="text-xs">{item.date ? format(new Date(item.date), "dd MMM yyyy") : "—"}</TableCell>
                               <TableCell className="text-xs text-right">{Number(item.quantity)}</TableCell>
                               <TableCell className="text-xs text-right">₹{Number(item.unit_price || 0).toFixed(2)}</TableCell>

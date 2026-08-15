@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Search, Package, Truck, Store, Eye, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -39,9 +40,10 @@ const paymentColors: Record<string, string> = {
 
 const Orders = () => {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(searchParams.get("id"));
 
   const { data: orders = [] } = useQuery({
     queryKey: ["clinic-portal-orders"],
@@ -135,7 +137,17 @@ const Orders = () => {
       </motion.div>
 
       {/* Order Detail Sheet */}
-      <OrderDetailSheet order={selectedOrder} onClose={() => setSelectedOrderId(null)} />
+      <OrderDetailSheet
+        order={selectedOrder}
+        onClose={() => {
+          setSelectedOrderId(null);
+          if (searchParams.get("id")) {
+            const next = new URLSearchParams(searchParams);
+            next.delete("id");
+            setSearchParams(next, { replace: true });
+          }
+        }}
+      />
     </div>
   );
 };

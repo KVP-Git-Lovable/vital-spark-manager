@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus, Search, Camera, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -16,10 +17,11 @@ import { ImportProceduresDialog } from "@/components/procedures/ImportProcedures
 import { toast } from "sonner";
 
 const Procedures = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("id"));
   const [cameraProc, setCameraProc] = useState<any>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | HTMLDivElement | null>>({});
@@ -173,7 +175,18 @@ const Procedures = () => {
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ["procedures"] })}
       />
 
-      <ProcedureDetailSheet procedureId={selectedId} onClose={() => setSelectedId(null)} onSaved={handleProcedureSaved} />
+      <ProcedureDetailSheet
+        procedureId={selectedId}
+        onClose={() => {
+          setSelectedId(null);
+          if (searchParams.get("id")) {
+            const next = new URLSearchParams(searchParams);
+            next.delete("id");
+            setSearchParams(next, { replace: true });
+          }
+        }}
+        onSaved={handleProcedureSaved}
+      />
 
       {cameraProc && (
         <CameraCapture

@@ -1941,10 +1941,10 @@ const Billing = () => {
                           </div>
                         )}
                         {servicesSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal (tax ₹{lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
                         )}
                         {pharmaSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Products Subtotal</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Products Subtotal (tax ₹{lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
                         )}
                         <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
                         {totalCgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{totalCgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
@@ -2186,10 +2186,10 @@ const Billing = () => {
                         </div>
                       )}
                       {servicesSubtotal > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Services (tax ₹{lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
                       )}
                       {pharmaSubtotal > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Products (tax ₹{lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
                       )}
                       <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
                       {totalCgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{totalCgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}

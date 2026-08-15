@@ -245,6 +245,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [billingMode, setBillingMode] = useState("Cash");
   const [billingConfirmed, setBillingConfirmed] = useState(false);
   const [billingCreating, setBillingCreating] = useState(false);
+  const [selectedInstallments, setSelectedInstallments] = useState<string[]>([]);
+  const [collectMode, setCollectMode] = useState("Cash");
+  const [collecting, setCollecting] = useState(false);
   const [customSchedule, setCustomSchedule] = useState<{ date: Date; amount: number }[]>([]);
   // Feedback state
   const [npsScore, setNpsScore] = useState<number | null>(null);

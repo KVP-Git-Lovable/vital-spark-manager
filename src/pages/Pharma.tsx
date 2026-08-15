@@ -241,6 +241,8 @@ const Pharma = () => {
         category: productForm.category,
         manufacturer: productForm.manufacturer || null,
         base_unit: productForm.base_unit || null,
+        purchase_unit: productForm.purchase_unit || productForm.base_unit || null,
+        sale_unit: productForm.sale_unit || productForm.purchase_unit || productForm.base_unit || null,
         sub_unit: defaultRow?.sub_unit || null,
         conversion_value: defaultRow ? Number(defaultRow.conversion_value) || 1 : 1,
         unit: productForm.base_unit || "Nos", // legacy fallback
@@ -275,20 +277,28 @@ const Pharma = () => {
 
   const addStock = useMutation({
     mutationFn: async () => {
+      const prod = products.find((p: any) => p.id === stockForm.product_id) as any;
+      const uomOpts = getUomOptions(prod, unitsByProduct[stockForm.product_id]);
+      const uom = uomOpts.find((o) => o.name === stockForm.purchase_unit) || uomOpts[0];
       const mrp = Number(stockForm.mrp) || 0;
       const sp = Number(stockForm.selling_price) || mrp;
       const pp = Number(stockForm.purchase_price) || 0;
       if (mrp <= 0) throw new Error("MRP is required");
       if (pp > mrp) throw new Error("Purchase price cannot be higher than MRP");
       if (sp > mrp) throw new Error("Selling price cannot be higher than MRP");
+      // Prices are entered per buying UOM; stock is always kept in base units.
+      const factor = uom?.factor || 1;
+      const enteredQty = Number(stockForm.quantity) || 0;
       const { error } = await supabase.from("pharma_inventory").insert({
         product_id: stockForm.product_id,
         batch_number: stockForm.batch_number,
         expiry_date: stockForm.expiry_date,
-        quantity: Number(stockForm.quantity),
-        purchase_price: pp,
-        mrp,
-        selling_price: sp,
+        quantity: toBaseQty(enteredQty, factor),
+        purchase_unit: uom?.name || null,
+        purchase_quantity: enteredQty,
+        purchase_price: pp * factor,
+        mrp: mrp * factor,
+        selling_price: sp * factor,
         supplier: stockForm.supplier || null,
         invoice_number: stockForm.invoice_number || null,
         hsn_code: stockForm.hsn_code || null,

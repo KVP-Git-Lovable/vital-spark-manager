@@ -34,8 +34,8 @@ import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/c
 import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
-const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "", hsn_code: "", gst_percent: 0 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
+const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "", hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0 };
 
 interface BillItemInput {
   product_id: string;
@@ -46,6 +46,8 @@ interface BillItemInput {
   unit_price: number;
   available: number;
   gst_percent: number;
+  igst_percent: number;
+  cgst_percent: number;
 }
 
 function ToggleRow({ label, desc, checked, onChange }: { label: string; desc?: string; checked: boolean; onChange: (v: boolean) => void }) {
@@ -241,7 +243,9 @@ const Pharma = () => {
         vendor_id: productForm.vendor_ids.length > 0 ? productForm.vendor_ids[0] : null,
         qty_per_unit: defaultRow ? Number(defaultRow.conversion_value) || 1 : 1,
         hsn_code: productForm.hsn_code || null,
-        gst_percent: Number(productForm.gst_percent) || 0,
+        igst_percent: Number(productForm.igst_percent) || 0,
+        cgst_percent: Number(productForm.cgst_percent) || 0,
+        gst_percent: (Number(productForm.igst_percent) || 0) + (Number(productForm.cgst_percent) || 0),
         default_frequency: productForm.default_frequency || null,
         default_duration: productForm.default_duration || null,
         default_instructions: productForm.default_instructions || null,
@@ -279,7 +283,9 @@ const Pharma = () => {
         supplier: stockForm.supplier || null,
         invoice_number: stockForm.invoice_number || null,
         hsn_code: stockForm.hsn_code || null,
-        gst_percent: Number(stockForm.gst_percent) || 0,
+        igst_percent: Number(stockForm.igst_percent) || 0,
+        cgst_percent: Number(stockForm.cgst_percent) || 0,
+        gst_percent: (Number(stockForm.igst_percent) || 0) + (Number(stockForm.cgst_percent) || 0),
       } as any);
       if (error) throw error;
     },
@@ -387,7 +393,7 @@ const Pharma = () => {
   });
 
   const addBillItem = () => {
-    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0, gst_percent: 0 }]);
+    setBillItems([...billItems, { product_id: "", inventory_id: "", product_name: "", batch_number: "", quantity: 1, unit_price: 0, available: 0, gst_percent: 0, igst_percent: 0, cgst_percent: 0 }]);
   };
 
   const updateBillItem = (idx: number, field: string, value: any) => {
@@ -403,7 +409,18 @@ const Pharma = () => {
         // Prefer batch selling_price → batch mrp → legacy product fields
         updated[idx].unit_price = Number(inv.selling_price) || Number(inv.mrp) || Number(prod?.selling_price) || Number(prod?.mrp) || 0;
         updated[idx].available = inv.quantity;
-        updated[idx].gst_percent = Number(prod?.gst_percent) || 0;
+        // Tax is driven by the inward batch, falling back to the product master.
+        const bIgst = Number(inv.igst_percent) || 0;
+        const bCgst = Number(inv.cgst_percent) || 0;
+        const pIgst = Number(prod?.igst_percent) || 0;
+        const pCgst = Number(prod?.cgst_percent) || 0;
+        const igstP = bIgst + bCgst > 0 ? bIgst : pIgst;
+        const cgstP = bIgst + bCgst > 0 ? bCgst : pCgst;
+        updated[idx].igst_percent = igstP;
+        updated[idx].cgst_percent = cgstP;
+        updated[idx].gst_percent = igstP + cgstP > 0
+          ? igstP + cgstP
+          : (Number(inv.gst_percent) || Number(prod?.gst_percent) || 0);
         if (inv.quantity <= 0) {
           toast.warning(`Insufficient stock for ${prod?.name || "this product"}`);
         }
@@ -426,6 +443,8 @@ const Pharma = () => {
       reorder_level: product.reorder_level || 10,
       vendor_ids: product.vendor_id ? [product.vendor_id] : [],
       hsn_code: product.hsn_code || "",
+      igst_percent: Number(product.igst_percent) || 0,
+      cgst_percent: Number(product.cgst_percent) || 0,
       gst_percent: Number(product.gst_percent) || 0,
       default_frequency: product.default_frequency || "",
       default_duration: product.default_duration || "",
@@ -467,6 +486,8 @@ const Pharma = () => {
       supplier: inv.supplier || "",
       invoice_number: "",
       hsn_code: inv.hsn_code || "",
+      igst_percent: Number(inv.igst_percent) || 0,
+      cgst_percent: Number(inv.cgst_percent) || 0,
       gst_percent: Number(inv.gst_percent) || 0,
     });
     setStockOpen(true);
@@ -584,8 +605,13 @@ const Pharma = () => {
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
-                  <div><Label>GST %</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>GST % (total)</Label><Input type="number" readOnly className="mt-1 bg-muted/50" value={(Number(productForm.igst_percent) || 0) + (Number(productForm.cgst_percent) || 0)} /></div>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>IGST %</Label><Input type="number" className="mt-1" value={productForm.igst_percent} onChange={(e) => setProductForm({ ...productForm, igst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>CGST %</Label><Input type="number" className="mt-1" value={productForm.cgst_percent} onChange={(e) => setProductForm({ ...productForm, cgst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                </div>
+                <p className="text-[11px] text-muted-foreground -mt-1">GST % is the total of IGST % + CGST %.</p>
                 <div className="rounded-md border bg-muted/30 p-3 space-y-3">
                   <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prescription Defaults</div>
                   <div className="grid grid-cols-2 gap-3">
@@ -619,7 +645,9 @@ const Pharma = () => {
                       ...stockForm,
                       product_id: v,
                       hsn_code: prod?.hsn_code || "",
-                      gst_percent: Number(prod?.gst_percent) || 0,
+                      igst_percent: Number(prod?.igst_percent) || 0,
+                      cgst_percent: Number(prod?.cgst_percent) || 0,
+                      gst_percent: (Number(prod?.igst_percent) || 0) + (Number(prod?.cgst_percent) || 0) || Number(prod?.gst_percent) || 0,
                     });
                   }}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select product" /></SelectTrigger>
@@ -652,11 +680,15 @@ const Pharma = () => {
                     <Input className="mt-1" value={stockForm.hsn_code} onChange={(e) => setStockForm({ ...stockForm, hsn_code: e.target.value })} placeholder="From product master" />
                   </div>
                   <div>
-                    <Label>GST %</Label>
-                    <Input type="number" className="mt-1" value={stockForm.gst_percent} onChange={(e) => setStockForm({ ...stockForm, gst_percent: parseFloat(e.target.value) || 0 })} />
+                    <Label>GST % (total)</Label>
+                    <Input type="number" readOnly className="mt-1 bg-muted/50" value={(Number(stockForm.igst_percent) || 0) + (Number(stockForm.cgst_percent) || 0)} />
                   </div>
                 </div>
-                <p className="text-[11px] text-muted-foreground -mt-1">HSN & GST default from the product master; edit here to apply batch-specific tax at billing.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>IGST %</Label><Input type="number" className="mt-1" value={stockForm.igst_percent} onChange={(e) => setStockForm({ ...stockForm, igst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>CGST %</Label><Input type="number" className="mt-1" value={stockForm.cgst_percent} onChange={(e) => setStockForm({ ...stockForm, cgst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                </div>
+                <p className="text-[11px] text-muted-foreground -mt-1">HSN, IGST & CGST default from the product master; edit here to apply batch-specific tax at billing. GST % = IGST + CGST.</p>
                 {(() => {
                   const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
                   const baseUnit = sp?.base_unit || sp?.unit || "";
@@ -765,7 +797,7 @@ const Pharma = () => {
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">
                           Subtotal: ₹{(item.quantity * item.unit_price).toFixed(2)}
-                          {item.gst_percent > 0 && ` + GST ${item.gst_percent}%: ₹${(item.quantity * item.unit_price * item.gst_percent / 100).toFixed(2)}`}
+                          {item.gst_percent > 0 && ` + GST ${item.gst_percent}% (IGST ${item.igst_percent || 0}% + CGST ${item.cgst_percent || 0}%): ₹${(item.quantity * item.unit_price * item.gst_percent / 100).toFixed(2)}`}
                         </span>
                         <Button type="button" variant="ghost" size="sm" className="h-5 text-xs text-destructive" onClick={() => setBillItems(billItems.filter((_, i) => i !== idx))}>Remove</Button>
                       </div>
@@ -776,7 +808,15 @@ const Pharma = () => {
                 <div className="border-t pt-3 space-y-2">
                   <div className="flex justify-between text-sm"><span>Subtotal</span><span>₹{billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0).toFixed(2)}</span></div>
                   <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>GST (per-item)</span>
+                    <span>IGST</span>
+                    <span>₹{billItems.reduce((s, i) => s + (i.quantity * i.unit_price * (i.igst_percent || 0)) / 100, 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>CGST</span>
+                    <span>₹{billItems.reduce((s, i) => s + (i.quantity * i.unit_price * (i.cgst_percent || 0)) / 100, 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Total GST (per-item)</span>
                     <span>₹{billItems.reduce((s, i) => s + (i.quantity * i.unit_price * i.gst_percent) / 100, 0).toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">

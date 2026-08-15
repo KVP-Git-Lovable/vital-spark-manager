@@ -634,14 +634,34 @@ const Billing = () => {
   };
 
   // Product line tax priority:
-  // 1. Inward stock batch GST/HSN (captured at Inward Stock)
-  // 2. HSN Tax Master entry for that HSN
-  // 3. Tax Master product mapping
-  // 4. Product master GST %
+  // 1. Inward stock batch IGST/CGST (captured at Inward Stock)
+  // 2. Product master IGST/CGST
+  // 3. Inward stock batch GST % + HSN Tax Master split
+  // 4. HSN Tax Master entry for that HSN
+  // 5. Tax Master product mapping
+  // 6. Product master GST %
   const getProductLineTax = (productId: string, amount: number, inventoryId?: string) => {
     const batch = inventoryId ? (pharmaInventory as any[]).find((i) => i.id === inventoryId) : undefined;
+    const prodRow = (pharmaProducts as any[]).find((p) => p.id === productId);
     const hsn = getProductHsn(productId, inventoryId);
     const hsnTax = hsn ? hsnTaxMap.get(String(hsn)) : undefined;
+
+    // Explicit IGST/CGST split — batch first, then product master.
+    const splitIgst = Number(batch?.igst_percent) || 0;
+    const splitCgst = Number(batch?.cgst_percent) || 0;
+    const pIgst = Number(prodRow?.igst_percent) || 0;
+    const pCgst = Number(prodRow?.cgst_percent) || 0;
+    const igstP = splitIgst + splitCgst > 0 ? splitIgst : pIgst;
+    const cgstP = splitIgst + splitCgst > 0 ? splitCgst : pCgst;
+    if (igstP + cgstP > 0 && amount) {
+      return {
+        rate: igstP + cgstP,
+        cgst: (amount * cgstP) / 100,
+        sgst: 0,
+        igst: (amount * igstP) / 100,
+        taxAmount: (amount * (igstP + cgstP)) / 100,
+      };
+    }
 
     const batchRate = Number(batch?.gst_percent) || 0;
     if (batchRate > 0 && amount) {
@@ -1913,7 +1933,7 @@ const Billing = () => {
                               <div key={r.key} className="flex justify-between gap-2 px-2 py-1.5 text-[11px] border-b last:border-b-0">
                                 <span className="min-w-0 truncate">
                                   {r.name}
-                                  <span className="text-muted-foreground"> · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}</span>
+                                  <span className="text-muted-foreground"> · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}{(r.igst > 0 || r.cgst > 0) ? ` (IGST ₹${r.igst.toFixed(2)} + CGST ₹${r.cgst.toFixed(2)})` : ""}</span>
                                 </span>
                                 <span className="tabular-nums whitespace-nowrap">₹{r.amount.toFixed(0)} + ₹{r.tax.toFixed(2)} = <strong>₹{(r.amount + r.tax).toFixed(2)}</strong></span>
                               </div>
@@ -1921,10 +1941,10 @@ const Billing = () => {
                           </div>
                         )}
                         {servicesSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal (tax ₹{lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
                         )}
                         {pharmaSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Products Subtotal</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Products Subtotal (tax ₹{lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
                         )}
                         <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
                         {totalCgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{totalCgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
@@ -2155,6 +2175,7 @@ const Billing = () => {
                                 <span className="block truncate font-medium">{r.name}</span>
                                 <span className="block text-[10px] text-muted-foreground">
                                   {r.kind}{r.qty > 1 ? ` · x${r.qty}` : ""}{r.hsn ? ` · HSN ${r.hsn}` : ""} · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}
+                                  {(r.igst > 0 || r.cgst > 0) ? ` · IGST ₹${r.igst.toFixed(2)} + CGST ₹${r.cgst.toFixed(2)}` : ""}
                                 </span>
                               </span>
                               <span className="text-right tabular-nums">₹{r.amount.toFixed(0)}</span>
@@ -2165,10 +2186,10 @@ const Billing = () => {
                         </div>
                       )}
                       {servicesSubtotal > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Services (tax ₹{lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
                       )}
                       {pharmaSubtotal > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Products</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Products (tax ₹{lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
                       )}
                       <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
                       {totalCgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{totalCgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}

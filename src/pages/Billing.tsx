@@ -1759,9 +1759,11 @@ const Billing = () => {
                             </Button>
                           </div>
                           {(() => {
-                            const lineTax = getProductLineTax(item.product_id, item.quantity * item.unit_price);
+                            const lineTax = getProductLineTax(item.product_id, item.quantity * item.unit_price, item.inventory_id);
+                            const hsn = getProductHsn(item.product_id, item.inventory_id);
                             return (
                               <span className="text-xs text-muted-foreground mt-0.5 pr-9">
+                                {hsn ? `HSN ${hsn} · ` : ""}
                                 {lineTax.rate > 0
                                   ? `Tax (${lineTax.rate}%): ₹${lineTax.taxAmount.toFixed(2)}`
                                   : "No tax"}

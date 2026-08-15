@@ -460,6 +460,7 @@ const Billing = () => {
 
   // Pre-fill the Create Invoice form from an appointment ("New Bill" flow).
   // Payload is stashed in sessionStorage to avoid huge URLs.
+  const [pendingPrefill, setPendingPrefill] = useState<any | null>(null);
   useEffect(() => {
     if (searchParams.get("newInvoice") !== "1") return;
     const raw = sessionStorage.getItem("billing_prefill");

@@ -1079,9 +1079,6 @@ const Appointments = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                   <div>
                     <Label>Status</Label>
                     <Select value={appointmentStatus} onValueChange={setAppointmentStatus}>
@@ -1091,35 +1088,9 @@ const Appointments = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                  <Label>Visit Status (Investigation)</Label>
-                  <Input
-                    value={visitStatus}
-                    onChange={(e) => setVisitStatus(e.target.value)}
-                    placeholder="Enter visit/investigation details..."
-                    className="mt-1.5"
-                  />
-                  </div>
                 </div>
 
-                <ConsultationReasonPicker
-                  consultationType={consultationType}
-                  setConsultationType={setConsultationType}
-                  reasons={consultationReasons}
-                  setReasons={setConsultationReasons}
-                  othersAestheticText={othersAestheticText}
-                  setOthersAestheticText={setOthersAestheticText}
-                  othersClinicalText={othersClinicalText}
-                  setOthersClinicalText={setOthersClinicalText}
-                />
-
-                {/* Additional Info (collapsible) */}
-                <Collapsible open={additionalInfoOpen} onOpenChange={setAdditionalInfoOpen} className="border rounded-md">
-                  <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/40">
-                    <span>Additional Info</span>
-                    <ChevronDown className={cn("h-4 w-4 transition-transform", additionalInfoOpen && "rotate-180")} />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="px-3 pb-3 pt-1 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                     <div>
                       <Label>Service</Label>
                       <Select value={serviceId} onValueChange={setServiceId}>
@@ -1178,8 +1149,7 @@ const Appointments = () => {
                     </div>
                   )}
                     </div>
-                  </CollapsibleContent>
-                </Collapsible>
+                </div>
 
                 {/* Survey (optional) */}
                 <div className="rounded-md border bg-muted/20 p-3 space-y-3">

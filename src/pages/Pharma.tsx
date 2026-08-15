@@ -35,7 +35,7 @@ import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
 
 // ─── Form Defaults ────────────────────────────────
 const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
-const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "" };
+const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "", hsn_code: "", gst_percent: 0 };
 
 interface BillItemInput {
   product_id: string;
@@ -278,6 +278,8 @@ const Pharma = () => {
         selling_price: sp,
         supplier: stockForm.supplier || null,
         invoice_number: stockForm.invoice_number || null,
+        hsn_code: stockForm.hsn_code || null,
+        gst_percent: Number(stockForm.gst_percent) || 0,
       } as any);
       if (error) throw error;
     },
@@ -464,6 +466,8 @@ const Pharma = () => {
       selling_price: Number(inv.selling_price) || 0,
       supplier: inv.supplier || "",
       invoice_number: "",
+      hsn_code: inv.hsn_code || "",
+      gst_percent: Number(inv.gst_percent) || 0,
     });
     setStockOpen(true);
   };
@@ -610,7 +614,13 @@ const Pharma = () => {
                 <div>
                   <Label>Product *</Label>
                   <Select value={stockForm.product_id} onValueChange={(v) => {
-                    setStockForm({ ...stockForm, product_id: v });
+                    const prod = products.find((p: any) => p.id === v) as any;
+                    setStockForm({
+                      ...stockForm,
+                      product_id: v,
+                      hsn_code: prod?.hsn_code || "",
+                      gst_percent: Number(prod?.gst_percent) || 0,
+                    });
                   }}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select product" /></SelectTrigger>
                     <SelectContent>{products.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
@@ -636,6 +646,17 @@ const Pharma = () => {
                   <div><Label>Batch No. *</Label><Input className="mt-1" value={stockForm.batch_number} onChange={(e) => setStockForm({ ...stockForm, batch_number: e.target.value })} /></div>
                   <div><Label>Expiry Date *</Label><Input type="date" className="mt-1" value={stockForm.expiry_date} onChange={(e) => setStockForm({ ...stockForm, expiry_date: e.target.value })} /></div>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>HSN Code</Label>
+                    <Input className="mt-1" value={stockForm.hsn_code} onChange={(e) => setStockForm({ ...stockForm, hsn_code: e.target.value })} placeholder="From product master" />
+                  </div>
+                  <div>
+                    <Label>GST %</Label>
+                    <Input type="number" className="mt-1" value={stockForm.gst_percent} onChange={(e) => setStockForm({ ...stockForm, gst_percent: parseFloat(e.target.value) || 0 })} />
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground -mt-1">HSN & GST default from the product master; edit here to apply batch-specific tax at billing.</p>
                 {(() => {
                   const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
                   const baseUnit = sp?.base_unit || sp?.unit || "";

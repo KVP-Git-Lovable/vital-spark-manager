@@ -1764,6 +1764,8 @@ export type Database = {
           batch_number: string
           created_at: string
           expiry_date: string
+          gst_percent: number
+          hsn_code: string | null
           id: string
           invoice_number: string | null
           mrp: number
@@ -1778,6 +1780,8 @@ export type Database = {
           batch_number: string
           created_at?: string
           expiry_date: string
+          gst_percent?: number
+          hsn_code?: string | null
           id?: string
           invoice_number?: string | null
           mrp?: number
@@ -1792,6 +1796,8 @@ export type Database = {
           batch_number?: string
           created_at?: string
           expiry_date?: string
+          gst_percent?: number
+          hsn_code?: string | null
           id?: string
           invoice_number?: string | null
           mrp?: number

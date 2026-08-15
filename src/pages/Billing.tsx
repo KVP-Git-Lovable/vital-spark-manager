@@ -625,8 +625,45 @@ const Billing = () => {
 
   const getProductTaxId = (productId: string): string | undefined => productTaxMap.get(productId);
 
-  // Product line tax: tax master mapping first, else the product's own GST %.
-  const getProductLineTax = (productId: string, amount: number) => {
+  // Resolve the HSN code that applies to a pharma line: inward batch → product master.
+  const getProductHsn = (productId: string, inventoryId?: string): string => {
+    const batch = inventoryId ? (pharmaInventory as any[]).find((i) => i.id === inventoryId) : undefined;
+    if (batch?.hsn_code) return String(batch.hsn_code);
+    const prod = (pharmaProducts as any[]).find((p) => p.id === productId);
+    return prod?.hsn_code ? String(prod.hsn_code) : "";
+  };
+
+  // Product line tax priority:
+  // 1. Inward stock batch GST/HSN (captured at Inward Stock)
+  // 2. HSN Tax Master entry for that HSN
+  // 3. Tax Master product mapping
+  // 4. Product master GST %
+  const getProductLineTax = (productId: string, amount: number, inventoryId?: string) => {
+    const batch = inventoryId ? (pharmaInventory as any[]).find((i) => i.id === inventoryId) : undefined;
+    const hsn = getProductHsn(productId, inventoryId);
+    const hsnTax = hsn ? hsnTaxMap.get(String(hsn)) : undefined;
+
+    const batchRate = Number(batch?.gst_percent) || 0;
+    if (batchRate > 0 && amount) {
+      if (hsnTax) {
+        const igst = Number(hsnTax.igst) || 0;
+        const cgst = Number(hsnTax.cgst) || 0;
+        if (igst + cgst > 0) {
+          return { rate: igst + cgst, cgst: (amount * cgst) / 100, sgst: 0, igst: (amount * igst) / 100, taxAmount: (amount * (igst + cgst)) / 100 };
+        }
+      }
+      const half = (amount * batchRate) / 200;
+      return { rate: batchRate, cgst: half, sgst: half, igst: 0, taxAmount: half * 2 };
+    }
+
+    if (hsnTax && amount) {
+      const igst = Number(hsnTax.igst) || 0;
+      const cgst = Number(hsnTax.cgst) || 0;
+      if (igst + cgst > 0) {
+        return { rate: igst + cgst, cgst: (amount * cgst) / 100, sgst: 0, igst: (amount * igst) / 100, taxAmount: (amount * (igst + cgst)) / 100 };
+      }
+    }
+
     const mapped = getLineTax(getProductTaxId(productId), amount);
     if (mapped.rate > 0) return mapped;
     const prod = (pharmaProducts as any[]).find((p) => p.id === productId);
@@ -635,6 +672,25 @@ const Billing = () => {
     const half = (amount * rate) / 200;
     return { rate, cgst: half, sgst: half, igst: 0, taxAmount: half * 2 };
   };
+
+  // Unified per-line rows used by the invoice summary (tax by line item).
+  const lineTaxRows = useMemo(() => {
+    const rows: { key: string; kind: "Service" | "Product"; name: string; hsn: string; qty: number; amount: number; rate: number; cgst: number; sgst: number; igst: number; tax: number }[] = [];
+    serviceInputs.forEach((s: any, i) => {
+      const amount = Number(s.price) || 0;
+      if (!String(s.name || "").trim() || !amount) return;
+      const t = getServiceLineTax(s.name, amount, s.hsn);
+      rows.push({ key: `s-${i}`, kind: "Service", name: s.name, hsn: s.hsn || "", qty: 1, amount, rate: t.rate, cgst: t.cgst, sgst: t.sgst, igst: t.igst, tax: t.taxAmount });
+    });
+    pharmaItems.forEach((p, i) => {
+      const amount = p.quantity * p.unit_price;
+      if (!p.product_id || !amount) return;
+      const t = getProductLineTax(p.product_id, amount, p.inventory_id);
+      rows.push({ key: `p-${i}`, kind: "Product", name: p.product_name, hsn: getProductHsn(p.product_id, p.inventory_id), qty: p.quantity, amount, rate: t.rate, cgst: t.cgst, sgst: t.sgst, igst: t.igst, tax: t.taxAmount });
+    });
+    return rows;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceInputs, pharmaItems, serviceMaster, pharmaProducts, pharmaInventory, hsnTaxes, taxProductLinks, taxServiceLinks, taxes]);
 
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
   const servicesSubtotal = useMemo(() => serviceInputs.reduce((sum, s) => sum + (Number(s.price) || 0), 0), [serviceInputs]);
@@ -650,7 +706,7 @@ const Billing = () => {
     pharmaItems.forEach((p) => {
       const amt = p.quantity * p.unit_price;
       if (!p.product_id || !amt) return;
-      const t = getProductLineTax(p.product_id, amt * scale);
+      const t = getProductLineTax(p.product_id, amt * scale, p.inventory_id);
       cgst += t.cgst; sgst += t.sgst; igst += t.igst;
     });
     return { cgst, sgst, igst, tax: cgst + sgst + igst };
@@ -781,8 +837,8 @@ const Billing = () => {
             name: i.product_name,
             qty: i.quantity,
             price: Number(i.unit_price) || 0,
-            hsn: "",
-            gst: getProductLineTax(i.product_id, 100).rate,
+            hsn: getProductHsn(i.product_id, i.inventory_id),
+            gst: getProductLineTax(i.product_id, 100, i.inventory_id).rate,
             product_id: i.product_id || null,
             batch_number: i.batch_number || null,
           })),
@@ -803,7 +859,7 @@ const Billing = () => {
         pharma.forEach((p) => {
           const amt = p.quantity * p.unit_price;
           if (!p.product_id || !amt) return;
-          const t = getProductLineTax(p.product_id, amt * scale);
+          const t = getProductLineTax(p.product_id, amt * scale, p.inventory_id);
           cgstAmount += t.cgst; sgstAmount += t.sgst; igstAmount += t.igst;
         });
         return { cgst_amount: cgstAmount, sgst_amount: sgstAmount, igst_amount: igstAmount, tax_amount: cgstAmount + sgstAmount + igstAmount };
@@ -1703,9 +1759,11 @@ const Billing = () => {
                             </Button>
                           </div>
                           {(() => {
-                            const lineTax = getProductLineTax(item.product_id, item.quantity * item.unit_price);
+                            const lineTax = getProductLineTax(item.product_id, item.quantity * item.unit_price, item.inventory_id);
+                            const hsn = getProductHsn(item.product_id, item.inventory_id);
                             return (
                               <span className="text-xs text-muted-foreground mt-0.5 pr-9">
+                                {hsn ? `HSN ${hsn} · ` : ""}
                                 {lineTax.rate > 0
                                   ? `Tax (${lineTax.rate}%): ₹${lineTax.taxAmount.toFixed(2)}`
                                   : "No tax"}
@@ -1843,21 +1901,25 @@ const Billing = () => {
                   {((servicesSubtotal + pharmaSubtotal) > 0) && (() => {
                     const subtotal = servicesSubtotal + pharmaSubtotal;
                     // Sum per-line tax across services and pharma
-                    let totalCgst = 0, totalSgst = 0, totalIgst = 0;
-                    serviceInputs.forEach((s) => {
-                      if (!s.name.trim() || !s.price) return;
-                      const lt = getServiceLineTax(s.name, s.price, (s as any).hsn);
-                      totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
-                    });
-                    pharmaItems.forEach((p) => {
-                      const amt = p.quantity * p.unit_price;
-                      if (!p.product_id || !amt) return;
-                      const lt = getProductLineTax(p.product_id, amt);
-                      totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
-                    });
+                    const totalCgst = lineTaxRows.reduce((s, r) => s + r.cgst, 0);
+                    const totalSgst = lineTaxRows.reduce((s, r) => s + r.sgst, 0);
+                    const totalIgst = lineTaxRows.reduce((s, r) => s + r.igst, 0);
                     const totalTax = totalCgst + totalSgst + totalIgst;
                     return (
                       <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+                        {lineTaxRows.length > 0 && (
+                          <div className="rounded-md border bg-background/70 overflow-hidden mb-2">
+                            {lineTaxRows.map((r) => (
+                              <div key={r.key} className="flex justify-between gap-2 px-2 py-1.5 text-[11px] border-b last:border-b-0">
+                                <span className="min-w-0 truncate">
+                                  {r.name}
+                                  <span className="text-muted-foreground"> · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}</span>
+                                </span>
+                                <span className="tabular-nums whitespace-nowrap">₹{r.amount.toFixed(0)} + ₹{r.tax.toFixed(2)} = <strong>₹{(r.amount + r.tax).toFixed(2)}</strong></span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {servicesSubtotal > 0 && (
                           <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
                         )}
@@ -2071,23 +2133,37 @@ const Billing = () => {
                   }
                   // One-time
                   const subtotal = servicesSubtotal + pharmaSubtotal;
-                  let totalCgst = 0, totalSgst = 0, totalIgst = 0;
-                  serviceInputs.forEach((s) => {
-                    if (!s.name.trim() || !s.price) return;
-                    const lt = getServiceLineTax(s.name, s.price, (s as any).hsn);
-                    totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
-                  });
-                  pharmaItems.forEach((p) => {
-                    const amt = p.quantity * p.unit_price;
-                    if (!p.product_id || !amt) return;
-                    const lt = getProductLineTax(p.product_id, amt);
-                    totalCgst += lt.cgst; totalSgst += lt.sgst; totalIgst += lt.igst;
-                  });
+                  const totalCgst = lineTaxRows.reduce((s, r) => s + r.cgst, 0);
+                  const totalSgst = lineTaxRows.reduce((s, r) => s + r.sgst, 0);
+                  const totalIgst = lineTaxRows.reduce((s, r) => s + r.igst, 0);
                   const totalTax = totalCgst + totalSgst + totalIgst;
                   const grand = subtotal + totalTax;
                   const balance = grand - (Number(paidAmount) || 0);
                   return (
                     <div className="space-y-1">
+                      {lineTaxRows.length > 0 && (
+                        <div className="rounded-lg border bg-background/70 overflow-hidden mb-3">
+                          <div className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/60">
+                            <span>Line item</span>
+                            <span className="text-right">Amt</span>
+                            <span className="text-right">Tax</span>
+                            <span className="text-right">Total</span>
+                          </div>
+                          {lineTaxRows.map((r) => (
+                            <div key={r.key} className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[11px] border-t items-start">
+                              <span className="min-w-0">
+                                <span className="block truncate font-medium">{r.name}</span>
+                                <span className="block text-[10px] text-muted-foreground">
+                                  {r.kind}{r.qty > 1 ? ` · x${r.qty}` : ""}{r.hsn ? ` · HSN ${r.hsn}` : ""} · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}
+                                </span>
+                              </span>
+                              <span className="text-right tabular-nums">₹{r.amount.toFixed(0)}</span>
+                              <span className="text-right tabular-nums">₹{r.tax.toFixed(2)}</span>
+                              <span className="text-right tabular-nums font-medium">₹{(r.amount + r.tax).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {servicesSubtotal > 0 && (
                         <div className="flex justify-between"><span className="text-muted-foreground">Services</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
                       )}

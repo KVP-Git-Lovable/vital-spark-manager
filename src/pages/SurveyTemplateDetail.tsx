@@ -140,7 +140,7 @@ const SurveyTemplateDetail = () => {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
-              <span className="text-muted-foreground">Problem Area</span>
+              <span className="text-muted-foreground">Primary Concern</span>
               <p className="font-medium">{template.problem_areas?.name || "Any"}</p>
             </div>
             <div>

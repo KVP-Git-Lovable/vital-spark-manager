@@ -197,7 +197,7 @@ export function ProcedureFormDialog({
         if (id) { setAssistedBy(id); filled.push("assistant"); }
         else nextHints.assistant = data.assistant_name;
       }
-      // Problem areas
+      // Primary concerns
       if (Array.isArray(data.problem_areas) && data.problem_areas.length) {
         const matchedIds: string[] = [];
         const unmatched: string[] = [];
@@ -609,12 +609,12 @@ export function ProcedureFormDialog({
               )}
             </div>
             <div>
-              <Label>Problem Areas</Label>
+              <Label>Primary Concern</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full mt-1.5 justify-start font-normal h-10">
                     {selectedProblemAreas.length === 0
-                      ? <span className="text-muted-foreground">Select problem areas</span>
+                      ? <span className="text-muted-foreground">Select primary concerns</span>
                       : <span className="truncate">{selectedProblemAreas.map(id => problemAreas.find(pa => pa.id === id)?.name).filter(Boolean).join(", ")}</span>
                     }
                   </Button>
@@ -623,7 +623,7 @@ export function ProcedureFormDialog({
                   <Command>
                     <CommandInput placeholder="Search..." />
                     <CommandList>
-                      <CommandEmpty>No problem areas found</CommandEmpty>
+                      <CommandEmpty>No primary concerns found</CommandEmpty>
                       <CommandGroup>
                         {problemAreas.map((pa) => (
                           <CommandItem

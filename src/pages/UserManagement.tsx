@@ -34,7 +34,7 @@ const ALL_MODULES = [
   { key: "portal_orders", label: "Portal Orders" },
   { key: "expenses", label: "Expenses" },
   { key: "staff", label: "Staff" },
-  { key: "problem_areas", label: "Problem Areas" },
+  { key: "problem_areas", label: "Primary Concern" },
   { key: "reports", label: "Reports" },
   { key: "report_builder", label: "Report Builder" },
   { key: "surveys", label: "Surveys" },

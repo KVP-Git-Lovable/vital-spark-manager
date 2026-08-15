@@ -460,6 +460,7 @@ const Billing = () => {
 
   // Pre-fill the Create Invoice form from an appointment ("New Bill" flow).
   // Payload is stashed in sessionStorage to avoid huge URLs.
+  const [pendingPrefill, setPendingPrefill] = useState<any | null>(null);
   useEffect(() => {
     if (searchParams.get("newInvoice") !== "1") return;
     const raw = sessionStorage.getItem("billing_prefill");
@@ -471,13 +472,37 @@ const Billing = () => {
     if (payload?.doctorId) setDoctorId(payload.doctorId);
     if (payload?.appointmentId) setSourceAppointmentId(payload.appointmentId);
 
+    setPendingPrefill(payload || {});
+    setInvoiceDate(new Date());
+    setInvoiceSeq(Date.now().toString().slice(-6));
+    setOpen(true);
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Resolve prefilled service / product lines once the master lists have loaded,
+  // so price + HSN are auto-filled from Service Master.
+  useEffect(() => {
+    const payload = pendingPrefill;
+    if (!payload) return;
+    if ((serviceMaster as any[]).length === 0) return; // masters still loading
+
+    const norm = (v: any) =>
+      String(v || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+
     const names: string[] = Array.isArray(payload?.services) ? payload.services.filter(Boolean) : [];
     if (names.length) {
       setServiceInputs(
         names.map((n: string) => {
-          const svc = (serviceMaster as any[]).find(
-            (s: any) => String(s?.name || "").toLowerCase() === n.toLowerCase(),
-          );
+          const key = norm(n);
+          const list = serviceMaster as any[];
+          const svc =
+            list.find((s: any) => norm(s?.name) === key) ||
+            list.find((s: any) => norm(s?.name).startsWith(key) || key.startsWith(norm(s?.name))) ||
+            list.find((s: any) => norm(s?.name).includes(key) || key.includes(norm(s?.name)));
           return {
             name: svc?.name || n,
             price: Number(svc?.price) || 0,
@@ -525,12 +550,9 @@ const Billing = () => {
       if (lines.length) setPharmaItems(lines);
     }
 
-    setInvoiceDate(new Date());
-    setInvoiceSeq(Date.now().toString().slice(-6));
-    setOpen(true);
-    setSearchParams({}, { replace: true });
+    setPendingPrefill(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, serviceMaster, pharmaInventory, pharmaProducts]);
+  }, [pendingPrefill, serviceMaster, pharmaInventory, pharmaProducts]);
 
   // Unique doctors and services for filter dropdowns
   const uniqueDoctors = useMemo(() => {
@@ -1494,17 +1516,17 @@ const Billing = () => {
                   </Popover>
                 </div>
               </div>
-              <div>
-                <Label>Patient</Label>
-                <PatientCombobox
-                  value={patientId}
-                  onValueChange={setPatientId}
-                  placeholder="Select patient"
-                  className="mt-1.5"
-                />
-              </div>
-
-              <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label>Patient</Label>
+                  <PatientCombobox
+                    value={patientId}
+                    onValueChange={setPatientId}
+                    placeholder="Select patient"
+                    className="mt-1.5"
+                  />
+                </div>
+                <div>
                 <Label>Doctor</Label>
                 <StaffCombobox
                   value={doctorId}
@@ -1526,6 +1548,7 @@ const Billing = () => {
                     </p>
                   );
                 })()}
+                </div>
               </div>
 
               <div>
@@ -1604,18 +1627,31 @@ const Billing = () => {
               </div>
 
               {/* Pharma Products */}
-              <div className="border-t pt-4">
-                <div className="flex items-center justify-between mb-1.5">
-                  <Label className="flex items-center gap-1.5"><Pill className="h-3.5 w-3.5" /> Pharma Products</Label>
-                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs" onClick={addPharmaItem}>
-                    <Plus className="h-3 w-3 mr-1" /> Add Product
+              <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                      <Pill className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <Label className="text-sm font-semibold">Pharmacy</Label>
+                      <p className="text-[11px] text-muted-foreground">Medicines & products billed with this invoice</p>
+                    </div>
+                    {pharmaItems.length > 0 && (
+                      <Badge variant="secondary" className="ml-1">{pharmaItems.length}</Badge>
+                    )}
+                  </div>
+                  <Button type="button" size="sm" className="h-8 text-xs shadow-sm" onClick={addPharmaItem}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Product
                   </Button>
                 </div>
                 {pharmaItems.length === 0 && (
-                  <p className="text-xs text-muted-foreground">No pharma products added. Click "Add Product" to include medicines in this invoice.</p>
+                  <div className="rounded-lg border border-dashed border-primary/40 bg-background/60 px-3 py-4 text-center">
+                    <p className="text-xs text-muted-foreground">No pharmacy products added yet — use <span className="font-medium text-foreground">Add Product</span> to bill medicines.</p>
+                  </div>
                 )}
                 {pharmaItems.map((item, idx) => (
-                  <div key={idx} className="border rounded-lg p-3 mb-2 space-y-2 bg-muted/30">
+                  <div key={idx} className="border rounded-lg p-3 mb-2 space-y-2 bg-background">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <Label className="text-xs">Product</Label>
@@ -1682,12 +1718,18 @@ const Billing = () => {
                   </div>
                 ))}
                 {pharmaItems.length > 0 && (
-                  <div className="text-right text-sm font-medium text-muted-foreground">
+                  <div className="text-right text-sm font-semibold text-foreground">
                     Products subtotal: ₹{pharmaSubtotal.toLocaleString()}
                   </div>
                 )}
               </div>
 
+              {/* Commercial */}
+              <div className="rounded-xl border bg-muted/20 p-4 space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Commercial</h3>
+                  <p className="text-[11px] text-muted-foreground">Payment terms, mode and collection details</p>
+                </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Payment Type</Label>
@@ -1784,6 +1826,7 @@ const Billing = () => {
               </div>
 
               {/* Tax is auto-applied per item from Tax Master mappings — no manual selector */}
+              </div>
 
               {paymentType === "One-time" && (
                 <div className="space-y-3 lg:hidden">

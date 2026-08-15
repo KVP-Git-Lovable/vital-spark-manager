@@ -2595,6 +2595,7 @@ export type Database = {
           id: string
           name: string
           price: number
+          problem_area_ids: string[]
           procedure_notes: string | null
           recommendations: string[] | null
           symptoms: string | null
@@ -2610,6 +2611,7 @@ export type Database = {
           id?: string
           name: string
           price?: number
+          problem_area_ids?: string[]
           procedure_notes?: string | null
           recommendations?: string[] | null
           symptoms?: string | null
@@ -2625,6 +2627,7 @@ export type Database = {
           id?: string
           name?: string
           price?: number
+          problem_area_ids?: string[]
           procedure_notes?: string | null
           recommendations?: string[] | null
           symptoms?: string | null

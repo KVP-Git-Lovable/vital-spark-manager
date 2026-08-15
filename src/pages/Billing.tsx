@@ -1933,7 +1933,7 @@ const Billing = () => {
                               <div key={r.key} className="flex justify-between gap-2 px-2 py-1.5 text-[11px] border-b last:border-b-0">
                                 <span className="min-w-0 truncate">
                                   {r.name}
-                                  <span className="text-muted-foreground"> · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}</span>
+                                  <span className="text-muted-foreground"> · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}{(r.igst > 0 || r.cgst > 0) ? ` (IGST ₹${r.igst.toFixed(2)} + CGST ₹${r.cgst.toFixed(2)})` : ""}</span>
                                 </span>
                                 <span className="tabular-nums whitespace-nowrap">₹{r.amount.toFixed(0)} + ₹{r.tax.toFixed(2)} = <strong>₹{(r.amount + r.tax).toFixed(2)}</strong></span>
                               </div>
@@ -2175,6 +2175,7 @@ const Billing = () => {
                                 <span className="block truncate font-medium">{r.name}</span>
                                 <span className="block text-[10px] text-muted-foreground">
                                   {r.kind}{r.qty > 1 ? ` · x${r.qty}` : ""}{r.hsn ? ` · HSN ${r.hsn}` : ""} · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}
+                                  {(r.igst > 0 || r.cgst > 0) ? ` · IGST ₹${r.igst.toFixed(2)} + CGST ₹${r.cgst.toFixed(2)}` : ""}
                                 </span>
                               </span>
                               <span className="text-right tabular-nums">₹{r.amount.toFixed(0)}</span>

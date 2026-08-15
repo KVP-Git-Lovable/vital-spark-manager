@@ -605,8 +605,13 @@ const Pharma = () => {
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
-                  <div><Label>GST %</Label><Input type="number" className="mt-1" value={productForm.gst_percent} onChange={(e) => setProductForm({ ...productForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>GST % (total)</Label><Input type="number" readOnly className="mt-1 bg-muted/50" value={(Number(productForm.igst_percent) || 0) + (Number(productForm.cgst_percent) || 0)} /></div>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>IGST %</Label><Input type="number" className="mt-1" value={productForm.igst_percent} onChange={(e) => setProductForm({ ...productForm, igst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>CGST %</Label><Input type="number" className="mt-1" value={productForm.cgst_percent} onChange={(e) => setProductForm({ ...productForm, cgst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                </div>
+                <p className="text-[11px] text-muted-foreground -mt-1">GST % is the total of IGST % + CGST %.</p>
                 <div className="rounded-md border bg-muted/30 p-3 space-y-3">
                   <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prescription Defaults</div>
                   <div className="grid grid-cols-2 gap-3">
@@ -640,7 +645,9 @@ const Pharma = () => {
                       ...stockForm,
                       product_id: v,
                       hsn_code: prod?.hsn_code || "",
-                      gst_percent: Number(prod?.gst_percent) || 0,
+                      igst_percent: Number(prod?.igst_percent) || 0,
+                      cgst_percent: Number(prod?.cgst_percent) || 0,
+                      gst_percent: (Number(prod?.igst_percent) || 0) + (Number(prod?.cgst_percent) || 0) || Number(prod?.gst_percent) || 0,
                     });
                   }}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select product" /></SelectTrigger>
@@ -673,11 +680,15 @@ const Pharma = () => {
                     <Input className="mt-1" value={stockForm.hsn_code} onChange={(e) => setStockForm({ ...stockForm, hsn_code: e.target.value })} placeholder="From product master" />
                   </div>
                   <div>
-                    <Label>GST %</Label>
-                    <Input type="number" className="mt-1" value={stockForm.gst_percent} onChange={(e) => setStockForm({ ...stockForm, gst_percent: parseFloat(e.target.value) || 0 })} />
+                    <Label>GST % (total)</Label>
+                    <Input type="number" readOnly className="mt-1 bg-muted/50" value={(Number(stockForm.igst_percent) || 0) + (Number(stockForm.cgst_percent) || 0)} />
                   </div>
                 </div>
-                <p className="text-[11px] text-muted-foreground -mt-1">HSN & GST default from the product master; edit here to apply batch-specific tax at billing.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>IGST %</Label><Input type="number" className="mt-1" value={stockForm.igst_percent} onChange={(e) => setStockForm({ ...stockForm, igst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>CGST %</Label><Input type="number" className="mt-1" value={stockForm.cgst_percent} onChange={(e) => setStockForm({ ...stockForm, cgst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                </div>
+                <p className="text-[11px] text-muted-foreground -mt-1">HSN, IGST & CGST default from the product master; edit here to apply batch-specific tax at billing. GST % = IGST + CGST.</p>
                 {(() => {
                   const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
                   const baseUnit = sp?.base_unit || sp?.unit || "";

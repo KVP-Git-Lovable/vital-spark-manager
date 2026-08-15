@@ -76,6 +76,8 @@ const Pharma = () => {
   const [productForm, setProductForm] = useState({ ...emptyProduct });
   const [stockForm, setStockForm] = useState({ ...emptyStock });
   const [productUnitRows, setProductUnitRows] = useState<ConversionRow[]>([]);
+  // Inventory tab: show stock in the selling UOM or the buying/base UOM.
+  const [inventoryUomView, setInventoryUomView] = useState<"sale" | "base">("sale");
   // For Inward Stock: which sub-unit the operator entered prices in.
   // null = entering at Base Unit. A row id means convert from sub-unit price → base.
   const [stockSubUnitIdx, setStockSubUnitIdx] = useState<number | null>(null);

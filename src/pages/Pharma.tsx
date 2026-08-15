@@ -34,8 +34,8 @@ import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/c
 import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
 
 // ─── Form Defaults ────────────────────────────────
-const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
-const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "", hsn_code: "", gst_percent: 0 };
+const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
+const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "", hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0 };
 
 interface BillItemInput {
   product_id: string;
@@ -46,6 +46,8 @@ interface BillItemInput {
   unit_price: number;
   available: number;
   gst_percent: number;
+  igst_percent: number;
+  cgst_percent: number;
 }
 
 function ToggleRow({ label, desc, checked, onChange }: { label: string; desc?: string; checked: boolean; onChange: (v: boolean) => void }) {

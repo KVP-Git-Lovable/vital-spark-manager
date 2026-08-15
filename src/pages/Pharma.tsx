@@ -714,6 +714,7 @@ const Pharma = () => {
                           <Label>Purchase Price{perBase}</Label>
                           <Input type="number" className="mt-1" value={stockForm.purchase_price} onChange={(e) => setStockForm({ ...stockForm, purchase_price: parseFloat(e.target.value) || 0 })} />
                           {subHint(stockForm.purchase_price) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.purchase_price)}</p>}
+                          {stockForm.mrp > 0 && stockForm.purchase_price > stockForm.mrp && <p className="text-[11px] text-destructive mt-1">Cannot exceed MRP</p>}
                         </div>
                         <div>
                           <Label>MRP{perBase} *</Label>
@@ -725,6 +726,7 @@ const Pharma = () => {
                         <Label>Selling Price{perBase} <span className="text-muted-foreground text-xs">(optional, defaults to MRP)</span></Label>
                         <Input type="number" className="mt-1" value={stockForm.selling_price} onChange={(e) => setStockForm({ ...stockForm, selling_price: parseFloat(e.target.value) || 0 })} placeholder={stockForm.mrp ? `${stockForm.mrp}` : ""} />
                         {subHint(stockForm.selling_price || stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.selling_price || stockForm.mrp)}</p>}
+                        {stockForm.mrp > 0 && stockForm.selling_price > stockForm.mrp && <p className="text-[11px] text-destructive mt-1">Cannot exceed MRP</p>}
                       </div>
                     </>
                   );
@@ -733,7 +735,7 @@ const Pharma = () => {
                   <div><Label>Supplier</Label><div className="mt-1"><VendorCombobox value={stockForm.supplier} onChange={(v) => setStockForm({ ...stockForm, supplier: v })} placeholder="Select supplier..." /></div></div>
                   <div><Label>Invoice No.</Label><Input className="mt-1" value={stockForm.invoice_number} onChange={(e) => setStockForm({ ...stockForm, invoice_number: e.target.value })} /></div>
                 </div>
-                <Button className="w-full" onClick={() => addStock.mutate()} disabled={!stockForm.product_id || !stockForm.batch_number || !stockForm.expiry_date || !stockForm.mrp || addStock.isPending}>
+                <Button className="w-full" onClick={() => addStock.mutate()} disabled={!stockForm.product_id || !stockForm.batch_number || !stockForm.expiry_date || !stockForm.mrp || Number(stockForm.purchase_price) > Number(stockForm.mrp) || Number(stockForm.selling_price) > Number(stockForm.mrp) || addStock.isPending}>
                   {addStock.isPending ? "Saving..." : "Add Stock"}
                 </Button>
               </div>

@@ -650,6 +650,38 @@ const Pharma = () => {
                   unitOptions={unitMaster as any}
                   baseUnit={productForm.base_unit}
                 />
+                {(() => {
+                  const uomNames = [
+                    ...(productForm.base_unit ? [productForm.base_unit] : []),
+                    ...productUnitRows
+                      .filter((r) => r.is_active && r.sub_unit && Number(r.conversion_value) > 0)
+                      .map((r) => r.sub_unit),
+                  ].filter((v, i, a) => v && a.indexOf(v) === i);
+                  return (
+                    <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Units of Measure</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label>Buying UOM</Label>
+                          <Select value={productForm.purchase_unit || productForm.base_unit} onValueChange={(v) => setProductForm({ ...productForm, purchase_unit: v })}>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. Box" /></SelectTrigger>
+                            <SelectContent>{uomNames.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Selling UOM</Label>
+                          <Select value={productForm.sale_unit || productForm.base_unit} onValueChange={(v) => setProductForm({ ...productForm, sale_unit: v })}>
+                            <SelectTrigger className="mt-1"><SelectValue placeholder="e.g. Tube" /></SelectTrigger>
+                            <SelectContent>{uomNames.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Stock is kept in the Base Unit. Buying UOM is used by default in Inward Stock, Selling UOM in billing — both can be changed per transaction.
+                      </p>
+                    </div>
+                  );
+                })()}
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
                   <div><Label>GST % (total)</Label><Input type="number" readOnly className="mt-1 bg-muted/50" value={(Number(productForm.igst_percent) || 0) + (Number(productForm.cgst_percent) || 0)} /></div>

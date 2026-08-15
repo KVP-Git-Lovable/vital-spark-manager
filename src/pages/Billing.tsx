@@ -837,8 +837,8 @@ const Billing = () => {
             name: i.product_name,
             qty: i.quantity,
             price: Number(i.unit_price) || 0,
-            hsn: "",
-            gst: getProductLineTax(i.product_id, 100).rate,
+            hsn: getProductHsn(i.product_id, i.inventory_id),
+            gst: getProductLineTax(i.product_id, 100, i.inventory_id).rate,
             product_id: i.product_id || null,
             batch_number: i.batch_number || null,
           })),
@@ -859,7 +859,7 @@ const Billing = () => {
         pharma.forEach((p) => {
           const amt = p.quantity * p.unit_price;
           if (!p.product_id || !amt) return;
-          const t = getProductLineTax(p.product_id, amt * scale);
+          const t = getProductLineTax(p.product_id, amt * scale, p.inventory_id);
           cgstAmount += t.cgst; sgstAmount += t.sgst; igstAmount += t.igst;
         });
         return { cgst_amount: cgstAmount, sgst_amount: sgstAmount, igst_amount: igstAmount, tax_amount: cgstAmount + sgstAmount + igstAmount };

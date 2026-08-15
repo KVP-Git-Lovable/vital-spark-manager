@@ -1494,17 +1494,17 @@ const Billing = () => {
                   </Popover>
                 </div>
               </div>
-              <div>
-                <Label>Patient</Label>
-                <PatientCombobox
-                  value={patientId}
-                  onValueChange={setPatientId}
-                  placeholder="Select patient"
-                  className="mt-1.5"
-                />
-              </div>
-
-              <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label>Patient</Label>
+                  <PatientCombobox
+                    value={patientId}
+                    onValueChange={setPatientId}
+                    placeholder="Select patient"
+                    className="mt-1.5"
+                  />
+                </div>
+                <div>
                 <Label>Doctor</Label>
                 <StaffCombobox
                   value={doctorId}
@@ -1526,6 +1526,7 @@ const Billing = () => {
                     </p>
                   );
                 })()}
+                </div>
               </div>
 
               <div>

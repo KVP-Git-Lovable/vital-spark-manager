@@ -772,34 +772,65 @@ const Pharma = () => {
                 <p className="text-[11px] text-muted-foreground -mt-1">HSN, IGST & CGST default from the product master; edit here to apply batch-specific tax at billing. GST % = IGST + CGST.</p>
                 {(() => {
                   const sp = products.find((p: any) => p.id === stockForm.product_id) as any;
-                  const baseUnit = sp?.base_unit || sp?.unit || "";
-                  const activeUnits = sp ? (unitsByProduct[sp.id] || []).filter((u: any) => u.is_active && u.sub_unit && Number(u.conversion_value) > 1) : [];
-                  const defaultUnit = activeUnits.find((u: any) => u.is_default) || activeUnits[0] || null;
-                  const sub = defaultUnit?.sub_unit || sp?.sub_unit;
-                  const conv = Number(defaultUnit?.conversion_value ?? sp?.conversion_value ?? sp?.qty_per_unit ?? 1) || 1;
-                  const perBase = baseUnit ? ` (per ${baseUnit})` : "";
-                  const subHint = (price: number) => (sub && conv > 1 && price > 0)
-                    ? `= ₹${(price / conv).toFixed(2)} per ${sub}` : "";
+                  const baseUnit = sp ? getBaseUnit(sp) : "";
+                  const uomOpts = sp ? getUomOptions(sp, unitsByProduct[sp.id]) : [];
+                  const buyUom = sp ? findUom(sp, unitsByProduct[sp.id], stockForm.purchase_unit) : null;
+                  const saleUom = sp ? getSaleUom(sp, unitsByProduct[sp.id]) : null;
+                  const buyName = buyUom?.name || baseUnit;
+                  const perUom = buyName ? ` (per ${buyName})` : "";
+                  // Prices are entered per buying UOM; show the equivalent selling-UOM price.
+                  const saleHint = (price: number) => {
+                    if (!sp || !saleUom || !buyUom || price <= 0 || saleUom.name === buyUom.name) return "";
+                    const perBasePrice = price * buyUom.factor;
+                    return `= ₹${(perBasePrice / saleUom.factor).toFixed(2)} per ${saleUom.name}`;
+                  };
+                  const enteredQty = Number(stockForm.quantity) || 0;
+                  const baseQty = buyUom ? toBaseQty(enteredQty, buyUom.factor) : enteredQty;
                   return (
                     <>
+                      {sp && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Buying UOM *</Label>
+                            <Select value={buyName} onValueChange={(v) => setStockForm({ ...stockForm, purchase_unit: v })}>
+                              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {uomOpts.map((o) => (
+                                  <SelectItem key={o.name} value={o.name}>
+                                    {o.name}{o.isBase ? " (base)" : ` — ${o.factor} per ${baseUnit}`}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground self-end">
+                            <div><strong>Selling UOM:</strong> {saleUom?.name || baseUnit}</div>
+                            {enteredQty > 0 && saleUom && (
+                              <div>
+                                {fmtQty(enteredQty)} {buyName} = {fmtQty(toUomQty(baseQty, saleUom.factor))} {saleUom.name}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       <div className="grid grid-cols-3 gap-3">
-                        <div><Label>Quantity{baseUnit ? ` (${baseUnit})` : ""} *</Label><Input type="number" className="mt-1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: parseInt(e.target.value) || 0 })} /></div>
+                        <div><Label>Quantity{buyName ? ` (${buyName})` : ""} *</Label><Input type="number" className="mt-1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: parseFloat(e.target.value) || 0 })} /></div>
                         <div>
-                          <Label>Purchase Price{perBase}</Label>
+                          <Label>Purchase Price{perUom}</Label>
                           <Input type="number" className="mt-1" value={stockForm.purchase_price} onChange={(e) => setStockForm({ ...stockForm, purchase_price: parseFloat(e.target.value) || 0 })} />
-                          {subHint(stockForm.purchase_price) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.purchase_price)}</p>}
+                          {saleHint(stockForm.purchase_price) && <p className="text-[11px] text-muted-foreground mt-1">{saleHint(stockForm.purchase_price)}</p>}
                           {stockForm.mrp > 0 && stockForm.purchase_price > stockForm.mrp && <p className="text-[11px] text-destructive mt-1">Cannot exceed MRP</p>}
                         </div>
                         <div>
-                          <Label>MRP{perBase} *</Label>
+                          <Label>MRP{perUom} *</Label>
                           <Input type="number" className="mt-1" value={stockForm.mrp} onChange={(e) => setStockForm({ ...stockForm, mrp: parseFloat(e.target.value) || 0 })} />
-                          {subHint(stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.mrp)}</p>}
+                          {saleHint(stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{saleHint(stockForm.mrp)}</p>}
                         </div>
                       </div>
                       <div>
-                        <Label>Selling Price{perBase} <span className="text-muted-foreground text-xs">(optional, defaults to MRP)</span></Label>
+                        <Label>Selling Price{perUom} <span className="text-muted-foreground text-xs">(optional, defaults to MRP)</span></Label>
                         <Input type="number" className="mt-1" value={stockForm.selling_price} onChange={(e) => setStockForm({ ...stockForm, selling_price: parseFloat(e.target.value) || 0 })} placeholder={stockForm.mrp ? `${stockForm.mrp}` : ""} />
-                        {subHint(stockForm.selling_price || stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{subHint(stockForm.selling_price || stockForm.mrp)}</p>}
+                        {saleHint(stockForm.selling_price || stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{saleHint(stockForm.selling_price || stockForm.mrp)}</p>}
                         {stockForm.mrp > 0 && stockForm.selling_price > stockForm.mrp && <p className="text-[11px] text-destructive mt-1">Cannot exceed MRP</p>}
                       </div>
                     </>

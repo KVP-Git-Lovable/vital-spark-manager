@@ -891,6 +891,8 @@ const Billing = () => {
             gst: getProductLineTax(i.product_id, 100, i.inventory_id).rate,
             product_id: i.product_id || null,
             batch_number: i.batch_number || null,
+            uom: i.uom || null,
+            uom_factor: i.uom_factor || 1,
           })),
       ];
 

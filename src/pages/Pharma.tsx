@@ -466,6 +466,8 @@ const Pharma = () => {
       selling_price: Number(inv.selling_price) || 0,
       supplier: inv.supplier || "",
       invoice_number: "",
+      hsn_code: inv.hsn_code || "",
+      gst_percent: Number(inv.gst_percent) || 0,
     });
     setStockOpen(true);
   };

@@ -272,12 +272,16 @@ const Pharma = () => {
     mutationFn: async () => {
       const mrp = Number(stockForm.mrp) || 0;
       const sp = Number(stockForm.selling_price) || mrp;
+      const pp = Number(stockForm.purchase_price) || 0;
+      if (mrp <= 0) throw new Error("MRP is required");
+      if (pp > mrp) throw new Error("Purchase price cannot be higher than MRP");
+      if (sp > mrp) throw new Error("Selling price cannot be higher than MRP");
       const { error } = await supabase.from("pharma_inventory").insert({
         product_id: stockForm.product_id,
         batch_number: stockForm.batch_number,
         expiry_date: stockForm.expiry_date,
         quantity: Number(stockForm.quantity),
-        purchase_price: Number(stockForm.purchase_price),
+        purchase_price: pp,
         mrp,
         selling_price: sp,
         supplier: stockForm.supplier || null,
@@ -381,7 +385,10 @@ const Pharma = () => {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pharma-bills", "pharma-inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-inventory-billing"] });
+      queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
       toast.success("Bill created");
       setBillItems([]);
       setBillPatientName("");

@@ -471,13 +471,37 @@ const Billing = () => {
     if (payload?.doctorId) setDoctorId(payload.doctorId);
     if (payload?.appointmentId) setSourceAppointmentId(payload.appointmentId);
 
+    setPendingPrefill(payload || {});
+    setInvoiceDate(new Date());
+    setInvoiceSeq(Date.now().toString().slice(-6));
+    setOpen(true);
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Resolve prefilled service / product lines once the master lists have loaded,
+  // so price + HSN are auto-filled from Service Master.
+  useEffect(() => {
+    const payload = pendingPrefill;
+    if (!payload) return;
+    if ((serviceMaster as any[]).length === 0) return; // masters still loading
+
+    const norm = (v: any) =>
+      String(v || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+
     const names: string[] = Array.isArray(payload?.services) ? payload.services.filter(Boolean) : [];
     if (names.length) {
       setServiceInputs(
         names.map((n: string) => {
-          const svc = (serviceMaster as any[]).find(
-            (s: any) => String(s?.name || "").toLowerCase() === n.toLowerCase(),
-          );
+          const key = norm(n);
+          const list = serviceMaster as any[];
+          const svc =
+            list.find((s: any) => norm(s?.name) === key) ||
+            list.find((s: any) => norm(s?.name).startsWith(key) || key.startsWith(norm(s?.name))) ||
+            list.find((s: any) => norm(s?.name).includes(key) || key.includes(norm(s?.name)));
           return {
             name: svc?.name || n,
             price: Number(svc?.price) || 0,
@@ -525,12 +549,9 @@ const Billing = () => {
       if (lines.length) setPharmaItems(lines);
     }
 
-    setInvoiceDate(new Date());
-    setInvoiceSeq(Date.now().toString().slice(-6));
-    setOpen(true);
-    setSearchParams({}, { replace: true });
+    setPendingPrefill(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, serviceMaster, pharmaInventory, pharmaProducts]);
+  }, [pendingPrefill, serviceMaster, pharmaInventory, pharmaProducts]);
 
   // Unique doctors and services for filter dropdowns
   const uniqueDoctors = useMemo(() => {

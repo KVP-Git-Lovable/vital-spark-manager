@@ -111,7 +111,7 @@ export function DashboardCharts({ data, onChartClick }: Props) {
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Revenue by Problem Area (₹)" delay={0.32} empty={data.revenueByProblemArea.length === 0} onClick={() => onChartClick("revenue_by_problem_area")}>
+      <ChartCard title="Revenue by Primary Concern (₹)" delay={0.32} empty={data.revenueByProblemArea.length === 0} onClick={() => onChartClick("revenue_by_problem_area")}>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={data.revenueByProblemArea} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />

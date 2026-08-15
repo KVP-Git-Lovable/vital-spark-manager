@@ -1130,16 +1130,16 @@ const Appointments = () => {
                       </Select>
                     </div>
 
-                    {/* Problem Areas */}
+                    {/* Primary Concern */}
                     <div>
                   <Label className="flex items-center gap-1.5">
-                    <AlertCircle className="h-3.5 w-3.5" /> Problem Areas
+                    <AlertCircle className="h-3.5 w-3.5" /> Primary Concern
                   </Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className={cn("w-full mt-1.5 justify-start text-left font-normal", selectedProblemAreas.length === 0 && "text-muted-foreground")}>
                         {selectedProblemAreas.length === 0
-                          ? "Select problem areas"
+                          ? "Select primary concerns"
                           : `${selectedProblemAreas.length} selected`}
                       </Button>
                     </PopoverTrigger>
@@ -1159,7 +1159,7 @@ const Appointments = () => {
                           </label>
                         ))}
                         {problemAreasList.length === 0 && (
-                          <p className="text-xs text-muted-foreground p-2">No problem areas defined</p>
+                          <p className="text-xs text-muted-foreground p-2">No primary concerns defined</p>
                         )}
                       </div>
                     </PopoverContent>

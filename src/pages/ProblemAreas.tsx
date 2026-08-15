@@ -41,7 +41,7 @@ const ProblemAreas = () => {
     queryKey: ["problem-area-patients", selectedArea?.id],
     enabled: !!selectedArea,
     queryFn: async () => {
-      // Get all appointments that contain this problem area id
+      // Get all appointments that contain this primary concern id
       const { data: appointments, error } = await supabase
         .from("appointments")
         .select("patient_id, patient_name, start_time")
@@ -140,7 +140,7 @@ const ProblemAreas = () => {
     setIsActive(true);
   };
 
-  // Detail view for a selected problem area
+  // Detail view for a selected primary concern
   if (selectedArea) {
     return (
       <div className="space-y-6">
@@ -150,7 +150,7 @@ const ProblemAreas = () => {
           </Button>
           <div>
             <h1 className="text-2xl font-display font-bold text-foreground">{selectedArea.name}</h1>
-            <p className="text-sm text-muted-foreground">{selectedArea.description || "Problem area detail"}</p>
+            <p className="text-sm text-muted-foreground">{selectedArea.description || "Primary concern detail"}</p>
           </div>
         </div>
 
@@ -216,11 +216,11 @@ const ProblemAreas = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Problem Area Master</h1>
-          <p className="text-sm text-muted-foreground">Define patient problem areas for appointments</p>
+          <h1 className="text-2xl font-display font-bold text-foreground">Primary Concern Master</h1>
+          <p className="text-sm text-muted-foreground">Define patient primary concerns for appointments</p>
         </div>
         <Button onClick={() => { closeDialog(); setOpen(true); }} className="gap-2">
-          <Plus className="h-4 w-4" /> Add Problem Area
+          <Plus className="h-4 w-4" /> Add Primary Concern
         </Button>
       </div>
 
@@ -238,7 +238,7 @@ const ProblemAreas = () => {
             {isLoading ? (
               <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">Loading...</TableCell></TableRow>
             ) : problemAreas.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No problem areas defined yet</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No primary concerns defined yet</TableCell></TableRow>
             ) : (
               problemAreas.map((item: any) => (
                 <TableRow key={item.id} className="cursor-pointer" onClick={() => setSelectedArea(item)}>
@@ -269,7 +269,7 @@ const ProblemAreas = () => {
       <Dialog open={open} onOpenChange={(v) => { if (!v) closeDialog(); else setOpen(true); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editId ? "Edit" : "New"} Problem Area</DialogTitle>
+            <DialogTitle>{editId ? "Edit" : "New"} Primary Concern</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>

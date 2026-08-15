@@ -367,7 +367,7 @@ const Index = () => {
       case "revenue_by_problem_area":
         return openDrill(
           "invoices",
-          `Revenue by Problem Area${suffix}`,
+          `Revenue by Primary Concern${suffix}`,
           key
             ? filteredInvoices.filter((i: any) =>
                 key === "Unspecified" ? !i._areas?.length : i._areas?.includes(key)

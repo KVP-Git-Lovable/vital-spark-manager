@@ -310,7 +310,7 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
         const hit = (problemAreas as any[]).find(p => p.name.toLowerCase() === term)
           || (problemAreas as any[]).find(p => p.name.toLowerCase().includes(term) || term.includes(p.name.toLowerCase()));
         if (hit) setProblemAreaId(hit.id);
-        else toast.info(`Problem area "${m[1].trim()}" not found`);
+        else toast.info(`Primary concern "${m[1].trim()}" not found`);
       });
 
     matchAndConsume(/service (?:type )?(?:is |:\s*)([^.,;]+?)(?=(?:,|\.|$|\s+(?:problem|age|active|inactive|template|description)\b))/i,
@@ -422,7 +422,7 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
               <Textarea
                 value={dictation + (speech.interimTranscript ? (dictation ? " " : "") + speech.interimTranscript : "")}
                 onChange={(e) => setDictation(e.target.value)}
-                placeholder='Speak or type, e.g. "Template name is Acne Assessment, age range 18 to 35, problem area is acne, service type is consultation, active."'
+                placeholder='Speak or type, e.g. "Template name is Acne Assessment, age range 18 to 35, primary concern is acne, service type is consultation, active."'
                 rows={2}
                 className="bg-background text-sm"
               />
@@ -463,9 +463,9 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
               </div>
             </div>
             <div>
-              <Label>Problem Area</Label>
+              <Label>Primary Concern</Label>
               <Select value={problemAreaId || "none"} onValueChange={(v) => setProblemAreaId(v === "none" ? "" : v)}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select problem area" /></SelectTrigger>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select primary concern" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Any</SelectItem>
                   {problemAreas.map((pa: any) => <SelectItem key={pa.id} value={pa.id}>{pa.name}</SelectItem>)}

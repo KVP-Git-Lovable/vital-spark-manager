@@ -332,6 +332,10 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 const availableStock = Math.max(0, totalStock - consumedStock);
                 const isLowStock = availableStock > 0 && availableStock <= (product.reorder_level || 0);
                 const noStockAdded = totalStock === 0 && consumedStock > 0;
+                const uomOpts = getUomOptions(product, existingUnits as any);
+                const selUom: UomOption =
+                  uomOpts.find((o) => o.name === summaryUom) || getSaleUom(product, existingUnits as any);
+                const conv = (n: number) => fmtQty(toUomQty(n, selUom.factor));
                 // Find nearest expiry from inventory batches
                 const nearestExpiry = inventoryItems.length > 0
                   ? inventoryItems.reduce((nearest: any, item: any) => {
@@ -342,7 +346,22 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                 const nearestExpiryDays = nearestExpiry ? Math.ceil((new Date(nearestExpiry.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
                 return (
                   <div className="space-y-2">
-                    <h3 className="font-display font-semibold text-sm">Inventory Summary</h3>
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-display font-semibold text-sm">Inventory Summary</h3>
+                      <Select value={selUom.name} onValueChange={(v) => setSummaryUom(v)}>
+                        <SelectTrigger className="h-7 w-[150px] text-xs">
+                          <SelectValue placeholder="UOM" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {uomOpts.map((o) => (
+                            <SelectItem key={o.name} value={o.name} className="text-xs">
+                              {o.name}{o.isBase ? " (Base)" : ""}
+                              {product.sale_unit === o.name && !o.isBase ? " · Sell" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     {noStockAdded && (
                       <div className="flex items-start gap-2 rounded-lg border border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-3">
                         <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
@@ -356,12 +375,14 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                       <div className="rounded-lg border bg-muted/30 p-3 text-center">
                         <Package className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
                         <p className="text-xs text-muted-foreground">Total Stock</p>
-                        <p className="text-xl font-bold">{totalStock}</p>
+                        <p className="text-xl font-bold">{conv(totalStock)}</p>
+                        <p className="text-[10px] text-muted-foreground">{selUom.name}</p>
                       </div>
                       <div className={`rounded-lg border p-3 text-center ${isLowStock || availableStock === 0 ? "border-destructive bg-destructive/10" : "bg-muted/30"}`}>
                         {isLowStock || availableStock === 0 ? <AlertTriangle className="h-4 w-4 mx-auto text-destructive mb-1" /> : <Package className="h-4 w-4 mx-auto text-muted-foreground mb-1" />}
                         <p className="text-xs text-muted-foreground">Available Stock</p>
-                        <p className={`text-xl font-bold ${isLowStock || availableStock === 0 ? "text-destructive" : ""}`}>{availableStock}</p>
+                        <p className={`text-xl font-bold ${isLowStock || availableStock === 0 ? "text-destructive" : ""}`}>{conv(availableStock)}</p>
+                        <p className="text-[10px] text-muted-foreground">{selUom.name}</p>
                         {isLowStock && <Badge variant="destructive" className="text-[10px] mt-1">Low Stock</Badge>}
                         {availableStock === 0 && <Badge variant="destructive" className="text-[10px] mt-1">Out of Stock</Badge>}
                       </div>

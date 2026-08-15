@@ -720,9 +720,11 @@ const Pharma = () => {
                   <Label>Product *</Label>
                   <Select value={stockForm.product_id} onValueChange={(v) => {
                     const prod = products.find((p: any) => p.id === v) as any;
+                    const buyUom = getPurchaseUom(prod, unitsByProduct[v]);
                     setStockForm({
                       ...stockForm,
                       product_id: v,
+                      purchase_unit: buyUom.name,
                       hsn_code: prod?.hsn_code || "",
                       igst_percent: Number(prod?.igst_percent) || 0,
                       cgst_percent: Number(prod?.cgst_percent) || 0,

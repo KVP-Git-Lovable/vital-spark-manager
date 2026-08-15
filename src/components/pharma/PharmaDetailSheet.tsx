@@ -600,8 +600,14 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                             const sp = Number(product?.selling_price) || 0;
                             const qty = Number(item.quantity);
                             return (
-                              <TableRow key={idx}>
-                                <TableCell className="text-xs">{item.patient_name}</TableCell>
+                              <TableRow
+                                key={idx}
+                                className={item.procedure_id ? "cursor-pointer hover:bg-muted/50" : ""}
+                                onClick={() => { if (item.procedure_id) { onClose(); navigate(`/procedures?id=${item.procedure_id}`); } }}
+                              >
+                                <TableCell className="text-xs">
+                                  <span className="inline-flex items-center gap-1.5">{item.patient_name}{item.procedure_id && <Eye className="h-3 w-3 text-muted-foreground" />}</span>
+                                </TableCell>
                                 <TableCell className="text-xs">{item.date ? format(new Date(item.date), "dd MMM yyyy") : "—"}</TableCell>
                                 <TableCell className="text-xs text-right">{qty}</TableCell>
                                 <TableCell className="text-xs text-right">₹{sp.toFixed(2)}</TableCell>
@@ -636,8 +642,14 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                         </TableHeader>
                         <TableBody>
                           {portalSalesItems.map((item: any, idx: number) => (
-                            <TableRow key={idx}>
-                              <TableCell className="text-xs">{item.patient_name}</TableCell>
+                            <TableRow
+                              key={idx}
+                              className={item.order_id ? "cursor-pointer hover:bg-muted/50" : ""}
+                              onClick={() => { if (item.order_id) { onClose(); navigate(`/orders?id=${item.order_id}`); } }}
+                            >
+                              <TableCell className="text-xs">
+                                <span className="inline-flex items-center gap-1.5">{item.patient_name}{item.order_id && <Eye className="h-3 w-3 text-muted-foreground" />}</span>
+                              </TableCell>
                               <TableCell className="text-xs">{item.date ? format(new Date(item.date), "dd MMM yyyy") : "—"}</TableCell>
                               <TableCell className="text-xs text-right">{Number(item.quantity)}</TableCell>
                               <TableCell className="text-xs text-right">₹{Number(item.unit_price || 0).toFixed(2)}</TableCell>

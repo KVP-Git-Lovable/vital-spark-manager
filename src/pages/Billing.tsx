@@ -541,19 +541,23 @@ const Billing = () => {
           )
           .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)))[0];
         if (!batch && !master) continue;
+        const saleUom = getSaleUom(master, unitsByProduct[(batch?.product_id || master?.id) as string]);
+        const basePrice =
+          Number(batch?.selling_price) ||
+          Number(batch?.mrp) ||
+          Number(master?.selling_price) ||
+          Number(master?.mrp) ||
+          0;
         lines.push({
           inventory_id: batch?.id || "",
           product_id: batch?.product_id || master?.id || "",
           product_name: batch?.pharma_products?.name || master?.name || p.name,
           batch_number: batch?.batch_number || "",
           quantity: Math.max(1, Number(p.quantity) || 1),
-          unit_price:
-            Number(batch?.selling_price) ||
-            Number(batch?.mrp) ||
-            Number(master?.selling_price) ||
-            Number(master?.mrp) ||
-            0,
-          available: batch?.quantity || 0,
+          unit_price: basePrice / (saleUom.factor || 1),
+          available: toUomQty(Number(batch?.quantity || 0), saleUom.factor),
+          uom: saleUom.name,
+          uom_factor: saleUom.factor,
         });
       }
       if (lines.length) setPharmaItems(lines);

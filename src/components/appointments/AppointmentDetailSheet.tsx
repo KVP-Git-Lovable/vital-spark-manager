@@ -1067,23 +1067,42 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         <p className="text-xs text-muted-foreground">No installments recorded for this plan.</p>
                       ) : (
                         (installments as any[]).map((inv: any) => {
-                          const balance = Number(inv.total_amount) - Number(inv.paid_amount);
-                          const open = balance > 0.5;
+                          const balance = instBalance(inv);
+                          const merged = inv.status === "Merged";
+                          const open = balance > 0.5 && !merged;
+                          const scheduled = open && (inv.installment_number || 1) > 1 && Number(inv.tax_amount || 0) === 0;
+                          const collectable = isCollectable(inv);
+                          const { tax: dueTax, total: dueTotal } = instTax(inv);
                           return (
                             <div
                               key={inv.id}
-                              className="border rounded-lg p-2.5 cursor-pointer hover:bg-muted/40 transition-colors"
-                              onClick={() => { handleClose(); navigate(`/billing?viewInvoice=${inv.id}`); }}
+                              className="border rounded-lg p-2.5 hover:bg-muted/40 transition-colors"
                             >
-                              <div className="flex items-center justify-between">
-                                <p className="text-sm font-medium">
-                                  Installment {inv.installment_number || "—"} of {inv.installment_count || "—"}
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {collectable && (
+                                    <Checkbox
+                                      checked={selectedInstallments.includes(inv.id)}
+                                      onCheckedChange={(c) =>
+                                        setSelectedInstallments((prev) =>
+                                          c ? [...prev, inv.id] : prev.filter((id) => id !== inv.id),
+                                        )
+                                      }
+                                    />
+                                  )}
+                                  <button
+                                    className="text-sm font-medium text-left hover:underline flex items-center gap-1.5"
+                                    onClick={() => { handleClose(); navigate(`/billing?viewInvoice=${inv.id}`); }}
+                                  >
+                                    {scheduled ? "Scheduled amount" : "Installment"} {inv.installment_number || "—"} of {inv.installment_count || "—"}
+                                    <ExternalLink className="h-3 w-3 text-primary" />
+                                  </button>
                                   {inv.appointment_id === appointmentId && (
                                     <span className="ml-2 text-[10px] text-primary">this appointment</span>
                                   )}
-                                </p>
-                                <Badge variant="secondary" className={`text-xs ${open ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>
-                                  {open ? "Open" : "Closed"}
+                                </div>
+                                <Badge variant="secondary" className={`text-xs shrink-0 ${open ? "bg-warning/10 text-warning" : "bg-success/10 text-success"}`}>
+                                  {merged ? "Merged" : open ? "Open" : "Closed"}
                                 </Badge>
                               </div>
                               <div className="flex justify-between mt-1 text-xs text-muted-foreground">
@@ -1091,9 +1110,56 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                                 <span>Total ₹{Number(inv.total_amount).toLocaleString()}</span>
                                 <span>Balance ₹{balance.toLocaleString()}</span>
                               </div>
+                              {inv.appointment_id && inv.appointment_id !== appointmentId && (
+                                <button
+                                  className="mt-1 text-[11px] text-primary hover:underline flex items-center gap-1"
+                                  onClick={() => { handleClose(); navigate(`/appointments/${inv.appointment_id}`); }}
+                                >
+                                  View linked appointment <ExternalLink className="h-3 w-3" />
+                                </button>
+                              )}
+                              {open && (
+                                <p className="mt-1 text-[11px] text-muted-foreground">
+                                  {collectable
+                                    ? `Billable today — tax ₹${dueTax.toFixed(2)}, payable ₹${dueTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                                    : "Not billable yet — becomes payable on its due date"}
+                                </p>
+                              )}
                             </div>
                           );
                         })
+                      )}
+                      {(installments as any[]).some((i: any) => isCollectable(i)) && (
+                        <div className="border rounded-lg p-3 bg-muted/20 space-y-2">
+                          <p className="text-xs font-semibold">Collect due payments</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            Select one or more instalments due today (or earlier). Selecting more than one merges them into a single invoice.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Select value={collectMode} onValueChange={setCollectMode}>
+                              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {["Cash", "Card", "UPI", "Bank Transfer", "Insurance"].map((m) => (
+                                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              size="sm"
+                              disabled={selectedRows.length === 0 || collecting}
+                              onClick={collectSelected}
+                            >
+                              {collecting
+                                ? "Collecting..."
+                                : `Collect ₹${selectedTotals.total.toLocaleString(undefined, { maximumFractionDigits: 2 })}${selectedRows.length > 1 ? ` (merge ${selectedRows.length})` : ""}`}
+                            </Button>
+                          </div>
+                          {selectedRows.length > 0 && (
+                            <p className="text-[11px] text-muted-foreground">
+                              Base ₹{selectedTotals.base.toLocaleString(undefined, { maximumFractionDigits: 2 })} + tax ₹{selectedTotals.tax.toFixed(2)}
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}

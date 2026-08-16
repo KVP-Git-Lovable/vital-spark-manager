@@ -290,6 +290,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [editStartTime, setEditStartTime] = useState("");
   const [editEndTime, setEditEndTime] = useState("");
   const [editStaffId, setEditStaffId] = useState("");
+  const [editProblemAreas, setEditProblemAreas] = useState<string[]>([]);
   const [initialized, setInitialized] = useState(false);
 
   // Fetch staff list for dropdown
@@ -310,6 +311,15 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       const { data, error } = await supabase.from("services").select("id, name").order("name");
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: problemAreasList = [] } = useQuery({
+    queryKey: ["problem-areas-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("problem_areas").select("id, name").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -338,6 +348,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditEndTime(appointment.end_time ? format(new Date(appointment.end_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditStaffId(appointment.staff_id || "");
+    setEditProblemAreas(((appointment as any).problem_area_ids as string[]) || []);
     setInitialized(true);
   }
 
@@ -598,6 +609,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
           start_time: new Date(editStartTime).toISOString(),
           end_time: new Date(editEndTime).toISOString(),
           staff_id: newStaffId,
+          problem_area_ids: editProblemAreas,
         } as any)
         .eq("id", appointmentId!);
       if (error) throw error;
@@ -857,6 +869,40 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         {servicesList.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div>
+                    <Label>Primary Concern</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn("w-full mt-1.5 justify-start text-left font-normal", editProblemAreas.length === 0 && "text-muted-foreground")}
+                        >
+                          {editProblemAreas.length === 0
+                            ? "Select primary concern"
+                            : (problemAreasList as any[])
+                                .filter((p: any) => editProblemAreas.includes(p.id))
+                                .map((p: any) => p.name)
+                                .join(", ")}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-2 max-h-64 overflow-y-auto" align="start">
+                        {(problemAreasList as any[]).map((pa: any) => (
+                          <label key={pa.id} className="flex items-center gap-2 px-1.5 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                            <Checkbox
+                              checked={editProblemAreas.includes(pa.id)}
+                              onCheckedChange={(c) =>
+                                setEditProblemAreas((prev) => (c ? [...prev, pa.id] : prev.filter((id) => id !== pa.id)))
+                              }
+                            />
+                            {pa.name}
+                          </label>
+                        ))}
+                        {(problemAreasList as any[]).length === 0 && (
+                          <p className="text-xs text-muted-foreground p-2">No primary concerns configured.</p>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   {parentAppointment && (
                     <div>

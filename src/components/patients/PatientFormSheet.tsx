@@ -413,6 +413,10 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         }
       }
 
+      if (patientId) {
+        await saveFamilyRows(patientId);
+      }
+
       onSuccess();
       onOpenChange(false);
     } catch (err: any) {

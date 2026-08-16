@@ -765,25 +765,58 @@ const Billing = () => {
     return { cgst, sgst, igst, tax: cgst + sgst + igst };
   };
 
-  // Per-installment tax + total (recurring plans)
-  const installmentTax = useMemo(() => {
-    const base = servicesSubtotal + pharmaSubtotal;
-    const scale = base > 0 ? recurringAmount / base : 0;
-    return scaledLineTax(scale);
+  // Tax for a share of the SERVICES only (recurring installments never include pharmacy)
+  const scaledServiceTax = (scale: number) => {
+    let cgst = 0, sgst = 0, igst = 0;
+    serviceInputs.forEach((s: any) => {
+      if (!String(s.name || "").trim() || !s.price) return;
+      const t = getServiceLineTax(s.name, Number(s.price) * scale, s.hsn);
+      cgst += t.cgst; sgst += t.sgst; igst += t.igst;
+    });
+    return { cgst, sgst, igst, tax: cgst + sgst + igst };
+  };
+
+  // Full pharmacy tax — pharmacy is always paid in full, never split across installments
+  const pharmaTaxTotals = useMemo(() => {
+    let cgst = 0, sgst = 0, igst = 0;
+    pharmaItems.forEach((p) => {
+      const amt = p.quantity * p.unit_price;
+      if (!p.product_id || !amt) return;
+      const t = getProductLineTax(p.product_id, amt, p.inventory_id);
+      cgst += t.cgst; sgst += t.sgst; igst += t.igst;
+    });
+    return { cgst, sgst, igst, tax: cgst + sgst + igst };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [servicesSubtotal, pharmaSubtotal, recurringAmount, serviceInputs, pharmaItems, serviceTaxMap, productTaxMap]);
+  }, [pharmaItems, productTaxMap, pharmaInventory, hsnTaxes]);
+
+  // Per-installment tax + total (recurring plans) — services only
+  const installmentTax = useMemo(() => {
+    const scale = servicesSubtotal > 0 ? recurringAmount / servicesSubtotal : 0;
+    return scaledServiceTax(scale);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servicesSubtotal, recurringAmount, serviceInputs, serviceTaxMap]);
   const installmentTotal = recurringAmount + installmentTax.tax;
 
-  // Auto-fill Recurring Total Amount from services + products subtotal, and recompute per-installment amount
+  // Installments whose (editable) due date is today are invoiced/charged now
+  const dueTodayIndexes = useMemo(() => {
+    const today = new Date();
+    const out: number[] = [];
+    for (let i = 0; i < recurringCount; i++) {
+      const d = recurringDueDates[i] || addMonths(new Date(), i);
+      if (isSameDay(d, today)) out.push(i);
+    }
+    return out;
+  }, [recurringDueDates, recurringCount]);
+
+  // Auto-fill Recurring Total Amount from SERVICES subtotal only (pharmacy is paid in full)
   useEffect(() => {
     if (paymentType !== "Recurring") return;
-    const subtotal = servicesSubtotal + pharmaSubtotal;
-    if (subtotal <= 0) return;
-    setRecurringTotalAmount(subtotal);
+    if (servicesSubtotal <= 0) return;
+    setRecurringTotalAmount(servicesSubtotal);
     const c = Math.max(1, recurringCount);
-    setRecurringAmount(Math.round((subtotal / c) * 100) / 100);
+    setRecurringAmount(Math.round((servicesSubtotal / c) * 100) / 100);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentType, servicesSubtotal, pharmaSubtotal, recurringCount]);
+  }, [paymentType, servicesSubtotal, recurringCount]);
 
   // Keep "Paid" installments' collected amount in sync with the per-installment amount
   useEffect(() => {

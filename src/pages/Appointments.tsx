@@ -1448,14 +1448,14 @@ const Appointments = () => {
                   className={cn(
                     "flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border transition-all cursor-pointer",
                     isSelected
-                      ? `${STATUS_BADGE_CLASSES[s]} font-medium`
+                      ? `${badgeClasses(s)} font-medium`
                       : isFiltering
                         ? "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
                         : "border-transparent text-muted-foreground hover:bg-muted"
                   )}
                   onClick={() => setFilterStatus(prev => prev === s ? "all" : s)}
                 >
-                  <span className={cn("w-2.5 h-2.5 rounded-full", STATUS_BADGE_CLASSES[s].split(" ")[0].replace("/15", ""))} />
+                  <span className={cn("w-2.5 h-2.5 rounded-full", badgeClasses(s).split(" ")[0].replace("/15", ""))} />
                   {s}
                 </button>
               );

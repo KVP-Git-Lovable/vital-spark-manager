@@ -2143,12 +2143,50 @@ const Billing = () => {
                             <div className="col-span-5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                               <span>Tax ₹{installmentTax.tax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                               <span className="font-medium text-foreground">Total ₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                              <span className="flex items-center gap-1">
-                                <CalendarClock className="h-3 w-3" />
-                                {i === 0 && sourceAppointmentId
-                                  ? "Linked to current appointment"
-                                  : `Recurring appointment will be created on ${format(dueDate, "dd MMM yyyy")}`}
-                              </span>
+                              {i === 0 && sourceAppointmentId ? (
+                                <span className="flex items-center gap-1">
+                                  <CalendarClock className="h-3 w-3" />
+                                  Linked to current appointment
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1">
+                                  <CalendarClock className="h-3 w-3" />
+                                  Recurring appointment on
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button variant="outline" size="sm" className="h-6 px-2 text-[11px] font-medium">
+                                        {format(recurringApptDates[i] || dueDate, "dd MMM yyyy")}
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <Calendar
+                                        mode="single"
+                                        selected={recurringApptDates[i] || dueDate}
+                                        onSelect={(d) => {
+                                          if (!d) return;
+                                          const updated = [...recurringApptDates];
+                                          updated[i] = d;
+                                          setRecurringApptDates(updated);
+                                        }}
+                                        className="p-3 pointer-events-auto"
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                  {recurringApptDates[i] && (
+                                    <button
+                                      type="button"
+                                      className="underline hover:text-foreground"
+                                      onClick={() => {
+                                        const updated = [...recurringApptDates];
+                                        updated[i] = null;
+                                        setRecurringApptDates(updated);
+                                      }}
+                                    >
+                                      reset
+                                    </button>
+                                  )}
+                                </span>
+                              )}
                             </div>
                           </div>
                         );

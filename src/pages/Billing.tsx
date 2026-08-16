@@ -1663,12 +1663,30 @@ const Billing = () => {
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <Label>Services</Label>
-                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs" onClick={addServiceInput}>
-                    <Plus className="h-3 w-3 mr-1" /> Add
+              {/* Services */}
+              <div className="rounded-xl border-2 border-accent-foreground/20 bg-accent/40 p-4">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-foreground/10 text-accent-foreground">
+                      <Stethoscope className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <Label className="text-sm font-semibold">Services</Label>
+                      <p className="text-[11px] text-muted-foreground">Treatments & consultations billed with this invoice</p>
+                    </div>
+                    {serviceInputs.filter((s) => s.name?.trim()).length > 0 && (
+                      <Badge variant="secondary" className="ml-1">{serviceInputs.filter((s) => s.name?.trim()).length}</Badge>
+                    )}
+                  </div>
+                  <Button type="button" size="sm" className="h-8 text-xs shadow-sm" onClick={addServiceInput}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Service
                   </Button>
+                </div>
+                <div className="hidden sm:flex gap-2 items-center px-1 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <span className="flex-1">Service</span>
+                  <span className="w-24 shrink-0 text-right">Price (₹)</span>
+                  <span className="w-24 shrink-0">HSN</span>
+                  {serviceInputs.length > 1 && <span className="w-8 shrink-0" />}
                 </div>
                 {serviceInputs.map((s, i) => (
                   <div key={i} className="mb-2">
@@ -1721,7 +1739,7 @@ const Billing = () => {
                         onChange={(e) => updateServiceInput(i, { hsn: e.target.value })}
                       />
                       {serviceInputs.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" disabled={!!s.doctor_fee} onClick={() => removeServiceInput(i)}>✕</Button>
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0 w-8 px-0" disabled={!!s.doctor_fee} onClick={() => removeServiceInput(i)}>✕</Button>
                       )}
                     </div>
                     {s.price > 0 && (() => {

@@ -1327,7 +1327,20 @@ const Appointments = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Start Time *</Label>
-                    <Input type="time" className="mt-1.5" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                    <Input
+                      type="time"
+                      className="mt-1.5"
+                      value={startTime}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setStartTime(v);
+                        const [h, m] = v.split(":").map(Number);
+                        if (!Number.isNaN(h) && !Number.isNaN(m)) {
+                          const total = (h * 60 + m + 15) % (24 * 60);
+                          setEndTime(`${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`);
+                        }
+                      }}
+                    />
                   </div>
                   <div>
                     <Label>End Time *</Label>

@@ -278,6 +278,8 @@ const Appointments = () => {
       case "tomorrow": return { start: addDays(todayStart, 1), end: addDays(todayEnd, 1) };
       case "yesterday": return { start: addDays(todayStart, -1), end: addDays(todayEnd, -1) };
       case "this_week": return { start: startOfWeek(todayStart), end: endOfWeek(todayStart) };
+      case "last_7": return { start: addDays(todayStart, -6), end: todayEnd };
+      case "this_month": return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999) };
       default: return null;
     }
   };
@@ -294,8 +296,18 @@ const Appointments = () => {
     if (filterStatus !== "all" && apt.status !== filterStatus) return false;
     if (filterAppointmentType !== "all" && (apt.appointment_type || "Walk-in") !== filterAppointmentType) return false;
     if (searchQuery) {
+      const q = searchQuery.toLowerCase();
       const name = apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
-      if (!name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      const d = new Date(apt.start_time);
+      const dateTokens = [
+        format(d, "MMM d, yyyy"),
+        format(d, "dd/MM/yyyy"),
+        format(d, "yyyy-MM-dd"),
+        format(d, "MMMM yyyy"),
+        format(d, "h:mm a"),
+      ].join(" ").toLowerCase();
+      const haystack = `${name} ${apt.patients?.phone || ""} ${apt.service || ""} ${dateTokens}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
     }
     if (quickFilter) {
       const range = getQuickFilterRange(quickFilter);
@@ -1503,6 +1515,8 @@ const Appointments = () => {
                     { key: "today", label: "Today" },
                     { key: "tomorrow", label: "Tomorrow" },
                     { key: "this_week", label: "This Week" },
+                    { key: "last_7", label: "Last 7 Days" },
+                    { key: "this_month", label: "This Month" },
                   ].map((f) => (
                     <Button
                       key={f.key}
@@ -1525,8 +1539,9 @@ const Appointments = () => {
                   <thead>
                     <tr className="border-b bg-muted/30">
                       <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("start_time")}>
-                        <span className="flex items-center">Date & Time<SortIcon column="start_time" /></span>
+                        <span className="flex items-center">Date<SortIcon column="start_time" /></span>
                       </th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Time</th>
                       <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("patient")}>
                         <span className="flex items-center">Patient<SortIcon column="patient" /></span>
                       </th>
@@ -1564,9 +1579,11 @@ const Appointments = () => {
                                 value={editValues.start_time}
                                 onChange={(e) => setEditValues({ ...editValues, start_time: e.target.value })}
                               />
+                            </td>
+                            <td className="p-2">
                               <Input
                                 type="datetime-local"
-                                className="h-8 text-xs w-40 mt-1"
+                                className="h-8 text-xs w-40"
                                 value={editValues.end_time}
                                 onChange={(e) => setEditValues({ ...editValues, end_time: e.target.value })}
                               />
@@ -1614,7 +1631,9 @@ const Appointments = () => {
                         <tr key={apt.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors" onClick={() => setOpenModal("appointmentDetail", apt.id)}>
                           <td className="p-3">
                             <p className="font-medium">{format(new Date(apt.start_time), "MMM d, yyyy")}</p>
-                            <p className="text-xs text-muted-foreground">{format(new Date(apt.start_time), "h:mm a")} - {format(new Date(apt.end_time), "h:mm a")}</p>
+                          </td>
+                          <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
+                            {format(new Date(apt.start_time), "h:mm a")} - {format(new Date(apt.end_time), "h:mm a")}
                           </td>
                           <td className="p-3 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
                           <td className="p-3 text-muted-foreground">
@@ -1657,7 +1676,7 @@ const Appointments = () => {
                       );
                     })}
                     {sortedAppointments.length === 0 && (
-                      <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
+                      <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
                     )}
                   </tbody>
                 </table>

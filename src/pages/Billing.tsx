@@ -2195,8 +2195,9 @@ const Billing = () => {
                       {Array.from({ length: recurringCount }, (_, i) => {
                         const dueDate = recurringDueDates[i] || addMonths(new Date(), i);
                         const instStatus = recurringStatuses[i] || "Pending";
+                        const invoiceNow = !!recurringInvoiceNow[i];
                         return (
-                          <div key={i} className="grid grid-cols-[3rem_1fr_5rem_5rem_5rem] gap-2 items-center border rounded-lg p-2 bg-muted/30">
+                          <div key={i} className={cn("grid grid-cols-[3rem_1fr_5rem_5rem_5rem] gap-2 items-center border rounded-lg p-2", invoiceNow ? "border-primary/50 bg-primary/5" : "bg-muted/30")}>
                             <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
                             <Popover>
                               <PopoverTrigger asChild>

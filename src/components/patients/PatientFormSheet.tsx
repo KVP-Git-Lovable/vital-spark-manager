@@ -286,6 +286,65 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     setCustomErrors({});
   }, [open, patient, customFieldDefs]);
 
+  // Load existing family members when editing
+  useEffect(() => {
+    if (!open) return;
+    setRemovedFamilyIds([]);
+    if (!patient?.id) {
+      setFamilyRows([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("patient_family_members")
+        .select("id, name, relationship, phone, is_primary_contact, related_patient_id, related_patient:patients!patient_family_members_related_patient_id_fkey(first_name, last_name, phone)")
+        .eq("patient_id", patient.id);
+      if (cancelled) return;
+      setFamilyRows(
+        ((data as any[]) || []).map((r) => ({
+          id: r.id,
+          name: r.name || (r.related_patient ? `${r.related_patient.first_name || ""} ${r.related_patient.last_name || ""}`.trim() : ""),
+          relationship: r.relationship || "",
+          phone: r.phone || r.related_patient?.phone || "",
+          is_primary_contact: !!r.is_primary_contact,
+          linked: !!r.related_patient_id,
+        })),
+      );
+    })();
+    return () => { cancelled = true; };
+  }, [open, patient?.id]);
+
+  const updateFamilyRow = (idx: number, patch: Partial<FamilyRow>) =>
+    setFamilyRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+
+  const removeFamilyRow = (idx: number) =>
+    setFamilyRows((prev) => {
+      const row = prev[idx];
+      if (row?.id) setRemovedFamilyIds((ids) => [...ids, row.id!]);
+      return prev.filter((_, i) => i !== idx);
+    });
+
+  const saveFamilyRows = async (patientId: string) => {
+    if (removedFamilyIds.length) {
+      await supabase.from("patient_family_members").delete().in("id", removedFamilyIds);
+    }
+    const valid = familyRows.filter((r) => r.name.trim() && r.relationship);
+    for (const row of valid) {
+      const payload = {
+        name: row.name.trim(),
+        relationship: row.relationship,
+        phone: row.phone.trim() || null,
+        is_primary_contact: row.is_primary_contact,
+      };
+      if (row.id) {
+        await supabase.from("patient_family_members").update(payload).eq("id", row.id);
+      } else {
+        await supabase.from("patient_family_members").insert({ ...payload, patient_id: patientId });
+      }
+    }
+  };
+
   const handleSave = async () => {
     if (!form.first_name.trim()) {
       toast({ title: "Error", description: "First name is required", variant: "destructive" });

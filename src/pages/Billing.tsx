@@ -318,6 +318,7 @@ const Billing = () => {
 
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     queryFn: async () => {
       return await fetchAll<any>((from, to) =>
         supabase

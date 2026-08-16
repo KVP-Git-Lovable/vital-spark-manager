@@ -1084,6 +1084,14 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                 {row.linked && (
                   <p className="text-[11px] text-muted-foreground">Linked to an existing patient record.</p>
                 )}
+                {!row.linked && familyExisting[(row.phone || "").trim()] && (
+                  <p className="text-[11px] flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                    <AlertCircle className="h-3 w-3" />
+                    This family member is already an existing patient:{" "}
+                    {familyExisting[(row.phone || "").trim()].first_name}{" "}
+                    {familyExisting[(row.phone || "").trim()].last_name}
+                  </p>
+                )}
               </div>
             ))}
             <Button

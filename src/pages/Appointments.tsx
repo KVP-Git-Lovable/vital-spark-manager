@@ -77,7 +77,12 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   Confirmed: "bg-success/15 text-success border-success/30",
   Cancelled: "bg-destructive/15 text-destructive border-destructive/30",
   "Follow Up": "bg-warning/15 text-warning border-warning/30",
+  "Recurring appointment": "bg-primary/15 text-primary border-primary/30",
+  Proposed: "bg-muted text-muted-foreground border-border",
 };
+
+const badgeClasses = (status: string) =>
+  STATUS_BADGE_CLASSES[status] || STATUS_BADGE_CLASSES.Proposed;
 
 const Appointments = () => {
   const queryClient = useQueryClient();

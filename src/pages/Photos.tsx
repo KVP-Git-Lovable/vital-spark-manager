@@ -217,17 +217,7 @@ const Photos = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Photo Type *</Label>
-                  <Select value={photoType} onValueChange={(v) => setPhotoType(v as "before" | "after")}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="before">Before</SelectItem>
-                      <SelectItem value="after">After</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <Label>Linked Procedure</Label>
                   <Select value={procedureId} onValueChange={setProcedureId}>
@@ -301,14 +291,7 @@ const Photos = () => {
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by patient..." className="pl-9 bg-card border" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <div className="flex gap-2">
-          {["all", "before", "after"].map((type) => (
-            <Button key={type} variant={filterType === type ? "default" : "outline"} size="sm" className="text-xs capitalize" onClick={() => setFilterType(type)}>
-              {type === "all" ? "All" : type}
-            </Button>
-          ))}
+          <Input placeholder="Search by patient, date or month..." className="pl-9 bg-card border" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
 
@@ -334,15 +317,6 @@ const Photos = () => {
             >
               <div className="relative">
                 <img src={photo.photo_url} alt="" className="w-full h-48 object-cover" loading="lazy" />
-                <Badge
-                  className={`absolute top-2 left-2 text-[10px] ${
-                    photo.photo_type === "before"
-                      ? "bg-warning/90 text-warning-foreground"
-                      : "bg-success/90 text-success-foreground"
-                  }`}
-                >
-                  {photo.photo_type.toUpperCase()}
-                </Badge>
               </div>
               <div className="p-3">
                 <p className="font-medium text-sm truncate">{photo.patients?.first_name} {photo.patients?.last_name}</p>
@@ -366,9 +340,6 @@ const Photos = () => {
             <div className="space-y-4">
               <img src={viewPhoto.photo_url} alt="" className="w-full max-h-[60vh] object-contain rounded-lg bg-muted" />
               <div className="flex flex-wrap gap-2 items-center">
-                <Badge className={viewPhoto.photo_type === "before" ? "bg-warning/20 text-warning" : "bg-success/20 text-success"}>
-                  {viewPhoto.photo_type.toUpperCase()}
-                </Badge>
                 <span className="text-sm font-medium">{viewPhoto.patients?.first_name} {viewPhoto.patients?.last_name}</span>
                 <span className="text-xs text-muted-foreground">• {new Date(viewPhoto.taken_at).toLocaleDateString()}</span>
               </div>

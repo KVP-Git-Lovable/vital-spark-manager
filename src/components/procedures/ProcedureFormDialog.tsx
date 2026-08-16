@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -54,11 +54,15 @@ interface ProcedureFormDialogProps {
   defaultStaffId?: string | null;
   defaultServiceName?: string;
   defaultProblemAreaIds?: string[];
+  /** Render inline (full page) instead of inside a modal dialog */
+  asPage?: boolean;
+  onSaved?: (procedureId: string) => void;
 }
 
 export function ProcedureFormDialog({
   open, onOpenChange,
   defaultPatientId, defaultAppointmentId, defaultStaffId, defaultServiceName, defaultProblemAreaIds,
+  asPage = false, onSaved,
 }: ProcedureFormDialogProps) {
   const queryClient = useQueryClient();
   const [patientId, setPatientId] = useState(defaultPatientId || "");
@@ -75,6 +79,7 @@ export function ProcedureFormDialog({
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
+  const [nextAppointmentAt, setNextAppointmentAt] = useState("");
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
   const [stockMap, setStockMap] = useState<Record<number, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);

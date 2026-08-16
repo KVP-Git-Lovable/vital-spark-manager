@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { buildOrFilter, buildFuzzyOrFilter, fuzzyRank } from "@/lib/fuzzySearch";
+import { buildOrFilter, buildFuzzyOrFilter, fuzzyRank, normalize, fuzzyScore } from "@/lib/fuzzySearch";
 
 const PHONE_LIKE_NAME = /^[+\d\s()\-]{7,}$/;
 

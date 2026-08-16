@@ -2215,8 +2215,18 @@ const Billing = () => {
                               setRecurringCollected(updated);
                             }} />
                             <div className="col-span-5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                              <span>Tax ₹{installmentTax.tax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                              <span className="font-medium text-foreground">Total ₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                              {isSameDay(dueDate, new Date()) ? (
+                                <>
+                                  <span>Tax ₹{installmentTax.tax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                  <span className="font-medium text-foreground">Total ₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                  <span className="text-primary font-medium">Billed today</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>Tax at collection</span>
+                                  <span className="font-medium text-foreground">Scheduled ₹{recurringAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                </>
+                              )}
                               {i === 0 && sourceAppointmentId ? (
                                 <span className="flex items-center gap-1">
                                   <CalendarClock className="h-3 w-3" />

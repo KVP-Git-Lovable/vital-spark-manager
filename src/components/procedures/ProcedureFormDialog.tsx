@@ -531,13 +531,38 @@ export function ProcedureFormDialog({
           .eq("id", patientId);
         if (medErr) throw medErr;
       }
+
+      // Optional follow-up appointment picked by the doctor
+      if (nextAppointmentAt && patientId) {
+        const start = new Date(nextAppointmentAt);
+        const end = new Date(start.getTime() + 30 * 60 * 1000);
+        const p = (patients as any[]).find((x) => x.id === patientId);
+        const { error: aptErr } = await supabase.from("appointments").insert({
+          patient_id: patientId,
+          patient_name: p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() : null,
+          staff_id: staffId || null,
+          service: serviceName || "Follow Up",
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          status: "Reserved",
+          problem_area_ids: selectedProblemAreas.length ? selectedProblemAreas : null,
+          source: "Procedure",
+        } as any);
+        if (aptErr) throw aptErr;
+      }
       return proc;
     },
-    onSuccess: () => {
+    onSuccess: (proc: any) => {
       queryClient.invalidateQueries({ queryKey: ["procedures"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
       queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
-      toast.success("Procedure created successfully");
+      if (nextAppointmentAt) {
+        queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        toast.success("Procedure saved · Next appointment reserved");
+      } else {
+        toast.success("Procedure created successfully");
+      }
+      onSaved?.(proc?.id);
       onOpenChange(false);
     },
     onError: (err: Error) => toast.error(err.message),

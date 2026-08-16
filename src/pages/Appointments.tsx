@@ -107,7 +107,22 @@ const Appointments = () => {
   const [filterAppointmentType, setFilterAppointmentType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [quickFilter, setQuickFilter] = useState<string>("");
+  const [pinnedQuickFilter, setPinnedQuickFilter] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("appointments.pinnedQuickFilter") || "";
+  });
+  const [quickFilter, setQuickFilter] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("appointments.pinnedQuickFilter") || "";
+  });
+
+  const togglePinnedQuickFilter = (key: string) => {
+    const next = pinnedQuickFilter === key ? "" : key;
+    setPinnedQuickFilter(next);
+    if (next) localStorage.setItem("appointments.pinnedQuickFilter", next);
+    else localStorage.removeItem("appointments.pinnedQuickFilter");
+    if (next) setQuickFilter(next);
+  };
 
   // Sort state for table view
   const [sortColumn, setSortColumn] = useState<string>("start_time");

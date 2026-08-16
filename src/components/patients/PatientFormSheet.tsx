@@ -321,6 +321,57 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const updateFamilyRow = (idx: number, patch: Partial<FamilyRow>) =>
     setFamilyRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
 
+  // Duplicate patient detection by phone / email
+  useEffect(() => {
+    if (!open) return;
+    const phone = (form.phone || "").trim();
+    const email = (form.email || "").trim();
+    if (phone.length < 6 && email.length < 5) {
+      setDuplicates([]);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const filters: string[] = [];
+      if (phone.length >= 6) filters.push(`phone.ilike.%${phone}%`);
+      if (email.length >= 5) filters.push(`email.ilike.${email}`);
+      const { data } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, phone, email")
+        .or(filters.join(","))
+        .limit(5);
+      if (cancelled) return;
+      setDuplicates(((data as any[]) || []).filter((p) => p.id !== patient?.id));
+      setDuplicateAck(false);
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [open, form.phone, form.email, patient?.id]);
+
+  // Flag family members who are already existing patients
+  useEffect(() => {
+    if (!open) return;
+    const phones = familyRows.map((r) => (r.phone || "").trim()).filter((p) => p.length >= 6);
+    if (phones.length === 0) { setFamilyExisting({}); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, phone")
+        .or(phones.map((p) => `phone.ilike.%${p}%`).join(","))
+        .limit(20);
+      if (cancelled) return;
+      const map: Record<string, any> = {};
+      for (const p of phones) {
+        const hit = ((data as any[]) || []).find(
+          (row) => (row.phone || "").includes(p) && row.id !== patient?.id,
+        );
+        if (hit) map[p] = hit;
+      }
+      setFamilyExisting(map);
+    }, 500);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [open, familyRows, patient?.id]);
+
   const removeFamilyRow = (idx: number) =>
     setFamilyRows((prev) => {
       const row = prev[idx];

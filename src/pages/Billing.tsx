@@ -316,9 +316,26 @@ const Billing = () => {
     },
   });
 
+  // Appointments belonging to the invoice's patient — used to re-link an
+  // installment to a different visit of the SAME patient.
+  const linkPatientId = (viewInvoice as any)?.patient_id || null;
+  const { data: patientAppointments = [] } = useQuery({
+    queryKey: ["invoice-patient-appointments", linkPatientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("id, service, start_time, status")
+        .eq("patient_id", linkPatientId)
+        .order("start_time", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!linkPatientId,
+  });
+
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     queryFn: async () => {
       return await fetchAll<any>((from, to) =>
         supabase

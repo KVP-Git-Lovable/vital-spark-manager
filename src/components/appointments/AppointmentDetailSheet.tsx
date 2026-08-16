@@ -1064,8 +1064,81 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   )}
                 </TabsContent>
 
+                <TabsContent value="prev-appointments" className="p-6 space-y-4 mt-0">
+                  {appointment.patient_id ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold font-display">Previous Appointments</h3>
+                        <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
+                      </div>
+                      {previousAppointments.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-8">No other appointments for this patient.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {(previousAppointments as any[]).map((apt: any) => (
+                            <div
+                              key={apt.id}
+                              className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                              onClick={() => { handleClose(); navigate(`/appointments/${apt.id}`); }}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="font-medium text-sm">{apt.service}</p>
+                                <Badge variant="outline" className={`text-xs ${STATUS_BADGE_CLASSES[apt.status] || ""}`}>{apt.status}</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {format(new Date(apt.start_time), "EEE, MMM d, yyyy · h:mm a")}
+                                {apt.staff && ` · Dr. ${apt.staff.first_name} ${apt.staff.last_name}`}
+                              </p>
+                              {apt.reason_for_consultation && (
+                                <p className="text-xs mt-2 text-muted-foreground">{apt.reason_for_consultation}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">No patient linked to this appointment.</p>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="prev-procedures" className="p-6 space-y-4 mt-0">
+                  {appointment.patient_id ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold font-display">Previous Procedures</h3>
+                        <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
+                      </div>
+                      {previousProcedures.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-8">No procedures recorded for this patient.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {(previousProcedures as any[]).map((proc: any) => (
+                            <div
+                              key={proc.id}
+                              className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                              onClick={() => setSelectedProcId(proc.id)}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="font-medium text-sm">{proc.service_name}</p>
+                                <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {format(new Date(proc.procedure_date), "MMM d, yyyy")}
+                                {proc.staff && ` · Dr. ${proc.staff.first_name} ${proc.staff.last_name}`}
+                              </p>
+                              {proc.diagnosis && <p className="text-xs mt-2 text-muted-foreground">{proc.diagnosis}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">No patient linked to this appointment.</p>
+                  )}
+                </TabsContent>
+
                 <TabsContent value="billing" className="p-6 space-y-4 mt-0">
-                  {null}
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold font-display flex items-center gap-2">
                       <IndianRupee className="h-4 w-4" /> Billing

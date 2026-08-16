@@ -2722,6 +2722,30 @@ const Billing = () => {
                 <Label>Notes</Label>
                 <Textarea className="mt-1.5" value={editData.notes} onChange={(e) => setEditData({ ...editData, notes: e.target.value })} rows={2} />
               </div>
+              <div>
+                <Label>Linked Appointment</Label>
+                {linkPatientId ? (
+                  <>
+                    <Select
+                      value={editData.appointment_id || "none"}
+                      onValueChange={(v) => setEditData({ ...editData, appointment_id: v === "none" ? "" : v })}
+                    >
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select appointment" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Not linked</SelectItem>
+                        {(patientAppointments as any[]).map((a: any) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {format(new Date(a.start_time), "dd MMM yyyy, h:mm a")} · {a.service || "Visit"}{a.status ? ` · ${a.status}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground mt-1">Only appointments of {viewInvoice.patient_name || "this patient"} are listed.</p>
+                  </>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground mt-1.5">This invoice has no patient record linked, so appointments cannot be listed.</p>
+                )}
+              </div>
               <div className="flex gap-2">
                 <Button className="flex-1" onClick={() => updateInvoice.mutate()} disabled={updateInvoice.isPending}>
                   {updateInvoice.isPending ? "Saving..." : "Save Changes"}

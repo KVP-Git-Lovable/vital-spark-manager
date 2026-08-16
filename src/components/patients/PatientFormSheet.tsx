@@ -406,6 +406,15 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     }
 
     const cfErrors = validateCustomFields(customFieldDefs, customValues);
+    if (!isEditing && duplicates.length > 0 && !duplicateAck) {
+      setDuplicateAck(true);
+      toast({
+        title: "Possible duplicate patient",
+        description: `${duplicates.length} existing patient(s) match this phone/email. Press Save again to create anyway.`,
+        variant: "destructive",
+      });
+      return;
+    }
     setCustomErrors(cfErrors);
     if (Object.keys(cfErrors).length) {
       toast({ title: "Validation failed", description: String(Object.values(cfErrors)[0]), variant: "destructive" });

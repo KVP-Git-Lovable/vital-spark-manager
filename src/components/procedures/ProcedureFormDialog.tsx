@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -53,17 +53,20 @@ interface ProcedureFormDialogProps {
   defaultAppointmentId?: string;
   defaultStaffId?: string | null;
   defaultServiceName?: string;
+  defaultProblemAreaIds?: string[];
 }
 
 export function ProcedureFormDialog({
   open, onOpenChange,
-  defaultPatientId, defaultAppointmentId, defaultStaffId, defaultServiceName,
+  defaultPatientId, defaultAppointmentId, defaultStaffId, defaultServiceName, defaultProblemAreaIds,
 }: ProcedureFormDialogProps) {
   const queryClient = useQueryClient();
   const [patientId, setPatientId] = useState(defaultPatientId || "");
   const [staffId, setStaffId] = useState(defaultStaffId || "");
   const [assistedBy, setAssistedBy] = useState("");
-  const [selectedProblemAreas, setSelectedProblemAreas] = useState<string[]>([]);
+  const [selectedProblemAreas, setSelectedProblemAreas] = useState<string[]>(defaultProblemAreaIds || []);
+  const [medical, setMedical] = useState<Record<string, string>>({});
+  const [medicalDirty, setMedicalDirty] = useState(false);
   const [appointmentId] = useState(defaultAppointmentId || "");
   const [serviceId, setServiceId] = useState("");
   const [serviceName, setServiceName] = useState(defaultServiceName || "");
@@ -310,11 +313,56 @@ export function ProcedureFormDialog({
     },
   });
 
+  // Patient medical snapshot — editable here and synced back to the patient record
+  const { data: patientRecord } = useQuery({
+    queryKey: ["procedure-form-patient", patientId],
+    enabled: !!patientId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select("id, medical_history, current_medications, allergies, skin_type, skin_concerns, previous_treatments")
+        .eq("id", patientId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (!patientRecord) return;
+    setMedical({
+      medical_history: patientRecord.medical_history || "",
+      current_medications: patientRecord.current_medications || "",
+      allergies: patientRecord.allergies || "",
+      skin_type: patientRecord.skin_type || "",
+      skin_concerns: patientRecord.skin_concerns || "",
+      previous_treatments: patientRecord.previous_treatments || "",
+    });
+    setMedicalDirty(false);
+  }, [patientRecord]);
+
+  // Surveys already filled for this patient (most recent first)
+  const { data: patientSurveys = [] } = useQuery({
+    queryKey: ["procedure-form-surveys", patientId, defaultAppointmentId],
+    enabled: !!patientId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("survey_responses")
+        .select("id, created_at, dr_status, answers, ai_summary, appointment_id, survey_templates(name)")
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: allStaff = [] } = useQuery({
     queryKey: ["staff-active-all-for-ai"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff")
+
         .select("id, first_name, last_name, role")
         .eq("is_active", true);
       if (error) throw error;
@@ -444,6 +492,7 @@ export function ProcedureFormDialog({
       if (error) throw error;
 
       if (prescriptions.length > 0) {
+
         const rxRows = prescriptions
           .filter((rx) => rx.medicine_name || rx.product_id)
           .map((rx) => ({
@@ -461,11 +510,28 @@ export function ProcedureFormDialog({
           if (rxErr) throw rxErr;
         }
       }
+
+      // Sync any edits to the patient's medical information back to the patient record
+      if (medicalDirty && patientId) {
+        const { error: medErr } = await supabase
+          .from("patients")
+          .update({
+            medical_history: medical.medical_history || null,
+            current_medications: medical.current_medications || null,
+            allergies: medical.allergies || null,
+            skin_type: medical.skin_type || null,
+            skin_concerns: medical.skin_concerns || null,
+            previous_treatments: medical.previous_treatments || null,
+          })
+          .eq("id", patientId);
+        if (medErr) throw medErr;
+      }
       return proc;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["procedures"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
+      queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
       toast.success("Procedure created successfully");
       onOpenChange(false);
     },
@@ -693,6 +759,76 @@ export function ProcedureFormDialog({
             <Textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)} placeholder="e.g. Redness, itching, dry patches..." className={`mt-1.5 transition-all ${recentlyFilled.symptoms ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />
           </div>
 
+          {/* Surveys filled before this procedure */}
+          {patientSurveys.length > 0 && (
+            <div className="rounded-lg border border-accent/40 bg-accent/10 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Surveys filled by this patient</span>
+              </div>
+              {patientSurveys.map((s: any) => {
+                const answers = Array.isArray(s.answers) ? s.answers : [];
+                return (
+                  <div key={s.id} className="rounded-md border bg-background p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium">
+                        {s.survey_templates?.name || "Survey"}
+                        {s.appointment_id && defaultAppointmentId && s.appointment_id === defaultAppointmentId && (
+                          <span className="ml-2 text-[10px] uppercase tracking-wide text-primary">this visit</span>
+                        )}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {new Date(s.created_at).toLocaleDateString()} · {s.dr_status || "pending"}
+                      </span>
+                    </div>
+                    {s.ai_summary && <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">{s.ai_summary}</p>}
+                    {answers.length > 0 && (
+                      <ul className="mt-1.5 space-y-0.5">
+                        {answers.slice(0, 6).map((a: any, idx: number) => (
+                          <li key={idx} className="text-xs">
+                            <span className="text-muted-foreground">{a.question || a.question_text || `Q${idx + 1}`}: </span>
+                            <span className="font-medium">{Array.isArray(a.answer) ? a.answer.join(", ") : String(a.answer ?? "—")}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Patient medical information */}
+          {patientId && (
+            <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <HeartPulse className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Medical Information</span>
+                <span className="text-[11px] text-muted-foreground">(saved back to the patient record)</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {([
+                  ["medical_history", "Medical History"],
+                  ["current_medications", "Current Medications"],
+                  ["allergies", "Allergies"],
+                  ["previous_treatments", "Previous Treatments"],
+                  ["skin_type", "Skin Type"],
+                  ["skin_concerns", "Skin Concerns"],
+                ] as [string, string][]).map(([field, label]) => (
+                  <div key={field}>
+                    <Label className="text-xs text-muted-foreground">{label}</Label>
+                    <Textarea
+                      rows={2}
+                      className="mt-1 text-sm"
+                      value={medical[field] || ""}
+                      onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <Label>Diagnosis</Label>
             <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Patient diagnosis..." className={`mt-1.5 transition-all ${recentlyFilled.diagnosis ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />
@@ -709,17 +845,17 @@ export function ProcedureFormDialog({
           </div>
 
           {/* Prescriptions */}
-          <div className="border-t pt-4">
+          <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4">
             <div className="flex items-center justify-between mb-3">
-              <Label className="text-base font-display font-semibold flex items-center gap-2">
-                <Pill className="h-4 w-4" /> Prescriptions
+              <Label className="text-base font-display font-semibold flex items-center gap-2 text-primary">
+                <Pill className="h-4 w-4" /> Pharmacy — Prescriptions
               </Label>
               <Button type="button" variant="outline" size="sm" onClick={addPrescription}>
                 <Plus className="h-3 w-3 mr-1" /> Add Medicine
               </Button>
             </div>
             {prescriptions.map((rx, i) => (
-              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-muted/30">
+              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-background">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Medicine {i + 1}</span>
                   <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removePrescription(i)}>Remove</Button>
@@ -769,7 +905,7 @@ export function ProcedureFormDialog({
           </div>
 
           {/* Required Assets */}
-          <div className="border-t pt-4">
+          <div className="rounded-lg border-2 border-accent/50 bg-accent/10 p-4">
             <div className="flex items-center justify-between mb-3">
               <Label className="text-base font-display font-semibold flex items-center gap-2">
                 <Wrench className="h-4 w-4" /> Required Assets
@@ -782,7 +918,7 @@ export function ProcedureFormDialog({
               <p className="text-xs text-muted-foreground mb-2">No assets linked. Select a service to auto-populate or add manually.</p>
             )}
             {procedureAssets.map((asset, i) => (
-              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-muted/30">
+              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-background">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Asset {i + 1}</span>
                   <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeAsset(i)}>Remove</Button>

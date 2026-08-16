@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { shortPatientId } from "@/lib/utils";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound, Megaphone, Search } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound, Megaphone, Search, Sparkles } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
@@ -86,6 +86,7 @@ const PatientDetail = () => {
   const [otpCopied, setOtpCopied] = useState(false);
   const [procedureFormOpen, setProcedureFormOpen] = useState(false);
   const [detailsEditing, setDetailsEditing] = useState(false);
+  const [elaboratingField, setElaboratingField] = useState<string | null>(null);
   const [detailsForm, setDetailsForm] = useState<any>(null);
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [addRxOpen, setAddRxOpen] = useState(false);
@@ -762,9 +763,54 @@ const PatientDetail = () => {
                 </div>
               );
 
-              const TextareaField = ({ label, value, field }: { label: string; value: any; field: string }) => (
+              const elaborate = async (field: string, label: string, currentText: string) => {
+                if (!currentText?.trim()) {
+                  toast.message("Add a few words first", { description: `Type a short note in ${label} and AI will complete it.` });
+                  return;
+                }
+                setElaboratingField(field);
+                try {
+                  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elaborate-text`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                    },
+                    body: JSON.stringify({
+                      serviceName: `Dermatology patient record — ${label}`,
+                      fieldType: "symptoms",
+                      currentText,
+                    }),
+                  });
+                  if (!res.ok) throw new Error("AI request failed");
+                  const { text } = await res.json();
+                  if (text) upd(field, text);
+                  toast.success("Text elaborated");
+                } catch (e: any) {
+                  toast.error(e.message || "Failed to elaborate");
+                } finally {
+                  setElaboratingField(null);
+                }
+              };
+
+              const TextareaField = ({ label, value, field, ai }: { label: string; value: any; field: string; ai?: boolean }) => (
                 <div>
-                  <Label className="text-xs text-muted-foreground">{label}</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-xs text-muted-foreground">{label}</Label>
+                    {ai && !readOnly && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[11px] gap-1 text-primary hover:text-primary"
+                        disabled={elaboratingField === field}
+                        onClick={() => elaborate(field, label, value || "")}
+                      >
+                        {elaboratingField === field ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                        Elaborate with AI
+                      </Button>
+                    )}
+                  </div>
                   {readOnly ? (
                     <p className="text-sm mt-1 whitespace-pre-wrap">{value || <span className="text-muted-foreground/50">—</span>}</p>
                   ) : (
@@ -857,9 +903,9 @@ const PatientDetail = () => {
                       </div>
                     </div>
                     <div className="space-y-4">
-                      <TextareaField label="Medical History" value={d.medical_history} field="medical_history" />
-                      <TextareaField label="Current Medications" value={d.current_medications} field="current_medications" />
-                      <TextareaField label="Allergies" value={d.allergies} field="allergies" />
+                      <TextareaField label="Medical History" value={d.medical_history} field="medical_history" ai />
+                      <TextareaField label="Current Medications" value={d.current_medications} field="current_medications" ai />
+                      <TextareaField label="Allergies" value={d.allergies} field="allergies" ai />
                     </div>
                   </div>
 
@@ -882,8 +928,8 @@ const PatientDetail = () => {
                       </div>
                     </div>
                     <div className="space-y-4">
-                      <TextareaField label="Skin Concerns" value={d.skin_concerns} field="skin_concerns" />
-                      <TextareaField label="Previous Treatments" value={d.previous_treatments} field="previous_treatments" />
+                      <TextareaField label="Skin Concerns" value={d.skin_concerns} field="skin_concerns" ai />
+                      <TextareaField label="Previous Treatments" value={d.previous_treatments} field="previous_treatments" ai />
                     </div>
                   </div>
 
@@ -938,7 +984,7 @@ const PatientDetail = () => {
         <TabsContent value="appointments">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex justify-end mb-3">
-              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setQuickApptOpen(true)}>
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate(`/appointments?new=1&patient_id=${id}`)}>
                 <Plus className="h-3.5 w-3.5" /> Book Appointment
               </Button>
             </div>

@@ -236,7 +236,7 @@ const Appointments = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("survey_templates")
-        .select("id, name")
+        .select("id, name, service_id, problem_area_id")
         .eq("is_active", true)
         .eq("approval_status", "approved")
         .order("name");
@@ -245,6 +245,22 @@ const Appointments = () => {
     },
     enabled: open,
   });
+
+  // Auto-propose a survey based on the selected service / primary concern.
+  const [autoSurveyName, setAutoSurveyName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    if (assignSurveyTemplateId || fillNowSurveyTemplateId) return;
+    if (!activeSurveyTemplates.length) return;
+    const match =
+      (serviceId && (activeSurveyTemplates as any[]).find((t) => t.service_id === serviceId)) ||
+      (selectedProblemAreas.length > 0 &&
+        (activeSurveyTemplates as any[]).find((t) => t.problem_area_id && selectedProblemAreas.includes(t.problem_area_id)));
+    if (match) {
+      setAssignSurveyTemplateId(match.id);
+      setAutoSurveyName(match.name);
+    }
+  }, [open, serviceId, selectedProblemAreas, activeSurveyTemplates, assignSurveyTemplateId, fillNowSurveyTemplateId]);
 
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments"],
@@ -734,6 +750,7 @@ const Appointments = () => {
     setSelectedProblemAreas([]);
     setAssignSurveyTemplateId("");
     setFillNowSurveyTemplateId("");
+    setAutoSurveyName(null);
   };
 
   // Calendar navigation
@@ -1183,11 +1200,103 @@ const Appointments = () => {
                     </div>
                 </div>
 
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <Label>Date *</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full mt-1.5 justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                          <span className="truncate">{startDate ? format(startDate, "PP") : "Pick a date"}</span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={startDate} onSelect={setStartDate} disabled={disablePastDates} initialFocus className={cn("p-3 pointer-events-auto")} />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div>
+                    <Label>Start Time *</Label>
+                    <Input
+                      type="time"
+                      className="mt-1.5"
+                      value={startTime}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setStartTime(v);
+                        const [h, m] = v.split(":").map(Number);
+                        if (!Number.isNaN(h) && !Number.isNaN(m)) {
+                          const total = (h * 60 + m + 15) % (24 * 60);
+                          setEndTime(`${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`);
+                        }
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label>End Time *</Label>
+                    <Input type="time" className="mt-1.5" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Repeat className="h-4 w-4 text-muted-foreground" />
+                      <Label className="font-display font-semibold">Recurring Appointment</Label>
+                    </div>
+                    <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
+                  </div>
+                  {isRecurring && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-4 space-y-4 overflow-hidden">
+                      <div>
+                        <Label>Repeat Pattern</Label>
+                        <Select value={recurrencePattern} onValueChange={setRecurrencePattern}>
+                          <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="biweekly">Biweekly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Repeat Until *</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className={cn("w-full mt-1.5 justify-start text-left font-normal", !recurrenceEndDate && "text-muted-foreground")}>
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {recurrenceEndDate ? format(recurrenceEndDate, "PPP") : "Select end date"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar mode="single" selected={recurrenceEndDate} onSelect={setRecurrenceEndDate} disabled={(date) => date < (startDate || new Date())} initialFocus className={cn("p-3 pointer-events-auto")} />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      {startDate && recurrenceEndDate && (
+                        <div className="bg-muted/50 rounded-lg p-3">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Preview</p>
+                          <p className="text-sm">
+                            {generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate).length} appointments
+                            <span className="text-muted-foreground"> ({recurrencePattern}, {format(startDate, "MMM d")} to {format(recurrenceEndDate, "MMM d, yyyy")})</span>
+                          </p>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </div>
+
                 {/* Survey (optional) */}
                 <div className="rounded-md border bg-muted/20 p-3 space-y-3">
                   <Label className="flex items-center gap-1.5">
                     <ClipboardCheck className="h-3.5 w-3.5" /> Survey <span className="text-xs font-normal text-muted-foreground">(optional)</span>
                   </Label>
+                  {autoSurveyName && (assignSurveyTemplateId || fillNowSurveyTemplateId) && (
+                    <p className="text-xs text-primary">
+                      Suggested from the selected service / primary concern: <span className="font-medium">{autoSurveyName}</span>
+                    </p>
+                  )}
                   {(() => {
                     const selectedTemplateId = assignSurveyTemplateId || fillNowSurveyTemplateId || "";
                     const setSelectedTemplate = (id: string) => {
@@ -1307,93 +1416,6 @@ const Appointments = () => {
                       </>
                     );
                   })()}
-                </div>
-
-                <div>
-                  <Label>Date *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-full mt-1.5 justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {startDate ? format(startDate, "PPP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={startDate} onSelect={setStartDate} disabled={disablePastDates} initialFocus className={cn("p-3 pointer-events-auto")} />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Start Time *</Label>
-                    <Input
-                      type="time"
-                      className="mt-1.5"
-                      value={startTime}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setStartTime(v);
-                        const [h, m] = v.split(":").map(Number);
-                        if (!Number.isNaN(h) && !Number.isNaN(m)) {
-                          const total = (h * 60 + m + 15) % (24 * 60);
-                          setEndTime(`${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`);
-                        }
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <Label>End Time *</Label>
-                    <Input type="time" className="mt-1.5" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Repeat className="h-4 w-4 text-muted-foreground" />
-                      <Label className="font-display font-semibold">Recurring Appointment</Label>
-                    </div>
-                    <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
-                  </div>
-                  {isRecurring && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-4 space-y-4 overflow-hidden">
-                      <div>
-                        <Label>Repeat Pattern</Label>
-                        <Select value={recurrencePattern} onValueChange={setRecurrencePattern}>
-                          <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="biweekly">Biweekly</SelectItem>
-                            <SelectItem value="monthly">Monthly</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Repeat Until *</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" className={cn("w-full mt-1.5 justify-start text-left font-normal", !recurrenceEndDate && "text-muted-foreground")}>
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {recurrenceEndDate ? format(recurrenceEndDate, "PPP") : "Select end date"}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" selected={recurrenceEndDate} onSelect={setRecurrenceEndDate} disabled={(date) => date < (startDate || new Date())} initialFocus className={cn("p-3 pointer-events-auto")} />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      {startDate && recurrenceEndDate && (
-                        <div className="bg-muted/50 rounded-lg p-3">
-                          <p className="text-xs font-medium text-muted-foreground mb-1">Preview</p>
-                          <p className="text-sm">
-                            {generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate).length} appointments
-                            <span className="text-muted-foreground"> ({recurrencePattern}, {format(startDate, "MMM d")} to {format(recurrenceEndDate, "MMM d, yyyy")})</span>
-                          </p>
-                        </div>
-                      )}
-                    </motion.div>
-                  )}
                 </div>
 
                 <Button className="w-full" onClick={() => createAppointment.mutate()} disabled={!startDate || (isRecurring && !recurrenceEndDate) || createAppointment.isPending}>

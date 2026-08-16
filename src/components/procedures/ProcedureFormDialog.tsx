@@ -318,6 +318,7 @@ export function ProcedureFormDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff")
+
         .select("id, first_name, last_name, role")
         .eq("is_active", true);
       if (error) throw error;

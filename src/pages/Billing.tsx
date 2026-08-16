@@ -814,16 +814,14 @@ const Billing = () => {
   }, [servicesSubtotal, recurringAmount, serviceInputs, serviceTaxMap]);
   const installmentTotal = recurringAmount + installmentTax.tax;
 
-  // Installments whose (editable) due date is today are invoiced/charged now
+  // Installments explicitly ticked "Invoice now" are billed on this invoice
   const dueTodayIndexes = useMemo(() => {
-    const today = new Date();
     const out: number[] = [];
     for (let i = 0; i < recurringCount; i++) {
-      const d = recurringDueDates[i] || addMonths(new Date(), i);
-      if (isSameDay(d, today)) out.push(i);
+      if (recurringInvoiceNow[i]) out.push(i);
     }
     return out;
-  }, [recurringDueDates, recurringCount]);
+  }, [recurringInvoiceNow, recurringCount]);
 
   // Auto-fill Recurring Total Amount from SERVICES subtotal only (pharmacy is paid in full)
   useEffect(() => {

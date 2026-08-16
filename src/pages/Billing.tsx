@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
 import { StatCard } from "@/components/dashboard/StatCard";
 import {
@@ -54,6 +55,15 @@ const statusStyles: Record<string, string> = {
   Pending: "bg-destructive/10 text-destructive",
   Overdue: "bg-destructive/10 text-destructive",
 };
+
+/** Money is always shown rounded to whole rupees (no decimals). */
+const money = (n: number) =>
+  `₹${Math.round(Number(n) || 0).toLocaleString("en-IN")}`;
+/** Tax rates keep their decimals (e.g. 2.5%). */
+const rateLabel = (n: number) =>
+  `${Math.round((Number(n) || 0) * 100) / 100}`;
+/** Number input helper: 0 shows as an empty field with a "0" watermark. */
+const numVal = (n: number | undefined | null) => (n ? String(n) : "");
 
 // ─── PDF Generation ───────────────────────────────
 const generateInvoicePDF = (inv: any) => {
@@ -267,6 +277,8 @@ const Billing = () => {
   // Per-installment appointment date (auto-follows the due date unless overridden)
   const [recurringApptDates, setRecurringApptDates] = useState<(Date | null)[]>([]);
   const [recurringStatuses, setRecurringStatuses] = useState<string[]>(["Pending"]);
+  // Per-installment "Invoice now" tick — ticked installments are billed on this invoice
+  const [recurringInvoiceNow, setRecurringInvoiceNow] = useState<boolean[]>([true]);
   // Appointment this invoice originated from (installment #1 links to it)
   const [sourceAppointmentId, setSourceAppointmentId] = useState<string | null>(null);
   const [serviceSearchOpen, setServiceSearchOpen] = useState<number | null>(null);
@@ -290,6 +302,11 @@ const Billing = () => {
     setRecurringStatuses((prev) => {
       const arr = [...prev];
       while (arr.length < c) arr.push("Pending");
+      return arr.slice(0, c);
+    });
+    setRecurringInvoiceNow((prev) => {
+      const arr = [...prev];
+      while (arr.length < c) arr.push(false);
       return arr.slice(0, c);
     });
     if (recurringTotalAmount > 0) {
@@ -797,16 +814,14 @@ const Billing = () => {
   }, [servicesSubtotal, recurringAmount, serviceInputs, serviceTaxMap]);
   const installmentTotal = recurringAmount + installmentTax.tax;
 
-  // Installments whose (editable) due date is today are invoiced/charged now
+  // Installments explicitly ticked "Invoice now" are billed on this invoice
   const dueTodayIndexes = useMemo(() => {
-    const today = new Date();
     const out: number[] = [];
     for (let i = 0; i < recurringCount; i++) {
-      const d = recurringDueDates[i] || addMonths(new Date(), i);
-      if (isSameDay(d, today)) out.push(i);
+      if (recurringInvoiceNow[i]) out.push(i);
     }
     return out;
-  }, [recurringDueDates, recurringCount]);
+  }, [recurringInvoiceNow, recurringCount]);
 
   // Auto-fill Recurring Total Amount from SERVICES subtotal only (pharmacy is paid in full)
   useEffect(() => {
@@ -1018,11 +1033,9 @@ const Billing = () => {
         const t = aggregateLineTax(serviceInputs, [], svcScale);
         const pharmaT = aggregateLineTax([], pharmaItems, 1);
         const totalPerInst = recurringAmount + t.tax_amount;
-        const todayDate = new Date();
         const dueTodayIdx: number[] = [];
         for (let i = 0; i < recurringCount; i++) {
-          const d = recurringDueDates[i] || addMonths(new Date(), i);
-          if (isSameDay(d, todayDate)) dueTodayIdx.push(i);
+          if (recurringInvoiceNow[i]) dueTodayIdx.push(i);
         }
         const pharmaHostIdx = dueTodayIdx.length > 0 ? dueTodayIdx[0] : 0;
         const groupId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`) as string;
@@ -1501,6 +1514,7 @@ const Billing = () => {
     setRecurringDueDates([new Date()]);
     setRecurringApptDates([]);
     setRecurringStatuses(["Pending"]);
+    setRecurringInvoiceNow([true]);
     setSourceAppointmentId(null);
     setServiceSearchOpen(null);
   };
@@ -1821,13 +1835,24 @@ const Billing = () => {
                       return (
                         <div className="text-xs text-muted-foreground text-right pr-7 mt-0.5">
                           {lineTax.rate > 0
-                            ? `IGST ${((lineTax.igst / (s.price || 1)) * 100).toFixed(0)}% + CGST ${((lineTax.cgst / (s.price || 1)) * 100).toFixed(0)}% = Tax (${lineTax.rate}%): ₹${lineTax.taxAmount.toFixed(2)}`
+                            ? `IGST ${rateLabel((lineTax.igst / (s.price || 1)) * 100)}% + CGST ${rateLabel((lineTax.cgst / (s.price || 1)) * 100)}% = Tax (${rateLabel(lineTax.rate)}%): ${money(lineTax.taxAmount)}`
                             : "No tax"}
                         </div>
                       );
                     })()}
                   </div>
                 ))}
+                {servicesSubtotal > 0 && (
+                  <div className="mt-2 flex items-center justify-between rounded-lg border border-accent-foreground/20 bg-background/70 px-3 py-2">
+                    <span className="text-xs font-medium text-muted-foreground">Services total</span>
+                    <span className="text-sm font-semibold">
+                      {money(servicesSubtotal)}
+                      <span className="ml-2 text-[11px] font-normal text-muted-foreground">
+                        incl. tax {money(servicesSubtotal + lineTaxRows.filter((r) => r.kind === "Service").reduce((s, r) => s + r.tax, 0))}
+                      </span>
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Pharma Products */}
@@ -1910,19 +1935,19 @@ const Billing = () => {
                       </div>
                       <div>
                         <Label className="text-xs">Qty</Label>
-                        <Input type="number" className="mt-1 h-8" min={1} max={item.inventory_id ? item.available : undefined} value={item.quantity} onChange={(e) => updatePharmaItem(idx, "quantity", parseFloat(e.target.value) || 1)} />
+                        <Input type="number" className="mt-1 h-8" placeholder="0" min={1} max={item.inventory_id ? item.available : undefined} value={numVal(item.quantity)} onChange={(e) => updatePharmaItem(idx, "quantity", parseFloat(e.target.value) || 0)} />
                         {item.inventory_id && (
                           <p className="text-[10px] text-muted-foreground mt-0.5">{fmtQty(item.available)} {item.uom} available</p>
                         )}
                       </div>
                       <div>
                         <Label className="text-xs">Price / {item.uom || "unit"} (₹)</Label>
-                        <Input type="number" className="mt-1 h-8" value={item.unit_price} onChange={(e) => updatePharmaItem(idx, "unit_price", parseFloat(e.target.value) || 0)} />
+                        <Input type="number" className="mt-1 h-8" placeholder="0" value={numVal(item.unit_price)} onChange={(e) => updatePharmaItem(idx, "unit_price", parseFloat(e.target.value) || 0)} />
                       </div>
                       <div className="flex items-end justify-end">
                         <div className="flex flex-col items-end">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">₹{(item.quantity * item.unit_price).toFixed(2)}</span>
+                            <span className="text-sm font-medium">{money(item.quantity * item.unit_price)}</span>
                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removePharmaItem(idx)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -1934,7 +1959,7 @@ const Billing = () => {
                               <span className="text-xs text-muted-foreground mt-0.5 pr-9">
                                 {hsn ? `HSN ${hsn} · ` : ""}
                                 {lineTax.rate > 0
-                                  ? `Tax (${lineTax.rate}%): ₹${lineTax.taxAmount.toFixed(2)}`
+                                  ? `Tax (${rateLabel(lineTax.rate)}%): ${money(lineTax.taxAmount)}`
                                   : "No tax"}
                               </span>
                             );
@@ -1946,7 +1971,7 @@ const Billing = () => {
                 ))}
                 {pharmaItems.length > 0 && (
                   <div className="text-right text-sm font-semibold text-foreground">
-                    Products subtotal: ₹{pharmaSubtotal.toLocaleString()}
+                    Products subtotal: {money(pharmaSubtotal)}
                   </div>
                 )}
               </div>
@@ -2060,11 +2085,11 @@ const Billing = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Services Subtotal (₹)</Label>
-                      <Input type="number" className="mt-1.5 bg-muted" value={servicesSubtotal} readOnly />
+                      <Input type="number" className="mt-1.5 bg-muted" placeholder="0" value={numVal(Math.round(servicesSubtotal))} readOnly />
                     </div>
                     <div>
                       <Label>Paid Amount (₹)</Label>
-                      <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
+                      <Input type="number" className="mt-1.5" placeholder="0" value={numVal(paidAmount)} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
                   {((servicesSubtotal + pharmaSubtotal) > 0) && (() => {
@@ -2082,24 +2107,22 @@ const Billing = () => {
                               <div key={r.key} className="flex justify-between gap-2 px-2 py-1.5 text-[11px] border-b last:border-b-0">
                                 <span className="min-w-0 truncate">
                                   {r.name}
-                                  <span className="text-muted-foreground"> · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}{(r.igst > 0 || r.cgst > 0) ? ` (IGST ₹${r.igst.toFixed(2)} + CGST ₹${r.cgst.toFixed(2)})` : ""}</span>
+                                  <span className="text-muted-foreground"> · {r.rate > 0 ? `GST ${rateLabel(r.rate)}%` : "No tax"}</span>
                                 </span>
-                                <span className="tabular-nums whitespace-nowrap">₹{r.amount.toFixed(0)} + ₹{r.tax.toFixed(2)} = <strong>₹{(r.amount + r.tax).toFixed(2)}</strong></span>
+                                <span className="tabular-nums whitespace-nowrap">{money(r.amount)} + {money(r.tax)} = <strong>{money(r.amount + r.tax)}</strong></span>
                               </div>
                             ))}
                           </div>
                         )}
                         {servicesSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal (tax ₹{lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal (tax {money(lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0))})</span><span>{money(servicesSubtotal)}</span></div>
                         )}
                         {pharmaSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Products Subtotal (tax ₹{lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Products Subtotal (tax {money(lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0))})</span><span>{money(pharmaSubtotal)}</span></div>
                         )}
-                        <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
-                        {totalCgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{totalCgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                        {totalSgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>₹{totalSgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                        {totalIgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{totalIgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                        <div className="flex justify-between font-semibold text-primary border-t pt-1 mt-1"><span>Grand Total</span><span>₹{(subtotal + totalTax).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{money(subtotal)}</span></div>
+                        {totalTax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Total tax</span><span>{money(totalTax)}</span></div>}
+                        <div className="flex justify-between font-semibold text-primary border-t pt-1 mt-1"><span>Grand Total</span><span>{money(subtotal + totalTax)}</span></div>
                       </div>
                     );
                   })()}
@@ -2125,19 +2148,19 @@ const Billing = () => {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <Label className="text-xs text-muted-foreground">Amount (₹)</Label>
-                          <Input type="number" className="mt-1 h-8" value={stage.amount} onChange={(e) => updateStage(i, "amount", parseFloat(e.target.value) || 0)} />
+                          <Input type="number" className="mt-1 h-8" placeholder="0" value={numVal(stage.amount)} onChange={(e) => updateStage(i, "amount", parseFloat(e.target.value) || 0)} />
                         </div>
                         <div>
                           <Label className="text-xs text-muted-foreground">Collected (₹)</Label>
-                          <Input type="number" className="mt-1 h-8" value={stage.paid} onChange={(e) => updateStage(i, "paid", parseFloat(e.target.value) || 0)} />
+                          <Input type="number" className="mt-1 h-8" placeholder="0" value={numVal(stage.paid)} onChange={(e) => updateStage(i, "paid", parseFloat(e.target.value) || 0)} />
                         </div>
                       </div>
                     </div>
                   ))}
                   <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Total across stages</span><span className="font-semibold">₹{stagedTotal.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{stagedPaid.toLocaleString()}</span></div>
-                    <div className="flex justify-between text-primary font-semibold"><span>Balance</span><span>₹{(stagedTotal - stagedPaid).toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Total across stages</span><span className="font-semibold">{money(stagedTotal)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>{money(stagedPaid)}</span></div>
+                    <div className="flex justify-between text-primary font-semibold"><span>Balance</span><span>{money(stagedTotal - stagedPaid)}</span></div>
                     <p className="text-xs text-muted-foreground mt-1">{stages.length} invoice(s) will be created</p>
                   </div>
                 </div>
@@ -2148,16 +2171,16 @@ const Billing = () => {
                   <Label className="font-display font-semibold">Recurring Installments</Label>
                   <div>
                     <Label className="text-xs text-muted-foreground">Total Amount (₹) *</Label>
-                    <Input type="number" className="mt-1" value={recurringTotalAmount} onChange={(e) => handleRecurringTotalChange(parseFloat(e.target.value) || 0)} />
+                    <Input type="number" className="mt-1" placeholder="0" value={numVal(recurringTotalAmount)} onChange={(e) => handleRecurringTotalChange(parseFloat(e.target.value) || 0)} />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs text-muted-foreground"># of Installments *</Label>
-                      <Input type="number" className="mt-1" min={1} value={recurringCount} onChange={(e) => handleRecurringCountChange(parseInt(e.target.value) || 1)} />
+                      <Input type="number" className="mt-1" placeholder="0" min={1} value={numVal(recurringCount)} onChange={(e) => handleRecurringCountChange(parseInt(e.target.value) || 1)} />
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Amount per Installment (₹) *</Label>
-                      <Input type="number" className="mt-1" value={recurringAmount} onChange={(e) => setRecurringAmount(parseFloat(e.target.value) || 0)} />
+                      <Input type="number" className="mt-1" placeholder="0" value={numVal(recurringAmount)} onChange={(e) => setRecurringAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
                   {recurringCount > 0 && (
@@ -2172,8 +2195,9 @@ const Billing = () => {
                       {Array.from({ length: recurringCount }, (_, i) => {
                         const dueDate = recurringDueDates[i] || addMonths(new Date(), i);
                         const instStatus = recurringStatuses[i] || "Pending";
+                        const invoiceNow = !!recurringInvoiceNow[i];
                         return (
-                          <div key={i} className="grid grid-cols-[3rem_1fr_5rem_5rem_5rem] gap-2 items-center border rounded-lg p-2 bg-muted/30">
+                          <div key={i} className={cn("grid grid-cols-[3rem_1fr_5rem_5rem_5rem] gap-2 items-center border rounded-lg p-2", invoiceNow ? "border-primary/50 bg-primary/5" : "bg-muted/30")}>
                             <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
                             <Popover>
                               <PopoverTrigger asChild>
@@ -2191,7 +2215,7 @@ const Billing = () => {
                                 }} className="p-3 pointer-events-auto" />
                               </PopoverContent>
                             </Popover>
-                            <span className="text-xs text-right">₹{recurringAmount.toLocaleString()}</span>
+                            <span className="text-xs text-right">{money(recurringAmount)}</span>
                             <Select value={instStatus} onValueChange={(v) => {
                               const updated = [...recurringStatuses];
                               updated[i] = v;
@@ -2209,22 +2233,33 @@ const Billing = () => {
                                 {["Pending", "Paid", "Partial", "Overdue"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                               </SelectContent>
                             </Select>
-                            <Input type="number" className="h-7 text-xs" placeholder="0" disabled={instStatus === "Paid"} value={instStatus === "Paid" ? recurringAmount : (recurringCollected[i] || 0)} onChange={(e) => {
+                            <Input type="number" className="h-7 text-xs" placeholder="0" disabled={instStatus === "Paid"} value={instStatus === "Paid" ? numVal(recurringAmount) : numVal(recurringCollected[i])} onChange={(e) => {
                               const updated = [...recurringCollected];
                               updated[i] = parseFloat(e.target.value) || 0;
                               setRecurringCollected(updated);
                             }} />
+                            <label className="col-span-5 flex items-center gap-2 text-[11px] font-medium cursor-pointer">
+                              <Checkbox
+                                checked={invoiceNow}
+                                onCheckedChange={(c) => {
+                                  const updated = [...recurringInvoiceNow];
+                                  updated[i] = !!c;
+                                  setRecurringInvoiceNow(updated);
+                                }}
+                              />
+                              <span className={invoiceNow ? "text-primary" : "text-muted-foreground"}>Invoice now</span>
+                            </label>
                             <div className="col-span-5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                              {isSameDay(dueDate, new Date()) ? (
+                              {invoiceNow ? (
                                 <>
-                                  <span>Tax ₹{installmentTax.tax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                                  <span className="font-medium text-foreground">Total ₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                                  <span className="text-primary font-medium">Billed today</span>
+                                  <span>Tax {money(installmentTax.tax)}</span>
+                                  <span className="font-medium text-foreground">Total {money(installmentTotal)}</span>
+                                  <span className="text-primary font-medium">Billed now</span>
                                 </>
                               ) : (
                                 <>
-                                  <span>Tax at collection</span>
-                                  <span className="font-medium text-foreground">Scheduled ₹{recurringAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                  <span>Pay later · tax at collection</span>
+                                  <span className="font-medium text-foreground">Scheduled {money(recurringAmount)}</span>
                                 </>
                               )}
                               {i === 0 && sourceAppointmentId ? (
@@ -2278,22 +2313,10 @@ const Billing = () => {
                     </div>
                   )}
                   <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Installment 1 of {recurringCount}</span><span>₹{recurringAmount.toLocaleString()}</span></div>
-                    {installmentTax.cgst > 0 && (
-                      <>
-                        <div className="flex justify-between text-xs"><span className="text-muted-foreground">CGST</span><span>₹{installmentTax.cgst.toFixed(2)}</span></div>
-                        <div className="flex justify-between text-xs"><span className="text-muted-foreground">SGST</span><span>₹{installmentTax.sgst.toFixed(2)}</span></div>
-                      </>
-                    )}
-                    {installmentTax.igst > 0 && (
-                      <div className="flex justify-between text-xs"><span className="text-muted-foreground">IGST</span><span>₹{installmentTax.igst.toFixed(2)}</span></div>
-                    )}
-                    <div className="flex justify-between text-primary font-semibold border-t pt-1"><span>Payable now (incl. tax)</span><span>₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                    <div className="flex justify-between pt-1"><span className="text-muted-foreground">Scheduled later ({recurringCount - 1} × ₹{recurringAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}, tax at collection)</span><span>₹{(recurringAmount * Math.max(0, recurringCount - 1)).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Plan total</span><span className="font-semibold">₹{(installmentTotal + recurringAmount * Math.max(0, recurringCount - 1)).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{recurringPaidTotal.toLocaleString()}</span></div>
-                    <div className="flex justify-between font-semibold"><span>Balance</span><span>₹{(installmentTotal + recurringAmount * Math.max(0, recurringCount - 1) - recurringPaidTotal).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                    <p className="text-xs text-muted-foreground mt-1">1 invoice (taxed now) + {Math.max(0, recurringCount - 1)} scheduled amount(s), and {sourceAppointmentId ? recurringCount - 1 : recurringCount} recurring appointment(s) will be created</p>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Ticked "Invoice now"</span><span className="font-semibold">{dueTodayIndexes.length} of {recurringCount}</span></div>
+                    <div className="flex justify-between text-primary font-semibold"><span>Installments billed now (incl. tax)</span><span>{money(dueTodayIndexes.length * installmentTotal)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Pay later ({Math.max(0, recurringCount - dueTodayIndexes.length)} × {money(recurringAmount)})</span><span>{money(recurringAmount * Math.max(0, recurringCount - dueTodayIndexes.length))}</span></div>
+                    <p className="text-xs text-muted-foreground mt-1">Tick "Invoice now" on the installments you want billed on this invoice.</p>
                   </div>
                 </div>
               )}
@@ -2328,20 +2351,19 @@ const Billing = () => {
                         <span className="min-w-0">
                           <span className="block truncate font-medium">{r.name}</span>
                           <span className="block text-[10px] text-muted-foreground">
-                            {r.kind}{r.qty > 1 ? ` · x${r.qty}` : ""}{r.hsn ? ` · HSN ${r.hsn}` : ""} · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}
-                            {(r.igst > 0 || r.cgst > 0) ? ` · IGST ₹${r.igst.toFixed(2)} + CGST ₹${r.cgst.toFixed(2)}` : ""}
+                            {r.kind}{r.qty > 1 ? ` · x${r.qty}` : ""}{r.hsn ? ` · HSN ${r.hsn}` : ""} · {r.rate > 0 ? `GST ${rateLabel(r.rate)}%` : "No tax"}
                           </span>
                         </span>
-                        <span className="text-right tabular-nums">₹{r.amount.toFixed(0)}</span>
-                        <span className="text-right tabular-nums">₹{r.tax.toFixed(2)}</span>
-                        <span className="text-right tabular-nums font-medium">₹{(r.amount + r.tax).toFixed(2)}</span>
+                        <span className="text-right tabular-nums">{money(r.amount)}</span>
+                        <span className="text-right tabular-nums">{money(r.tax)}</span>
+                        <span className="text-right tabular-nums font-medium">{money(r.amount + r.tax)}</span>
                       </div>
                     ))}
                     <div className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[11px] border-t bg-muted/40 font-semibold">
                       <span>Services + Pharmacy</span>
-                      <span className="text-right tabular-nums">₹{(servicesSubtotal + pharmaSubtotal).toFixed(0)}</span>
-                      <span className="text-right tabular-nums">₹{lineTaxRows.reduce((s, r) => s + r.tax, 0).toFixed(2)}</span>
-                      <span className="text-right tabular-nums">₹{(servicesSubtotal + pharmaSubtotal + lineTaxRows.reduce((s, r) => s + r.tax, 0)).toFixed(2)}</span>
+                      <span className="text-right tabular-nums">{money(servicesSubtotal + pharmaSubtotal)}</span>
+                      <span className="text-right tabular-nums">{money(lineTaxRows.reduce((s, r) => s + r.tax, 0))}</span>
+                      <span className="text-right tabular-nums">{money(servicesSubtotal + pharmaSubtotal + lineTaxRows.reduce((s, r) => s + r.tax, 0))}</span>
                     </div>
                   </div>
                 )}
@@ -2349,9 +2371,9 @@ const Billing = () => {
                   if (paymentType === "Staged") {
                     return (
                       <div className="space-y-1">
-                        <div className="flex justify-between"><span className="text-muted-foreground">Total across stages</span><span className="font-semibold">₹{stagedTotal.toLocaleString()}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{stagedPaid.toLocaleString()}</span></div>
-                        <div className="flex justify-between text-primary font-semibold border-t pt-2 mt-2"><span>Balance</span><span>₹{(stagedTotal - stagedPaid).toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Total across stages</span><span className="font-semibold">{money(stagedTotal)}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>{money(stagedPaid)}</span></div>
+                        <div className="flex justify-between text-primary font-semibold border-t pt-2 mt-2"><span>Balance</span><span>{money(stagedTotal - stagedPaid)}</span></div>
                         <p className="text-xs text-muted-foreground mt-1">{stages.length} invoice(s) will be created</p>
                       </div>
                     );
@@ -2364,26 +2386,24 @@ const Billing = () => {
                     const payableNow = svcNow + svcTaxNow + pharmaNow;
                     const scheduledLater = recurringAmount * Math.max(0, recurringCount - dueTodayCount);
                     return (
-                      <div className="space-y-1">
-                        <p className="text-[11px] text-muted-foreground">Installments cover services only (₹{servicesSubtotal.toLocaleString()}); pharmacy is charged in full.</p>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Installments due today ({dueTodayCount} × ₹{recurringAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })})</span><span>₹{svcNow.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        {svcTaxNow > 0 && (
-                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Service tax (today)</span><span>₹{svcTaxNow.toFixed(2)}</span></div>
-                        )}
-                        {pharmaSubtotal > 0 && (
-                          <>
-                            <div className="flex justify-between"><span className="text-muted-foreground">Pharmacy (full)</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
-                            {pharmaTaxTotals.tax > 0 && (
-                              <div className="flex justify-between text-xs"><span className="text-muted-foreground">Pharmacy tax</span><span>₹{pharmaTaxTotals.tax.toFixed(2)}</span></div>
-                            )}
-                          </>
-                        )}
-                        <div className="flex justify-between text-primary font-semibold border-t pt-2 mt-2"><span>Payable now (incl. tax)</span><span>₹{payableNow.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between pt-1"><span className="text-muted-foreground">Scheduled later ({Math.max(0, recurringCount - dueTodayCount)} × ₹{recurringAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}, tax at collection)</span><span>₹{scheduledLater.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Plan total</span><span className="font-semibold">₹{(payableNow + scheduledLater).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{recurringPaidTotal.toLocaleString()}</span></div>
-                        <div className="flex justify-between font-semibold"><span>Balance</span><span>₹{(payableNow + scheduledLater - recurringPaidTotal).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        <p className="text-xs text-muted-foreground mt-1">{dueTodayCount} invoice(s) taxed today + {Math.max(0, recurringCount - dueTodayCount)} scheduled amount(s), and {sourceAppointmentId ? recurringCount - 1 : recurringCount} recurring appointment(s) will be created</p>
+                      <div className="space-y-3">
+                        {/* PAY NOW */}
+                        <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 space-y-1">
+                          <p className="text-[10px] uppercase tracking-wide font-semibold text-primary">Pay now</p>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Installments ticked ({dueTodayCount})</span><span>{money(svcNow + svcTaxNow)}</span></div>
+                          {pharmaSubtotal > 0 && (
+                            <div className="flex justify-between"><span className="text-muted-foreground">Pharmacy (full, incl. tax)</span><span>{money(pharmaNow)}</span></div>
+                          )}
+                          <div className="flex justify-between text-primary font-semibold border-t border-primary/20 pt-1.5 mt-1.5 text-base"><span>Total payable now</span><span>{money(payableNow)}</span></div>
+                        </div>
+                        {/* PAY LATER */}
+                        <div className="rounded-lg border border-dashed bg-muted/40 p-3 space-y-1">
+                          <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Pay later — subsequent visits</p>
+                          <div className="flex justify-between"><span className="text-muted-foreground">{Math.max(0, recurringCount - dueTodayCount)} installment(s) × {money(recurringAmount)}</span><span className="font-semibold">{money(scheduledLater)}</span></div>
+                          <p className="text-[11px] text-muted-foreground">Tax is applied at the time of collection.</p>
+                        </div>
+                        <div className="flex justify-between text-xs"><span className="text-muted-foreground">Plan total (services + pharmacy)</span><span className="font-semibold">{money(payableNow + scheduledLater)}</span></div>
+                        <p className="text-[11px] text-muted-foreground">Installments cover services only ({money(servicesSubtotal)}); pharmacy is billed in full on this invoice.</p>
                       </div>
                     );
                   }
@@ -2398,25 +2418,23 @@ const Billing = () => {
                   return (
                     <div className="space-y-1">
                       {servicesSubtotal > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Services (tax ₹{lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Services (tax {money(lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0))})</span><span>{money(servicesSubtotal)}</span></div>
                       )}
                       {pharmaSubtotal > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Products (tax ₹{lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Products (tax {money(lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0))})</span><span>{money(pharmaSubtotal)}</span></div>
                       )}
-                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
-                      {totalCgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{totalCgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                      {totalSgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>₹{totalSgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                      {totalIgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{totalIgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                      <div className="flex justify-between font-semibold text-primary border-t pt-2 mt-2"><span>Grand Total</span><span>₹{grand.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{money(subtotal)}</span></div>
+                      {totalTax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Total tax (CGST+SGST+IGST)</span><span>{money(totalTax)}</span></div>}
+                      <div className="flex justify-between font-semibold text-primary border-t pt-2 mt-2"><span>Grand Total</span><span>{money(grand)}</span></div>
                       <div className="pt-2 mt-2 border-t space-y-2">
                         <div>
                           <Label className="text-xs">Paid Amount (₹)</Label>
-                          <Input type="number" className="mt-1 h-9" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
+                          <Input type="number" className="mt-1 h-9" placeholder="0" value={numVal(paidAmount)} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Balance Due</span>
                           <span className={balance > 0 ? "text-destructive font-medium" : "text-primary font-medium"}>
-                            ₹{balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            {money(balance)}
                           </span>
                         </div>
                       </div>

@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { buildOrFilter, buildFuzzyOrFilter, fuzzyRank } from "@/lib/fuzzySearch";
+import { buildOrFilter, buildFuzzyOrFilter, fuzzyRank, normalize, fuzzyScore } from "@/lib/fuzzySearch";
 
 const PHONE_LIKE_NAME = /^[+\d\s()\-]{7,}$/;
 
@@ -160,9 +160,28 @@ export function PatientCombobox({
   };
 
   const sorted = useMemo(() => {
-    // Sort order: named patients first (alphabetical by name),
-    // then unnamed/phone-only patients at the bottom (sorted by phone).
+    const q = normalize(debounced);
+    // Relevance rank: exact full-name match, then full-name prefix,
+    // then any word prefix, then substring, then fuzzy similarity.
+    const rank = (p: PatientLite) => {
+      if (!q) return 5;
+      const name = normalize(getRawName(p));
+      const phone = (p.phone || "").replace(/\D/g, "");
+      if (name === q) return 0;
+      if (name.startsWith(q)) return 1;
+      if (name.split(" ").some((w) => w.startsWith(q))) return 2;
+      if (name.includes(q) || (phone && phone.includes(q.replace(/\D/g, "")))) return 3;
+      return 4;
+    };
     return [...list].sort((a, b) => {
+      if (q) {
+        const ra = rank(a);
+        const rb = rank(b);
+        if (ra !== rb) return ra - rb;
+        const sa = fuzzyScore(q, getRawName(a));
+        const sb = fuzzyScore(q, getRawName(b));
+        if (sa !== sb) return sb - sa;
+      }
       const an = hasMeaningfulName(a);
       const bn = hasMeaningfulName(b);
       if (an !== bn) return an ? -1 : 1;
@@ -173,7 +192,7 @@ export function PatientCombobox({
         sensitivity: "base",
       });
     });
-  }, [list]);
+  }, [list, debounced]);
 
   const selected = selectedPatient || sorted.find((p) => p.id === value);
   const isLoading = debounced ? searching : loadingInitial;

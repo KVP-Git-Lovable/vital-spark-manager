@@ -729,7 +729,10 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             </div>
 
             <div>
-              <Label>Medical History</Label>
+              <div className="flex items-center justify-between">
+                <Label>Medical History</Label>
+                <ElaborateButton field="medical_history" label="Medical History" />
+              </div>
               <Textarea
                 value={form.medical_history || ""}
                 onChange={(e) => updateField("medical_history", e.target.value)}
@@ -740,7 +743,10 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             </div>
 
             <div>
-              <Label>Current Medications</Label>
+              <div className="flex items-center justify-between">
+                <Label>Current Medications</Label>
+                <ElaborateButton field="current_medications" label="Current Medications" />
+              </div>
               <Textarea
                 value={form.current_medications || ""}
                 onChange={(e) => updateField("current_medications", e.target.value)}
@@ -751,7 +757,10 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             </div>
 
             <div>
-              <Label>Allergies</Label>
+              <div className="flex items-center justify-between">
+                <Label>Allergies</Label>
+                <ElaborateButton field="allergies" label="Allergies" />
+              </div>
               <Textarea
                 value={form.allergies || ""}
                 onChange={(e) => updateField("allergies", e.target.value)}
@@ -761,7 +770,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               />
             </div>
 
-            <Collapsible className="border border-primary/30 rounded-md overflow-hidden">
+            <Collapsible defaultOpen className="border border-primary/30 rounded-md overflow-hidden">
               <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-semibold text-primary bg-primary/5 hover:bg-primary/10 [&[data-state=open]>svg]:rotate-180">
                 Dermatology
                 <ChevronDown className="h-4 w-4 transition-transform" />
@@ -786,7 +795,10 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                   </div>
 
                   <div>
-                    <Label>Skin Concerns</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Skin Concerns</Label>
+                      <ElaborateButton field="skin_concerns" label="Skin Concerns" />
+                    </div>
                     <Textarea
                       value={form.skin_concerns || ""}
                       onChange={(e) => updateField("skin_concerns", e.target.value)}
@@ -797,7 +809,10 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                   </div>
 
                   <div>
-                    <Label>Previous Treatments</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Previous Treatments</Label>
+                      <ElaborateButton field="previous_treatments" label="Previous Treatments" />
+                    </div>
                     <Textarea
                       value={form.previous_treatments || ""}
                       onChange={(e) => updateField("previous_treatments", e.target.value)}

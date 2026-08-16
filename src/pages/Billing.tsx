@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
 import { StatCard } from "@/components/dashboard/StatCard";
 import {
@@ -54,6 +55,15 @@ const statusStyles: Record<string, string> = {
   Pending: "bg-destructive/10 text-destructive",
   Overdue: "bg-destructive/10 text-destructive",
 };
+
+/** Money is always shown rounded to whole rupees (no decimals). */
+const money = (n: number) =>
+  `₹${Math.round(Number(n) || 0).toLocaleString("en-IN")}`;
+/** Tax rates keep their decimals (e.g. 2.5%). */
+const rateLabel = (n: number) =>
+  `${Math.round((Number(n) || 0) * 100) / 100}`;
+/** Number input helper: 0 shows as an empty field with a "0" watermark. */
+const numVal = (n: number | undefined | null) => (n ? String(n) : "");
 
 // ─── PDF Generation ───────────────────────────────
 const generateInvoicePDF = (inv: any) => {

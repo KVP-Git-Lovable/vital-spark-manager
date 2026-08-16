@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useModal } from "@/hooks/useModal";
-import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, Pin } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,7 +77,12 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   Confirmed: "bg-success/15 text-success border-success/30",
   Cancelled: "bg-destructive/15 text-destructive border-destructive/30",
   "Follow Up": "bg-warning/15 text-warning border-warning/30",
+  "Recurring appointment": "bg-primary/15 text-primary border-primary/30",
+  Proposed: "bg-muted text-muted-foreground border-border",
 };
+
+const badgeClasses = (status: string) =>
+  STATUS_BADGE_CLASSES[status] || STATUS_BADGE_CLASSES.Proposed;
 
 const Appointments = () => {
   const queryClient = useQueryClient();
@@ -102,7 +107,22 @@ const Appointments = () => {
   const [filterAppointmentType, setFilterAppointmentType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [quickFilter, setQuickFilter] = useState<string>("");
+  const [pinnedQuickFilter, setPinnedQuickFilter] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("appointments.pinnedQuickFilter") || "";
+  });
+  const [quickFilter, setQuickFilter] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("appointments.pinnedQuickFilter") || "";
+  });
+
+  const togglePinnedQuickFilter = (key: string) => {
+    const next = pinnedQuickFilter === key ? "" : key;
+    setPinnedQuickFilter(next);
+    if (next) localStorage.setItem("appointments.pinnedQuickFilter", next);
+    else localStorage.removeItem("appointments.pinnedQuickFilter");
+    if (next) setQuickFilter(next);
+  };
 
   // Sort state for table view
   const [sortColumn, setSortColumn] = useState<string>("start_time");
@@ -1443,14 +1463,14 @@ const Appointments = () => {
                   className={cn(
                     "flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border transition-all cursor-pointer",
                     isSelected
-                      ? `${STATUS_BADGE_CLASSES[s]} font-medium`
+                      ? `${badgeClasses(s)} font-medium`
                       : isFiltering
                         ? "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
                         : "border-transparent text-muted-foreground hover:bg-muted"
                   )}
                   onClick={() => setFilterStatus(prev => prev === s ? "all" : s)}
                 >
-                  <span className={cn("w-2.5 h-2.5 rounded-full", STATUS_BADGE_CLASSES[s].split(" ")[0].replace("/15", ""))} />
+                  <span className={cn("w-2.5 h-2.5 rounded-full", badgeClasses(s).split(" ")[0].replace("/15", ""))} />
                   {s}
                 </button>
               );
@@ -1518,15 +1538,26 @@ const Appointments = () => {
                     { key: "last_7", label: "Last 7 Days" },
                     { key: "this_month", label: "This Month" },
                   ].map((f) => (
-                    <Button
-                      key={f.key}
-                      variant={quickFilter === f.key ? "default" : "outline"}
-                      size="sm"
-                      className="h-7 text-xs px-3"
-                      onClick={() => setQuickFilter(quickFilter === f.key ? "" : f.key)}
-                    >
-                      {f.label}
-                    </Button>
+                    <div key={f.key} className="flex items-center">
+                      <Button
+                        variant={quickFilter === f.key ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 text-xs px-3 rounded-r-none"
+                        onClick={() => setQuickFilter(quickFilter === f.key ? "" : f.key)}
+                      >
+                        {f.label}
+                      </Button>
+                      <Button
+                        variant={quickFilter === f.key ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 px-1.5 rounded-l-none border-l-0"
+                        title={pinnedQuickFilter === f.key ? "Unpin default filter" : "Pin as default filter"}
+                        aria-label={pinnedQuickFilter === f.key ? `Unpin ${f.label}` : `Pin ${f.label}`}
+                        onClick={() => togglePinnedQuickFilter(f.key)}
+                      >
+                        <Pin className={cn("h-3 w-3", pinnedQuickFilter === f.key ? "fill-current" : "opacity-50")} />
+                      </Button>
+                    </div>
                   ))}
                   {quickFilter && (
                     <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setQuickFilter("")}>

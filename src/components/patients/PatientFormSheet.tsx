@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
-import { X, Search, Check, ChevronsUpDown } from "lucide-react";
+import { X, Search, Check, ChevronsUpDown, Plus, Trash2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,21 @@ import { Sparkles, Loader2 } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
+
+const FAMILY_RELATIONSHIPS = [
+  "Spouse", "Father", "Mother", "Son", "Daughter",
+  "Brother", "Sister", "Grandfather", "Grandmother",
+  "Uncle", "Aunt", "Cousin", "Friend", "In-Law", "Other",
+];
+
+type FamilyRow = {
+  id?: string;
+  name: string;
+  relationship: string;
+  phone: string;
+  is_primary_contact: boolean;
+  linked: boolean;
+};
 
 interface PatientFormSheetProps {
   open: boolean;
@@ -91,6 +106,8 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [selectedReferralPatientName, setSelectedReferralPatientName] = useState("");
   const [refDocOpen, setRefDocOpen] = useState(false);
   const [refDocSearch, setRefDocSearch] = useState("");
+  const [familyRows, setFamilyRows] = useState<FamilyRow[]>([]);
+  const [removedFamilyIds, setRemovedFamilyIds] = useState<string[]>([]);
   const { toast } = useToast();
   const isEditing = !!patient;
 
@@ -269,6 +286,65 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     setCustomErrors({});
   }, [open, patient, customFieldDefs]);
 
+  // Load existing family members when editing
+  useEffect(() => {
+    if (!open) return;
+    setRemovedFamilyIds([]);
+    if (!patient?.id) {
+      setFamilyRows([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("patient_family_members")
+        .select("id, name, relationship, phone, is_primary_contact, related_patient_id, related_patient:patients!patient_family_members_related_patient_id_fkey(first_name, last_name, phone)")
+        .eq("patient_id", patient.id);
+      if (cancelled) return;
+      setFamilyRows(
+        ((data as any[]) || []).map((r) => ({
+          id: r.id,
+          name: r.name || (r.related_patient ? `${r.related_patient.first_name || ""} ${r.related_patient.last_name || ""}`.trim() : ""),
+          relationship: r.relationship || "",
+          phone: r.phone || r.related_patient?.phone || "",
+          is_primary_contact: !!r.is_primary_contact,
+          linked: !!r.related_patient_id,
+        })),
+      );
+    })();
+    return () => { cancelled = true; };
+  }, [open, patient?.id]);
+
+  const updateFamilyRow = (idx: number, patch: Partial<FamilyRow>) =>
+    setFamilyRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+
+  const removeFamilyRow = (idx: number) =>
+    setFamilyRows((prev) => {
+      const row = prev[idx];
+      if (row?.id) setRemovedFamilyIds((ids) => [...ids, row.id!]);
+      return prev.filter((_, i) => i !== idx);
+    });
+
+  const saveFamilyRows = async (patientId: string) => {
+    if (removedFamilyIds.length) {
+      await supabase.from("patient_family_members").delete().in("id", removedFamilyIds);
+    }
+    const valid = familyRows.filter((r) => r.name.trim() && r.relationship);
+    for (const row of valid) {
+      const payload = {
+        name: row.name.trim(),
+        relationship: row.relationship,
+        phone: row.phone.trim() || null,
+        is_primary_contact: row.is_primary_contact,
+      };
+      if (row.id) {
+        await supabase.from("patient_family_members").update(payload).eq("id", row.id);
+      } else {
+        await supabase.from("patient_family_members").insert({ ...payload, patient_id: patientId });
+      }
+    }
+  };
+
   const handleSave = async () => {
     if (!form.first_name.trim()) {
       toast({ title: "Error", description: "First name is required", variant: "destructive" });
@@ -335,6 +411,10 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             .eq("patient_id", patientId)
             .in("campaign_id", toRemove);
         }
+      }
+
+      if (patientId) {
+        await saveFamilyRows(patientId);
       }
 
       onSuccess();
@@ -868,6 +948,79 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             </div>
           </TabsContent>
         </Tabs>
+
+        <Collapsible defaultOpen className="mt-6 border rounded-md">
+          <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium hover:bg-muted/50 [&[data-state=open]>svg]:rotate-180">
+            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> Family Details</span>
+            <ChevronDown className="h-4 w-4 transition-transform" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="p-3 space-y-3 border-t">
+            {familyRows.length === 0 && (
+              <p className="text-xs text-muted-foreground">No family members added yet.</p>
+            )}
+            {familyRows.map((row, idx) => (
+              <div key={row.id || `new-${idx}`} className="rounded-md border p-3 space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Name</Label>
+                    <Input
+                      value={row.name}
+                      disabled={row.linked}
+                      onChange={(e) => updateFamilyRow(idx, { name: e.target.value })}
+                      placeholder="Family member name"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Relationship</Label>
+                    <Select value={row.relationship} onValueChange={(v) => updateFamilyRow(idx, { relationship: v })}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select relationship" /></SelectTrigger>
+                      <SelectContent>
+                        {FAMILY_RELATIONSHIPS.map((r) => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Phone</Label>
+                    <Input
+                      value={row.phone}
+                      onChange={(e) => updateFamilyRow(idx, { phone: e.target.value })}
+                      placeholder="Phone number"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="flex items-end justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`fam-primary-${idx}`}
+                        checked={row.is_primary_contact}
+                        onCheckedChange={(c) => updateFamilyRow(idx, { is_primary_contact: !!c })}
+                      />
+                      <Label htmlFor={`fam-primary-${idx}`} className="text-sm cursor-pointer">Primary contact</Label>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => removeFamilyRow(idx)} aria-label="Remove family member">
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+                {row.linked && (
+                  <p className="text-[11px] text-muted-foreground">Linked to an existing patient record.</p>
+                )}
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setFamilyRows((prev) => [...prev, { name: "", relationship: "", phone: "", is_primary_contact: false, linked: false }])}
+            >
+              <Plus className="h-3.5 w-3.5" /> Add Family Member
+            </Button>
+          </CollapsibleContent>
+        </Collapsible>
 
         <div className="mt-6 pt-4 border-t">
           <Label htmlFor="patient-notes">Notes</Label>

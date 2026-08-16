@@ -750,6 +750,7 @@ const Appointments = () => {
     setSelectedProblemAreas([]);
     setAssignSurveyTemplateId("");
     setFillNowSurveyTemplateId("");
+    setAutoSurveyName(null);
   };
 
   // Calendar navigation

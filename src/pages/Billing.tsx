@@ -2171,16 +2171,16 @@ const Billing = () => {
                   <Label className="font-display font-semibold">Recurring Installments</Label>
                   <div>
                     <Label className="text-xs text-muted-foreground">Total Amount (₹) *</Label>
-                    <Input type="number" className="mt-1" value={recurringTotalAmount} onChange={(e) => handleRecurringTotalChange(parseFloat(e.target.value) || 0)} />
+                    <Input type="number" className="mt-1" placeholder="0" value={numVal(recurringTotalAmount)} onChange={(e) => handleRecurringTotalChange(parseFloat(e.target.value) || 0)} />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs text-muted-foreground"># of Installments *</Label>
-                      <Input type="number" className="mt-1" min={1} value={recurringCount} onChange={(e) => handleRecurringCountChange(parseInt(e.target.value) || 1)} />
+                      <Input type="number" className="mt-1" placeholder="0" min={1} value={numVal(recurringCount)} onChange={(e) => handleRecurringCountChange(parseInt(e.target.value) || 1)} />
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Amount per Installment (₹) *</Label>
-                      <Input type="number" className="mt-1" value={recurringAmount} onChange={(e) => setRecurringAmount(parseFloat(e.target.value) || 0)} />
+                      <Input type="number" className="mt-1" placeholder="0" value={numVal(recurringAmount)} onChange={(e) => setRecurringAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
                   {recurringCount > 0 && (

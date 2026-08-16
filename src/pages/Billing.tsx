@@ -1835,13 +1835,24 @@ const Billing = () => {
                       return (
                         <div className="text-xs text-muted-foreground text-right pr-7 mt-0.5">
                           {lineTax.rate > 0
-                            ? `IGST ${((lineTax.igst / (s.price || 1)) * 100).toFixed(0)}% + CGST ${((lineTax.cgst / (s.price || 1)) * 100).toFixed(0)}% = Tax (${lineTax.rate}%): ₹${lineTax.taxAmount.toFixed(2)}`
+                            ? `IGST ${rateLabel((lineTax.igst / (s.price || 1)) * 100)}% + CGST ${rateLabel((lineTax.cgst / (s.price || 1)) * 100)}% = Tax (${rateLabel(lineTax.rate)}%): ${money(lineTax.taxAmount)}`
                             : "No tax"}
                         </div>
                       );
                     })()}
                   </div>
                 ))}
+                {servicesSubtotal > 0 && (
+                  <div className="mt-2 flex items-center justify-between rounded-lg border border-accent-foreground/20 bg-background/70 px-3 py-2">
+                    <span className="text-xs font-medium text-muted-foreground">Services total</span>
+                    <span className="text-sm font-semibold">
+                      {money(servicesSubtotal)}
+                      <span className="ml-2 text-[11px] font-normal text-muted-foreground">
+                        incl. tax {money(servicesSubtotal + lineTaxRows.filter((r) => r.kind === "Service").reduce((s, r) => s + r.tax, 0))}
+                      </span>
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Pharma Products */}

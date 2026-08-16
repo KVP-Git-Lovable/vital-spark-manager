@@ -2215,7 +2215,7 @@ const Billing = () => {
                                 }} className="p-3 pointer-events-auto" />
                               </PopoverContent>
                             </Popover>
-                            <span className="text-xs text-right">₹{recurringAmount.toLocaleString()}</span>
+                            <span className="text-xs text-right">{money(recurringAmount)}</span>
                             <Select value={instStatus} onValueChange={(v) => {
                               const updated = [...recurringStatuses];
                               updated[i] = v;
@@ -2233,22 +2233,33 @@ const Billing = () => {
                                 {["Pending", "Paid", "Partial", "Overdue"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                               </SelectContent>
                             </Select>
-                            <Input type="number" className="h-7 text-xs" placeholder="0" disabled={instStatus === "Paid"} value={instStatus === "Paid" ? recurringAmount : (recurringCollected[i] || 0)} onChange={(e) => {
+                            <Input type="number" className="h-7 text-xs" placeholder="0" disabled={instStatus === "Paid"} value={instStatus === "Paid" ? numVal(recurringAmount) : numVal(recurringCollected[i])} onChange={(e) => {
                               const updated = [...recurringCollected];
                               updated[i] = parseFloat(e.target.value) || 0;
                               setRecurringCollected(updated);
                             }} />
+                            <label className="col-span-5 flex items-center gap-2 text-[11px] font-medium cursor-pointer">
+                              <Checkbox
+                                checked={invoiceNow}
+                                onCheckedChange={(c) => {
+                                  const updated = [...recurringInvoiceNow];
+                                  updated[i] = !!c;
+                                  setRecurringInvoiceNow(updated);
+                                }}
+                              />
+                              <span className={invoiceNow ? "text-primary" : "text-muted-foreground"}>Invoice now</span>
+                            </label>
                             <div className="col-span-5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                              {isSameDay(dueDate, new Date()) ? (
+                              {invoiceNow ? (
                                 <>
-                                  <span>Tax ₹{installmentTax.tax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                                  <span className="font-medium text-foreground">Total ₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                                  <span className="text-primary font-medium">Billed today</span>
+                                  <span>Tax {money(installmentTax.tax)}</span>
+                                  <span className="font-medium text-foreground">Total {money(installmentTotal)}</span>
+                                  <span className="text-primary font-medium">Billed now</span>
                                 </>
                               ) : (
                                 <>
-                                  <span>Tax at collection</span>
-                                  <span className="font-medium text-foreground">Scheduled ₹{recurringAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                  <span>Pay later · tax at collection</span>
+                                  <span className="font-medium text-foreground">Scheduled {money(recurringAmount)}</span>
                                 </>
                               )}
                               {i === 0 && sourceAppointmentId ? (

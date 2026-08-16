@@ -2085,11 +2085,11 @@ const Billing = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Services Subtotal (₹)</Label>
-                      <Input type="number" className="mt-1.5 bg-muted" value={servicesSubtotal} readOnly />
+                      <Input type="number" className="mt-1.5 bg-muted" placeholder="0" value={numVal(Math.round(servicesSubtotal))} readOnly />
                     </div>
                     <div>
                       <Label>Paid Amount (₹)</Label>
-                      <Input type="number" className="mt-1.5" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
+                      <Input type="number" className="mt-1.5" placeholder="0" value={numVal(paidAmount)} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
                   {((servicesSubtotal + pharmaSubtotal) > 0) && (() => {
@@ -2107,24 +2107,22 @@ const Billing = () => {
                               <div key={r.key} className="flex justify-between gap-2 px-2 py-1.5 text-[11px] border-b last:border-b-0">
                                 <span className="min-w-0 truncate">
                                   {r.name}
-                                  <span className="text-muted-foreground"> · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}{(r.igst > 0 || r.cgst > 0) ? ` (IGST ₹${r.igst.toFixed(2)} + CGST ₹${r.cgst.toFixed(2)})` : ""}</span>
+                                  <span className="text-muted-foreground"> · {r.rate > 0 ? `GST ${rateLabel(r.rate)}%` : "No tax"}</span>
                                 </span>
-                                <span className="tabular-nums whitespace-nowrap">₹{r.amount.toFixed(0)} + ₹{r.tax.toFixed(2)} = <strong>₹{(r.amount + r.tax).toFixed(2)}</strong></span>
+                                <span className="tabular-nums whitespace-nowrap">{money(r.amount)} + {money(r.tax)} = <strong>{money(r.amount + r.tax)}</strong></span>
                               </div>
                             ))}
                           </div>
                         )}
                         {servicesSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal (tax ₹{lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal (tax {money(lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0))})</span><span>{money(servicesSubtotal)}</span></div>
                         )}
                         {pharmaSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Products Subtotal (tax ₹{lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Products Subtotal (tax {money(lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0))})</span><span>{money(pharmaSubtotal)}</span></div>
                         )}
-                        <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
-                        {totalCgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{totalCgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                        {totalSgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>₹{totalSgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                        {totalIgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{totalIgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                        <div className="flex justify-between font-semibold text-primary border-t pt-1 mt-1"><span>Grand Total</span><span>₹{(subtotal + totalTax).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{money(subtotal)}</span></div>
+                        {totalTax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Total tax</span><span>{money(totalTax)}</span></div>}
+                        <div className="flex justify-between font-semibold text-primary border-t pt-1 mt-1"><span>Grand Total</span><span>{money(subtotal + totalTax)}</span></div>
                       </div>
                     );
                   })()}

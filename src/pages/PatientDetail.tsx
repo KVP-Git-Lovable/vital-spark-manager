@@ -903,9 +903,9 @@ const PatientDetail = () => {
                       </div>
                     </div>
                     <div className="space-y-4">
-                      <TextareaField label="Medical History" value={d.medical_history} field="medical_history" />
-                      <TextareaField label="Current Medications" value={d.current_medications} field="current_medications" />
-                      <TextareaField label="Allergies" value={d.allergies} field="allergies" />
+                      <TextareaField label="Medical History" value={d.medical_history} field="medical_history" ai />
+                      <TextareaField label="Current Medications" value={d.current_medications} field="current_medications" ai />
+                      <TextareaField label="Allergies" value={d.allergies} field="allergies" ai />
                     </div>
                   </div>
 
@@ -928,8 +928,8 @@ const PatientDetail = () => {
                       </div>
                     </div>
                     <div className="space-y-4">
-                      <TextareaField label="Skin Concerns" value={d.skin_concerns} field="skin_concerns" />
-                      <TextareaField label="Previous Treatments" value={d.previous_treatments} field="previous_treatments" />
+                      <TextareaField label="Skin Concerns" value={d.skin_concerns} field="skin_concerns" ai />
+                      <TextareaField label="Previous Treatments" value={d.previous_treatments} field="previous_treatments" ai />
                     </div>
                   </div>
 
@@ -984,7 +984,7 @@ const PatientDetail = () => {
         <TabsContent value="appointments">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex justify-end mb-3">
-              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setQuickApptOpen(true)}>
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate(`/appointments?new=1&patient_id=${id}`)}>
                 <Plus className="h-3.5 w-3.5" /> Book Appointment
               </Button>
             </div>

@@ -510,11 +510,28 @@ export function ProcedureFormDialog({
           if (rxErr) throw rxErr;
         }
       }
+
+      // Sync any edits to the patient's medical information back to the patient record
+      if (medicalDirty && patientId) {
+        const { error: medErr } = await supabase
+          .from("patients")
+          .update({
+            medical_history: medical.medical_history || null,
+            current_medications: medical.current_medications || null,
+            allergies: medical.allergies || null,
+            skin_type: medical.skin_type || null,
+            skin_concerns: medical.skin_concerns || null,
+            previous_treatments: medical.previous_treatments || null,
+          })
+          .eq("id", patientId);
+        if (medErr) throw medErr;
+      }
       return proc;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["procedures"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
+      queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
       toast.success("Procedure created successfully");
       onOpenChange(false);
     },

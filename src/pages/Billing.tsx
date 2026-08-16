@@ -1935,19 +1935,19 @@ const Billing = () => {
                       </div>
                       <div>
                         <Label className="text-xs">Qty</Label>
-                        <Input type="number" className="mt-1 h-8" min={1} max={item.inventory_id ? item.available : undefined} value={item.quantity} onChange={(e) => updatePharmaItem(idx, "quantity", parseFloat(e.target.value) || 1)} />
+                        <Input type="number" className="mt-1 h-8" placeholder="0" min={1} max={item.inventory_id ? item.available : undefined} value={numVal(item.quantity)} onChange={(e) => updatePharmaItem(idx, "quantity", parseFloat(e.target.value) || 0)} />
                         {item.inventory_id && (
                           <p className="text-[10px] text-muted-foreground mt-0.5">{fmtQty(item.available)} {item.uom} available</p>
                         )}
                       </div>
                       <div>
                         <Label className="text-xs">Price / {item.uom || "unit"} (₹)</Label>
-                        <Input type="number" className="mt-1 h-8" value={item.unit_price} onChange={(e) => updatePharmaItem(idx, "unit_price", parseFloat(e.target.value) || 0)} />
+                        <Input type="number" className="mt-1 h-8" placeholder="0" value={numVal(item.unit_price)} onChange={(e) => updatePharmaItem(idx, "unit_price", parseFloat(e.target.value) || 0)} />
                       </div>
                       <div className="flex items-end justify-end">
                         <div className="flex flex-col items-end">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">₹{(item.quantity * item.unit_price).toFixed(2)}</span>
+                            <span className="text-sm font-medium">{money(item.quantity * item.unit_price)}</span>
                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removePharmaItem(idx)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -1959,7 +1959,7 @@ const Billing = () => {
                               <span className="text-xs text-muted-foreground mt-0.5 pr-9">
                                 {hsn ? `HSN ${hsn} · ` : ""}
                                 {lineTax.rate > 0
-                                  ? `Tax (${lineTax.rate}%): ₹${lineTax.taxAmount.toFixed(2)}`
+                                  ? `Tax (${rateLabel(lineTax.rate)}%): ${money(lineTax.taxAmount)}`
                                   : "No tax"}
                               </span>
                             );
@@ -1971,7 +1971,7 @@ const Billing = () => {
                 ))}
                 {pharmaItems.length > 0 && (
                   <div className="text-right text-sm font-semibold text-foreground">
-                    Products subtotal: ₹{pharmaSubtotal.toLocaleString()}
+                    Products subtotal: {money(pharmaSubtotal)}
                   </div>
                 )}
               </div>

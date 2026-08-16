@@ -1033,11 +1033,9 @@ const Billing = () => {
         const t = aggregateLineTax(serviceInputs, [], svcScale);
         const pharmaT = aggregateLineTax([], pharmaItems, 1);
         const totalPerInst = recurringAmount + t.tax_amount;
-        const todayDate = new Date();
         const dueTodayIdx: number[] = [];
         for (let i = 0; i < recurringCount; i++) {
-          const d = recurringDueDates[i] || addMonths(new Date(), i);
-          if (isSameDay(d, todayDate)) dueTodayIdx.push(i);
+          if (recurringInvoiceNow[i]) dueTodayIdx.push(i);
         }
         const pharmaHostIdx = dueTodayIdx.length > 0 ? dueTodayIdx[0] : 0;
         const groupId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`) as string;

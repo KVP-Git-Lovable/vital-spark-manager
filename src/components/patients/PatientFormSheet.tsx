@@ -37,6 +37,7 @@ import { useCustomFields } from "@/lib/custom-fields/api";
 import { CustomFieldsRenderer, validateCustomFields } from "@/components/custom-fields/CustomFieldsRenderer";
 import type { ValidationMessage } from "@/lib/validation/engine";
 import { AlertCircle } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
@@ -203,6 +204,55 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
 
   const validate = useValidator("patients");
   const [validationMessages, setValidationMessages] = useState<ValidationMessage[]>([]);
+  const [elaborating, setElaborating] = useState<string | null>(null);
+
+  const elaborateField = async (field: keyof typeof form, label: string) => {
+    const currentText = ((form as any)[field] || "").toString();
+    if (!currentText.trim()) {
+      toast({ title: "Add a few words first", description: `Type a short note in ${label} and AI will complete it.` });
+      return;
+    }
+    setElaborating(field as string);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elaborate-text`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          serviceName: `Dermatology patient record — ${label}`,
+          fieldType: "symptoms",
+          currentText,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "AI request failed" }));
+        throw new Error(err.error || "AI request failed");
+      }
+      const { text } = await res.json();
+      if (text) setForm((prev) => ({ ...prev, [field]: text }));
+      toast({ title: "Text elaborated" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Failed to elaborate", variant: "destructive" });
+    } finally {
+      setElaborating(null);
+    }
+  };
+
+  const ElaborateButton = ({ field, label }: { field: keyof typeof form; label: string }) => (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="h-6 px-2 text-[11px] gap-1 text-primary hover:text-primary"
+      disabled={elaborating === field}
+      onClick={() => elaborateField(field, label)}
+    >
+      {elaborating === field ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+      Elaborate with AI
+    </Button>
+  );
 
   // Admin-configured custom fields
   const { data: customFieldDefs = [] } = useCustomFields("patients", true);

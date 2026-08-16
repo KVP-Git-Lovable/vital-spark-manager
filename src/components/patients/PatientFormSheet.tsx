@@ -949,6 +949,79 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
           </TabsContent>
         </Tabs>
 
+        <Collapsible defaultOpen className="mt-6 border rounded-md">
+          <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium hover:bg-muted/50 [&[data-state=open]>svg]:rotate-180">
+            <span className="flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> Family Details</span>
+            <ChevronDown className="h-4 w-4 transition-transform" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="p-3 space-y-3 border-t">
+            {familyRows.length === 0 && (
+              <p className="text-xs text-muted-foreground">No family members added yet.</p>
+            )}
+            {familyRows.map((row, idx) => (
+              <div key={row.id || `new-${idx}`} className="rounded-md border p-3 space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Name</Label>
+                    <Input
+                      value={row.name}
+                      disabled={row.linked}
+                      onChange={(e) => updateFamilyRow(idx, { name: e.target.value })}
+                      placeholder="Family member name"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Relationship</Label>
+                    <Select value={row.relationship} onValueChange={(v) => updateFamilyRow(idx, { relationship: v })}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select relationship" /></SelectTrigger>
+                      <SelectContent>
+                        {FAMILY_RELATIONSHIPS.map((r) => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Phone</Label>
+                    <Input
+                      value={row.phone}
+                      onChange={(e) => updateFamilyRow(idx, { phone: e.target.value })}
+                      placeholder="Phone number"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="flex items-end justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`fam-primary-${idx}`}
+                        checked={row.is_primary_contact}
+                        onCheckedChange={(c) => updateFamilyRow(idx, { is_primary_contact: !!c })}
+                      />
+                      <Label htmlFor={`fam-primary-${idx}`} className="text-sm cursor-pointer">Primary contact</Label>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => removeFamilyRow(idx)} aria-label="Remove family member">
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+                {row.linked && (
+                  <p className="text-[11px] text-muted-foreground">Linked to an existing patient record.</p>
+                )}
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setFamilyRows((prev) => [...prev, { name: "", relationship: "", phone: "", is_primary_contact: false, linked: false }])}
+            >
+              <Plus className="h-3.5 w-3.5" /> Add Family Member
+            </Button>
+          </CollapsibleContent>
+        </Collapsible>
+
         <div className="mt-6 pt-4 border-t">
           <Label htmlFor="patient-notes">Notes</Label>
           <Textarea

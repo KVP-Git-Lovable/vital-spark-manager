@@ -277,6 +277,8 @@ const Billing = () => {
   // Per-installment appointment date (auto-follows the due date unless overridden)
   const [recurringApptDates, setRecurringApptDates] = useState<(Date | null)[]>([]);
   const [recurringStatuses, setRecurringStatuses] = useState<string[]>(["Pending"]);
+  // Per-installment "Invoice now" tick — ticked installments are billed on this invoice
+  const [recurringInvoiceNow, setRecurringInvoiceNow] = useState<boolean[]>([true]);
   // Appointment this invoice originated from (installment #1 links to it)
   const [sourceAppointmentId, setSourceAppointmentId] = useState<string | null>(null);
   const [serviceSearchOpen, setServiceSearchOpen] = useState<number | null>(null);
@@ -300,6 +302,11 @@ const Billing = () => {
     setRecurringStatuses((prev) => {
       const arr = [...prev];
       while (arr.length < c) arr.push("Pending");
+      return arr.slice(0, c);
+    });
+    setRecurringInvoiceNow((prev) => {
+      const arr = [...prev];
+      while (arr.length < c) arr.push(false);
       return arr.slice(0, c);
     });
     if (recurringTotalAmount > 0) {

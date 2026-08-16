@@ -926,15 +926,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label>Visit Status (Investigation)</Label>
-                    <Input
-                      value={editVisitStatus}
-                      onChange={(e) => setEditVisitStatus(e.target.value)}
-                      placeholder="Enter visit/investigation details..."
-                      className="mt-1.5"
-                    />
-                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Start</Label>
@@ -1403,6 +1394,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
           defaultAppointmentId={appointmentId!}
           defaultStaffId={appointment.staff_id}
           defaultServiceName={appointment.service}
+          defaultProblemAreaIds={((appointment as any).problem_area_ids as string[]) || []}
         />
       )}
 

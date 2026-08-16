@@ -1538,15 +1538,26 @@ const Appointments = () => {
                     { key: "last_7", label: "Last 7 Days" },
                     { key: "this_month", label: "This Month" },
                   ].map((f) => (
-                    <Button
-                      key={f.key}
-                      variant={quickFilter === f.key ? "default" : "outline"}
-                      size="sm"
-                      className="h-7 text-xs px-3"
-                      onClick={() => setQuickFilter(quickFilter === f.key ? "" : f.key)}
-                    >
-                      {f.label}
-                    </Button>
+                    <div key={f.key} className="flex items-center">
+                      <Button
+                        variant={quickFilter === f.key ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 text-xs px-3 rounded-r-none"
+                        onClick={() => setQuickFilter(quickFilter === f.key ? "" : f.key)}
+                      >
+                        {f.label}
+                      </Button>
+                      <Button
+                        variant={quickFilter === f.key ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 px-1.5 rounded-l-none border-l-0"
+                        title={pinnedQuickFilter === f.key ? "Unpin default filter" : "Pin as default filter"}
+                        aria-label={pinnedQuickFilter === f.key ? `Unpin ${f.label}` : `Pin ${f.label}`}
+                        onClick={() => togglePinnedQuickFilter(f.key)}
+                      >
+                        <Pin className={cn("h-3 w-3", pinnedQuickFilter === f.key ? "fill-current" : "opacity-50")} />
+                      </Button>
+                    </div>
                   ))}
                   {quickFilter && (
                     <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setQuickFilter("")}>

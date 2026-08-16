@@ -29,6 +29,7 @@ import { CameraCapture } from "@/components/shared/CameraCapture";
 import { ImportPatientsDialog } from "@/components/patients/ImportPatientsDialog";
 import { EngagementBadge } from "@/components/patients/EngagementBadge";
 import { useEngagementScores } from "@/hooks/useEngagementScores";
+import { buildOrFilter, buildFuzzyOrFilter, fuzzyRank } from "@/lib/fuzzySearch";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
@@ -41,20 +42,39 @@ const fetchPatientsPage = async (
 ): Promise<{ rows: Patient[]; total: number }> => {
   const fromIdx = (page - 1) * PAGE_SIZE;
   const toIdx = fromIdx + PAGE_SIZE - 1;
+  const term = search.trim();
+  const cols = ["first_name", "last_name", "email", "phone"];
   let q = supabase
     .from("patients")
     .select("*", { count: "exact" })
     .order("created_at", { ascending: false })
     .range(fromIdx, toIdx);
-  const term = search.trim();
   if (term) {
-    const safe = term.replace(/[%,()]/g, " ");
-    q = q.or(
-      `first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%`
-    );
+    const or = buildOrFilter(term, cols);
+    if (or) q = q.or(or);
   }
   const { data, error, count } = await q;
   if (error) throw error;
+
+  // Typo-tolerant fallback: nothing matched literally, so pull a loose candidate
+  // set (matching the first few letters) and rank it by fuzzy similarity.
+  if (term && (count ?? 0) === 0) {
+    const looseOr = buildFuzzyOrFilter(term, ["first_name", "last_name"]);
+    if (looseOr) {
+      const { data: loose } = await supabase
+        .from("patients")
+        .select("*")
+        .or(looseOr)
+        .limit(300);
+      const ranked = fuzzyRank(
+        (loose as Patient[]) || [],
+        term,
+        (p) => `${p.first_name || ""} ${p.last_name || ""} ${p.phone || ""} ${p.email || ""}`,
+        0.55
+      );
+      return { rows: ranked.slice(0, PAGE_SIZE), total: ranked.length };
+    }
+  }
   return { rows: (data as Patient[]) || [], total: count ?? 0 };
 };
 

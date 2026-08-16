@@ -974,10 +974,44 @@ export function ProcedureFormDialog({
             <Textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} placeholder="e.g. Follow up in 3 months" className="mt-1.5" rows={2} />
           </div>
 
+          {/* Next appointment */}
+          <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4">
+            <Label className="text-base font-display font-semibold flex items-center gap-2 text-primary">
+              <CalendarClock className="h-4 w-4" /> Next Appointment Date
+            </Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Pick a date &amp; time — an appointment will be created with status <span className="font-medium">Reserved</span>.
+            </p>
+            <Input
+              type="datetime-local"
+              value={nextAppointmentAt}
+              onChange={(e) => setNextAppointmentAt(e.target.value)}
+              className="mt-2 bg-background"
+            />
+            {nextAppointmentAt && (
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs mt-1" onClick={() => setNextAppointmentAt("")}>
+                Clear
+              </Button>
+            )}
+          </div>
+
           <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!patientId || createMutation.isPending}>
             {createMutation.isPending ? "Saving..." : "Save Procedure"}
           </Button>
         </div>
+  );
+
+  if (asPage) {
+    return <div className="max-w-4xl">{body}</div>;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display">New Procedure / Prescription</DialogTitle>
+        </DialogHeader>
+        {body}
       </DialogContent>
     </Dialog>
   );

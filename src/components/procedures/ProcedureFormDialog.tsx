@@ -313,6 +313,50 @@ export function ProcedureFormDialog({
     },
   });
 
+  // Patient medical snapshot — editable here and synced back to the patient record
+  const { data: patientRecord } = useQuery({
+    queryKey: ["procedure-form-patient", patientId],
+    enabled: !!patientId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select("id, medical_history, current_medications, allergies, skin_type, skin_concerns, previous_treatments")
+        .eq("id", patientId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (!patientRecord) return;
+    setMedical({
+      medical_history: patientRecord.medical_history || "",
+      current_medications: patientRecord.current_medications || "",
+      allergies: patientRecord.allergies || "",
+      skin_type: patientRecord.skin_type || "",
+      skin_concerns: patientRecord.skin_concerns || "",
+      previous_treatments: patientRecord.previous_treatments || "",
+    });
+    setMedicalDirty(false);
+  }, [patientRecord]);
+
+  // Surveys already filled for this patient (most recent first)
+  const { data: patientSurveys = [] } = useQuery({
+    queryKey: ["procedure-form-surveys", patientId, defaultAppointmentId],
+    enabled: !!patientId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("survey_responses")
+        .select("id, created_at, dr_status, answers, ai_summary, appointment_id, survey_templates(name)")
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: allStaff = [] } = useQuery({
     queryKey: ["staff-active-all-for-ai"],
     queryFn: async () => {

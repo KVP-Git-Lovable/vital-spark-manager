@@ -25,6 +25,7 @@ import Reports from "./pages/Reports";
 import ReportView from "./pages/ReportView";
 import ReportConfigurator from "./pages/ReportConfigurator";
 import Procedures from "./pages/Procedures";
+import ProcedureNew from "./pages/ProcedureNew";
 import Pharma from "./pages/Pharma";
 import Photos from "./pages/Photos";
 import LeaveManagement from "./pages/LeaveManagement";
@@ -158,6 +159,7 @@ const App = () => (
                     <Route path="/campaigns" element={<ProtectedRoute moduleKey="campaigns"><Campaigns /></ProtectedRoute>} />
                     <Route path="/campaigns/:id" element={<ProtectedRoute moduleKey="campaigns"><CampaignDetail /></ProtectedRoute>} />
                     <Route path="/procedures" element={<ProtectedRoute moduleKey="procedures"><Procedures /></ProtectedRoute>} />
+                    <Route path="/procedures/new" element={<ProtectedRoute moduleKey="procedures"><ProcedureNew /></ProtectedRoute>} />
                     <Route path="/pharma" element={<ProtectedRoute moduleKey="pharmacy"><Pharma /></ProtectedRoute>} />
                     <Route path="/photos" element={<ProtectedRoute moduleKey="photos"><Photos /></ProtectedRoute>} />
                     <Route path="/assets" element={<ProtectedRoute moduleKey="assets"><Assets /></ProtectedRoute>} />

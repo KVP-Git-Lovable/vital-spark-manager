@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -54,11 +54,15 @@ interface ProcedureFormDialogProps {
   defaultStaffId?: string | null;
   defaultServiceName?: string;
   defaultProblemAreaIds?: string[];
+  /** Render inline (full page) instead of inside a modal dialog */
+  asPage?: boolean;
+  onSaved?: (procedureId: string) => void;
 }
 
 export function ProcedureFormDialog({
   open, onOpenChange,
   defaultPatientId, defaultAppointmentId, defaultStaffId, defaultServiceName, defaultProblemAreaIds,
+  asPage = false, onSaved,
 }: ProcedureFormDialogProps) {
   const queryClient = useQueryClient();
   const [patientId, setPatientId] = useState(defaultPatientId || "");
@@ -75,6 +79,7 @@ export function ProcedureFormDialog({
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
+  const [nextAppointmentAt, setNextAppointmentAt] = useState("");
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
   const [stockMap, setStockMap] = useState<Record<number, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);
@@ -526,13 +531,38 @@ export function ProcedureFormDialog({
           .eq("id", patientId);
         if (medErr) throw medErr;
       }
+
+      // Optional follow-up appointment picked by the doctor
+      if (nextAppointmentAt && patientId) {
+        const start = new Date(nextAppointmentAt);
+        const end = new Date(start.getTime() + 30 * 60 * 1000);
+        const p = (patients as any[]).find((x) => x.id === patientId);
+        const { error: aptErr } = await supabase.from("appointments").insert({
+          patient_id: patientId,
+          patient_name: p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() : null,
+          staff_id: staffId || null,
+          service: serviceName || "Follow Up",
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          status: "Reserved",
+          problem_area_ids: selectedProblemAreas.length ? selectedProblemAreas : null,
+          source: "Procedure",
+        } as any);
+        if (aptErr) throw aptErr;
+      }
       return proc;
     },
-    onSuccess: () => {
+    onSuccess: (proc: any) => {
       queryClient.invalidateQueries({ queryKey: ["procedures"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
       queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
-      toast.success("Procedure created successfully");
+      if (nextAppointmentAt) {
+        queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        toast.success("Procedure saved · Next appointment reserved");
+      } else {
+        toast.success("Procedure created successfully");
+      }
+      onSaved?.(proc?.id);
       onOpenChange(false);
     },
     onError: (err: Error) => toast.error(err.message),
@@ -585,12 +615,7 @@ export function ProcedureFormDialog({
 
   const isFromAppointment = !!defaultAppointmentId;
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-display">New Procedure / Prescription</DialogTitle>
-        </DialogHeader>
+  const body = (
         <div className="space-y-4 pt-2">
           {/* Unified AI bar */}
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
@@ -944,10 +969,44 @@ export function ProcedureFormDialog({
             <Textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} placeholder="e.g. Follow up in 3 months" className="mt-1.5" rows={2} />
           </div>
 
+          {/* Next appointment */}
+          <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4">
+            <Label className="text-base font-display font-semibold flex items-center gap-2 text-primary">
+              <CalendarClock className="h-4 w-4" /> Next Appointment Date
+            </Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Pick a date &amp; time — an appointment will be created with status <span className="font-medium">Reserved</span>.
+            </p>
+            <Input
+              type="datetime-local"
+              value={nextAppointmentAt}
+              onChange={(e) => setNextAppointmentAt(e.target.value)}
+              className="mt-2 bg-background"
+            />
+            {nextAppointmentAt && (
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs mt-1" onClick={() => setNextAppointmentAt("")}>
+                Clear
+              </Button>
+            )}
+          </div>
+
           <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!patientId || createMutation.isPending}>
             {createMutation.isPending ? "Saving..." : "Save Procedure"}
           </Button>
         </div>
+  );
+
+  if (asPage) {
+    return <div className="max-w-4xl">{body}</div>;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display">New Procedure / Prescription</DialogTitle>
+        </DialogHeader>
+        {body}
       </DialogContent>
     </Dialog>
   );

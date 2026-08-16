@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Plus, Search, Camera, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 const Procedures = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -74,7 +75,7 @@ const Procedures = () => {
             <Upload className="h-4 w-4" />
             Import Procedures
           </Button>
-          <Button className="gap-2" onClick={() => setCreateOpen(true)}>
+          <Button className="gap-2" onClick={() => navigate("/procedures/new")}>
             <Plus className="h-4 w-4" />
             New Procedure
           </Button>

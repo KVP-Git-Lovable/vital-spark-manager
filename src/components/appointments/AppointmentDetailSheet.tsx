@@ -376,6 +376,36 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   // Kept for procedure UI badges, but no longer affects appointment status
   const hasCompletedProcedure = procedures.some((p: any) => p.status === "Completed");
 
+  // All previous appointments for this patient (excluding the current one)
+  const { data: previousAppointments = [] } = useQuery({
+    queryKey: ["patient-previous-appointments", appointment?.patient_id, appointmentId],
+    enabled: !!appointment?.patient_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("*, staff(first_name, last_name)")
+        .eq("patient_id", appointment!.patient_id!)
+        .order("start_time", { ascending: false });
+      if (error) throw error;
+      return (data || []).filter((a: any) => a.id !== appointmentId);
+    },
+  });
+
+  // All procedures for this patient
+  const { data: previousProcedures = [] } = useQuery({
+    queryKey: ["patient-previous-procedures", appointment?.patient_id],
+    enabled: !!appointment?.patient_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("procedures")
+        .select("*, staff(first_name, last_name)")
+        .eq("patient_id", appointment!.patient_id!)
+        .order("procedure_date", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: invoices = [] } = useQuery({
     queryKey: ["appointment-invoices", appointment?.patient_id],
     queryFn: async () => {
@@ -830,6 +860,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                 <TabsList className="w-full justify-start rounded-none border-b px-6 bg-transparent h-auto p-0">
                   <TabsTrigger value="details" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Details</TabsTrigger>
                   <TabsTrigger value="procedures" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Procedures</TabsTrigger>
+                  <TabsTrigger value="prev-appointments" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Previous Appointments</TabsTrigger>
+                  <TabsTrigger value="prev-procedures" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Previous Procedures</TabsTrigger>
                   <TabsTrigger value="billing" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Billing</TabsTrigger>
                   <TabsTrigger value="photos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Photos</TabsTrigger>
                   <TabsTrigger value="feedback" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Feedback</TabsTrigger>
@@ -1020,6 +1052,80 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                               <p className="text-xs text-muted-foreground mt-1">
                                 {format(new Date(proc.procedure_date), "MMM d, yyyy")}
                                 {proc.staff && ` · Dr. ${proc.staff.first_name}`}
+                              </p>
+                              {proc.diagnosis && <p className="text-xs mt-2 text-muted-foreground">{proc.diagnosis}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">No patient linked to this appointment.</p>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="prev-appointments" className="p-6 space-y-4 mt-0">
+                  {appointment.patient_id ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold font-display">Previous Appointments</h3>
+                        <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
+                      </div>
+                      {previousAppointments.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-8">No other appointments for this patient.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {(previousAppointments as any[]).map((apt: any) => (
+                            <div
+                              key={apt.id}
+                              className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                              onClick={() => { handleClose(); navigate(`/appointments/${apt.id}`); }}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="font-medium text-sm">{apt.service}</p>
+                                <Badge variant="outline" className={`text-xs ${STATUS_BADGE_CLASSES[apt.status] || ""}`}>{apt.status}</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {format(new Date(apt.start_time), "EEE, MMM d, yyyy · h:mm a")}
+                                {apt.staff && ` · Dr. ${apt.staff.first_name} ${apt.staff.last_name}`}
+                              </p>
+                              {apt.reason_for_consultation && (
+                                <p className="text-xs mt-2 text-muted-foreground">{apt.reason_for_consultation}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">No patient linked to this appointment.</p>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="prev-procedures" className="p-6 space-y-4 mt-0">
+                  {appointment.patient_id ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold font-display">Previous Procedures</h3>
+                        <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
+                      </div>
+                      {previousProcedures.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-8">No procedures recorded for this patient.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {(previousProcedures as any[]).map((proc: any) => (
+                            <div
+                              key={proc.id}
+                              className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                              onClick={() => setSelectedProcId(proc.id)}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="font-medium text-sm">{proc.service_name}</p>
+                                <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {format(new Date(proc.procedure_date), "MMM d, yyyy")}
+                                {proc.staff && ` · Dr. ${proc.staff.first_name} ${proc.staff.last_name}`}
                               </p>
                               {proc.diagnosis && <p className="text-xs mt-2 text-muted-foreground">{proc.diagnosis}</p>}
                             </div>

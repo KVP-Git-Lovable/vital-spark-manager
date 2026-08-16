@@ -2148,19 +2148,19 @@ const Billing = () => {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <Label className="text-xs text-muted-foreground">Amount (₹)</Label>
-                          <Input type="number" className="mt-1 h-8" value={stage.amount} onChange={(e) => updateStage(i, "amount", parseFloat(e.target.value) || 0)} />
+                          <Input type="number" className="mt-1 h-8" placeholder="0" value={numVal(stage.amount)} onChange={(e) => updateStage(i, "amount", parseFloat(e.target.value) || 0)} />
                         </div>
                         <div>
                           <Label className="text-xs text-muted-foreground">Collected (₹)</Label>
-                          <Input type="number" className="mt-1 h-8" value={stage.paid} onChange={(e) => updateStage(i, "paid", parseFloat(e.target.value) || 0)} />
+                          <Input type="number" className="mt-1 h-8" placeholder="0" value={numVal(stage.paid)} onChange={(e) => updateStage(i, "paid", parseFloat(e.target.value) || 0)} />
                         </div>
                       </div>
                     </div>
                   ))}
                   <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Total across stages</span><span className="font-semibold">₹{stagedTotal.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{stagedPaid.toLocaleString()}</span></div>
-                    <div className="flex justify-between text-primary font-semibold"><span>Balance</span><span>₹{(stagedTotal - stagedPaid).toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Total across stages</span><span className="font-semibold">{money(stagedTotal)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>{money(stagedPaid)}</span></div>
+                    <div className="flex justify-between text-primary font-semibold"><span>Balance</span><span>{money(stagedTotal - stagedPaid)}</span></div>
                     <p className="text-xs text-muted-foreground mt-1">{stages.length} invoice(s) will be created</p>
                   </div>
                 </div>

@@ -246,6 +246,22 @@ const Appointments = () => {
     enabled: open,
   });
 
+  // Auto-propose a survey based on the selected service / primary concern.
+  const [autoSurveyName, setAutoSurveyName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    if (assignSurveyTemplateId || fillNowSurveyTemplateId) return;
+    if (!activeSurveyTemplates.length) return;
+    const match =
+      (serviceId && (activeSurveyTemplates as any[]).find((t) => t.service_id === serviceId)) ||
+      (selectedProblemAreas.length > 0 &&
+        (activeSurveyTemplates as any[]).find((t) => t.problem_area_id && selectedProblemAreas.includes(t.problem_area_id)));
+    if (match) {
+      setAssignSurveyTemplateId(match.id);
+      setAutoSurveyName(match.name);
+    }
+  }, [open, serviceId, selectedProblemAreas, activeSurveyTemplates, assignSurveyTemplateId, fillNowSurveyTemplateId]);
+
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments"],
     queryFn: async () => {

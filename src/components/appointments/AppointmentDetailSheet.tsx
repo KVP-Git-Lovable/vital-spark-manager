@@ -1065,6 +1065,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                 </TabsContent>
 
                 <TabsContent value="billing" className="p-6 space-y-4 mt-0">
+                  {null}
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold font-display flex items-center gap-2">
                       <IndianRupee className="h-4 w-4" /> Billing

@@ -759,6 +759,76 @@ export function ProcedureFormDialog({
             <Textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)} placeholder="e.g. Redness, itching, dry patches..." className={`mt-1.5 transition-all ${recentlyFilled.symptoms ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />
           </div>
 
+          {/* Surveys filled before this procedure */}
+          {patientSurveys.length > 0 && (
+            <div className="rounded-lg border border-accent/40 bg-accent/10 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Surveys filled by this patient</span>
+              </div>
+              {patientSurveys.map((s: any) => {
+                const answers = Array.isArray(s.answers) ? s.answers : [];
+                return (
+                  <div key={s.id} className="rounded-md border bg-background p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium">
+                        {s.survey_templates?.name || "Survey"}
+                        {s.appointment_id && defaultAppointmentId && s.appointment_id === defaultAppointmentId && (
+                          <span className="ml-2 text-[10px] uppercase tracking-wide text-primary">this visit</span>
+                        )}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {new Date(s.created_at).toLocaleDateString()} · {s.dr_status || "pending"}
+                      </span>
+                    </div>
+                    {s.ai_summary && <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">{s.ai_summary}</p>}
+                    {answers.length > 0 && (
+                      <ul className="mt-1.5 space-y-0.5">
+                        {answers.slice(0, 6).map((a: any, idx: number) => (
+                          <li key={idx} className="text-xs">
+                            <span className="text-muted-foreground">{a.question || a.question_text || `Q${idx + 1}`}: </span>
+                            <span className="font-medium">{Array.isArray(a.answer) ? a.answer.join(", ") : String(a.answer ?? "—")}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Patient medical information */}
+          {patientId && (
+            <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <HeartPulse className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Medical Information</span>
+                <span className="text-[11px] text-muted-foreground">(saved back to the patient record)</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {([
+                  ["medical_history", "Medical History"],
+                  ["current_medications", "Current Medications"],
+                  ["allergies", "Allergies"],
+                  ["previous_treatments", "Previous Treatments"],
+                  ["skin_type", "Skin Type"],
+                  ["skin_concerns", "Skin Concerns"],
+                ] as [string, string][]).map(([field, label]) => (
+                  <div key={field}>
+                    <Label className="text-xs text-muted-foreground">{label}</Label>
+                    <Textarea
+                      rows={2}
+                      className="mt-1 text-sm"
+                      value={medical[field] || ""}
+                      onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <Label>Diagnosis</Label>
             <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Patient diagnosis..." className={`mt-1.5 transition-all ${recentlyFilled.diagnosis ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />

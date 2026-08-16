@@ -42,6 +42,21 @@ import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type Patient = Tables<"patients">;
 
+const FAMILY_RELATIONSHIPS = [
+  "Spouse", "Father", "Mother", "Son", "Daughter",
+  "Brother", "Sister", "Grandfather", "Grandmother",
+  "Uncle", "Aunt", "Cousin", "Friend", "In-Law", "Other",
+];
+
+type FamilyRow = {
+  id?: string;
+  name: string;
+  relationship: string;
+  phone: string;
+  is_primary_contact: boolean;
+  linked: boolean;
+};
+
 interface PatientFormSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

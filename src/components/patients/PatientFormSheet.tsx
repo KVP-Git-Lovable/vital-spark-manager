@@ -404,18 +404,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
-              <div>
-                <Label>Place</Label>
-                <Input
-                  value={form.city || ""}
-                  onChange={(e) => updateField("city", e.target.value)}
-                  className="mt-1.5"
-                />
-              </div>
-            </div>
-
-            <Collapsible className="border rounded-md">
+            <Collapsible defaultOpen className="border rounded-md">
               <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/50 [&[data-state=open]>svg]:rotate-180">
                 Additional Info
                 <ChevronDown className="h-4 w-4 transition-transform" />

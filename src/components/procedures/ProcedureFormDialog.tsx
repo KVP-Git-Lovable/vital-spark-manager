@@ -53,17 +53,20 @@ interface ProcedureFormDialogProps {
   defaultAppointmentId?: string;
   defaultStaffId?: string | null;
   defaultServiceName?: string;
+  defaultProblemAreaIds?: string[];
 }
 
 export function ProcedureFormDialog({
   open, onOpenChange,
-  defaultPatientId, defaultAppointmentId, defaultStaffId, defaultServiceName,
+  defaultPatientId, defaultAppointmentId, defaultStaffId, defaultServiceName, defaultProblemAreaIds,
 }: ProcedureFormDialogProps) {
   const queryClient = useQueryClient();
   const [patientId, setPatientId] = useState(defaultPatientId || "");
   const [staffId, setStaffId] = useState(defaultStaffId || "");
   const [assistedBy, setAssistedBy] = useState("");
-  const [selectedProblemAreas, setSelectedProblemAreas] = useState<string[]>([]);
+  const [selectedProblemAreas, setSelectedProblemAreas] = useState<string[]>(defaultProblemAreaIds || []);
+  const [medical, setMedical] = useState<Record<string, string>>({});
+  const [medicalDirty, setMedicalDirty] = useState(false);
   const [appointmentId] = useState(defaultAppointmentId || "");
   const [serviceId, setServiceId] = useState("");
   const [serviceName, setServiceName] = useState(defaultServiceName || "");

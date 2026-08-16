@@ -108,6 +108,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [refDocSearch, setRefDocSearch] = useState("");
   const [familyRows, setFamilyRows] = useState<FamilyRow[]>([]);
   const [removedFamilyIds, setRemovedFamilyIds] = useState<string[]>([]);
+  const [duplicates, setDuplicates] = useState<any[]>([]);
+  const [duplicateAck, setDuplicateAck] = useState(false);
+  const [familyExisting, setFamilyExisting] = useState<Record<string, any>>({});
   const { toast } = useToast();
   const isEditing = !!patient;
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -492,6 +492,7 @@ export function ProcedureFormDialog({
       if (error) throw error;
 
       if (prescriptions.length > 0) {
+
         const rxRows = prescriptions
           .filter((rx) => rx.medicine_name || rx.product_id)
           .map((rx) => ({

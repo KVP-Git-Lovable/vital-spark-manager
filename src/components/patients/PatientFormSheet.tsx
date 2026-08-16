@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
-import { X, Search, Check, ChevronsUpDown } from "lucide-react";
+import { X, Search, Check, ChevronsUpDown, Plus, Trash2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,6 +91,8 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [selectedReferralPatientName, setSelectedReferralPatientName] = useState("");
   const [refDocOpen, setRefDocOpen] = useState(false);
   const [refDocSearch, setRefDocSearch] = useState("");
+  const [familyRows, setFamilyRows] = useState<FamilyRow[]>([]);
+  const [removedFamilyIds, setRemovedFamilyIds] = useState<string[]>([]);
   const { toast } = useToast();
   const isEditing = !!patient;
 

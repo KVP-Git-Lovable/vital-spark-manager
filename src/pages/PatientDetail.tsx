@@ -763,9 +763,54 @@ const PatientDetail = () => {
                 </div>
               );
 
-              const TextareaField = ({ label, value, field }: { label: string; value: any; field: string }) => (
+              const elaborate = async (field: string, label: string, currentText: string) => {
+                if (!currentText?.trim()) {
+                  toast.message("Add a few words first", { description: `Type a short note in ${label} and AI will complete it.` });
+                  return;
+                }
+                setElaboratingField(field);
+                try {
+                  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elaborate-text`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                    },
+                    body: JSON.stringify({
+                      serviceName: `Dermatology patient record — ${label}`,
+                      fieldType: "symptoms",
+                      currentText,
+                    }),
+                  });
+                  if (!res.ok) throw new Error("AI request failed");
+                  const { text } = await res.json();
+                  if (text) upd(field, text);
+                  toast.success("Text elaborated");
+                } catch (e: any) {
+                  toast.error(e.message || "Failed to elaborate");
+                } finally {
+                  setElaboratingField(null);
+                }
+              };
+
+              const TextareaField = ({ label, value, field, ai }: { label: string; value: any; field: string; ai?: boolean }) => (
                 <div>
-                  <Label className="text-xs text-muted-foreground">{label}</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-xs text-muted-foreground">{label}</Label>
+                    {ai && !readOnly && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[11px] gap-1 text-primary hover:text-primary"
+                        disabled={elaboratingField === field}
+                        onClick={() => elaborate(field, label, value || "")}
+                      >
+                        {elaboratingField === field ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                        Elaborate with AI
+                      </Button>
+                    )}
+                  </div>
                   {readOnly ? (
                     <p className="text-sm mt-1 whitespace-pre-wrap">{value || <span className="text-muted-foreground/50">—</span>}</p>
                   ) : (

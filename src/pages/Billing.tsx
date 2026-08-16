@@ -1013,8 +1013,18 @@ const Billing = () => {
           invoiceId: undefined as string | undefined,
         };
       } else if (paymentType === "Recurring") {
-        const t = splitTax(recurringAmount);
+        // Installments cover SERVICES only; pharmacy is billed in full on the invoice charged today
+        const svcScale = servicesSubtotal > 0 ? recurringAmount / servicesSubtotal : 0;
+        const t = aggregateLineTax(serviceInputs, [], svcScale);
+        const pharmaT = aggregateLineTax([], pharmaItems, 1);
         const totalPerInst = recurringAmount + t.tax_amount;
+        const todayDate = new Date();
+        const dueTodayIdx: number[] = [];
+        for (let i = 0; i < recurringCount; i++) {
+          const d = recurringDueDates[i] || addMonths(new Date(), i);
+          if (isSameDay(d, todayDate)) dueTodayIdx.push(i);
+        }
+        const pharmaHostIdx = dueTodayIdx.length > 0 ? dueTodayIdx[0] : 0;
         const groupId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`) as string;
 
         // Recurring installments are tied to appointments: #1 to the current
@@ -1081,9 +1091,19 @@ const Billing = () => {
           // 2..N are *scheduled amounts* — no tax is levied until they are collected
           // on/after their due date. The effective tax rate is stored so tax can be
           // applied at collection time.
-          const isFirst = i === 0;
+          const chargedNow = dueTodayIdx.includes(i);
+          const isFirst = chargedNow;
+          const withPharma = i === pharmaHostIdx && pharmaSubtotal > 0;
           const effRate = recurringAmount > 0 ? (t.tax_amount / recurringAmount) * 100 : 0;
-          const lineTotal = isFirst ? totalPerInst : recurringAmount;
+          const taxNow = {
+            tax_amount: (chargedNow ? t.tax_amount : 0) + (withPharma ? pharmaT.tax_amount : 0),
+            cgst_amount: (chargedNow ? t.cgst_amount : 0) + (withPharma ? pharmaT.cgst_amount : 0),
+            sgst_amount: (chargedNow ? t.sgst_amount : 0) + (withPharma ? pharmaT.sgst_amount : 0),
+            igst_amount: (chargedNow ? t.igst_amount : 0) + (withPharma ? pharmaT.igst_amount : 0),
+          };
+          const lineTotal = recurringAmount
+            + (chargedNow ? t.tax_amount : 0)
+            + (withPharma ? pharmaSubtotal + pharmaT.tax_amount : 0);
           let status = instStatus;
           if (collected >= lineTotal && lineTotal > 0) status = "Paid";
           else if (collected > 0 && instStatus === "Pending") status = "Partial";
@@ -1106,10 +1126,10 @@ const Billing = () => {
             status,
             payment_type: "Recurring",
             payment_mode: paymentMode,
-            notes: `${isFirst ? "Installment" : "Scheduled amount"} ${i + 1} of ${recurringCount} | Due: ${format(dueDate, "dd MMM yyyy")}${notes ? ` — ${notes}` : ""}`,
+            notes: `${chargedNow ? "Installment" : "Scheduled amount"} ${i + 1} of ${recurringCount} | Due: ${format(dueDate, "dd MMM yyyy")}${withPharma ? " | Includes pharmacy (paid in full)" : ""}${notes ? ` — ${notes}` : ""}`,
             tax_id: null,
-            tax_rate: isFirst ? null : Math.round(effRate * 100) / 100,
-            ...(isFirst ? t : { tax_amount: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0 }),
+            tax_rate: chargedNow ? null : Math.round(effRate * 100) / 100,
+            ...taxNow,
           };
         });
         const { error } = await supabase.from("invoices").insert(rows as any);

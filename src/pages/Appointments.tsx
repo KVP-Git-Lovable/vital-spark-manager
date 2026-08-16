@@ -278,6 +278,8 @@ const Appointments = () => {
       case "tomorrow": return { start: addDays(todayStart, 1), end: addDays(todayEnd, 1) };
       case "yesterday": return { start: addDays(todayStart, -1), end: addDays(todayEnd, -1) };
       case "this_week": return { start: startOfWeek(todayStart), end: endOfWeek(todayStart) };
+      case "last_7": return { start: addDays(todayStart, -6), end: todayEnd };
+      case "this_month": return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999) };
       default: return null;
     }
   };
@@ -294,8 +296,18 @@ const Appointments = () => {
     if (filterStatus !== "all" && apt.status !== filterStatus) return false;
     if (filterAppointmentType !== "all" && (apt.appointment_type || "Walk-in") !== filterAppointmentType) return false;
     if (searchQuery) {
+      const q = searchQuery.toLowerCase();
       const name = apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
-      if (!name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      const d = new Date(apt.start_time);
+      const dateTokens = [
+        format(d, "MMM d, yyyy"),
+        format(d, "dd/MM/yyyy"),
+        format(d, "yyyy-MM-dd"),
+        format(d, "MMMM yyyy"),
+        format(d, "h:mm a"),
+      ].join(" ").toLowerCase();
+      const haystack = `${name} ${apt.patients?.phone || ""} ${apt.service || ""} ${dateTokens}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
     }
     if (quickFilter) {
       const range = getQuickFilterRange(quickFilter);
@@ -1503,6 +1515,8 @@ const Appointments = () => {
                     { key: "today", label: "Today" },
                     { key: "tomorrow", label: "Tomorrow" },
                     { key: "this_week", label: "This Week" },
+                    { key: "last_7", label: "Last 7 Days" },
+                    { key: "this_month", label: "This Month" },
                   ].map((f) => (
                     <Button
                       key={f.key}

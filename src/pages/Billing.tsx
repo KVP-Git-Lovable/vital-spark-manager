@@ -1587,6 +1587,7 @@ const Billing = () => {
       payment_mode: inv.payment_mode || "Cash",
       payment_type: inv.payment_type || "One-time",
       notes: inv.notes || "",
+      appointment_id: inv.appointment_id || "",
     });
   };
 

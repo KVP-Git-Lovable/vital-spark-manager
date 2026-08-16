@@ -2434,7 +2434,7 @@ const Billing = () => {
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Balance Due</span>
                           <span className={balance > 0 ? "text-destructive font-medium" : "text-primary font-medium"}>
-                            ₹{balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            {money(balance)}
                           </span>
                         </div>
                       </div>

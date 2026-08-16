@@ -615,12 +615,7 @@ export function ProcedureFormDialog({
 
   const isFromAppointment = !!defaultAppointmentId;
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-display">New Procedure / Prescription</DialogTitle>
-        </DialogHeader>
+  const body = (
         <div className="space-y-4 pt-2">
           {/* Unified AI bar */}
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">

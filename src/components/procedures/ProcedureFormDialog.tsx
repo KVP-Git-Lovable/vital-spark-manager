@@ -845,17 +845,17 @@ export function ProcedureFormDialog({
           </div>
 
           {/* Prescriptions */}
-          <div className="border-t pt-4">
+          <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4">
             <div className="flex items-center justify-between mb-3">
-              <Label className="text-base font-display font-semibold flex items-center gap-2">
-                <Pill className="h-4 w-4" /> Prescriptions
+              <Label className="text-base font-display font-semibold flex items-center gap-2 text-primary">
+                <Pill className="h-4 w-4" /> Pharmacy — Prescriptions
               </Label>
               <Button type="button" variant="outline" size="sm" onClick={addPrescription}>
                 <Plus className="h-3 w-3 mr-1" /> Add Medicine
               </Button>
             </div>
             {prescriptions.map((rx, i) => (
-              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-muted/30">
+              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-background">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Medicine {i + 1}</span>
                   <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removePrescription(i)}>Remove</Button>
@@ -905,7 +905,7 @@ export function ProcedureFormDialog({
           </div>
 
           {/* Required Assets */}
-          <div className="border-t pt-4">
+          <div className="rounded-lg border-2 border-accent/50 bg-accent/10 p-4">
             <div className="flex items-center justify-between mb-3">
               <Label className="text-base font-display font-semibold flex items-center gap-2">
                 <Wrench className="h-4 w-4" /> Required Assets
@@ -918,7 +918,7 @@ export function ProcedureFormDialog({
               <p className="text-xs text-muted-foreground mb-2">No assets linked. Select a service to auto-populate or add manually.</p>
             )}
             {procedureAssets.map((asset, i) => (
-              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-muted/30">
+              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-background">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Asset {i + 1}</span>
                   <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeAsset(i)}>Remove</Button>

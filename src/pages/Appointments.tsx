@@ -1291,6 +1291,11 @@ const Appointments = () => {
                   <Label className="flex items-center gap-1.5">
                     <ClipboardCheck className="h-3.5 w-3.5" /> Survey <span className="text-xs font-normal text-muted-foreground">(optional)</span>
                   </Label>
+                  {autoSurveyName && (assignSurveyTemplateId || fillNowSurveyTemplateId) && (
+                    <p className="text-xs text-primary">
+                      Suggested from the selected service / primary concern: <span className="font-medium">{autoSurveyName}</span>
+                    </p>
+                  )}
                   {(() => {
                     const selectedTemplateId = assignSurveyTemplateId || fillNowSurveyTemplateId || "";
                     const setSelectedTemplate = (id: string) => {

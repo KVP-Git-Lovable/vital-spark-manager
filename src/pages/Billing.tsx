@@ -986,7 +986,7 @@ const Billing = () => {
 
           for (let i = startFrom; i < recurringCount; i++) {
             const due = recurringDueDates[i] || addMonths(new Date(), i);
-            const start = new Date(due);
+            const start = new Date(recurringApptDates[i] || due);
             if (parentAppt?.start_time) {
               const src = new Date(parentAppt.start_time);
               start.setHours(src.getHours(), src.getMinutes(), 0, 0);

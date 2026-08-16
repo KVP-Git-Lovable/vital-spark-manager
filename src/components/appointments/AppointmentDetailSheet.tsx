@@ -376,6 +376,36 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   // Kept for procedure UI badges, but no longer affects appointment status
   const hasCompletedProcedure = procedures.some((p: any) => p.status === "Completed");
 
+  // All previous appointments for this patient (excluding the current one)
+  const { data: previousAppointments = [] } = useQuery({
+    queryKey: ["patient-previous-appointments", appointment?.patient_id, appointmentId],
+    enabled: !!appointment?.patient_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("*, staff(first_name, last_name)")
+        .eq("patient_id", appointment!.patient_id!)
+        .order("start_time", { ascending: false });
+      if (error) throw error;
+      return (data || []).filter((a: any) => a.id !== appointmentId);
+    },
+  });
+
+  // All procedures for this patient
+  const { data: previousProcedures = [] } = useQuery({
+    queryKey: ["patient-previous-procedures", appointment?.patient_id],
+    enabled: !!appointment?.patient_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("procedures")
+        .select("*, staff(first_name, last_name)")
+        .eq("patient_id", appointment!.patient_id!)
+        .order("procedure_date", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: invoices = [] } = useQuery({
     queryKey: ["appointment-invoices", appointment?.patient_id],
     queryFn: async () => {

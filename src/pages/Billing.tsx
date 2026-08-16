@@ -1388,6 +1388,7 @@ const Billing = () => {
         payment_mode: editData.payment_mode,
         payment_type: editData.payment_type,
         notes: editData.notes || null,
+        appointment_id: editData.appointment_id || null,
         status,
       }).eq("id", viewInvoice.id);
       if (error) throw error;

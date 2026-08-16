@@ -2351,20 +2351,19 @@ const Billing = () => {
                         <span className="min-w-0">
                           <span className="block truncate font-medium">{r.name}</span>
                           <span className="block text-[10px] text-muted-foreground">
-                            {r.kind}{r.qty > 1 ? ` · x${r.qty}` : ""}{r.hsn ? ` · HSN ${r.hsn}` : ""} · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}
-                            {(r.igst > 0 || r.cgst > 0) ? ` · IGST ₹${r.igst.toFixed(2)} + CGST ₹${r.cgst.toFixed(2)}` : ""}
+                            {r.kind}{r.qty > 1 ? ` · x${r.qty}` : ""}{r.hsn ? ` · HSN ${r.hsn}` : ""} · {r.rate > 0 ? `GST ${rateLabel(r.rate)}%` : "No tax"}
                           </span>
                         </span>
-                        <span className="text-right tabular-nums">₹{r.amount.toFixed(0)}</span>
-                        <span className="text-right tabular-nums">₹{r.tax.toFixed(2)}</span>
-                        <span className="text-right tabular-nums font-medium">₹{(r.amount + r.tax).toFixed(2)}</span>
+                        <span className="text-right tabular-nums">{money(r.amount)}</span>
+                        <span className="text-right tabular-nums">{money(r.tax)}</span>
+                        <span className="text-right tabular-nums font-medium">{money(r.amount + r.tax)}</span>
                       </div>
                     ))}
                     <div className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[11px] border-t bg-muted/40 font-semibold">
                       <span>Services + Pharmacy</span>
-                      <span className="text-right tabular-nums">₹{(servicesSubtotal + pharmaSubtotal).toFixed(0)}</span>
-                      <span className="text-right tabular-nums">₹{lineTaxRows.reduce((s, r) => s + r.tax, 0).toFixed(2)}</span>
-                      <span className="text-right tabular-nums">₹{(servicesSubtotal + pharmaSubtotal + lineTaxRows.reduce((s, r) => s + r.tax, 0)).toFixed(2)}</span>
+                      <span className="text-right tabular-nums">{money(servicesSubtotal + pharmaSubtotal)}</span>
+                      <span className="text-right tabular-nums">{money(lineTaxRows.reduce((s, r) => s + r.tax, 0))}</span>
+                      <span className="text-right tabular-nums">{money(servicesSubtotal + pharmaSubtotal + lineTaxRows.reduce((s, r) => s + r.tax, 0))}</span>
                     </div>
                   </div>
                 )}
@@ -2372,9 +2371,9 @@ const Billing = () => {
                   if (paymentType === "Staged") {
                     return (
                       <div className="space-y-1">
-                        <div className="flex justify-between"><span className="text-muted-foreground">Total across stages</span><span className="font-semibold">₹{stagedTotal.toLocaleString()}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{stagedPaid.toLocaleString()}</span></div>
-                        <div className="flex justify-between text-primary font-semibold border-t pt-2 mt-2"><span>Balance</span><span>₹{(stagedTotal - stagedPaid).toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Total across stages</span><span className="font-semibold">{money(stagedTotal)}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>{money(stagedPaid)}</span></div>
+                        <div className="flex justify-between text-primary font-semibold border-t pt-2 mt-2"><span>Balance</span><span>{money(stagedTotal - stagedPaid)}</span></div>
                         <p className="text-xs text-muted-foreground mt-1">{stages.length} invoice(s) will be created</p>
                       </div>
                     );
@@ -2387,26 +2386,24 @@ const Billing = () => {
                     const payableNow = svcNow + svcTaxNow + pharmaNow;
                     const scheduledLater = recurringAmount * Math.max(0, recurringCount - dueTodayCount);
                     return (
-                      <div className="space-y-1">
-                        <p className="text-[11px] text-muted-foreground">Installments cover services only (₹{servicesSubtotal.toLocaleString()}); pharmacy is charged in full.</p>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Installments due today ({dueTodayCount} × ₹{recurringAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })})</span><span>₹{svcNow.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        {svcTaxNow > 0 && (
-                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Service tax (today)</span><span>₹{svcTaxNow.toFixed(2)}</span></div>
-                        )}
-                        {pharmaSubtotal > 0 && (
-                          <>
-                            <div className="flex justify-between"><span className="text-muted-foreground">Pharmacy (full)</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
-                            {pharmaTaxTotals.tax > 0 && (
-                              <div className="flex justify-between text-xs"><span className="text-muted-foreground">Pharmacy tax</span><span>₹{pharmaTaxTotals.tax.toFixed(2)}</span></div>
-                            )}
-                          </>
-                        )}
-                        <div className="flex justify-between text-primary font-semibold border-t pt-2 mt-2"><span>Payable now (incl. tax)</span><span>₹{payableNow.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between pt-1"><span className="text-muted-foreground">Scheduled later ({Math.max(0, recurringCount - dueTodayCount)} × ₹{recurringAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}, tax at collection)</span><span>₹{scheduledLater.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Plan total</span><span className="font-semibold">₹{(payableNow + scheduledLater).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{recurringPaidTotal.toLocaleString()}</span></div>
-                        <div className="flex justify-between font-semibold"><span>Balance</span><span>₹{(payableNow + scheduledLater - recurringPaidTotal).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        <p className="text-xs text-muted-foreground mt-1">{dueTodayCount} invoice(s) taxed today + {Math.max(0, recurringCount - dueTodayCount)} scheduled amount(s), and {sourceAppointmentId ? recurringCount - 1 : recurringCount} recurring appointment(s) will be created</p>
+                      <div className="space-y-3">
+                        {/* PAY NOW */}
+                        <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 space-y-1">
+                          <p className="text-[10px] uppercase tracking-wide font-semibold text-primary">Pay now</p>
+                          <div className="flex justify-between"><span className="text-muted-foreground">Installments ticked ({dueTodayCount})</span><span>{money(svcNow + svcTaxNow)}</span></div>
+                          {pharmaSubtotal > 0 && (
+                            <div className="flex justify-between"><span className="text-muted-foreground">Pharmacy (full, incl. tax)</span><span>{money(pharmaNow)}</span></div>
+                          )}
+                          <div className="flex justify-between text-primary font-semibold border-t border-primary/20 pt-1.5 mt-1.5 text-base"><span>Total payable now</span><span>{money(payableNow)}</span></div>
+                        </div>
+                        {/* PAY LATER */}
+                        <div className="rounded-lg border border-dashed bg-muted/40 p-3 space-y-1">
+                          <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Pay later — subsequent visits</p>
+                          <div className="flex justify-between"><span className="text-muted-foreground">{Math.max(0, recurringCount - dueTodayCount)} installment(s) × {money(recurringAmount)}</span><span className="font-semibold">{money(scheduledLater)}</span></div>
+                          <p className="text-[11px] text-muted-foreground">Tax is applied at the time of collection.</p>
+                        </div>
+                        <div className="flex justify-between text-xs"><span className="text-muted-foreground">Plan total (services + pharmacy)</span><span className="font-semibold">{money(payableNow + scheduledLater)}</span></div>
+                        <p className="text-[11px] text-muted-foreground">Installments cover services only ({money(servicesSubtotal)}); pharmacy is billed in full on this invoice.</p>
                       </div>
                     );
                   }
@@ -2421,20 +2418,18 @@ const Billing = () => {
                   return (
                     <div className="space-y-1">
                       {servicesSubtotal > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Services (tax ₹{lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Services (tax {money(lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0))})</span><span>{money(servicesSubtotal)}</span></div>
                       )}
                       {pharmaSubtotal > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Products (tax ₹{lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Products (tax {money(lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0))})</span><span>{money(pharmaSubtotal)}</span></div>
                       )}
-                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>₹{subtotal.toLocaleString()}</span></div>
-                      {totalCgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{totalCgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                      {totalSgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>₹{totalSgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                      {totalIgst > 0 && <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{totalIgst.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>}
-                      <div className="flex justify-between font-semibold text-primary border-t pt-2 mt-2"><span>Grand Total</span><span>₹{grand.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{money(subtotal)}</span></div>
+                      {totalTax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Total tax (CGST+SGST+IGST)</span><span>{money(totalTax)}</span></div>}
+                      <div className="flex justify-between font-semibold text-primary border-t pt-2 mt-2"><span>Grand Total</span><span>{money(grand)}</span></div>
                       <div className="pt-2 mt-2 border-t space-y-2">
                         <div>
                           <Label className="text-xs">Paid Amount (₹)</Label>
-                          <Input type="number" className="mt-1 h-9" value={paidAmount} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
+                          <Input type="number" className="mt-1 h-9" placeholder="0" value={numVal(paidAmount)} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Balance Due</span>

@@ -4,6 +4,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 import { Phone, Loader2, User as UserIcon, IdCard } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +40,7 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
   const [endTime, setEndTime] = useState("10:30");
   const [consultationType, setConsultationType] = useState<ConsultationType | "">("");
   const [consultationReasons, setConsultationReasons] = useState<string[]>([]);
+  const [problemAreaIds, setProblemAreaIds] = useState<string[]>([]);
   const [othersAestheticText, setOthersAestheticText] = useState("");
   const [othersClinicalText, setOthersClinicalText] = useState("");
 
@@ -48,6 +52,7 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
       setAppointmentStatus("Reserved"); setAppointmentType("Walk-in");
       setDate(format(new Date(), "yyyy-MM-dd"));
       setStartTime("10:00"); setEndTime("10:30");
+      setProblemAreaIds([]);
     }
   }, [open]);
 
@@ -69,6 +74,24 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
     },
     enabled: open,
   });
+
+  const { data: problemAreas = [] } = useQuery({
+    queryKey: ["quick-appt-problem-areas"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("problem_areas").select("id, name").eq("is_active", true).order("name");
+      if (error) throw error; return data || [];
+    },
+    enabled: open,
+  });
+
+  const handleStartTimeChange = (v: string) => {
+    setStartTime(v);
+    const [h, m] = v.split(":").map(Number);
+    if (!Number.isNaN(h) && !Number.isNaN(m)) {
+      const total = (h * 60 + m + 15) % (24 * 60);
+      setEndTime(`${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`);
+    }
+  };
 
   const create = useMutation({
     mutationFn: async () => {
@@ -94,6 +117,7 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
         appointment_type: appointmentType,
         consultation_type: consultationType || null,
         consultation_reasons: savedReasons,
+        problem_area_ids: problemAreaIds,
       } as any);
       if (error) throw error;
       return { start, serviceName };
@@ -213,13 +237,43 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label>Start</Label>
-                <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="mt-1.5" />
+                <Input type="time" value={startTime} onChange={(e) => handleStartTimeChange(e.target.value)} className="mt-1.5" />
               </div>
               <div>
                 <Label>End</Label>
                 <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="mt-1.5" />
               </div>
             </div>
+          </div>
+
+          <div>
+            <Label>Primary Concern</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn("w-full mt-1.5 justify-start text-left font-normal", problemAreaIds.length === 0 && "text-muted-foreground")}
+                >
+                  {problemAreaIds.length === 0
+                    ? "Select primary concern"
+                    : (problemAreas as any[]).filter((p: any) => problemAreaIds.includes(p.id)).map((p: any) => p.name).join(", ")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-2 max-h-64 overflow-y-auto" align="start">
+                {(problemAreas as any[]).map((pa: any) => (
+                  <label key={pa.id} className="flex items-center gap-2 px-1.5 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                    <Checkbox
+                      checked={problemAreaIds.includes(pa.id)}
+                      onCheckedChange={(c) => setProblemAreaIds((prev) => (c ? [...prev, pa.id] : prev.filter((id) => id !== pa.id)))}
+                    />
+                    {pa.name}
+                  </label>
+                ))}
+                {(problemAreas as any[]).length === 0 && (
+                  <p className="text-xs text-muted-foreground p-2">No primary concerns configured.</p>
+                )}
+              </PopoverContent>
+            </Popover>
           </div>
 
           <ConsultationReasonPicker

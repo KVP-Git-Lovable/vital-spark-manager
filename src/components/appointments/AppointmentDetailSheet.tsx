@@ -290,6 +290,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [editStartTime, setEditStartTime] = useState("");
   const [editEndTime, setEditEndTime] = useState("");
   const [editStaffId, setEditStaffId] = useState("");
+  const [editProblemAreas, setEditProblemAreas] = useState<string[]>([]);
   const [initialized, setInitialized] = useState(false);
 
   // Fetch staff list for dropdown
@@ -310,6 +311,15 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       const { data, error } = await supabase.from("services").select("id, name").order("name");
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: problemAreasList = [] } = useQuery({
+    queryKey: ["problem-areas-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("problem_areas").select("id, name").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -338,6 +348,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditEndTime(appointment.end_time ? format(new Date(appointment.end_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditStaffId(appointment.staff_id || "");
+    setEditProblemAreas(((appointment as any).problem_area_ids as string[]) || []);
     setInitialized(true);
   }
 
@@ -598,6 +609,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
           start_time: new Date(editStartTime).toISOString(),
           end_time: new Date(editEndTime).toISOString(),
           staff_id: newStaffId,
+          problem_area_ids: editProblemAreas,
         } as any)
         .eq("id", appointmentId!);
       if (error) throw error;
@@ -857,6 +869,40 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         {servicesList.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div>
+                    <Label>Primary Concern</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn("w-full mt-1.5 justify-start text-left font-normal", editProblemAreas.length === 0 && "text-muted-foreground")}
+                        >
+                          {editProblemAreas.length === 0
+                            ? "Select primary concern"
+                            : (problemAreasList as any[])
+                                .filter((p: any) => editProblemAreas.includes(p.id))
+                                .map((p: any) => p.name)
+                                .join(", ")}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-2 max-h-64 overflow-y-auto" align="start">
+                        {(problemAreasList as any[]).map((pa: any) => (
+                          <label key={pa.id} className="flex items-center gap-2 px-1.5 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                            <Checkbox
+                              checked={editProblemAreas.includes(pa.id)}
+                              onCheckedChange={(c) =>
+                                setEditProblemAreas((prev) => (c ? [...prev, pa.id] : prev.filter((id) => id !== pa.id)))
+                              }
+                            />
+                            {pa.name}
+                          </label>
+                        ))}
+                        {(problemAreasList as any[]).length === 0 && (
+                          <p className="text-xs text-muted-foreground p-2">No primary concerns configured.</p>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   {parentAppointment && (
                     <div>
@@ -1164,188 +1210,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                     </div>
                   )}
 
-                  <h3 className="text-sm font-semibold font-display flex items-center gap-2 pt-2 border-t">
-                    <CalendarClock className="h-4 w-4" /> Billing Plan
-                  </h3>
-
-                  {appointment.patient_id ? (
-                    <div className="space-y-4">
-                      {/* Total Amount */}
-                      <div>
-                        <Label>Total Bill Amount (₹)</Label>
-                        <Input
-                          type="number"
-                          placeholder="e.g. 100000"
-                          value={billingTotal || ""}
-                          onChange={(e) => { setBillingTotal(Number(e.target.value)); setBillingConfirmed(false); setCustomSchedule([]); }}
-                          className="mt-1.5"
-                        />
-                      </div>
-
-                      {/* Billing Type */}
-                      <div>
-                        <Label>Billing Type</Label>
-                        <RadioGroup
-                          value={billingType}
-                          onValueChange={(v) => { setBillingType(v as any); setBillingConfirmed(false); setCustomSchedule([]); }}
-                          className="flex gap-4 mt-1.5"
-                        >
-                          <div className="flex items-center gap-2">
-                            <RadioGroupItem value="one-time" id="bt-one" />
-                            <Label htmlFor="bt-one" className="font-normal cursor-pointer">One-time</Label>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <RadioGroupItem value="recurring" id="bt-rec" />
-                            <Label htmlFor="bt-rec" className="font-normal cursor-pointer">Installments</Label>
-                          </div>
-                        </RadioGroup>
-                      </div>
-
-                      {/* Recurring options */}
-                      {billingType === "recurring" && (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label>Frequency</Label>
-                            <Select value={billingFrequency} onValueChange={(v) => { setBillingFrequency(v as any); setBillingConfirmed(false); setCustomSchedule([]); }}>
-                              <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="weekly">Weekly</SelectItem>
-                                <SelectItem value="monthly">Monthly</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label>No. of Installments</Label>
-                            <Input
-                              type="number"
-                              min={2}
-                              max={24}
-                              value={billingInstallments}
-                              onChange={(e) => { setBillingInstallments(Math.max(2, Number(e.target.value))); setBillingConfirmed(false); setCustomSchedule([]); }}
-                              className="mt-1.5"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Payment Mode */}
-                      <div>
-                        <Label>Payment Mode</Label>
-                        <Select value={billingMode} onValueChange={setBillingMode}>
-                          <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {["Cash", "Card", "UPI", "Bank Transfer", "Cheque"].map((m) => (
-                              <SelectItem key={m} value={m}>{m}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Generate / Schedule Preview */}
-                      {billingTotal > 0 && customSchedule.length === 0 && (
-                        <Button variant="outline" className="w-full gap-2" onClick={regenerateSchedule}>
-                          <CalendarClock className="h-4 w-4" /> Generate Invoice Schedule
-                        </Button>
-                      )}
-
-                      {customSchedule.length > 0 && (
-                        <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs font-semibold flex items-center gap-1.5">
-                              <CalendarClock className="h-3.5 w-3.5" /> Invoice Schedule
-                            </p>
-                            <Button variant="ghost" size="sm" className="h-6 text-[10px] text-muted-foreground" onClick={regenerateSchedule}>
-                              Reset
-                            </Button>
-                          </div>
-                          <div className="space-y-2">
-                            {customSchedule.map((inst, idx) => (
-                              <div key={idx} className="flex items-center gap-2 border-b border-border/50 pb-2 last:border-0">
-                                <span className="text-xs text-muted-foreground w-5 shrink-0">#{idx + 1}</span>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1 flex-1 justify-start font-normal">
-                                      <CalendarIcon className="h-3 w-3" />
-                                      {format(inst.date, "MMM d, yyyy")}
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                      mode="single"
-                                      selected={inst.date}
-                                      onSelect={(d) => d && updateScheduleDate(idx, d)}
-                                      initialFocus
-                                      className={cn("p-3 pointer-events-auto")}
-                                    />
-                                  </PopoverContent>
-                                </Popover>
-                                <div className="w-24 shrink-0">
-                                  <Input
-                                    type="number"
-                                    className="h-7 text-xs"
-                                    value={inst.amount || ""}
-                                    onChange={(e) => updateScheduleAmount(idx, Number(e.target.value) || 0)}
-                                  />
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-destructive"
-                                  onClick={() => removeScheduleRow(idx)}
-                                  disabled={customSchedule.length <= 1}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                          <Button variant="outline" size="sm" className="w-full h-7 text-xs gap-1" onClick={addScheduleRow}>
-                            <Plus className="h-3 w-3" /> Add Installment
-                          </Button>
-                          <div className="flex justify-between text-xs font-semibold pt-1 border-t">
-                            <span>Schedule Total</span>
-                            <span className={scheduleMismatch ? "text-destructive" : ""}>₹{scheduleTotal.toLocaleString()}</span>
-                          </div>
-                          {scheduleMismatch && (
-                            <div className="flex items-center gap-1.5 text-[10px] text-destructive bg-destructive/10 rounded px-2 py-1">
-                              <AlertTriangle className="h-3 w-3" />
-                              Schedule total (₹{scheduleTotal.toLocaleString()}) doesn't match bill amount (₹{billingTotal.toLocaleString()}). Adjust amounts to proceed.
-                            </div>
-                          )}
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Bill Amount</span>
-                            <span>₹{billingTotal.toLocaleString()}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Confirm & Create */}
-                      {customSchedule.length > 0 && (
-                        <div className="space-y-3 pt-2">
-                          <div className="flex items-start gap-2">
-                            <Checkbox
-                              id="billing-confirm"
-                              checked={billingConfirmed}
-                              onCheckedChange={(c) => setBillingConfirmed(!!c)}
-                              disabled={scheduleMismatch}
-                            />
-                            <Label htmlFor="billing-confirm" className={cn("font-normal text-xs leading-relaxed cursor-pointer", scheduleMismatch && "text-muted-foreground")}>
-                              I confirm the schedule above. Create {customSchedule.length} invoice(s) for {patientName} with service "{appointment.service}" linked to this appointment.
-                            </Label>
-                          </div>
-                          <Button
-                            onClick={handleCreateBillingInvoices}
-                            disabled={!billingConfirmed || billingCreating || scheduleMismatch}
-                            className="w-full gap-2"
-                          >
-                            <Check className="h-4 w-4" />
-                            {billingCreating ? "Creating Invoices..." : `Create ${customSchedule.length} Invoice(s)`}
-                          </Button>
-                        </div>
-                      )}
-
-                    </div>
-                  ) : (
+                  {!appointment.patient_id && (
                     <p className="text-sm text-muted-foreground text-center py-8">No patient linked to this appointment.</p>
                   )}
                 </TabsContent>

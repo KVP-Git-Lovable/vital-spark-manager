@@ -108,6 +108,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [refDocSearch, setRefDocSearch] = useState("");
   const [familyRows, setFamilyRows] = useState<FamilyRow[]>([]);
   const [removedFamilyIds, setRemovedFamilyIds] = useState<string[]>([]);
+  const [duplicates, setDuplicates] = useState<any[]>([]);
+  const [duplicateAck, setDuplicateAck] = useState(false);
+  const [familyExisting, setFamilyExisting] = useState<Record<string, any>>({});
   const { toast } = useToast();
   const isEditing = !!patient;
 
@@ -318,6 +321,57 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const updateFamilyRow = (idx: number, patch: Partial<FamilyRow>) =>
     setFamilyRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
 
+  // Duplicate patient detection by phone / email
+  useEffect(() => {
+    if (!open) return;
+    const phone = (form.phone || "").trim();
+    const email = (form.email || "").trim();
+    if (phone.length < 6 && email.length < 5) {
+      setDuplicates([]);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const filters: string[] = [];
+      if (phone.length >= 6) filters.push(`phone.ilike.%${phone}%`);
+      if (email.length >= 5) filters.push(`email.ilike.${email}`);
+      const { data } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, phone, email")
+        .or(filters.join(","))
+        .limit(5);
+      if (cancelled) return;
+      setDuplicates(((data as any[]) || []).filter((p) => p.id !== patient?.id));
+      setDuplicateAck(false);
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [open, form.phone, form.email, patient?.id]);
+
+  // Flag family members who are already existing patients
+  useEffect(() => {
+    if (!open) return;
+    const phones = familyRows.map((r) => (r.phone || "").trim()).filter((p) => p.length >= 6);
+    if (phones.length === 0) { setFamilyExisting({}); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, phone")
+        .or(phones.map((p) => `phone.ilike.%${p}%`).join(","))
+        .limit(20);
+      if (cancelled) return;
+      const map: Record<string, any> = {};
+      for (const p of phones) {
+        const hit = ((data as any[]) || []).find(
+          (row) => (row.phone || "").includes(p) && row.id !== patient?.id,
+        );
+        if (hit) map[p] = hit;
+      }
+      setFamilyExisting(map);
+    }, 500);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [open, familyRows, patient?.id]);
+
   const removeFamilyRow = (idx: number) =>
     setFamilyRows((prev) => {
       const row = prev[idx];
@@ -352,6 +406,15 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     }
 
     const cfErrors = validateCustomFields(customFieldDefs, customValues);
+    if (!isEditing && duplicates.length > 0 && !duplicateAck) {
+      setDuplicateAck(true);
+      toast({
+        title: "Possible duplicate patient",
+        description: `${duplicates.length} existing patient(s) match this phone/email. Press Save again to create anyway.`,
+        variant: "destructive",
+      });
+      return;
+    }
     setCustomErrors(cfErrors);
     if (Object.keys(cfErrors).length) {
       toast({ title: "Validation failed", description: String(Object.values(cfErrors)[0]), variant: "destructive" });
@@ -450,6 +513,19 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                 <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 <span>{m.message}</span>
               </div>
+            ))}
+          </div>
+        )}
+
+        {duplicates.length > 0 && (
+          <div className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400 space-y-1">
+            <p className="flex items-center gap-1.5 font-medium">
+              <AlertCircle className="h-3.5 w-3.5" /> Possible duplicate patient found
+            </p>
+            {duplicates.map((d) => (
+              <p key={d.id}>
+                {d.first_name} {d.last_name} · {d.phone || "no phone"}{d.email ? ` · ${d.email}` : ""}
+              </p>
             ))}
           </div>
         )}
@@ -1007,6 +1083,14 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                 </div>
                 {row.linked && (
                   <p className="text-[11px] text-muted-foreground">Linked to an existing patient record.</p>
+                )}
+                {!row.linked && familyExisting[(row.phone || "").trim()] && (
+                  <p className="text-[11px] flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                    <AlertCircle className="h-3 w-3" />
+                    This family member is already an existing patient:{" "}
+                    {familyExisting[(row.phone || "").trim()].first_name}{" "}
+                    {familyExisting[(row.phone || "").trim()].last_name}
+                  </p>
                 )}
               </div>
             ))}

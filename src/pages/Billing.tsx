@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths } from "date-fns";
-import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown } from "lucide-react";
+import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown, Stethoscope } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -264,6 +264,8 @@ const Billing = () => {
   const [recurringCollected, setRecurringCollected] = useState<number[]>([0]);
   const [recurringTotalAmount, setRecurringTotalAmount] = useState(0);
   const [recurringDueDates, setRecurringDueDates] = useState<Date[]>([new Date()]);
+  // Per-installment appointment date (auto-follows the due date unless overridden)
+  const [recurringApptDates, setRecurringApptDates] = useState<(Date | null)[]>([]);
   const [recurringStatuses, setRecurringStatuses] = useState<string[]>(["Pending"]);
   // Appointment this invoice originated from (installment #1 links to it)
   const [sourceAppointmentId, setSourceAppointmentId] = useState<string | null>(null);
@@ -312,6 +314,24 @@ const Billing = () => {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Appointments belonging to the invoice's patient — used to re-link an
+  // installment to a different visit of the SAME patient.
+  const linkPatientId = (viewInvoice as any)?.patient_id || null;
+  const { data: patientAppointments = [] } = useQuery({
+    queryKey: ["invoice-patient-appointments", linkPatientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("id, service, start_time, status")
+        .eq("patient_id", linkPatientId)
+        .order("start_time", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!linkPatientId,
   });
 
   const { data: patients = [] } = useQuery({
@@ -984,7 +1004,7 @@ const Billing = () => {
 
           for (let i = startFrom; i < recurringCount; i++) {
             const due = recurringDueDates[i] || addMonths(new Date(), i);
-            const start = new Date(due);
+            const start = new Date(recurringApptDates[i] || due);
             if (parentAppt?.start_time) {
               const src = new Date(parentAppt.start_time);
               start.setHours(src.getHours(), src.getMinutes(), 0, 0);
@@ -1386,6 +1406,7 @@ const Billing = () => {
         payment_mode: editData.payment_mode,
         payment_type: editData.payment_type,
         notes: editData.notes || null,
+        appointment_id: editData.appointment_id || null,
         status,
       }).eq("id", viewInvoice.id);
       if (error) throw error;
@@ -1425,6 +1446,7 @@ const Billing = () => {
     setRecurringCollected([0]);
     setRecurringTotalAmount(0);
     setRecurringDueDates([new Date()]);
+    setRecurringApptDates([]);
     setRecurringStatuses(["Pending"]);
     setSourceAppointmentId(null);
     setServiceSearchOpen(null);
@@ -1583,6 +1605,7 @@ const Billing = () => {
       payment_mode: inv.payment_mode || "Cash",
       payment_type: inv.payment_type || "One-time",
       notes: inv.notes || "",
+      appointment_id: inv.appointment_id || "",
     });
   };
 
@@ -1661,12 +1684,30 @@ const Billing = () => {
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <Label>Services</Label>
-                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs" onClick={addServiceInput}>
-                    <Plus className="h-3 w-3 mr-1" /> Add
+              {/* Services */}
+              <div className="rounded-xl border-2 border-accent-foreground/20 bg-accent/40 p-4">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-foreground/10 text-accent-foreground">
+                      <Stethoscope className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <Label className="text-sm font-semibold">Services</Label>
+                      <p className="text-[11px] text-muted-foreground">Treatments & consultations billed with this invoice</p>
+                    </div>
+                    {serviceInputs.filter((s) => s.name?.trim()).length > 0 && (
+                      <Badge variant="secondary" className="ml-1">{serviceInputs.filter((s) => s.name?.trim()).length}</Badge>
+                    )}
+                  </div>
+                  <Button type="button" size="sm" className="h-8 text-xs shadow-sm" onClick={addServiceInput}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Service
                   </Button>
+                </div>
+                <div className="hidden sm:flex gap-2 items-center px-1 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <span className="flex-1">Service</span>
+                  <span className="w-24 shrink-0 text-right">Price (₹)</span>
+                  <span className="w-24 shrink-0">HSN</span>
+                  {serviceInputs.length > 1 && <span className="w-8 shrink-0" />}
                 </div>
                 {serviceInputs.map((s, i) => (
                   <div key={i} className="mb-2">
@@ -1719,7 +1760,7 @@ const Billing = () => {
                         onChange={(e) => updateServiceInput(i, { hsn: e.target.value })}
                       />
                       {serviceInputs.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0" disabled={!!s.doctor_fee} onClick={() => removeServiceInput(i)}>✕</Button>
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0 w-8 px-0" disabled={!!s.doctor_fee} onClick={() => removeServiceInput(i)}>✕</Button>
                       )}
                     </div>
                     {s.price > 0 && (() => {
@@ -2123,12 +2164,50 @@ const Billing = () => {
                             <div className="col-span-5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                               <span>Tax ₹{installmentTax.tax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                               <span className="font-medium text-foreground">Total ₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                              <span className="flex items-center gap-1">
-                                <CalendarClock className="h-3 w-3" />
-                                {i === 0 && sourceAppointmentId
-                                  ? "Linked to current appointment"
-                                  : `Recurring appointment will be created on ${format(dueDate, "dd MMM yyyy")}`}
-                              </span>
+                              {i === 0 && sourceAppointmentId ? (
+                                <span className="flex items-center gap-1">
+                                  <CalendarClock className="h-3 w-3" />
+                                  Linked to current appointment
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1">
+                                  <CalendarClock className="h-3 w-3" />
+                                  Recurring appointment on
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button variant="outline" size="sm" className="h-6 px-2 text-[11px] font-medium">
+                                        {format(recurringApptDates[i] || dueDate, "dd MMM yyyy")}
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <Calendar
+                                        mode="single"
+                                        selected={recurringApptDates[i] || dueDate}
+                                        onSelect={(d) => {
+                                          if (!d) return;
+                                          const updated = [...recurringApptDates];
+                                          updated[i] = d;
+                                          setRecurringApptDates(updated);
+                                        }}
+                                        className="p-3 pointer-events-auto"
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                  {recurringApptDates[i] && (
+                                    <button
+                                      type="button"
+                                      className="underline hover:text-foreground"
+                                      onClick={() => {
+                                        const updated = [...recurringApptDates];
+                                        updated[i] = null;
+                                        setRecurringApptDates(updated);
+                                      }}
+                                    >
+                                      reset
+                                    </button>
+                                  )}
+                                </span>
+                              )}
                             </div>
                           </div>
                         );
@@ -2173,6 +2252,36 @@ const Billing = () => {
                 <p className="text-xs text-muted-foreground mt-0.5">Totals update as you edit</p>
               </div>
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 text-sm">
+                {lineTaxRows.length > 0 && (
+                  <div className="rounded-lg border bg-background/70 overflow-hidden mb-3">
+                    <div className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/60">
+                      <span>Line item</span>
+                      <span className="text-right">Amt</span>
+                      <span className="text-right">Tax</span>
+                      <span className="text-right">Total</span>
+                    </div>
+                    {lineTaxRows.map((r) => (
+                      <div key={r.key} className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[11px] border-t items-start">
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">{r.name}</span>
+                          <span className="block text-[10px] text-muted-foreground">
+                            {r.kind}{r.qty > 1 ? ` · x${r.qty}` : ""}{r.hsn ? ` · HSN ${r.hsn}` : ""} · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}
+                            {(r.igst > 0 || r.cgst > 0) ? ` · IGST ₹${r.igst.toFixed(2)} + CGST ₹${r.cgst.toFixed(2)}` : ""}
+                          </span>
+                        </span>
+                        <span className="text-right tabular-nums">₹{r.amount.toFixed(0)}</span>
+                        <span className="text-right tabular-nums">₹{r.tax.toFixed(2)}</span>
+                        <span className="text-right tabular-nums font-medium">₹{(r.amount + r.tax).toFixed(2)}</span>
+                      </div>
+                    ))}
+                    <div className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[11px] border-t bg-muted/40 font-semibold">
+                      <span>Services + Pharmacy</span>
+                      <span className="text-right tabular-nums">₹{(servicesSubtotal + pharmaSubtotal).toFixed(0)}</span>
+                      <span className="text-right tabular-nums">₹{lineTaxRows.reduce((s, r) => s + r.tax, 0).toFixed(2)}</span>
+                      <span className="text-right tabular-nums">₹{(servicesSubtotal + pharmaSubtotal + lineTaxRows.reduce((s, r) => s + r.tax, 0)).toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
                 {(() => {
                   if (paymentType === "Staged") {
                     return (
@@ -2216,30 +2325,6 @@ const Billing = () => {
                   const balance = grand - (Number(paidAmount) || 0);
                   return (
                     <div className="space-y-1">
-                      {lineTaxRows.length > 0 && (
-                        <div className="rounded-lg border bg-background/70 overflow-hidden mb-3">
-                          <div className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/60">
-                            <span>Line item</span>
-                            <span className="text-right">Amt</span>
-                            <span className="text-right">Tax</span>
-                            <span className="text-right">Total</span>
-                          </div>
-                          {lineTaxRows.map((r) => (
-                            <div key={r.key} className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[11px] border-t items-start">
-                              <span className="min-w-0">
-                                <span className="block truncate font-medium">{r.name}</span>
-                                <span className="block text-[10px] text-muted-foreground">
-                                  {r.kind}{r.qty > 1 ? ` · x${r.qty}` : ""}{r.hsn ? ` · HSN ${r.hsn}` : ""} · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}
-                                  {(r.igst > 0 || r.cgst > 0) ? ` · IGST ₹${r.igst.toFixed(2)} + CGST ₹${r.cgst.toFixed(2)}` : ""}
-                                </span>
-                              </span>
-                              <span className="text-right tabular-nums">₹{r.amount.toFixed(0)}</span>
-                              <span className="text-right tabular-nums">₹{r.tax.toFixed(2)}</span>
-                              <span className="text-right tabular-nums font-medium">₹{(r.amount + r.tax).toFixed(2)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                       {servicesSubtotal > 0 && (
                         <div className="flex justify-between"><span className="text-muted-foreground">Services (tax ₹{lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
                       )}
@@ -2636,6 +2721,30 @@ const Billing = () => {
               <div>
                 <Label>Notes</Label>
                 <Textarea className="mt-1.5" value={editData.notes} onChange={(e) => setEditData({ ...editData, notes: e.target.value })} rows={2} />
+              </div>
+              <div>
+                <Label>Linked Appointment</Label>
+                {linkPatientId ? (
+                  <>
+                    <Select
+                      value={editData.appointment_id || "none"}
+                      onValueChange={(v) => setEditData({ ...editData, appointment_id: v === "none" ? "" : v })}
+                    >
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select appointment" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Not linked</SelectItem>
+                        {(patientAppointments as any[]).map((a: any) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {format(new Date(a.start_time), "dd MMM yyyy, h:mm a")} · {a.service || "Visit"}{a.status ? ` · ${a.status}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground mt-1">Only appointments of {viewInvoice.patient_name || "this patient"} are listed.</p>
+                  </>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground mt-1.5">This invoice has no patient record linked, so appointments cannot be listed.</p>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button className="flex-1" onClick={() => updateInvoice.mutate()} disabled={updateInvoice.isPending}>

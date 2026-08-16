@@ -10,6 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { buildOrFilter, buildFuzzyOrFilter, fuzzyRank } from "@/lib/fuzzySearch";
 
 const PHONE_LIKE_NAME = /^[+\d\s()\-]{7,}$/;
 
@@ -85,18 +86,31 @@ export function PatientCombobox({
     queryFn: async () => {
       const q = debounced.replace(/[%,]/g, " ").trim();
       if (!q) return [];
-      // Search by first name, last name, or phone
-      const pattern = `%${q}%`;
+      // Token-aware search across first name, last name and phone
+      const or = buildOrFilter(q, ["first_name", "last_name", "phone"]);
       const { data, error } = await supabase
         .from("patients")
         .select(columns)
-        .or(
-          `first_name.ilike.${pattern},last_name.ilike.${pattern},phone.ilike.${pattern}`
-        )
+        .or(or)
         .order("first_name")
         .limit(PAGE_SIZE);
       if (error) throw error;
-      return ((data ?? []) as unknown) as PatientLite[];
+      const rows = ((data ?? []) as unknown) as PatientLite[];
+      if (rows.length > 0) return rows;
+      // Typo-tolerant fallback
+      const looseOr = buildFuzzyOrFilter(q, ["first_name", "last_name"]);
+      if (!looseOr) return rows;
+      const { data: loose } = await supabase
+        .from("patients")
+        .select(columns)
+        .or(looseOr)
+        .limit(300);
+      return fuzzyRank(
+        ((loose ?? []) as unknown) as PatientLite[],
+        q,
+        (p) => `${p.first_name || ""} ${p.last_name || ""} ${p.phone || ""}`,
+        0.55
+      ).slice(0, PAGE_SIZE);
     },
     enabled: open && debounced.length > 0,
     staleTime: 60_000,

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths } from "date-fns";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths, isSameDay } from "date-fns";
 import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown, Stethoscope } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Input } from "@/components/ui/input";
@@ -765,25 +765,58 @@ const Billing = () => {
     return { cgst, sgst, igst, tax: cgst + sgst + igst };
   };
 
-  // Per-installment tax + total (recurring plans)
-  const installmentTax = useMemo(() => {
-    const base = servicesSubtotal + pharmaSubtotal;
-    const scale = base > 0 ? recurringAmount / base : 0;
-    return scaledLineTax(scale);
+  // Tax for a share of the SERVICES only (recurring installments never include pharmacy)
+  const scaledServiceTax = (scale: number) => {
+    let cgst = 0, sgst = 0, igst = 0;
+    serviceInputs.forEach((s: any) => {
+      if (!String(s.name || "").trim() || !s.price) return;
+      const t = getServiceLineTax(s.name, Number(s.price) * scale, s.hsn);
+      cgst += t.cgst; sgst += t.sgst; igst += t.igst;
+    });
+    return { cgst, sgst, igst, tax: cgst + sgst + igst };
+  };
+
+  // Full pharmacy tax — pharmacy is always paid in full, never split across installments
+  const pharmaTaxTotals = useMemo(() => {
+    let cgst = 0, sgst = 0, igst = 0;
+    pharmaItems.forEach((p) => {
+      const amt = p.quantity * p.unit_price;
+      if (!p.product_id || !amt) return;
+      const t = getProductLineTax(p.product_id, amt, p.inventory_id);
+      cgst += t.cgst; sgst += t.sgst; igst += t.igst;
+    });
+    return { cgst, sgst, igst, tax: cgst + sgst + igst };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [servicesSubtotal, pharmaSubtotal, recurringAmount, serviceInputs, pharmaItems, serviceTaxMap, productTaxMap]);
+  }, [pharmaItems, productTaxMap, pharmaInventory, hsnTaxes]);
+
+  // Per-installment tax + total (recurring plans) — services only
+  const installmentTax = useMemo(() => {
+    const scale = servicesSubtotal > 0 ? recurringAmount / servicesSubtotal : 0;
+    return scaledServiceTax(scale);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servicesSubtotal, recurringAmount, serviceInputs, serviceTaxMap]);
   const installmentTotal = recurringAmount + installmentTax.tax;
 
-  // Auto-fill Recurring Total Amount from services + products subtotal, and recompute per-installment amount
+  // Installments whose (editable) due date is today are invoiced/charged now
+  const dueTodayIndexes = useMemo(() => {
+    const today = new Date();
+    const out: number[] = [];
+    for (let i = 0; i < recurringCount; i++) {
+      const d = recurringDueDates[i] || addMonths(new Date(), i);
+      if (isSameDay(d, today)) out.push(i);
+    }
+    return out;
+  }, [recurringDueDates, recurringCount]);
+
+  // Auto-fill Recurring Total Amount from SERVICES subtotal only (pharmacy is paid in full)
   useEffect(() => {
     if (paymentType !== "Recurring") return;
-    const subtotal = servicesSubtotal + pharmaSubtotal;
-    if (subtotal <= 0) return;
-    setRecurringTotalAmount(subtotal);
+    if (servicesSubtotal <= 0) return;
+    setRecurringTotalAmount(servicesSubtotal);
     const c = Math.max(1, recurringCount);
-    setRecurringAmount(Math.round((subtotal / c) * 100) / 100);
+    setRecurringAmount(Math.round((servicesSubtotal / c) * 100) / 100);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentType, servicesSubtotal, pharmaSubtotal, recurringCount]);
+  }, [paymentType, servicesSubtotal, recurringCount]);
 
   // Keep "Paid" installments' collected amount in sync with the per-installment amount
   useEffect(() => {
@@ -980,8 +1013,18 @@ const Billing = () => {
           invoiceId: undefined as string | undefined,
         };
       } else if (paymentType === "Recurring") {
-        const t = splitTax(recurringAmount);
+        // Installments cover SERVICES only; pharmacy is billed in full on the invoice charged today
+        const svcScale = servicesSubtotal > 0 ? recurringAmount / servicesSubtotal : 0;
+        const t = aggregateLineTax(serviceInputs, [], svcScale);
+        const pharmaT = aggregateLineTax([], pharmaItems, 1);
         const totalPerInst = recurringAmount + t.tax_amount;
+        const todayDate = new Date();
+        const dueTodayIdx: number[] = [];
+        for (let i = 0; i < recurringCount; i++) {
+          const d = recurringDueDates[i] || addMonths(new Date(), i);
+          if (isSameDay(d, todayDate)) dueTodayIdx.push(i);
+        }
+        const pharmaHostIdx = dueTodayIdx.length > 0 ? dueTodayIdx[0] : 0;
         const groupId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`) as string;
 
         // Recurring installments are tied to appointments: #1 to the current
@@ -1048,9 +1091,19 @@ const Billing = () => {
           // 2..N are *scheduled amounts* — no tax is levied until they are collected
           // on/after their due date. The effective tax rate is stored so tax can be
           // applied at collection time.
-          const isFirst = i === 0;
+          const chargedNow = dueTodayIdx.includes(i);
+          const isFirst = chargedNow;
+          const withPharma = i === pharmaHostIdx && pharmaSubtotal > 0;
           const effRate = recurringAmount > 0 ? (t.tax_amount / recurringAmount) * 100 : 0;
-          const lineTotal = isFirst ? totalPerInst : recurringAmount;
+          const taxNow = {
+            tax_amount: (chargedNow ? t.tax_amount : 0) + (withPharma ? pharmaT.tax_amount : 0),
+            cgst_amount: (chargedNow ? t.cgst_amount : 0) + (withPharma ? pharmaT.cgst_amount : 0),
+            sgst_amount: (chargedNow ? t.sgst_amount : 0) + (withPharma ? pharmaT.sgst_amount : 0),
+            igst_amount: (chargedNow ? t.igst_amount : 0) + (withPharma ? pharmaT.igst_amount : 0),
+          };
+          const lineTotal = recurringAmount
+            + (chargedNow ? t.tax_amount : 0)
+            + (withPharma ? pharmaSubtotal + pharmaT.tax_amount : 0);
           let status = instStatus;
           if (collected >= lineTotal && lineTotal > 0) status = "Paid";
           else if (collected > 0 && instStatus === "Pending") status = "Partial";
@@ -1073,10 +1126,10 @@ const Billing = () => {
             status,
             payment_type: "Recurring",
             payment_mode: paymentMode,
-            notes: `${isFirst ? "Installment" : "Scheduled amount"} ${i + 1} of ${recurringCount} | Due: ${format(dueDate, "dd MMM yyyy")}${notes ? ` — ${notes}` : ""}`,
+            notes: `${chargedNow ? "Installment" : "Scheduled amount"} ${i + 1} of ${recurringCount} | Due: ${format(dueDate, "dd MMM yyyy")}${withPharma ? " | Includes pharmacy (paid in full)" : ""}${notes ? ` — ${notes}` : ""}`,
             tax_id: null,
-            tax_rate: isFirst ? null : Math.round(effRate * 100) / 100,
-            ...(isFirst ? t : { tax_amount: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0 }),
+            tax_rate: chargedNow ? null : Math.round(effRate * 100) / 100,
+            ...taxNow,
           };
         });
         const { error } = await supabase.from("invoices").insert(rows as any);
@@ -2162,8 +2215,18 @@ const Billing = () => {
                               setRecurringCollected(updated);
                             }} />
                             <div className="col-span-5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                              <span>Tax ₹{installmentTax.tax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                              <span className="font-medium text-foreground">Total ₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                              {isSameDay(dueDate, new Date()) ? (
+                                <>
+                                  <span>Tax ₹{installmentTax.tax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                  <span className="font-medium text-foreground">Total ₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                  <span className="text-primary font-medium">Billed today</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>Tax at collection</span>
+                                  <span className="font-medium text-foreground">Scheduled ₹{recurringAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                </>
+                              )}
                               {i === 0 && sourceAppointmentId ? (
                                 <span className="flex items-center gap-1">
                                   <CalendarClock className="h-3 w-3" />
@@ -2294,24 +2357,33 @@ const Billing = () => {
                     );
                   }
                   if (paymentType === "Recurring") {
+                    const dueTodayCount = dueTodayIndexes.length;
+                    const svcNow = dueTodayCount * recurringAmount;
+                    const svcTaxNow = dueTodayCount * installmentTax.tax;
+                    const pharmaNow = pharmaSubtotal + pharmaTaxTotals.tax;
+                    const payableNow = svcNow + svcTaxNow + pharmaNow;
+                    const scheduledLater = recurringAmount * Math.max(0, recurringCount - dueTodayCount);
                     return (
                       <div className="space-y-1">
-                        <div className="flex justify-between"><span className="text-muted-foreground">Installment 1 of {recurringCount}</span><span>₹{recurringAmount.toLocaleString()}</span></div>
-                        {installmentTax.cgst > 0 && (
+                        <p className="text-[11px] text-muted-foreground">Installments cover services only (₹{servicesSubtotal.toLocaleString()}); pharmacy is charged in full.</p>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Installments due today ({dueTodayCount} × ₹{recurringAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })})</span><span>₹{svcNow.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        {svcTaxNow > 0 && (
+                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Service tax (today)</span><span>₹{svcTaxNow.toFixed(2)}</span></div>
+                        )}
+                        {pharmaSubtotal > 0 && (
                           <>
-                            <div className="flex justify-between text-xs"><span className="text-muted-foreground">CGST</span><span>₹{installmentTax.cgst.toFixed(2)}</span></div>
-                            <div className="flex justify-between text-xs"><span className="text-muted-foreground">SGST</span><span>₹{installmentTax.sgst.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">Pharmacy (full)</span><span>₹{pharmaSubtotal.toLocaleString()}</span></div>
+                            {pharmaTaxTotals.tax > 0 && (
+                              <div className="flex justify-between text-xs"><span className="text-muted-foreground">Pharmacy tax</span><span>₹{pharmaTaxTotals.tax.toFixed(2)}</span></div>
+                            )}
                           </>
                         )}
-                        {installmentTax.igst > 0 && (
-                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">IGST</span><span>₹{installmentTax.igst.toFixed(2)}</span></div>
-                        )}
-                        <div className="flex justify-between text-primary font-semibold border-t pt-2 mt-2"><span>Payable now (incl. tax)</span><span>₹{installmentTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between pt-1"><span className="text-muted-foreground">Scheduled later ({Math.max(0, recurringCount - 1)} × ₹{recurringAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}, tax at collection)</span><span>₹{(recurringAmount * Math.max(0, recurringCount - 1)).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Plan total</span><span className="font-semibold">₹{(installmentTotal + recurringAmount * Math.max(0, recurringCount - 1)).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        <div className="flex justify-between text-primary font-semibold border-t pt-2 mt-2"><span>Payable now (incl. tax)</span><span>₹{payableNow.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        <div className="flex justify-between pt-1"><span className="text-muted-foreground">Scheduled later ({Math.max(0, recurringCount - dueTodayCount)} × ₹{recurringAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}, tax at collection)</span><span>₹{scheduledLater.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Plan total</span><span className="font-semibold">₹{(payableNow + scheduledLater).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
                         <div className="flex justify-between"><span className="text-muted-foreground">Total collected</span><span>₹{recurringPaidTotal.toLocaleString()}</span></div>
-                        <div className="flex justify-between font-semibold"><span>Balance</span><span>₹{(installmentTotal + recurringAmount * Math.max(0, recurringCount - 1) - recurringPaidTotal).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                        <p className="text-xs text-muted-foreground mt-1">1 invoice (taxed now) + {Math.max(0, recurringCount - 1)} scheduled amount(s), and {sourceAppointmentId ? recurringCount - 1 : recurringCount} recurring appointment(s) will be created</p>
+                        <div className="flex justify-between font-semibold"><span>Balance</span><span>₹{(payableNow + scheduledLater - recurringPaidTotal).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
+                        <p className="text-xs text-muted-foreground mt-1">{dueTodayCount} invoice(s) taxed today + {Math.max(0, recurringCount - dueTodayCount)} scheduled amount(s), and {sourceAppointmentId ? recurringCount - 1 : recurringCount} recurring appointment(s) will be created</p>
                       </div>
                     );
                   }

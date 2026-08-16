@@ -2231,6 +2231,36 @@ const Billing = () => {
                 <p className="text-xs text-muted-foreground mt-0.5">Totals update as you edit</p>
               </div>
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 text-sm">
+                {lineTaxRows.length > 0 && (
+                  <div className="rounded-lg border bg-background/70 overflow-hidden mb-3">
+                    <div className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/60">
+                      <span>Line item</span>
+                      <span className="text-right">Amt</span>
+                      <span className="text-right">Tax</span>
+                      <span className="text-right">Total</span>
+                    </div>
+                    {lineTaxRows.map((r) => (
+                      <div key={r.key} className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[11px] border-t items-start">
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">{r.name}</span>
+                          <span className="block text-[10px] text-muted-foreground">
+                            {r.kind}{r.qty > 1 ? ` · x${r.qty}` : ""}{r.hsn ? ` · HSN ${r.hsn}` : ""} · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}
+                            {(r.igst > 0 || r.cgst > 0) ? ` · IGST ₹${r.igst.toFixed(2)} + CGST ₹${r.cgst.toFixed(2)}` : ""}
+                          </span>
+                        </span>
+                        <span className="text-right tabular-nums">₹{r.amount.toFixed(0)}</span>
+                        <span className="text-right tabular-nums">₹{r.tax.toFixed(2)}</span>
+                        <span className="text-right tabular-nums font-medium">₹{(r.amount + r.tax).toFixed(2)}</span>
+                      </div>
+                    ))}
+                    <div className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[11px] border-t bg-muted/40 font-semibold">
+                      <span>Services + Pharmacy</span>
+                      <span className="text-right tabular-nums">₹{(servicesSubtotal + pharmaSubtotal).toFixed(0)}</span>
+                      <span className="text-right tabular-nums">₹{lineTaxRows.reduce((s, r) => s + r.tax, 0).toFixed(2)}</span>
+                      <span className="text-right tabular-nums">₹{(servicesSubtotal + pharmaSubtotal + lineTaxRows.reduce((s, r) => s + r.tax, 0)).toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
                 {(() => {
                   if (paymentType === "Staged") {
                     return (
@@ -2274,30 +2304,6 @@ const Billing = () => {
                   const balance = grand - (Number(paidAmount) || 0);
                   return (
                     <div className="space-y-1">
-                      {lineTaxRows.length > 0 && (
-                        <div className="rounded-lg border bg-background/70 overflow-hidden mb-3">
-                          <div className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/60">
-                            <span>Line item</span>
-                            <span className="text-right">Amt</span>
-                            <span className="text-right">Tax</span>
-                            <span className="text-right">Total</span>
-                          </div>
-                          {lineTaxRows.map((r) => (
-                            <div key={r.key} className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[11px] border-t items-start">
-                              <span className="min-w-0">
-                                <span className="block truncate font-medium">{r.name}</span>
-                                <span className="block text-[10px] text-muted-foreground">
-                                  {r.kind}{r.qty > 1 ? ` · x${r.qty}` : ""}{r.hsn ? ` · HSN ${r.hsn}` : ""} · {r.rate > 0 ? `GST ${r.rate}%` : "No tax"}
-                                  {(r.igst > 0 || r.cgst > 0) ? ` · IGST ₹${r.igst.toFixed(2)} + CGST ₹${r.cgst.toFixed(2)}` : ""}
-                                </span>
-                              </span>
-                              <span className="text-right tabular-nums">₹{r.amount.toFixed(0)}</span>
-                              <span className="text-right tabular-nums">₹{r.tax.toFixed(2)}</span>
-                              <span className="text-right tabular-nums font-medium">₹{(r.amount + r.tax).toFixed(2)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                       {servicesSubtotal > 0 && (
                         <div className="flex justify-between"><span className="text-muted-foreground">Services (tax ₹{lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0).toFixed(2)})</span><span>₹{servicesSubtotal.toLocaleString()}</span></div>
                       )}

@@ -86,6 +86,7 @@ const PatientDetail = () => {
   const [otpCopied, setOtpCopied] = useState(false);
   const [procedureFormOpen, setProcedureFormOpen] = useState(false);
   const [detailsEditing, setDetailsEditing] = useState(false);
+  const [elaboratingField, setElaboratingField] = useState<string | null>(null);
   const [detailsForm, setDetailsForm] = useState<any>(null);
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [addRxOpen, setAddRxOpen] = useState(false);

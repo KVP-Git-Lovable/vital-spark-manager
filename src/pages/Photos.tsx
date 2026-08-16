@@ -33,7 +33,6 @@ const Photos = () => {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [viewPhoto, setViewPhoto] = useState<any>(null);
-  const [filterType, setFilterType] = useState("all");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
@@ -160,10 +159,28 @@ const Photos = () => {
   };
 
   const filtered = photos.filter((p: any) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
     const name = `${p.patients?.first_name || ""} ${p.patients?.last_name || ""}`.toLowerCase();
-    const matchesSearch = name.includes(search.toLowerCase()) || p.notes?.toLowerCase().includes(search.toLowerCase());
-    const matchesType = filterType === "all" || p.photo_type === filterType;
-    return matchesSearch && matchesType;
+    const d = p.taken_at ? new Date(p.taken_at) : null;
+    const dateTokens = d
+      ? [
+          d.toLocaleDateString("en-GB"),
+          d.toLocaleDateString("en-US"),
+          d.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+          d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          d.toISOString().slice(0, 10),
+          String(d.getFullYear()),
+        ]
+          .join(" ")
+          .toLowerCase()
+      : "";
+    return (
+      name.includes(q) ||
+      (p.notes || "").toLowerCase().includes(q) ||
+      (p.procedures?.service_name || "").toLowerCase().includes(q) ||
+      dateTokens.includes(q)
+    );
   });
 
   // Group photos by patient for before/after comparison

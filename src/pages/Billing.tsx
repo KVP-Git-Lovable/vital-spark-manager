@@ -2653,31 +2653,19 @@ const Billing = () => {
         </div>
       </motion.div>
 
-      {/* Invoice View/Edit Sheet */}
-      <Sheet open={!!viewInvoice} onOpenChange={(o) => { if (!o) { setViewInvoice(null); setIsEditing(false); } }}>
-        <SheetContent className="sm:max-w-lg overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="font-display">{isEditing ? "Edit Invoice" : "Invoice Details"}</SheetTitle>
-            <SheetDescription>{viewInvoice?.invoice_number}</SheetDescription>
-          </SheetHeader>
+      {/* Invoice View/Edit — same shell & summary panel as Create Invoice */}
+      <Dialog open={!!viewInvoice} onOpenChange={(o) => { if (!o) { setViewInvoice(null); setIsEditing(false); } }}>
+        <DialogContent className="max-w-[95vw] lg:max-w-[1100px] xl:max-w-[1200px] max-h-[92vh] p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b">
+            <DialogTitle className="font-display">{isEditing ? "Edit Invoice" : "Invoice Details"}</DialogTitle>
+            <p className="text-xs text-muted-foreground font-mono">{viewInvoice?.invoice_number}</p>
+          </DialogHeader>
+
+          <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-0 max-h-[calc(92vh-5rem)] overflow-x-auto">
+          <div className="space-y-4 px-6 py-4 overflow-y-auto lg:max-h-[calc(92vh-5rem)] min-w-0">
 
           {viewInvoice && !isEditing && (
-            <div className="space-y-6 mt-6">
-              {/* Action buttons */}
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setIsEditing(true)}>
-                  <Pencil className="h-3.5 w-3.5" /> Edit
-                </Button>
-                <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => {
-                  if (confirm("Are you sure you want to delete this invoice?")) deleteInvoice.mutate(viewInvoice.id);
-                }}>
-                  <Trash2 className="h-3.5 w-3.5" /> Delete
-                </Button>
-                <Button size="sm" variant="outline" className="gap-1.5 ml-auto" onClick={() => openInvoicePDF(viewInvoice)}>
-                  <FileText className="h-3.5 w-3.5" /> PDF
-                </Button>
-              </div>
-
+            <div className="space-y-4">
               {/* Details */}
               <div className="bg-muted/50 rounded-lg p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -2750,7 +2738,7 @@ const Billing = () => {
 
           {/* Edit Mode */}
           {viewInvoice && isEditing && (
-            <div className="space-y-4 mt-6">
+            <div className="space-y-4">
               <div>
                 <Label>Patient Name</Label>
                 <Input className="mt-1.5" value={editData.patient_name} onChange={(e) => setEditData({ ...editData, patient_name: e.target.value })} />
@@ -2813,16 +2801,75 @@ const Billing = () => {
                   <p className="text-[11px] text-muted-foreground mt-1.5">This invoice has no patient record linked, so appointments cannot be listed.</p>
                 )}
               </div>
-              <div className="flex gap-2">
-                <Button className="flex-1" onClick={() => updateInvoice.mutate()} disabled={updateInvoice.isPending}>
-                  {updateInvoice.isPending ? "Saving..." : "Save Changes"}
-                </Button>
-                <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
-              </div>
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+          </div>
+
+          {/* Right sticky summary panel — mirrors the Create Invoice layout */}
+          {viewInvoice && (
+            <aside className="flex flex-col border-t lg:border-t-0 lg:border-l bg-muted/20 lg:max-h-[calc(92vh-5rem)]">
+              <div className="px-5 py-4 border-b">
+                <h3 className="font-display font-semibold text-sm">Invoice Summary</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(viewInvoice.created_at), "PPP")}</p>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 text-sm">
+                {(viewInvoice.services || []).length > 0 && (
+                  <div className="rounded-lg border bg-background/70 overflow-hidden">
+                    <div className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/60">Line items</div>
+                    {(viewInvoice.services || []).map((s: string, i: number) => (
+                      <div key={i} className="px-2 py-1.5 text-[11px] border-t truncate">{s}</div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold text-primary text-base">
+                  <span>Grand Total</span>
+                  <span>₹{Number(isEditing ? editData.total_amount : viewInvoice.total_amount).toLocaleString("en-IN")}</span>
+                </div>
+                <div className="pt-2 mt-2 border-t space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Paid</span>
+                    <span>₹{Number(isEditing ? editData.paid_amount : viewInvoice.paid_amount).toLocaleString("en-IN")}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Balance Due</span>
+                    {(() => {
+                      const bal = Number(isEditing ? editData.total_amount : viewInvoice.total_amount) - Number(isEditing ? editData.paid_amount : viewInvoice.paid_amount);
+                      return <span className={bal > 0 ? "text-destructive font-medium" : "text-primary font-medium"}>₹{bal.toLocaleString("en-IN")}</span>;
+                    })()}
+                  </div>
+                </div>
+              </div>
+              <div className="border-t px-5 py-4 bg-background/60 space-y-2">
+                {isEditing ? (
+                  <>
+                    <Button className="w-full" onClick={() => updateInvoice.mutate()} disabled={updateInvoice.isPending}>
+                      {updateInvoice.isPending ? "Saving..." : "Save Changes"}
+                    </Button>
+                    <Button variant="outline" className="w-full" onClick={() => setIsEditing(false)}>Cancel</Button>
+                  </>
+                ) : (
+                  <>
+                    <Button className="w-full gap-1.5" onClick={() => setIsEditing(true)}>
+                      <Pencil className="h-3.5 w-3.5" /> Edit Invoice
+                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => openInvoicePDF(viewInvoice)}>
+                        <FileText className="h-3.5 w-3.5" /> PDF
+                      </Button>
+                      <Button variant="destructive" size="sm" className="flex-1 gap-1.5" onClick={() => {
+                        if (confirm("Are you sure you want to delete this invoice?")) deleteInvoice.mutate(viewInvoice.id);
+                      }}>
+                        <Trash2 className="h-3.5 w-3.5" /> Delete
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </aside>
+          )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AppointmentDetailSheet
         appointmentId={selectedAppointmentId}

@@ -51,7 +51,7 @@ const Procedures = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("procedures")
-        .select("*, patients(first_name, last_name), staff(first_name, last_name)")
+        .select("*, patients(first_name, last_name), staff:staff!procedures_staff_id_fkey(first_name, last_name)")
         .order("procedure_date", { ascending: false });
       if (error) throw error;
       return data;

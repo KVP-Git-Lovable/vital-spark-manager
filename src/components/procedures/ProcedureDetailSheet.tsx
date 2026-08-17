@@ -138,7 +138,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       if (!procedureId) return null;
       const { data, error } = await supabase
         .from("procedures")
-        .select("*, patients(first_name, last_name), staff(first_name, last_name)")
+        .select("*, patients(first_name, last_name), staff:staff!procedures_staff_id_fkey(first_name, last_name)")
         .eq("id", procedureId)
         .single();
       if (error) throw error;

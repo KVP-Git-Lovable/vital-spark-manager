@@ -454,11 +454,6 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   <Textarea value={editRecommendations} onChange={(e) => setEditRecommendations(e.target.value)} className="mt-1.5" rows={3} />
                 </div>
 
-                <div>
-                  <Label>Review</Label>
-                  <Textarea value={editReviewNotes} onChange={(e) => setEditReviewNotes(e.target.value)} placeholder="e.g. Follow up in 3 months" className="mt-1.5" rows={2} />
-                </div>
-
                 {procedure.staff && (
                   <div>
                     <Label>Doctor</Label>

@@ -202,7 +202,7 @@ const Portal = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from("procedures")
-        .select("*, staff(first_name, last_name), prescriptions(*)")
+        .select("*, staff:staff!procedures_staff_id_fkey(first_name, last_name), prescriptions(*)")
         .eq("patient_id", patientId!)
         .order("procedure_date", { ascending: false });
       return data || [];

@@ -249,7 +249,7 @@ const Billing = () => {
   const [pharmaItems, setPharmaItems] = useState<PharmaLineItem[]>([]);
 
   const [stages, setStages] = useState<StageRow[]>([{ label: "Stage 1", amount: 0, paid: 0 }]);
-  const [recurringCount, setRecurringCount] = useState(1);
+  const [recurringCount, setRecurringCount] = useState(0);
   const [recurringAmount, setRecurringAmount] = useState(0);
   const [recurringCollected, setRecurringCollected] = useState<number[]>([0]);
   const [recurringTotalAmount, setRecurringTotalAmount] = useState(0);
@@ -2162,7 +2162,7 @@ const Billing = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs text-muted-foreground"># of Installments *</Label>
-                      <Input type="number" className="mt-1" placeholder="0" min={1} value={numVal(recurringCount)} onChange={(e) => handleRecurringCountChange(parseInt(e.target.value) || 1)} />
+                      <Input type="number" className="mt-1" placeholder="0" min={0} value={recurringCount === 0 ? "" : recurringCount} onChange={(e) => handleRecurringCountChange(parseInt(e.target.value) || 0)} />
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Amount per Installment (₹) *</Label>

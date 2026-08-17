@@ -266,7 +266,8 @@ const Billing = () => {
   const [invoiceSeq, setInvoiceSeq] = useState<string>(() => Date.now().toString().slice(-6));
 
   const handleRecurringCountChange = (count: number) => {
-    const c = Math.max(1, count);
+    // 0 is allowed so the field can sit empty (placeholder) until the user types.
+    const c = Math.max(0, count);
     setRecurringCount(c);
     setRecurringCollected((prev) => {
       const arr = [...prev];

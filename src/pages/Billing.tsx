@@ -249,7 +249,7 @@ const Billing = () => {
   const [pharmaItems, setPharmaItems] = useState<PharmaLineItem[]>([]);
 
   const [stages, setStages] = useState<StageRow[]>([{ label: "Stage 1", amount: 0, paid: 0 }]);
-  const [recurringCount, setRecurringCount] = useState(1);
+  const [recurringCount, setRecurringCount] = useState(0);
   const [recurringAmount, setRecurringAmount] = useState(0);
   const [recurringCollected, setRecurringCollected] = useState<number[]>([0]);
   const [recurringTotalAmount, setRecurringTotalAmount] = useState(0);
@@ -266,7 +266,8 @@ const Billing = () => {
   const [invoiceSeq, setInvoiceSeq] = useState<string>(() => Date.now().toString().slice(-6));
 
   const handleRecurringCountChange = (count: number) => {
-    const c = Math.max(1, count);
+    // 0 is allowed so the field can sit empty (placeholder) until the user types.
+    const c = Math.max(0, count);
     setRecurringCount(c);
     setRecurringCollected((prev) => {
       const arr = [...prev];
@@ -2107,15 +2108,7 @@ const Billing = () => {
                             ))}
                           </div>
                         )}
-                        {servicesSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal (tax {money(lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0))})</span><span>{money(servicesSubtotal)}</span></div>
-                        )}
-                        {pharmaSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Products Subtotal (tax {money(lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0))})</span><span>{money(pharmaSubtotal)}</span></div>
-                        )}
-                        <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{money(subtotal)}</span></div>
-                        {totalTax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Total tax</span><span>{money(totalTax)}</span></div>}
-                        <div className="flex justify-between font-semibold text-primary border-t pt-1 mt-1"><span>Grand Total</span><span>{money(subtotal + totalTax)}</span></div>
+                        <div className="flex justify-between font-semibold text-primary text-base"><span>Grand Total</span><span>{money(subtotal + totalTax)}</span></div>
                       </div>
                     );
                   })()}
@@ -2169,7 +2162,7 @@ const Billing = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs text-muted-foreground"># of Installments *</Label>
-                      <Input type="number" className="mt-1" placeholder="0" min={1} value={numVal(recurringCount)} onChange={(e) => handleRecurringCountChange(parseInt(e.target.value) || 1)} />
+                      <Input type="number" className="mt-1" placeholder="0" min={0} value={recurringCount === 0 ? "" : recurringCount} onChange={(e) => handleRecurringCountChange(parseInt(e.target.value) || 0)} />
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Amount per Installment (₹) *</Label>
@@ -2353,7 +2346,7 @@ const Billing = () => {
                       </div>
                     ))}
                     <div className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[11px] border-t bg-muted/40 font-semibold">
-                      <span>Services + Pharmacy</span>
+                      <span>Total</span>
                       <span className="text-right tabular-nums">{money(servicesSubtotal + pharmaSubtotal)}</span>
                       <span className="text-right tabular-nums">{money(lineTaxRows.reduce((s, r) => s + r.tax, 0))}</span>
                       <span className="text-right tabular-nums">{money(servicesSubtotal + pharmaSubtotal + lineTaxRows.reduce((s, r) => s + r.tax, 0))}</span>
@@ -2395,7 +2388,6 @@ const Billing = () => {
                           <div className="flex justify-between"><span className="text-muted-foreground">{Math.max(0, recurringCount - dueTodayCount)} installment(s) × {money(recurringAmount)}</span><span className="font-semibold">{money(scheduledLater)}</span></div>
                           <p className="text-[11px] text-muted-foreground">Tax is applied at the time of collection.</p>
                         </div>
-                        <div className="flex justify-between text-xs"><span className="text-muted-foreground">Plan total (services + pharmacy)</span><span className="font-semibold">{money(payableNow + scheduledLater)}</span></div>
                         <p className="text-[11px] text-muted-foreground">Installments cover services only ({money(servicesSubtotal)}); pharmacy is billed in full on this invoice.</p>
                       </div>
                     );
@@ -2410,15 +2402,7 @@ const Billing = () => {
                   const balance = grand - (Number(paidAmount) || 0);
                   return (
                     <div className="space-y-1">
-                      {servicesSubtotal > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Services (tax {money(lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0))})</span><span>{money(servicesSubtotal)}</span></div>
-                      )}
-                      {pharmaSubtotal > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Products (tax {money(lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0))})</span><span>{money(pharmaSubtotal)}</span></div>
-                      )}
-                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{money(subtotal)}</span></div>
-                      {totalTax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Total tax (CGST+SGST+IGST)</span><span>{money(totalTax)}</span></div>}
-                      <div className="flex justify-between font-semibold text-primary border-t pt-2 mt-2"><span>Grand Total</span><span>{money(grand)}</span></div>
+                      <div className="flex justify-between font-semibold text-primary text-base"><span>Grand Total</span><span>{money(grand)}</span></div>
                       <div className="pt-2 mt-2 border-t space-y-2">
                         <div>
                           <Label className="text-xs">Paid Amount (₹)</Label>
@@ -2669,31 +2653,19 @@ const Billing = () => {
         </div>
       </motion.div>
 
-      {/* Invoice View/Edit Sheet */}
-      <Sheet open={!!viewInvoice} onOpenChange={(o) => { if (!o) { setViewInvoice(null); setIsEditing(false); } }}>
-        <SheetContent className="sm:max-w-lg overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="font-display">{isEditing ? "Edit Invoice" : "Invoice Details"}</SheetTitle>
-            <SheetDescription>{viewInvoice?.invoice_number}</SheetDescription>
-          </SheetHeader>
+      {/* Invoice View/Edit — same shell & summary panel as Create Invoice */}
+      <Dialog open={!!viewInvoice} onOpenChange={(o) => { if (!o) { setViewInvoice(null); setIsEditing(false); } }}>
+        <DialogContent className="max-w-[95vw] lg:max-w-[1100px] xl:max-w-[1200px] max-h-[92vh] p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b">
+            <DialogTitle className="font-display">{isEditing ? "Edit Invoice" : "Invoice Details"}</DialogTitle>
+            <p className="text-xs text-muted-foreground font-mono">{viewInvoice?.invoice_number}</p>
+          </DialogHeader>
+
+          <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-0 max-h-[calc(92vh-5rem)] overflow-x-auto">
+          <div className="space-y-4 px-6 py-4 overflow-y-auto lg:max-h-[calc(92vh-5rem)] min-w-0">
 
           {viewInvoice && !isEditing && (
-            <div className="space-y-6 mt-6">
-              {/* Action buttons */}
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setIsEditing(true)}>
-                  <Pencil className="h-3.5 w-3.5" /> Edit
-                </Button>
-                <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => {
-                  if (confirm("Are you sure you want to delete this invoice?")) deleteInvoice.mutate(viewInvoice.id);
-                }}>
-                  <Trash2 className="h-3.5 w-3.5" /> Delete
-                </Button>
-                <Button size="sm" variant="outline" className="gap-1.5 ml-auto" onClick={() => openInvoicePDF(viewInvoice)}>
-                  <FileText className="h-3.5 w-3.5" /> PDF
-                </Button>
-              </div>
-
+            <div className="space-y-4">
               {/* Details */}
               <div className="bg-muted/50 rounded-lg p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -2725,10 +2697,8 @@ const Billing = () => {
                 </div>
               </div>
 
-              {/* Financials */}
+              {/* Tax breakdown (totals live in the summary panel) */}
               <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Total Amount</span><span className="font-semibold">₹{Number(viewInvoice.total_amount).toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Paid Amount</span><span>₹{Number(viewInvoice.paid_amount).toLocaleString()}</span></div>
                 {Number(viewInvoice.cgst_amount) > 0 && (
                   <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{Number(viewInvoice.cgst_amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
                 )}
@@ -2741,7 +2711,6 @@ const Billing = () => {
                 {!Number(viewInvoice.cgst_amount) && !Number(viewInvoice.sgst_amount) && !Number(viewInvoice.igst_amount) && viewInvoice.tax_rate > 0 && (
                   <div className="flex justify-between"><span className="text-muted-foreground">Tax ({viewInvoice.tax_rate}%)</span><span>₹{Number(viewInvoice.tax_amount || 0).toLocaleString()}</span></div>
                 )}
-                <div className="flex justify-between font-semibold text-primary border-t pt-2"><span>Balance Due</span><span>₹{(Number(viewInvoice.total_amount) - Number(viewInvoice.paid_amount)).toLocaleString()}</span></div>
               </div>
 
               {viewInvoice.notes && (
@@ -2766,7 +2735,7 @@ const Billing = () => {
 
           {/* Edit Mode */}
           {viewInvoice && isEditing && (
-            <div className="space-y-4 mt-6">
+            <div className="space-y-4">
               <div>
                 <Label>Patient Name</Label>
                 <Input className="mt-1.5" value={editData.patient_name} onChange={(e) => setEditData({ ...editData, patient_name: e.target.value })} />
@@ -2829,16 +2798,75 @@ const Billing = () => {
                   <p className="text-[11px] text-muted-foreground mt-1.5">This invoice has no patient record linked, so appointments cannot be listed.</p>
                 )}
               </div>
-              <div className="flex gap-2">
-                <Button className="flex-1" onClick={() => updateInvoice.mutate()} disabled={updateInvoice.isPending}>
-                  {updateInvoice.isPending ? "Saving..." : "Save Changes"}
-                </Button>
-                <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
-              </div>
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+          </div>
+
+          {/* Right sticky summary panel — mirrors the Create Invoice layout */}
+          {viewInvoice && (
+            <aside className="flex flex-col border-t lg:border-t-0 lg:border-l bg-muted/20 lg:max-h-[calc(92vh-5rem)]">
+              <div className="px-5 py-4 border-b">
+                <h3 className="font-display font-semibold text-sm">Invoice Summary</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(viewInvoice.created_at), "PPP")}</p>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 text-sm">
+                {(viewInvoice.services || []).length > 0 && (
+                  <div className="rounded-lg border bg-background/70 overflow-hidden">
+                    <div className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/60">Line items</div>
+                    {(viewInvoice.services || []).map((s: string, i: number) => (
+                      <div key={i} className="px-2 py-1.5 text-[11px] border-t truncate">{s}</div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold text-primary text-base">
+                  <span>Grand Total</span>
+                  <span>₹{Number(isEditing ? editData.total_amount : viewInvoice.total_amount).toLocaleString("en-IN")}</span>
+                </div>
+                <div className="pt-2 mt-2 border-t space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Paid</span>
+                    <span>₹{Number(isEditing ? editData.paid_amount : viewInvoice.paid_amount).toLocaleString("en-IN")}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Balance Due</span>
+                    {(() => {
+                      const bal = Number(isEditing ? editData.total_amount : viewInvoice.total_amount) - Number(isEditing ? editData.paid_amount : viewInvoice.paid_amount);
+                      return <span className={bal > 0 ? "text-destructive font-medium" : "text-primary font-medium"}>₹{bal.toLocaleString("en-IN")}</span>;
+                    })()}
+                  </div>
+                </div>
+              </div>
+              <div className="border-t px-5 py-4 bg-background/60 space-y-2">
+                {isEditing ? (
+                  <>
+                    <Button className="w-full" onClick={() => updateInvoice.mutate()} disabled={updateInvoice.isPending}>
+                      {updateInvoice.isPending ? "Saving..." : "Save Changes"}
+                    </Button>
+                    <Button variant="outline" className="w-full" onClick={() => setIsEditing(false)}>Cancel</Button>
+                  </>
+                ) : (
+                  <>
+                    <Button className="w-full gap-1.5" onClick={() => setIsEditing(true)}>
+                      <Pencil className="h-3.5 w-3.5" /> Edit Invoice
+                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => openInvoicePDF(viewInvoice)}>
+                        <FileText className="h-3.5 w-3.5" /> PDF
+                      </Button>
+                      <Button variant="destructive" size="sm" className="flex-1 gap-1.5" onClick={() => {
+                        if (confirm("Are you sure you want to delete this invoice?")) deleteInvoice.mutate(viewInvoice.id);
+                      }}>
+                        <Trash2 className="h-3.5 w-3.5" /> Delete
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </aside>
+          )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AppointmentDetailSheet
         appointmentId={selectedAppointmentId}

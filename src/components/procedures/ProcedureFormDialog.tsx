@@ -952,25 +952,39 @@ export function ProcedureFormDialog({
                     )
                   )}
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="relative">
-                    <Input placeholder="Frequency" value={rx.frequency} onChange={(e) => updatePrescription(i, "frequency", e.target.value)} className="pr-9" />
-                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                      <MicButton value={rx.frequency} onChange={(v) => updatePrescription(i, "frequency", v)} mode="replace" />
+                <div className="space-y-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Frequency</label>
+                      <div className="relative">
+                        <Input placeholder="e.g. Twice a day" value={rx.frequency} onChange={(e) => updatePrescription(i, "frequency", e.target.value)} className="pr-9" />
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                          <MicButton value={rx.frequency} onChange={(v) => updatePrescription(i, "frequency", v)} mode="replace" />
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Duration</label>
+                      <div className="relative">
+                        <Input placeholder="e.g. 7 days" value={rx.duration} onChange={(e) => updatePrescription(i, "duration", e.target.value)} className="pr-9" />
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                          <MicButton value={rx.duration} onChange={(v) => updatePrescription(i, "duration", v)} mode="replace" />
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Qty</label>
+                      <Input type="number" placeholder="1" value={rx.quantity || ""} onChange={(e) => updatePrescription(i, "quantity", e.target.value === "" ? 0 : Math.max(1, parseInt(e.target.value) || 1))} />
                     </div>
                   </div>
-                  <div className="relative">
-                    <Input placeholder="Duration" value={rx.duration} onChange={(e) => updatePrescription(i, "duration", e.target.value)} className="pr-9" />
-                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                      <MicButton value={rx.duration} onChange={(v) => updatePrescription(i, "duration", v)} mode="replace" />
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Special Instructions</label>
+                    <div className="relative">
+                      <Input placeholder="e.g. Apply after cleansing" value={rx.instructions} onChange={(e) => updatePrescription(i, "instructions", e.target.value)} className="pr-9" />
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                        <MicButton value={rx.instructions} onChange={(v) => updatePrescription(i, "instructions", v)} />
+                      </div>
                     </div>
-                  </div>
-                  <Input type="number" placeholder="Qty" value={rx.quantity} onChange={(e) => updatePrescription(i, "quantity", parseInt(e.target.value) || 1)} />
-                </div>
-                <div className="relative">
-                  <Input placeholder="Special instructions" value={rx.instructions} onChange={(e) => updatePrescription(i, "instructions", e.target.value)} className="pr-9" />
-                  <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                    <MicButton value={rx.instructions} onChange={(v) => updatePrescription(i, "instructions", v)} />
                   </div>
                 </div>
               </div>

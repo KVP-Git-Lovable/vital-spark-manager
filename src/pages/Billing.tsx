@@ -498,6 +498,19 @@ const Billing = () => {
     if (payload?.doctorId) setDoctorId(payload.doctorId);
     if (payload?.appointmentId) setSourceAppointmentId(payload.appointmentId);
 
+    // Visit plan captured on the linked procedure: recurring visits pre-fill the
+    // installment count and due dates (still editable here).
+    if (payload?.visitType === "Recurring") {
+      const dates: string[] = Array.isArray(payload?.recurringDates) ? payload.recurringDates.filter(Boolean) : [];
+      const count = Math.max(1, Number(payload?.recurringCount) || dates.length || 1);
+      setPaymentType("Recurring");
+      handleRecurringCountChange(count);
+      setRecurringDueDates(
+        Array.from({ length: count }, (_, i) => (dates[i] ? new Date(dates[i]) : new Date())),
+      );
+      setRecurringInvoiceNow(Array.from({ length: count }, (_, i) => i === 0));
+    }
+
     setPendingPrefill(payload || {});
     setInvoiceDate(new Date());
     setInvoiceSeq(Date.now().toString().slice(-6));

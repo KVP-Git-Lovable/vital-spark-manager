@@ -2107,15 +2107,7 @@ const Billing = () => {
                             ))}
                           </div>
                         )}
-                        {servicesSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Services Subtotal (tax {money(lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0))})</span><span>{money(servicesSubtotal)}</span></div>
-                        )}
-                        {pharmaSubtotal > 0 && (
-                          <div className="flex justify-between"><span className="text-muted-foreground">Products Subtotal (tax {money(lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0))})</span><span>{money(pharmaSubtotal)}</span></div>
-                        )}
-                        <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{money(subtotal)}</span></div>
-                        {totalTax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Total tax</span><span>{money(totalTax)}</span></div>}
-                        <div className="flex justify-between font-semibold text-primary border-t pt-1 mt-1"><span>Grand Total</span><span>{money(subtotal + totalTax)}</span></div>
+                        <div className="flex justify-between font-semibold text-primary text-base"><span>Grand Total</span><span>{money(subtotal + totalTax)}</span></div>
                       </div>
                     );
                   })()}

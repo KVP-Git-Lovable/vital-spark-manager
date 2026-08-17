@@ -2324,6 +2324,8 @@ export type Database = {
           procedure_date: string
           procedure_notes: string | null
           recommendations: string | null
+          recurring_count: number | null
+          recurring_dates: string[] | null
           review_notes: string | null
           service_name: string
           staff_id: string | null
@@ -2331,6 +2333,7 @@ export type Database = {
           survey_response_id: string | null
           symptoms: string | null
           updated_at: string
+          visit_type: string
         }
         Insert: {
           appointment_id?: string | null
@@ -2343,6 +2346,8 @@ export type Database = {
           procedure_date?: string
           procedure_notes?: string | null
           recommendations?: string | null
+          recurring_count?: number | null
+          recurring_dates?: string[] | null
           review_notes?: string | null
           service_name: string
           staff_id?: string | null
@@ -2350,6 +2355,7 @@ export type Database = {
           survey_response_id?: string | null
           symptoms?: string | null
           updated_at?: string
+          visit_type?: string
         }
         Update: {
           appointment_id?: string | null
@@ -2362,6 +2368,8 @@ export type Database = {
           procedure_date?: string
           procedure_notes?: string | null
           recommendations?: string | null
+          recurring_count?: number | null
+          recurring_dates?: string[] | null
           review_notes?: string | null
           service_name?: string
           staff_id?: string | null
@@ -2369,6 +2377,7 @@ export type Database = {
           survey_response_id?: string | null
           symptoms?: string | null
           updated_at?: string
+          visit_type?: string
         }
         Relationships: [
           {

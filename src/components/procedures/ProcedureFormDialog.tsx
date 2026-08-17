@@ -486,8 +486,8 @@ export function ProcedureFormDialog({
       const { data: proc, error } = await supabase
         .from("procedures")
         .insert({
-          patient_id: patientId,
-          staff_id: staffId || null,
+          patient_id: patientId || null,
+          staff_id: staffId && staffId.trim() ? staffId : null,
           assisted_by: assistedBy && assistedBy.trim() ? assistedBy : null,
           appointment_id: appointmentId || null,
           service_name: serviceName || "Consultation",

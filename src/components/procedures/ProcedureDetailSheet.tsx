@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { format } from "date-fns";
-import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle } from "lucide-react";
+import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { MicButton } from "@/components/shared/MicButton";
+import { PatientToolsBar } from "@/components/shared/PatientToolsBar";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const statusOptions = ["Completed", "In Progress", "Cancelled"];

@@ -488,7 +488,7 @@ export function ProcedureFormDialog({
         .insert({
           patient_id: patientId,
           staff_id: staffId || null,
-          assisted_by: assistedBy || null,
+          assisted_by: assistedBy && assistedBy.trim() ? assistedBy : null,
           appointment_id: appointmentId || null,
           service_name: serviceName || "Consultation",
           symptoms: symptoms || null,

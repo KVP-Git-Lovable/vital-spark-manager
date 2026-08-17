@@ -594,6 +594,16 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         quantity: Number(p.quantity) || 1,
       }));
 
+    // Visit plan captured by the doctor on the procedure — drives the
+    // recurring installment schedule in Billing (editable there).
+    const recurringProc = (procedures as any[]).find((p: any) => p?.visit_type === "Recurring");
+    const recurringDates: string[] = recurringProc
+      ? ((recurringProc.recurring_dates || []) as string[]).filter(Boolean)
+      : [];
+    const recurringCount = recurringProc
+      ? Number(recurringProc.recurring_count) || recurringDates.length || 1
+      : 0;
+
     sessionStorage.setItem(
       "billing_prefill",
       JSON.stringify({
@@ -602,6 +612,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         appointmentId: appointmentId || "",
         services,
         products,
+        visitType: recurringProc ? "Recurring" : "Single",
+        recurringCount,
+        recurringDates,
       }),
     );
     handleClose();

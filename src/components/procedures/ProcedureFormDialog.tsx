@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,10 @@ import {
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
+import { PatientToolsBar } from "@/components/shared/PatientToolsBar";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { fetchAll } from "@/lib/supabasePaginate";
@@ -78,8 +81,10 @@ export function ProcedureFormDialog({
   const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
-  const [reviewNotes, setReviewNotes] = useState("");
   const [nextAppointmentAt, setNextAppointmentAt] = useState("");
+  const [visitType, setVisitType] = useState<"Single" | "Recurring">("Single");
+  const [recurringCount, setRecurringCount] = useState(2);
+  const [recurringDates, setRecurringDates] = useState<string[]>(["", ""]);
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
   const [stockMap, setStockMap] = useState<Record<number, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);
@@ -490,7 +495,12 @@ export function ProcedureFormDialog({
           diagnosis,
           procedure_notes: procedureNotes,
           recommendations: recommendations || null,
-          review_notes: reviewNotes || null,
+          visit_type: visitType,
+          recurring_count: visitType === "Recurring" ? recurringCount : null,
+          recurring_dates:
+            visitType === "Recurring"
+              ? recurringDates.filter(Boolean).map((d) => new Date(d).toISOString())
+              : null,
         } as any)
         .select()
         .single();
@@ -532,22 +542,31 @@ export function ProcedureFormDialog({
         if (medErr) throw medErr;
       }
 
-      // Optional follow-up appointment picked by the doctor
-      if (nextAppointmentAt && patientId) {
-        const start = new Date(nextAppointmentAt);
-        const end = new Date(start.getTime() + 30 * 60 * 1000);
+      // Follow-up appointment(s) picked by the doctor
+      const followUpDates =
+        visitType === "Recurring"
+          ? recurringDates.filter(Boolean)
+          : nextAppointmentAt
+            ? [nextAppointmentAt]
+            : [];
+      if (followUpDates.length > 0 && patientId) {
         const p = (patients as any[]).find((x) => x.id === patientId);
-        const { error: aptErr } = await supabase.from("appointments").insert({
-          patient_id: patientId,
-          patient_name: p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() : null,
-          staff_id: staffId || null,
-          service: serviceName || "Follow Up",
-          start_time: start.toISOString(),
-          end_time: end.toISOString(),
-          status: "Reserved",
-          problem_area_ids: selectedProblemAreas.length ? selectedProblemAreas : null,
-          source: "Procedure",
-        } as any);
+        const rows = followUpDates.map((d) => {
+          const start = new Date(d);
+          const end = new Date(start.getTime() + 30 * 60 * 1000);
+          return {
+            patient_id: patientId,
+            patient_name: p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() : null,
+            staff_id: staffId || null,
+            service: serviceName || "Follow Up",
+            start_time: start.toISOString(),
+            end_time: end.toISOString(),
+            status: "Reserved",
+            problem_area_ids: selectedProblemAreas.length ? selectedProblemAreas : null,
+            source: "Procedure",
+          };
+        });
+        const { error: aptErr } = await supabase.from("appointments").insert(rows as any);
         if (aptErr) throw aptErr;
       }
       return proc;
@@ -556,9 +575,9 @@ export function ProcedureFormDialog({
       queryClient.invalidateQueries({ queryKey: ["procedures"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
       queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
-      if (nextAppointmentAt) {
+      if (nextAppointmentAt || (visitType === "Recurring" && recurringDates.some(Boolean))) {
         queryClient.invalidateQueries({ queryKey: ["appointments"] });
-        toast.success("Procedure saved · Next appointment reserved");
+        toast.success("Procedure saved · Follow-up appointment(s) reserved");
       } else {
         toast.success("Procedure created successfully");
       }
@@ -615,8 +634,57 @@ export function ProcedureFormDialog({
 
   const isFromAppointment = !!defaultAppointmentId;
 
+  const selectedPatient = (patients as any[]).find((p) => p.id === patientId);
+  const selectedPatientName = selectedPatient
+    ? `${selectedPatient.first_name || ""} ${selectedPatient.last_name || ""}`.trim()
+    : "Patient";
+
+  const setRecurringCountSafe = (n: number) => {
+    const c = Math.max(1, Math.min(24, n || 1));
+    setRecurringCount(c);
+    setRecurringDates((prev) => {
+      const next = [...prev];
+      while (next.length < c) next.push("");
+      return next.slice(0, c);
+    });
+  };
+
+  const medicalSection = (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {([
+        ["medical_history", "Medical History"],
+        ["current_medications", "Current Medications"],
+        ["allergies", "Allergies"],
+        ["previous_treatments", "Previous Treatments"],
+        ["skin_type", "Skin Type"],
+        ["skin_concerns", "Skin Concerns"],
+      ] as [string, string][]).map(([field, label]) => (
+        <div key={field}>
+          <Label className="text-xs text-muted-foreground">{label}</Label>
+          <Textarea
+            rows={3}
+            className="mt-1 text-sm"
+            value={medical[field] || ""}
+            onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+
   const body = (
         <div className="space-y-4 pt-2">
+          {patientId && (
+            <PatientToolsBar patientId={patientId} patientName={selectedPatientName} context="patient" />
+          )}
+          <Tabs defaultValue="procedure" className="w-full">
+            <TabsList>
+              <TabsTrigger value="procedure">Procedure</TabsTrigger>
+              <TabsTrigger value="medical" className="gap-1.5">
+                <HeartPulse className="h-3.5 w-3.5" /> Medical Information
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="procedure" className="space-y-4 mt-4">
           {/* Unified AI bar */}
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -823,37 +891,6 @@ export function ProcedureFormDialog({
             </div>
           )}
 
-          {/* Patient medical information */}
-          {patientId && (
-            <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
-              <div className="flex items-center gap-2">
-                <HeartPulse className="h-4 w-4 text-primary" />
-                <span className="text-sm font-semibold">Medical Information</span>
-                <span className="text-[11px] text-muted-foreground">(saved back to the patient record)</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {([
-                  ["medical_history", "Medical History"],
-                  ["current_medications", "Current Medications"],
-                  ["allergies", "Allergies"],
-                  ["previous_treatments", "Previous Treatments"],
-                  ["skin_type", "Skin Type"],
-                  ["skin_concerns", "Skin Concerns"],
-                ] as [string, string][]).map(([field, label]) => (
-                  <div key={field}>
-                    <Label className="text-xs text-muted-foreground">{label}</Label>
-                    <Textarea
-                      rows={2}
-                      className="mt-1 text-sm"
-                      value={medical[field] || ""}
-                      onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div>
             <Label>Diagnosis</Label>
             <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Patient diagnosis..." className={`mt-1.5 transition-all ${recentlyFilled.diagnosis ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />
@@ -964,31 +1001,95 @@ export function ProcedureFormDialog({
             ))}
           </div>
 
-          <div>
-            <Label>Review</Label>
-            <Textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} placeholder="e.g. Follow up in 3 months" className="mt-1.5" rows={2} />
-          </div>
-
-          {/* Next appointment */}
-          <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4">
+          {/* Visit plan */}
+          <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4 space-y-3">
             <Label className="text-base font-display font-semibold flex items-center gap-2 text-primary">
-              <CalendarClock className="h-4 w-4" /> Next Appointment Date
+              <Repeat className="h-4 w-4" /> Visit Type
             </Label>
-            <p className="text-xs text-muted-foreground mt-1">
-              Pick a date &amp; time — an appointment will be created with status <span className="font-medium">Reserved</span>.
-            </p>
-            <Input
-              type="datetime-local"
-              value={nextAppointmentAt}
-              onChange={(e) => setNextAppointmentAt(e.target.value)}
-              className="mt-2 bg-background"
-            />
-            {nextAppointmentAt && (
-              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs mt-1" onClick={() => setNextAppointmentAt("")}>
-                Clear
-              </Button>
+            <RadioGroup
+              value={visitType}
+              onValueChange={(v) => setVisitType(v as "Single" | "Recurring")}
+              className="flex gap-6"
+            >
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="Single" id="visit-single" />
+                <Label htmlFor="visit-single" className="font-normal cursor-pointer">Single visit</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="Recurring" id="visit-recurring" />
+                <Label htmlFor="visit-recurring" className="font-normal cursor-pointer">Recurring visit</Label>
+              </div>
+            </RadioGroup>
+
+            {visitType === "Single" ? (
+              <div>
+                <Label className="flex items-center gap-2 text-sm">
+                  <CalendarClock className="h-4 w-4" /> Next Appointment Date
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Pick a date &amp; time — an appointment will be created with status <span className="font-medium">Reserved</span>.
+                </p>
+                <Input
+                  type="datetime-local"
+                  value={nextAppointmentAt}
+                  onChange={(e) => setNextAppointmentAt(e.target.value)}
+                  className="mt-2 bg-background"
+                />
+                {nextAppointmentAt && (
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs mt-1" onClick={() => setNextAppointmentAt("")}>
+                    Clear
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="max-w-[220px]">
+                  <Label className="text-sm"># of Recurring Visits</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={24}
+                    value={recurringCount}
+                    onChange={(e) => setRecurringCountSafe(parseInt(e.target.value, 10))}
+                    className="mt-1.5 bg-background"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {Array.from({ length: recurringCount }).map((_, i) => (
+                    <div key={i}>
+                      <Label className="text-xs text-muted-foreground">Visit # {i + 1}</Label>
+                      <Input
+                        type="datetime-local"
+                        value={recurringDates[i] || ""}
+                        onChange={(e) => {
+                          const next = [...recurringDates];
+                          next[i] = e.target.value;
+                          setRecurringDates(next);
+                        }}
+                        className="mt-1 bg-background"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Each date creates a <span className="font-medium">Reserved</span> appointment. Dates left blank can be added later during billing.
+                </p>
+              </div>
             )}
           </div>
+            </TabsContent>
+
+            <TabsContent value="medical" className="space-y-3 mt-4">
+              <div className="flex items-center gap-2">
+                <HeartPulse className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Medical Information</span>
+                <span className="text-[11px] text-muted-foreground">(saved back to the patient record)</span>
+              </div>
+              {patientId ? medicalSection : (
+                <p className="text-sm text-muted-foreground py-8 text-center">Select a patient to view medical information.</p>
+              )}
+            </TabsContent>
+          </Tabs>
 
           <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!patientId || createMutation.isPending}>
             {createMutation.isPending ? "Saving..." : "Save Procedure"}
@@ -997,16 +1098,16 @@ export function ProcedureFormDialog({
   );
 
   if (asPage) {
-    return <div className="max-w-4xl">{body}</div>;
+    return <div className="w-full">{body}</div>;
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-none w-screen h-screen sm:rounded-none overflow-y-auto p-6">
         <DialogHeader>
           <DialogTitle className="font-display">New Procedure / Prescription</DialogTitle>
         </DialogHeader>
-        {body}
+        <div className="mx-auto w-full max-w-5xl">{body}</div>
       </DialogContent>
     </Dialog>
   );

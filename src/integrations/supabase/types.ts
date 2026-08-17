@@ -2391,7 +2391,7 @@ export type Database = {
             foreignKeyName: "procedures_assisted_by_fkey"
             columns: ["assisted_by"]
             isOneToOne: false
-            referencedRelation: "doctors"
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
           {

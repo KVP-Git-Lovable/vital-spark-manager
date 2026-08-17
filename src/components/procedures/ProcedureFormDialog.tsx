@@ -495,7 +495,12 @@ export function ProcedureFormDialog({
           diagnosis,
           procedure_notes: procedureNotes,
           recommendations: recommendations || null,
-          review_notes: reviewNotes || null,
+          visit_type: visitType,
+          recurring_count: visitType === "Recurring" ? recurringCount : null,
+          recurring_dates:
+            visitType === "Recurring"
+              ? recurringDates.filter(Boolean).map((d) => new Date(d).toISOString())
+              : null,
         } as any)
         .select()
         .single();
@@ -537,22 +542,31 @@ export function ProcedureFormDialog({
         if (medErr) throw medErr;
       }
 
-      // Optional follow-up appointment picked by the doctor
-      if (nextAppointmentAt && patientId) {
-        const start = new Date(nextAppointmentAt);
-        const end = new Date(start.getTime() + 30 * 60 * 1000);
+      // Follow-up appointment(s) picked by the doctor
+      const followUpDates =
+        visitType === "Recurring"
+          ? recurringDates.filter(Boolean)
+          : nextAppointmentAt
+            ? [nextAppointmentAt]
+            : [];
+      if (followUpDates.length > 0 && patientId) {
         const p = (patients as any[]).find((x) => x.id === patientId);
-        const { error: aptErr } = await supabase.from("appointments").insert({
-          patient_id: patientId,
-          patient_name: p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() : null,
-          staff_id: staffId || null,
-          service: serviceName || "Follow Up",
-          start_time: start.toISOString(),
-          end_time: end.toISOString(),
-          status: "Reserved",
-          problem_area_ids: selectedProblemAreas.length ? selectedProblemAreas : null,
-          source: "Procedure",
-        } as any);
+        const rows = followUpDates.map((d) => {
+          const start = new Date(d);
+          const end = new Date(start.getTime() + 30 * 60 * 1000);
+          return {
+            patient_id: patientId,
+            patient_name: p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() : null,
+            staff_id: staffId || null,
+            service: serviceName || "Follow Up",
+            start_time: start.toISOString(),
+            end_time: end.toISOString(),
+            status: "Reserved",
+            problem_area_ids: selectedProblemAreas.length ? selectedProblemAreas : null,
+            source: "Procedure",
+          };
+        });
+        const { error: aptErr } = await supabase.from("appointments").insert(rows as any);
         if (aptErr) throw aptErr;
       }
       return proc;
@@ -561,9 +575,9 @@ export function ProcedureFormDialog({
       queryClient.invalidateQueries({ queryKey: ["procedures"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
       queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
-      if (nextAppointmentAt) {
+      if (nextAppointmentAt || (visitType === "Recurring" && recurringDates.some(Boolean))) {
         queryClient.invalidateQueries({ queryKey: ["appointments"] });
-        toast.success("Procedure saved · Next appointment reserved");
+        toast.success("Procedure saved · Follow-up appointment(s) reserved");
       } else {
         toast.success("Procedure created successfully");
       }

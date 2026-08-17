@@ -384,9 +384,41 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   </div>
                   <Badge variant="secondary" className="text-xs">{procedure.status}</Badge>
                 </div>
+                {procedure.patient_id && (
+                  <PatientToolsBar
+                    patientId={procedure.patient_id}
+                    patientName={patientName}
+                    context="procedure"
+                    contextId={procedure.id}
+                    className="pt-3"
+                  />
+                )}
               </SheetHeader>
 
               <div className="p-6 space-y-4">
+                <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-3">
+                  <div className="flex items-center gap-2">
+                    <Repeat className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold text-primary">
+                      {(procedure as any).visit_type === "Recurring" ? "Recurring visit" : "Single visit"}
+                    </span>
+                    {(procedure as any).visit_type === "Recurring" && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {(procedure as any).recurring_count || ((procedure as any).recurring_dates || []).length} visits
+                      </Badge>
+                    )}
+                  </div>
+                  {(procedure as any).visit_type === "Recurring" && (
+                    <ul className="mt-2 space-y-0.5">
+                      {(((procedure as any).recurring_dates || []) as string[]).map((d, i) => (
+                        <li key={i} className="text-xs text-muted-foreground">
+                          Visit # {i + 1}: <span className="font-medium text-foreground">{format(new Date(d), "MMM d, yyyy · h:mm a")}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
                 <div>
                   <Label>Service / Procedure Name *</Label>
                   <Input value={editServiceName} onChange={(e) => setEditServiceName(e.target.value)} className="mt-1.5" />

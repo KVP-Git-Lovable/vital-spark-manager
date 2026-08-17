@@ -364,7 +364,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     queryFn: async () => {
       const { data, error } = await supabase
         .from("procedures")
-        .select("*, staff(first_name, last_name)")
+        .select("*, staff:staff!procedures_staff_id_fkey(first_name, last_name)")
         .eq("appointment_id", appointmentId!)
         .order("procedure_date", { ascending: false });
       if (error) throw error;
@@ -398,7 +398,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     queryFn: async () => {
       const { data, error } = await supabase
         .from("procedures")
-        .select("*, staff(first_name, last_name)")
+        .select("*, staff:staff!procedures_staff_id_fkey(first_name, last_name)")
         .eq("patient_id", appointment!.patient_id!)
         .order("procedure_date", { ascending: false });
       if (error) throw error;

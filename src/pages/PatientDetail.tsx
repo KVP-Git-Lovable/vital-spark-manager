@@ -127,7 +127,7 @@ const PatientDetail = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("procedures")
-        .select("*, staff(first_name, last_name)")
+        .select("*, staff:staff!procedures_staff_id_fkey(first_name, last_name)")
         .eq("patient_id", id!)
         .order("procedure_date", { ascending: false });
       if (error) throw error;

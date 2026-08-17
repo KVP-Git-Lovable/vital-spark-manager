@@ -634,8 +634,57 @@ export function ProcedureFormDialog({
 
   const isFromAppointment = !!defaultAppointmentId;
 
+  const selectedPatient = (patients as any[]).find((p) => p.id === patientId);
+  const selectedPatientName = selectedPatient
+    ? `${selectedPatient.first_name || ""} ${selectedPatient.last_name || ""}`.trim()
+    : "Patient";
+
+  const setRecurringCountSafe = (n: number) => {
+    const c = Math.max(1, Math.min(24, n || 1));
+    setRecurringCount(c);
+    setRecurringDates((prev) => {
+      const next = [...prev];
+      while (next.length < c) next.push("");
+      return next.slice(0, c);
+    });
+  };
+
+  const medicalSection = (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {([
+        ["medical_history", "Medical History"],
+        ["current_medications", "Current Medications"],
+        ["allergies", "Allergies"],
+        ["previous_treatments", "Previous Treatments"],
+        ["skin_type", "Skin Type"],
+        ["skin_concerns", "Skin Concerns"],
+      ] as [string, string][]).map(([field, label]) => (
+        <div key={field}>
+          <Label className="text-xs text-muted-foreground">{label}</Label>
+          <Textarea
+            rows={3}
+            className="mt-1 text-sm"
+            value={medical[field] || ""}
+            onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+
   const body = (
         <div className="space-y-4 pt-2">
+          {patientId && (
+            <PatientToolsBar patientId={patientId} patientName={selectedPatientName} context="patient" />
+          )}
+          <Tabs defaultValue="procedure" className="w-full">
+            <TabsList>
+              <TabsTrigger value="procedure">Procedure</TabsTrigger>
+              <TabsTrigger value="medical" className="gap-1.5">
+                <HeartPulse className="h-3.5 w-3.5" /> Medical Information
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="procedure" className="space-y-4 mt-4">
           {/* Unified AI bar */}
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
             <div className="flex items-center justify-between gap-2">

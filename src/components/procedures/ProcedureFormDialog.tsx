@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,10 @@ import {
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
+import { PatientToolsBar } from "@/components/shared/PatientToolsBar";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { fetchAll } from "@/lib/supabasePaginate";
@@ -78,8 +81,10 @@ export function ProcedureFormDialog({
   const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
-  const [reviewNotes, setReviewNotes] = useState("");
   const [nextAppointmentAt, setNextAppointmentAt] = useState("");
+  const [visitType, setVisitType] = useState<"Single" | "Recurring">("Single");
+  const [recurringCount, setRecurringCount] = useState(2);
+  const [recurringDates, setRecurringDates] = useState<string[]>(["", ""]);
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
   const [stockMap, setStockMap] = useState<Record<number, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);

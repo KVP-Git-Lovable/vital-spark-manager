@@ -471,6 +471,17 @@ export function ProcedureFormDialog({
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      // Validate that selected staff actually exist in database
+      const validStaffIds = new Set((allStaff || []).map(s => s.id));
+
+      if (staffId && staffId.trim() && !validStaffIds.has(staffId)) {
+        throw new Error("Selected doctor does not exist in the system. Please select a different doctor.");
+      }
+
+      if (assistedBy && assistedBy.trim() && !validStaffIds.has(assistedBy)) {
+        throw new Error("Selected assistant does not exist in the system. Please select a different assistant.");
+      }
+
       // Warn about zero stock for prescribed medicines (don't block)
       for (const rx of prescriptions) {
         if (!rx.product_id) continue;

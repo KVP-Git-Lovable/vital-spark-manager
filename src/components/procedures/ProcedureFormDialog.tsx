@@ -1001,31 +1001,95 @@ export function ProcedureFormDialog({
             ))}
           </div>
 
-          <div>
-            <Label>Review</Label>
-            <Textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} placeholder="e.g. Follow up in 3 months" className="mt-1.5" rows={2} />
-          </div>
-
-          {/* Next appointment */}
-          <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4">
+          {/* Visit plan */}
+          <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4 space-y-3">
             <Label className="text-base font-display font-semibold flex items-center gap-2 text-primary">
-              <CalendarClock className="h-4 w-4" /> Next Appointment Date
+              <Repeat className="h-4 w-4" /> Visit Type
             </Label>
-            <p className="text-xs text-muted-foreground mt-1">
-              Pick a date &amp; time — an appointment will be created with status <span className="font-medium">Reserved</span>.
-            </p>
-            <Input
-              type="datetime-local"
-              value={nextAppointmentAt}
-              onChange={(e) => setNextAppointmentAt(e.target.value)}
-              className="mt-2 bg-background"
-            />
-            {nextAppointmentAt && (
-              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs mt-1" onClick={() => setNextAppointmentAt("")}>
-                Clear
-              </Button>
+            <RadioGroup
+              value={visitType}
+              onValueChange={(v) => setVisitType(v as "Single" | "Recurring")}
+              className="flex gap-6"
+            >
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="Single" id="visit-single" />
+                <Label htmlFor="visit-single" className="font-normal cursor-pointer">Single visit</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="Recurring" id="visit-recurring" />
+                <Label htmlFor="visit-recurring" className="font-normal cursor-pointer">Recurring visit</Label>
+              </div>
+            </RadioGroup>
+
+            {visitType === "Single" ? (
+              <div>
+                <Label className="flex items-center gap-2 text-sm">
+                  <CalendarClock className="h-4 w-4" /> Next Appointment Date
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Pick a date &amp; time — an appointment will be created with status <span className="font-medium">Reserved</span>.
+                </p>
+                <Input
+                  type="datetime-local"
+                  value={nextAppointmentAt}
+                  onChange={(e) => setNextAppointmentAt(e.target.value)}
+                  className="mt-2 bg-background"
+                />
+                {nextAppointmentAt && (
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs mt-1" onClick={() => setNextAppointmentAt("")}>
+                    Clear
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="max-w-[220px]">
+                  <Label className="text-sm"># of Recurring Visits</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={24}
+                    value={recurringCount}
+                    onChange={(e) => setRecurringCountSafe(parseInt(e.target.value, 10))}
+                    className="mt-1.5 bg-background"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {Array.from({ length: recurringCount }).map((_, i) => (
+                    <div key={i}>
+                      <Label className="text-xs text-muted-foreground">Visit # {i + 1}</Label>
+                      <Input
+                        type="datetime-local"
+                        value={recurringDates[i] || ""}
+                        onChange={(e) => {
+                          const next = [...recurringDates];
+                          next[i] = e.target.value;
+                          setRecurringDates(next);
+                        }}
+                        className="mt-1 bg-background"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Each date creates a <span className="font-medium">Reserved</span> appointment. Dates left blank can be added later during billing.
+                </p>
+              </div>
             )}
           </div>
+            </TabsContent>
+
+            <TabsContent value="medical" className="space-y-3 mt-4">
+              <div className="flex items-center gap-2">
+                <HeartPulse className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Medical Information</span>
+                <span className="text-[11px] text-muted-foreground">(saved back to the patient record)</span>
+              </div>
+              {patientId ? medicalSection : (
+                <p className="text-sm text-muted-foreground py-8 text-center">Select a patient to view medical information.</p>
+              )}
+            </TabsContent>
+          </Tabs>
 
           <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!patientId || createMutation.isPending}>
             {createMutation.isPending ? "Saving..." : "Save Procedure"}
@@ -1034,16 +1098,16 @@ export function ProcedureFormDialog({
   );
 
   if (asPage) {
-    return <div className="max-w-4xl">{body}</div>;
+    return <div className="w-full">{body}</div>;
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-none w-screen h-screen sm:rounded-none overflow-y-auto p-6">
         <DialogHeader>
           <DialogTitle className="font-display">New Procedure / Prescription</DialogTitle>
         </DialogHeader>
-        {body}
+        <div className="mx-auto w-full max-w-5xl">{body}</div>
       </DialogContent>
     </Dialog>
   );

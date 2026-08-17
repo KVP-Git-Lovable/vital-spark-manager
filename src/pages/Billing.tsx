@@ -199,38 +199,18 @@ const Billing = () => {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Open the public invoice PDF (generates on-demand if not yet cached).
-  const openInvoicePDF = async (inv: any) => {
-    // Open a tab synchronously to avoid popup blockers; we'll set its URL later.
-    const win = window.open("", "_blank");
+  // Generate and open invoice PDF
+  const openInvoicePDF = (inv: any) => {
     try {
-      if (inv?.pdf_url) {
-        if (win) win.location.href = inv.pdf_url;
-        else window.location.href = inv.pdf_url;
-        return;
-      }
       if (!inv?.id) {
         toast.error("Invoice id missing");
-        if (win) win.close();
         return;
       }
-      const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
-        body: { invoiceId: inv.id },
-      });
-      if (error || !(data as any)?.url) {
-        console.error("PDF generate failed:", error, data);
-        toast.error("Failed to generate invoice PDF");
-        if (win) win.close();
-        return;
-      }
-      const url = (data as any).url as string;
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      if (win) win.location.href = url;
-      else window.location.href = url;
+      generateInvoicePDF(inv);
+      toast.success("Invoice opened for printing");
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || "Failed to open invoice PDF");
-      if (win) win.close();
     }
   };
 

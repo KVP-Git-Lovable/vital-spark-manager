@@ -2353,7 +2353,7 @@ const Billing = () => {
                       </div>
                     ))}
                     <div className="grid grid-cols-[1fr_46px_58px_62px] gap-1 px-2 py-1.5 text-[11px] border-t bg-muted/40 font-semibold">
-                      <span>Services + Pharmacy</span>
+                      <span>Total</span>
                       <span className="text-right tabular-nums">{money(servicesSubtotal + pharmaSubtotal)}</span>
                       <span className="text-right tabular-nums">{money(lineTaxRows.reduce((s, r) => s + r.tax, 0))}</span>
                       <span className="text-right tabular-nums">{money(servicesSubtotal + pharmaSubtotal + lineTaxRows.reduce((s, r) => s + r.tax, 0))}</span>
@@ -2395,7 +2395,6 @@ const Billing = () => {
                           <div className="flex justify-between"><span className="text-muted-foreground">{Math.max(0, recurringCount - dueTodayCount)} installment(s) × {money(recurringAmount)}</span><span className="font-semibold">{money(scheduledLater)}</span></div>
                           <p className="text-[11px] text-muted-foreground">Tax is applied at the time of collection.</p>
                         </div>
-                        <div className="flex justify-between text-xs"><span className="text-muted-foreground">Plan total (services + pharmacy)</span><span className="font-semibold">{money(payableNow + scheduledLater)}</span></div>
                         <p className="text-[11px] text-muted-foreground">Installments cover services only ({money(servicesSubtotal)}); pharmacy is billed in full on this invoice.</p>
                       </div>
                     );
@@ -2410,15 +2409,7 @@ const Billing = () => {
                   const balance = grand - (Number(paidAmount) || 0);
                   return (
                     <div className="space-y-1">
-                      {servicesSubtotal > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Services (tax {money(lineTaxRows.filter(r => r.kind === "Service").reduce((s, r) => s + r.tax, 0))})</span><span>{money(servicesSubtotal)}</span></div>
-                      )}
-                      {pharmaSubtotal > 0 && (
-                        <div className="flex justify-between"><span className="text-muted-foreground">Products (tax {money(lineTaxRows.filter(r => r.kind === "Product").reduce((s, r) => s + r.tax, 0))})</span><span>{money(pharmaSubtotal)}</span></div>
-                      )}
-                      <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{money(subtotal)}</span></div>
-                      {totalTax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Total tax (CGST+SGST+IGST)</span><span>{money(totalTax)}</span></div>}
-                      <div className="flex justify-between font-semibold text-primary border-t pt-2 mt-2"><span>Grand Total</span><span>{money(grand)}</span></div>
+                      <div className="flex justify-between font-semibold text-primary text-base"><span>Grand Total</span><span>{money(grand)}</span></div>
                       <div className="pt-2 mt-2 border-t space-y-2">
                         <div>
                           <Label className="text-xs">Paid Amount (₹)</Label>

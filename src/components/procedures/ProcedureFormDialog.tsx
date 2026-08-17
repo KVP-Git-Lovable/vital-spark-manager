@@ -619,10 +619,10 @@ export function ProcedureFormDialog({
       const prod = products.find((p) => p.id === value) as any;
       updated[index].product_id = value as string;
       updated[index].medicine_name = prod?.name || "";
-      // Prescription defaults from the product master (only fill blanks).
-      if (!updated[index].frequency) updated[index].frequency = prod?.default_frequency || "";
-      if (!updated[index].duration) updated[index].duration = prod?.default_duration || "";
-      if (!updated[index].instructions) updated[index].instructions = prod?.default_instructions || "";
+      // Always populate prescription defaults from the product master when medicine is selected
+      updated[index].frequency = prod?.default_frequency || "";
+      updated[index].duration = prod?.default_duration || "";
+      updated[index].instructions = prod?.default_instructions || "";
       fetchStock(value as string, index);
     } else {
       (updated[index] as any)[field] = value;

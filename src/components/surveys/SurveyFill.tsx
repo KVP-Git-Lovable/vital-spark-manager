@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ClipboardCheck, Loader2 } from "lucide-react";
+import { ClipboardCheck, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,7 @@ interface Props {
 export function SurveyFill({ open, onOpenChange, templateId, appointmentId, patientId, onComplete }: Props) {
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [elaborating, setElaborating] = useState<string | null>(null);
 
   const { data: questions = [] } = useQuery({
     queryKey: ["survey-questions", templateId],
@@ -52,6 +53,34 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
 
   const updateAnswer = (questionId: string, value: any) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
+  };
+
+  const elaborateAnswer = async (questionId: string, questionText: string, currentAnswer: string) => {
+    if (!currentAnswer.trim()) {
+      toast.error("Please write an answer first before elaborating");
+      return;
+    }
+
+    setElaborating(questionId);
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/elaborate-survey-answer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: questionText,
+          currentAnswer: currentAnswer,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to elaborate");
+      const { elaborated } = await response.json();
+      updateAnswer(questionId, elaborated);
+      toast.success("Answer elaborated with AI");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to elaborate answer");
+    } finally {
+      setElaborating(null);
+    }
   };
 
   const handleSubmit = async () => {
@@ -150,12 +179,34 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
                 </Label>
 
                 {renderAsText && (
-                  <Textarea
-                    value={answers[q.id] || ""}
-                    onChange={(e) => updateAnswer(q.id, e.target.value)}
-                    placeholder="Type your answer here..."
-                    rows={2}
-                  />
+                  <div className="space-y-2">
+                    <Textarea
+                      value={answers[q.id] || ""}
+                      onChange={(e) => updateAnswer(q.id, e.target.value)}
+                      placeholder="Type your answer here..."
+                      rows={2}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 h-8 text-xs"
+                      onClick={() => elaborateAnswer(q.id, q.question_text, answers[q.id] || "")}
+                      disabled={elaborating === q.id || !answers[q.id]}
+                    >
+                      {elaborating === q.id ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Elaborating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5" />
+                          AI Elaborate
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 )}
 
                 {q.question_type === "single_choice" && opts.length > 0 && (

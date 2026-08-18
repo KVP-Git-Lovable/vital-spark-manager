@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
-import { ArrowLeft, ClipboardCheck, Loader2 } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -23,6 +23,7 @@ export default function SurveyNew() {
 
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [elaborating, setElaborating] = useState<string | null>(null);
 
   const { data: template } = useQuery({
     queryKey: ["survey-template", templateId],
@@ -55,6 +56,34 @@ export default function SurveyNew() {
   });
 
   const updateAnswer = (qid: string, value: any) => setAnswers((p) => ({ ...p, [qid]: value }));
+
+  const elaborateAnswer = async (questionId: string, questionText: string, currentAnswer: string) => {
+    if (!currentAnswer.trim()) {
+      toast.error("Please write an answer first before elaborating");
+      return;
+    }
+
+    setElaborating(questionId);
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/elaborate-survey-answer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: questionText,
+          currentAnswer: currentAnswer,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to elaborate");
+      const { elaborated } = await response.json();
+      updateAnswer(questionId, elaborated);
+      toast.success("Answer elaborated with AI");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to elaborate answer");
+    } finally {
+      setElaborating(null);
+    }
+  };
 
   const goBack = () => {
     if (patientId) navigate(`/patients/${patientId}`);
@@ -156,12 +185,34 @@ export default function SurveyNew() {
               </Label>
 
               {q.question_type === "text" && (
-                <Textarea
-                  value={answers[q.id] || ""}
-                  onChange={(e) => updateAnswer(q.id, e.target.value)}
-                  placeholder="Type answer here..."
-                  rows={3}
-                />
+                <div className="space-y-2">
+                  <Textarea
+                    value={answers[q.id] || ""}
+                    onChange={(e) => updateAnswer(q.id, e.target.value)}
+                    placeholder="Type answer here..."
+                    rows={3}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 h-8 text-xs"
+                    onClick={() => elaborateAnswer(q.id, q.question_text, answers[q.id] || "")}
+                    disabled={elaborating === q.id || !answers[q.id]}
+                  >
+                    {elaborating === q.id ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Elaborating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3.5 w-3.5" />
+                        AI Elaborate
+                      </>
+                    )}
+                  </Button>
+                </div>
               )}
 
               {q.question_type === "single_choice" && (
@@ -175,12 +226,34 @@ export default function SurveyNew() {
                     ))}
                   </RadioGroup>
                 ) : (
-                  <Textarea
-                    value={answers[q.id] || ""}
-                    onChange={(e) => updateAnswer(q.id, e.target.value)}
-                    placeholder="Type answer here..."
-                    rows={2}
-                  />
+                  <div className="space-y-2">
+                    <Textarea
+                      value={answers[q.id] || ""}
+                      onChange={(e) => updateAnswer(q.id, e.target.value)}
+                      placeholder="Type answer here..."
+                      rows={2}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 h-8 text-xs"
+                      onClick={() => elaborateAnswer(q.id, q.question_text, answers[q.id] || "")}
+                      disabled={elaborating === q.id || !answers[q.id]}
+                    >
+                      {elaborating === q.id ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Elaborating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5" />
+                          AI Elaborate
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 )
               )}
 
@@ -201,12 +274,34 @@ export default function SurveyNew() {
                     ))}
                   </div>
                 ) : (
-                  <Textarea
-                    value={answers[q.id] || ""}
-                    onChange={(e) => updateAnswer(q.id, e.target.value)}
-                    placeholder="Type answers (comma separated)..."
-                    rows={2}
-                  />
+                  <div className="space-y-2">
+                    <Textarea
+                      value={answers[q.id] || ""}
+                      onChange={(e) => updateAnswer(q.id, e.target.value)}
+                      placeholder="Type answers (comma separated)..."
+                      rows={2}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 h-8 text-xs"
+                      onClick={() => elaborateAnswer(q.id, q.question_text, answers[q.id] || "")}
+                      disabled={elaborating === q.id || !answers[q.id]}
+                    >
+                      {elaborating === q.id ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Elaborating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5" />
+                          AI Elaborate
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 )
               )}
 

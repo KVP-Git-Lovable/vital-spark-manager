@@ -45,10 +45,14 @@ export function useListViews(section: "appointments" | "procedures") {
   // Create view mutation
   const createViewMutation = useMutation({
     mutationFn: async (config: ListViewConfig) => {
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData.user?.id;
+      if (!userId) throw new Error("You must be signed in to create a view");
       const { data, error } = await supabase.from("list_views").insert({
         name: config.name,
         section: config.section,
-        filters: config.filters,
+        user_id: userId,
+        filters: config.filters as unknown as any,
         display_fields: config.displayFields,
         sort_by: config.sortBy,
         sort_direction: config.sortDirection,
@@ -76,7 +80,7 @@ export function useListViews(section: "appointments" | "procedures") {
         .from("list_views")
         .update({
           name: config.name,
-          filters: config.filters,
+          filters: config.filters as unknown as any,
           display_fields: config.displayFields,
           sort_by: config.sortBy,
           sort_direction: config.sortDirection,

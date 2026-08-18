@@ -170,6 +170,14 @@ const Appointments = () => {
   const [sortColumn, setSortColumn] = useState<string>("start_time");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
+  // Apply view's sorting when view is selected
+  useEffect(() => {
+    if (currentView) {
+      setSortColumn(currentView.sort_by || "start_time");
+      setSortDirection(currentView.sort_direction || "asc");
+    }
+  }, [currentView?.id]);
+
   // Inline edit state
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>({});
@@ -433,6 +441,19 @@ const Appointments = () => {
     });
     return sorted;
   }, [filteredAppointments, sortColumn, sortDirection, invoiceByAppointmentId]);
+
+  // Get columns to display based on current view or default
+  const getDisplayColumns = () => {
+    if (currentView?.display_fields && currentView.display_fields.length > 0) {
+      return currentView.display_fields;
+    }
+    return DEFAULT_APPOINTMENT_FIELDS;
+  };
+
+  const displayColumns = getDisplayColumns();
+
+  // Check if a column should be displayed
+  const shouldShowColumn = (column: string) => displayColumns.includes(column);
 
   const toggleSort = (column: string) => {
     if (sortColumn === column) {
@@ -1656,28 +1677,48 @@ const Appointments = () => {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/30">
-                      <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("start_time")}>
-                        <span className="flex items-center">Date<SortIcon column="start_time" /></span>
-                      </th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Time</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("patient")}>
-                        <span className="flex items-center">Patient<SortIcon column="patient" /></span>
-                      </th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("service")}>
-                        <span className="flex items-center">Service<SortIcon column="service" /></span>
-                      </th>
-                      <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("doctor")}>
-                        <span className="flex items-center">Doctor<SortIcon column="doctor" /></span>
-                      </th>
-                      <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("status")}>
-                        <span className="flex items-center">Status<SortIcon column="status" /></span>
-                      </th>
-                      <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("bill")}>
-                        <span className="flex items-center">Bill Amount<SortIcon column="bill" /></span>
-                      </th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Visit Status</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Payment Mode</th>
+                      {shouldShowColumn("start_time") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("start_time")}>
+                          <span className="flex items-center">Date<SortIcon column="start_time" /></span>
+                        </th>
+                      )}
+                      {shouldShowColumn("time") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground">Time</th>
+                      )}
+                      {shouldShowColumn("patient") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("patient")}>
+                          <span className="flex items-center">Patient<SortIcon column="patient" /></span>
+                        </th>
+                      )}
+                      {shouldShowColumn("phone") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
+                      )}
+                      {shouldShowColumn("service") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("service")}>
+                          <span className="flex items-center">Service<SortIcon column="service" /></span>
+                        </th>
+                      )}
+                      {shouldShowColumn("doctor") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("doctor")}>
+                          <span className="flex items-center">Doctor<SortIcon column="doctor" /></span>
+                        </th>
+                      )}
+                      {shouldShowColumn("status") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("status")}>
+                          <span className="flex items-center">Status<SortIcon column="status" /></span>
+                        </th>
+                      )}
+                      {shouldShowColumn("bill") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("bill")}>
+                          <span className="flex items-center">Bill Amount<SortIcon column="bill" /></span>
+                        </th>
+                      )}
+                      {shouldShowColumn("visit_status") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground">Visit Status</th>
+                      )}
+                      {shouldShowColumn("payment_mode") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground">Payment Mode</th>
+                      )}
                       <th className="text-left p-3 font-medium text-muted-foreground w-20">Actions</th>
                     </tr>
                   </thead>
@@ -1690,51 +1731,71 @@ const Appointments = () => {
                       if (isEditing) {
                         return (
                           <tr key={apt.id} className="border-b bg-primary/5">
-                            <td className="p-2">
-                              <Input
-                                type="datetime-local"
-                                className="h-8 text-xs w-40"
-                                value={editValues.start_time}
-                                onChange={(e) => setEditValues({ ...editValues, start_time: e.target.value })}
-                              />
-                            </td>
-                            <td className="p-2">
-                              <Input
-                                type="datetime-local"
-                                className="h-8 text-xs w-40"
-                                value={editValues.end_time}
-                                onChange={(e) => setEditValues({ ...editValues, end_time: e.target.value })}
-                              />
-                            </td>
-                            <td className="p-2 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
-                            <td className="p-2 text-muted-foreground text-xs">{patientPhone || "—"}</td>
-                            <td className="p-2">
-                              <Select value={editValues.service} onValueChange={(val) => setEditValues({ ...editValues, service: val })}>
-                                <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {services.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                            </td>
-                            <td className="p-2">
-                              <Select value={editValues.staff_id} onValueChange={(val) => setEditValues({ ...editValues, staff_id: val })}>
-                                <SelectTrigger className="h-8 text-xs w-36"><SelectValue placeholder="Select" /></SelectTrigger>
-                                <SelectContent>
-                                  {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                            </td>
-                            <td className="p-2">
-                              <Select value={editValues.status} onValueChange={(val) => setEditValues({ ...editValues, status: val })}>
-                                <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                            </td>
-                            <td className="p-2 text-muted-foreground text-xs">{invoice ? `₹${invoice.total_amount?.toLocaleString()}` : "—"}</td>
-                            <td className="p-2 text-muted-foreground text-xs">{apt.visit_status || "—"}</td>
-                            <td className="p-2 text-muted-foreground text-xs">{invoice?.payment_mode || "—"}</td>
+                            {shouldShowColumn("start_time") && (
+                              <td className="p-2">
+                                <Input
+                                  type="datetime-local"
+                                  className="h-8 text-xs w-40"
+                                  value={editValues.start_time}
+                                  onChange={(e) => setEditValues({ ...editValues, start_time: e.target.value })}
+                                />
+                              </td>
+                            )}
+                            {shouldShowColumn("time") && (
+                              <td className="p-2">
+                                <Input
+                                  type="datetime-local"
+                                  className="h-8 text-xs w-40"
+                                  value={editValues.end_time}
+                                  onChange={(e) => setEditValues({ ...editValues, end_time: e.target.value })}
+                                />
+                              </td>
+                            )}
+                            {shouldShowColumn("patient") && (
+                              <td className="p-2 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
+                            )}
+                            {shouldShowColumn("phone") && (
+                              <td className="p-2 text-muted-foreground text-xs">{patientPhone || "—"}</td>
+                            )}
+                            {shouldShowColumn("service") && (
+                              <td className="p-2">
+                                <Select value={editValues.service} onValueChange={(val) => setEditValues({ ...editValues, service: val })}>
+                                  <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {services.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                            )}
+                            {shouldShowColumn("doctor") && (
+                              <td className="p-2">
+                                <Select value={editValues.staff_id} onValueChange={(val) => setEditValues({ ...editValues, staff_id: val })}>
+                                  <SelectTrigger className="h-8 text-xs w-36"><SelectValue placeholder="Select" /></SelectTrigger>
+                                  <SelectContent>
+                                    {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                            )}
+                            {shouldShowColumn("status") && (
+                              <td className="p-2">
+                                <Select value={editValues.status} onValueChange={(val) => setEditValues({ ...editValues, status: val })}>
+                                  <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                            )}
+                            {shouldShowColumn("bill") && (
+                              <td className="p-2 text-muted-foreground text-xs">{invoice ? `₹${invoice.total_amount?.toLocaleString()}` : "—"}</td>
+                            )}
+                            {shouldShowColumn("visit_status") && (
+                              <td className="p-2 text-muted-foreground text-xs">{apt.visit_status || "—"}</td>
+                            )}
+                            {shouldShowColumn("payment_mode") && (
+                              <td className="p-2 text-muted-foreground text-xs">{invoice?.payment_mode || "—"}</td>
+                            )}
                             <td className="p-2">
                               <div className="flex items-center gap-1">
                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-success" onClick={saveInlineEdit}><CheckIcon className="h-3.5 w-3.5" /></Button>
@@ -1747,44 +1808,64 @@ const Appointments = () => {
 
                       return (
                         <tr key={apt.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors" onClick={() => setOpenModal("appointmentDetail", apt.id)}>
-                          <td className="p-3">
-                            <p className="font-medium">{format(new Date(apt.start_time), "MMM d, yyyy")}</p>
-                          </td>
-                          <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
-                            {format(new Date(apt.start_time), "h:mm a")} - {format(new Date(apt.end_time), "h:mm a")}
-                          </td>
-                          <td className="p-3 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
-                          <td className="p-3 text-muted-foreground">
-                            {patientPhone ? <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span> : "—"}
-                          </td>
-                          <td className="p-3">{apt.service || "—"}</td>
-                          <td className="p-3 text-muted-foreground">{apt.staff_id ? (staffMap.get(apt.staff_id) || "—") : "—"}</td>
-                          <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                            <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({
-                              id: apt.id,
-                              status: val,
-                              __notify: {
-                                phone: apt.patients?.phone || "",
-                                patientName: `${apt.patients?.first_name || ""} ${apt.patients?.last_name || ""}`.trim() || "Patient",
-                                prevStatus: apt.status,
-                                newStatus: val,
-                                startTime: apt.start_time,
-                                doctorName: apt.staff_id ? (staffMap.get(apt.staff_id) || "") : "",
-                                serviceName: apt.service || "",
-                                patientGender: apt.patients?.gender || null,
-                              },
-                            })}>
-                              <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">
-                                <Badge className={cn("text-xs", statusColor(apt.status))}>{apt.status}</Badge>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="p-3 text-xs">{invoice ? <span className="font-medium">₹{invoice.total_amount?.toLocaleString()}</span> : <span className="text-muted-foreground">—</span>}</td>
-                          <td className="p-3 text-xs">{apt.visit_status ? <Badge variant="outline" className="text-xs">{apt.visit_status}</Badge> : <span className="text-muted-foreground">—</span>}</td>
-                          <td className="p-3 text-xs">{invoice?.payment_mode ? <Badge variant="outline" className="text-xs">{invoice.payment_mode}</Badge> : <span className="text-muted-foreground">—</span>}</td>
+                          {shouldShowColumn("start_time") && (
+                            <td className="p-3">
+                              <p className="font-medium">{format(new Date(apt.start_time), "MMM d, yyyy")}</p>
+                            </td>
+                          )}
+                          {shouldShowColumn("time") && (
+                            <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
+                              {format(new Date(apt.start_time), "h:mm a")} - {format(new Date(apt.end_time), "h:mm a")}
+                            </td>
+                          )}
+                          {shouldShowColumn("patient") && (
+                            <td className="p-3 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
+                          )}
+                          {shouldShowColumn("phone") && (
+                            <td className="p-3 text-muted-foreground">
+                              {patientPhone ? <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span> : "—"}
+                            </td>
+                          )}
+                          {shouldShowColumn("service") && (
+                            <td className="p-3">{apt.service || "—"}</td>
+                          )}
+                          {shouldShowColumn("doctor") && (
+                            <td className="p-3 text-muted-foreground">{apt.staff_id ? (staffMap.get(apt.staff_id) || "—") : "—"}</td>
+                          )}
+                          {shouldShowColumn("status") && (
+                            <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                              <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({
+                                id: apt.id,
+                                status: val,
+                                __notify: {
+                                  phone: apt.patients?.phone || "",
+                                  patientName: `${apt.patients?.first_name || ""} ${apt.patients?.last_name || ""}`.trim() || "Patient",
+                                  prevStatus: apt.status,
+                                  newStatus: val,
+                                  startTime: apt.start_time,
+                                  doctorName: apt.staff_id ? (staffMap.get(apt.staff_id) || "") : "",
+                                  serviceName: apt.service || "",
+                                  patientGender: apt.patients?.gender || null,
+                                },
+                              })}>
+                                <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">
+                                  <Badge className={cn("text-xs", statusColor(apt.status))}>{apt.status}</Badge>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </td>
+                          )}
+                          {shouldShowColumn("bill") && (
+                            <td className="p-3 text-xs">{invoice ? <span className="font-medium">₹{invoice.total_amount?.toLocaleString()}</span> : <span className="text-muted-foreground">—</span>}</td>
+                          )}
+                          {shouldShowColumn("visit_status") && (
+                            <td className="p-3 text-xs">{apt.visit_status ? <Badge variant="outline" className="text-xs">{apt.visit_status}</Badge> : <span className="text-muted-foreground">—</span>}</td>
+                          )}
+                          {shouldShowColumn("payment_mode") && (
+                            <td className="p-3 text-xs">{invoice?.payment_mode ? <Badge variant="outline" className="text-xs">{invoice.payment_mode}</Badge> : <span className="text-muted-foreground">—</span>}</td>
+                          )}
                           <td className="p-3" onClick={(e) => e.stopPropagation()}>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startInlineEdit(apt)}>
                               <Pencil className="h-3.5 w-3.5" />
@@ -1794,7 +1875,7 @@ const Appointments = () => {
                       );
                     })}
                     {sortedAppointments.length === 0 && (
-                      <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
+                      <tr><td colSpan={displayColumns.length + 1} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
                     )}
                   </tbody>
                 </table>

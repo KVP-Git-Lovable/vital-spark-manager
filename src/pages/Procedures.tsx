@@ -74,7 +74,7 @@ const Procedures = () => {
     },
   });
 
-  const filtered = procedures.filter((p: any) => {
+  let filtered = procedures.filter((p: any) => {
     const name = `${p.patients?.first_name || ""} ${p.patients?.last_name || ""}`.toLowerCase();
     return name.includes(search.toLowerCase()) || p.service_name?.toLowerCase().includes(search.toLowerCase());
   });
@@ -91,6 +91,47 @@ const Procedures = () => {
 
   // Check if a column should be displayed
   const shouldShowColumn = (column: string) => displayColumns.includes(column);
+
+  // Apply view filters
+  const applyViewFilters = (items: any[]) => {
+    if (!currentView?.filters || currentView.filters.length === 0) return items;
+    return items.filter((proc) => {
+      return currentView.filters.every((filter) => {
+        const fieldValue = getFieldValue(proc, filter.field);
+        return applyFilterCondition(fieldValue, filter.operator, filter.value);
+      });
+    });
+  };
+
+  const getFieldValue = (proc: any, field: string) => {
+    switch (field) {
+      case "procedure_date": return new Date(proc.procedure_date).toLocaleDateString();
+      case "patient": return `${proc.patients?.first_name || ""} ${proc.patients?.last_name || ""}`;
+      case "service_name": return proc.service_name || "";
+      case "doctor": return proc.staff ? `Dr. ${proc.staff.first_name} ${proc.staff.last_name}` : "";
+      case "status": return proc.status || "";
+      default: return "";
+    }
+  };
+
+  const applyFilterCondition = (value: any, operator: string, filterValue: any) => {
+    const val = String(value).toLowerCase();
+    const fval = String(filterValue).toLowerCase();
+    switch (operator) {
+      case "equals": return val === fval;
+      case "contains": return val.includes(fval);
+      case "starts_with": return val.startsWith(fval);
+      case "ends_with": return val.endsWith(fval);
+      case "greater_than": return Number(value) > Number(filterValue);
+      case "less_than": return Number(value) < Number(filterValue);
+      case "is_empty": return !value || value === "";
+      case "is_not_empty": return value && value !== "";
+      default: return true;
+    }
+  };
+
+  // Apply view filters to filtered items
+  filtered = applyViewFilters(filtered);
 
   return (
     <div>

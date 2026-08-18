@@ -370,8 +370,51 @@ const Appointments = () => {
     }
   };
 
+  // Apply view filters
+  const applyViewFilters = (items: any[]) => {
+    if (!currentView?.filters || currentView.filters.length === 0) return items;
+    return items.filter((apt) => {
+      return currentView.filters.every((filter) => {
+        const fieldValue = getFieldValue(apt, filter.field);
+        return applyFilterCondition(fieldValue, filter.operator, filter.value);
+      });
+    });
+  };
+
+  const getFieldValue = (apt: any, field: string) => {
+    switch (field) {
+      case "start_time": return new Date(apt.start_time).toLocaleDateString();
+      case "time": return format(new Date(apt.start_time), "h:mm a");
+      case "patient": return apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
+      case "phone": return apt.patients?.phone || "";
+      case "service": return apt.service || "";
+      case "doctor": return staffMap.get(apt.staff_id) || "";
+      case "status": return apt.status || "";
+      case "bill": return invoiceByAppointmentId.get(apt.id)?.total_amount || 0;
+      case "visit_status": return apt.visit_status || "";
+      case "payment_mode": return invoiceByAppointmentId.get(apt.id)?.payment_mode || "";
+      default: return "";
+    }
+  };
+
+  const applyFilterCondition = (value: any, operator: string, filterValue: any) => {
+    const val = String(value).toLowerCase();
+    const fval = String(filterValue).toLowerCase();
+    switch (operator) {
+      case "equals": return val === fval;
+      case "contains": return val.includes(fval);
+      case "starts_with": return val.startsWith(fval);
+      case "ends_with": return val.endsWith(fval);
+      case "greater_than": return Number(value) > Number(filterValue);
+      case "less_than": return Number(value) < Number(filterValue);
+      case "is_empty": return !value || value === "";
+      case "is_not_empty": return value && value !== "";
+      default: return true;
+    }
+  };
+
   // Filtered appointments
-  const filteredAppointments = appointments.filter((apt: any) => {
+  let filteredAppointments = appointments.filter((apt: any) => {
     if (filterDoctors.size > 0 && apt.staff_id && !filterDoctors.has(apt.staff_id)) return false;
     if (filterDate && !isSameDay(new Date(apt.start_time), filterDate)) return false;
     if (filterSource !== "all") {
@@ -401,6 +444,9 @@ const Appointments = () => {
     }
     return true;
   });
+
+  // Apply view filters
+  filteredAppointments = applyViewFilters(filteredAppointments);
 
   // Sorted appointments for table view
   const sortedAppointments = useMemo(() => {

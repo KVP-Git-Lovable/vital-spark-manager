@@ -1,6 +1,9 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useModal } from "@/hooks/useModal";
+import { useListViews } from "@/hooks/useListViews";
+import { ViewSelector } from "@/components/views/ViewSelector";
+import { NewListViewDialog } from "@/components/views/NewListViewDialog";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, Pin } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Button } from "@/components/ui/button";
@@ -63,6 +66,33 @@ const DOCTOR_PALETTE = [
 
 const statusOptions = ["Reserved", "Confirmed", "Cancelled", "Follow Up", "Recurring appointment"];
 
+// Available fields for list view customization
+const APPOINTMENT_FIELDS = [
+  { value: "start_time", label: "Date" },
+  { value: "time", label: "Time" },
+  { value: "patient", label: "Patient" },
+  { value: "phone", label: "Phone" },
+  { value: "service", label: "Service" },
+  { value: "doctor", label: "Doctor" },
+  { value: "status", label: "Status" },
+  { value: "bill", label: "Bill Amount" },
+  { value: "visit_status", label: "Visit Status" },
+  { value: "payment_mode", label: "Payment Mode" },
+];
+
+const DEFAULT_APPOINTMENT_FIELDS = [
+  "start_time",
+  "time",
+  "patient",
+  "phone",
+  "service",
+  "doctor",
+  "status",
+  "bill",
+  "visit_status",
+  "payment_mode",
+];
+
 // Status → tailwind classes for calendar cards (background + border + text)
 const STATUS_CARD_CLASSES: Record<string, string> = {
   Reserved: "bg-info/15 border-info/30 text-info",
@@ -94,6 +124,18 @@ const Appointments = () => {
   const [lastCreatedService, setLastCreatedService] = useState("");
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
   const [view, setView] = useState<"week" | "day" | "month" | "table">("table");
+
+  // List views management
+  const {
+    views,
+    currentView,
+    selectedViewId,
+    setSelectedViewId,
+    createView,
+    deleteView,
+    isCreating,
+  } = useListViews("appointments");
+  const [showNewViewDialog, setShowNewViewDialog] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [open, setOpen] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
@@ -1010,6 +1052,16 @@ const Appointments = () => {
             <Button variant={view === "month" ? "default" : "ghost"} size="sm" onClick={() => setView("month")} className="text-xs h-7 md:h-8 px-2 md:px-3">Month</Button>
             <Button variant={view === "table" ? "default" : "ghost"} size="sm" onClick={() => setView("table")} className="text-xs h-7 md:h-8 px-2 md:px-3 gap-1"><List className="h-3 w-3" />List</Button>
           </div>
+          {view === "table" && (
+            <ViewSelector
+              views={views}
+              selectedViewId={selectedViewId}
+              onSelectView={setSelectedViewId}
+              onCreateView={() => setShowNewViewDialog(true)}
+              onDeleteView={deleteView}
+              currentViewName={currentView?.name}
+            />
+          )}
           <Button
             variant="outline"
             size="icon"
@@ -1949,6 +2001,16 @@ const Appointments = () => {
           onComplete={() => setPendingFillNow(null)}
         />
       )}
+
+      <NewListViewDialog
+        open={showNewViewDialog}
+        onOpenChange={setShowNewViewDialog}
+        section="appointments"
+        availableFields={APPOINTMENT_FIELDS}
+        defaultFields={DEFAULT_APPOINTMENT_FIELDS}
+        onCreate={createView}
+        isLoading={isCreating}
+      />
     </div>
   );
 };

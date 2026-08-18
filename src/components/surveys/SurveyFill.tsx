@@ -72,12 +72,17 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to elaborate");
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Error ${response.status}:`, errorText);
+        throw new Error(`Failed to elaborate (${response.status})`);
+      }
       const { elaborated } = await response.json();
       updateAnswer(questionId, elaborated);
       toast.success("Answer elaborated with AI");
     } catch (e: any) {
-      toast.error(e.message || "Failed to elaborate answer");
+      console.error("Elaborate error:", e);
+      toast.error(e.message || "Failed to elaborate answer - Edge Function may not be deployed yet");
     } finally {
       setElaborating(null);
     }

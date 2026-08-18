@@ -1167,6 +1167,51 @@ export type Database = {
         }
         Relationships: []
       }
+      list_views: {
+        Row: {
+          created_at: string
+          display_fields: string[]
+          filters: Json
+          id: string
+          is_shared: boolean | null
+          name: string
+          section: string
+          shared_with: string[] | null
+          sort_by: string
+          sort_direction: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_fields: string[]
+          filters?: Json
+          id?: string
+          is_shared?: boolean | null
+          name: string
+          section: string
+          shared_with?: string[] | null
+          sort_by?: string
+          sort_direction?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_fields?: string[]
+          filters?: Json
+          id?: string
+          is_shared?: boolean | null
+          name?: string
+          section?: string
+          shared_with?: string[] | null
+          sort_by?: string
+          sort_direction?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       patient_campaigns: {
         Row: {
           campaign_id: string

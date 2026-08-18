@@ -14,7 +14,20 @@ import { CameraCapture } from "@/components/shared/CameraCapture";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { ImportProceduresDialog } from "@/components/procedures/ImportProceduresDialog";
+import { ViewSelector } from "@/components/views/ViewSelector";
+import { NewListViewDialog } from "@/components/views/NewListViewDialog";
+import { useListViews } from "@/hooks/useListViews";
 import { toast } from "sonner";
+
+const PROCEDURE_FIELDS = [
+  { value: "procedure_date", label: "Date" },
+  { value: "patient", label: "Patient" },
+  { value: "service_name", label: "Service" },
+  { value: "doctor", label: "Doctor" },
+  { value: "status", label: "Status" },
+];
+
+const DEFAULT_PROCEDURE_FIELDS = ["procedure_date", "patient", "service_name", "doctor", "status"];
 
 const Procedures = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -22,11 +35,14 @@ const Procedures = () => {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [showNewViewDialog, setShowNewViewDialog] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("id"));
   const [cameraProc, setCameraProc] = useState<any>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
+
+  const { views, currentView, selectedViewId, setSelectedViewId, createView, deleteView, isCreating } = useListViews("procedures");
 
   const handleProcedureSaved = useCallback((savedId: string) => {
     setHighlightedId(savedId);
@@ -63,6 +79,19 @@ const Procedures = () => {
     return name.includes(search.toLowerCase()) || p.service_name?.toLowerCase().includes(search.toLowerCase());
   });
 
+  // Get columns to display based on current view or default
+  const getDisplayColumns = () => {
+    if (currentView?.display_fields && currentView.display_fields.length > 0) {
+      return currentView.display_fields;
+    }
+    return DEFAULT_PROCEDURE_FIELDS;
+  };
+
+  const displayColumns = getDisplayColumns();
+
+  // Check if a column should be displayed
+  const shouldShowColumn = (column: string) => displayColumns.includes(column);
+
   return (
     <div>
       <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
@@ -70,7 +99,15 @@ const Procedures = () => {
           <h1 className="page-title">Procedures</h1>
           <p className="page-subtitle">Record consultations, procedures & prescriptions</p>
         </div>
-        <div className="flex gap-2 w-fit">
+        <div className="flex gap-2 w-fit flex-wrap">
+          <ViewSelector
+            views={views}
+            selectedViewId={selectedViewId}
+            onSelectView={setSelectedViewId}
+            onCreateView={() => setShowNewViewDialog(true)}
+            onDeleteView={deleteView}
+            currentViewName={currentView?.name}
+          />
           <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4" />
             Import Procedures
@@ -129,31 +166,35 @@ const Procedures = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Patient</TableHead>
-              <TableHead>Service</TableHead>
-              <TableHead>Doctor</TableHead>
-              <TableHead>Status</TableHead>
+              {shouldShowColumn("procedure_date") && <TableHead>Date</TableHead>}
+              {shouldShowColumn("patient") && <TableHead>Patient</TableHead>}
+              {shouldShowColumn("service_name") && <TableHead>Service</TableHead>}
+              {shouldShowColumn("doctor") && <TableHead>Doctor</TableHead>}
+              {shouldShowColumn("status") && <TableHead>Status</TableHead>}
               <TableHead className="w-12"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={displayColumns.length + 1} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No procedures found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={displayColumns.length + 1} className="text-center py-8 text-muted-foreground">No procedures found</TableCell></TableRow>
             ) : (
               filtered.map((proc: any) => (
                 <TableRow key={proc.id} ref={(el) => { rowRefs.current[proc.id] = el; }} className={`cursor-pointer hover:bg-muted/50 transition-all duration-500 ${highlightedId === proc.id ? "ring-2 ring-primary bg-primary/5" : ""}`} onClick={() => setSelectedId(proc.id)}>
-                  <TableCell className="text-sm">{new Date(proc.procedure_date).toLocaleDateString()}</TableCell>
-                  <TableCell className="font-medium">{proc.patients?.first_name} {proc.patients?.last_name}</TableCell>
-                  <TableCell>{proc.service_name}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {proc.staff ? `Dr. ${proc.staff.first_name} ${proc.staff.last_name}` : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
-                  </TableCell>
+                  {shouldShowColumn("procedure_date") && <TableCell className="text-sm">{new Date(proc.procedure_date).toLocaleDateString()}</TableCell>}
+                  {shouldShowColumn("patient") && <TableCell className="font-medium">{proc.patients?.first_name} {proc.patients?.last_name}</TableCell>}
+                  {shouldShowColumn("service_name") && <TableCell>{proc.service_name}</TableCell>}
+                  {shouldShowColumn("doctor") && (
+                    <TableCell className="text-sm text-muted-foreground">
+                      {proc.staff ? `Dr. ${proc.staff.first_name} ${proc.staff.last_name}` : "—"}
+                    </TableCell>
+                  )}
+                  {shouldShowColumn("status") && (
+                    <TableCell>
+                      <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setCameraProc(proc); }} title="Take Photo">
                       <Camera className="h-4 w-4" />
@@ -199,6 +240,16 @@ const Procedures = () => {
           contextId={cameraProc.id}
         />
       )}
+
+      <NewListViewDialog
+        open={showNewViewDialog}
+        onOpenChange={setShowNewViewDialog}
+        section="procedures"
+        availableFields={PROCEDURE_FIELDS}
+        defaultFields={DEFAULT_PROCEDURE_FIELDS}
+        onCreate={createView}
+        isLoading={isCreating}
+      />
     </div>
   );
 };

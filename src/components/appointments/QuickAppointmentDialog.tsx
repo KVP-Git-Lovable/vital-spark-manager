@@ -27,7 +27,7 @@ interface QuickAppointmentDialogProps {
   };
 }
 
-const STATUS_OPTIONS = ["Reserved", "Confirmed", "Cancelled", "Follow Up", "Recurring appointment"];
+const STATUS_OPTIONS = ["Reserved", "Confirmed", "Cancelled"];
 
 export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickAppointmentDialogProps) {
   const queryClient = useQueryClient();

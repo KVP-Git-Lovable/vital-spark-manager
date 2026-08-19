@@ -575,6 +575,7 @@ export function ProcedureFormDialog({
             start_time: start.toISOString(),
             end_time: end.toISOString(),
             status: "Reserved",
+            visit_status: visitType === "Recurring" ? "Recurring visit" : "Follow-up visit",
             problem_area_ids: selectedProblemAreas.length ? selectedProblemAreas : null,
             source: "Procedure",
           };

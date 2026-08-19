@@ -157,21 +157,17 @@ const generateInvoicePDF = (inv: any) => {
     </div>
   </div>
   <table>
-    <thead><tr><th>#</th><th>Service</th><th class="amount-col">Amount</th></tr></thead>
+    <thead><tr><th>#</th><th>Item</th><th>HSN</th><th class="amount-col">Qty</th><th class="amount-col">Rate</th><th class="amount-col">Amount</th><th class="amount-col">GST %</th><th class="amount-col">Tax</th><th class="amount-col">Total</th></tr></thead>
     <tbody>
       ${(() => {
-        const items: any[] = Array.isArray(inv.line_items) && inv.line_items.length > 0
-          ? inv.line_items
-          : (inv.services || []).map((s: string) => ({ name: s, qty: 1, price: null }));
-        return items.map((it: any, i: number) => {
-          const qty = Number(it.qty) || 1;
-          const price = it.price == null ? null : Number(it.price) || 0;
-          const amount = price == null ? null : qty * price;
-          const amtCell = amount == null ? "—" : `₹${amount.toLocaleString("en-IN")}`;
-          const label = qty > 1 ? `${it.name} × ${qty}` : it.name;
-          const hsn = it.hsn ? ` <span style=\"color:#999;font-size:11px;\">HSN ${it.hsn}</span>` : "";
-          return `<tr><td>${i + 1}</td><td>${label}${hsn}</td><td class=\"amount-col\">${amtCell}</td></tr>`;
-        }).join("");
+        const rows = invoiceLineRows(inv);
+        const fmt = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+        const t = rows.reduce((a, r) => ({ amount: a.amount + r.amount, tax: a.tax + r.tax, total: a.total + r.total }), { amount: 0, tax: 0, total: 0 });
+        const body = rows.map((r, i) =>
+          `<tr><td>${i + 1}</td><td>${r.name}</td><td style="color:#999;font-size:12px;">${r.hsn || "—"}</td><td class="amount-col">${r.qty}</td><td class="amount-col">${fmt(r.price)}</td><td class="amount-col">${fmt(r.amount)}</td><td class="amount-col">${r.gst ? r.gst + "%" : "—"}</td><td class="amount-col">${fmt(r.tax)}</td><td class="amount-col">${fmt(r.total)}</td></tr>`
+        ).join("");
+        const footer = `<tr style="background:#f0fdfa;font-weight:700;"><td colspan="5">Total</td><td class="amount-col">${fmt(t.amount)}</td><td></td><td class="amount-col">${fmt(t.tax)}</td><td class="amount-col">${fmt(t.total)}</td></tr>`;
+        return body + footer;
       })()}
     </tbody>
   </table>
@@ -179,6 +175,14 @@ const generateInvoicePDF = (inv: any) => {
     <table class="summary-table">
       <tr><td>Total Amount</td><td class="amount-col">₹${Number(inv.total_amount).toLocaleString("en-IN")}</td></tr>
       <tr><td>Paid Amount</td><td class="amount-col">₹${Number(inv.paid_amount).toLocaleString("en-IN")}</td></tr>
+      <tr><td>Payment Mode</td><td class="amount-col">${
+        Array.isArray(inv.payment_splits) && inv.payment_splits.length > 0 ? "Split" : (inv.payment_mode || "Cash")
+      }</td></tr>
+      ${
+        Array.isArray(inv.payment_splits) && inv.payment_splits.length > 0
+          ? inv.payment_splits.map((p: any) => `<tr><td style="padding-left:28px;color:#666;">${p.mode}</td><td class="amount-col" style="color:#666;">₹${Number(p.amount || 0).toLocaleString("en-IN")}</td></tr>`).join("")
+          : ""
+      }
       <tr><td>Balance Due</td><td class="amount-col">₹${balance.toLocaleString("en-IN")}</td></tr>
     </table>
   </div>

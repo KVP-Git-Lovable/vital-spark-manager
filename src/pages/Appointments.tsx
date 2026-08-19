@@ -204,6 +204,23 @@ const Appointments = () => {
     persistPinned(next);
   };
 
+  const PinButton = ({ pinKey, value, label }: { pinKey: string; value: any; label: string }) => {
+    const isPinned = pinnedFilters[pinKey] !== undefined;
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={cn("h-9 px-2 rounded-l-none border-l-0", isPinned && "text-primary")}
+        title={isPinned ? `Unpin ${label}` : `Pin ${label} as default`}
+        aria-label={isPinned ? `Unpin ${label}` : `Pin ${label}`}
+        onClick={() => togglePin(pinKey, value)}
+      >
+        <Pin className={cn("h-3.5 w-3.5", isPinned ? "fill-current" : "opacity-50")} />
+      </Button>
+    );
+  };
+
   // Sort state for table view
   const [sortColumn, setSortColumn] = useState<string>("start_time");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");

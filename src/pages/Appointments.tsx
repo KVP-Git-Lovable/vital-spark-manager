@@ -78,7 +78,7 @@ const APPOINTMENT_FIELDS = [
   { value: "doctor", label: "Doctor" },
   { value: "status", label: "Status" },
   { value: "bill", label: "Bill Amount" },
-  { value: "visit_status", label: "Visit Status" },
+  { value: "visit_status", label: "Next Visit" },
   { value: "payment_mode", label: "Payment Mode" },
 ];
 
@@ -144,29 +144,51 @@ const Appointments = () => {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const today = new Date();
 
-  // Filter state
-  const [filterDoctors, setFilterDoctors] = useState<Set<string>>(new Set());
-  const [filterDate, setFilterDate] = useState<Date | undefined>();
-  const [filterSource, setFilterSource] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [filterAppointmentType, setFilterAppointmentType] = useState<string>("all");
+  // Filter state — pinned filters are restored from localStorage
+  const pinnedInit: Record<string, any> = (() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(localStorage.getItem(PINNED_FILTERS_KEY) || "{}"); } catch { return {}; }
+  })();
+  const [pinnedFilters, setPinnedFilters] = useState<Record<string, any>>(pinnedInit);
+  const [filterDoctors, setFilterDoctors] = useState<Set<string>>(
+    new Set(pinnedInit.doctor ? [pinnedInit.doctor as string] : [])
+  );
+  const [filterStatus, setFilterStatus] = useState<string>(pinnedInit.status || "all");
+  const [filterVisitStatus, setFilterVisitStatus] = useState<string>(pinnedInit.visit || "all");
+  // Date filter: preset key + optional specific date / range
+  const [datePreset, setDatePreset] = useState<string>(pinnedInit.date || "this_week");
+  const [specificDate, setSpecificDate] = useState<Date | undefined>(
+    pinnedInit.specificDate ? new Date(pinnedInit.specificDate) : undefined
+  );
+  const [rangeFrom, setRangeFrom] = useState<Date | undefined>(
+    pinnedInit.rangeFrom ? new Date(pinnedInit.rangeFrom) : undefined
+  );
+  const [rangeTo, setRangeTo] = useState<Date | undefined>(
+    pinnedInit.rangeTo ? new Date(pinnedInit.rangeTo) : undefined
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [pinnedQuickFilter, setPinnedQuickFilter] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem("appointments.pinnedQuickFilter") || "";
-  });
-  const [quickFilter, setQuickFilter] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem("appointments.pinnedQuickFilter") || "";
-  });
 
-  const togglePinnedQuickFilter = (key: string) => {
-    const next = pinnedQuickFilter === key ? "" : key;
-    setPinnedQuickFilter(next);
-    if (next) localStorage.setItem("appointments.pinnedQuickFilter", next);
-    else localStorage.removeItem("appointments.pinnedQuickFilter");
-    if (next) setQuickFilter(next);
+  const persistPinned = (next: Record<string, any>) => {
+    setPinnedFilters(next);
+    if (Object.keys(next).length) localStorage.setItem(PINNED_FILTERS_KEY, JSON.stringify(next));
+    else localStorage.removeItem(PINNED_FILTERS_KEY);
+  };
+
+  const togglePin = (key: string, value: any) => {
+    const next = { ...pinnedFilters };
+    if (next[key] !== undefined) {
+      delete next[key];
+      if (key === "date") { delete next.specificDate; delete next.rangeFrom; delete next.rangeTo; }
+    } else {
+      next[key] = value;
+      if (key === "date") {
+        if (specificDate) next.specificDate = specificDate.toISOString();
+        if (rangeFrom) next.rangeFrom = rangeFrom.toISOString();
+        if (rangeTo) next.rangeTo = rangeTo.toISOString();
+      }
+    }
+    persistPinned(next);
   };
 
   // Sort state for table view

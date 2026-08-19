@@ -568,6 +568,8 @@ const Pharma = () => {
 
   const expired = inventory.filter((i: any) => new Date(i.expiry_date) < new Date());
 
+  const expiryRows = expiryView === "expired" ? expired : expiryView === "near" ? nearExpiry : [];
+
   return (
     <div>
       <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

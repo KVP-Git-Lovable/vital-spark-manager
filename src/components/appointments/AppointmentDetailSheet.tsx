@@ -973,7 +973,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                     </Select>
                   </div>
                   <div>
-                    <Label>Next visit status</Label>
+                    <Label>Next visit</Label>
                     <Select value={editVisitStatus || "none"} onValueChange={(v) => setEditVisitStatus(v === "none" ? "" : v)}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>

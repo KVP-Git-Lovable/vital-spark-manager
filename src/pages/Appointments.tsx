@@ -1321,7 +1321,7 @@ const Appointments = () => {
                     </Select>
                   </div>
                   <div>
-                    <Label>Next visit status</Label>
+                    <Label>Next visit</Label>
                     <Select value={visitStatus || "none"} onValueChange={(v) => setVisitStatus(v === "none" ? "" : v)}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
@@ -1855,7 +1855,7 @@ const Appointments = () => {
                         </th>
                       )}
                       {shouldShowColumn("visit_status") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground">Visit Status</th>
+                        <th className="text-left p-3 font-medium text-muted-foreground">Next Visit</th>
                       )}
                       {shouldShowColumn("payment_mode") && (
                         <th className="text-left p-3 font-medium text-muted-foreground">Payment Mode</th>

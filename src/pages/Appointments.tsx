@@ -1720,7 +1720,7 @@ const Appointments = () => {
                   )}
                   <span className="text-xs text-muted-foreground ml-auto">{sortedAppointments.length} result{sortedAppointments.length !== 1 ? "s" : ""}</span>
                 </div>
-                <table className="w-full text-sm">
+                <table ref={appointmentsTableRef} className="w-full text-sm responsive-table">
                   <thead>
                     <tr className="border-b bg-muted/30">
                       {shouldShowColumn("start_time") && (

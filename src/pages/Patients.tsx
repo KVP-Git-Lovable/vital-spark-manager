@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useStackedTable } from "@/hooks/useStackedTable";
 import { useNavigate } from "react-router-dom";
 import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Trash2, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -223,8 +224,8 @@ const Patients = () => {
             <p className="text-sm">{debouncedSearch ? "No patients match your search." : "No patients yet. Add your first patient!"}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto table-scroll">
+            <table ref={patientsTableRef} className="w-full responsive-table">
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="p-4 w-10">

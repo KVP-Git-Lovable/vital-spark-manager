@@ -115,6 +115,7 @@ export default function SurveyResponseEdit() {
         .update({
           selected_products: products as any,
           selected_services: services as any,
+          updated_by: (await supabase.auth.getUser()).data.user?.id || null,
         })
         .eq("id", id);
       if (error) throw error;

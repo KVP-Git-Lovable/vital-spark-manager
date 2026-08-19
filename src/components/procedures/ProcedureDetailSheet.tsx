@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { MicButton } from "@/components/shared/MicButton";
 import { PatientToolsBar } from "@/components/shared/PatientToolsBar";
+import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const statusOptions = ["Completed", "In Progress", "Cancelled"];
@@ -397,6 +398,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
               </SheetHeader>
 
               <div className="p-6 space-y-4">
+                {procedure.patient_id && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold">Surveys</h3>
+                    <SurveyHistoryPanel patientId={procedure.patient_id} appointmentId={(procedure as any).appointment_id || null} />
+                  </div>
+                )}
                 <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-3">
                   <div className="flex items-center gap-2">
                     <Repeat className="h-4 w-4 text-primary" />

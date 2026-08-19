@@ -134,6 +134,7 @@ export function SurveyFill({ open, onOpenChange, templateId, appointmentId, pati
         ai_products: enrichedProducts,
         ai_services: enrichedServices,
         dr_status: "pending_review",
+        created_by: (await supabase.auth.getUser()).data.user?.id || null,
       });
       if (error) throw error;
 

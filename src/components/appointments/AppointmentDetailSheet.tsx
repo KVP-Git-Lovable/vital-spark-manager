@@ -86,6 +86,8 @@ function FeedbackTabContent({
     enabled: !!appointmentId,
   });
 
+  const [comments, setComments] = useState("");
+
   const handleSubmitFeedback = async () => {
     if (npsScore === null || serviceRating === null) {
       toast.error("Please answer both questions");
@@ -99,7 +101,8 @@ function FeedbackTabContent({
         patient_name: patientName,
         nps_score: npsScore,
         service_rating: serviceRating,
-      });
+        comments: comments.trim() || null,
+      } as any);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["patient-feedback", appointmentId] });
       toast.success("Feedback recorded!");
@@ -148,6 +151,12 @@ function FeedbackTabContent({
               ))}
             </div>
           </div>
+          {(existingFeedback as any).comments && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Comments</p>
+              <p className="text-sm whitespace-pre-wrap">{(existingFeedback as any).comments}</p>
+            </div>
+          )}
           <p className="text-[10px] text-muted-foreground">Submitted {format(new Date(existingFeedback.created_at), "MMM d, yyyy · h:mm a")}</p>
         </div>
       </TabsContent>
@@ -208,6 +217,21 @@ function FeedbackTabContent({
             {serviceRating <= 2 ? "Poor" : serviceRating === 3 ? "Average" : serviceRating === 4 ? "Good" : "Excellent"}
           </p>
         )}
+      </div>
+
+      {/* Written / dictated feedback */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium">Any comments or suggestions?</Label>
+        <div className="flex items-start gap-2">
+          <Textarea
+            value={comments}
+            onChange={(e) => setComments(e.target.value)}
+            placeholder="Type the patient's feedback, or use the mic to dictate…"
+            rows={3}
+            className="flex-1 text-sm"
+          />
+          <MicButton value={comments} onChange={setComments} size="md" title="Dictate feedback" />
+        </div>
       </div>
 
       <Button

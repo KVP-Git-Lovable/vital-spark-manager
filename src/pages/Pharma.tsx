@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { format } from "date-fns";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { Plus, Search, Package, ShoppingCart, AlertTriangle, Settings, Trash2 } from "lucide-react";
@@ -70,6 +71,7 @@ function ToggleRow({ label, desc, checked, onChange }: { label: string; desc?: s
 const Pharma = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [expiryView, setExpiryView] = useState<"near" | "expired" | null>(null);
   const [productOpen, setProductOpen] = useState(false);
   const [stockOpen, setStockOpen] = useState(false);
   const [billOpen, setBillOpen] = useState(false);

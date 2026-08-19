@@ -188,6 +188,11 @@
   }
 
   @media (max-width: 767px) {
+    /* Page action rows wrap instead of overflowing off-screen */
+    .page-header .flex {
+      flex-wrap: wrap;
+    }
+
     /* Tables collapse into stacked label/value cards */
     .responsive-table thead {
       display: none;

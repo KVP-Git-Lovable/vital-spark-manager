@@ -2688,15 +2688,54 @@ const Billing = () => {
                 </div>
               </div>
 
-              {/* Services */}
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Services</h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {(viewInvoice.services || []).map((s: string, i: number) => (
-                    <Badge key={i} variant="secondary">{s}</Badge>
-                  ))}
-                </div>
-              </div>
+              {/* Line items with rate, tax and total */}
+              {(() => {
+                const rows = invoiceLineRows(viewInvoice);
+                if (rows.length === 0) return null;
+                const t = rows.reduce(
+                  (a, r) => ({ amount: a.amount + r.amount, tax: a.tax + r.tax, total: a.total + r.total }),
+                  { amount: 0, tax: 0, total: 0 },
+                );
+                return (
+                  <div className="rounded-lg border overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/60 text-xs text-muted-foreground">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium">Item</th>
+                          <th className="text-left px-3 py-2 font-medium">HSN</th>
+                          <th className="text-right px-3 py-2 font-medium">Qty</th>
+                          <th className="text-right px-3 py-2 font-medium">Rate</th>
+                          <th className="text-right px-3 py-2 font-medium">Amount</th>
+                          <th className="text-right px-3 py-2 font-medium">GST %</th>
+                          <th className="text-right px-3 py-2 font-medium">Tax</th>
+                          <th className="text-right px-3 py-2 font-medium">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((r, i) => (
+                          <tr key={i} className="border-t">
+                            <td className="px-3 py-2">{r.name}</td>
+                            <td className="px-3 py-2 text-muted-foreground text-xs">{r.hsn || "—"}</td>
+                            <td className="px-3 py-2 text-right">{r.qty}</td>
+                            <td className="px-3 py-2 text-right">₹{r.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                            <td className="px-3 py-2 text-right">₹{r.amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                            <td className="px-3 py-2 text-right">{r.gst ? `${r.gst}%` : "—"}</td>
+                            <td className="px-3 py-2 text-right">₹{r.tax.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                            <td className="px-3 py-2 text-right font-medium">₹{r.total.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                          </tr>
+                        ))}
+                        <tr className="border-t bg-muted/40 font-semibold">
+                          <td className="px-3 py-2" colSpan={4}>Total</td>
+                          <td className="px-3 py-2 text-right">₹{t.amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                          <td className="px-3 py-2" />
+                          <td className="px-3 py-2 text-right">₹{t.tax.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                          <td className="px-3 py-2 text-right">₹{t.total.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
 
               {/* Tax breakdown (totals live in the summary panel) */}
               <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">

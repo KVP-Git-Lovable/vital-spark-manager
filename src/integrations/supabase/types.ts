@@ -3126,6 +3126,7 @@ export type Database = {
           answers: Json | null
           appointment_id: string | null
           created_at: string
+          created_by: string | null
           dr_notes: string | null
           dr_status: string
           id: string
@@ -3135,6 +3136,8 @@ export type Database = {
           selected_products: Json | null
           selected_services: Json | null
           template_id: string
+          updated_at: string
+          updated_by: string | null
         }
         Insert: {
           ai_products?: Json | null
@@ -3143,6 +3146,7 @@ export type Database = {
           answers?: Json | null
           appointment_id?: string | null
           created_at?: string
+          created_by?: string | null
           dr_notes?: string | null
           dr_status?: string
           id?: string
@@ -3152,6 +3156,8 @@ export type Database = {
           selected_products?: Json | null
           selected_services?: Json | null
           template_id: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           ai_products?: Json | null
@@ -3160,6 +3166,7 @@ export type Database = {
           answers?: Json | null
           appointment_id?: string | null
           created_at?: string
+          created_by?: string | null
           dr_notes?: string | null
           dr_status?: string
           id?: string
@@ -3169,6 +3176,8 @@ export type Database = {
           selected_products?: Json | null
           selected_services?: Json | null
           template_id?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {

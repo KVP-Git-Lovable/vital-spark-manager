@@ -192,7 +192,7 @@ function OrderDetailSheet({ order, onClose }: { order: any; onClose: () => void 
 
   return (
     <Sheet open={!!order} onOpenChange={() => onClose()}>
-      <SheetContent className="sm:max-w-lg overflow-y-auto">
+      <SheetContent className="w-screen max-w-none sm:max-w-none overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="font-display">Order #{order.id.slice(0, 8)}</SheetTitle>
         </SheetHeader>

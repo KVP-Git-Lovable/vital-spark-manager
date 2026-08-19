@@ -1692,12 +1692,12 @@ const Billing = () => {
               Create Invoice
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-[95vw] lg:max-w-[1100px] xl:max-w-[1200px] max-h-[92vh] p-0 gap-0 overflow-hidden">
+          <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 overflow-hidden">
             <DialogHeader className="px-6 pt-6 pb-3 border-b">
               <DialogTitle className="font-display">Create Invoice</DialogTitle>
             </DialogHeader>
-            <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-0 max-h-[calc(92vh-5rem)] overflow-x-auto">
-            <div className="space-y-4 px-6 py-4 overflow-y-auto overflow-x-auto lg:max-h-[calc(92vh-5rem)] min-w-0">
+            <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-0 max-h-[calc(100vh-5rem)] overflow-x-auto">
+            <div className="space-y-4 px-6 py-4 overflow-y-auto overflow-x-auto lg:max-h-[calc(100vh-5rem)] min-w-0">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label>Invoice #</Label>
@@ -2319,7 +2319,7 @@ const Billing = () => {
             </div>
 
             {/* Right sticky summary panel (desktop) */}
-            <aside className="hidden lg:flex flex-col border-l bg-muted/20 max-h-[calc(92vh-5rem)]">
+            <aside className="hidden lg:flex flex-col border-l bg-muted/20 max-h-[calc(100vh-5rem)]">
               <div className="px-5 py-4 border-b">
                 <h3 className="font-display font-semibold text-sm">Invoice Summary</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">Totals update as you edit</p>
@@ -2656,14 +2656,14 @@ const Billing = () => {
 
       {/* Invoice View/Edit — same shell & summary panel as Create Invoice */}
       <Dialog open={!!viewInvoice} onOpenChange={(o) => { if (!o) { setViewInvoice(null); setIsEditing(false); } }}>
-        <DialogContent className="max-w-[95vw] lg:max-w-[1100px] xl:max-w-[1200px] max-h-[92vh] p-0 gap-0 overflow-hidden">
+        <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-3 border-b">
             <DialogTitle className="font-display">{isEditing ? "Edit Invoice" : "Invoice Details"}</DialogTitle>
             <p className="text-xs text-muted-foreground font-mono">{viewInvoice?.invoice_number}</p>
           </DialogHeader>
 
-          <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-0 max-h-[calc(92vh-5rem)] overflow-x-auto">
-          <div className="space-y-4 px-6 py-4 overflow-y-auto lg:max-h-[calc(92vh-5rem)] min-w-0">
+          <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-0 max-h-[calc(100vh-5rem)] overflow-x-auto">
+          <div className="space-y-4 px-6 py-4 overflow-y-auto lg:max-h-[calc(100vh-5rem)] min-w-0">
 
           {viewInvoice && !isEditing && (
             <div className="space-y-4">
@@ -2805,7 +2805,7 @@ const Billing = () => {
 
           {/* Right sticky summary panel — mirrors the Create Invoice layout */}
           {viewInvoice && (
-            <aside className="flex flex-col border-t lg:border-t-0 lg:border-l bg-muted/20 lg:max-h-[calc(92vh-5rem)]">
+            <aside className="flex flex-col border-t lg:border-t-0 lg:border-l bg-muted/20 lg:max-h-[calc(100vh-5rem)]">
               <div className="px-5 py-4 border-b">
                 <h3 className="font-display font-semibold text-sm">Invoice Summary</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(viewInvoice.created_at), "PPP")}</p>

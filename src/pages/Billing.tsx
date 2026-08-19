@@ -66,6 +66,33 @@ const rateLabel = (n: number) =>
 /** Number input helper: 0 shows as an empty field with a "0" watermark. */
 const numVal = (n: number | undefined | null) => (n ? String(n) : "");
 
+/** Normalised line-item rows (rate, tax, total) shared by the invoice view and the PDF. */
+export interface InvoiceLineRow {
+  name: string; hsn: string; qty: number; price: number; amount: number; gst: number; tax: number; total: number;
+}
+const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
+  const raw: any[] = Array.isArray(inv?.line_items) && inv.line_items.length > 0
+    ? inv.line_items
+    : (inv?.services || []).map((s: string) => ({ name: s, qty: 1, price: 0, hsn: "", gst: 0 }));
+  const invoiceTax = Number(inv?.cgst_amount || 0) + Number(inv?.sgst_amount || 0) + Number(inv?.igst_amount || 0)
+    || Number(inv?.tax_amount || 0);
+  const rows = raw.map((it: any) => {
+    const qty = Number(it.qty) || 1;
+    const price = Number(it.price) || 0;
+    const amount = qty * price;
+    const gst = Number(it.gst) || 0;
+    return { name: it.name || "—", hsn: it.hsn || "", qty, price, amount, gst, tax: (amount * gst) / 100, total: 0 };
+  });
+  const taxSum = rows.reduce((s, r) => s + r.tax, 0);
+  const amountSum = rows.reduce((s, r) => s + r.amount, 0);
+  // Fall back to the invoice-level tax when the lines carry no GST snapshot.
+  if (taxSum === 0 && invoiceTax > 0 && amountSum > 0) {
+    rows.forEach((r) => { r.tax = (r.amount / amountSum) * invoiceTax; });
+  }
+  rows.forEach((r) => { r.total = r.amount + r.tax; });
+  return rows;
+};
+
 // ─── PDF Generation ───────────────────────────────
 const generateInvoicePDF = (inv: any) => {
   const date = new Date(inv.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });

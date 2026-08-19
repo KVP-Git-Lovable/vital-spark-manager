@@ -221,6 +221,7 @@
 
     .responsive-table tbody {
       padding: 0.5rem;
+      background: hsl(var(--muted) / 0.5);
     }
 
     /* Each row becomes a distinct, rounded, elevated card */

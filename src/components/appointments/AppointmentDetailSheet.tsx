@@ -423,6 +423,22 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     enabled: !!appointment?.patient_id,
   });
 
+  const deletePhoto = async (photo: any) => {
+    if (!confirm("Delete this photo?")) return;
+    try {
+      const parts = photo.photo_url?.split("/patient-photos/");
+      if (parts && parts[1]) {
+        await supabase.storage.from("patient-photos").remove([parts[1]]);
+      }
+      const { error } = await supabase.from("patient_photos").delete().eq("id", photo.id);
+      if (error) throw error;
+      toast.success("Photo deleted");
+      queryClient.invalidateQueries({ queryKey: ["appointment-photos"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete photo");
+    }
+  };
+
   // Prescribed pharma products across this appointment's procedures (for New Bill prefill)
   // Recurring plan: parent appointment + every installment invoice in the family
   const rootAppointmentId = (appointment as any)?.parent_appointment_id || appointmentId || null;

@@ -66,6 +66,33 @@ const rateLabel = (n: number) =>
 /** Number input helper: 0 shows as an empty field with a "0" watermark. */
 const numVal = (n: number | undefined | null) => (n ? String(n) : "");
 
+/** Normalised line-item rows (rate, tax, total) shared by the invoice view and the PDF. */
+export interface InvoiceLineRow {
+  name: string; hsn: string; qty: number; price: number; amount: number; gst: number; tax: number; total: number;
+}
+const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
+  const raw: any[] = Array.isArray(inv?.line_items) && inv.line_items.length > 0
+    ? inv.line_items
+    : (inv?.services || []).map((s: string) => ({ name: s, qty: 1, price: 0, hsn: "", gst: 0 }));
+  const invoiceTax = Number(inv?.cgst_amount || 0) + Number(inv?.sgst_amount || 0) + Number(inv?.igst_amount || 0)
+    || Number(inv?.tax_amount || 0);
+  const rows = raw.map((it: any) => {
+    const qty = Number(it.qty) || 1;
+    const price = Number(it.price) || 0;
+    const amount = qty * price;
+    const gst = Number(it.gst) || 0;
+    return { name: it.name || "—", hsn: it.hsn || "", qty, price, amount, gst, tax: (amount * gst) / 100, total: 0 };
+  });
+  const taxSum = rows.reduce((s, r) => s + r.tax, 0);
+  const amountSum = rows.reduce((s, r) => s + r.amount, 0);
+  // Fall back to the invoice-level tax when the lines carry no GST snapshot.
+  if (taxSum === 0 && invoiceTax > 0 && amountSum > 0) {
+    rows.forEach((r) => { r.tax = (r.amount / amountSum) * invoiceTax; });
+  }
+  rows.forEach((r) => { r.total = r.amount + r.tax; });
+  return rows;
+};
+
 // ─── PDF Generation ───────────────────────────────
 const generateInvoicePDF = (inv: any) => {
   const date = new Date(inv.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
@@ -130,21 +157,17 @@ const generateInvoicePDF = (inv: any) => {
     </div>
   </div>
   <table>
-    <thead><tr><th>#</th><th>Service</th><th class="amount-col">Amount</th></tr></thead>
+    <thead><tr><th>#</th><th>Item</th><th>HSN</th><th class="amount-col">Qty</th><th class="amount-col">Rate</th><th class="amount-col">Amount</th><th class="amount-col">GST %</th><th class="amount-col">Tax</th><th class="amount-col">Total</th></tr></thead>
     <tbody>
       ${(() => {
-        const items: any[] = Array.isArray(inv.line_items) && inv.line_items.length > 0
-          ? inv.line_items
-          : (inv.services || []).map((s: string) => ({ name: s, qty: 1, price: null }));
-        return items.map((it: any, i: number) => {
-          const qty = Number(it.qty) || 1;
-          const price = it.price == null ? null : Number(it.price) || 0;
-          const amount = price == null ? null : qty * price;
-          const amtCell = amount == null ? "—" : `₹${amount.toLocaleString("en-IN")}`;
-          const label = qty > 1 ? `${it.name} × ${qty}` : it.name;
-          const hsn = it.hsn ? ` <span style=\"color:#999;font-size:11px;\">HSN ${it.hsn}</span>` : "";
-          return `<tr><td>${i + 1}</td><td>${label}${hsn}</td><td class=\"amount-col\">${amtCell}</td></tr>`;
-        }).join("");
+        const rows = invoiceLineRows(inv);
+        const fmt = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+        const t = rows.reduce((a, r) => ({ amount: a.amount + r.amount, tax: a.tax + r.tax, total: a.total + r.total }), { amount: 0, tax: 0, total: 0 });
+        const body = rows.map((r, i) =>
+          `<tr><td>${i + 1}</td><td>${r.name}</td><td style="color:#999;font-size:12px;">${r.hsn || "—"}</td><td class="amount-col">${r.qty}</td><td class="amount-col">${fmt(r.price)}</td><td class="amount-col">${fmt(r.amount)}</td><td class="amount-col">${r.gst ? r.gst + "%" : "—"}</td><td class="amount-col">${fmt(r.tax)}</td><td class="amount-col">${fmt(r.total)}</td></tr>`
+        ).join("");
+        const footer = `<tr style="background:#f0fdfa;font-weight:700;"><td colspan="5">Total</td><td class="amount-col">${fmt(t.amount)}</td><td></td><td class="amount-col">${fmt(t.tax)}</td><td class="amount-col">${fmt(t.total)}</td></tr>`;
+        return body + footer;
       })()}
     </tbody>
   </table>
@@ -152,6 +175,14 @@ const generateInvoicePDF = (inv: any) => {
     <table class="summary-table">
       <tr><td>Total Amount</td><td class="amount-col">₹${Number(inv.total_amount).toLocaleString("en-IN")}</td></tr>
       <tr><td>Paid Amount</td><td class="amount-col">₹${Number(inv.paid_amount).toLocaleString("en-IN")}</td></tr>
+      <tr><td>Payment Mode</td><td class="amount-col">${
+        Array.isArray(inv.payment_splits) && inv.payment_splits.length > 0 ? "Split" : (inv.payment_mode || "Cash")
+      }</td></tr>
+      ${
+        Array.isArray(inv.payment_splits) && inv.payment_splits.length > 0
+          ? inv.payment_splits.map((p: any) => `<tr><td style="padding-left:28px;color:#666;">${p.mode}</td><td class="amount-col" style="color:#666;">₹${Number(p.amount || 0).toLocaleString("en-IN")}</td></tr>`).join("")
+          : ""
+      }
       <tr><td>Balance Due</td><td class="amount-col">₹${balance.toLocaleString("en-IN")}</td></tr>
     </table>
   </div>
@@ -2688,15 +2719,54 @@ const Billing = () => {
                 </div>
               </div>
 
-              {/* Services */}
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Services</h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {(viewInvoice.services || []).map((s: string, i: number) => (
-                    <Badge key={i} variant="secondary">{s}</Badge>
-                  ))}
-                </div>
-              </div>
+              {/* Line items with rate, tax and total */}
+              {(() => {
+                const rows = invoiceLineRows(viewInvoice);
+                if (rows.length === 0) return null;
+                const t = rows.reduce(
+                  (a, r) => ({ amount: a.amount + r.amount, tax: a.tax + r.tax, total: a.total + r.total }),
+                  { amount: 0, tax: 0, total: 0 },
+                );
+                return (
+                  <div className="rounded-lg border overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/60 text-xs text-muted-foreground">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium">Item</th>
+                          <th className="text-left px-3 py-2 font-medium">HSN</th>
+                          <th className="text-right px-3 py-2 font-medium">Qty</th>
+                          <th className="text-right px-3 py-2 font-medium">Rate</th>
+                          <th className="text-right px-3 py-2 font-medium">Amount</th>
+                          <th className="text-right px-3 py-2 font-medium">GST %</th>
+                          <th className="text-right px-3 py-2 font-medium">Tax</th>
+                          <th className="text-right px-3 py-2 font-medium">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((r, i) => (
+                          <tr key={i} className="border-t">
+                            <td className="px-3 py-2">{r.name}</td>
+                            <td className="px-3 py-2 text-muted-foreground text-xs">{r.hsn || "—"}</td>
+                            <td className="px-3 py-2 text-right">{r.qty}</td>
+                            <td className="px-3 py-2 text-right">₹{r.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                            <td className="px-3 py-2 text-right">₹{r.amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                            <td className="px-3 py-2 text-right">{r.gst ? `${r.gst}%` : "—"}</td>
+                            <td className="px-3 py-2 text-right">₹{r.tax.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                            <td className="px-3 py-2 text-right font-medium">₹{r.total.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                          </tr>
+                        ))}
+                        <tr className="border-t bg-muted/40 font-semibold">
+                          <td className="px-3 py-2" colSpan={4}>Total</td>
+                          <td className="px-3 py-2 text-right">₹{t.amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                          <td className="px-3 py-2" />
+                          <td className="px-3 py-2 text-right">₹{t.tax.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                          <td className="px-3 py-2 text-right">₹{t.total.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
 
               {/* Tax breakdown (totals live in the summary panel) */}
               <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
@@ -2806,19 +2876,7 @@ const Billing = () => {
           {/* Right sticky summary panel — mirrors the Create Invoice layout */}
           {viewInvoice && (
             <aside className="flex flex-col border-t lg:border-t-0 lg:border-l bg-muted/20 lg:max-h-[calc(100vh-5rem)]">
-              <div className="px-5 py-4 border-b">
-                <h3 className="font-display font-semibold text-sm">Invoice Summary</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(viewInvoice.created_at), "PPP")}</p>
-              </div>
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 text-sm">
-                {(viewInvoice.services || []).length > 0 && (
-                  <div className="rounded-lg border bg-background/70 overflow-hidden">
-                    <div className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/60">Line items</div>
-                    {(viewInvoice.services || []).map((s: string, i: number) => (
-                      <div key={i} className="px-2 py-1.5 text-[11px] border-t truncate">{s}</div>
-                    ))}
-                  </div>
-                )}
                 <div className="flex justify-between font-semibold text-primary text-base">
                   <span>Grand Total</span>
                   <span>₹{Number(isEditing ? editData.total_amount : viewInvoice.total_amount).toLocaleString("en-IN")}</span>
@@ -2828,6 +2886,20 @@ const Billing = () => {
                     <span className="text-muted-foreground">Paid</span>
                     <span>₹{Number(isEditing ? editData.paid_amount : viewInvoice.paid_amount).toLocaleString("en-IN")}</span>
                   </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Payment Mode</span>
+                    <span>
+                      {Array.isArray(viewInvoice.payment_splits) && viewInvoice.payment_splits.length > 0
+                        ? "Split"
+                        : (viewInvoice.payment_mode || "Cash")}
+                    </span>
+                  </div>
+                  {Array.isArray(viewInvoice.payment_splits) && viewInvoice.payment_splits.map((p: any, i: number) => (
+                    <div key={i} className="flex justify-between text-xs text-muted-foreground pl-3">
+                      <span>{p.mode}</span>
+                      <span>₹{Number(p.amount || 0).toLocaleString("en-IN")}</span>
+                    </div>
+                  ))}
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Balance Due</span>
                     {(() => {

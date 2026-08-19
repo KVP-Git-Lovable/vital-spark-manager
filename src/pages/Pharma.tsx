@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { format } from "date-fns";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { Plus, Search, Package, ShoppingCart, AlertTriangle, Settings, Trash2 } from "lucide-react";
@@ -70,6 +71,7 @@ function ToggleRow({ label, desc, checked, onChange }: { label: string; desc?: s
 const Pharma = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [expiryView, setExpiryView] = useState<"near" | "expired" | null>(null);
   const [productOpen, setProductOpen] = useState(false);
   const [stockOpen, setStockOpen] = useState(false);
   const [billOpen, setBillOpen] = useState(false);
@@ -568,6 +570,8 @@ const Pharma = () => {
 
   const expired = inventory.filter((i: any) => new Date(i.expiry_date) < new Date());
 
+  const expiryRows = expiryView === "expired" ? expired : expiryView === "near" ? nearExpiry : [];
+
   return (
     <div>
       <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -982,15 +986,61 @@ const Pharma = () => {
           {expired.length > 0 && (
             <div className="flex items-center gap-2 bg-destructive/10 text-destructive rounded-lg px-4 py-2 text-sm">
               <AlertTriangle className="h-4 w-4" /> {expired.length} batch(es) expired
+              <button className="underline underline-offset-2 font-medium" onClick={() => setExpiryView("expired")}>View all</button>
             </div>
           )}
           {nearExpiry.length > 0 && (
             <div className="flex items-center gap-2 bg-warning/10 text-warning rounded-lg px-4 py-2 text-sm">
               <AlertTriangle className="h-4 w-4" /> {nearExpiry.length} batch(es) expiring within 90 days
+              <button className="underline underline-offset-2 font-medium" onClick={() => setExpiryView("near")}>View all</button>
             </div>
           )}
         </div>
       )}
+
+      {/* Expiring / expired stock detail */}
+      <Dialog open={!!expiryView} onOpenChange={(o) => { if (!o) setExpiryView(null); }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{expiryView === "expired" ? "Expired stock" : "Stock expiring within 90 days"}</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[65vh] overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Batch</TableHead>
+                  <TableHead>Expiry</TableHead>
+                  <TableHead className="text-right">{expiryView === "expired" ? "Expired" : "Days left"}</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Value (₹)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {expiryRows.map((i: any) => {
+                  const days = Math.ceil((new Date(i.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  const value = (Number(i.quantity) || 0) * (Number(i.selling_price ?? i.mrp) || 0);
+                  return (
+                    <TableRow key={i.id}>
+                      <TableCell className="font-medium">{i.pharma_products?.name || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{i.batch_number || "—"}</TableCell>
+                      <TableCell>{format(new Date(i.expiry_date), "dd MMM yyyy")}</TableCell>
+                      <TableCell className={`text-right ${expiryView === "expired" ? "text-destructive" : "text-warning"}`}>
+                        {expiryView === "expired" ? `${Math.abs(days)} day(s) ago` : `${days} day(s)`}
+                      </TableCell>
+                      <TableCell className="text-right">{i.quantity}</TableCell>
+                      <TableCell className="text-right">{value ? value.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : "—"}</TableCell>
+                    </TableRow>
+                  );
+                })}
+                {expiryRows.length === 0 && (
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No batches found.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Tabs defaultValue="products">
         <TabsList className="mb-4">

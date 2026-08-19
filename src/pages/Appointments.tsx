@@ -1320,16 +1320,7 @@ const Appointments = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label>Next visit</Label>
-                    <Select value={visitStatus || "none"} onValueChange={(v) => setVisitStatus(v === "none" ? "" : v)}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">—</SelectItem>
-                        {visitStatusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {/* Next visit is derived from the procedure's visit type, so it is hidden while creating a new appointment. */}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">

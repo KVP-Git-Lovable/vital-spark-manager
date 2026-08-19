@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { StaffCombobox } from "@/components/shared/StaffCombobox";
 import { X, Search, Check, ChevronsUpDown, Plus, Trash2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";

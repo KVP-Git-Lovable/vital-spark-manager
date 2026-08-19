@@ -1611,52 +1611,95 @@ const Appointments = () => {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search patient name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9 text-sm" />
             </div>
-            <Select value={filterDoctors.size === 0 ? "all" : filterDoctors.size === 1 ? [...filterDoctors][0] : "multi"} onValueChange={(v) => {
-              if (v === "all") setFilterDoctors(new Set());
-              else setFilterDoctors(new Set([v]));
-            }}>
-              <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Doctors" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Doctors</SelectItem>
-                {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={filterSource} onValueChange={setFilterSource}>
-              <SelectTrigger className="w-[140px] h-9 text-sm"><SelectValue placeholder="All Sources" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sources</SelectItem>
-                <SelectItem value="portal">Portal</SelectItem>
-                <SelectItem value="walkin">Walk-in</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterAppointmentType} onValueChange={setFilterAppointmentType}>
-              <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue placeholder="All Types" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="Walk-in">Walk-in</SelectItem>
-                <SelectItem value="Online">Online</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue placeholder="All Status" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", filterDate && "border-primary text-primary")}>
-                  <CalendarIcon className="h-4 w-4" />
-                  {filterDate ? format(filterDate, "MMM d, yyyy") : "Filter by date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus className={cn("p-3 pointer-events-auto")} />
-              </PopoverContent>
-            </Popover>
-            {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all" || filterAppointmentType !== "all") && (
-              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterDate(undefined); setFilterSource("all"); setFilterStatus("all"); setFilterAppointmentType("all"); }}>Clear filters</Button>
+            <div className="flex items-center">
+              <Select value={filterDoctors.size === 0 ? "all" : filterDoctors.size === 1 ? [...filterDoctors][0] : "multi"} onValueChange={(v) => {
+                if (v === "all") setFilterDoctors(new Set());
+                else setFilterDoctors(new Set([v]));
+              }}>
+                <SelectTrigger className="w-[170px] h-9 text-sm rounded-r-none"><SelectValue placeholder="All Doctors" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Doctors</SelectItem>
+                  {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <PinButton pinKey="doctor" value={filterDoctors.size === 1 ? [...filterDoctors][0] : ""} label="doctor filter" />
+            </div>
+
+            <div className="flex items-center">
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[140px] h-9 text-sm rounded-r-none"><SelectValue placeholder="All Status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <PinButton pinKey="status" value={filterStatus} label="status filter" />
+            </div>
+
+            <div className="flex items-center">
+              <Select value={filterVisitStatus} onValueChange={setFilterVisitStatus}>
+                <SelectTrigger className="w-[160px] h-9 text-sm rounded-r-none"><SelectValue placeholder="All Next Visits" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Next Visits</SelectItem>
+                  {visitStatusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <PinButton pinKey="visit" value={filterVisitStatus} label="next visit filter" />
+            </div>
+
+            <div className="flex items-center">
+              <Select value={datePreset} onValueChange={setDatePreset}>
+                <SelectTrigger className="w-[160px] h-9 text-sm rounded-r-none"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {DATE_PRESETS.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <PinButton pinKey="date" value={datePreset} label="date filter" />
+            </div>
+
+            {datePreset === "specific" && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", specificDate && "border-primary text-primary")}>
+                    <CalendarIcon className="h-4 w-4" />
+                    {specificDate ? format(specificDate, "MMM d, yyyy") : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={specificDate} onSelect={setSpecificDate} initialFocus className={cn("p-3 pointer-events-auto")} />
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {datePreset === "range" && (
+              <>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", rangeFrom && "border-primary text-primary")}>
+                      <CalendarIcon className="h-4 w-4" />
+                      {rangeFrom ? format(rangeFrom, "MMM d, yyyy") : "From"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={rangeFrom} onSelect={setRangeFrom} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", rangeTo && "border-primary text-primary")}>
+                      <CalendarIcon className="h-4 w-4" />
+                      {rangeTo ? format(rangeTo, "MMM d, yyyy") : "To"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={rangeTo} onSelect={setRangeTo} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+              </>
+            )}
+
+            {(searchQuery || filterDoctors.size > 0 || datePreset !== "this_week" || filterStatus !== "all" || filterVisitStatus !== "all") && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterStatus("all"); setFilterVisitStatus("all"); setDatePreset("this_week"); setSpecificDate(undefined); setRangeFrom(undefined); setRangeTo(undefined); }}>Clear filters</Button>
             )}
             <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
           </motion.div>

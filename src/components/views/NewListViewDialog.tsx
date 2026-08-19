@@ -322,7 +322,7 @@ export function NewListViewDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="private">Only me</SelectItem>
-                <SelectItem value="shared">Share with team (coming soon)</SelectItem>
+                <SelectItem value="shared">Specific people (coming soon)</SelectItem>
               </SelectContent>
             </Select>
           </div>

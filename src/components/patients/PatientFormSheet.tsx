@@ -107,6 +107,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [refDocOpen, setRefDocOpen] = useState(false);
   const [refDocSearch, setRefDocSearch] = useState("");
   const [familyRows, setFamilyRows] = useState<FamilyRow[]>([]);
+  const [activeTab, setActiveTab] = useState("personal");
   const [removedFamilyIds, setRemovedFamilyIds] = useState<string[]>([]);
   const [duplicates, setDuplicates] = useState<any[]>([]);
   const [duplicateAck, setDuplicateAck] = useState(false);
@@ -198,7 +199,10 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     } else {
       setForm(emptyForm);
     }
-  }, [patient, defaultValues, open, allPatients]);
+    // NOTE: `allPatients` is intentionally excluded — it is a new array reference on
+    // every render and would reset the form on each keystroke while editing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patient?.id, open]);
 
   // Load existing campaign links when editing
   useEffect(() => {
@@ -530,7 +534,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
           </div>
         )}
 
-        <Tabs defaultValue="personal" className="mt-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
             <TabsTrigger value="medical" className="text-xs">Medical</TabsTrigger>
@@ -854,20 +858,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
 
           <TabsContent value="medical" className="space-y-4 mt-4">
             <div>
-              <Label>Doctor</Label>
-              <div className="mt-1.5">
-                <StaffCombobox
-                  value={(form as any).doctor_id || ""}
-                  onValueChange={(v) => setForm((prev) => ({ ...prev, doctor_id: v || null }))}
-                  placeholder="Select doctor"
-                  allowNone
-                  noneLabel="No doctor assigned"
-                  roleFilter={["Doctor"]}
-                />
-              </div>
-            </div>
-
-            <div>
               <Label>Blood Group</Label>
               <Select
                 value={form.blood_group || ""}
@@ -1025,6 +1015,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
           </TabsContent>
         </Tabs>
 
+        {activeTab === "personal" && (
         <Collapsible defaultOpen className="mt-6 border rounded-md">
           <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium hover:bg-muted/50 [&[data-state=open]>svg]:rotate-180">
             <span className="flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> Family Details</span>
@@ -1105,6 +1096,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             </Button>
           </CollapsibleContent>
         </Collapsible>
+        )}
 
         <div className="mt-6 pt-4 border-t">
           <Label htmlFor="patient-notes">Notes</Label>

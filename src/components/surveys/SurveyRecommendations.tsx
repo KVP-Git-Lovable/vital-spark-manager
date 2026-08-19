@@ -11,6 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { approveSurveyResponse } from "@/lib/surveyApproval";
+import { Link } from "react-router-dom";
+import { FileText } from "lucide-react";
+import { SurveyAuditInfo } from "./SurveyAuditInfo";
 
 interface Props {
   appointmentId: string;
@@ -64,6 +67,7 @@ export function SurveyRecommendations({ appointmentId, patientId }: Props) {
         dr_notes: notes,
         reviewed_by: reviewedBy || null,
         reviewed_at: new Date().toISOString(),
+        updated_by: (await supabase.auth.getUser()).data.user?.id || null,
       }).eq("id", response.id);
       if (error) throw error;
       return { rxCount: 0, procCount: 0 };
@@ -105,6 +109,21 @@ export function SurveyRecommendations({ appointmentId, patientId }: Props) {
                 {resp.dr_status === "pending_review" ? "⏳ Pending Review" : resp.dr_status === "approved" ? "✅ Approved" : "✏️ Modified"}
               </Badge>
             </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild size="sm" variant="outline" className="gap-1.5">
+                <Link to={`/surveys/${resp.id}`}><FileText className="h-3.5 w-3.5" /> View filled form</Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost" className="gap-1.5">
+                <Link to={`/surveys/${resp.id}/edit`}><Pencil className="h-3.5 w-3.5" /> Edit responses</Link>
+              </Button>
+            </div>
+            <SurveyAuditInfo
+              createdAt={resp.created_at}
+              createdBy={resp.created_by}
+              updatedAt={resp.updated_at}
+              updatedBy={resp.updated_by}
+            />
 
             {aiRec?.text && (
               <div className="bg-background rounded-md p-3 border">

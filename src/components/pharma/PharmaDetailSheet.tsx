@@ -253,7 +253,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
   return (
     <>
       <Sheet open={!!productId} onOpenChange={() => onClose()}>
-        <SheetContent className="sm:max-w-xl overflow-y-auto">
+        <SheetContent className="w-screen max-w-none sm:max-w-none overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="font-display flex items-center justify-between pr-8">
               {isEditing ? "Edit Product" : product.name}
@@ -1016,7 +1016,7 @@ export function BillDetailSheet({ billId, onClose, onClone }: { billId: string |
   return (
     <>
       <Sheet open={!!billId} onOpenChange={() => onClose()}>
-        <SheetContent className="sm:max-w-xl overflow-y-auto">
+        <SheetContent className="w-screen max-w-none sm:max-w-none overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="font-display">{isEditing ? "Edit Bill" : `Bill ${bill.bill_number}`}</SheetTitle>
           </SheetHeader>

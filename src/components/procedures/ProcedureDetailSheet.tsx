@@ -370,7 +370,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   return (
     <>
       <Sheet open={!!procedureId} onOpenChange={(open) => { if (!open) handleClose(); }}>
-        <SheetContent className="sm:max-w-xl w-full overflow-y-auto p-0">
+        <SheetContent className="w-screen max-w-none sm:max-w-none overflow-y-auto p-0">
           {isLoading || !procedure ? (
             <div className="p-6 text-center text-muted-foreground">Loading...</div>
           ) : (

@@ -1692,7 +1692,7 @@ const Billing = () => {
               Create Invoice
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-[95vw] lg:max-w-[1100px] xl:max-w-[1200px] max-h-[92vh] p-0 gap-0 overflow-hidden">
+          <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 overflow-hidden">
             <DialogHeader className="px-6 pt-6 pb-3 border-b">
               <DialogTitle className="font-display">Create Invoice</DialogTitle>
             </DialogHeader>
@@ -2656,7 +2656,7 @@ const Billing = () => {
 
       {/* Invoice View/Edit — same shell & summary panel as Create Invoice */}
       <Dialog open={!!viewInvoice} onOpenChange={(o) => { if (!o) { setViewInvoice(null); setIsEditing(false); } }}>
-        <DialogContent className="max-w-[95vw] lg:max-w-[1100px] xl:max-w-[1200px] max-h-[92vh] p-0 gap-0 overflow-hidden">
+        <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-3 border-b">
             <DialogTitle className="font-display">{isEditing ? "Edit Invoice" : "Invoice Details"}</DialogTitle>
             <p className="text-xs text-muted-foreground font-mono">{viewInvoice?.invoice_number}</p>

@@ -447,7 +447,7 @@ const Expenses = () => {
 
       {/* Expense Detail Sheet */}
       <Sheet open={showDetailSheet} onOpenChange={setShowDetailSheet}>
-        <SheetContent className="overflow-y-auto">
+        <SheetContent className="w-screen max-w-none sm:max-w-none overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{selectedExpense?.title}</SheetTitle>
             <SheetDescription>Expense details</SheetDescription>

@@ -274,7 +274,7 @@ export default function Vendors() {
 
       {/* Detail Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="overflow-y-auto">
+        <SheetContent className="w-screen max-w-none sm:max-w-none overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{selectedVendor?.name}</SheetTitle>
             <SheetDescription>Vendor details</SheetDescription>

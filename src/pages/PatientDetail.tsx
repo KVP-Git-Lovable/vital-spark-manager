@@ -810,27 +810,6 @@ const PatientDetail = () => {
               const upd = (field: string, value: any) => setDetailsForm((prev: any) => ({ ...prev, [field]: value || null }));
               const readOnly = !detailsEditing;
 
-              const SectionTitle = ({ children }: { children: React.ReactNode }) => (
-                <h3 className="text-sm font-semibold text-foreground border-b pb-1.5 mb-3">{children}</h3>
-              );
-
-              const Field = ({ label, value, field, type = "text" }: { label: string; value: any; field: string; type?: string }) => (
-                <div>
-                  <Label className="text-xs text-muted-foreground">{label}</Label>
-                  {readOnly ? (
-                    <p className="text-sm mt-1">{
-                      value
-                        ? (type === "date" && typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)
-                            ? `${value.slice(8,10)}/${value.slice(5,7)}/${value.slice(0,4)}`
-                            : value)
-                        : <span className="text-muted-foreground/50">—</span>
-                    }</p>
-                  ) : (
-                    <Input type={type} value={value || ""} onChange={(e) => upd(field, e.target.value)} className="mt-1 h-8 text-sm" />
-                  )}
-                </div>
-              );
-
               const elaborate = async (field: string, label: string, currentText: string) => {
                 if (!currentText?.trim()) {
                   toast.message("Add a few words first", { description: `Type a short note in ${label} and AI will complete it.` });
@@ -861,33 +840,8 @@ const PatientDetail = () => {
                 }
               };
 
-              const TextareaField = ({ label, value, field, ai }: { label: string; value: any; field: string; ai?: boolean }) => (
-                <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <Label className="text-xs text-muted-foreground">{label}</Label>
-                    {ai && !readOnly && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-[11px] gap-1 text-primary hover:text-primary"
-                        disabled={elaboratingField === field}
-                        onClick={() => elaborate(field, label, value || "")}
-                      >
-                        {elaboratingField === field ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                        Elaborate with AI
-                      </Button>
-                    )}
-                  </div>
-                  {readOnly ? (
-                    <p className="text-sm mt-1 whitespace-pre-wrap">{value || <span className="text-muted-foreground/50">—</span>}</p>
-                  ) : (
-                    <Textarea value={value || ""} onChange={(e) => upd(field, e.target.value)} className="mt-1 text-sm" rows={3} />
-                  )}
-                </div>
-              );
-
               return (
+                <DetailsFieldContext.Provider value={{ readOnly, upd, elaboratingField, elaborate }}>
                 <div className="space-y-6">
                   {/* Personal */}
                   <div className="stat-card p-4">
@@ -1043,6 +997,7 @@ const PatientDetail = () => {
                     <TextareaField label="Additional Notes" value={d.notes} field="notes" />
                   </div>
                 </div>
+                </DetailsFieldContext.Provider>
               );
             })()}
           </motion.div>

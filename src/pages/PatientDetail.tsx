@@ -176,7 +176,6 @@ const PatientDetail = () => {
   const [addSurveyMode, setAddSurveyMode] = useState<"choice" | "fill" | "assign" | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
-  const [photoTypeDialogOpen, setPhotoTypeDialogOpen] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
 
@@ -1149,9 +1148,6 @@ const PatientDetail = () => {
                   <div key={photo.id} className="stat-card p-0 overflow-hidden">
                     <div className="relative">
                       <img src={photo.photo_url} alt="" className="w-full h-32 md:h-40 object-cover" loading="lazy" />
-                      <Badge className={`absolute top-2 left-2 text-[10px] ${photo.photo_type === "before" ? "bg-warning/90 text-warning-foreground" : "bg-success/90 text-success-foreground"}`}>
-                        {photo.photo_type.toUpperCase()}
-                      </Badge>
                       <Button
                         variant="destructive"
                         size="icon"
@@ -1685,10 +1681,7 @@ const PatientDetail = () => {
         open={cameraOpen}
         onOpenChange={setCameraOpen}
         title="Take Patient Photo"
-        onCapture={(file) => {
-          setPendingPhotoFile(file);
-          setPhotoTypeDialogOpen(true);
-        }}
+        onCapture={(file) => savePhotoFile(file)}
       />
       <CameraDialog
         open={attachmentCameraOpen}

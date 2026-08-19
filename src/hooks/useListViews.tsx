@@ -40,7 +40,7 @@ export function useListViews(section: "appointments" | "procedures") {
   });
 
   // Get current selected view
-  const currentView = views.find((v: any) => v.id === selectedViewId) as
+  const currentView = views.find((v: any) => v.id === selectedViewId) as unknown as
     | {
         id: string;
         name: string;

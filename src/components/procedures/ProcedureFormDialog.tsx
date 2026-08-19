@@ -17,6 +17,8 @@ import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
+import { ClipboardList } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
 import { PatientToolsBar } from "@/components/shared/PatientToolsBar";
@@ -358,7 +360,7 @@ export function ProcedureFormDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("survey_responses")
-        .select("id, created_at, dr_status, answers, ai_summary, appointment_id, survey_templates(name)")
+        .select("id, created_at, dr_status, answers, appointment_id, survey_templates(name)")
         .eq("patient_id", patientId)
         .order("created_at", { ascending: false })
         .limit(5);
@@ -693,6 +695,9 @@ export function ProcedureFormDialog({
               <TabsTrigger value="procedure">Procedure</TabsTrigger>
               <TabsTrigger value="medical" className="gap-1.5">
                 <HeartPulse className="h-3.5 w-3.5" /> Medical Information
+              </TabsTrigger>
+              <TabsTrigger value="surveys" className="gap-1.5">
+                <ClipboardList className="h-3.5 w-3.5" /> Surveys
               </TabsTrigger>
             </TabsList>
             <TabsContent value="procedure" className="space-y-4 mt-4">
@@ -1112,6 +1117,14 @@ export function ProcedureFormDialog({
               </div>
               {patientId ? medicalSection : (
                 <p className="text-sm text-muted-foreground py-8 text-center">Select a patient to view medical information.</p>
+              )}
+            </TabsContent>
+
+            <TabsContent value="surveys" className="space-y-3 mt-4">
+              {patientId ? (
+                <SurveyHistoryPanel patientId={patientId} appointmentId={appointmentId || null} />
+              ) : (
+                <p className="text-sm text-muted-foreground">Select a patient to see their surveys.</p>
               )}
             </TabsContent>
           </Tabs>

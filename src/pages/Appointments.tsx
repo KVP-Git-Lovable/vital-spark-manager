@@ -391,22 +391,39 @@ const Appointments = () => {
     return map;
   }, [invoices]);
 
-  // Quick filter logic
-  const getQuickFilterRange = (filter: string) => {
+  // Date filter logic (shared by quick buttons and the date dropdown)
+  const getDateFilterRange = (preset: string): { start: Date; end: Date } | null => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart);
     todayEnd.setHours(23, 59, 59, 999);
-    switch (filter) {
+    const endOfDay = (d: Date) => { const e = new Date(d); e.setHours(23, 59, 59, 999); return e; };
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    switch (preset) {
       case "today": return { start: todayStart, end: todayEnd };
-      case "tomorrow": return { start: addDays(todayStart, 1), end: addDays(todayEnd, 1) };
       case "yesterday": return { start: addDays(todayStart, -1), end: addDays(todayEnd, -1) };
       case "this_week": return { start: startOfWeek(todayStart), end: endOfWeek(todayStart) };
-      case "last_7": return { start: addDays(todayStart, -6), end: todayEnd };
-      case "this_month": return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999) };
+      case "last_week": return { start: startOfWeek(addDays(todayStart, -7)), end: endOfWeek(addDays(todayStart, -7)) };
+      case "next_week": return { start: startOfWeek(addDays(todayStart, 7)), end: endOfWeek(addDays(todayStart, 7)) };
+      case "specific": return specificDate ? { start: startOfDay(specificDate), end: endOfDay(specificDate) } : null;
+      case "range":
+        if (!rangeFrom && !rangeTo) return null;
+        return {
+          start: rangeFrom ? startOfDay(rangeFrom) : new Date(1970, 0, 1),
+          end: rangeTo ? endOfDay(rangeTo) : new Date(2999, 0, 1),
+        };
       default: return null;
     }
   };
+
+  const dateFilterLabel = (() => {
+    if (datePreset === "specific") return specificDate ? format(specificDate, "MMM d, yyyy") : "Specific Date";
+    if (datePreset === "range")
+      return rangeFrom || rangeTo
+        ? `${rangeFrom ? format(rangeFrom, "MMM d") : "…"} – ${rangeTo ? format(rangeTo, "MMM d") : "…"}`
+        : "Date Range";
+    return DATE_PRESETS.find((p) => p.key === datePreset)?.label || "All Dates";
+  })();
 
   // Apply view filters
   const applyViewFilters = (items: any[]) => {

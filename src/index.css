@@ -193,6 +193,20 @@
       flex-wrap: wrap;
     }
 
+    /* Nothing should push past the screen edge */
+    .data-table,
+    .stat-card,
+    main > * {
+      max-width: 100%;
+    }
+
+    /* Long values (emails, ids, service names) wrap instead of overflowing */
+    .data-table td,
+    .data-table th {
+      white-space: normal;
+      word-break: break-word;
+    }
+
     /* Tables collapse into stacked label/value cards */
     .responsive-table thead {
       display: none;
@@ -205,9 +219,23 @@
       width: 100%;
     }
 
+    .responsive-table tbody {
+      padding: 0.5rem;
+    }
+
+    /* Each row becomes a distinct, rounded, elevated card */
     .responsive-table tbody tr {
-      padding: 0.5rem 0.25rem;
-      border-bottom: 1px solid hsl(var(--border));
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+      border: 1px solid hsl(var(--border));
+      border-radius: 1rem;
+      background: hsl(var(--card));
+      box-shadow: var(--shadow-card);
+      overflow: hidden;
+    }
+
+    .responsive-table tbody tr:last-child {
+      margin-bottom: 0;
     }
 
     .responsive-table tbody td {
@@ -215,16 +243,33 @@
       align-items: flex-start;
       justify-content: space-between;
       gap: 0.75rem;
-      padding: 0.25rem 0.5rem;
+      padding: 0.25rem 0;
       border: 0;
       text-align: right;
       white-space: normal;
       word-break: break-word;
+      min-width: 0;
+    }
+
+    /* Keep interactive controls inside the card */
+    .responsive-table tbody td > * {
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    .responsive-table tbody td button,
+    .responsive-table tbody td [role="combobox"],
+    .responsive-table tbody td a {
+      max-width: 100%;
+      white-space: normal;
+      text-align: right;
+      height: auto;
     }
 
     .responsive-table tbody td[data-label]:not([data-label=""])::before {
       content: attr(data-label);
       flex-shrink: 0;
+      max-width: 45%;
       text-align: left;
       font-size: 11px;
       letter-spacing: 0.03em;
@@ -235,6 +280,13 @@
     .responsive-table tbody td[colspan] {
       justify-content: center;
       text-align: center;
+    }
+
+    /* Toolbars, filter chips and tab rows wrap rather than clip */
+    .mobile-wrap,
+    .page-header .flex,
+    .data-table .flex-wrap {
+      min-width: 0;
     }
 
     /* Compact form spacing for faster data entry on phones */

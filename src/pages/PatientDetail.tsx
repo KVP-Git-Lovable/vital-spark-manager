@@ -740,16 +740,16 @@ const PatientDetail = () => {
       <Tabs defaultValue="details" className="mt-2">
         <div className="overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
           <TabsList className="w-max md:w-full md:flex-wrap md:h-auto md:justify-start">
-            <TabsTrigger value="details" className="gap-1 text-xs md:text-sm"><Info className="h-3.5 w-3.5" /> Details</TabsTrigger>
-            <TabsTrigger value="appointments" className="gap-1 text-xs md:text-sm"><Calendar className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Appts</span> ({appointments.length})</TabsTrigger>
-            <TabsTrigger value="invoices" className="gap-1 text-xs md:text-sm"><Receipt className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Invoices</span> ({invoices.length})</TabsTrigger>
-            <TabsTrigger value="photos" className="gap-1 text-xs md:text-sm"><Camera className="h-3.5 w-3.5" /> ({photos.length})</TabsTrigger>
-            <TabsTrigger value="procedures" className="gap-1 text-xs md:text-sm"><ClipboardList className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Procedures</span> ({procedures.length})</TabsTrigger>
-            <TabsTrigger value="prescriptions" className="gap-1 text-xs md:text-sm"><Pill className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Rx</span> ({prescriptions.length})</TabsTrigger>
-            <TabsTrigger value="family" className="gap-1 text-xs md:text-sm"><Users className="h-3.5 w-3.5" /> Family</TabsTrigger>
-            <TabsTrigger value="surveys" className="gap-1 text-xs md:text-sm"><ClipboardCheck className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Surveys</span> ({surveyResponses.length + surveyAssignments.length})</TabsTrigger>
-            <TabsTrigger value="attachments" className="gap-1 text-xs md:text-sm"><Paperclip className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Attachments</span> ({attachments.length})</TabsTrigger>
-            <TabsTrigger value="campaigns" className="gap-1 text-xs md:text-sm"><Megaphone className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Campaigns</span> ({patientCampaigns.length})</TabsTrigger>
+            <TabsTrigger value="details" title="Details" aria-label="Details" className="gap-1 text-xs md:text-sm"><Info className="h-3.5 w-3.5" /> Details</TabsTrigger>
+            <TabsTrigger value="appointments" title="Appointments" aria-label="Appointments" className="gap-1 text-xs md:text-sm"><Calendar className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Appts</span> ({appointments.length})</TabsTrigger>
+            <TabsTrigger value="invoices" title="Invoices" aria-label="Invoices" className="gap-1 text-xs md:text-sm"><Receipt className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Invoices</span> ({invoices.length})</TabsTrigger>
+            <TabsTrigger value="photos" title="Photos" aria-label="Photos" className="gap-1 text-xs md:text-sm"><Camera className="h-3.5 w-3.5" /> ({photos.length})</TabsTrigger>
+            <TabsTrigger value="procedures" title="Procedures" aria-label="Procedures" className="gap-1 text-xs md:text-sm"><ClipboardList className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Procedures</span> ({procedures.length})</TabsTrigger>
+            <TabsTrigger value="prescriptions" title="Prescriptions" aria-label="Prescriptions" className="gap-1 text-xs md:text-sm"><Pill className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Rx</span> ({prescriptions.length})</TabsTrigger>
+            <TabsTrigger value="family" title="Family" aria-label="Family" className="gap-1 text-xs md:text-sm"><Users className="h-3.5 w-3.5" /> Family</TabsTrigger>
+            <TabsTrigger value="surveys" title="Surveys" aria-label="Surveys" className="gap-1 text-xs md:text-sm"><ClipboardCheck className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Surveys</span> ({surveyResponses.length + surveyAssignments.length})</TabsTrigger>
+            <TabsTrigger value="attachments" title="Attachments" aria-label="Attachments" className="gap-1 text-xs md:text-sm"><Paperclip className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Attachments</span> ({attachments.length})</TabsTrigger>
+            <TabsTrigger value="campaigns" title="Campaigns" aria-label="Campaigns" className="gap-1 text-xs md:text-sm"><Megaphone className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Campaigns</span> ({patientCampaigns.length})</TabsTrigger>
           </TabsList>
         </div>
 

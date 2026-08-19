@@ -1784,40 +1784,18 @@ const Appointments = () => {
                 {/* Quick date filters */}
                 <div className="p-3 border-b flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-muted-foreground font-medium mr-1">Quick:</span>
-                  {[
-                    { key: "yesterday", label: "Yesterday" },
-                    { key: "today", label: "Today" },
-                    { key: "tomorrow", label: "Tomorrow" },
-                    { key: "this_week", label: "This Week" },
-                    { key: "last_7", label: "Last 7 Days" },
-                    { key: "this_month", label: "This Month" },
-                  ].map((f) => (
-                    <div key={f.key} className="flex items-center">
-                      <Button
-                        variant={quickFilter === f.key ? "default" : "outline"}
-                        size="sm"
-                        className="h-7 text-xs px-3 rounded-r-none"
-                        onClick={() => setQuickFilter(quickFilter === f.key ? "" : f.key)}
-                      >
-                        {f.label}
-                      </Button>
-                      <Button
-                        variant={quickFilter === f.key ? "default" : "outline"}
-                        size="sm"
-                        className="h-7 px-1.5 rounded-l-none border-l-0"
-                        title={pinnedQuickFilter === f.key ? "Unpin default filter" : "Pin as default filter"}
-                        aria-label={pinnedQuickFilter === f.key ? `Unpin ${f.label}` : `Pin ${f.label}`}
-                        onClick={() => togglePinnedQuickFilter(f.key)}
-                      >
-                        <Pin className={cn("h-3 w-3", pinnedQuickFilter === f.key ? "fill-current" : "opacity-50")} />
-                      </Button>
-                    </div>
-                  ))}
-                  {quickFilter && (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setQuickFilter("")}>
-                      Clear
+                  {DATE_PRESETS.filter((p) => !["specific", "range"].includes(p.key)).map((f) => (
+                    <Button
+                      key={f.key}
+                      variant={datePreset === f.key ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 text-xs px-3"
+                      onClick={() => setDatePreset(f.key)}
+                    >
+                      {f.label}
                     </Button>
-                  )}
+                  ))}
+                  <span className="text-xs text-muted-foreground">· {dateFilterLabel}</span>
                   <span className="text-xs text-muted-foreground ml-auto">{sortedAppointments.length} result{sortedAppointments.length !== 1 ? "s" : ""}</span>
                 </div>
                 <table ref={appointmentsTableRef} className="w-full text-sm responsive-table">

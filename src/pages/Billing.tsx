@@ -2876,19 +2876,7 @@ const Billing = () => {
           {/* Right sticky summary panel — mirrors the Create Invoice layout */}
           {viewInvoice && (
             <aside className="flex flex-col border-t lg:border-t-0 lg:border-l bg-muted/20 lg:max-h-[calc(100vh-5rem)]">
-              <div className="px-5 py-4 border-b">
-                <h3 className="font-display font-semibold text-sm">Invoice Summary</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(viewInvoice.created_at), "PPP")}</p>
-              </div>
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 text-sm">
-                {(viewInvoice.services || []).length > 0 && (
-                  <div className="rounded-lg border bg-background/70 overflow-hidden">
-                    <div className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/60">Line items</div>
-                    {(viewInvoice.services || []).map((s: string, i: number) => (
-                      <div key={i} className="px-2 py-1.5 text-[11px] border-t truncate">{s}</div>
-                    ))}
-                  </div>
-                )}
                 <div className="flex justify-between font-semibold text-primary text-base">
                   <span>Grand Total</span>
                   <span>₹{Number(isEditing ? editData.total_amount : viewInvoice.total_amount).toLocaleString("en-IN")}</span>
@@ -2898,6 +2886,20 @@ const Billing = () => {
                     <span className="text-muted-foreground">Paid</span>
                     <span>₹{Number(isEditing ? editData.paid_amount : viewInvoice.paid_amount).toLocaleString("en-IN")}</span>
                   </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Payment Mode</span>
+                    <span>
+                      {Array.isArray(viewInvoice.payment_splits) && viewInvoice.payment_splits.length > 0
+                        ? "Split"
+                        : (viewInvoice.payment_mode || "Cash")}
+                    </span>
+                  </div>
+                  {Array.isArray(viewInvoice.payment_splits) && viewInvoice.payment_splits.map((p: any, i: number) => (
+                    <div key={i} className="flex justify-between text-xs text-muted-foreground pl-3">
+                      <span>{p.mode}</span>
+                      <span>₹{Number(p.amount || 0).toLocaleString("en-IN")}</span>
+                    </div>
+                  ))}
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Balance Due</span>
                     {(() => {

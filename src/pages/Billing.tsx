@@ -247,6 +247,11 @@ const Billing = () => {
   const [notes, setNotes] = useState("");
   // Split payment (Create Invoice — One-time only). Empty array = single mode flow.
   const [splits, setSplits] = useState<{ mode: string; amount: number }[]>([]);
+  // When split payment is active, the paid amount is always the sum of the split rows
+  const splitTotalAmount = splits.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  useEffect(() => {
+    if (splits.length > 0) setPaidAmount(splitTotalAmount);
+  }, [splits.length, splitTotalAmount]);
   // Tax is now resolved per-line from Tax Master mappings (no manual selector)
   const [pharmaItems, setPharmaItems] = useState<PharmaLineItem[]>([]);
 

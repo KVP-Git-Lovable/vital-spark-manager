@@ -1012,16 +1012,18 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label>Next visit</Label>
-                    <Select value={editVisitStatus || "none"} onValueChange={(v) => setEditVisitStatus(v === "none" ? "" : v)}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">—</SelectItem>
-                        {visitStatusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {((procedures as any[]).some((p: any) => !!p?.visit_type) || !!editVisitStatus) && (
+                    <div>
+                      <Label>Next visit</Label>
+                      <Select value={editVisitStatus || "none"} onValueChange={(v) => setEditVisitStatus(v === "none" ? "" : v)}>
+                        <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">—</SelectItem>
+                          {visitStatusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Start</Label>

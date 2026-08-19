@@ -1758,6 +1758,7 @@ const PatientDetail = () => {
 
       <AppointmentDetailSheet
         appointmentId={selectedAppointmentId}
+        fullScreen
         onClose={() => {
           setSelectedAppointmentId(null);
           queryClient.invalidateQueries({ queryKey: ["patient-appointments", id] });

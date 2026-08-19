@@ -97,7 +97,33 @@ export function SortableDataTable({ columns, rows, rowHref, defaultSort, pageSiz
 
   return (
     <div className="data-table overflow-hidden">
-      <div className="overflow-auto max-h-[calc(100vh-340px)]">
+      {/* Mobile: stacked cards so no horizontal scrolling is needed */}
+      <div className="md:hidden divide-y">
+        {pageRows.length === 0 ? (
+          <div className="text-center py-10 text-sm text-muted-foreground">
+            No records match the current filters.
+          </div>
+        ) : pageRows.map((row, i) => (
+          <div
+            key={row.id ?? i}
+            onClick={() => handleRowClick(row)}
+            className={cn("p-3 space-y-1.5", rowHref && "active:bg-primary/5 cursor-pointer")}
+          >
+            {columns.map((col, idx) => (
+              <div key={col.key} className="flex items-start justify-between gap-3">
+                <span className="text-[11px] uppercase tracking-wide text-muted-foreground shrink-0">
+                  {col.label}
+                </span>
+                <span className={cn("text-xs text-right break-words", idx === 0 && rowHref && "text-primary font-medium")}>
+                  {renderCell(col, row)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden md:block overflow-auto max-h-[calc(100vh-340px)] table-scroll">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur">
             <tr className="border-b">

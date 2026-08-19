@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   LineChart, Line, Legend,
 } from "recharts";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const STATUS_COLORS: Record<string, string> = {
   Completed: "hsl(152, 60%, 40%)",
@@ -60,6 +61,7 @@ function ChartCard({
 const money = (v: number, n: string) => [`₹${Number(v).toLocaleString()}`, n] as [string, string];
 
 export function DashboardCharts({ data, onChartClick }: Props) {
+  const isMobile = useIsMobile();
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       <ChartCard title="Appointment Status" delay={0.2} empty={data.appointmentStatus.length === 0} onClick={() => onChartClick("appointment_status")}>
@@ -67,9 +69,9 @@ export function DashboardCharts({ data, onChartClick }: Props) {
           <PieChart>
             <Pie
               data={data.appointmentStatus}
-              cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+              cx="50%" cy="50%" innerRadius={isMobile ? 42 : 50} outerRadius={isMobile ? 68 : 80}
               paddingAngle={3} dataKey="value"
-              label={({ name, value }) => `${name}: ${value}`}
+              label={isMobile ? false : ({ name, value }) => `${name}: ${value}`}
               onClick={(e: any) => onChartClick("appointment_status", e?.name)}
             >
               {data.appointmentStatus.map((entry) => (
@@ -132,9 +134,9 @@ export function DashboardCharts({ data, onChartClick }: Props) {
           <PieChart>
             <Pie
               data={data.revenueByPaymentMode}
-              cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+              cx="50%" cy="50%" innerRadius={isMobile ? 42 : 50} outerRadius={isMobile ? 68 : 80}
               paddingAngle={3} dataKey="value"
-              label={({ name, value }) => `${name}: ₹${Number(value).toLocaleString()}`}
+              label={isMobile ? false : ({ name, value }) => `${name}: ₹${Number(value).toLocaleString()}`}
               onClick={(e: any) => onChartClick("revenue_by_payment_mode", e?.name)}
             >
               {data.revenueByPaymentMode.map((_, i) => (

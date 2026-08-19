@@ -114,8 +114,31 @@
 }
 
 @layer components {
+  /* Horizontal scrollers should feel native on touch devices */
+  .tabs-scroll,
+  .table-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    overscroll-behavior-x: contain;
+  }
+
+  .tabs-scroll {
+    scroll-snap-type: x proximity;
+  }
+
+  .tabs-scroll::-webkit-scrollbar,
+  .table-scroll::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .tabs-scroll::-webkit-scrollbar-thumb,
+  .table-scroll::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 9999px;
+  }
+
   .stat-card {
-    @apply bg-card rounded-xl p-6 border border-border;
+    @apply bg-card rounded-xl p-4 sm:p-6 border border-border;
     box-shadow: var(--shadow-card);
   }
 
@@ -125,16 +148,16 @@
   }
 
   .page-header {
-    @apply mb-8;
+    @apply mb-4 sm:mb-8;
   }
 
   .page-title {
-    @apply text-2xl font-bold tracking-tight;
+    @apply text-xl sm:text-2xl font-bold tracking-tight;
     font-family: var(--font-display);
   }
 
   .page-subtitle {
-    @apply text-muted-foreground mt-1;
+    @apply text-muted-foreground mt-1 text-sm;
   }
 
   .data-table {
@@ -154,5 +177,81 @@
 
   [data-sidebar="sidebar"] {
     border-right: 1px solid hsl(var(--sidebar-border));
+  }
+}
+
+@layer base {
+  /* Prevent accidental page-level horizontal scroll on phones */
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  @media (max-width: 767px) {
+    /* Page action rows wrap instead of overflowing off-screen */
+    .page-header .flex {
+      flex-wrap: wrap;
+    }
+
+    /* Tables collapse into stacked label/value cards */
+    .responsive-table thead {
+      display: none;
+    }
+
+    .responsive-table,
+    .responsive-table tbody,
+    .responsive-table tr {
+      display: block;
+      width: 100%;
+    }
+
+    .responsive-table tbody tr {
+      padding: 0.5rem 0.25rem;
+      border-bottom: 1px solid hsl(var(--border));
+    }
+
+    .responsive-table tbody td {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border: 0;
+      text-align: right;
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    .responsive-table tbody td[data-label]:not([data-label=""])::before {
+      content: attr(data-label);
+      flex-shrink: 0;
+      text-align: left;
+      font-size: 11px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: hsl(var(--muted-foreground));
+    }
+
+    .responsive-table tbody td[colspan] {
+      justify-content: center;
+      text-align: center;
+    }
+
+    /* Compact form spacing for faster data entry on phones */
+    .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+      margin-top: 1rem;
+    }
+
+    .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+      margin-top: 0.75rem;
+    }
+
+    /* Comfortable tap targets without oversized fields */
+    input,
+    select,
+    textarea,
+    button[role="combobox"] {
+      font-size: 16px; /* avoids iOS zoom-on-focus */
+    }
   }
 }

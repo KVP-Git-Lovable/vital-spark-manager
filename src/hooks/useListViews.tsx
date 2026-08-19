@@ -40,7 +40,18 @@ export function useListViews(section: "appointments" | "procedures") {
   });
 
   // Get current selected view
-  const currentView = views.find((v: any) => v.id === selectedViewId);
+  const currentView = views.find((v: any) => v.id === selectedViewId) as unknown as
+    | {
+        id: string;
+        name: string;
+        section: string;
+        filters: Filter[];
+        display_fields: string[];
+        sort_by: string;
+        sort_direction: "asc" | "desc";
+        is_shared: boolean;
+      }
+    | undefined;
 
   // Create view mutation
   const createViewMutation = useMutation({

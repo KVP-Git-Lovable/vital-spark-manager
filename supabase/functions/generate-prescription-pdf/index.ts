@@ -45,7 +45,7 @@ function wrap(text: string, font: any, size: number, maxWidth: number): string[]
 async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise<{ bytes: Uint8Array; filename: string; patient: any }> {
   const { data: proc, error: procErr } = await supabase
     .from("procedures")
-    .select("*, patients(*), staff(*), appointments(*, staff(*))")
+    .select("*, patients(*), staff!procedures_staff_id_fkey(*), appointments(*, staff!appointments_staff_id_fkey(*))")
     .eq("id", procedureId)
     .single();
   if (procErr || !proc) throw new Error(procErr?.message || "Procedure not found");

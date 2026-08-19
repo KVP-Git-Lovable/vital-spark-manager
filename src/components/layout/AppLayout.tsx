@@ -28,6 +28,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { BackToReportBar } from "@/components/reports/BackToReportBar";
 import { MicButton } from "@/components/shared/MicButton";
+import { GlobalSearch } from "@/components/layout/GlobalSearch";
 import { ThemeSelector } from "@/components/theme/ThemeSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { useModal } from "@/hooks/useModal";

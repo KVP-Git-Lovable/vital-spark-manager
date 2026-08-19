@@ -529,30 +529,27 @@ const PatientDetail = () => {
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !id) return;
-    setPendingPhotoFile(file);
-    setPhotoTypeDialogOpen(true);
     e.target.value = "";
+    savePhotoFile(file);
   };
 
-  const savePendingPhoto = async (photoType: "before" | "after") => {
-    if (!pendingPhotoFile || !id) return;
+  const savePhotoFile = async (file: File) => {
+    if (!file || !id) return;
     setUploadingPhoto(true);
     try {
-      const ext = pendingPhotoFile.name.split(".").pop() || "jpg";
+      const ext = file.name.split(".").pop() || "jpg";
       const fileName = `${id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("patient-photos").upload(fileName, pendingPhotoFile);
+      const { error: uploadError } = await supabase.storage.from("patient-photos").upload(fileName, file);
       if (uploadError) throw uploadError;
       const photoUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${fileName}`;
       const { error } = await supabase.from("patient_photos").insert({
         patient_id: id,
-        photo_type: photoType,
         photo_url: photoUrl,
         notes: null,
       } as any);
       if (error) throw error;
       toast.success("Photo uploaded");
       queryClient.invalidateQueries({ queryKey: ["patient-photos", id] });
-      setPhotoTypeDialogOpen(false);
       setPendingPhotoFile(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to upload photo");

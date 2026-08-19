@@ -1358,9 +1358,22 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       <p className="text-xs font-medium text-muted-foreground mb-2">This Appointment</p>
                       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                         {appointmentPhotos.map((photo: any) => (
-                          <div key={photo.id} className="relative group cursor-pointer" onClick={() => setViewPhoto(photo)}>
-                            <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover rounded-lg border transition-transform group-hover:scale-[1.02]" />
-                            <Badge variant="secondary" className="absolute top-1 left-1 text-[10px]">{photo.photo_type}</Badge>
+                          <div key={photo.id} className="stat-card p-0 overflow-hidden group">
+                            <div className="relative cursor-pointer" onClick={() => setViewPhoto(photo)}>
+                              <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover" />
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-1.5 right-1.5 h-7 w-7 opacity-90"
+                                onClick={(e) => { e.stopPropagation(); deletePhoto(photo); }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <div className="p-2 bg-card">
+                              <p className="text-xs font-medium truncate">{patientName}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">{format(new Date(photo.taken_at), "dd MMM yyyy")}</p>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1372,10 +1385,21 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       <p className="text-xs font-medium text-muted-foreground mb-2">All Patient Photos</p>
                       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                         {otherPhotos.map((photo: any) => (
-                          <div key={photo.id} className="relative group cursor-pointer" onClick={() => setViewPhoto(photo)}>
-                            <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover rounded-lg border transition-transform group-hover:scale-[1.02]" />
-                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] p-1 rounded-b-lg">
-                              {photo.photo_type} · {format(new Date(photo.taken_at), "MMM d")}
+                          <div key={photo.id} className="stat-card p-0 overflow-hidden group">
+                            <div className="relative cursor-pointer" onClick={() => setViewPhoto(photo)}>
+                              <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover" />
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-1.5 right-1.5 h-7 w-7 opacity-90"
+                                onClick={(e) => { e.stopPropagation(); deletePhoto(photo); }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <div className="p-2 bg-card">
+                              <p className="text-xs font-medium truncate">{patientName}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">{format(new Date(photo.taken_at), "dd MMM yyyy")}</p>
                             </div>
                           </div>
                         ))}
@@ -1484,7 +1508,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle className="font-display">
-              {viewPhoto ? `${viewPhoto.photo_type} · ${format(new Date(viewPhoto.taken_at), "MMM d, yyyy")}` : "Photo"}
+              {viewPhoto ? `${patientName} · ${format(new Date(viewPhoto.taken_at), "dd MMM yyyy")}` : "Photo"}
             </DialogTitle>
           </DialogHeader>
           {viewPhoto && (

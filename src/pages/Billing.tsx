@@ -2064,16 +2064,9 @@ const Billing = () => {
                           + Add row
                         </button>
                       )}
-                      {(() => {
-                        const total = splits.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-                        const matches = Math.round(total * 100) === Math.round((paidAmount || 0) * 100);
-                        return (
-                          <div className={`text-xs ${matches ? "text-muted-foreground" : "text-destructive"}`}>
-                            Split total ₹{total.toLocaleString("en-IN")} / Paid ₹{Number(paidAmount || 0).toLocaleString("en-IN")}
-                            {!matches && <div>Split amounts must equal paid amount</div>}
-                          </div>
-                        );
-                      })()}
+                      <div className="text-xs text-muted-foreground">
+                        Split total ₹{splitTotalAmount.toLocaleString("en-IN")} — auto-applied as Paid Amount
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2091,7 +2084,7 @@ const Billing = () => {
                     </div>
                     <div>
                       <Label>Paid Amount (₹)</Label>
-                      <Input type="number" className="mt-1.5" placeholder="0" value={numVal(paidAmount)} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
+                      <Input type="number" className={`mt-1.5 ${splits.length > 0 ? "bg-muted" : ""}`} placeholder="0" value={numVal(paidAmount)} readOnly={splits.length > 0} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
                   {((servicesSubtotal + pharmaSubtotal) > 0) && (() => {
@@ -2414,7 +2407,7 @@ const Billing = () => {
                       <div className="pt-2 mt-2 border-t space-y-2">
                         <div>
                           <Label className="text-xs">Paid Amount (₹)</Label>
-                          <Input type="number" className="mt-1 h-9" placeholder="0" value={numVal(paidAmount)} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
+                          <Input type="number" className={`mt-1 h-9 ${splits.length > 0 ? "bg-muted" : ""}`} placeholder="0" value={numVal(paidAmount)} readOnly={splits.length > 0} onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)} />
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Balance Due</span>

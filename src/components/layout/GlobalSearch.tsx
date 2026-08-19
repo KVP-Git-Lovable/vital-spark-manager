@@ -123,7 +123,7 @@ export function GlobalSearch({ className }: { className?: string }) {
           kind: "invoice" as const,
           title: i.invoice_number || "Invoice",
           subtitle: `${i.patient_name || ""} · ₹${Number(i.total_amount || 0).toLocaleString("en-IN")}`,
-          route: `/billing?invoice=${i.id}`,
+          route: `/billing?viewInvoice=${i.id}`,
         })),
       ];
 

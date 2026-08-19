@@ -68,6 +68,19 @@ const DOCTOR_PALETTE = [
 const statusOptions = ["Reserved", "Confirmed", "Cancelled"];
 const visitStatusOptions = ["Follow-up visit", "Recurring visit"];
 
+const PINNED_FILTERS_KEY = "appointments.pinnedFilters";
+
+const DATE_PRESETS = [
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "this_week", label: "This Week" },
+  { key: "last_week", label: "Last Week" },
+  { key: "next_week", label: "Next Week" },
+  { key: "specific", label: "Specific Date" },
+  { key: "range", label: "Date Range" },
+  { key: "all", label: "All Dates" },
+];
+
 // Available fields for list view customization
 const APPOINTMENT_FIELDS = [
   { value: "start_time", label: "Date" },

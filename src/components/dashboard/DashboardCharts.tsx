@@ -61,6 +61,7 @@ function ChartCard({
 const money = (v: number, n: string) => [`₹${Number(v).toLocaleString()}`, n] as [string, string];
 
 export function DashboardCharts({ data, onChartClick }: Props) {
+  const isMobile = useIsMobile();
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       <ChartCard title="Appointment Status" delay={0.2} empty={data.appointmentStatus.length === 0} onClick={() => onChartClick("appointment_status")}>

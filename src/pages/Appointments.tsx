@@ -471,14 +471,8 @@ const Appointments = () => {
   // Filtered appointments
   let filteredAppointments = appointments.filter((apt: any) => {
     if (filterDoctors.size > 0 && apt.staff_id && !filterDoctors.has(apt.staff_id)) return false;
-    if (filterDate && !isSameDay(new Date(apt.start_time), filterDate)) return false;
-    if (filterSource !== "all") {
-      const src = (apt.source || "").toString().toLowerCase();
-      if (filterSource === "portal" && src !== "portal") return false;
-      if (filterSource === "walkin" && src === "portal") return false;
-    }
     if (filterStatus !== "all" && apt.status !== filterStatus) return false;
-    if (filterAppointmentType !== "all" && (apt.appointment_type || "Walk-in") !== filterAppointmentType) return false;
+    if (filterVisitStatus !== "all" && (apt.visit_status || "") !== filterVisitStatus) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const name = apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
@@ -493,10 +487,8 @@ const Appointments = () => {
       const haystack = `${name} ${apt.patients?.phone || ""} ${apt.service || ""} ${dateTokens}`.toLowerCase();
       if (!haystack.includes(q)) return false;
     }
-    if (quickFilter) {
-      const range = getQuickFilterRange(quickFilter);
-      if (range && !isWithinInterval(new Date(apt.start_time), range)) return false;
-    }
+    const dateRange = getDateFilterRange(datePreset);
+    if (dateRange && !isWithinInterval(new Date(apt.start_time), dateRange)) return false;
     return true;
   });
 

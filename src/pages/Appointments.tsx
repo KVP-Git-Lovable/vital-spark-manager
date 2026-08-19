@@ -65,7 +65,8 @@ const DOCTOR_PALETTE = [
   { bg: "bg-accent", border: "border-accent-foreground/30", text: "text-accent-foreground", dot: "bg-accent-foreground" },
 ];
 
-const statusOptions = ["Reserved", "Confirmed", "Cancelled", "Follow Up", "Recurring appointment"];
+const statusOptions = ["Reserved", "Confirmed", "Cancelled"];
+const visitStatusOptions = ["Follow-up visit", "Recurring visit"];
 
 // Available fields for list view customization
 const APPOINTMENT_FIELDS = [
@@ -1255,6 +1256,16 @@ const Appointments = () => {
                       <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Next visit status</Label>
+                    <Select value={visitStatus || "none"} onValueChange={(v) => setVisitStatus(v === "none" ? "" : v)}>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">—</SelectItem>
+                        {visitStatusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>

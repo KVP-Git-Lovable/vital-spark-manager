@@ -44,7 +44,8 @@ import { useAuth } from "@/hooks/useAuth";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-const statusOptions = ["Reserved", "Confirmed", "Cancelled", "Follow Up", "Recurring appointment"];
+const statusOptions = ["Reserved", "Confirmed", "Cancelled"];
+const visitStatusOptions = ["Follow-up visit", "Recurring visit"];
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
   Reserved: "bg-info/15 text-info border-info/30",
@@ -224,9 +225,10 @@ interface AppointmentDetailSheetProps {
   appointmentId: string | null;
   onClose: () => void;
   variant?: "sheet" | "page";
+  fullScreen?: boolean;
 }
 
-export function AppointmentDetailSheet({ appointmentId, onClose, variant = "sheet" }: AppointmentDetailSheetProps) {
+export function AppointmentDetailSheet({ appointmentId, onClose, variant = "sheet", fullScreen = false }: AppointmentDetailSheetProps) {
   const isPage = variant === "page";
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -970,6 +972,16 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       </SelectContent>
                     </Select>
                   </div>
+                  <div>
+                    <Label>Next visit status</Label>
+                    <Select value={editVisitStatus || "none"} onValueChange={(v) => setEditVisitStatus(v === "none" ? "" : v)}>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">—</SelectItem>
+                        {visitStatusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Start</Label>
@@ -1464,7 +1476,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         <div className="w-full rounded-xl border bg-card overflow-hidden">{inner}</div>
       ) : (
         <Sheet open={!!appointmentId} onOpenChange={(open) => { if (!open) handleClose(); }}>
-          <SheetContent className="sm:max-w-xl w-full overflow-y-auto p-0">{inner}</SheetContent>
+          <SheetContent className={fullScreen ? "w-screen sm:max-w-none max-w-none overflow-y-auto p-0" : "sm:max-w-xl w-full overflow-y-auto p-0"}>{inner}</SheetContent>
         </Sheet>
       )}
 

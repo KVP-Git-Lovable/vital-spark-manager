@@ -80,6 +80,7 @@ const fetchPatientsPage = async (
 };
 
 const Patients = () => {
+  const patientsTableRef = useStackedTable<HTMLTableElement>();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);

@@ -1,3 +1,4 @@
+import { useStackedTable } from "@/hooks/useStackedTable";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths, isSameDay } from "date-fns";
@@ -196,6 +197,7 @@ const getDrName = (inv: any) => {
 };
 
 const Billing = () => {
+  const invoiceTableRef = useStackedTable<HTMLTableElement>();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 

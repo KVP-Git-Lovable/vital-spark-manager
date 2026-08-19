@@ -1,3 +1,4 @@
+import { useStackedTable } from "@/hooks/useStackedTable";
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useModal } from "@/hooks/useModal";
@@ -115,6 +116,7 @@ const badgeClasses = (status: string) =>
   STATUS_BADGE_CLASSES[status] || STATUS_BADGE_CLASSES.Proposed;
 
 const Appointments = () => {
+  const appointmentsTableRef = useStackedTable<HTMLTableElement>();
   const queryClient = useQueryClient();
   const routerNavigate = useNavigate();
   const { setOpenModal } = useModal();

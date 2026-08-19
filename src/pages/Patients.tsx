@@ -5,6 +5,9 @@ import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Tra
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ViewSelector } from "@/components/views/ViewSelector";
+import { NewListViewDialog } from "@/components/views/NewListViewDialog";
+import { useListViews } from "@/hooks/useListViews";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +39,19 @@ import type { Tables } from "@/integrations/supabase/types";
 type Patient = Tables<"patients">;
 
 const PAGE_SIZE = 50;
+
+const PATIENT_FIELDS = [
+  { value: "name", label: "Patient Name" },
+  { value: "contact", label: "Contact" },
+  { value: "skin_type", label: "Skin Type" },
+  { value: "engagement", label: "Engagement" },
+  { value: "status", label: "Status" },
+  { value: "gender", label: "Gender" },
+  { value: "age", label: "Age" },
+  { value: "date_of_birth", label: "Date of Birth" },
+];
+
+const DEFAULT_PATIENT_FIELDS = ["name", "contact", "skin_type", "engagement", "status"];
 
 const fetchPatientsPage = async (
   page: number,
@@ -92,6 +108,9 @@ const Patients = () => {
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [showNewViewDialog, setShowNewViewDialog] = useState(false);
+
+  const { views, currentView, selectedViewId, setSelectedViewId, createView, deleteView, isCreating } = useListViews("patients");
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -120,6 +139,19 @@ const Patients = () => {
     const diff = Date.now() - new Date(dob).getTime();
     return Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
   };
+
+  // Get columns to display based on current view or default
+  const getDisplayColumns = () => {
+    if (currentView?.display_fields && currentView.display_fields.length > 0) {
+      return currentView.display_fields;
+    }
+    return DEFAULT_PATIENT_FIELDS;
+  };
+
+  const displayColumns = getDisplayColumns();
+
+  // Check if a column should be displayed
+  const shouldShowColumn = (column: string) => displayColumns.includes(column);
 
   const openAdd = () => {
     setEditingPatient(null);
@@ -176,7 +208,15 @@ const Patients = () => {
           <h1 className="page-title">Patients</h1>
           <p className="page-subtitle">Manage your patient records</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <ViewSelector
+            views={views}
+            selectedViewId={selectedViewId}
+            onSelectView={setSelectedViewId}
+            onCreateView={() => setShowNewViewDialog(true)}
+            onDeleteView={deleteView}
+            currentViewName={currentView?.name}
+          />
           {selectedIds.size > 0 && (
             <Button variant="destructive" className="gap-2" onClick={() => setConfirmOpen(true)}>
               <Trash2 className="h-4 w-4" />
@@ -236,12 +276,12 @@ const Patients = () => {
                       aria-label="Select all"
                     />
                   </th>
-                  <th className="text-left text-xs font-medium text-muted-foreground p-4">Patient</th>
-                  <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden md:table-cell">Contact</th>
-                   <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden lg:table-cell">Skin Type</th>
-                   <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden sm:table-cell">Engagement</th>
-                   <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
-                   <th className="text-right text-xs font-medium text-muted-foreground p-4"></th>
+                  {shouldShowColumn("name") && <th className="text-left text-xs font-medium text-muted-foreground p-4">Patient</th>}
+                  {shouldShowColumn("contact") && <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden md:table-cell">Contact</th>}
+                  {shouldShowColumn("skin_type") && <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden lg:table-cell">Skin Type</th>}
+                  {shouldShowColumn("engagement") && <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden sm:table-cell">Engagement</th>}
+                  {shouldShowColumn("status") && <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>}
+                  <th className="text-right text-xs font-medium text-muted-foreground p-4"></th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -254,51 +294,61 @@ const Patients = () => {
                         aria-label={`Select ${patient.first_name}`}
                       />
                     </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-semibold text-sm shrink-0">
-                          {(patient.first_name?.[0] || "?")}{(patient.last_name?.[0] || "")}
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{`${patient.first_name || ""} ${patient.last_name || ""}`.trim() || "Unnamed"}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {patient.gender || "—"}
-                            {getAge(patient.date_of_birth) !== null && ` · Age ${getAge(patient.date_of_birth)}`}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 hidden md:table-cell">
-                      <div className="space-y-1">
-                        {patient.phone && (
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Phone className="h-3 w-3" />
-                            {patient.phone}
+                    {shouldShowColumn("name") && (
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-semibold text-sm shrink-0">
+                            {(patient.first_name?.[0] || "?")}{(patient.last_name?.[0] || "")}
                           </div>
-                        )}
-                        {patient.email && (
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Mail className="h-3 w-3" />
-                            {patient.email}
+                          <div>
+                            <p className="font-medium text-sm">{`${patient.first_name || ""} ${patient.last_name || ""}`.trim() || "Unnamed"}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {patient.gender || "—"}
+                              {getAge(patient.date_of_birth) !== null && ` · Age ${getAge(patient.date_of_birth)}`}
+                            </p>
                           </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-4 hidden lg:table-cell">
-                      <span className="text-sm">{patient.skin_type || "—"}</span>
-                    </td>
-                    <td className="p-4 hidden sm:table-cell">
-                      <EngagementBadge data={engagementScores[patient.id]} />
-                    </td>
-                    <td className="p-4">
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                        patient.status === "Active"
-                          ? "bg-success/10 text-success"
-                          : "bg-muted text-muted-foreground"
-                      }`}>
-                        {patient.status}
-                      </span>
-                    </td>
+                        </div>
+                      </td>
+                    )}
+                    {shouldShowColumn("contact") && (
+                      <td className="p-4 hidden md:table-cell">
+                        <div className="space-y-1">
+                          {patient.phone && (
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Phone className="h-3 w-3" />
+                              {patient.phone}
+                            </div>
+                          )}
+                          {patient.email && (
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Mail className="h-3 w-3" />
+                              {patient.email}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                    {shouldShowColumn("skin_type") && (
+                      <td className="p-4 hidden lg:table-cell">
+                        <span className="text-sm">{patient.skin_type || "—"}</span>
+                      </td>
+                    )}
+                    {shouldShowColumn("engagement") && (
+                      <td className="p-4 hidden sm:table-cell">
+                        <EngagementBadge data={engagementScores[patient.id]} />
+                      </td>
+                    )}
+                    {shouldShowColumn("status") && (
+                      <td className="p-4">
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                          patient.status === "Active"
+                            ? "bg-success/10 text-success"
+                            : "bg-muted text-muted-foreground"
+                        }`}>
+                          {patient.status}
+                        </span>
+                      </td>
+                    )}
                     <td className="p-4 text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -401,6 +451,16 @@ const Patients = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <NewListViewDialog
+        open={showNewViewDialog}
+        onOpenChange={setShowNewViewDialog}
+        section="patients"
+        availableFields={PATIENT_FIELDS}
+        defaultFields={DEFAULT_PATIENT_FIELDS}
+        onCreate={createView}
+        isLoading={isCreating}
+      />
     </div>
   );
 };

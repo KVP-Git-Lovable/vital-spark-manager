@@ -86,6 +86,8 @@ function FeedbackTabContent({
     enabled: !!appointmentId,
   });
 
+  const [comments, setComments] = useState("");
+
   const handleSubmitFeedback = async () => {
     if (npsScore === null || serviceRating === null) {
       toast.error("Please answer both questions");
@@ -99,7 +101,8 @@ function FeedbackTabContent({
         patient_name: patientName,
         nps_score: npsScore,
         service_rating: serviceRating,
-      });
+        comments: comments.trim() || null,
+      } as any);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["patient-feedback", appointmentId] });
       toast.success("Feedback recorded!");
@@ -148,6 +151,12 @@ function FeedbackTabContent({
               ))}
             </div>
           </div>
+          {(existingFeedback as any).comments && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Comments</p>
+              <p className="text-sm whitespace-pre-wrap">{(existingFeedback as any).comments}</p>
+            </div>
+          )}
           <p className="text-[10px] text-muted-foreground">Submitted {format(new Date(existingFeedback.created_at), "MMM d, yyyy · h:mm a")}</p>
         </div>
       </TabsContent>
@@ -208,6 +217,21 @@ function FeedbackTabContent({
             {serviceRating <= 2 ? "Poor" : serviceRating === 3 ? "Average" : serviceRating === 4 ? "Good" : "Excellent"}
           </p>
         )}
+      </div>
+
+      {/* Written / dictated feedback */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium">Any comments or suggestions?</Label>
+        <div className="flex items-start gap-2">
+          <Textarea
+            value={comments}
+            onChange={(e) => setComments(e.target.value)}
+            placeholder="Type the patient's feedback, or use the mic to dictate…"
+            rows={3}
+            className="flex-1 text-sm"
+          />
+          <MicButton value={comments} onChange={setComments} size="md" title="Dictate feedback" />
+        </div>
       </div>
 
       <Button
@@ -422,6 +446,22 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     },
     enabled: !!appointment?.patient_id,
   });
+
+  const deletePhoto = async (photo: any) => {
+    if (!confirm("Delete this photo?")) return;
+    try {
+      const parts = photo.photo_url?.split("/patient-photos/");
+      if (parts && parts[1]) {
+        await supabase.storage.from("patient-photos").remove([parts[1]]);
+      }
+      const { error } = await supabase.from("patient_photos").delete().eq("id", photo.id);
+      if (error) throw error;
+      toast.success("Photo deleted");
+      queryClient.invalidateQueries({ queryKey: ["appointment-photos"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete photo");
+    }
+  };
 
   // Prescribed pharma products across this appointment's procedures (for New Bill prefill)
   // Recurring plan: parent appointment + every installment invoice in the family
@@ -973,7 +1013,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                     </Select>
                   </div>
                   <div>
-                    <Label>Next visit status</Label>
+                    <Label>Next visit</Label>
                     <Select value={editVisitStatus || "none"} onValueChange={(v) => setEditVisitStatus(v === "none" ? "" : v)}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
@@ -1358,9 +1398,22 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       <p className="text-xs font-medium text-muted-foreground mb-2">This Appointment</p>
                       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                         {appointmentPhotos.map((photo: any) => (
-                          <div key={photo.id} className="relative group cursor-pointer" onClick={() => setViewPhoto(photo)}>
-                            <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover rounded-lg border transition-transform group-hover:scale-[1.02]" />
-                            <Badge variant="secondary" className="absolute top-1 left-1 text-[10px]">{photo.photo_type}</Badge>
+                          <div key={photo.id} className="stat-card p-0 overflow-hidden group">
+                            <div className="relative cursor-pointer" onClick={() => setViewPhoto(photo)}>
+                              <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover" />
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-1.5 right-1.5 h-7 w-7 opacity-90"
+                                onClick={(e) => { e.stopPropagation(); deletePhoto(photo); }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <div className="p-2 bg-card">
+                              <p className="text-xs font-medium truncate">{patientName}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">{format(new Date(photo.taken_at), "dd MMM yyyy")}</p>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1372,10 +1425,21 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       <p className="text-xs font-medium text-muted-foreground mb-2">All Patient Photos</p>
                       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                         {otherPhotos.map((photo: any) => (
-                          <div key={photo.id} className="relative group cursor-pointer" onClick={() => setViewPhoto(photo)}>
-                            <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover rounded-lg border transition-transform group-hover:scale-[1.02]" />
-                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] p-1 rounded-b-lg">
-                              {photo.photo_type} · {format(new Date(photo.taken_at), "MMM d")}
+                          <div key={photo.id} className="stat-card p-0 overflow-hidden group">
+                            <div className="relative cursor-pointer" onClick={() => setViewPhoto(photo)}>
+                              <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover" />
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="absolute top-1.5 right-1.5 h-7 w-7 opacity-90"
+                                onClick={(e) => { e.stopPropagation(); deletePhoto(photo); }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <div className="p-2 bg-card">
+                              <p className="text-xs font-medium truncate">{patientName}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">{format(new Date(photo.taken_at), "dd MMM yyyy")}</p>
                             </div>
                           </div>
                         ))}
@@ -1484,7 +1548,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle className="font-display">
-              {viewPhoto ? `${viewPhoto.photo_type} · ${format(new Date(viewPhoto.taken_at), "MMM d, yyyy")}` : "Photo"}
+              {viewPhoto ? `${patientName} · ${format(new Date(viewPhoto.taken_at), "dd MMM yyyy")}` : "Photo"}
             </DialogTitle>
           </DialogHeader>
           {viewPhoto && (

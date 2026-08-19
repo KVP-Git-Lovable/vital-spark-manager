@@ -1320,6 +1320,7 @@ export type Database = {
       patient_feedback: {
         Row: {
           appointment_id: string
+          comments: string | null
           created_at: string
           id: string
           nps_score: number
@@ -1329,6 +1330,7 @@ export type Database = {
         }
         Insert: {
           appointment_id: string
+          comments?: string | null
           created_at?: string
           id?: string
           nps_score: number
@@ -1338,6 +1340,7 @@ export type Database = {
         }
         Update: {
           appointment_id?: string
+          comments?: string | null
           created_at?: string
           id?: string
           nps_score?: number

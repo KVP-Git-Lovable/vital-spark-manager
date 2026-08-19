@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Camera, Image, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,13 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -35,11 +28,16 @@ interface CameraCaptureProps {
 export function CameraCapture({ open, onOpenChange, patientId, patientName, context, contextId }: CameraCaptureProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [photoType, setPhotoType] = useState<"before" | "after">("before");
   const [notes, setNotes] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+
+  // Open the live camera straight away when the capture dialog is opened.
+  useEffect(() => {
+    if (open && !selectedFile) setCameraOpen(true);
+    if (!open) setCameraOpen(false);
+  }, [open]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -67,7 +65,6 @@ export function CameraCapture({ open, onOpenChange, patientId, patientName, cont
 
       const record: any = {
         patient_id: patientId,
-        photo_type: photoType,
         photo_url: photoUrl,
         notes: notes || null,
       };
@@ -88,7 +85,6 @@ export function CameraCapture({ open, onOpenChange, patientId, patientName, cont
   });
 
   const resetForm = () => {
-    setPhotoType("before");
     setNotes("");
     setSelectedFile(null);
     setPreview(null);
@@ -101,17 +97,6 @@ export function CameraCapture({ open, onOpenChange, patientId, patientName, cont
           <DialogTitle className="font-display">Take Photo — {patientName}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
-          <div>
-            <Label>Photo Type</Label>
-            <Select value={photoType} onValueChange={(v) => setPhotoType(v as "before" | "after")}>
-              <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="before">Before</SelectItem>
-                <SelectItem value="after">After</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* File input with camera capture support for mobile */}
           <div>
             <Label>Photo</Label>

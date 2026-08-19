@@ -28,6 +28,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { BackToReportBar } from "@/components/reports/BackToReportBar";
 import { MicButton } from "@/components/shared/MicButton";
+import { GlobalSearch } from "@/components/layout/GlobalSearch";
 import { ThemeSelector } from "@/components/theme/ThemeSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { useModal } from "@/hooks/useModal";
@@ -53,39 +54,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }, [location.pathname, closeModal]);
   const [logoutOpen, setLogoutOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState("");
-
-  const runPatientSearch = async (raw: string) => {
-    const q = raw.trim().replace(/[.?!,]+$/g, "");
-    if (!q) return;
-    setSearchValue(q);
-    const tokens = q.split(/\s+/).filter(Boolean);
-    let query = supabase.from("patients").select("id, first_name, last_name").limit(5);
-    if (tokens.length === 1) {
-      const t = `%${tokens[0]}%`;
-      query = query.or(`first_name.ilike.${t},last_name.ilike.${t}`);
-    } else {
-      query = query
-        .ilike("first_name", `%${tokens[0]}%`)
-        .ilike("last_name", `%${tokens[tokens.length - 1]}%`);
-    }
-    const { data, error } = await query;
-    if (error) {
-      toast.error("Search failed");
-      return;
-    }
-    if (!data || data.length === 0) {
-      toast.error(`No patient matched "${q}"`);
-      return;
-    }
-    if (data.length === 1) {
-      const p = data[0];
-      toast.success(`Opening ${p.first_name} ${p.last_name}`);
-      navigate(`/patients/${p.id}`);
-    } else {
-      toast(`${data.length} matches — refine your search`);
-    }
-  };
 
   // Redirect to login if not authenticated
   if (loading) {
@@ -124,25 +92,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <header className="h-14 md:h-16 flex items-center justify-between border-b bg-card px-3 md:px-4 gap-2 md:gap-4 shrink-0">
             <div className="flex items-center gap-2 md:gap-3 min-w-0">
               <SidebarTrigger className="shrink-0 md:hidden" />
-              <div className="relative hidden md:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search patients, appointments..."
-                  className="pl-9 pr-10 w-72 bg-muted border-0"
-                  value={searchValue}
-                  onChange={(e) => setSearchValue(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") runPatientSearch(searchValue); }}
-                />
-                <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                  <MicButton
-                    value={searchValue}
-                    onChange={setSearchValue}
-                    onTranscript={runPatientSearch}
-                    mode="replace"
-                    title="Speak patient name"
-                  />
-                </div>
-              </div>
+              <GlobalSearch className="hidden md:block" />
             </div>
             <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
               <Button variant="ghost" size="icon" className="relative h-8 w-8 md:h-9 md:w-9">

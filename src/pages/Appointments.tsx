@@ -68,6 +68,19 @@ const DOCTOR_PALETTE = [
 const statusOptions = ["Reserved", "Confirmed", "Cancelled"];
 const visitStatusOptions = ["Follow-up visit", "Recurring visit"];
 
+const PINNED_FILTERS_KEY = "appointments.pinnedFilters";
+
+const DATE_PRESETS = [
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "this_week", label: "This Week" },
+  { key: "last_week", label: "Last Week" },
+  { key: "next_week", label: "Next Week" },
+  { key: "specific", label: "Specific Date" },
+  { key: "range", label: "Date Range" },
+  { key: "all", label: "All Dates" },
+];
+
 // Available fields for list view customization
 const APPOINTMENT_FIELDS = [
   { value: "start_time", label: "Date" },
@@ -78,7 +91,7 @@ const APPOINTMENT_FIELDS = [
   { value: "doctor", label: "Doctor" },
   { value: "status", label: "Status" },
   { value: "bill", label: "Bill Amount" },
-  { value: "visit_status", label: "Visit Status" },
+  { value: "visit_status", label: "Next Visit" },
   { value: "payment_mode", label: "Payment Mode" },
 ];
 
@@ -144,29 +157,68 @@ const Appointments = () => {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const today = new Date();
 
-  // Filter state
-  const [filterDoctors, setFilterDoctors] = useState<Set<string>>(new Set());
-  const [filterDate, setFilterDate] = useState<Date | undefined>();
-  const [filterSource, setFilterSource] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [filterAppointmentType, setFilterAppointmentType] = useState<string>("all");
+  // Filter state — pinned filters are restored from localStorage
+  const pinnedInit: Record<string, any> = (() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(localStorage.getItem(PINNED_FILTERS_KEY) || "{}"); } catch { return {}; }
+  })();
+  const [pinnedFilters, setPinnedFilters] = useState<Record<string, any>>(pinnedInit);
+  const [filterDoctors, setFilterDoctors] = useState<Set<string>>(
+    new Set(pinnedInit.doctor ? [pinnedInit.doctor as string] : [])
+  );
+  const [filterStatus, setFilterStatus] = useState<string>(pinnedInit.status || "all");
+  const [filterVisitStatus, setFilterVisitStatus] = useState<string>(pinnedInit.visit || "all");
+  // Date filter: preset key + optional specific date / range
+  const [datePreset, setDatePreset] = useState<string>(pinnedInit.date || "this_week");
+  const [specificDate, setSpecificDate] = useState<Date | undefined>(
+    pinnedInit.specificDate ? new Date(pinnedInit.specificDate) : undefined
+  );
+  const [rangeFrom, setRangeFrom] = useState<Date | undefined>(
+    pinnedInit.rangeFrom ? new Date(pinnedInit.rangeFrom) : undefined
+  );
+  const [rangeTo, setRangeTo] = useState<Date | undefined>(
+    pinnedInit.rangeTo ? new Date(pinnedInit.rangeTo) : undefined
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [pinnedQuickFilter, setPinnedQuickFilter] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem("appointments.pinnedQuickFilter") || "";
-  });
-  const [quickFilter, setQuickFilter] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem("appointments.pinnedQuickFilter") || "";
-  });
 
-  const togglePinnedQuickFilter = (key: string) => {
-    const next = pinnedQuickFilter === key ? "" : key;
-    setPinnedQuickFilter(next);
-    if (next) localStorage.setItem("appointments.pinnedQuickFilter", next);
-    else localStorage.removeItem("appointments.pinnedQuickFilter");
-    if (next) setQuickFilter(next);
+  const persistPinned = (next: Record<string, any>) => {
+    setPinnedFilters(next);
+    if (Object.keys(next).length) localStorage.setItem(PINNED_FILTERS_KEY, JSON.stringify(next));
+    else localStorage.removeItem(PINNED_FILTERS_KEY);
+  };
+
+  const togglePin = (key: string, value: any) => {
+    const next = { ...pinnedFilters };
+    if (next[key] !== undefined) {
+      delete next[key];
+      if (key === "date") { delete next.specificDate; delete next.rangeFrom; delete next.rangeTo; }
+    } else {
+      next[key] = value;
+      if (key === "date") {
+        if (specificDate) next.specificDate = specificDate.toISOString();
+        if (rangeFrom) next.rangeFrom = rangeFrom.toISOString();
+        if (rangeTo) next.rangeTo = rangeTo.toISOString();
+      }
+    }
+    persistPinned(next);
+  };
+
+  const PinButton = ({ pinKey, value, label }: { pinKey: string; value: any; label: string }) => {
+    const isPinned = pinnedFilters[pinKey] !== undefined;
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={cn("h-9 px-2 rounded-l-none border-l-0", isPinned && "text-primary")}
+        title={isPinned ? `Unpin ${label}` : `Pin ${label} as default`}
+        aria-label={isPinned ? `Unpin ${label}` : `Pin ${label}`}
+        onClick={() => togglePin(pinKey, value)}
+      >
+        <Pin className={cn("h-3.5 w-3.5", isPinned ? "fill-current" : "opacity-50")} />
+      </Button>
+    );
   };
 
   // Sort state for table view
@@ -356,22 +408,39 @@ const Appointments = () => {
     return map;
   }, [invoices]);
 
-  // Quick filter logic
-  const getQuickFilterRange = (filter: string) => {
+  // Date filter logic (shared by quick buttons and the date dropdown)
+  const getDateFilterRange = (preset: string): { start: Date; end: Date } | null => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart);
     todayEnd.setHours(23, 59, 59, 999);
-    switch (filter) {
+    const endOfDay = (d: Date) => { const e = new Date(d); e.setHours(23, 59, 59, 999); return e; };
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    switch (preset) {
       case "today": return { start: todayStart, end: todayEnd };
-      case "tomorrow": return { start: addDays(todayStart, 1), end: addDays(todayEnd, 1) };
       case "yesterday": return { start: addDays(todayStart, -1), end: addDays(todayEnd, -1) };
       case "this_week": return { start: startOfWeek(todayStart), end: endOfWeek(todayStart) };
-      case "last_7": return { start: addDays(todayStart, -6), end: todayEnd };
-      case "this_month": return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999) };
+      case "last_week": return { start: startOfWeek(addDays(todayStart, -7)), end: endOfWeek(addDays(todayStart, -7)) };
+      case "next_week": return { start: startOfWeek(addDays(todayStart, 7)), end: endOfWeek(addDays(todayStart, 7)) };
+      case "specific": return specificDate ? { start: startOfDay(specificDate), end: endOfDay(specificDate) } : null;
+      case "range":
+        if (!rangeFrom && !rangeTo) return null;
+        return {
+          start: rangeFrom ? startOfDay(rangeFrom) : new Date(1970, 0, 1),
+          end: rangeTo ? endOfDay(rangeTo) : new Date(2999, 0, 1),
+        };
       default: return null;
     }
   };
+
+  const dateFilterLabel = (() => {
+    if (datePreset === "specific") return specificDate ? format(specificDate, "MMM d, yyyy") : "Specific Date";
+    if (datePreset === "range")
+      return rangeFrom || rangeTo
+        ? `${rangeFrom ? format(rangeFrom, "MMM d") : "…"} – ${rangeTo ? format(rangeTo, "MMM d") : "…"}`
+        : "Date Range";
+    return DATE_PRESETS.find((p) => p.key === datePreset)?.label || "All Dates";
+  })();
 
   // Apply view filters
   const applyViewFilters = (items: any[]) => {
@@ -419,14 +488,8 @@ const Appointments = () => {
   // Filtered appointments
   let filteredAppointments = appointments.filter((apt: any) => {
     if (filterDoctors.size > 0 && apt.staff_id && !filterDoctors.has(apt.staff_id)) return false;
-    if (filterDate && !isSameDay(new Date(apt.start_time), filterDate)) return false;
-    if (filterSource !== "all") {
-      const src = (apt.source || "").toString().toLowerCase();
-      if (filterSource === "portal" && src !== "portal") return false;
-      if (filterSource === "walkin" && src === "portal") return false;
-    }
     if (filterStatus !== "all" && apt.status !== filterStatus) return false;
-    if (filterAppointmentType !== "all" && (apt.appointment_type || "Walk-in") !== filterAppointmentType) return false;
+    if (filterVisitStatus !== "all" && (apt.visit_status || "") !== filterVisitStatus) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const name = apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
@@ -441,10 +504,8 @@ const Appointments = () => {
       const haystack = `${name} ${apt.patients?.phone || ""} ${apt.service || ""} ${dateTokens}`.toLowerCase();
       if (!haystack.includes(q)) return false;
     }
-    if (quickFilter) {
-      const range = getQuickFilterRange(quickFilter);
-      if (range && !isWithinInterval(new Date(apt.start_time), range)) return false;
-    }
+    const dateRange = getDateFilterRange(datePreset);
+    if (dateRange && !isWithinInterval(new Date(apt.start_time), dateRange)) return false;
     return true;
   });
 
@@ -1140,7 +1201,7 @@ const Appointments = () => {
             onClick={() => setShowFilters(!showFilters)}
           >
             <Filter className="h-4 w-4" />
-            {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all" || filterAppointmentType !== "all") && (
+            {(searchQuery || filterDoctors.size > 0 || datePreset !== "this_week" || filterStatus !== "all" || filterVisitStatus !== "all") && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary" />
             )}
           </Button>
@@ -1260,7 +1321,7 @@ const Appointments = () => {
                     </Select>
                   </div>
                   <div>
-                    <Label>Next visit status</Label>
+                    <Label>Next visit</Label>
                     <Select value={visitStatus || "none"} onValueChange={(v) => setVisitStatus(v === "none" ? "" : v)}>
                       <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
@@ -1567,52 +1628,95 @@ const Appointments = () => {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search patient name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9 text-sm" />
             </div>
-            <Select value={filterDoctors.size === 0 ? "all" : filterDoctors.size === 1 ? [...filterDoctors][0] : "multi"} onValueChange={(v) => {
-              if (v === "all") setFilterDoctors(new Set());
-              else setFilterDoctors(new Set([v]));
-            }}>
-              <SelectTrigger className="w-[180px] h-9 text-sm"><SelectValue placeholder="All Doctors" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Doctors</SelectItem>
-                {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={filterSource} onValueChange={setFilterSource}>
-              <SelectTrigger className="w-[140px] h-9 text-sm"><SelectValue placeholder="All Sources" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sources</SelectItem>
-                <SelectItem value="portal">Portal</SelectItem>
-                <SelectItem value="walkin">Walk-in</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterAppointmentType} onValueChange={setFilterAppointmentType}>
-              <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue placeholder="All Types" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="Walk-in">Walk-in</SelectItem>
-                <SelectItem value="Online">Online</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue placeholder="All Status" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", filterDate && "border-primary text-primary")}>
-                  <CalendarIcon className="h-4 w-4" />
-                  {filterDate ? format(filterDate, "MMM d, yyyy") : "Filter by date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={filterDate} onSelect={setFilterDate} initialFocus className={cn("p-3 pointer-events-auto")} />
-              </PopoverContent>
-            </Popover>
-            {(searchQuery || filterDoctors.size > 0 || filterDate || filterSource !== "all" || filterStatus !== "all" || filterAppointmentType !== "all") && (
-              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterDate(undefined); setFilterSource("all"); setFilterStatus("all"); setFilterAppointmentType("all"); }}>Clear filters</Button>
+            <div className="flex items-center">
+              <Select value={filterDoctors.size === 0 ? "all" : filterDoctors.size === 1 ? [...filterDoctors][0] : "multi"} onValueChange={(v) => {
+                if (v === "all") setFilterDoctors(new Set());
+                else setFilterDoctors(new Set([v]));
+              }}>
+                <SelectTrigger className="w-[170px] h-9 text-sm rounded-r-none"><SelectValue placeholder="All Doctors" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Doctors</SelectItem>
+                  {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <PinButton pinKey="doctor" value={filterDoctors.size === 1 ? [...filterDoctors][0] : ""} label="doctor filter" />
+            </div>
+
+            <div className="flex items-center">
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[140px] h-9 text-sm rounded-r-none"><SelectValue placeholder="All Status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <PinButton pinKey="status" value={filterStatus} label="status filter" />
+            </div>
+
+            <div className="flex items-center">
+              <Select value={filterVisitStatus} onValueChange={setFilterVisitStatus}>
+                <SelectTrigger className="w-[160px] h-9 text-sm rounded-r-none"><SelectValue placeholder="All Next Visits" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Next Visits</SelectItem>
+                  {visitStatusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <PinButton pinKey="visit" value={filterVisitStatus} label="next visit filter" />
+            </div>
+
+            <div className="flex items-center">
+              <Select value={datePreset} onValueChange={setDatePreset}>
+                <SelectTrigger className="w-[160px] h-9 text-sm rounded-r-none"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {DATE_PRESETS.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <PinButton pinKey="date" value={datePreset} label="date filter" />
+            </div>
+
+            {datePreset === "specific" && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", specificDate && "border-primary text-primary")}>
+                    <CalendarIcon className="h-4 w-4" />
+                    {specificDate ? format(specificDate, "MMM d, yyyy") : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={specificDate} onSelect={setSpecificDate} initialFocus className={cn("p-3 pointer-events-auto")} />
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {datePreset === "range" && (
+              <>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", rangeFrom && "border-primary text-primary")}>
+                      <CalendarIcon className="h-4 w-4" />
+                      {rangeFrom ? format(rangeFrom, "MMM d, yyyy") : "From"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={rangeFrom} onSelect={setRangeFrom} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", rangeTo && "border-primary text-primary")}>
+                      <CalendarIcon className="h-4 w-4" />
+                      {rangeTo ? format(rangeTo, "MMM d, yyyy") : "To"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={rangeTo} onSelect={setRangeTo} initialFocus className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+              </>
+            )}
+
+            {(searchQuery || filterDoctors.size > 0 || datePreset !== "this_week" || filterStatus !== "all" || filterVisitStatus !== "all") && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterStatus("all"); setFilterVisitStatus("all"); setDatePreset("this_week"); setSpecificDate(undefined); setRangeFrom(undefined); setRangeTo(undefined); }}>Clear filters</Button>
             )}
             <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
           </motion.div>
@@ -1697,40 +1801,18 @@ const Appointments = () => {
                 {/* Quick date filters */}
                 <div className="p-3 border-b flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-muted-foreground font-medium mr-1">Quick:</span>
-                  {[
-                    { key: "yesterday", label: "Yesterday" },
-                    { key: "today", label: "Today" },
-                    { key: "tomorrow", label: "Tomorrow" },
-                    { key: "this_week", label: "This Week" },
-                    { key: "last_7", label: "Last 7 Days" },
-                    { key: "this_month", label: "This Month" },
-                  ].map((f) => (
-                    <div key={f.key} className="flex items-center">
-                      <Button
-                        variant={quickFilter === f.key ? "default" : "outline"}
-                        size="sm"
-                        className="h-7 text-xs px-3 rounded-r-none"
-                        onClick={() => setQuickFilter(quickFilter === f.key ? "" : f.key)}
-                      >
-                        {f.label}
-                      </Button>
-                      <Button
-                        variant={quickFilter === f.key ? "default" : "outline"}
-                        size="sm"
-                        className="h-7 px-1.5 rounded-l-none border-l-0"
-                        title={pinnedQuickFilter === f.key ? "Unpin default filter" : "Pin as default filter"}
-                        aria-label={pinnedQuickFilter === f.key ? `Unpin ${f.label}` : `Pin ${f.label}`}
-                        onClick={() => togglePinnedQuickFilter(f.key)}
-                      >
-                        <Pin className={cn("h-3 w-3", pinnedQuickFilter === f.key ? "fill-current" : "opacity-50")} />
-                      </Button>
-                    </div>
-                  ))}
-                  {quickFilter && (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setQuickFilter("")}>
-                      Clear
+                  {DATE_PRESETS.filter((p) => !["specific", "range"].includes(p.key)).map((f) => (
+                    <Button
+                      key={f.key}
+                      variant={datePreset === f.key ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 text-xs px-3"
+                      onClick={() => setDatePreset(f.key)}
+                    >
+                      {f.label}
                     </Button>
-                  )}
+                  ))}
+                  <span className="text-xs text-muted-foreground">· {dateFilterLabel}</span>
                   <span className="text-xs text-muted-foreground ml-auto">{sortedAppointments.length} result{sortedAppointments.length !== 1 ? "s" : ""}</span>
                 </div>
                 <table ref={appointmentsTableRef} className="w-full text-sm responsive-table">
@@ -1773,7 +1855,7 @@ const Appointments = () => {
                         </th>
                       )}
                       {shouldShowColumn("visit_status") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground">Visit Status</th>
+                        <th className="text-left p-3 font-medium text-muted-foreground">Next Visit</th>
                       )}
                       {shouldShowColumn("payment_mode") && (
                         <th className="text-left p-3 font-medium text-muted-foreground">Payment Mode</th>

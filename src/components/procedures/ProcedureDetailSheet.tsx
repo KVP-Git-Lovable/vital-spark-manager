@@ -576,7 +576,6 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                       {photos.map((photo: any) => (
                         <div key={photo.id} className="relative group">
                           <img src={photo.photo_url} alt="" className="w-full h-24 object-cover rounded-lg border" />
-                          <Badge variant="secondary" className="absolute top-1 left-1 text-[10px]">{photo.photo_type}</Badge>
                         </div>
                       ))}
                     </div>

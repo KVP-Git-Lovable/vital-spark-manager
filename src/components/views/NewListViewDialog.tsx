@@ -339,7 +339,7 @@ export function NewListViewDialog({
               <div className="flex flex-col items-center justify-center gap-2">
                 <Button
                   size="icon"
-                  className="h-10 w-10 rounded-lg bg-amber-500 hover:bg-amber-600 text-white"
+                  className="h-10 w-10 rounded-lg bg-primary hover:bg-primary/90 text-white"
                   onClick={() => {
                     const firstAvailable = availableFieldOptions[0]?.value;
                     if (firstAvailable) moveFieldToVisible(firstAvailable);
@@ -350,7 +350,7 @@ export function NewListViewDialog({
                 </Button>
                 <Button
                   size="icon"
-                  className="h-10 w-10 rounded-lg bg-amber-500 hover:bg-amber-600 text-white"
+                  className="h-10 w-10 rounded-lg bg-primary hover:bg-primary/90 text-white"
                   onClick={() => {
                     const lastVisible = displayFields[displayFields.length - 1];
                     if (lastVisible) moveFieldToAvailable(lastVisible);

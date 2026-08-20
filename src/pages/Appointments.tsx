@@ -171,6 +171,7 @@ const Appointments = () => {
   // Date filter: preset key + optional specific date / range
   const [datePreset, setDatePreset] = useState<string>(pinnedInit.date || "this_week");
   const [rangePopoverOpen, setRangePopoverOpen] = useState(false);
+  const [rangeCalendarMode, setRangeCalendarMode] = useState<"from" | "to">("from");
   const [specificDate, setSpecificDate] = useState<Date | undefined>(
     pinnedInit.specificDate ? new Date(pinnedInit.specificDate) : undefined
   );
@@ -1810,15 +1811,32 @@ const Appointments = () => {
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-4" align="start">
-                          <div className="space-y-4">
+                          <div className="space-y-3">
                             <div>
-                              <Label className="text-xs font-medium mb-2 block">From Date</Label>
-                              <Calendar mode="single" selected={rangeFrom} onSelect={setRangeFrom} className="rounded-md border" />
+                              <Label className="text-xs font-medium mb-2 block">
+                                {rangeCalendarMode === "from" ? "From Date" : "To Date"}
+                              </Label>
+                              <Calendar
+                                mode="single"
+                                selected={rangeCalendarMode === "from" ? rangeFrom : rangeTo}
+                                onSelect={(date) => {
+                                  if (rangeCalendarMode === "from") {
+                                    setRangeFrom(date);
+                                    setRangeCalendarMode("to");
+                                  } else {
+                                    setRangeTo(date);
+                                    setRangePopoverOpen(false);
+                                    setRangeCalendarMode("from");
+                                  }
+                                }}
+                                className="rounded-md border"
+                              />
                             </div>
-                            <div>
-                              <Label className="text-xs font-medium mb-2 block">To Date</Label>
-                              <Calendar mode="single" selected={rangeTo} onSelect={setRangeTo} className="rounded-md border" />
-                            </div>
+                            {rangeCalendarMode === "to" && (
+                              <div className="text-xs text-muted-foreground text-center pt-2 border-t">
+                                <p>From: {rangeFrom ? format(rangeFrom, "MMM d, yyyy") : "Not set"}</p>
+                              </div>
+                            )}
                           </div>
                         </PopoverContent>
                       </Popover>

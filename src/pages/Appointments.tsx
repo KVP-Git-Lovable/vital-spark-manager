@@ -316,7 +316,7 @@ const Appointments = () => {
     },
   });
 
-  const doctorsList = useMemo(() => (staffList as any[]).filter((s: any) => s.role === "Doctor"), [staffList]);
+  const doctorsList = useMemo(() => (staffList as any[]).filter((s: any) => (s.role || "").toLowerCase() === "doctor"), [staffList]);
 
   const { data: services = [] } = useQuery({
     queryKey: ["services-list"],

@@ -103,10 +103,23 @@ export function NewListViewDialog({
     const newFilters = [...filters];
     newFilters[idx] = { ...newFilters[idx], [field]: value };
     setFilters(newFilters);
+    // Clear search when changing field
+    if (field === "field") {
+      setFilterSearch("");
+    }
   };
 
   const deleteFilter = (idx: number) => {
     setFilters(filters.filter((_, i) => i !== idx));
+  };
+
+  const [filterSearch, setFilterSearch] = useState("");
+
+  const getFilteredOptions = (options: { value: string; label: string }[]) => {
+    if (!filterSearch) return options;
+    return options.filter((opt) =>
+      opt.label.toLowerCase().includes(filterSearch.toLowerCase())
+    );
   };
 
   const moveFieldToVisible = (field: string) => {
@@ -243,8 +256,14 @@ export function NewListViewDialog({
                           </PopoverTrigger>
                           <PopoverContent className="w-80 p-3">
                             <div className="space-y-2">
-                              <p className="text-xs font-medium text-muted-foreground mb-3">Select values:</p>
-                              {(fieldOptions[filter.field] || []).map((option) => (
+                              <p className="text-xs font-medium text-muted-foreground mb-2">Select values:</p>
+                              <Input
+                                placeholder="Search..."
+                                value={filterSearch}
+                                onChange={(e) => setFilterSearch(e.target.value)}
+                                className="mb-2 h-8 text-sm"
+                              />
+                              {getFilteredOptions(fieldOptions[filter.field] || []).map((option) => (
                                 <div key={option.value} className="flex items-center gap-2">
                                   <Checkbox
                                     id={`${idx}-${option.value}`}

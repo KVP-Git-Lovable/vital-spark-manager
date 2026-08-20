@@ -1803,6 +1803,32 @@ const Appointments = () => {
                       {f.label}
                     </Button>
                   ))}
+                  {datePreset === "range" && (
+                    <>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className={cn("h-7 text-xs px-3 gap-1", rangeFrom && "border-primary text-primary")}>
+                            <CalendarIcon className="h-3 w-3" />
+                            {rangeFrom ? format(rangeFrom, "MMM d") : "From"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar mode="single" selected={rangeFrom} onSelect={setRangeFrom} initialFocus className="p-3 pointer-events-auto" />
+                        </PopoverContent>
+                      </Popover>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className={cn("h-7 text-xs px-3 gap-1", rangeTo && "border-primary text-primary")}>
+                            <CalendarIcon className="h-3 w-3" />
+                            {rangeTo ? format(rangeTo, "MMM d") : "To"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar mode="single" selected={rangeTo} onSelect={setRangeTo} initialFocus className="p-3 pointer-events-auto" />
+                        </PopoverContent>
+                      </Popover>
+                    </>
+                  )}
                   <span className="text-xs text-muted-foreground">· {dateFilterLabel}</span>
                   <span className="text-xs text-muted-foreground ml-auto">{sortedAppointments.length} result{sortedAppointments.length !== 1 ? "s" : ""}</span>
                 </div>

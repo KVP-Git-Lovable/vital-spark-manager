@@ -1793,43 +1793,40 @@ const Appointments = () => {
                 <div className="p-3 border-b flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-muted-foreground font-medium mr-1">Quick:</span>
                   {DATE_PRESETS.filter((p) => p.key !== "specific").map((f) => (
-                    <Button
-                      key={f.key}
-                      variant={datePreset === f.key ? "default" : "outline"}
-                      size="sm"
-                      className="h-7 text-xs px-3"
-                      onClick={() => setDatePreset(f.key)}
-                    >
-                      {f.label}
-                    </Button>
+                    <Popover key={f.key} open={datePreset === f.key && f.key === "range"} onOpenChange={(open) => {
+                      if (f.key === "range" && !open) {
+                        // Keep the datePreset as "range" even if popover closes
+                      }
+                    }}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={datePreset === f.key ? "default" : "outline"}
+                          size="sm"
+                          className="h-7 text-xs px-3"
+                          onClick={() => setDatePreset(f.key)}
+                        >
+                          {f.label}
+                        </Button>
+                      </PopoverTrigger>
+                      {f.key === "range" && (
+                        <PopoverContent className="w-auto p-4" align="start">
+                          <div className="space-y-4">
+                            <div>
+                              <Label className="text-xs font-medium mb-2 block">From Date</Label>
+                              <Calendar mode="single" selected={rangeFrom} onSelect={setRangeFrom} className="rounded-md border" />
+                            </div>
+                            <div>
+                              <Label className="text-xs font-medium mb-2 block">To Date</Label>
+                              <Calendar mode="single" selected={rangeTo} onSelect={setRangeTo} className="rounded-md border" />
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      )}
+                    </Popover>
                   ))}
-                  {datePreset === "range" && (
-                    <>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" size="sm" className={cn("h-7 text-xs px-3 gap-1", rangeFrom && "border-primary text-primary")}>
-                            <CalendarIcon className="h-3 w-3" />
-                            {rangeFrom ? format(rangeFrom, "MMM d") : "From"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" selected={rangeFrom} onSelect={setRangeFrom} initialFocus className="p-3 pointer-events-auto" />
-                        </PopoverContent>
-                      </Popover>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" size="sm" className={cn("h-7 text-xs px-3 gap-1", rangeTo && "border-primary text-primary")}>
-                            <CalendarIcon className="h-3 w-3" />
-                            {rangeTo ? format(rangeTo, "MMM d") : "To"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" selected={rangeTo} onSelect={setRangeTo} initialFocus className="p-3 pointer-events-auto" />
-                        </PopoverContent>
-                      </Popover>
-                    </>
+                  {datePreset === "range" && (rangeFrom || rangeTo) && (
+                    <span className="text-xs text-muted-foreground">· {dateFilterLabel}</span>
                   )}
-                  <span className="text-xs text-muted-foreground">· {dateFilterLabel}</span>
                   <span className="text-xs text-muted-foreground ml-auto">{sortedAppointments.length} result{sortedAppointments.length !== 1 ? "s" : ""}</span>
                 </div>
                 <table ref={appointmentsTableRef} className="w-full text-sm responsive-table">

@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Trash2, ChevronRight, ChevronLeft, ChevronUp, ChevronDown } from "lucide-react";
 import { ListViewConfig, Filter } from "@/hooks/useListViews";
 
@@ -33,6 +35,9 @@ export function NewListViewDialog({
   const [filters, setFilters] = useState<Filter[]>([]);
   const [filterLogic, setFilterLogic] = useState<"all" | "any">("all");
   const [sharingMode, setSharingMode] = useState<"only_me" | "all_users" | "selected_team">("only_me");
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
+
+  const teamMembers = ["Alice Johnson", "Bob Smith", "Carol White", "David Brown", "Emma Davis"];
 
   const availableFieldOptions = availableFields.filter((f) => !displayFields.includes(f.value));
   const visibleFieldOptions = displayFields.map((f) =>
@@ -210,12 +215,47 @@ export function NewListViewDialog({
                     </Select>
 
                     {filter.operator !== "is_empty" && filter.operator !== "is_not_empty" && (
-                      <Input
-                        placeholder={filter.operator === "is_one_of" ? "Select one or more..." : "Enter value"}
-                        value={Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}
-                        onChange={(e) => updateFilter(idx, "value", e.target.value)}
-                        className="flex-1"
-                      />
+                      filter.operator === "is_one_of" ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Input
+                              placeholder="Select one or more..."
+                              value={Array.isArray(filter.value) ? filter.value.join(", ") : ""}
+                              readOnly
+                              className="flex-1 cursor-pointer"
+                            />
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80 p-3">
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-muted-foreground mb-3">Select values:</p>
+                              {["Pending", "Active", "Completed", "On Hold", "Cancelled"].map((option) => (
+                                <div key={option} className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={`${idx}-${option}`}
+                                    checked={Array.isArray(filter.value) && filter.value.includes(option)}
+                                    onCheckedChange={(checked) => {
+                                      const currentValues = Array.isArray(filter.value) ? filter.value : [];
+                                      if (checked) {
+                                        updateFilter(idx, "value", [...currentValues, option]);
+                                      } else {
+                                        updateFilter(idx, "value", currentValues.filter((v: string) => v !== option));
+                                      }
+                                    }}
+                                  />
+                                  <Label htmlFor={`${idx}-${option}`} className="text-sm cursor-pointer">{option}</Label>
+                                </div>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <Input
+                          placeholder="Enter value"
+                          value={Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}
+                          onChange={(e) => updateFilter(idx, "value", e.target.value)}
+                          className="flex-1"
+                        />
+                      )
                     )}
 
                     <Button
@@ -246,7 +286,8 @@ export function NewListViewDialog({
                     availableFieldOptions.map((field) => (
                       <div
                         key={field.value}
-                        className="flex items-center justify-between p-2.5 hover:bg-muted/50 rounded cursor-pointer group text-sm"
+                        onClick={() => moveFieldToVisible(field.value)}
+                        className="flex items-center justify-between p-2.5 hover:bg-muted/50 rounded cursor-pointer group text-sm transition-colors"
                       >
                         <span>{field.label}</span>
                         <ChevronRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -374,6 +415,30 @@ export function NewListViewDialog({
                 <SelectItem value="selected_team">Selected team members</SelectItem>
               </SelectContent>
             </Select>
+
+            {sharingMode === "selected_team" && (
+              <div className="mt-3 p-3 border rounded-lg bg-muted/20">
+                <p className="text-xs font-medium text-muted-foreground mb-3">Select team members to share with:</p>
+                <div className="space-y-2">
+                  {teamMembers.map((member) => (
+                    <div key={member} className="flex items-center gap-2">
+                      <Checkbox
+                        id={member}
+                        checked={selectedTeamMembers.includes(member)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedTeamMembers([...selectedTeamMembers, member]);
+                          } else {
+                            setSelectedTeamMembers(selectedTeamMembers.filter((m) => m !== member));
+                          }
+                        }}
+                      />
+                      <Label htmlFor={member} className="text-sm cursor-pointer">{member}</Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Actions */}

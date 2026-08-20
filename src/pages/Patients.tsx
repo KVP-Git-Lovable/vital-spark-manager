@@ -470,6 +470,12 @@ const Patients = () => {
         onCreate={createView}
         isLoading={isCreating}
         teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
+        fieldOptions={{
+          status: ["Active", "Inactive", "Archived"].map((s) => ({ value: s, label: s })),
+          gender: ["Male", "Female", "Other"].map((s) => ({ value: s, label: s })),
+          engagement: ["High", "Medium", "Low"].map((s) => ({ value: s, label: s })),
+          skin_type: ["Oily", "Dry", "Combination", "Sensitive", "Normal"].map((s) => ({ value: s, label: s })),
+        }}
       />
     </div>
   );

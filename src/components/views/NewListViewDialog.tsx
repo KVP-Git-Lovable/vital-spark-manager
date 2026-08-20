@@ -18,6 +18,7 @@ interface NewListViewDialogProps {
   onCreate: (config: ListViewConfig) => Promise<void>;
   isLoading?: boolean;
   teamMembers?: { id: string; name: string }[];
+  fieldOptions?: Record<string, { value: string; label: string }[]>;
 }
 
 export function NewListViewDialog({
@@ -29,6 +30,7 @@ export function NewListViewDialog({
   onCreate,
   isLoading = false,
   teamMembers = [],
+  fieldOptions = {},
 }: NewListViewDialogProps) {
   const [viewName, setViewName] = useState("");
   const [displayFields, setDisplayFields] = useState<string[]>(defaultFields);
@@ -228,23 +230,26 @@ export function NewListViewDialog({
                           <PopoverContent className="w-80 p-3">
                             <div className="space-y-2">
                               <p className="text-xs font-medium text-muted-foreground mb-3">Select values:</p>
-                              {["Pending", "Active", "Completed", "On Hold", "Cancelled"].map((option) => (
-                                <div key={option} className="flex items-center gap-2">
+                              {(fieldOptions[filter.field] || []).map((option) => (
+                                <div key={option.value} className="flex items-center gap-2">
                                   <Checkbox
-                                    id={`${idx}-${option}`}
-                                    checked={Array.isArray(filter.value) && filter.value.includes(option)}
+                                    id={`${idx}-${option.value}`}
+                                    checked={Array.isArray(filter.value) && filter.value.includes(option.value)}
                                     onCheckedChange={(checked) => {
                                       const currentValues = Array.isArray(filter.value) ? filter.value : [];
                                       if (checked) {
-                                        updateFilter(idx, "value", [...currentValues, option]);
+                                        updateFilter(idx, "value", [...currentValues, option.value]);
                                       } else {
-                                        updateFilter(idx, "value", currentValues.filter((v: string) => v !== option));
+                                        updateFilter(idx, "value", currentValues.filter((v: string) => v !== option.value));
                                       }
                                     }}
                                   />
-                                  <Label htmlFor={`${idx}-${option}`} className="text-sm cursor-pointer">{option}</Label>
+                                  <Label htmlFor={`${idx}-${option.value}`} className="text-sm cursor-pointer">{option.label}</Label>
                                 </div>
                               ))}
+                              {(!fieldOptions[filter.field] || fieldOptions[filter.field].length === 0) && (
+                                <p className="text-xs text-muted-foreground italic">No options available for this field</p>
+                              )}
                             </div>
                           </PopoverContent>
                         </Popover>

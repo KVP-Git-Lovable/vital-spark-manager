@@ -2224,6 +2224,13 @@ const Appointments = () => {
         onCreate={createView}
         isLoading={isCreating}
         teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
+        fieldOptions={{
+          doctor: doctorsList.map((d: any) => ({ value: d.id, label: `${d.first_name} ${d.last_name}` })),
+          service: services.map((s: any) => ({ value: s.id, label: s.name })),
+          patient: patients.map((p: any) => ({ value: p.id, label: `${p.first_name} ${p.last_name}` })),
+          status: ["Reserved", "Confirmed", "Cancelled"].map((s) => ({ value: s, label: s })),
+          visit_status: ["Follow-up visit", "Recurring visit"].map((s) => ({ value: s, label: s })),
+        }}
       />
     </div>
   );

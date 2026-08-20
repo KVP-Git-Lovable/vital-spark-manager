@@ -300,6 +300,10 @@ const Procedures = () => {
         onCreate={createView}
         isLoading={isCreating}
         teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
+        fieldOptions={{
+          doctor: staffList.map((s: any) => ({ value: s.id, label: `${s.first_name} ${s.last_name}` })),
+          status: ["Pending", "Completed", "Cancelled"].map((s) => ({ value: s, label: s })),
+        }}
       />
     </div>
   );

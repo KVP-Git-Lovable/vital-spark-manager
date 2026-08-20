@@ -3048,6 +3048,10 @@ const Billing = () => {
         onCreate={createView}
         isLoading={isCreating}
         teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
+        fieldOptions={{
+          status: ["Paid", "Partial", "Pending"].map((s) => ({ value: s, label: s })),
+          payment_mode: ["Cash", "Card", "Online Transfer", "Cheque"].map((s) => ({ value: s, label: s })),
+        }}
       />
     </div>
   );

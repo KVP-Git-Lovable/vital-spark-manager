@@ -35,7 +35,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ServiceDetailSheet } from "@/components/services/ServiceDetailSheet";
-import { fetchSalesforceServices, syncServicesToSupabase } from "@/integrations/salesforce/client";
 
 interface MedicineInput {
   product_id: string;
@@ -281,19 +280,78 @@ const Services = () => {
 
   const syncSalesforceeMutation = useMutation({
     mutationFn: async () => {
-      const sfServices = await fetchSalesforceServices();
-      const newServices = sfServices.filter(
-        (sf) => !services.some((s: any) => s.name?.toLowerCase() === sf.Name?.toLowerCase())
+      // Call Edge Function to fetch from Salesforce
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-salesforce-services`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
       );
-      if (newServices.length === 0) {
-        throw new Error("No new services to sync — all Salesforce services already exist");
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to fetch from Salesforce");
       }
-      const inserted = await syncServicesToSupabase(newServices);
-      return { total: sfServices.length, newCount: newServices.length, inserted };
+
+      const data = await response.json();
+      const sfServices = data.services || [];
+
+      // Filter out existing services by name
+      const newServices = sfServices.filter(
+        (sf: any) =>
+          !services.some(
+            (s: any) => s.name?.toLowerCase() === sf.Name?.toLowerCase()
+          )
+      );
+
+      if (newServices.length === 0) {
+        throw new Error(
+          "No new services to sync — all Salesforce services already exist"
+        );
+      }
+
+      // Map Salesforce fields to our database schema
+      const servicesToInsert = newServices.map((sf: any) => {
+        const recommendations = sf.Recommendations__c
+          ? sf.Recommendations__c.split("\n").filter((r: string) => r.trim())
+          : [];
+
+        return {
+          name: sf.Name,
+          category: sf.Category__c || "General",
+          price: sf.Cost__c || 0,
+          duration: sf.Duration__c || 30,
+          diagnosis: sf.Diagnosis__c || null,
+          procedure_notes: sf.Procedure_Notes__c || null,
+          symptoms: sf.Symptoms__c || null,
+          recommendations: recommendations,
+          salesforce_id: sf.Id,
+        };
+      });
+
+      // Insert into Supabase
+      const { data: inserted, error } = await supabase
+        .from("services")
+        .upsert(servicesToInsert, { onConflict: "salesforce_id" })
+        .select();
+
+      if (error) throw error;
+
+      return {
+        total: sfServices.length,
+        newCount: newServices.length,
+        inserted,
+      };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
-      toast.success(`Synced ${data.newCount} new services from Salesforce (${data.total} total available)`);
+      toast.success(
+        `Synced ${data.newCount} new services from Salesforce (${data.total} total available)`
+      );
     },
     onError: (err: Error) => toast.error(err.message),
   });

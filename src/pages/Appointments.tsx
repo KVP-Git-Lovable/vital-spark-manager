@@ -170,6 +170,7 @@ const Appointments = () => {
   const [filterVisitStatus, setFilterVisitStatus] = useState<string>(pinnedInit.visit || "all");
   // Date filter: preset key + optional specific date / range
   const [datePreset, setDatePreset] = useState<string>(pinnedInit.date || "this_week");
+  const [rangePopoverOpen, setRangePopoverOpen] = useState(false);
   const [specificDate, setSpecificDate] = useState<Date | undefined>(
     pinnedInit.specificDate ? new Date(pinnedInit.specificDate) : undefined
   );
@@ -1793,22 +1794,21 @@ const Appointments = () => {
                 <div className="p-3 border-b flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-muted-foreground font-medium mr-1">Quick:</span>
                   {DATE_PRESETS.filter((p) => p.key !== "specific").map((f) => (
-                    <Popover key={f.key} open={datePreset === f.key && f.key === "range"} onOpenChange={(open) => {
-                      if (f.key === "range" && !open) {
-                        // Keep the datePreset as "range" even if popover closes
-                      }
-                    }}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={datePreset === f.key ? "default" : "outline"}
-                          size="sm"
-                          className="h-7 text-xs px-3"
-                          onClick={() => setDatePreset(f.key)}
-                        >
-                          {f.label}
-                        </Button>
-                      </PopoverTrigger>
-                      {f.key === "range" && (
+                    f.key === "range" ? (
+                      <Popover key={f.key} open={rangePopoverOpen} onOpenChange={setRangePopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant={datePreset === f.key ? "default" : "outline"}
+                            size="sm"
+                            className="h-7 text-xs px-3"
+                            onClick={() => {
+                              setDatePreset(f.key);
+                              setRangePopoverOpen(true);
+                            }}
+                          >
+                            {f.label}
+                          </Button>
+                        </PopoverTrigger>
                         <PopoverContent className="w-auto p-4" align="start">
                           <div className="space-y-4">
                             <div>
@@ -1821,8 +1821,18 @@ const Appointments = () => {
                             </div>
                           </div>
                         </PopoverContent>
-                      )}
-                    </Popover>
+                      </Popover>
+                    ) : (
+                      <Button
+                        key={f.key}
+                        variant={datePreset === f.key ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 text-xs px-3"
+                        onClick={() => setDatePreset(f.key)}
+                      >
+                        {f.label}
+                      </Button>
+                    )
                   ))}
                   {datePreset === "range" && (rangeFrom || rangeTo) && (
                     <span className="text-xs text-muted-foreground">· {dateFilterLabel}</span>

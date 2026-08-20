@@ -494,6 +494,15 @@ const Billing = () => {
     },
   });
 
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-active-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name").eq("is_active", true).order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: productUnitsData } = usePharmaProductUnits();
   const unitsByProduct = productUnitsData?.byProduct || {};
 
@@ -3038,6 +3047,7 @@ const Billing = () => {
         defaultFields={DEFAULT_BILLING_FIELDS}
         onCreate={createView}
         isLoading={isCreating}
+        teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
       />
     </div>
   );

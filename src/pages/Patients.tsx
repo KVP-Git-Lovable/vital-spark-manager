@@ -126,6 +126,15 @@ const Patients = () => {
     placeholderData: keepPreviousData,
   });
 
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-active-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name").eq("is_active", true).order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const paged: Patient[] = data?.rows ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -460,6 +469,7 @@ const Patients = () => {
         defaultFields={DEFAULT_PATIENT_FIELDS}
         onCreate={createView}
         isLoading={isCreating}
+        teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
       />
     </div>
   );

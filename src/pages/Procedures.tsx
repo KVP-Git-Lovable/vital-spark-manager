@@ -74,6 +74,15 @@ const Procedures = () => {
     },
   });
 
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-active-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name").eq("is_active", true).order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   let filtered = procedures.filter((p: any) => {
     const name = `${p.patients?.first_name || ""} ${p.patients?.last_name || ""}`.toLowerCase();
     return name.includes(search.toLowerCase()) || p.service_name?.toLowerCase().includes(search.toLowerCase());
@@ -290,6 +299,7 @@ const Procedures = () => {
         defaultFields={DEFAULT_PROCEDURE_FIELDS}
         onCreate={createView}
         isLoading={isCreating}
+        teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
       />
     </div>
   );

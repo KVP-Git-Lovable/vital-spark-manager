@@ -2223,6 +2223,7 @@ const Appointments = () => {
         defaultFields={DEFAULT_APPOINTMENT_FIELDS}
         onCreate={createView}
         isLoading={isCreating}
+        teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
       />
     </div>
   );

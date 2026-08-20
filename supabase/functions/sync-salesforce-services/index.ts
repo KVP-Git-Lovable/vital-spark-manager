@@ -2,15 +2,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface SalesforceToken {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-}
+const GATEWAY_URL = "https://connector-gateway.lovable.dev/salesforce";
 
 interface SalesforceService {
   Id: string;
@@ -25,57 +21,30 @@ interface SalesforceService {
   Recommendations__c?: string;
 }
 
-async function getAccessToken(): Promise<string> {
-  const orgUrl = Deno.env.get("SALESFORCE_ORG_URL");
-  const clientId = Deno.env.get("SALESFORCE_CLIENT_ID");
-  const clientSecret = Deno.env.get("SALESFORCE_CLIENT_SECRET");
+async function fetchSalesforceServices(): Promise<SalesforceService[]> {
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+  const salesforceApiKey = Deno.env.get("SALESFORCE_API_KEY");
 
-  if (!orgUrl || !clientId || !clientSecret) {
-    throw new Error("Missing Salesforce credentials in environment variables");
+  if (!lovableApiKey || !salesforceApiKey) {
+    throw new Error("Salesforce connector secrets are not configured");
   }
 
-  const params = new URLSearchParams({
-    grant_type: "client_credentials",
-    client_id: clientId,
-    client_secret: clientSecret,
-  });
+  const soql =
+    "SELECT Id, Name, Category__c, Cost__c, Duration__c, Diagnosis__c, Symptoms__c, Procedure_Notes__c, Medicines__c, Recommendations__c FROM Service__c ORDER BY Name";
 
-  const response = await fetch(`${orgUrl}/services/oauth2/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
+  const response = await fetch(`${GATEWAY_URL}/query?q=${encodeURIComponent(soql)}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${lovableApiKey}`,
+      "X-Connection-Api-Key": salesforceApiKey,
+      Accept: "application/json",
+    },
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Salesforce auth failed: ${response.status} ${text}`);
-  }
-
-  const token: SalesforceToken = await response.json();
-  return token.access_token;
-}
-
-async function fetchSalesforceServices(token: string): Promise<SalesforceService[]> {
-  const orgUrl = Deno.env.get("SALESFORCE_ORG_URL");
-
-  const query = encodeURIComponent(
-    "SELECT Id, Name, Category__c, Cost__c, Duration__c, Diagnosis__c, Symptoms__c, Procedure_Notes__c, Medicines__c, Recommendations__c FROM Service__c ORDER BY Name"
-  );
-
-  const response = await fetch(
-    `${orgUrl}/services/data/v57.0/query?q=${query}`,
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Failed to fetch services: ${response.status} ${text}`);
+    const errorBody = await response.text();
+    console.error(`Salesforce gateway request failed [${response.status}]: ${errorBody}`);
+    throw new Error(`[${response.status}] ${errorBody}`);
   }
 
   const data = await response.json();
@@ -88,8 +57,7 @@ serve(async (req) => {
   }
 
   try {
-    const token = await getAccessToken();
-    const services = await fetchSalesforceServices(token);
+    const services = await fetchSalesforceServices();
 
     return new Response(JSON.stringify({ success: true, services }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -17,6 +17,7 @@ interface NewListViewDialogProps {
   defaultFields: string[];
   onCreate: (config: ListViewConfig) => Promise<void>;
   isLoading?: boolean;
+  teamMembers?: { id: string; name: string }[];
 }
 
 export function NewListViewDialog({
@@ -27,6 +28,7 @@ export function NewListViewDialog({
   defaultFields,
   onCreate,
   isLoading = false,
+  teamMembers = [],
 }: NewListViewDialogProps) {
   const [viewName, setViewName] = useState("");
   const [displayFields, setDisplayFields] = useState<string[]>(defaultFields);
@@ -36,8 +38,6 @@ export function NewListViewDialog({
   const [filterLogic, setFilterLogic] = useState<"all" | "any">("all");
   const [sharingMode, setSharingMode] = useState<"only_me" | "all_users" | "selected_team">("only_me");
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
-
-  const teamMembers = ["Alice Johnson", "Bob Smith", "Carol White", "David Brown", "Emma Davis"];
 
   const availableFieldOptions = availableFields.filter((f) => !displayFields.includes(f.value));
   const visibleFieldOptions = displayFields.map((f) =>
@@ -300,9 +300,8 @@ export function NewListViewDialog({
               {/* Chevron Buttons */}
               <div className="flex flex-col items-center justify-center gap-2">
                 <Button
-                  variant="outline"
                   size="icon"
-                  className="h-9 w-9"
+                  className="h-10 w-10 rounded-lg bg-amber-500 hover:bg-amber-600 text-white"
                   onClick={() => {
                     const firstAvailable = availableFieldOptions[0]?.value;
                     if (firstAvailable) moveFieldToVisible(firstAvailable);
@@ -312,9 +311,8 @@ export function NewListViewDialog({
                   <ChevronRight className="h-4 w-4" />
                 </Button>
                 <Button
-                  variant="outline"
                   size="icon"
-                  className="h-9 w-9"
+                  className="h-10 w-10 rounded-lg bg-amber-500 hover:bg-amber-600 text-white"
                   onClick={() => {
                     const lastVisible = displayFields[displayFields.length - 1];
                     if (lastVisible) moveFieldToAvailable(lastVisible);
@@ -420,22 +418,26 @@ export function NewListViewDialog({
               <div className="mt-3 p-3 border rounded-lg bg-muted/20">
                 <p className="text-xs font-medium text-muted-foreground mb-3">Select team members to share with:</p>
                 <div className="space-y-2">
-                  {teamMembers.map((member) => (
-                    <div key={member} className="flex items-center gap-2">
-                      <Checkbox
-                        id={member}
-                        checked={selectedTeamMembers.includes(member)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedTeamMembers([...selectedTeamMembers, member]);
-                          } else {
-                            setSelectedTeamMembers(selectedTeamMembers.filter((m) => m !== member));
-                          }
-                        }}
-                      />
-                      <Label htmlFor={member} className="text-sm cursor-pointer">{member}</Label>
-                    </div>
-                  ))}
+                  {teamMembers.length > 0 ? (
+                    teamMembers.map((member) => (
+                      <div key={member.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={member.id}
+                          checked={selectedTeamMembers.includes(member.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedTeamMembers([...selectedTeamMembers, member.id]);
+                            } else {
+                              setSelectedTeamMembers(selectedTeamMembers.filter((m) => m !== member.id));
+                            }
+                          }}
+                        />
+                        <Label htmlFor={member.id} className="text-sm cursor-pointer">{member.name}</Label>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">No team members available</p>
+                  )}
                 </div>
               </div>
             )}

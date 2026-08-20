@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 interface NewListViewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  section: "appointments" | "procedures" | "patients";
+  section: "appointments" | "procedures" | "patients" | "billing";
   availableFields: { value: string; label: string }[];
   defaultFields: string[];
   onCreate: (config: ListViewConfig) => Promise<void>;
@@ -29,7 +29,7 @@ export function NewListViewDialog({
 }: NewListViewDialogProps) {
   const [viewName, setViewName] = useState("");
   const [displayFields, setDisplayFields] = useState<string[]>(defaultFields);
-  const [sortBy, setSortBy] = useState("created_at");
+  const [sortBy, setSortBy] = useState(availableFields[0]?.value || "");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [filters, setFilters] = useState<Filter[]>([]);
   const [filterLogic, setFilterLogic] = useState<"all" | "any">("all");
@@ -72,7 +72,7 @@ export function NewListViewDialog({
   const resetForm = () => {
     setViewName("");
     setDisplayFields(defaultFields);
-    setSortBy("created_at");
+    setSortBy(availableFields[0]?.value || "");
     setSortDirection("desc");
     setFilters([]);
     setFilterLogic("all");
@@ -117,7 +117,7 @@ export function NewListViewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New List View</DialogTitle>
         </DialogHeader>
@@ -140,12 +140,12 @@ export function NewListViewDialog({
           {/* Filters */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <Label className="text-sm font-medium flex items-center gap-2">
-                <span>Filters</span>
-              </Label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Filters</span>
+              </div>
               <div className="flex items-center gap-2">
                 <Select value={filterLogic} onValueChange={(v) => setFilterLogic(v as "all" | "any")}>
-                  <SelectTrigger className="w-40 h-8 text-sm">
+                  <SelectTrigger className="w-48 h-9 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -157,36 +157,36 @@ export function NewListViewDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-1.5"
+                  className="gap-1"
                   onClick={() => setShowFilterBuilder(true)}
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus className="h-4 w-4" />
                   Add
                 </Button>
               </div>
             </div>
 
-            <div className="p-3 border rounded-lg bg-muted/30 min-h-[50px]">
+            <div className="p-4 border rounded-lg bg-muted/20 min-h-[60px]">
               {filters.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No filters — this view shows all records.</p>
               ) : (
                 <div className="space-y-2">
                   {filters.map((filter, idx) => (
-                    <div key={idx} className="flex items-center gap-2 p-2 bg-background rounded border">
-                      <Badge variant="outline" className="text-xs">
+                    <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded border">
+                      <Badge variant="secondary" className="text-xs">
                         {availableFields.find((f) => f.value === filter.field)?.label || filter.field}
                       </Badge>
-                      <Badge variant="outline" className="text-xs">{filter.operator}</Badge>
+                      <Badge variant="secondary" className="text-xs">{filter.operator}</Badge>
                       <span className="text-xs text-muted-foreground truncate flex-1">
                         {Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}
                       </span>
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
+                        size="sm"
+                        className="h-6 w-6 p-0"
                         onClick={() => setFilters(filters.filter((_, i) => i !== idx))}
                       >
-                        <Trash2 className="h-3 w-3 text-destructive" />
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </div>
                   ))}
@@ -198,73 +198,86 @@ export function NewListViewDialog({
           {/* Display Fields - Dual Panel */}
           <div>
             <Label className="text-sm font-medium mb-3 block">Display Fields</Label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-4">
               {/* Available Fields */}
               <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-2">AVAILABLE FIELDS</p>
-                <div className="border rounded-lg bg-muted/20 p-3 min-h-[250px] space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground uppercase mb-3">Available Fields</p>
+                <div className="border rounded-lg bg-white p-3 min-h-[280px] space-y-1 overflow-y-auto">
                   {availableFieldOptions.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">All fields are visible</p>
+                    <p className="text-xs text-muted-foreground italic">All fields are visible</p>
                   ) : (
                     availableFieldOptions.map((field) => (
                       <div
                         key={field.value}
-                        className="flex items-center justify-between p-2 hover:bg-muted/40 rounded cursor-pointer group"
+                        className="flex items-center justify-between p-2.5 hover:bg-muted/50 rounded cursor-pointer group text-sm"
                       >
-                        <span className="text-sm">{field.label}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                          onClick={() => moveFieldToVisible(field.value)}
-                        >
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
+                        <span>{field.label}</span>
+                        <ChevronRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     ))
                   )}
                 </div>
               </div>
 
+              {/* Chevron Buttons */}
+              <div className="flex flex-col items-center justify-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => {
+                    const firstAvailable = availableFieldOptions[0]?.value;
+                    if (firstAvailable) moveFieldToVisible(firstAvailable);
+                  }}
+                  disabled={availableFieldOptions.length === 0}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => {
+                    const lastVisible = displayFields[displayFields.length - 1];
+                    if (lastVisible) moveFieldToAvailable(lastVisible);
+                  }}
+                  disabled={visibleFieldOptions.length === 0}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              </div>
+
               {/* Visible Fields */}
               <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-2">VISIBLE FIELDS (IN ORDER)</p>
-                <div className="border rounded-lg bg-muted/20 p-3 min-h-[250px] space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground uppercase mb-3">Visible Fields (In Order)</p>
+                <div className="border rounded-lg bg-white p-3 min-h-[280px] space-y-1 overflow-y-auto">
                   {visibleFieldOptions.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Select fields to display</p>
+                    <p className="text-xs text-muted-foreground italic">Select fields to display</p>
                   ) : (
                     visibleFieldOptions.map((field, idx) => (
                       <div
                         key={field?.value}
-                        className="flex items-center justify-between p-2 hover:bg-muted/40 rounded bg-background border"
+                        className="flex items-center justify-between p-2.5 bg-muted/30 rounded border text-sm"
                       >
-                        <span className="text-sm flex-1">{field?.label}</span>
+                        <span className="flex-1">{field?.label}</span>
                         <div className="flex items-center gap-0.5">
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-6 w-6 p-0"
                             disabled={idx === 0}
                             onClick={() => moveFieldUp(idx)}
                           >
-                            <ChevronUp className="h-3 w-3" />
+                            <ChevronUp className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-6 w-6 p-0"
                             disabled={idx === visibleFieldOptions.length - 1}
                             onClick={() => moveFieldDown(idx)}
                           >
-                            <ChevronDown className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => moveFieldToAvailable(field?.value || "")}
-                          >
-                            <ChevronLeft className="h-3.5 w-3.5" />
+                            <ChevronDown className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </div>
@@ -276,7 +289,7 @@ export function NewListViewDialog({
           </div>
 
           {/* Sort Options */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="sort-by" className="text-sm font-medium">
                 Sort by
@@ -313,9 +326,7 @@ export function NewListViewDialog({
 
           {/* Sharing */}
           <div>
-            <Label className="text-sm font-medium mb-3 flex items-center gap-2">
-              <span>Sharing</span>
-            </Label>
+            <Label className="text-sm font-medium mb-3 block">Sharing</Label>
             <Select value={isShared ? "shared" : "private"} onValueChange={(v) => setIsShared(v === "shared")}>
               <SelectTrigger>
                 <SelectValue />
@@ -328,11 +339,11 @@ export function NewListViewDialog({
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 pt-4 border-t">
+          <div className="flex justify-end gap-3 pt-4 border-t">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
               Cancel
             </Button>
-            <Button onClick={handleCreateView} disabled={isLoading} className="gap-2">
+            <Button onClick={handleCreateView} disabled={isLoading} className="gap-2 min-w-[120px]">
               {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
               Create View
             </Button>

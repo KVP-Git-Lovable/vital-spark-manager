@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, Edit2, Trash2, Clock, IndianRupee, Pill, Sparkles, Loader2, Wrench } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Clock, IndianRupee, Pill, Sparkles, Loader2, Wrench, Cloud } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ServiceDetailSheet } from "@/components/services/ServiceDetailSheet";
+import { fetchSalesforceServices, syncServicesToSupabase } from "@/integrations/salesforce/client";
 
 interface MedicineInput {
   product_id: string;
@@ -278,6 +279,25 @@ const Services = () => {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const syncSalesforceeMutation = useMutation({
+    mutationFn: async () => {
+      const sfServices = await fetchSalesforceServices();
+      const newServices = sfServices.filter(
+        (sf) => !services.some((s: any) => s.name?.toLowerCase() === sf.Name?.toLowerCase())
+      );
+      if (newServices.length === 0) {
+        throw new Error("No new services to sync — all Salesforce services already exist");
+      }
+      const inserted = await syncServicesToSupabase(newServices);
+      return { total: sfServices.length, newCount: newServices.length, inserted };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["services"] });
+      toast.success(`Synced ${data.newCount} new services from Salesforce (${data.total} total available)`);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const resetForm = () => {
     setName("");
     setCategory("");
@@ -350,6 +370,10 @@ const Services = () => {
           <p className="page-subtitle">Manage clinic services, medicines and recommendations</p>
         </div>
         <div className="flex gap-2 w-fit">
+        <Button variant="outline" className="gap-2" onClick={() => syncSalesforceeMutation.mutate()} disabled={syncSalesforceeMutation.isPending}>
+          {syncSalesforceeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
+          {syncSalesforceeMutation.isPending ? "Syncing..." : "Sync from Salesforce"}
+        </Button>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive" disabled={services.length === 0 || deleteAllMutation.isPending}>

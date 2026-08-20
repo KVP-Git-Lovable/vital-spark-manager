@@ -2691,6 +2691,7 @@ export type Database = {
           problem_area_ids: string[]
           procedure_notes: string | null
           recommendations: string[] | null
+          salesforce_id: string | null
           symptoms: string | null
           updated_at: string
         }
@@ -2707,6 +2708,7 @@ export type Database = {
           problem_area_ids?: string[]
           procedure_notes?: string | null
           recommendations?: string[] | null
+          salesforce_id?: string | null
           symptoms?: string | null
           updated_at?: string
         }
@@ -2723,6 +2725,7 @@ export type Database = {
           problem_area_ids?: string[]
           procedure_notes?: string | null
           recommendations?: string[] | null
+          salesforce_id?: string | null
           symptoms?: string | null
           updated_at?: string
         }

@@ -4,9 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Plus, Loader2, Trash2, ChevronRight, ChevronLeft, ChevronUp, ChevronDown } from "lucide-react";
+import { Loader2, Trash2, ChevronRight, ChevronLeft, ChevronUp, ChevronDown } from "lucide-react";
 import { ListViewConfig, Filter } from "@/hooks/useListViews";
-import { Badge } from "@/components/ui/badge";
 
 interface NewListViewDialogProps {
   open: boolean;
@@ -33,11 +32,7 @@ export function NewListViewDialog({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [filters, setFilters] = useState<Filter[]>([]);
   const [filterLogic, setFilterLogic] = useState<"all" | "any">("all");
-  const [isShared, setIsShared] = useState(false);
-  const [showFilterBuilder, setShowFilterBuilder] = useState(false);
-  const [filterField, setFilterField] = useState(availableFields[0]?.value || "");
-  const [filterOperator, setFilterOperator] = useState("equals");
-  const [filterValue, setFilterValue] = useState("");
+  const [sharingMode, setSharingMode] = useState<"only_me" | "all_users" | "selected_team">("only_me");
 
   const availableFieldOptions = availableFields.filter((f) => !displayFields.includes(f.value));
   const visibleFieldOptions = displayFields.map((f) =>
@@ -62,7 +57,7 @@ export function NewListViewDialog({
       displayFields,
       sortBy,
       sortDirection,
-      isShared,
+      isShared: sharingMode !== "only_me",
     });
 
     resetForm();
@@ -76,7 +71,21 @@ export function NewListViewDialog({
     setSortDirection("desc");
     setFilters([]);
     setFilterLogic("all");
-    setIsShared(false);
+    setSharingMode("only_me");
+  };
+
+  const addFilter = () => {
+    setFilters([...filters, { field: availableFields[0]?.value || "", operator: "equals", value: "" }]);
+  };
+
+  const updateFilter = (idx: number, field: keyof Filter, value: any) => {
+    const newFilters = [...filters];
+    newFilters[idx] = { ...newFilters[idx], [field]: value };
+    setFilters(newFilters);
+  };
+
+  const deleteFilter = (idx: number) => {
+    setFilters(filters.filter((_, i) => i !== idx));
   };
 
   const moveFieldToVisible = (field: string) => {
@@ -103,16 +112,19 @@ export function NewListViewDialog({
     }
   };
 
-  const addFilter = () => {
-    if (!filterField || !filterValue.trim()) {
-      alert("Please select a field and enter a value");
-      return;
-    }
-    setFilters([...filters, { field: filterField, operator: filterOperator, value: filterValue }]);
-    setFilterField(availableFields[0]?.value || "");
-    setFilterOperator("equals");
-    setFilterValue("");
-    setShowFilterBuilder(false);
+  const getOperatorLabel = (op: string) => {
+    const labels: Record<string, string> = {
+      equals: "equals",
+      contains: "contains",
+      starts_with: "starts with",
+      ends_with: "ends with",
+      greater_than: "greater than",
+      less_than: "less than",
+      is_empty: "is empty",
+      is_not_empty: "is not empty",
+      is_one_of: "is one of (multi-select)",
+    };
+    return labels[op] || op;
   };
 
   return (
@@ -137,12 +149,10 @@ export function NewListViewDialog({
             />
           </div>
 
-          {/* Filters */}
+          {/* Filters - Inline */}
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Filters</span>
-              </div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-medium">⚙ Filters</span>
               <div className="flex items-center gap-2">
                 <Select value={filterLogic} onValueChange={(v) => setFilterLogic(v as "all" | "any")}>
                   <SelectTrigger className="w-48 h-9 text-sm">
@@ -157,40 +167,67 @@ export function NewListViewDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-1"
-                  onClick={() => setShowFilterBuilder(true)}
+                  className="gap-2"
+                  onClick={addFilter}
                 >
-                  <Plus className="h-4 w-4" />
-                  Add
+                  + Add
                 </Button>
               </div>
             </div>
 
-            <div className="p-4 border rounded-lg bg-muted/20 min-h-[60px]">
+            <div className="space-y-2">
               {filters.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No filters — this view shows all records.</p>
+                <p className="text-sm text-muted-foreground py-2">No filters — this view shows all records.</p>
               ) : (
-                <div className="space-y-2">
-                  {filters.map((filter, idx) => (
-                    <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded border">
-                      <Badge variant="secondary" className="text-xs">
-                        {availableFields.find((f) => f.value === filter.field)?.label || filter.field}
-                      </Badge>
-                      <Badge variant="secondary" className="text-xs">{filter.operator}</Badge>
-                      <span className="text-xs text-muted-foreground truncate flex-1">
-                        {Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => setFilters(filters.filter((_, i) => i !== idx))}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                filters.map((filter, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Select value={filter.field} onValueChange={(v) => updateFilter(idx, "field", v)}>
+                      <SelectTrigger className="w-48">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableFields.map((f) => (
+                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={filter.operator} onValueChange={(v) => updateFilter(idx, "operator", v)}>
+                      <SelectTrigger className="w-56">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="equals">equals</SelectItem>
+                        <SelectItem value="is_one_of">is one of (multi-select)</SelectItem>
+                        <SelectItem value="contains">contains</SelectItem>
+                        <SelectItem value="starts_with">starts with</SelectItem>
+                        <SelectItem value="ends_with">ends with</SelectItem>
+                        <SelectItem value="greater_than">greater than</SelectItem>
+                        <SelectItem value="less_than">less than</SelectItem>
+                        <SelectItem value="is_empty">is empty</SelectItem>
+                        <SelectItem value="is_not_empty">is not empty</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {filter.operator !== "is_empty" && filter.operator !== "is_not_empty" && (
+                      <Input
+                        placeholder={filter.operator === "is_one_of" ? "Select one or more..." : "Enter value"}
+                        value={Array.isArray(filter.value) ? filter.value.join(", ") : filter.value}
+                        onChange={(e) => updateFilter(idx, "value", e.target.value)}
+                        className="flex-1"
+                      />
+                    )}
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 shrink-0"
+                      onClick={() => deleteFilter(idx)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))
               )}
             </div>
           </div>
@@ -326,14 +363,15 @@ export function NewListViewDialog({
 
           {/* Sharing */}
           <div>
-            <Label className="text-sm font-medium mb-3 block">Sharing</Label>
-            <Select value={isShared ? "shared" : "private"} onValueChange={(v) => setIsShared(v === "shared")}>
+            <Label className="text-sm font-medium mb-3 block">👥 Sharing</Label>
+            <Select value={sharingMode} onValueChange={(v) => setSharingMode(v as "only_me" | "all_users" | "selected_team")}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="private">Only me</SelectItem>
-                <SelectItem value="shared">Specific people (coming soon)</SelectItem>
+                <SelectItem value="only_me">Only me</SelectItem>
+                <SelectItem value="all_users">All users</SelectItem>
+                <SelectItem value="selected_team">Selected team members</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -350,78 +388,6 @@ export function NewListViewDialog({
           </div>
         </div>
       </DialogContent>
-
-      {/* Filter Builder Dialog */}
-      <Dialog open={showFilterBuilder} onOpenChange={setShowFilterBuilder}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add Filter</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="filter-field" className="text-sm font-medium">
-                Field
-              </Label>
-              <Select value={filterField} onValueChange={setFilterField}>
-                <SelectTrigger id="filter-field" className="mt-1.5">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableFields.map((field) => (
-                    <SelectItem key={field.value} value={field.value}>
-                      {field.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="filter-operator" className="text-sm font-medium">
-                Operator
-              </Label>
-              <Select value={filterOperator} onValueChange={setFilterOperator}>
-                <SelectTrigger id="filter-operator" className="mt-1.5">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="equals">Equals</SelectItem>
-                  <SelectItem value="contains">Contains</SelectItem>
-                  <SelectItem value="starts_with">Starts With</SelectItem>
-                  <SelectItem value="ends_with">Ends With</SelectItem>
-                  <SelectItem value="greater_than">Greater Than</SelectItem>
-                  <SelectItem value="less_than">Less Than</SelectItem>
-                  <SelectItem value="is_empty">Is Empty</SelectItem>
-                  <SelectItem value="is_not_empty">Is Not Empty</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {filterOperator !== "is_empty" && filterOperator !== "is_not_empty" && (
-              <div>
-                <Label htmlFor="filter-value" className="text-sm font-medium">
-                  Value
-                </Label>
-                <Input
-                  id="filter-value"
-                  placeholder="Enter filter value"
-                  value={filterValue}
-                  onChange={(e) => setFilterValue(e.target.value)}
-                  className="mt-1.5"
-                />
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="outline" onClick={() => setShowFilterBuilder(false)}>
-                Cancel
-              </Button>
-              <Button onClick={addFilter}>Add Filter</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </Dialog>
   );
 }

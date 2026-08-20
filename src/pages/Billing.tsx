@@ -3,6 +3,9 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths, isSameDay } from "date-fns";
 import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown, Stethoscope } from "lucide-react";
+import { ViewSelector } from "@/components/views/ViewSelector";
+import { NewListViewDialog } from "@/components/views/NewListViewDialog";
+import { useListViews } from "@/hooks/useListViews";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -227,10 +230,25 @@ const getDrName = (inv: any) => {
   return "";
 };
 
+const BILLING_FIELDS = [
+  { value: "invoice_number", label: "Invoice #" },
+  { value: "patient_name", label: "Patient" },
+  { value: "total_amount", label: "Total Amount" },
+  { value: "paid_amount", label: "Paid Amount" },
+  { value: "status", label: "Status" },
+  { value: "payment_mode", label: "Payment Mode" },
+  { value: "created_at", label: "Date" },
+];
+
+const DEFAULT_BILLING_FIELDS = ["invoice_number", "patient_name", "total_amount", "status"];
+
 const Billing = () => {
   const invoiceTableRef = useStackedTable<HTMLTableElement>();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [showNewViewDialog, setShowNewViewDialog] = useState(false);
+
+  const { views, currentView, selectedViewId, setSelectedViewId, createView, deleteView, isCreating } = useListViews("billing");
 
   // Generate and open invoice PDF
   const openInvoicePDF = (inv: any) => {
@@ -1652,6 +1670,9 @@ const Billing = () => {
     });
   }, [invoices, search, filterDateFrom, filterDateTo, filterDoctor, filterService, filterType, filterStatus]);
 
+  // Apply custom view filters
+  const viewFiltered = applyViewFilters(filtered);
+
   const hasActiveFilters = filterDateFrom || filterDateTo || filterDoctor || filterService || filterType || filterStatus;
 
   const clearFilters = () => {
@@ -1666,7 +1687,7 @@ const Billing = () => {
   // CSV Export
   const exportCSV = () => {
     const headers = ["Invoice", "Date", "Patient", "Doctor", "Services", "Type", "Mode", "Total", "Paid", "Balance", "Status"];
-    const rows = filtered.map((inv: any) => [
+    const rows = viewFiltered.map((inv: any) => [
       inv.invoice_number,
       format(new Date(inv.created_at), "yyyy-MM-dd"),
       inv.patient_name || "",
@@ -1687,7 +1708,7 @@ const Billing = () => {
     a.download = `invoices-${format(new Date(), "yyyy-MM-dd")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(`Exported ${filtered.length} invoices`);
+    toast.success(`Exported ${viewFiltered.length} invoices`);
   };
 
   const stagedTotal = stages.reduce((s, st) => s + st.amount, 0);
@@ -1709,6 +1730,59 @@ const Billing = () => {
     });
   };
 
+  // Get columns to display based on current view or default
+  const getDisplayColumns = () => {
+    if (currentView?.display_fields && currentView.display_fields.length > 0) {
+      return currentView.display_fields;
+    }
+    return DEFAULT_BILLING_FIELDS;
+  };
+
+  const displayColumns = getDisplayColumns();
+
+  // Check if a column should be displayed
+  const shouldShowColumn = (column: string) => displayColumns.includes(column);
+
+  // Apply view filters
+  const applyViewFilters = (items: any[]) => {
+    if (!currentView?.filters || currentView.filters.length === 0) return items;
+    return items.filter((inv) => {
+      return currentView.filters.every((filter) => {
+        const fieldValue = getFieldValue(inv, filter.field);
+        return applyFilterCondition(fieldValue, filter.operator, filter.value);
+      });
+    });
+  };
+
+  const getFieldValue = (inv: any, field: string) => {
+    switch (field) {
+      case "invoice_number": return inv.invoice_number || "";
+      case "patient_name": return inv.patient_name || "";
+      case "total_amount": return Number(inv.total_amount) || 0;
+      case "paid_amount": return Number(inv.paid_amount) || 0;
+      case "status": return inv.status || "";
+      case "payment_mode": return inv.payment_mode || "";
+      case "created_at": return new Date(inv.created_at).toLocaleDateString();
+      default: return "";
+    }
+  };
+
+  const applyFilterCondition = (value: any, operator: string, filterValue: any) => {
+    const val = String(value).toLowerCase();
+    const fval = String(filterValue).toLowerCase();
+    switch (operator) {
+      case "equals": return val === fval;
+      case "contains": return val.includes(fval);
+      case "starts_with": return val.startsWith(fval);
+      case "ends_with": return val.endsWith(fval);
+      case "greater_than": return Number(value) > Number(filterValue);
+      case "less_than": return Number(value) < Number(filterValue);
+      case "is_empty": return !value || value === "";
+      case "is_not_empty": return value && value !== "";
+      default: return true;
+    }
+  };
+
   return (
     <div>
       <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1716,13 +1790,22 @@ const Billing = () => {
           <h1 className="page-title">Billing</h1>
           <p className="page-subtitle">Manage invoices and payments</p>
         </div>
-        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setInvoiceSeq(Date.now().toString().slice(-6)); }}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 w-fit">
-              <IndianRupee className="h-4 w-4" />
-              Create Invoice
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2 w-fit flex-wrap">
+          <ViewSelector
+            views={views}
+            selectedViewId={selectedViewId}
+            onSelectView={setSelectedViewId}
+            onCreateView={() => setShowNewViewDialog(true)}
+            onDeleteView={deleteView}
+            currentViewName={currentView?.name}
+          />
+          <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setInvoiceSeq(Date.now().toString().slice(-6)); }}>
+            <DialogTrigger asChild>
+              <Button className="gap-2 w-fit">
+                <IndianRupee className="h-4 w-4" />
+                Create Invoice
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 overflow-hidden">
             <DialogHeader className="px-6 pt-6 pb-3 border-b">
               <DialogTitle className="font-display">Create Invoice</DialogTitle>
@@ -2460,6 +2543,7 @@ const Billing = () => {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Payment Update Dialog */}
@@ -2620,10 +2704,10 @@ const Billing = () => {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filtered.length === 0 ? (
+              {viewFiltered.length === 0 ? (
                 <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No invoices found</td></tr>
               ) : (
-                filtered.map((inv: any) => (
+                viewFiltered.map((inv: any) => (
                   <tr key={inv.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => openViewSheet(inv)}>
                     <td className="p-4">
                       <p className="font-medium text-sm text-primary hover:underline">{inv.invoice_number}</p>
@@ -2944,6 +3028,16 @@ const Billing = () => {
       <AppointmentDetailSheet
         appointmentId={selectedAppointmentId}
         onClose={() => setSelectedAppointmentId(null)}
+      />
+
+      <NewListViewDialog
+        open={showNewViewDialog}
+        onOpenChange={setShowNewViewDialog}
+        section="billing"
+        availableFields={BILLING_FIELDS}
+        defaultFields={DEFAULT_BILLING_FIELDS}
+        onCreate={createView}
+        isLoading={isCreating}
       />
     </div>
   );

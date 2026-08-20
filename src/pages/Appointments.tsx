@@ -1792,7 +1792,7 @@ const Appointments = () => {
                 {/* Quick date filters */}
                 <div className="p-3 border-b flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-muted-foreground font-medium mr-1">Quick:</span>
-                  {DATE_PRESETS.filter((p) => !["specific", "range"].includes(p.key)).map((f) => (
+                  {DATE_PRESETS.filter((p) => p.key !== "specific").map((f) => (
                     <Button
                       key={f.key}
                       variant={datePreset === f.key ? "default" : "outline"}

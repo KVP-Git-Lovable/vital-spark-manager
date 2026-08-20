@@ -12,7 +12,7 @@ export interface Filter {
 export interface ListViewConfig {
   id?: string;
   name: string;
-  section: "appointments" | "procedures" | "patients";
+  section: "appointments" | "procedures" | "patients" | "billing";
   filters: Filter[];
   displayFields: string[];
   sortBy: string;
@@ -20,7 +20,7 @@ export interface ListViewConfig {
   isShared?: boolean;
 }
 
-export function useListViews(section: "appointments" | "procedures" | "patients") {
+export function useListViews(section: "appointments" | "procedures" | "patients" | "billing") {
   const queryClient = useQueryClient();
   const [selectedViewId, setSelectedViewId] = useState<string | null>(null);
 

@@ -1670,9 +1670,6 @@ const Billing = () => {
     });
   }, [invoices, search, filterDateFrom, filterDateTo, filterDoctor, filterService, filterType, filterStatus]);
 
-  // Apply custom view filters
-  const viewFiltered = applyViewFilters(filtered);
-
   const hasActiveFilters = filterDateFrom || filterDateTo || filterDoctor || filterService || filterType || filterStatus;
 
   const clearFilters = () => {
@@ -1744,7 +1741,7 @@ const Billing = () => {
   const shouldShowColumn = (column: string) => displayColumns.includes(column);
 
   // Apply view filters
-  const applyViewFilters = (items: any[]) => {
+  function applyViewFilters(items: any[]) {
     if (!currentView?.filters || currentView.filters.length === 0) return items;
     return items.filter((inv) => {
       return currentView.filters.every((filter) => {
@@ -1752,9 +1749,9 @@ const Billing = () => {
         return applyFilterCondition(fieldValue, filter.operator, filter.value);
       });
     });
-  };
+  }
 
-  const getFieldValue = (inv: any, field: string) => {
+  function getFieldValue(inv: any, field: string) {
     switch (field) {
       case "invoice_number": return inv.invoice_number || "";
       case "patient_name": return inv.patient_name || "";
@@ -1765,9 +1762,9 @@ const Billing = () => {
       case "created_at": return new Date(inv.created_at).toLocaleDateString();
       default: return "";
     }
-  };
+  }
 
-  const applyFilterCondition = (value: any, operator: string, filterValue: any) => {
+  function applyFilterCondition(value: any, operator: string, filterValue: any) {
     const val = String(value).toLowerCase();
     const fval = String(filterValue).toLowerCase();
     switch (operator) {
@@ -1781,7 +1778,10 @@ const Billing = () => {
       case "is_not_empty": return value && value !== "";
       default: return true;
     }
-  };
+  }
+
+  // Apply custom view filters (helpers above are hoisted function declarations)
+  const viewFiltered = applyViewFilters(filtered);
 
   return (
     <div>

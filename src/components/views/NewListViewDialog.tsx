@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +40,20 @@ export function NewListViewDialog({
   const [filterLogic, setFilterLogic] = useState<"all" | "any">("all");
   const [sharingMode, setSharingMode] = useState<"only_me" | "all_users" | "selected_team">("only_me");
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      setViewName("");
+      setDisplayFields(defaultFields);
+      setSortBy(availableFields[0]?.value || "");
+      setSortDirection("desc");
+      setFilters([]);
+      setFilterLogic("all");
+      setSharingMode("only_me");
+      setSelectedTeamMembers([]);
+    }
+  }, [open, defaultFields, availableFields]);
 
   const availableFieldOptions = availableFields.filter((f) => !displayFields.includes(f.value));
   const visibleFieldOptions = displayFields.map((f) =>

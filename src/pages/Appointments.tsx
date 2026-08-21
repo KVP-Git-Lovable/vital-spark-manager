@@ -1386,6 +1386,19 @@ const Appointments = () => {
                     </div>
                 </div>
 
+                {/* Consultation Type & Reasons */}
+                <div>
+                  <ConsultationReasonPicker
+                    consultationType={consultationType}
+                    onConsultationTypeChange={setConsultationType}
+                    consultationReasons={consultationReasons}
+                    onConsultationReasonsChange={setConsultationReasons}
+                    othersAestheticText={othersAestheticText}
+                    setOthersAestheticText={setOthersAestheticText}
+                    othersClinicalText={othersClinicalText}
+                    setOthersClinicalText={setOthersClinicalText}
+                  />
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>

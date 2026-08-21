@@ -30,9 +30,12 @@ function buildTag(group: "aesthetic" | "clinical", reason: string) {
 
 interface Props {
   consultationType: ConsultationType | "";
-  setConsultationType: (v: ConsultationType) => void;
-  reasons: string[];
-  setReasons: (r: string[]) => void;
+  setConsultationType?: (v: ConsultationType) => void;
+  onConsultationTypeChange?: (v: ConsultationType) => void;
+  reasons?: string[];
+  consultationReasons?: string[];
+  setReasons?: (r: string[]) => void;
+  onConsultationReasonsChange?: (r: string[]) => void;
   othersAestheticText: string;
   setOthersAestheticText: (v: string) => void;
   othersClinicalText: string;
@@ -42,13 +45,20 @@ interface Props {
 export function ConsultationReasonPicker({
   consultationType,
   setConsultationType,
-  reasons,
-  setReasons,
+  onConsultationTypeChange,
+  reasons: reasonsProp,
+  consultationReasons,
+  setReasons: setReasonsProp,
+  onConsultationReasonsChange,
   othersAestheticText,
   setOthersAestheticText,
   othersClinicalText,
   setOthersClinicalText,
 }: Props) {
+  const reasons = reasonsProp ?? consultationReasons ?? [];
+  const setReasons = setReasonsProp ?? onConsultationReasonsChange ?? (() => {});
+  const setType = setConsultationType ?? onConsultationTypeChange ?? (() => {});
+
   const toggle = (group: "aesthetic" | "clinical", reason: string) => {
     const tag = buildTag(group, reason);
     if (reasons.includes(tag)) {
@@ -110,7 +120,7 @@ export function ConsultationReasonPicker({
     <div className="space-y-3">
       <div>
         <Label>Reason for Consultation</Label>
-        <Select value={consultationType || "None"} onValueChange={(v) => setConsultationType(v as ConsultationType)}>
+        <Select value={consultationType || "None"} onValueChange={(v) => setType(v as ConsultationType)}>
           <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select type" /></SelectTrigger>
           <SelectContent>
             {CONSULTATION_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}

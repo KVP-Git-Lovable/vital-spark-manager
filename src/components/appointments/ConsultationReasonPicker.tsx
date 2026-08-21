@@ -59,7 +59,25 @@ export function ConsultationReasonPicker({
   const [activeTab, setActiveTab] = useState<"aesthetic" | "clinical">("aesthetic");
   const reasons = reasonsProp ?? consultationReasons ?? [];
   const setReasons = setReasonsProp ?? onConsultationReasonsChange ?? (() => {});
-  const setType = setConsultationType ?? onConsultationTypeChange ?? (() => {});
+  const setType = (type: ConsultationType) => {
+    const setter = setConsultationType ?? onConsultationTypeChange ?? (() => {});
+
+    // Clear or filter reasons based on new type
+    if (type === "None") {
+      if (reasons.length > 0) setReasons([]);
+    } else if (type === "Aesthetic" && reasons.length > 0) {
+      // Keep only aesthetic reasons
+      const validReasons = reasons.filter(r => !r.includes("Clinical"));
+      if (validReasons.length !== reasons.length) setReasons(validReasons);
+    } else if (type === "Clinical" && reasons.length > 0) {
+      // Keep only clinical reasons
+      const validReasons = reasons.filter(r => !r.includes("Aesthetic"));
+      if (validReasons.length !== reasons.length) setReasons(validReasons);
+    }
+    // For "Aesthetic & Clinical", keep all reasons
+
+    setter(type);
+  };
 
   const toggle = (group: "aesthetic" | "clinical", reason: string) => {
     const tag = buildTag(group, reason);

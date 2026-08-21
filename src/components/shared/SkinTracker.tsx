@@ -168,7 +168,7 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
                     >
                       <img src={photo.photo_url} alt="" className="w-full h-20 object-cover" />
                       <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1 py-0.5">
-                        {format(new Date(photo.taken_at), "MMM d")} · {photo.photo_type}
+                        {format(new Date(photo.taken_at), "MMM d")}
                       </div>
                     </button>
                   ))}

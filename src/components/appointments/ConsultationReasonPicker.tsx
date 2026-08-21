@@ -148,11 +148,13 @@ export function ConsultationReasonPicker({
             </div>
           )}
 
-          {activeTab === "aesthetic" && showAesthetic && renderReasons("aesthetic", AESTHETIC_REASONS)}
-          {activeTab === "clinical" && showClinical && renderReasons("clinical", CLINICAL_REASONS)}
-          {!showAesthetic || !showClinical ? (
-            showAesthetic ? renderReasons("aesthetic", AESTHETIC_REASONS) : renderReasons("clinical", CLINICAL_REASONS)
-          ) : null}
+          {showAesthetic && showClinical ? (
+            activeTab === "aesthetic" ? renderReasons("aesthetic", AESTHETIC_REASONS) : renderReasons("clinical", CLINICAL_REASONS)
+          ) : showAesthetic ? (
+            renderReasons("aesthetic", AESTHETIC_REASONS)
+          ) : (
+            renderReasons("clinical", CLINICAL_REASONS)
+          )}
         </div>
       )}
 

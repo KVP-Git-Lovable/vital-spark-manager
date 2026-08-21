@@ -98,13 +98,11 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
         <div className="p-6 space-y-5">
           {/* Photo Selection */}
           <div className="grid grid-cols-2 gap-4">
-            {/* Before selector */}
+            {/* Photo 1 selector */}
             <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">BEFORE</p>
               {beforePhoto ? (
                 <div className="relative group">
-                  <img src={beforePhoto.photo_url} alt="Before" className="w-full h-36 object-cover rounded-lg border-2 border-primary" />
-                  <Badge className="absolute top-2 left-2 text-[10px]">Before</Badge>
+                  <img src={beforePhoto.photo_url} alt="Photo 1" className="w-full h-36 object-cover rounded-lg border-2 border-primary" />
                   <Button variant="secondary" size="icon" className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setBeforePhoto(null); setAnalysis(null); }}>
                     <X className="h-3 w-3" />
                   </Button>
@@ -116,18 +114,16 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
                   onClick={() => setSelecting("before")}
                 >
                   <span className="text-2xl mb-1">📷</span>
-                  <span className="text-xs font-medium">Select Before Photo</span>
+                  <span className="text-xs font-medium">Select Photo</span>
                 </button>
               )}
             </div>
 
-            {/* After selector */}
+            {/* Photo 2 selector */}
             <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">AFTER</p>
               {afterPhoto ? (
                 <div className="relative group">
-                  <img src={afterPhoto.photo_url} alt="After" className="w-full h-36 object-cover rounded-lg border-2 border-primary" />
-                  <Badge className="absolute top-2 left-2 text-[10px]">After</Badge>
+                  <img src={afterPhoto.photo_url} alt="Photo 2" className="w-full h-36 object-cover rounded-lg border-2 border-primary" />
                   <Button variant="secondary" size="icon" className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setAfterPhoto(null); setAnalysis(null); }}>
                     <X className="h-3 w-3" />
                   </Button>
@@ -139,7 +135,7 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
                   onClick={() => setSelecting("after")}
                 >
                   <span className="text-2xl mb-1">📷</span>
-                  <span className="text-xs font-medium">Select After Photo</span>
+                  <span className="text-xs font-medium">Select Photo</span>
                 </button>
               )}
             </div>
@@ -149,7 +145,7 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
           {selecting && (
             <div className="border rounded-lg p-4 bg-muted/20">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold font-display">Select {selecting === "before" ? "Before" : "After"} Photo</p>
+                <p className="text-sm font-semibold font-display">Select Photo</p>
                 <Button variant="ghost" size="sm" onClick={() => setSelecting(null)}>Cancel</Button>
               </div>
               {photos.length === 0 ? (
@@ -218,8 +214,6 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
                     <div className="absolute inset-0 overflow-hidden" style={{ width: `${sliderPos}%` }}>
                       <img src={beforePhoto.photo_url} alt="Before" className="absolute inset-0 w-full h-full object-cover" style={{ width: sliderRef.current ? `${sliderRef.current.offsetWidth}px` : "100%" }} draggable={false} />
                     </div>
-                    <Badge className="absolute top-3 left-3 bg-black/70 text-white border-0 text-xs">Before</Badge>
-                    <Badge className="absolute top-3 right-3 bg-black/70 text-white border-0 text-xs">After</Badge>
                     <div className="absolute top-0 bottom-0 w-1 bg-white shadow-lg cursor-col-resize z-10" style={{ left: `${sliderPos}%`, transform: "translateX(-50%)" }} onPointerDown={handlePointerDown}>
                       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-xl flex items-center justify-center border-2 border-primary">
                         <SlidersHorizontal className="h-4 w-4 text-primary" />
@@ -228,8 +222,8 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
                     <div className="absolute top-0 bottom-0 w-px bg-white/80 z-[5]" style={{ left: `${sliderPos}%` }} />
                   </div>
                   <div className="flex justify-between mt-2 text-[10px] text-muted-foreground">
-                    <span>Before · {format(new Date(beforePhoto.taken_at), "MMM d, yyyy")}</span>
-                    <span>After · {format(new Date(afterPhoto.taken_at), "MMM d, yyyy")}</span>
+                    <span>{format(new Date(beforePhoto.taken_at), "MMM d, yyyy")}</span>
+                    <span>{format(new Date(afterPhoto.taken_at), "MMM d, yyyy")}</span>
                   </div>
                 </TabsContent>
 
@@ -238,8 +232,7 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="relative rounded-xl overflow-hidden border">
-                        <img src={beforePhoto.photo_url} alt="Before" className="w-full aspect-[3/4] object-cover" />
-                        <Badge className="absolute top-3 left-3 bg-black/70 text-white border-0 text-xs">Before</Badge>
+                        <img src={beforePhoto.photo_url} alt="Photo 1" className="w-full aspect-[3/4] object-cover" />
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
                         {format(new Date(beforePhoto.taken_at), "MMM d, yyyy")}
@@ -248,8 +241,7 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
                     </div>
                     <div>
                       <div className="relative rounded-xl overflow-hidden border">
-                        <img src={afterPhoto.photo_url} alt="After" className="w-full aspect-[3/4] object-cover" />
-                        <Badge className="absolute top-3 left-3 bg-black/70 text-white border-0 text-xs">After</Badge>
+                        <img src={afterPhoto.photo_url} alt="Photo 2" className="w-full aspect-[3/4] object-cover" />
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
                         {format(new Date(afterPhoto.taken_at), "MMM d, yyyy")}

@@ -120,7 +120,7 @@ export function ConsultationReasonPicker({
     <div className="space-y-3">
       <div>
         <Label>Reason for Consultation</Label>
-        <Select value={consultationType || "None"} onValueChange={(v) => setConsultationType(v as ConsultationType)}>
+        <Select value={consultationType || "None"} onValueChange={(v) => setType(v as ConsultationType)}>
           <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select type" /></SelectTrigger>
           <SelectContent>
             {CONSULTATION_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}

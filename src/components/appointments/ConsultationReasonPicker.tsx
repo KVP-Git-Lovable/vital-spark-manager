@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -55,6 +56,7 @@ export function ConsultationReasonPicker({
   othersClinicalText,
   setOthersClinicalText,
 }: Props) {
+  const [activeTab, setActiveTab] = useState<"aesthetic" | "clinical">("aesthetic");
   const reasons = reasonsProp ?? consultationReasons ?? [];
   const setReasons = setReasonsProp ?? onConsultationReasonsChange ?? (() => {});
   const setType = setConsultationType ?? onConsultationTypeChange ?? (() => {});
@@ -71,19 +73,15 @@ export function ConsultationReasonPicker({
   const showAesthetic = consultationType === "Aesthetic" || consultationType === "Aesthetic & Clinical";
   const showClinical = consultationType === "Clinical" || consultationType === "Aesthetic & Clinical";
 
-  const renderGroup = (
-    title: string,
-    group: "aesthetic" | "clinical",
-    options: string[],
-    othersValue: string,
-    setOthers: (v: string) => void,
-  ) => {
+  const renderReasons = (group: "aesthetic" | "clinical", options: string[]) => {
     const otherTag = group === "aesthetic" ? OTHER_AESTHETIC : OTHER_CLINICAL;
     const othersSelected = reasons.includes(otherTag);
+    const othersValue = group === "aesthetic" ? othersAestheticText : othersClinicalText;
+    const setOthers = group === "aesthetic" ? setOthersAestheticText : setOthersClinicalText;
+
     return (
-      <div className="space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-wide text-primary">{title}</div>
-        <div className="flex flex-wrap gap-1.5">
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {options.map((opt) => {
             const tag = buildTag(group, opt);
             const active = reasons.includes(tag);
@@ -93,10 +91,10 @@ export function ConsultationReasonPicker({
                 type="button"
                 onClick={() => toggle(group, opt)}
                 className={cn(
-                  "px-2.5 py-1 rounded-full border text-xs transition-colors",
+                  "px-3 py-2 rounded-md border text-sm transition-all font-medium",
                   active
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background hover:bg-muted border-input",
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-background hover:bg-muted border-input hover:border-primary/30",
                 )}
               >
                 {opt}
@@ -108,8 +106,8 @@ export function ConsultationReasonPicker({
           <Input
             value={othersValue}
             onChange={(e) => setOthers(e.target.value)}
-            placeholder={`Specify ${title.toLowerCase()} concern...`}
-            className="mt-1.5"
+            placeholder={`Specify ${group} concern...`}
+            className="mt-2"
           />
         )}
       </div>
@@ -117,9 +115,9 @@ export function ConsultationReasonPicker({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div>
-        <Label>Reason for Consultation</Label>
+        <Label className="text-sm font-medium">Reason for Consultation</Label>
         <Select value={consultationType || "None"} onValueChange={(v) => setType(v as ConsultationType)}>
           <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select type" /></SelectTrigger>
           <SelectContent>
@@ -128,24 +126,54 @@ export function ConsultationReasonPicker({
         </Select>
       </div>
 
-      {showAesthetic && renderGroup("Aesthetic", "aesthetic", AESTHETIC_REASONS, othersAestheticText, setOthersAestheticText)}
-      {showClinical && renderGroup("Clinical", "clinical", CLINICAL_REASONS, othersClinicalText, setOthersClinicalText)}
+      {(showAesthetic || showClinical) && (
+        <div className="space-y-3 border rounded-lg p-4 bg-muted/20">
+          {showAesthetic && showClinical && (
+            <div className="flex gap-2 border-b">
+              {(["aesthetic", "clinical"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    "px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px capitalize",
+                    activeTab === tab
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {activeTab === "aesthetic" && showAesthetic && renderReasons("aesthetic", AESTHETIC_REASONS)}
+          {activeTab === "clinical" && showClinical && renderReasons("clinical", CLINICAL_REASONS)}
+          {!showAesthetic || !showClinical ? (
+            showAesthetic ? renderReasons("aesthetic", AESTHETIC_REASONS) : renderReasons("clinical", CLINICAL_REASONS)
+          ) : null}
+        </div>
+      )}
 
       {reasons.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pt-1">
-          {reasons.map((r) => (
-            <Badge key={r} variant="secondary" className="gap-1 pr-1">
-              {r}
-              <button
-                type="button"
-                onClick={() => setReasons(reasons.filter((x) => x !== r))}
-                className="hover:bg-muted-foreground/20 rounded-full p-0.5"
-                aria-label={`Remove ${r}`}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Selected Reasons</p>
+          <div className="flex flex-wrap gap-2">
+            {reasons.map((r) => (
+              <Badge key={r} variant="secondary" className="gap-1.5 px-3 py-1.5">
+                {r}
+                <button
+                  type="button"
+                  onClick={() => setReasons(reasons.filter((x) => x !== r))}
+                  className="hover:bg-muted-foreground/30 rounded-full p-0.5 ml-1"
+                  aria-label={`Remove ${r}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
         </div>
       )}
     </div>

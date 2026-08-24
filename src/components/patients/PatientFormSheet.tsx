@@ -13,11 +13,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -493,13 +493,13 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto p-6">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">
             {isEditing ? "Edit Patient" : "Add New Patient"}
-          </SheetTitle>
-        </SheetHeader>
+          </DialogTitle>
+        </DialogHeader>
 
         {validationMessages.length > 0 && (
           <div className="mt-4 space-y-2">
@@ -1126,8 +1126,8 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             {saving ? "Saving..." : isEditing ? "Update Patient" : "Create Patient"}
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 

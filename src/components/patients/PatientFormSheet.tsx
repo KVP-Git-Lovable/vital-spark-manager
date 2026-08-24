@@ -108,6 +108,8 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [addDoctorOpen, setAddDoctorOpen] = useState(false);
   const [newDoctorName, setNewDoctorName] = useState("");
   const [savingDoctor, setSavingDoctor] = useState(false);
+  const [deletingDoctorId, setDeletingDoctorId] = useState<string | null>(null);
+  const [deletingDoctorName, setDeletingDoctorName] = useState("");
   const [familyRows, setFamilyRows] = useState<FamilyRow[]>([]);
   const [activeTab, setActiveTab] = useState("personal");
   const [removedFamilyIds, setRemovedFamilyIds] = useState<string[]>([]);
@@ -246,6 +248,22 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
 
   const updateField = (field: keyof typeof form, value: string | null) => {
     setForm((prev) => ({ ...prev, [field]: value || null }));
+  };
+
+  const handleDeleteExternalDoctor = async (doctorId: string) => {
+    try {
+      const { error } = await supabase
+        .from("external_doctors")
+        .delete()
+        .eq("id", doctorId);
+      if (error) throw error;
+      await refetchDoctors();
+      setDeletingDoctorId(null);
+      setDeletingDoctorName("");
+      toast({ title: "Doctor deleted successfully" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
   };
 
   const validate = useValidator("patients");
@@ -792,28 +810,46 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                           const name = s.display_name;
                           const selected = (form as any).source_referral_doctor === name;
                           return (
-                            <button
+                            <div
                               key={s.id}
-                              type="button"
                               className={cn(
-                                "w-full text-left px-2 py-1.5 text-sm rounded flex items-center gap-2 hover:bg-accent",
+                                "w-full text-left px-2 py-1.5 text-sm rounded flex items-center gap-2 hover:bg-accent group",
                                 selected && "bg-accent"
                               )}
-                              onClick={() => {
-                                setForm((prev) => ({ ...prev, source_referral_doctor: name }));
-                                setRefDocOpen(false);
-                                setRefDocSearch("");
-                              }}
                             >
-                              <Check className={cn("h-3.5 w-3.5", selected ? "opacity-100" : "opacity-0")} />
-                              <div className="flex-1 min-w-0">
-                                <p className="truncate">{name}</p>
-                                <p className="text-[10px] text-muted-foreground truncate">
-                                  {s.type === "external" ? "External Doctor" : [s.role, s.specialization].filter(Boolean).join(" · ")}
-                                  {s.specialization && s.type === "external" && ` · ${s.specialization}`}
-                                </p>
-                              </div>
-                            </button>
+                              <button
+                                type="button"
+                                className="flex-1 flex items-center gap-2 min-w-0"
+                                onClick={() => {
+                                  setForm((prev) => ({ ...prev, source_referral_doctor: name }));
+                                  setRefDocOpen(false);
+                                  setRefDocSearch("");
+                                }}
+                              >
+                                <Check className={cn("h-3.5 w-3.5 shrink-0", selected ? "opacity-100" : "opacity-0")} />
+                                <div className="flex-1 min-w-0">
+                                  <p className="truncate">{name}</p>
+                                  <p className="text-[10px] text-muted-foreground truncate">
+                                    {s.type === "external" ? "External Doctor" : [s.role, s.specialization].filter(Boolean).join(" · ")}
+                                    {s.specialization && s.type === "external" && ` · ${s.specialization}`}
+                                  </p>
+                                </div>
+                              </button>
+                              {s.type === "external" && (
+                                <button
+                                  type="button"
+                                  className="h-6 w-6 shrink-0 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/20 text-destructive transition-opacity"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeletingDoctorId(s.id);
+                                    setDeletingDoctorName(name);
+                                  }}
+                                  title="Delete external doctor"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
                           );
                         })
                       )}
@@ -1213,6 +1249,30 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                   {savingDoctor ? "Adding..." : "Add Doctor"}
                 </Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete External Doctor Confirmation */}
+        <Dialog open={!!deletingDoctorId} onOpenChange={(open) => { if (!open) setDeletingDoctorId(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Delete Doctor?</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete <span className="font-medium">{deletingDoctorName}</span>? This action cannot be undone.
+            </p>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" className="flex-1" onClick={() => setDeletingDoctorId(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => deletingDoctorId && handleDeleteExternalDoctor(deletingDoctorId)}
+              >
+                Delete
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

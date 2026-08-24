@@ -117,17 +117,37 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const { toast } = useToast();
   const isEditing = !!patient;
 
-  const { data: referralDoctors = [] } = useQuery({
+  const { data: referralDoctors = [], refetch: refetchDoctors } = useQuery({
     queryKey: ["referral-doctors-list"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("staff")
-        .select("id, first_name, last_name, role, specialization")
-        .in("role", ["Doctor", "Referral Doctor"])
-        .eq("is_active", true)
-        .order("first_name");
-      if (error) throw error;
-      return data || [];
+      const [staffResult, externalResult] = await Promise.all([
+        supabase
+          .from("staff")
+          .select("id, first_name, last_name, role, specialization")
+          .in("role", ["Doctor", "Referral Doctor"])
+          .eq("is_active", true)
+          .order("first_name"),
+        supabase
+          .from("external_doctors")
+          .select("id, name, specialization")
+          .order("name")
+      ]);
+
+      const staffDocs = (staffResult.data || []).map(s => ({
+        ...s,
+        type: "internal",
+        display_name: `${s.first_name} ${s.last_name}`
+      }));
+
+      const externalDocs = (externalResult.data || []).map(e => ({
+        ...e,
+        type: "external",
+        display_name: e.name
+      }));
+
+      return [...staffDocs, ...externalDocs].sort((a, b) =>
+        a.display_name.localeCompare(b.display_name)
+      );
     },
   });
   const filteredRefDocs = useMemo(() => {
@@ -770,7 +790,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                         </div>
                       ) : (
                         filteredRefDocs.map((s: any) => {
-                          const name = `${s.first_name} ${s.last_name}`;
+                          const name = s.display_name;
                           const selected = (form as any).source_referral_doctor === name;
                           return (
                             <button
@@ -790,7 +810,8 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                               <div className="flex-1 min-w-0">
                                 <p className="truncate">{name}</p>
                                 <p className="text-[10px] text-muted-foreground truncate">
-                                  {[s.role, s.specialization].filter(Boolean).join(" · ")}
+                                  {s.type === "external" ? "External Doctor" : [s.role, s.specialization].filter(Boolean).join(" · ")}
+                                  {s.specialization && s.type === "external" && ` · ${s.specialization}`}
                                 </p>
                               </div>
                             </button>
@@ -1141,11 +1162,11 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
           </Button>
         </div>
 
-        {/* Add Doctor Modal */}
+        {/* Add External Doctor Modal */}
         <Dialog open={addDoctorOpen} onOpenChange={setAddDoctorOpen}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Add New Doctor</DialogTitle>
+              <DialogTitle>Add External Doctor</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -1171,18 +1192,13 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                     }
                     setSavingDoctor(true);
                     try {
-                      const [firstName, ...lastNameParts] = newDoctorName.trim().split(" ");
-                      const lastName = lastNameParts.join(" ") || "";
-                      const { data, error } = await supabase.from("staff").insert({
-                        first_name: firstName,
-                        last_name: lastName,
-                        role: "Doctor",
-                        is_active: true,
+                      const { data, error } = await supabase.from("external_doctors").insert({
+                        name: newDoctorName.trim(),
                       }).select();
                       if (error) throw error;
                       if (data && data[0]) {
-                        const fullName = `${data[0].first_name} ${data[0].last_name}`;
-                        setForm((prev) => ({ ...prev, source_referral_doctor: fullName }));
+                        setForm((prev) => ({ ...prev, source_referral_doctor: data[0].name }));
+                        await refetchDoctors();
                         toast({ title: "Success", description: "Doctor added successfully" });
                       }
                       setAddDoctorOpen(false);

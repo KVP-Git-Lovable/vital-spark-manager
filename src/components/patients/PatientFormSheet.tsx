@@ -764,7 +764,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               </div>
             )}
 
-            {((form as any).source === "Dr. referral" || (form as any).source?.toLowerCase().includes("referral")) && (
+            {((form as any).source && (form as any).source.toLowerCase().includes("referral")) && (
               <div className="animate-fade-in">
                 <Label>Referred Doctor Name *</Label>
                 <Popover open={refDocOpen} onOpenChange={setRefDocOpen}>

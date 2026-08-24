@@ -810,23 +810,20 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                           const name = s.display_name;
                           const selected = (form as any).source_referral_doctor === name;
                           return (
-                            <div
-                              key={s.id}
-                              className={cn(
-                                "w-full text-left px-2 py-1.5 text-sm rounded flex items-center gap-2 hover:bg-accent group",
-                                selected && "bg-accent"
-                              )}
-                            >
+                            <div key={s.id} className="group relative">
                               <button
                                 type="button"
-                                className="flex-1 flex items-center gap-2 min-w-0"
+                                className={cn(
+                                  "w-full text-left px-2 py-1.5 text-sm rounded flex items-center gap-2 hover:bg-accent",
+                                  selected && "bg-accent"
+                                )}
                                 onClick={() => {
                                   setForm((prev) => ({ ...prev, source_referral_doctor: name }));
                                   setRefDocOpen(false);
                                   setRefDocSearch("");
                                 }}
                               >
-                                <Check className={cn("h-3.5 w-3.5 shrink-0", selected ? "opacity-100" : "opacity-0")} />
+                                <Check className={cn("h-3.5 w-3.5", selected ? "opacity-100" : "opacity-0")} />
                                 <div className="flex-1 min-w-0">
                                   <p className="truncate">{name}</p>
                                   <p className="text-[10px] text-muted-foreground truncate">
@@ -838,7 +835,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                               {s.type === "external" && (
                                 <button
                                   type="button"
-                                  className="h-6 w-6 shrink-0 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/20 text-destructive transition-opacity"
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/20 text-destructive transition-opacity"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setDeletingDoctorId(s.id);

@@ -105,6 +105,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [selectedReferralPatientName, setSelectedReferralPatientName] = useState("");
   const [refDocOpen, setRefDocOpen] = useState(false);
   const [refDocSearch, setRefDocSearch] = useState("");
+  const [addDoctorOpen, setAddDoctorOpen] = useState(false);
+  const [newDoctorName, setNewDoctorName] = useState("");
+  const [savingDoctor, setSavingDoctor] = useState(false);
   const [familyRows, setFamilyRows] = useState<FamilyRow[]>([]);
   const [activeTab, setActiveTab] = useState("personal");
   const [removedFamilyIds, setRemovedFamilyIds] = useState<string[]>([]);
@@ -751,9 +754,20 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                     </div>
                     <div className="max-h-56 overflow-y-auto space-y-0.5">
                       {filteredRefDocs.length === 0 ? (
-                        <p className="text-xs text-muted-foreground text-center py-3">
-                          No doctors found. Add staff with role "Doctor" or "Referral Doctor".
-                        </p>
+                        <div className="text-center py-3 space-y-2">
+                          <p className="text-xs text-muted-foreground">
+                            No doctors found.
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="w-full gap-1.5"
+                            onClick={() => setAddDoctorOpen(true)}
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Add Doctor
+                          </Button>
+                        </div>
                       ) : (
                         filteredRefDocs.map((s: any) => {
                           const name = `${s.first_name} ${s.last_name}`;
@@ -1126,6 +1140,67 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             {saving ? "Saving..." : isEditing ? "Update Patient" : "Create Patient"}
           </Button>
         </div>
+
+        {/* Add Doctor Modal */}
+        <Dialog open={addDoctorOpen} onOpenChange={setAddDoctorOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Add New Doctor</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="doctor-name">Doctor Name *</Label>
+                <Input
+                  id="doctor-name"
+                  placeholder="e.g., Dr. John Smith"
+                  value={newDoctorName}
+                  onChange={(e) => setNewDoctorName(e.target.value)}
+                  className="mt-1.5"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" className="flex-1" onClick={() => { setAddDoctorOpen(false); setNewDoctorName(""); }}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={async () => {
+                    if (!newDoctorName.trim()) {
+                      toast({ title: "Error", description: "Please enter doctor name" });
+                      return;
+                    }
+                    setSavingDoctor(true);
+                    try {
+                      const [firstName, ...lastNameParts] = newDoctorName.trim().split(" ");
+                      const lastName = lastNameParts.join(" ") || "";
+                      const { data, error } = await supabase.from("staff").insert({
+                        first_name: firstName,
+                        last_name: lastName,
+                        role: "Doctor",
+                        is_active: true,
+                      }).select();
+                      if (error) throw error;
+                      if (data && data[0]) {
+                        const fullName = `${data[0].first_name} ${data[0].last_name}`;
+                        setForm((prev) => ({ ...prev, source_referral_doctor: fullName }));
+                        toast({ title: "Success", description: "Doctor added successfully" });
+                      }
+                      setAddDoctorOpen(false);
+                      setNewDoctorName("");
+                    } catch (err: any) {
+                      toast({ title: "Error", description: err.message });
+                    } finally {
+                      setSavingDoctor(false);
+                    }
+                  }}
+                  disabled={savingDoctor || !newDoctorName.trim()}
+                >
+                  {savingDoctor ? "Adding..." : "Add Doctor"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );

@@ -235,6 +235,24 @@ async function processMessage(opts: { fromRaw: string; userBody: string; message
     // Backfill patient_id on the inbound message (best-effort, do not await blocking)
     sb.from("whatsapp_conversations").update({ patient_id: patientId }).eq("message_sid", messageSid).is("patient_id", null).then(() => {});
 
+    // Appointment template quick-reply buttons — skip AI entirely
+    const buttonIntent = detectButtonIntent(buttonText || "") || detectButtonIntent(userBody);
+    if (buttonIntent) {
+      const intro =
+        buttonIntent === "cancel"
+          ? `Hi ${patient.first_name}, sorry to hear you'd like to cancel.`
+          : `Hi ${patient.first_name}, happy to help you change your appointment.`;
+      const reply = `${intro}\n\n${CLINIC_CALL_MESSAGE}`;
+      const ts = performance.now();
+      const sid = await sendWhatsAppReply(phone, reply);
+      log("twilio_send", `extra_ms=${(performance.now() - ts).toFixed(0)}`);
+      await sb.from("whatsapp_conversations").insert({
+        patient_id: patientId, phone, direction: "outbound", role: "assistant", content: reply, message_sid: sid,
+      });
+      log(`done_button_${buttonIntent}`);
+      return;
+    }
+
     // Greeting fast-path — skip AI entirely
     if (GREETING_RE.test(userBody)) {
       const reply = `Hi ${patient.first_name}! 👋 I'm DermaCare AI. I can help you book, reschedule or cancel appointments, browse the clinic shop, place orders, or track existing orders. What would you like to do?`;

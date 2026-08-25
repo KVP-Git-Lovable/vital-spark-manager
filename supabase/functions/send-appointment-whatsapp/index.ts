@@ -94,12 +94,12 @@ Deno.serve(async (req) => {
       dayAndDate = `${dayName}, ${day} ${month} ${year}`;
     }
 
+    const dateAndTime = `${dayAndDate} at ${ensureIstTime(appointmentTime)}`;
+
     const contentVariables = JSON.stringify({
       "1": namedPatient,
-      "2": dayAndDate,
-      "3": ensureIstTime(appointmentTime),
-      "4": "+91 96201 23030 / +91 63607 53030",
-      "5": "Mangalore",
+      "2": dateAndTime,
+      "3": serviceName || "Consultation",
     });
 
     const body = new URLSearchParams({

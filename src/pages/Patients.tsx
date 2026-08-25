@@ -85,9 +85,33 @@ const fetchPatientsPage = async (
       if (!exactErr && exactMatch && exactMatch.length > 0) {
         return { rows: (exactMatch as Patient[]), total: exactMatch.length };
       }
+    } else if (tokens.length === 1) {
+      // Single word: try exact first_name or last_name match first
+      const token = tokens[0];
+      const { data: exactMatch, error: exactErr } = await supabase
+        .from("patients")
+        .select("*", { count: "exact" })
+        .or(`first_name.eq.${token},last_name.eq.${token}`)
+        .order("created_at", { ascending: false });
+
+      if (!exactErr && exactMatch && exactMatch.length > 0) {
+        return { rows: (exactMatch as Patient[]), total: exactMatch.length };
+      }
+
+      // Fallback: prefix match (starts with the term)
+      const { data: prefixMatch } = await supabase
+        .from("patients")
+        .select("*")
+        .or(`first_name.ilike.${token}%,last_name.ilike.${token}%`)
+        .order("created_at", { ascending: false })
+        .limit(PAGE_SIZE);
+
+      if (prefixMatch && prefixMatch.length > 0) {
+        return { rows: (prefixMatch as Patient[]), total: prefixMatch.length };
+      }
     }
 
-    // Fallback: standard OR search
+    // Final fallback: standard OR search (substring matching)
     const or = buildOrFilter(term, cols);
     if (or) q = q.or(or);
   }

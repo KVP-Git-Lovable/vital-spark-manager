@@ -61,15 +61,37 @@ const fetchPatientsPage = async (
   const toIdx = fromIdx + PAGE_SIZE - 1;
   const term = search.trim();
   const cols = ["first_name", "last_name", "email", "phone"];
+
   let q = supabase
     .from("patients")
     .select("*", { count: "exact" })
     .order("created_at", { ascending: false })
     .range(fromIdx, toIdx);
+
   if (term) {
+    const tokens = term.split(/\s+/).filter(Boolean);
+
+    // For 2+ token searches, try exact match first (first_name + last_name)
+    if (tokens.length >= 2) {
+      const [firstName, ...rest] = tokens;
+      const lastName = rest.join(" ");
+      const { data: exactMatch, error: exactErr } = await supabase
+        .from("patients")
+        .select("*", { count: "exact" })
+        .ilike("first_name", `%${firstName}%`)
+        .ilike("last_name", `%${lastName}%`)
+        .order("created_at", { ascending: false });
+
+      if (!exactErr && exactMatch && exactMatch.length > 0) {
+        return { rows: (exactMatch as Patient[]), total: exactMatch.length };
+      }
+    }
+
+    // Fallback: standard OR search
     const or = buildOrFilter(term, cols);
     if (or) q = q.or(or);
   }
+
   const { data, error, count } = await q;
   if (error) throw error;
 

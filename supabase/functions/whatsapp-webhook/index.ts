@@ -444,18 +444,20 @@ Deno.serve(async (req) => {
     const fromRaw = payload.From || "";
     const userBody = (payload.Body || "").trim();
     const messageSid = payload.MessageSid || payload.SmsMessageSid || "";
+    const buttonText = (payload.ButtonText || payload.ButtonPayload || payload.ListId || payload.ListTitle || "").trim();
 
-    console.log(`[whatsapp-webhook] inbound sid=${messageSid} from=${fromRaw} body="${userBody}" parse_ms=${(performance.now() - t0).toFixed(0)}`);
+    console.log(`[whatsapp-webhook] inbound sid=${messageSid} from=${fromRaw} body="${userBody}" button="${buttonText}" parse_ms=${(performance.now() - t0).toFixed(0)}`);
 
-    if (fromRaw && userBody) {
+    if (fromRaw && (userBody || buttonText)) {
+      const effectiveBody = userBody || buttonText;
       // Schedule heavy work in background — does NOT block the TwiML response.
       // @ts-ignore - EdgeRuntime is provided by Supabase Edge Runtime
       if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
         // @ts-ignore
-        EdgeRuntime.waitUntil(processMessage({ fromRaw, userBody, messageSid, t0 }));
+        EdgeRuntime.waitUntil(processMessage({ fromRaw, userBody: effectiveBody, messageSid, t0, buttonText }));
       } else {
         // Fallback: fire-and-forget (best-effort if waitUntil isn't available)
-        processMessage({ fromRaw, userBody, messageSid, t0 }).catch((e) =>
+        processMessage({ fromRaw, userBody: effectiveBody, messageSid, t0, buttonText }).catch((e) =>
           console.error("[whatsapp-webhook] bg error:", e),
         );
       }

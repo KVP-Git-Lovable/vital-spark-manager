@@ -271,6 +271,30 @@ async function processMessage(opts: { fromRaw: string; userBody: string; message
       .reverse()
       .map((m: any) => ({ role: m.role, content: m.content }));
 
+    // Upcoming appointments context so vague requests like "change my appointment" work
+    let upcomingContext = "None";
+    try {
+      const { data: upcoming } = await sb
+        .from("appointments")
+        .select("id, service, start_time, status")
+        .eq("patient_id", patientId)
+        .gte("start_time", new Date().toISOString())
+        .neq("status", "Cancelled")
+        .order("start_time", { ascending: true })
+        .limit(5);
+      if (upcoming && upcoming.length > 0) {
+        upcomingContext = upcoming
+          .map((a: any) => {
+            const d = new Date(a.start_time);
+            const when = d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true });
+            return `- ${when} — ${a.service || "Consultation"} (status: ${a.status}, id: ${a.id})`;
+          })
+          .join("\n");
+      }
+    } catch (e) {
+      console.error("[whatsapp-webhook] upcoming fetch failed", e);
+    }
+
     const today = new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
     const systemPrompt = `You are DermaCare AI, a friendly WhatsApp assistant for a dermatology clinic. You are chatting with ${patientName} via WhatsApp. Today is ${today}.
 

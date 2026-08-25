@@ -177,6 +177,18 @@ async function sendWhatsAppReply(toPhone: string, body: string): Promise<string 
 
 const GREETING_RE = /^(hi+|hey+|hello+|helo+|yo|hola|namaste|namaskar|good\s*(morning|afternoon|evening|night)|gm|ga|ge|gn|start|hii|hiii)[\s!.,?]*$/i;
 
+const CLINIC_CALL_MESSAGE =
+  "To modify or cancel your booking, please call us on +91 96201 23030 / +91 63607 53030.\nThe Skin Clinic, Mangalore";
+
+// Quick-reply buttons from the appointment confirmation template
+function detectButtonIntent(text: string): "modify" | "cancel" | null {
+  const t = (text || "").toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  if (t === "i need to modify" || t === "need to modify" || t === "modify") return "modify";
+  if (t === "i want to cancel" || t === "want to cancel" || t === "cancel") return "cancel";
+  return null;
+}
+
 // ---------- Background processor ----------
 async function processMessage(opts: { fromRaw: string; userBody: string; messageSid: string; t0: number }) {
   const { fromRaw, userBody, messageSid, t0 } = opts;

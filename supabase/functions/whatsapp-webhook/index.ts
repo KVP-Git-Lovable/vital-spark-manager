@@ -190,8 +190,8 @@ function detectButtonIntent(text: string): "modify" | "cancel" | null {
 }
 
 // ---------- Background processor ----------
-async function processMessage(opts: { fromRaw: string; userBody: string; messageSid: string; t0: number }) {
-  const { fromRaw, userBody, messageSid, t0 } = opts;
+async function processMessage(opts: { fromRaw: string; userBody: string; messageSid: string; t0: number; buttonText?: string }) {
+  const { fromRaw, userBody, messageSid, t0, buttonText } = opts;
   const sidTag = messageSid || "no-sid";
   const log = (stage: string, extra = "") =>
     console.log(`[whatsapp-webhook] sid=${sidTag} stage=${stage} ms=${(performance.now() - t0).toFixed(0)}${extra ? " " + extra : ""}`);

@@ -9,14 +9,33 @@ export const tokenize = (s: string) => normalize(s).split(" ").filter(Boolean);
 export const sanitizeTerm = (s: string) => (s || "").replace(/[%,()*]/g, " ").trim();
 
 /**
- * Builds a PostgREST `or()` filter that matches ANY token against ANY column,
- * so "chandra" or "prajwal chandra" both find "Prajwal Chandra".
+ * Builds a tight filter that prioritizes exact full-name matches.
+ * For "abhishek shenoy", matches "first_name LIKE abhishek AND last_name LIKE shenoy" first.
+ * Falls back to individual token matching if no two-token input.
  */
 export const buildOrFilter = (term: string, columns: string[]) => {
   const tokens = sanitizeTerm(term).split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return "";
+
+  // If searching with 2+ tokens (e.g., "abhishek shenoy"),
+  // prioritize matches where first_name matches first token AND last_name matches second token
+  if (tokens.length >= 2) {
+    const [firstName, ...restTokens] = tokens;
+    const filters = [
+      `and(first_name.ilike.%${firstName}%,last_name.ilike.%${restTokens.join(" ")}%)`,
+    ];
+    // Also add single-token exact matches as fallback
+    filters.push(
+      tokens
+        .flatMap((t) => ["first_name", "last_name", "email", "phone"].map((c) => `${c}.ilike.%${t}%`))
+        .join(",")
+    );
+    return filters.join(",");
+  }
+
+  // Single token: search in priority order (name > contact)
   return tokens
-    .flatMap((t) => columns.map((c) => `${c}.ilike.%${t}%`))
+    .flatMap((t) => ["first_name", "last_name", "email", "phone"].map((c) => `${c}.ilike.%${t}%`))
     .join(",");
 };
 

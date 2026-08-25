@@ -353,6 +353,18 @@ const Appointments = () => {
     enabled: open,
   });
 
+  const { data: holidays = [] } = useQuery({
+    queryKey: ["holidays"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("holidays")
+        .select("date")
+        .order("date");
+      if (error) throw error;
+      return (data || []).map((h: any) => h.date);
+    },
+  });
+
   // Auto-propose a survey based on the selected service / primary concern.
   const [autoSurveyName, setAutoSurveyName] = useState<string | null>(null);
   useEffect(() => {
@@ -636,6 +648,31 @@ const Appointments = () => {
       };
       const startDT = buildDateTime(startDate, startTime);
       if (startDT < new Date()) throw new Error("Cannot book appointments in the past");
+
+      // Check for Sunday (day 0)
+      if (startDate.getDay() === 0) throw new Error("Appointments cannot be booked on Sundays");
+
+      // Check for holidays
+      const dateStr = format(startDate, "yyyy-MM-dd");
+      if (holidays.includes(dateStr)) {
+        const holiday = holidays.find((h: string) => h === dateStr);
+        throw new Error(`Appointments cannot be booked on this date (holiday)`);
+      }
+
+      // Check recurring dates for Sunday and holidays
+      if (isRecurring && recurrenceEndDate) {
+        const recurringDates = generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate);
+        const blockedDates = recurringDates.filter((d) => {
+          if (d.getDay() === 0) return true; // Sunday
+          const dStr = format(d, "yyyy-MM-dd");
+          return holidays.includes(dStr); // Holiday
+        });
+        if (blockedDates.length > 0) {
+          const blockedStr = blockedDates.slice(0, 3).map((d) => format(d, "MMM dd")).join(", ");
+          throw new Error(`Some dates in the recurrence are unavailable: ${blockedStr}${blockedDates.length > 3 ? "..." : ""}`);
+        }
+      }
+
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
       // Appointments created from the clinic app are always tagged "Walk-in".

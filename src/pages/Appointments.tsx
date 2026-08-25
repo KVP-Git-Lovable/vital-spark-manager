@@ -752,9 +752,8 @@ const Appointments = () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       toast.success("Appointment(s) created");
       if (data.phone) toast.info(`Patient phone: ${data.phone}`, { duration: 6000 });
-      // Send WhatsApp confirmation only for Confirmed or Cancelled appointments
-      const notifyStatuses = ["Confirmed", "Cancelled"];
-      if (data.phone && data.patientName && data.firstStartDT && notifyStatuses.includes(appointmentStatus)) {
+      // Send WhatsApp confirmation for any newly created appointment
+      if (data.phone && data.patientName && data.firstStartDT) {
         if (data.wasRecurring && data.recurrenceEndDate) {
           supabase.functions
             .invoke("send-recurring-appointment-whatsapp", {

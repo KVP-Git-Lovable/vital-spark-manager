@@ -177,9 +177,21 @@ async function sendWhatsAppReply(toPhone: string, body: string): Promise<string 
 
 const GREETING_RE = /^(hi+|hey+|hello+|helo+|yo|hola|namaste|namaskar|good\s*(morning|afternoon|evening|night)|gm|ga|ge|gn|start|hii|hiii)[\s!.,?]*$/i;
 
+const CLINIC_CALL_MESSAGE =
+  "To modify or cancel your booking, please call us on +91 96201 23030 / +91 63607 53030.\nThe Skin Clinic, Mangalore";
+
+// Quick-reply buttons from the appointment confirmation template
+function detectButtonIntent(text: string): "modify" | "cancel" | null {
+  const t = (text || "").toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  if (t === "i need to modify" || t === "need to modify" || t === "modify") return "modify";
+  if (t === "i want to cancel" || t === "want to cancel" || t === "cancel") return "cancel";
+  return null;
+}
+
 // ---------- Background processor ----------
-async function processMessage(opts: { fromRaw: string; userBody: string; messageSid: string; t0: number }) {
-  const { fromRaw, userBody, messageSid, t0 } = opts;
+async function processMessage(opts: { fromRaw: string; userBody: string; messageSid: string; t0: number; buttonText?: string }) {
+  const { fromRaw, userBody, messageSid, t0, buttonText } = opts;
   const sidTag = messageSid || "no-sid";
   const log = (stage: string, extra = "") =>
     console.log(`[whatsapp-webhook] sid=${sidTag} stage=${stage} ms=${(performance.now() - t0).toFixed(0)}${extra ? " " + extra : ""}`);
@@ -223,6 +235,24 @@ async function processMessage(opts: { fromRaw: string; userBody: string; message
     // Backfill patient_id on the inbound message (best-effort, do not await blocking)
     sb.from("whatsapp_conversations").update({ patient_id: patientId }).eq("message_sid", messageSid).is("patient_id", null).then(() => {});
 
+    // Appointment template quick-reply buttons — skip AI entirely
+    const buttonIntent = detectButtonIntent(buttonText || "") || detectButtonIntent(userBody);
+    if (buttonIntent) {
+      const intro =
+        buttonIntent === "cancel"
+          ? `Hi ${patient.first_name}, sorry to hear you'd like to cancel.`
+          : `Hi ${patient.first_name}, happy to help you change your appointment.`;
+      const reply = `${intro}\n\n${CLINIC_CALL_MESSAGE}`;
+      const ts = performance.now();
+      const sid = await sendWhatsAppReply(phone, reply);
+      log("twilio_send", `extra_ms=${(performance.now() - ts).toFixed(0)}`);
+      await sb.from("whatsapp_conversations").insert({
+        patient_id: patientId, phone, direction: "outbound", role: "assistant", content: reply, message_sid: sid,
+      });
+      log(`done_button_${buttonIntent}`);
+      return;
+    }
+
     // Greeting fast-path — skip AI entirely
     if (GREETING_RE.test(userBody)) {
       const reply = `Hi ${patient.first_name}! 👋 I'm DermaCare AI. I can help you book, reschedule or cancel appointments, browse the clinic shop, place orders, or track existing orders. What would you like to do?`;
@@ -241,6 +271,30 @@ async function processMessage(opts: { fromRaw: string; userBody: string; message
       .reverse()
       .map((m: any) => ({ role: m.role, content: m.content }));
 
+    // Upcoming appointments context so vague requests like "change my appointment" work
+    let upcomingContext = "None";
+    try {
+      const { data: upcoming } = await sb
+        .from("appointments")
+        .select("id, service, start_time, status")
+        .eq("patient_id", patientId)
+        .gte("start_time", new Date().toISOString())
+        .neq("status", "Cancelled")
+        .order("start_time", { ascending: true })
+        .limit(5);
+      if (upcoming && upcoming.length > 0) {
+        upcomingContext = upcoming
+          .map((a: any) => {
+            const d = new Date(a.start_time);
+            const when = d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true });
+            return `- ${when} — ${a.service || "Consultation"} (status: ${a.status}, id: ${a.id})`;
+          })
+          .join("\n");
+      }
+    } catch (e) {
+      console.error("[whatsapp-webhook] upcoming fetch failed", e);
+    }
+
     const today = new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
     const systemPrompt = `You are DermaCare AI, a friendly WhatsApp assistant for a dermatology clinic. You are chatting with ${patientName} via WhatsApp. Today is ${today}.
 
@@ -252,11 +306,24 @@ PATIENT PROFILE:
 - Allergies: ${patient.allergies || "None"}
 - Current Medications: ${patient.current_medications || "None"}
 
+UPCOMING APPOINTMENTS:
+${upcomingContext}
+
 You can help patients:
 - Book, cancel, or reschedule appointments
 - Browse and order products from the clinic shop
 - Track existing orders or reorder past purchases
 - View their appointment history
+
+INTENT HANDLING — work out what the patient means, even from short, vague, or mixed-language (Hinglish / Kannada-English) messages, and respond to that intent:
+- Reschedule / cancel / book: if they have exactly one upcoming appointment, assume they mean that one (state which one you mean). If several, list them and ask which.
+- Clinic timings, address, directions, parking: answer helpfully and offer to book.
+- Prices, services, treatments, packages: give general guidance and suggest a consultation for an accurate quote.
+- Orders, medicines, delivery status: use the order tools.
+- Prescriptions, reports, records: explain that clinic staff will share them and offer to pass on the request.
+- Complaints, feedback, or "I want to talk to someone": apologise briefly, thank them, and offer to connect them with the clinic team on +91 96201 23030 / +91 63607 53030.
+- Small talk / thanks: reply briefly and warmly, then offer a next step.
+- Genuinely unclear: ask ONE short clarifying question — never reply "I don't understand".
 
 GUIDELINES:
 1. Be warm and concise — this is WhatsApp, keep replies short (under 800 chars when possible).
@@ -265,7 +332,9 @@ GUIDELINES:
 4. Always confirm before calling book_appointment, cancel_appointment, reschedule_appointment, order_products, or reorder_previous_order.
 5. Use numbered lists when showing options. Don't show raw UUIDs to the patient.
 6. For appointments: use list_doctors, then check_doctor_availability, then confirm, then book_appointment.
-7. For ordering: use list_shop_products, confirm cart + delivery method, then order_products.`;
+7. For ordering: use list_shop_products, confirm cart + delivery method, then order_products.
+8. Always end with a clear next step or question so the conversation can continue.
+9. If a request is outside what you can do, say so plainly and give the clinic number +91 96201 23030 / +91 63607 53030.`;
 
     const aiMessages: any[] = [{ role: "system", content: systemPrompt }, ...historyMessages, { role: "user", content: userBody }];
 
@@ -375,18 +444,20 @@ Deno.serve(async (req) => {
     const fromRaw = payload.From || "";
     const userBody = (payload.Body || "").trim();
     const messageSid = payload.MessageSid || payload.SmsMessageSid || "";
+    const buttonText = (payload.ButtonText || payload.ButtonPayload || payload.ListId || payload.ListTitle || "").trim();
 
-    console.log(`[whatsapp-webhook] inbound sid=${messageSid} from=${fromRaw} body="${userBody}" parse_ms=${(performance.now() - t0).toFixed(0)}`);
+    console.log(`[whatsapp-webhook] inbound sid=${messageSid} from=${fromRaw} body="${userBody}" button="${buttonText}" parse_ms=${(performance.now() - t0).toFixed(0)}`);
 
-    if (fromRaw && userBody) {
+    if (fromRaw && (userBody || buttonText)) {
+      const effectiveBody = userBody || buttonText;
       // Schedule heavy work in background — does NOT block the TwiML response.
       // @ts-ignore - EdgeRuntime is provided by Supabase Edge Runtime
       if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
         // @ts-ignore
-        EdgeRuntime.waitUntil(processMessage({ fromRaw, userBody, messageSid, t0 }));
+        EdgeRuntime.waitUntil(processMessage({ fromRaw, userBody: effectiveBody, messageSid, t0, buttonText }));
       } else {
         // Fallback: fire-and-forget (best-effort if waitUntil isn't available)
-        processMessage({ fromRaw, userBody, messageSid, t0 }).catch((e) =>
+        processMessage({ fromRaw, userBody: effectiveBody, messageSid, t0, buttonText }).catch((e) =>
           console.error("[whatsapp-webhook] bg error:", e),
         );
       }

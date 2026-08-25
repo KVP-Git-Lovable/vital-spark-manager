@@ -5,6 +5,7 @@
 Switch the new-appointment WhatsApp message to Twilio template `HX3605e6c6e69354ac1eba0b5858fba0c0`, which has two quick-reply buttons ("I need to modify", "I want to cancel").
 
 Variables sent:
+
 - `{{1}}` patient name (with Mr./Ms. title as today)
 - `{{2}}` appointment date and time (e.g. "Friday, 23 May 2026 at 12:00 PM", IST)
 - `{{3}}` service name (defaults to "Consultation")
@@ -17,8 +18,10 @@ When a patient taps a button, Twilio delivers it to the existing inbound webhook
 
 - Detect the button press (button payload/text, or the exact phrases "I need to modify" / "I want to cancel").
 - Resolve which appointment it refers to: the patient's next upcoming non-cancelled appointment.
-- **I need to modify** → reply politely asking for the preferred new date and time, then continue in the existing reschedule flow (the AI already has a reschedule tool, so the follow-up "next Tuesday 4 pm" is handled as today).
-- **I want to cancel** → cancel that appointment in the Appointments module (status `Cancelled`) and reply: a short polite cancellation note followed by "Thank you for the update! We have cancelled this appointment."
+- **I need to modify** → reply politely with this Whatsapp message "To modify or cancel your booking, please call us on +91 96201 23030 / +91 63607 53030.  
+The Skin Clinic, Mangalore"
+- **I want to cancel** → reply politely with this Whatsapp message ""To modify or cancel your booking, please call us on +91 96201 23030 / +91 63607 53030.  
+The Skin Clinic, Mangalore"
 - If no upcoming appointment is found, reply politely asking them to confirm which appointment, and let the normal AI flow take over.
 
 Both inbound and outbound messages keep being logged to the conversation history as today.

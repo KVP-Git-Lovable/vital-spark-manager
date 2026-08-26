@@ -162,8 +162,6 @@ const PatientDetail = () => {
   const [selectedProcedureId, setSelectedProcedureId] = useState<string | null>(null);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [quickApptOpen, setQuickApptOpen] = useState(false);
-  const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false);
-  const [invoiceForm, setInvoiceForm] = useState({ amount: "", description: "" });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -1062,10 +1060,7 @@ const PatientDetail = () => {
         <TabsContent value="invoices">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex justify-end mb-3">
-              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => {
-                setInvoiceForm({ amount: "", description: "" });
-                setCreateInvoiceOpen(true);
-              }}>
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate(`/billing?patientId=${id}`)}>
                 <Plus className="h-3.5 w-3.5" /> Create Invoice
               </Button>
             </div>
@@ -1745,72 +1740,6 @@ const PatientDetail = () => {
       )}
 
       {/* Survey detail moved to dedicated /surveys/:id route */}
-
-      {/* Create Invoice Dialog */}
-      <Dialog open={createInvoiceOpen} onOpenChange={setCreateInvoiceOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="font-display">Create Invoice</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label className="text-sm font-medium">Patient</Label>
-              <div className="mt-1 p-2 bg-muted rounded text-sm">
-                {patient?.first_name} {patient?.last_name}
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="inv-amount" className="text-sm font-medium">Amount</Label>
-              <Input
-                id="inv-amount"
-                type="number"
-                placeholder="Enter amount"
-                value={invoiceForm.amount}
-                onChange={(e) => setInvoiceForm({ ...invoiceForm, amount: e.target.value })}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="inv-desc" className="text-sm font-medium">Description</Label>
-              <Textarea
-                id="inv-desc"
-                placeholder="Invoice description or services"
-                value={invoiceForm.description}
-                onChange={(e) => setInvoiceForm({ ...invoiceForm, description: e.target.value })}
-                className="mt-1"
-                rows={3}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setCreateInvoiceOpen(false)}>Cancel</Button>
-              <Button onClick={async () => {
-                if (!invoiceForm.amount) {
-                  toast.error("Please enter an amount");
-                  return;
-                }
-                try {
-                  const { error } = await supabase.from("invoices").insert({
-                    patient_id: id,
-                    total_amount: parseFloat(invoiceForm.amount),
-                    paid_amount: 0,
-                    notes: invoiceForm.description,
-                    status: "Pending",
-                  });
-                  if (error) throw error;
-                  toast.success("Invoice created successfully");
-                  setCreateInvoiceOpen(false);
-                  setInvoiceForm({ amount: "", description: "" });
-                  queryClient.invalidateQueries({ queryKey: ["patient-invoices", id] });
-                } catch (err: any) {
-                  toast.error(err.message || "Failed to create invoice");
-                }
-              }}>
-                Create Invoice
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={!!viewingAttachment} onOpenChange={(o) => { if (!o) setViewingAttachment(null); }}>
         <DialogContent className="max-w-4xl">

@@ -298,6 +298,15 @@ const Billing = () => {
   const [splits, setSplits] = useState<{ mode: string; amount: number }[]>([]);
   // When split payment is active, the paid amount is always the sum of the split rows
   const splitTotalAmount = splits.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+  // Read patientId from query parameter (from patient detail page)
+  useEffect(() => {
+    const qPatientId = searchParams.get("patientId");
+    if (qPatientId) {
+      setPatientId(qPatientId);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     if (splits.length > 0) setPaidAmount(splitTotalAmount);
   }, [splits.length, splitTotalAmount]);

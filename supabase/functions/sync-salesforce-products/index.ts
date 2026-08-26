@@ -25,14 +25,13 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    // Fetch from Salesforce connector gateway
+    // Fetch from Salesforce connector gateway (via Lovable)
     const sfResponse = await fetch(
       "https://connector-gateway.lovable.dev/salesforce/query",
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SALESFORCE_TOKEN")!}`,
         },
         body: JSON.stringify({
           query: `
@@ -43,16 +42,18 @@ Deno.serve(async (req) => {
             FROM Product2
             WHERE Status__c = 'Active'
           `,
+          connector: "salesforce"
         }),
       }
     );
 
     if (!sfResponse.ok) {
-      throw new Error(`Salesforce API error: ${sfResponse.statusText}`);
+      const error = await sfResponse.text();
+      throw new Error(`Salesforce API error: ${sfResponse.status} - ${error}`);
     }
 
     const sfData = await sfResponse.json();
-    const products = sfData.records || [];
+    const products = sfData.records || sfData || [];
 
     let imported = 0;
     let updated = 0;
@@ -133,12 +134,23 @@ Deno.serve(async (req) => {
         total: products.length,
         errors: errors.length > 0 ? errors : null,
       }),
-      { headers: { "Content-Type": "application/json" } }
+      {
+        headers: { "Content-Type": "application/json" },
+        status: 200
+      }
     );
   } catch (err: any) {
+    console.error("Salesforce sync error:", err);
     return new Response(
-      JSON.stringify({ success: false, error: err.message }),
-      { headers: { "Content-Type": "application/json" }, status: 500 }
+      JSON.stringify({
+        success: false,
+        error: err.message || "Failed to sync from Salesforce",
+        details: err.toString()
+      }),
+      {
+        headers: { "Content-Type": "application/json" },
+        status: 500
+      }
     );
   }
 });

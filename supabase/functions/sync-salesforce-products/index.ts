@@ -26,6 +26,12 @@ interface SyncLog {
   errors: string[];
 }
 
+interface ExistingProduct {
+  id: string;
+  name: string;
+  salesforce_id: string | null;
+}
+
 function asText(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -181,6 +187,70 @@ async function removeLegacyProduct2Mistakes(supabase: ReturnType<typeof createCl
   log.removedLegacy = removableIds.length;
 }
 
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+async function saveProducts(supabase: ReturnType<typeof createClient>, products: SalesforceProduct[], log: SyncLog) {
+  const { data: existingRows, error: existingError } = await supabase
+    .from("pharma_products")
+    .select("id, name, salesforce_id");
+
+  if (existingError) throw existingError;
+
+  const existing = (existingRows || []) as ExistingProduct[];
+  const bySalesforceId = new Map(existing.filter((row) => row.salesforce_id).map((row) => [row.salesforce_id as string, row]));
+  const unlinkedByName = new Map<string, ExistingProduct[]>();
+
+  existing
+    .filter((row) => !row.salesforce_id)
+    .forEach((row) => {
+      const key = normalizeName(row.name);
+      unlinkedByName.set(key, [...(unlinkedByName.get(key) || []), row]);
+    });
+
+  const rowsToUpdate: any[] = [];
+  const rowsToInsert: any[] = [];
+
+  for (const product of products) {
+    const cleanName = asText(product.Name);
+    if (!cleanName) {
+      log.skipped += 1;
+      continue;
+    }
+
+    const payload = productPayload({ ...product, Name: cleanName });
+    const matchedById = bySalesforceId.get(product.Id);
+    if (matchedById) {
+      rowsToUpdate.push({ id: matchedById.id, ...payload });
+      continue;
+    }
+
+    const nameMatches = unlinkedByName.get(normalizeName(cleanName)) || [];
+    if (nameMatches.length === 1) {
+      rowsToUpdate.push({ id: nameMatches[0].id, ...payload });
+      log.linkedByName += 1;
+      continue;
+    }
+
+    rowsToInsert.push(payload);
+  }
+
+  for (const batch of chunk(rowsToUpdate, 100)) {
+    const { error } = await supabase.from("pharma_products").upsert(batch, { onConflict: "id" });
+    if (error) throw error;
+    log.updated += batch.length;
+  }
+
+  for (const batch of chunk(rowsToInsert, 100)) {
+    const { error } = await supabase.from("pharma_products").insert(batch);
+    if (error) throw error;
+    log.imported += batch.length;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -212,60 +282,7 @@ Deno.serve(async (req) => {
 
     await removeLegacyProduct2Mistakes(supabase, products, log);
 
-    for (const product of products) {
-      const cleanName = asText(product.Name);
-      if (!cleanName) {
-        log.skipped += 1;
-        continue;
-      }
-
-      try {
-        const payload = productPayload({ ...product, Name: cleanName });
-
-        const { data: bySalesforceId, error: sfLookupError } = await supabase
-          .from("pharma_products")
-          .select("id")
-          .eq("salesforce_id", product.Id)
-          .maybeSingle();
-        if (sfLookupError) throw sfLookupError;
-
-        if (bySalesforceId?.id) {
-          const { error: updateError } = await supabase
-            .from("pharma_products")
-            .update(payload)
-            .eq("id", bySalesforceId.id);
-          if (updateError) throw updateError;
-          log.updated += 1;
-          continue;
-        }
-
-        const { data: byName, error: nameLookupError } = await supabase
-          .from("pharma_products")
-          .select("id, salesforce_id")
-          .ilike("name", cleanName)
-          .is("salesforce_id", null)
-          .limit(2);
-        if (nameLookupError) throw nameLookupError;
-
-        const matchingProduct = (byName || []).length === 1 ? byName[0] : null;
-        if (matchingProduct?.id) {
-          const { error: linkError } = await supabase
-            .from("pharma_products")
-            .update(payload)
-            .eq("id", matchingProduct.id);
-          if (linkError) throw linkError;
-          log.updated += 1;
-          log.linkedByName += 1;
-          continue;
-        }
-
-        const { error: insertError } = await supabase.from("pharma_products").insert(payload);
-        if (insertError) throw insertError;
-        log.imported += 1;
-      } catch (error) {
-        log.errors.push(`${cleanName}: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
+    await saveProducts(supabase, products, log);
 
     return new Response(
       JSON.stringify({

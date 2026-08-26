@@ -23,6 +23,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ProductDetailSheet, InventoryDetailSheet, BillDetailSheet } from "@/components/pharma/PharmaDetailSheet";
@@ -38,6 +39,19 @@ import { getUomOptions, getSaleUom, getPurchaseUom, findUom, toUomQty, toBaseQty
 // ─── Form Defaults ────────────────────────────────
 const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", purchase_unit: "", sale_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
 const emptyStock = { product_id: "", batch_number: "", expiry_date: "", quantity: 0, purchase_unit: "", purchase_price: 0, mrp: 0, selling_price: 0, supplier: "", invoice_number: "", hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0 };
+
+async function getFunctionErrorMessage(error: unknown) {
+  if (error instanceof FunctionsHttpError) {
+    const body = await error.context.text();
+    try {
+      const parsed = JSON.parse(body);
+      return parsed.error || parsed.details || body || error.message;
+    } catch {
+      return body || error.message;
+    }
+  }
+  return error instanceof Error ? error.message : "Salesforce product sync failed";
+}
 
 interface BillItemInput {
   product_id: string;
@@ -325,12 +339,18 @@ const Pharma = () => {
   const syncSalesforceProducts = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("sync-salesforce-products");
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error));
       return data;
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
-      toast.success(`Sync complete: ${data.imported} imported, ${data.updated} updated`);
+      const stats = `${data.total ?? 0} checked, ${data.imported ?? 0} imported, ${data.updated ?? 0} updated`;
+      if (data.success === false) {
+        toast.warning(`Sync completed with issues: ${stats}. ${data.errors?.[0] || "Review function logs for details."}`);
+        return;
+      }
+      const removed = data.removedLegacy ? `, ${data.removedLegacy} old incorrect imports removed` : "";
+      toast.success(`Sync complete: ${stats}${removed}`);
     },
     onError: (e: Error) => toast.error(e.message),
   });

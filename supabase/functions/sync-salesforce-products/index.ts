@@ -6,6 +6,11 @@ const GATEWAY_URL = "https://connector-gateway.lovable.dev/salesforce";
 interface SalesforceProduct {
   Id: string;
   Name: string;
+  Description?: string | null;
+  Family?: string | null;
+  IsActive?: boolean | null;
+  QuantityUnitOfMeasure?: string | null;
+  StockKeepingUnit?: string | null;
   [key: string]: any;
 }
 
@@ -38,16 +43,12 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    // Query for medicine/product data - try multiple possible object names
+    // Query only fields available on Product2 in the connected clinic org.
     const soql = `
-      SELECT Id, Name,
-             Generic_Name__c, Product_Family__c, Manufacturer__c,
-             Unit__c, HSN_Code__c, GST_Percent__c,
-             MRP__c, Selling_Price__c,
-             Duration__c, Instructions__c,
-             Side_Effects__c, Storage_Instructions__c,
-             Reorder_Level__c
+      SELECT Id, Name, Description, Family, IsActive,
+             QuantityUnitOfMeasure, StockKeepingUnit
       FROM Product2
+      WHERE IsActive = true
       LIMIT 1000
     `;
 
@@ -100,19 +101,19 @@ Deno.serve(async (req) => {
       try {
         const payload = {
           name: product.Name,
-          generic_name: product.Generic_Name__c || null,
-          category: product.Product_Family__c || "General",
-          manufacturer: product.Manufacturer__c || null,
-          unit: product.Unit__c || "Nos",
-          hsn_code: product.HSN_Code__c || null,
-          gst_percent: parseFloat(product.GST_Percent__c) || 0,
-          mrp: parseFloat(product.MRP__c) || 0,
-          selling_price: parseFloat(product.Selling_Price__c) || 0,
-          reorder_level: parseInt(product.Reorder_Level__c) || 10,
-          duration: product.Duration__c || null,
-          instructions: product.Instructions__c || null,
-          side_effects: product.Side_Effects__c || null,
-          storage_instructions: product.Storage_Instructions__c || null,
+          generic_name: null,
+          category: product.Family || "General",
+          manufacturer: null,
+          unit: product.QuantityUnitOfMeasure || "Nos",
+          hsn_code: product.StockKeepingUnit || null,
+          gst_percent: 0,
+          mrp: 0,
+          selling_price: 0,
+          reorder_level: 10,
+          duration: null,
+          instructions: product.Description || null,
+          side_effects: null,
+          storage_instructions: null,
           salesforce_id: product.Id,
         };
 

@@ -75,30 +75,46 @@ const fetchPatientsPage = async (
     if (tokens.length >= 2) {
       const [firstName, ...rest] = tokens;
       const lastName = rest.join(" ");
-      const { data: exactMatch, error: exactErr } = await supabase
+
+      // Step 1: Exact match (case-insensitive but whole word)
+      const { data: exactMatch } = await supabase
         .from("patients")
         .select("*", { count: "exact" })
-        .ilike("first_name", `%${firstName}%`)
-        .ilike("last_name", `%${lastName}%`)
+        .ilike("first_name", firstName)
+        .ilike("last_name", lastName)
         .order("created_at", { ascending: false });
 
-      if (!exactErr && exactMatch && exactMatch.length > 0) {
+      if (exactMatch && exactMatch.length > 0) {
         return { rows: (exactMatch as Patient[]), total: exactMatch.length };
+      }
+
+      // Step 2: Prefix match (first_name starts with token AND last_name starts with lastName)
+      const { data: prefixMatch } = await supabase
+        .from("patients")
+        .select("*", { count: "exact" })
+        .ilike("first_name", `${firstName}%`)
+        .ilike("last_name", `${lastName}%`)
+        .order("created_at", { ascending: false });
+
+      if (prefixMatch && prefixMatch.length > 0) {
+        return { rows: (prefixMatch as Patient[]), total: prefixMatch.length };
       }
     } else if (tokens.length === 1) {
-      // Single word: try exact first_name or last_name match first
+      // Single word: try exact match first
       const token = tokens[0];
-      const { data: exactMatch, error: exactErr } = await supabase
+
+      // Step 1: Exact match
+      const { data: exactMatch } = await supabase
         .from("patients")
         .select("*", { count: "exact" })
-        .or(`first_name.eq.${token},last_name.eq.${token}`)
+        .or(`first_name.ilike.${token},last_name.ilike.${token}`)
         .order("created_at", { ascending: false });
 
-      if (!exactErr && exactMatch && exactMatch.length > 0) {
+      if (exactMatch && exactMatch.length > 0) {
         return { rows: (exactMatch as Patient[]), total: exactMatch.length };
       }
 
-      // Fallback: prefix match (starts with the term)
+      // Step 2: Prefix match (starts with the term)
       const { data: prefixMatch } = await supabase
         .from("patients")
         .select("*")

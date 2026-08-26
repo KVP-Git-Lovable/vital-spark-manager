@@ -86,17 +86,81 @@ export function PatientCombobox({
     queryFn: async () => {
       const q = debounced.replace(/[%,]/g, " ").trim();
       if (!q) return [];
-      // Token-aware search across first name, last name and phone
+
+      const tokens = q.split(/\s+/).filter(Boolean);
+      let rows: PatientLite[] = [];
+
+      // For 2+ token searches, try exact match first (first_name + last_name)
+      if (tokens.length >= 2) {
+        const [firstName, ...rest] = tokens;
+        const lastName = rest.join(" ");
+
+        // Step 1: Exact match
+        const { data: exactMatch } = await supabase
+          .from("patients")
+          .select(columns)
+          .ilike("first_name", firstName)
+          .ilike("last_name", lastName)
+          .order("first_name")
+          .limit(PAGE_SIZE);
+
+        if (exactMatch && exactMatch.length > 0) {
+          return ((exactMatch ?? []) as unknown) as PatientLite[];
+        }
+
+        // Step 2: Prefix match
+        const { data: prefixMatch } = await supabase
+          .from("patients")
+          .select(columns)
+          .ilike("first_name", `${firstName}%`)
+          .ilike("last_name", `${lastName}%`)
+          .order("first_name")
+          .limit(PAGE_SIZE);
+
+        if (prefixMatch && prefixMatch.length > 0) {
+          return ((prefixMatch ?? []) as unknown) as PatientLite[];
+        }
+      } else if (tokens.length === 1) {
+        // Single word: try exact match first
+        const token = tokens[0];
+
+        // Step 1: Exact match
+        const { data: exactMatch } = await supabase
+          .from("patients")
+          .select(columns)
+          .or(`first_name.ilike.${token},last_name.ilike.${token},phone.ilike.${token}`)
+          .order("first_name")
+          .limit(PAGE_SIZE);
+
+        if (exactMatch && exactMatch.length > 0) {
+          return ((exactMatch ?? []) as unknown) as PatientLite[];
+        }
+
+        // Step 2: Prefix match
+        const { data: prefixMatch } = await supabase
+          .from("patients")
+          .select(columns)
+          .or(`first_name.ilike.${token}%,last_name.ilike.${token}%,phone.ilike.${token}%`)
+          .order("first_name")
+          .limit(PAGE_SIZE);
+
+        if (prefixMatch && prefixMatch.length > 0) {
+          return ((prefixMatch ?? []) as unknown) as PatientLite[];
+        }
+      }
+
+      // Final fallback: standard OR search
       const or = buildOrFilter(q, ["first_name", "last_name", "phone"]);
-      const { data, error } = await supabase
+      const { data: orResults, error } = await supabase
         .from("patients")
         .select(columns)
         .or(or)
         .order("first_name")
         .limit(PAGE_SIZE);
       if (error) throw error;
-      const rows = ((data ?? []) as unknown) as PatientLite[];
+      rows = ((orResults ?? []) as unknown) as PatientLite[];
       if (rows.length > 0) return rows;
+
       // Typo-tolerant fallback
       const looseOr = buildFuzzyOrFilter(q, ["first_name", "last_name"]);
       if (!looseOr) return rows;

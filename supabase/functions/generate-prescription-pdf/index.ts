@@ -1,290 +1,337 @@
-import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
+import { PDFDocument, PDFImage, PDFFont, PDFPage, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { z } from "npm:zod@3.23.8";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const BodySchema = z.object({
+  procedureId: z.string().uuid(),
+  mode: z.enum(["download", "upload"]).optional(),
+});
 
-function sanitize(s: any): string {
-  return String(s ?? "").replace(/[\u0000-\u001F\u007F]+/g, " ");
+const PAGE_WIDTH = 595;
+const PAGE_HEIGHT = 842;
+const MARGIN = 32;
+const FOOTER_TOP = 74;
+const CONTENT_BOTTOM = 100;
+const mint = rgb(0.72, 0.83, 0.73);
+const blue = rgb(0.22, 0.43, 0.68);
+const dark = rgb(0.08, 0.08, 0.08);
+const lineGrey = rgb(0.3, 0.3, 0.3);
+
+function sanitize(value: unknown): string {
+  return String(value ?? "")
+    .replace(/[\u0000-\u001F\u007F]+/g, " ")
+    .replace(/[–—]/g, "-")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[^\x20-\x7E]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function shortNumFromUuid(uuid: string, digits = 4): string {
-  // Deterministic small number from uuid
-  const hex = (uuid || "").replace(/-/g, "").slice(0, 8) || "0";
-  const n = parseInt(hex, 16) % Math.pow(10, digits);
-  return String(n).padStart(digits, "0");
+  const hex = uuid.replace(/-/g, "").slice(0, 8) || "0";
+  const number = Number.parseInt(hex, 16) % Math.pow(10, digits);
+  return String(number).padStart(digits, "0");
 }
 
 function ageFromDob(dob?: string | null): string {
   if (!dob) return "";
-  const d = new Date(dob);
-  if (isNaN(d.getTime())) return "";
-  const diff = Date.now() - d.getTime();
-  return String(Math.floor(diff / (365.25 * 24 * 3600 * 1000)));
+  const date = new Date(dob);
+  if (Number.isNaN(date.getTime())) return "";
+  return String(Math.floor((Date.now() - date.getTime()) / (365.25 * 24 * 3600 * 1000)));
 }
 
-function wrap(text: string, font: any, size: number, maxWidth: number): string[] {
-  const words = sanitize(text).split(/\s+/);
+function wrap(text: unknown, font: PDFFont, size: number, maxWidth: number): string[] {
+  const clean = sanitize(text);
+  if (!clean) return [""];
+  const words = clean.split(/\s+/);
   const lines: string[] = [];
   let line = "";
-  for (const w of words) {
-    const test = line ? `${line} ${w}` : w;
-    if (font.widthOfTextAtSize(test, size) > maxWidth && line) {
-      lines.push(line);
-      line = w;
-    } else {
-      line = test;
+
+  for (const originalWord of words) {
+    let word = originalWord;
+    const candidate = line ? `${line} ${word}` : word;
+    if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+      line = candidate;
+      continue;
     }
+    if (line) {
+      lines.push(line);
+      line = "";
+    }
+    while (font.widthOfTextAtSize(word, size) > maxWidth && word.length > 1) {
+      let splitAt = word.length - 1;
+      while (splitAt > 1 && font.widthOfTextAtSize(word.slice(0, splitAt), size) > maxWidth) splitAt -= 1;
+      lines.push(word.slice(0, splitAt));
+      word = word.slice(splitAt);
+    }
+    line = word;
   }
   if (line) lines.push(line);
   return lines;
 }
 
-async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise<{ bytes: Uint8Array; filename: string; patient: any }> {
-  const { data: proc, error: procErr } = await supabase
+function drawFooter(page: PDFPage, font: PDFFont, bold: PDFFont, clinic: Record<string, unknown>) {
+  const phone = sanitize(clinic.phone) || "+91 6360 75 3030, 9620 12 3030 | Mob: +91 9845 39 3030";
+  const email = sanitize(clinic.email) || "theskinclinic30@gmail.com";
+  const website = sanitize(clinic.website) || "www.theskinclinic.org.in";
+  page.drawLine({ start: { x: MARGIN, y: FOOTER_TOP }, end: { x: PAGE_WIDTH - MARGIN, y: FOOTER_TOP }, thickness: 0.6, color: lineGrey });
+
+  const lines = [
+    `Clinic Phone: ${phone}`,
+    `E-mail: ${email} | Website: ${website}`,
+  ];
+  lines.forEach((text, index) => {
+    const display = sanitize(text);
+    const textWidth = (index === 0 ? font : font).widthOfTextAtSize(display, 9);
+    page.drawText(display, { x: Math.max(MARGIN, (PAGE_WIDTH - textWidth) / 2), y: 46 - index * 13, size: 9, font: index === 0 ? font : font, color: dark });
+  });
+  void bold;
+}
+
+function drawContinuedTitle(page: PDFPage, font: PDFFont) {
+  const title = "Prescription Document (continued)";
+  const width = font.widthOfTextAtSize(title, 15);
+  page.drawText(title, { x: (PAGE_WIDTH - width) / 2, y: PAGE_HEIGHT - 42, size: 15, font, color: dark });
+  page.drawLine({ start: { x: MARGIN, y: PAGE_HEIGHT - 55 }, end: { x: PAGE_WIDTH - MARGIN, y: PAGE_HEIGHT - 55 }, thickness: 0.8, color: blue });
+}
+
+async function embedLogo(pdfDoc: PDFDocument, logoUrl?: string | null): Promise<PDFImage | null> {
+  if (!logoUrl) return null;
+  try {
+    const response = await fetch(logoUrl);
+    if (!response.ok) return null;
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const contentType = response.headers.get("content-type") || "";
+    return contentType.includes("png") ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
+  } catch {
+    return null;
+  }
+}
+
+async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, procedureId: string) {
+  const { data: procedure, error: procedureError } = await client
     .from("procedures")
     .select("*, patients(*), staff!procedures_staff_id_fkey(*), appointments(*, staff!appointments_staff_id_fkey(*))")
     .eq("id", procedureId)
     .single();
-  if (procErr || !proc) throw new Error(procErr?.message || "Procedure not found");
+  if (procedureError || !procedure) throw new Error(procedureError?.message || "Procedure not found");
 
-  const [{ data: rxs }, { data: clinic }] = await Promise.all([
-    supabase.from("prescriptions").select("*").eq("procedure_id", procedureId),
-    supabase.from("clinic_settings").select("*").limit(1).maybeSingle(),
+  const [{ data: prescriptions, error: prescriptionError }, { data: clinicData }] = await Promise.all([
+    client.from("prescriptions").select("*").eq("procedure_id", procedureId).order("created_at"),
+    client.from("clinic_settings").select("*").limit(1).maybeSingle(),
   ]);
+  if (prescriptionError) throw new Error(prescriptionError.message);
 
-  const patient = proc.patients || {};
-  const staff = proc.staff || proc.appointments?.staff || {};
-
+  const clinic = (clinicData || {}) as Record<string, unknown>;
+  const patient = procedure.patients || {};
+  const staff = procedure.staff || procedure.appointments?.staff || {};
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595, 842]); // A4
-  const { width, height } = page.getSize();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const italic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+  const logo = await embedLogo(pdfDoc, typeof clinic.logo_url === "string" ? clinic.logo_url : null);
+  const pages: PDFPage[] = [];
+  let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  pages.push(page);
 
-  const sage = rgb(0.784, 0.847, 0.784);
-  const dark = rgb(0.1, 0.1, 0.1);
-  const grey = rgb(0.45, 0.45, 0.45);
-  const blueHead = rgb(0.114, 0.620, 0.459); // teal #1D9E75
-  const blueLine = rgb(0.114, 0.620, 0.459); // teal #1D9E75
-
-  const M = 40; // left/right margin
-  const lw = 110, lh = 110;
-  const lx = width - M - lw;
-  const ly = height - 20 - lh;
-  const headerDividerY = ly - 12;
-
-  // Paint the whole page sage first, then overlay only the header in white.
-  // This guarantees the body starts exactly at the header divider with no white gaps.
-  page.drawRectangle({ x: 0, y: 0, width, height, color: sage });
-  page.drawRectangle({ x: 0, y: headerDividerY, width, height: height - headerDividerY, color: rgb(1, 1, 1) });
-
-  const clinicName = clinic?.name || "THE SKIN CLINIC";
-  const clinicAddr = clinic?.address || "VYAS RAO LANE, KADRI KAMBALA ROAD, MANGALORE- 575003";
-  const footerPhone = "Clinic Phone: +91 6360 75 3030, 9620 12 3030 | Mob: +91 9845 39 3030";
-  const footerEmailWeb = "E-mail: theskinclinic30@gmail.com | Website: www.theskinclinic.org.in";
-
-  // === Header (top-left) ===
-  page.drawText(sanitize(clinicName.toUpperCase()), { x: M, y: height - 40, size: 16, font: bold, color: dark });
-  const addrLines = sanitize(clinicAddr).split(/\\n|,\\s*/).map(s => s.trim()).filter(Boolean);
-  const addrLine = addrLines.join(", ");
-  page.drawText(addrLine, { x: M, y: height - 58, size: 10, font: bold, color: dark });
-
-  // === Logo (top-right inside white header) ===
-  let logoEmbedded = false;
-  if (clinic?.logo_url) {
-    try {
-      const r = await fetch(clinic.logo_url);
-      if (r.ok) {
-        const ab = new Uint8Array(await r.arrayBuffer());
-        const ct = r.headers.get("content-type") || "";
-        const img = ct.includes("png") ? await pdfDoc.embedPng(ab) : await pdfDoc.embedJpg(ab);
-        const dims = img.scaleToFit(lw, lh);
-        page.drawImage(img, { x: lx + (lw - dims.width) / 2, y: ly + (lh - dims.height) / 2, width: dims.width, height: dims.height });
-        logoEmbedded = true;
-      }
-    } catch (_) { /* ignore */ }
-  }
-  if (!logoEmbedded) {
-    const cn = "The Skin Clinic";
-    const cnw = bold.widthOfTextAtSize(cn, 13);
-    page.drawText(cn, { x: lx + (lw - cnw) / 2, y: ly + lh / 2 - 6, size: 13, font: bold, color: rgb(0.30, 0.50, 0.42) });
-  }
-
-  // Header rule under clinic name/address
-  const ruleY = height - 78;
-  page.drawLine({ start: { x: M, y: ruleY }, end: { x: lx - 10, y: ruleY }, thickness: 0.6, color: dark });
-
-  // === Doctor block (left, under rule) ===
-  const nameParts = [staff.first_name, staff.last_name].filter(Boolean).join(" ").trim();
-  const doctorName = nameParts ? `Dr. ${nameParts}` : "Dr. —";
-  const docQual = staff.specialization || "";
-  const docRole = staff.role || "Dermatologist";
-  const docPhone = staff.phone || "";
-
-  let docY = ruleY - 16;
-  page.drawText(sanitize(`${doctorName}${docQual ? "  " + docQual : ""}`), { x: M, y: docY, size: 11, font: bold, color: dark });
-  docY -= 14;
-  page.drawText(sanitize(docRole), { x: M, y: docY, size: 10, font, color: dark });
-  docY -= 12;
-  if (docPhone) page.drawText(sanitize(docPhone), { x: M, y: docY, size: 10, font, color: dark });
-
-  // === Prescription No / Date (right of doctor block, left of logo panel) ===
-  const prescriptionNo = `D-${shortNumFromUuid(proc.id, 4)}`;
-  const apptNo = `A-${shortNumFromUuid(proc.appointment_id || proc.id, 4)}`;
-  const dateStr = new Date(proc.procedure_date).toLocaleDateString("en-GB");
-  const metaX = lx - 200;
-  page.drawText(sanitize(`Prescription No:   ${prescriptionNo}`), { x: metaX, y: ruleY - 16, size: 11, font, color: dark });
-  page.drawText(sanitize(`Date:   ${dateStr}`), { x: metaX, y: ruleY - 30, size: 11, font, color: dark });
-
-  // Bottom divider: sage green body begins immediately below this line.
-  page.drawLine({ start: { x: 0, y: headerDividerY }, end: { x: width, y: headerDividerY }, thickness: 0.8, color: blueLine });
-
-  // === Title ===
-  let y = headerDividerY - 28; // below white header band, on sage background
-  const title = "Prescription Document";
-  const tw = font.widthOfTextAtSize(title, 20);
-  page.drawText(title, { x: (width - tw) / 2, y, size: 20, font, color: dark });
-  y -= 14;
-  page.drawLine({ start: { x: M, y }, end: { x: width - M, y }, thickness: 1, color: blueLine });
-
-  // === Patient info grid (2 columns x 3 rows) ===
-  y -= 32;
-  const colL = M;
-  const colR = width / 2 + 10;
-  const labelW = 110;
-  const patientName = `${patient.first_name || ""} ${patient.last_name || ""}`.trim() || "—";
-  const drawKV = (x: number, yy: number, k: string, v: string) => {
-    page.drawText(sanitize(k), { x, y: yy, size: 11, font, color: dark });
-    page.drawText(sanitize(v), { x: x + labelW, y: yy, size: 11, font, color: dark });
+  const addContinuationPage = () => {
+    page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    pages.push(page);
+    drawContinuedTitle(page, font);
+    return PAGE_HEIGHT - 76;
   };
-  drawKV(colL, y, "Patient name:", patientName);
-  drawKV(colR, y, "Appointment No:", apptNo);
-  y -= 20;
-  drawKV(colL, y, "Phone No:", patient.phone || "");
-  drawKV(colR, y, "Email id:", patient.email || "");
-  y -= 20;
-  drawKV(colL, y, "Age:", ageFromDob(patient.date_of_birth) || "");
-  drawKV(colR, y, "Sex:", patient.gender || "");
 
-  // === Body - Full width sections ===
-  y -= 40;
-  const bodyTop = y;
-  const colWidth = width - (2 * M);
+  const clinicName = sanitize(clinic.name) || "THE SKIN CLINIC";
+  const clinicAddress = sanitize(clinic.address) || "VYAS RAO LANE, KADRI KAMBALA ROAD, MANGALORE - 575003";
+  const clinicPhone = sanitize(clinic.phone) || "+91 6360-75-3030, 9620-12-3030";
+  const clinicWebsite = sanitize(clinic.website) || "www.theskinclinic.org.in";
 
-  // Build prescription text
-  let prescriptionText = "";
-  if (rxs && rxs.length > 0) {
-    prescriptionText = rxs.map((r: any, i: number) => {
-      const parts = [r.medicine_name];
-      if (r.dosage) parts.push(r.dosage);
-      if (r.frequency) parts.push(r.frequency);
-      if (r.duration) parts.push(`for ${r.duration}`);
-      let line = `${i + 1}. ${parts.filter(Boolean).join(" — ")}`;
-      if (r.instructions) line += `. ${r.instructions}`;
-      return line;
-    }).join("\n");
+  page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 160, width: PAGE_WIDTH, height: 160, color: mint });
+  page.drawText(clinicName.toUpperCase(), { x: MARGIN, y: PAGE_HEIGHT - 32, size: 15, font: bold, color: dark });
+  page.drawText(sanitize(`PHONE: ${clinicPhone} | WEBSITE: ${clinicWebsite}`), { x: MARGIN, y: PAGE_HEIGHT - 52, size: 8.5, font: bold, color: dark });
+  for (const [index, addressLine] of wrap(clinicAddress.toUpperCase(), bold, 8.5, 370).slice(0, 2).entries()) {
+    page.drawText(addressLine, { x: MARGIN, y: PAGE_HEIGHT - 70 - index * 11, size: 8.5, font: bold, color: dark });
+  }
+
+  const logoBoxX = PAGE_WIDTH - 142;
+  const logoBoxY = PAGE_HEIGHT - 146;
+  page.drawRectangle({ x: logoBoxX, y: logoBoxY, width: 122, height: 132, color: rgb(1, 1, 1) });
+  if (logo) {
+    const dimensions = logo.scaleToFit(112, 122);
+    page.drawImage(logo, { x: logoBoxX + (122 - dimensions.width) / 2, y: logoBoxY + (132 - dimensions.height) / 2, width: dimensions.width, height: dimensions.height });
   } else {
-    prescriptionText = "—";
+    const fallback = "The Skin Clinic";
+    page.drawText(fallback, { x: logoBoxX + 13, y: logoBoxY + 58, size: 13, font: bold, color: blue });
   }
 
-  const drawSection = (startY: number, heading: string, body: string): number => {
-    let yy = startY;
-    page.drawText(heading, { x: M, y: yy, size: 12, font: bold, color: blueHead });
-    yy -= 16;
-    const lines = body.split("\n").flatMap(l => wrap(l || " ", font, 10, colWidth - 20));
-    for (const ln of lines) {
-      page.drawText(sanitize(ln), { x: M + 10, y: yy, size: 10, font, color: dark });
-      yy -= 13;
+  const doctorFirst = sanitize(staff.first_name);
+  const doctorLast = sanitize(staff.last_name);
+  const doctorName = [doctorFirst, doctorLast].filter(Boolean).join(" ");
+  const displayDoctor = doctorName
+    ? /^(dr\.?\s)/i.test(doctorName) ? doctorName.replace(/^dr\.?\s*/i, "Dr. ") : `Dr. ${doctorName}`
+    : "Doctor";
+  const qualification = sanitize(staff.specialization || staff.qualification || staff.role);
+  const doctorPhone = sanitize(staff.phone);
+  const prescriptionNo = `D-${shortNumFromUuid(procedure.id, 4)}`;
+  const appointmentNo = `A-${shortNumFromUuid(procedure.appointment_id || procedure.id, 4)}`;
+  const dateValue = new Date(procedure.procedure_date || procedure.created_at);
+  const dateText = Number.isNaN(dateValue.getTime()) ? "" : dateValue.toLocaleDateString("en-GB");
+
+  page.drawLine({ start: { x: MARGIN, y: PAGE_HEIGHT - 91 }, end: { x: logoBoxX - 12, y: PAGE_HEIGHT - 91 }, thickness: 0.7, color: blue });
+  page.drawText(displayDoctor, { x: MARGIN + 18, y: PAGE_HEIGHT - 108, size: 11, font: bold, color: dark });
+  if (qualification) page.drawText(qualification, { x: MARGIN + 18, y: PAGE_HEIGHT - 123, size: 10, font, color: dark });
+  if (doctorPhone) page.drawText(doctorPhone, { x: MARGIN + 18, y: PAGE_HEIGHT - 138, size: 10, font, color: dark });
+  page.drawText(`Prescription No: ${prescriptionNo}`, { x: 275, y: PAGE_HEIGHT - 108, size: 10, font, color: dark });
+  page.drawText(`Date: ${dateText}`, { x: 305, y: PAGE_HEIGHT - 124, size: 10, font, color: dark });
+
+  let y = PAGE_HEIGHT - 188;
+  const title = "Prescription Document";
+  page.drawText(title, { x: (PAGE_WIDTH - font.widthOfTextAtSize(title, 18)) / 2, y, size: 18, font, color: dark });
+  y -= 18;
+  page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_WIDTH - MARGIN, y }, thickness: 0.8, color: blue });
+  y -= 29;
+
+  const patientName = sanitize(`${patient.first_name || ""} ${patient.last_name || ""}`) || "-";
+  const infoRows = [
+    ["Patient Name:", patientName, "Appointment No:", appointmentNo],
+    ["Phone No:", sanitize(patient.phone) || "-", "Email Id:", sanitize(patient.email) || "-"],
+    ["Age:", ageFromDob(patient.date_of_birth) || "-", "Sex:", sanitize(patient.gender) || "-"],
+  ];
+  for (const row of infoRows) {
+    page.drawText(row[0], { x: MARGIN, y, size: 10, font: bold, color: dark });
+    page.drawText(row[1], { x: 112, y, size: 10, font, color: dark });
+    page.drawText(row[2], { x: 292, y, size: 10, font: bold, color: dark });
+    const rightLines = wrap(row[3], font, 10, PAGE_WIDTH - 402 - MARGIN);
+    page.drawText(rightLines[0] || "", { x: 402, y, size: 10, font, color: dark });
+    y -= Math.max(18, rightLines.length * 12);
+  }
+  y -= 19;
+
+  const ensureSpace = (heightNeeded: number) => {
+    if (y - heightNeeded < CONTENT_BOTTOM) y = addContinuationPage();
+  };
+
+  const drawSection = (heading: string, content: unknown) => {
+    const paragraphs = String(content ?? "").split(/\n+/).map(sanitize).filter(Boolean);
+    if (!paragraphs.length) return;
+    const lines = paragraphs.flatMap((paragraph) => wrap(paragraph, font, 10, PAGE_WIDTH - 2 * MARGIN - 10));
+    ensureSpace(30);
+    page.drawText(heading, { x: MARGIN, y, size: 11, font: bold, color: blue });
+    y -= 15;
+    for (const textLine of lines) {
+      ensureSpace(15);
+      page.drawText(textLine, { x: MARGIN + 8, y, size: 10, font, color: dark });
+      y -= 13;
     }
-    return yy - 8;
+    y -= 10;
   };
 
-  // Full-width sections
-  let cy = bodyTop;
+  drawSection("Symptoms", procedure.symptoms || procedure.consultation_notes);
+  drawSection("Diagnosis", procedure.diagnosis);
+  drawSection("Procedure Details", procedure.procedure_notes);
+  drawSection("Recommendations", procedure.recommendations);
 
-  if (prescriptionText !== "—") {
-    cy = drawSection(cy, "Prescription", prescriptionText);
+  const rows = (prescriptions || []).map((prescription: Record<string, unknown>, index: number) => {
+    const details = [prescription.dosage, prescription.frequency, prescription.duration ? `for ${prescription.duration}` : "", prescription.instructions]
+      .map(sanitize)
+      .filter(Boolean)
+      .join(" - ");
+    return { serial: String(index + 1), product: sanitize(prescription.medicine_name) || "-", instruction: details || "-" };
+  });
+
+  if (rows.length) {
+    const tableX = MARGIN;
+    const tableWidth = PAGE_WIDTH - 2 * MARGIN;
+    const serialWidth = 50;
+    const productWidth = 170;
+    const instructionWidth = tableWidth - serialWidth - productWidth;
+    const drawTableHeader = () => {
+      const height = 24;
+      page.drawRectangle({ x: tableX, y: y - height + 6, width: tableWidth, height, borderColor: dark, borderWidth: 0.7 });
+      page.drawLine({ start: { x: tableX + serialWidth, y: y - height + 6 }, end: { x: tableX + serialWidth, y: y + 6 }, thickness: 0.7, color: dark });
+      page.drawLine({ start: { x: tableX + serialWidth + productWidth, y: y - height + 6 }, end: { x: tableX + serialWidth + productWidth, y: y + 6 }, thickness: 0.7, color: dark });
+      page.drawText("S.No", { x: tableX + 13, y: y - 9, size: 9, font: bold, color: dark });
+      page.drawText("Product", { x: tableX + serialWidth + 60, y: y - 9, size: 9, font: bold, color: dark });
+      page.drawText("Instruction", { x: tableX + serialWidth + productWidth + 92, y: y - 9, size: 9, font: bold, color: dark });
+      y -= height;
+    };
+
+    ensureSpace(42);
+    page.drawText("Prescription", { x: MARGIN, y, size: 11, font: bold, color: blue });
+    y -= 18;
+    drawTableHeader();
+
+    for (const row of rows) {
+      const productLines = wrap(row.product, font, 9, productWidth - 12);
+      const instructionLines = wrap(row.instruction, font, 9, instructionWidth - 12);
+      const rowHeight = Math.max(25, Math.max(productLines.length, instructionLines.length) * 12 + 9);
+      if (y - rowHeight < CONTENT_BOTTOM) {
+        y = addContinuationPage();
+        page.drawText("Prescription (continued)", { x: MARGIN, y, size: 11, font: bold, color: blue });
+        y -= 18;
+        drawTableHeader();
+      }
+      page.drawRectangle({ x: tableX, y: y - rowHeight + 6, width: tableWidth, height: rowHeight, borderColor: dark, borderWidth: 0.7 });
+      page.drawLine({ start: { x: tableX + serialWidth, y: y - rowHeight + 6 }, end: { x: tableX + serialWidth, y: y + 6 }, thickness: 0.7, color: dark });
+      page.drawLine({ start: { x: tableX + serialWidth + productWidth, y: y - rowHeight + 6 }, end: { x: tableX + serialWidth + productWidth, y: y + 6 }, thickness: 0.7, color: dark });
+      page.drawText(row.serial, { x: tableX + 22, y: y - 9, size: 9, font, color: dark });
+      productLines.forEach((line, index) => page.drawText(line, { x: tableX + serialWidth + 6, y: y - 9 - index * 12, size: 9, font, color: dark }));
+      instructionLines.forEach((line, index) => page.drawText(line, { x: tableX + serialWidth + productWidth + 6, y: y - 9 - index * 12, size: 9, font, color: dark }));
+      y -= rowHeight;
+    }
   }
 
-  cy = drawSection(cy, "Symptoms", proc.symptoms || proc.consultation_notes || "—");
-  cy = drawSection(cy, "Diagnosis", proc.diagnosis || "—");
-  cy = drawSection(cy, "Procedure Details", proc.procedure_notes || "—");
-
-  if (proc.recommendations) {
-    cy = drawSection(cy, "Recommendations", proc.recommendations);
-  }
-
-  // === Footer divider ===
-  const footerDividerY = 90;
-  page.drawLine({ start: { x: M, y: footerDividerY }, end: { x: width - M, y: footerDividerY }, thickness: 0.5, color: grey });
-
-  // === Footer ===
-  const footerY = 65;
-  const footerWidth = width - (2 * M);
-  const footerLabelW = 140;
-
-  const drawFooterKV = (x: number, yy: number, k: string, v: string) => {
-    page.drawText(sanitize(k), { x, y: yy, size: 9, font: bold, color: dark });
-    page.drawText(sanitize(v), { x: x + footerLabelW, y: yy, size: 9, font, color: dark });
-  };
-
-  drawFooterKV(M, footerY + 12, "Clinic Phone:", footerPhone.replace("Clinic Phone: ", ""));
-  drawFooterKV(M, footerY - 2, "E-mail:", footerEmailWeb.replace("E-mail: ", ""));
-
+  pages.forEach((pdfPage) => drawFooter(pdfPage, font, bold, clinic));
   const bytes = await pdfDoc.save();
-  const safeName = (patientName || "patient").replace(/[^A-Za-z0-9_-]+/g, "_");
-  const filename = `Prescription-${safeName}-${prescriptionNo}.pdf`;
-  return { bytes, filename, patient };
+  const safeName = patientName.replace(/[^A-Za-z0-9_-]+/g, "_");
+  return { bytes, filename: `Prescription-${safeName}-${prescriptionNo}.pdf`, patient };
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { procedureId, mode } = await req.json();
-    if (!procedureId) throw new Error("procedureId is required");
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
-    const { bytes, filename, patient } = await buildPrescriptionPdf(supabase, procedureId);
-
-    if (mode === "upload") {
-      const path = `prescriptions/${procedureId}/${filename}`;
-      const { error: upErr } = await supabase.storage
-        .from("procedure-attachments")
-        .upload(path, bytes, { contentType: "application/pdf", upsert: true });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("procedure-attachments").getPublicUrl(path);
-      // Audit row
-      await supabase.from("procedure_attachments").insert({
-        procedure_id: procedureId,
-        patient_id: patient?.id || null,
-        file_url: pub.publicUrl,
-        file_name: filename,
-        notes: "Auto-generated prescription PDF",
-      });
-      return new Response(JSON.stringify({ ok: true, url: pub.publicUrl, filename, phone: patient?.phone || null }), {
+    const parsed = BodySchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return new Response(JSON.stringify({ error: parsed.error.flatten().fieldErrors }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Default: return base64 for direct download
-    let bin = "";
-    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    const base64 = btoa(bin);
-    return new Response(JSON.stringify({ ok: true, base64, filename }), {
+    const backendUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!backendUrl || !serviceKey) throw new Error("Backend environment is not configured");
+    const client = createClient(backendUrl, serviceKey);
+    const { bytes, filename, patient } = await buildPrescriptionPdf(client, parsed.data.procedureId);
+
+    if (parsed.data.mode === "upload") {
+      const path = `prescriptions/${parsed.data.procedureId}/${filename}`;
+      const { error: uploadError } = await client.storage.from("procedure-attachments").upload(path, bytes, { contentType: "application/pdf", upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: publicData } = client.storage.from("procedure-attachments").getPublicUrl(path);
+      await client.from("procedure_attachments").insert({
+        procedure_id: parsed.data.procedureId,
+        patient_id: patient?.id || null,
+        file_url: publicData.publicUrl,
+        file_name: filename,
+        notes: "Auto-generated prescription PDF",
+      });
+      return new Response(JSON.stringify({ ok: true, url: publicData.publicUrl, filename, phone: patient?.phone || null }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let binary = "";
+    for (let index = 0; index < bytes.length; index += 1) binary += String.fromCharCode(bytes[index]);
+    return new Response(JSON.stringify({ ok: true, base64: btoa(binary), filename }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
-    console.error("generate-prescription-pdf error:", err);
-    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  } catch (error) {
+    console.error("generate-prescription-pdf error:", error);
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

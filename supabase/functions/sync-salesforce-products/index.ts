@@ -1,30 +1,54 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/salesforce";
 
 interface SalesforceProduct {
   Id: string;
   Name: string;
+  Description?: string | null;
+  Family?: string | null;
+  IsActive?: boolean | null;
+  QuantityUnitOfMeasure?: string | null;
+  StockKeepingUnit?: string | null;
   [key: string]: any;
 }
 
 Deno.serve(async (req) => {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+  const salesforceApiKey = Deno.env.get("SALESFORCE_API_KEY");
+
+  if (!supabaseUrl || !supabaseKey || !lovableApiKey || !salesforceApiKey) {
+    console.error("Missing required product sync environment variables", {
+      supabaseUrl: Boolean(supabaseUrl),
+      supabaseKey: Boolean(supabaseKey),
+      lovableApiKey: Boolean(lovableApiKey),
+      salesforceApiKey: Boolean(salesforceApiKey),
+    });
+    return new Response(
+      JSON.stringify({ success: false, error: "Product sync is not configured" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    // Query for medicine/product data - try multiple possible object names
+    // Query only fields available on Product2 in the connected clinic org.
     const soql = `
-      SELECT Id, Name,
-             Generic_Name__c, Product_Family__c, Manufacturer__c,
-             Unit__c, HSN_Code__c, GST_Percent__c,
-             MRP__c, Selling_Price__c,
-             Duration__c, Instructions__c,
-             Side_Effects__c, Storage_Instructions__c,
-             Reorder_Level__c
+      SELECT Id, Name, Description, Family, IsActive,
+             QuantityUnitOfMeasure, StockKeepingUnit
       FROM Product2
+      WHERE IsActive = true
       LIMIT 1000
     `;
 
@@ -35,6 +59,8 @@ Deno.serve(async (req) => {
       {
         method: "GET",
         headers: {
+           "Authorization": `Bearer ${lovableApiKey}`,
+           "X-Connection-Api-Key": salesforceApiKey,
           "Accept": "application/json",
         },
       }
@@ -63,7 +89,7 @@ Deno.serve(async (req) => {
           total: 0,
           message: "No products found in Salesforce",
         }),
-        { headers: { "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -75,28 +101,30 @@ Deno.serve(async (req) => {
       try {
         const payload = {
           name: product.Name,
-          generic_name: product.Generic_Name__c || null,
-          category: product.Product_Family__c || "General",
-          manufacturer: product.Manufacturer__c || null,
-          unit: product.Unit__c || "Nos",
-          hsn_code: product.HSN_Code__c || null,
-          gst_percent: parseFloat(product.GST_Percent__c) || 0,
-          mrp: parseFloat(product.MRP__c) || 0,
-          selling_price: parseFloat(product.Selling_Price__c) || 0,
-          reorder_level: parseInt(product.Reorder_Level__c) || 10,
-          duration: product.Duration__c || null,
-          instructions: product.Instructions__c || null,
-          side_effects: product.Side_Effects__c || null,
-          storage_instructions: product.Storage_Instructions__c || null,
-          salesforce_id: product.Id,
+          generic_name: null,
+          category: product.Family || "General",
+          manufacturer: null,
+          unit: product.QuantityUnitOfMeasure || "Nos",
+          hsn_code: product.StockKeepingUnit || null,
+          gst_percent: 0,
+          mrp: 0,
+          selling_price: 0,
+          reorder_level: 10,
+          default_instructions: product.Description || null,
         };
 
-        // Check if product already exists
+        // The live pharmacy table does not yet contain salesforce_id, so match
+        // on the exact Salesforce product name to keep repeat syncs idempotent.
         const { data: existing, error: checkErr } = await supabase
           .from("pharma_products")
           .select("id")
-          .eq("salesforce_id", product.Id)
-          .single();
+          .eq("name", product.Name)
+          .maybeSingle();
+
+        if (checkErr) {
+          errors.push(`${product.Name}: Lookup failed - ${checkErr.message}`);
+          continue;
+        }
 
         if (existing) {
           // Update existing
@@ -133,7 +161,7 @@ Deno.serve(async (req) => {
         total: products.length,
         errors: errors.length > 0 ? errors : null,
       }),
-      { headers: { "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (err: any) {
     console.error("Product sync error:", err);
@@ -142,7 +170,7 @@ Deno.serve(async (req) => {
         success: false,
         error: err.message || "Failed to sync products",
       }),
-      { headers: { "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

@@ -27,17 +27,17 @@ async function sfQuery(soql: string): Promise<any[]> {
   const out: any[] = [];
   let url: string | null = `${GATEWAY}/query?q=${encodeURIComponent(soql)}`;
   while (url) {
-    const r = await fetch(url, {
+    const response: Response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "X-Connection-Api-Key": SALESFORCE_API_KEY,
       },
     });
-    if (!r.ok) throw new Error(`SF query failed [${r.status}]: ${await r.text()}`);
-    const j = await r.json();
-    out.push(...(j.records || []));
-    if (j.done || !j.nextRecordsUrl) break;
-    url = `${GATEWAY}${j.nextRecordsUrl.replace("/services/data/v62.0", "")}`;
+    if (!response.ok) throw new Error(`SF query failed [${response.status}]: ${await response.text()}`);
+    const payload: { records?: any[]; done?: boolean; nextRecordsUrl?: string } = await response.json();
+    out.push(...(payload.records || []));
+    if (payload.done || !payload.nextRecordsUrl) break;
+    url = `${GATEWAY}${payload.nextRecordsUrl.replace("/services/data/v62.0", "")}`;
   }
   return out;
 }

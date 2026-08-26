@@ -356,7 +356,7 @@ const Appointments = () => {
   const { data: holidays = [] } = useQuery({
     queryKey: ["holidays"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("holidays")
         .select("date")
         .order("date");

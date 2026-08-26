@@ -247,11 +247,12 @@ Deno.serve(async (req) => {
           .limit(2);
         if (nameLookupError) throw nameLookupError;
 
-        if ((byName || []).length === 1) {
+        const matchingProduct = (byName || []).length === 1 ? byName[0] : null;
+        if (matchingProduct?.id) {
           const { error: linkError } = await supabase
             .from("pharma_products")
             .update(payload)
-            .eq("id", byName[0].id);
+            .eq("id", matchingProduct.id);
           if (linkError) throw linkError;
           log.updated += 1;
           log.linkedByName += 1;

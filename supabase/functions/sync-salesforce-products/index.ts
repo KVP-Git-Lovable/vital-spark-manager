@@ -1,59 +1,64 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
+const GATEWAY_URL = "https://connector-gateway.lovable.dev/salesforce";
+
 interface SalesforceProduct {
   Id: string;
   Name: string;
-  Description: string;
-  Product_Family__c: string;
-  Generic_Name__c: string;
-  Manufacturer__c: string;
-  Unit__c: string;
-  HSN_Code__c: string;
-  GST_Percent__c: number;
-  MRP__c: number;
-  Selling_Price__c: number;
-  Duration__c: string;
-  Instructions__c: string;
-  Side_Effects__c: string;
-  Storage_Instructions__c: string;
-  Reorder_Level__c: number;
+  Generic_Name__c?: string | null;
+  Product_Family__c?: string | null;
+  Manufacturer__c?: string | null;
+  Unit__c?: string | null;
+  HSN_Code__c?: string | null;
+  GST_Percent__c?: number | null;
+  MRP__c?: number | null;
+  Selling_Price__c?: number | null;
+  Duration__c?: string | null;
+  Instructions__c?: string | null;
+  Side_Effects__c?: string | null;
+  Storage_Instructions__c?: string | null;
+  Reorder_Level__c?: number | null;
 }
 
 Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY") || "";
+  const salesforceApiKey = Deno.env.get("SALESFORCE_API_KEY") || "";
+
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    // Fetch from Salesforce connector gateway (via Lovable)
+    // SOQL query for active products with all required fields
+    const soql = `
+      SELECT Id, Name, Generic_Name__c, Product_Family__c, Manufacturer__c,
+             Unit__c, HSN_Code__c, GST_Percent__c, MRP__c, Selling_Price__c,
+             Duration__c, Instructions__c, Side_Effects__c, Storage_Instructions__c,
+             Reorder_Level__c
+      FROM Product2
+      WHERE IsActive = true
+    `;
+
     const sfResponse = await fetch(
-      "https://connector-gateway.lovable.dev/salesforce/query",
+      `${GATEWAY_URL}/query?q=${encodeURIComponent(soql)}`,
       {
-        method: "POST",
+        method: "GET",
         headers: {
-          "Content-Type": "application/json",
+          Authorization: lovableApiKey ? `Bearer ${lovableApiKey}` : "",
+          "X-Connection-Api-Key": salesforceApiKey,
+          Accept: "application/json",
         },
-        body: JSON.stringify({
-          query: `
-            SELECT Id, Name, Description, Product_Family__c, Generic_Name__c,
-                   Manufacturer__c, Unit__c, HSN_Code__c, GST_Percent__c,
-                   MRP__c, Selling_Price__c, Duration__c, Instructions__c,
-                   Side_Effects__c, Storage_Instructions__c, Reorder_Level__c
-            FROM Product2
-            WHERE Status__c = 'Active'
-          `,
-          connector: "salesforce"
-        }),
       }
     );
 
     if (!sfResponse.ok) {
-      const error = await sfResponse.text();
-      throw new Error(`Salesforce API error: ${sfResponse.status} - ${error}`);
+      const errorBody = await sfResponse.text();
+      console.error(`Salesforce gateway error [${sfResponse.status}]: ${errorBody}`);
+      throw new Error(`Salesforce API error: ${sfResponse.status}`);
     }
 
-    const sfData = await sfResponse.json();
-    const products = sfData.records || sfData || [];
+    const data = await sfResponse.json();
+    const products: SalesforceProduct[] = data.records || [];
 
     let imported = 0;
     let updated = 0;
@@ -64,9 +69,8 @@ Deno.serve(async (req) => {
         const {
           Id,
           Name,
-          Description,
-          Product_Family__c,
           Generic_Name__c,
+          Product_Family__c,
           Manufacturer__c,
           Unit__c,
           HSN_Code__c,
@@ -78,7 +82,7 @@ Deno.serve(async (req) => {
           Side_Effects__c,
           Storage_Instructions__c,
           Reorder_Level__c,
-        } = product as SalesforceProduct;
+        } = product;
 
         // Check if product already exists
         const { data: existing } = await supabase
@@ -134,23 +138,16 @@ Deno.serve(async (req) => {
         total: products.length,
         errors: errors.length > 0 ? errors : null,
       }),
-      {
-        headers: { "Content-Type": "application/json" },
-        status: 200
-      }
+      { headers: { "Content-Type": "application/json" }, status: 200 }
     );
   } catch (err: any) {
-    console.error("Salesforce sync error:", err);
+    console.error("Salesforce product sync error:", err);
     return new Response(
       JSON.stringify({
         success: false,
         error: err.message || "Failed to sync from Salesforce",
-        details: err.toString()
       }),
-      {
-        headers: { "Content-Type": "application/json" },
-        status: 500
-      }
+      { headers: { "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

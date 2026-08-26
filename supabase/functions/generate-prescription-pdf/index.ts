@@ -170,10 +170,10 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
   drawKV(colL, y, "Age:", ageFromDob(patient.date_of_birth) || "");
   drawKV(colR, y, "Sex:", patient.gender || "");
 
-  // === Body 2 columns ===
-  y -= 50;
+  // === Body - Full width sections ===
+  y -= 40;
   const bodyTop = y;
-  const colWidth = (width / 2) - M - 10;
+  const colWidth = width - (2 * M);
 
   // Build prescription text
   let prescriptionText = "";
@@ -188,39 +188,52 @@ async function buildPrescriptionPdf(supabase: any, procedureId: string): Promise
       return line;
     }).join("\n");
   } else {
-    prescriptionText = proc.recommendations || "";
+    prescriptionText = "—";
   }
-  if (!prescriptionText) prescriptionText = "—";
 
-  const drawSection = (x: number, startY: number, heading: string, body: string): number => {
+  const drawSection = (startY: number, heading: string, body: string): number => {
     let yy = startY;
-    page.drawText(heading, { x, y: yy, size: 13, font: bold, color: blueHead });
-    yy -= 18;
-    const lines = body.split("\n").flatMap(l => wrap(l || " ", font, 11, colWidth));
+    page.drawText(heading, { x: M, y: yy, size: 12, font: bold, color: blueHead });
+    yy -= 16;
+    const lines = body.split("\n").flatMap(l => wrap(l || " ", font, 10, colWidth - 20));
     for (const ln of lines) {
-      page.drawText(sanitize(ln), { x, y: yy, size: 11, font, color: dark });
-      yy -= 15;
+      page.drawText(sanitize(ln), { x: M + 10, y: yy, size: 10, font, color: dark });
+      yy -= 13;
     }
-    return yy;
+    return yy - 8;
   };
 
-  // Left column: Prescription
-  drawSection(colL, bodyTop, "Prescription", prescriptionText);
+  // Full-width sections
+  let cy = bodyTop;
 
-  // Right column: Symptoms, Diagnosis, Procedure Details
-  let ry = bodyTop;
-  ry = drawSection(colR, ry, "Symptoms", proc.symptoms || proc.consultation_notes || "—");
-  ry -= 14;
-  ry = drawSection(colR, ry, "Diagnosis", proc.diagnosis || "—");
-  ry -= 14;
-  ry = drawSection(colR, ry, "Procedure Details", proc.procedure_notes || "—");
+  if (prescriptionText !== "—") {
+    cy = drawSection(cy, "Prescription", prescriptionText);
+  }
+
+  cy = drawSection(cy, "Symptoms", proc.symptoms || proc.consultation_notes || "—");
+  cy = drawSection(cy, "Diagnosis", proc.diagnosis || "—");
+  cy = drawSection(cy, "Procedure Details", proc.procedure_notes || "—");
+
+  if (proc.recommendations) {
+    cy = drawSection(cy, "Recommendations", proc.recommendations);
+  }
+
+  // === Footer divider ===
+  const footerDividerY = 90;
+  page.drawLine({ start: { x: M, y: footerDividerY }, end: { x: width - M, y: footerDividerY }, thickness: 0.5, color: grey });
 
   // === Footer ===
-  const footerY = 50;
-  const f1w = font.widthOfTextAtSize(sanitize(footerPhone), 10);
-  page.drawText(sanitize(footerPhone), { x: (width - f1w) / 2, y: footerY + 14, size: 10, font, color: dark });
-  const f2w = font.widthOfTextAtSize(sanitize(footerEmailWeb), 10);
-  page.drawText(sanitize(footerEmailWeb), { x: (width - f2w) / 2, y: footerY, size: 10, font, color: dark });
+  const footerY = 65;
+  const footerWidth = width - (2 * M);
+  const footerLabelW = 140;
+
+  const drawFooterKV = (x: number, yy: number, k: string, v: string) => {
+    page.drawText(sanitize(k), { x, y: yy, size: 9, font: bold, color: dark });
+    page.drawText(sanitize(v), { x: x + footerLabelW, y: yy, size: 9, font, color: dark });
+  };
+
+  drawFooterKV(M, footerY + 12, "Clinic Phone:", footerPhone.replace("Clinic Phone: ", ""));
+  drawFooterKV(M, footerY - 2, "E-mail:", footerEmailWeb.replace("E-mail: ", ""));
 
   const bytes = await pdfDoc.save();
   const safeName = (patientName || "patient").replace(/[^A-Za-z0-9_-]+/g, "_");

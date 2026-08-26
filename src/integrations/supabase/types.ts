@@ -1971,6 +1971,7 @@ export type Database = {
           default_duration: string | null
           default_frequency: string | null
           default_instructions: string | null
+          duration: string | null
           expiry_date: string | null
           generic_name: string | null
           gst_percent: number
@@ -1978,6 +1979,7 @@ export type Database = {
           id: string
           igst_percent: number
           image_url: string | null
+          instructions: string | null
           manufacturer: string | null
           mrp: number
           name: string
@@ -1985,7 +1987,10 @@ export type Database = {
           qty_per_unit: number | null
           reorder_level: number
           sale_unit: string | null
+          salesforce_id: string | null
           selling_price: number
+          side_effects: string | null
+          storage_instructions: string | null
           sub_unit: string | null
           unit: string
           updated_at: string
@@ -2000,6 +2005,7 @@ export type Database = {
           default_duration?: string | null
           default_frequency?: string | null
           default_instructions?: string | null
+          duration?: string | null
           expiry_date?: string | null
           generic_name?: string | null
           gst_percent?: number
@@ -2007,6 +2013,7 @@ export type Database = {
           id?: string
           igst_percent?: number
           image_url?: string | null
+          instructions?: string | null
           manufacturer?: string | null
           mrp?: number
           name: string
@@ -2014,7 +2021,10 @@ export type Database = {
           qty_per_unit?: number | null
           reorder_level?: number
           sale_unit?: string | null
+          salesforce_id?: string | null
           selling_price?: number
+          side_effects?: string | null
+          storage_instructions?: string | null
           sub_unit?: string | null
           unit?: string
           updated_at?: string
@@ -2029,6 +2039,7 @@ export type Database = {
           default_duration?: string | null
           default_frequency?: string | null
           default_instructions?: string | null
+          duration?: string | null
           expiry_date?: string | null
           generic_name?: string | null
           gst_percent?: number
@@ -2036,6 +2047,7 @@ export type Database = {
           id?: string
           igst_percent?: number
           image_url?: string | null
+          instructions?: string | null
           manufacturer?: string | null
           mrp?: number
           name?: string
@@ -2043,7 +2055,10 @@ export type Database = {
           qty_per_unit?: number | null
           reorder_level?: number
           sale_unit?: string | null
+          salesforce_id?: string | null
           selling_price?: number
+          side_effects?: string | null
+          storage_instructions?: string | null
           sub_unit?: string | null
           unit?: string
           updated_at?: string

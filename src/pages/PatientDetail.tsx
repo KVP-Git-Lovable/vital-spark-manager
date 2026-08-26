@@ -1060,7 +1060,7 @@ const PatientDetail = () => {
         <TabsContent value="invoices">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex justify-end mb-3">
-              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate(`/billing?patientId=${id}`)}>
+              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => navigate(`/billing?patientId=${id}&newInvoice=1`)}>
                 <Plus className="h-3.5 w-3.5" /> Create Invoice
               </Button>
             </div>

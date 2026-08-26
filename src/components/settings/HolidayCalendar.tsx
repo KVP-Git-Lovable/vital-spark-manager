@@ -29,7 +29,7 @@ export function HolidayCalendar() {
   const { data: holidays = [] } = useQuery({
     queryKey: ["holidays"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("holidays")
         .select("*")
         .order("date", { ascending: true });
@@ -46,7 +46,7 @@ export function HolidayCalendar() {
 
     setSaving(true);
     try {
-      const { error } = await supabase.from("holidays").insert({
+      const { error } = await (supabase as any).from("holidays").insert({
         date: holidayDate,
         name: holidayName.trim(),
         description: holidayDescription.trim() || null,
@@ -70,7 +70,7 @@ export function HolidayCalendar() {
 
   const handleDeleteHoliday = async (id: string) => {
     try {
-      const { error } = await supabase.from("holidays").delete().eq("id", id);
+      const { error } = await (supabase as any).from("holidays").delete().eq("id", id);
       if (error) throw error;
 
       await queryClient.invalidateQueries({ queryKey: ["holidays"] });

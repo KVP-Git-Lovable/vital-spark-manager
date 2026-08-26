@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
-import { Plus, Search, Package, ShoppingCart, AlertTriangle, Settings, Trash2 } from "lucide-react";
+import { Plus, Search, Package, ShoppingCart, AlertTriangle, Settings, Trash2, Cloud } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -322,6 +322,19 @@ const Pharma = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const syncSalesforceProducts = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sync-salesforce-products");
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
+      toast.success(`Sync complete: ${data.imported} imported, ${data.updated} updated`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const deleteAllProducts = useMutation({
     mutationFn: async () => {
       const sentinel = "00000000-0000-0000-0000-000000000000";
@@ -580,6 +593,15 @@ const Pharma = () => {
           <p className="page-subtitle">Products, inventory & billing</p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => syncSalesforceProducts.mutate()}
+            disabled={syncSalesforceProducts.isPending}
+          >
+            <Cloud className="h-4 w-4" />
+            {syncSalesforceProducts.isPending ? "Syncing..." : "Sync from Salesforce"}
+          </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive">

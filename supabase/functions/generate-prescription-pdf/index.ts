@@ -168,7 +168,9 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
   const doctorFirst = sanitize(staff.first_name);
   const doctorLast = sanitize(staff.last_name);
   const doctorName = [doctorFirst, doctorLast].filter(Boolean).join(" ");
-  const displayDoctor = doctorName ? `Dr. ${doctorName}` : "Doctor";
+  const displayDoctor = doctorName
+    ? /^(dr\.?\s)/i.test(doctorName) ? doctorName.replace(/^dr\.?\s*/i, "Dr. ") : `Dr. ${doctorName}`
+    : "Doctor";
   const qualification = sanitize(staff.specialization || staff.qualification || staff.role);
   const doctorPhone = sanitize(staff.phone);
   const prescriptionNo = `D-${shortNumFromUuid(procedure.id, 4)}`;

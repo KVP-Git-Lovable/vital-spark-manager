@@ -32,6 +32,15 @@ interface ExistingProduct {
   salesforce_id: string | null;
 }
 
+interface LegacyCleanupCandidate extends ExistingProduct {
+  category: string | null;
+  pharma_inventory?: Array<{ id: string }> | null;
+  pharma_bill_items?: Array<{ id: string }> | null;
+  cart_items?: Array<{ id: string }> | null;
+  product_prices?: Array<{ id: string }> | null;
+  service_medicines?: Array<{ id: string }> | null;
+}
+
 function asText(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -163,9 +172,9 @@ async function removeLegacyProduct2Mistakes(supabase: ReturnType<typeof createCl
     return;
   }
 
-  const removableIds = (candidates || [])
-    .filter((row: any) => !validProductNames.has(normalizeName(row.name || "")))
-    .filter((row: any) => {
+  const removableIds = ((candidates || []) as LegacyCleanupCandidate[])
+    .filter((row) => !validProductNames.has(normalizeName(row.name || "")))
+    .filter((row) => {
       const linked =
         (row.pharma_inventory || []).length +
         (row.pharma_bill_items || []).length +
@@ -174,7 +183,7 @@ async function removeLegacyProduct2Mistakes(supabase: ReturnType<typeof createCl
         (row.service_medicines || []).length;
       return linked === 0;
     })
-    .map((row: any) => row.id);
+    .map((row) => row.id);
 
   if (removableIds.length === 0) return;
 
@@ -211,8 +220,8 @@ async function saveProducts(supabase: ReturnType<typeof createClient>, products:
       unlinkedByName.set(key, [...(unlinkedByName.get(key) || []), row]);
     });
 
-  const nameMatchUpdates: any[] = [];
-  const allPayloads: any[] = [];
+  const nameMatchUpdates: Array<ReturnType<typeof productPayload> & { id: string }> = [];
+  const allPayloads: Array<ReturnType<typeof productPayload>> = [];
 
   for (const product of products) {
     const cleanName = asText(product.Name);

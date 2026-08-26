@@ -110,19 +110,21 @@ Deno.serve(async (req) => {
           mrp: 0,
           selling_price: 0,
           reorder_level: 10,
-          duration: null,
-          instructions: product.Description || null,
-          side_effects: null,
-          storage_instructions: null,
-          salesforce_id: product.Id,
+          default_instructions: product.Description || null,
         };
 
-        // Check if product already exists
+        // The live pharmacy table does not yet contain salesforce_id, so match
+        // on the exact Salesforce product name to keep repeat syncs idempotent.
         const { data: existing, error: checkErr } = await supabase
           .from("pharma_products")
           .select("id")
-          .eq("salesforce_id", product.Id)
-          .single();
+          .eq("name", product.Name)
+          .maybeSingle();
+
+        if (checkErr) {
+          errors.push(`${product.Name}: Lookup failed - ${checkErr.message}`);
+          continue;
+        }
 
         if (existing) {
           // Update existing

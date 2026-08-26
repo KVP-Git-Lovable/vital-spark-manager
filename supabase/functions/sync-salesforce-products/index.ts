@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/salesforce";
 
@@ -9,8 +10,30 @@ interface SalesforceProduct {
 }
 
 Deno.serve(async (req) => {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+  const salesforceApiKey = Deno.env.get("SALESFORCE_API_KEY");
+
+  if (!supabaseUrl || !supabaseKey || !lovableApiKey || !salesforceApiKey) {
+    console.error("Missing required product sync environment variables", {
+      supabaseUrl: Boolean(supabaseUrl),
+      supabaseKey: Boolean(supabaseKey),
+      lovableApiKey: Boolean(lovableApiKey),
+      salesforceApiKey: Boolean(salesforceApiKey),
+    });
+    return new Response(
+      JSON.stringify({ success: false, error: "Product sync is not configured" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -35,6 +58,8 @@ Deno.serve(async (req) => {
       {
         method: "GET",
         headers: {
+           "Authorization": `Bearer ${lovableApiKey}`,
+           "X-Connection-Api-Key": salesforceApiKey,
           "Accept": "application/json",
         },
       }
@@ -63,7 +88,7 @@ Deno.serve(async (req) => {
           total: 0,
           message: "No products found in Salesforce",
         }),
-        { headers: { "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -133,7 +158,7 @@ Deno.serve(async (req) => {
         total: products.length,
         errors: errors.length > 0 ? errors : null,
       }),
-      { headers: { "Content-Type": "application/json" }, status: 200 }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (err: any) {
     console.error("Product sync error:", err);
@@ -142,7 +167,7 @@ Deno.serve(async (req) => {
         success: false,
         error: err.message || "Failed to sync products",
       }),
-      { headers: { "Content-Type": "application/json" }, status: 500 }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

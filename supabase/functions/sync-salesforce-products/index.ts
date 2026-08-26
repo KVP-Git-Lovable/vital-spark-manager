@@ -201,7 +201,7 @@ async function saveProducts(supabase: ReturnType<typeof createClient>, products:
   if (existingError) throw existingError;
 
   const existing = (existingRows || []) as ExistingProduct[];
-  const bySalesforceId = new Map(existing.filter((row) => row.salesforce_id).map((row) => [row.salesforce_id as string, row]));
+  const beforeLinked = existing.filter((row) => row.salesforce_id).length;
   const unlinkedByName = new Map<string, ExistingProduct[]>();
 
   existing
@@ -211,8 +211,8 @@ async function saveProducts(supabase: ReturnType<typeof createClient>, products:
       unlinkedByName.set(key, [...(unlinkedByName.get(key) || []), row]);
     });
 
-  const rowsToUpdate: any[] = [];
-  const rowsToInsert: any[] = [];
+  const nameMatchUpdates: any[] = [];
+  const allPayloads: any[] = [];
 
   for (const product of products) {
     const cleanName = asText(product.Name);
@@ -222,32 +222,44 @@ async function saveProducts(supabase: ReturnType<typeof createClient>, products:
     }
 
     const payload = productPayload({ ...product, Name: cleanName });
-    const matchedById = bySalesforceId.get(product.Id);
-    if (matchedById) {
-      rowsToUpdate.push({ id: matchedById.id, ...payload });
-      continue;
-    }
+    allPayloads.push(payload);
 
     const nameMatches = unlinkedByName.get(normalizeName(cleanName)) || [];
     if (nameMatches.length === 1) {
-      rowsToUpdate.push({ id: nameMatches[0].id, ...payload });
+      nameMatchUpdates.push({ id: nameMatches[0].id, ...payload });
       log.linkedByName += 1;
-      continue;
     }
-
-    rowsToInsert.push(payload);
   }
 
-  for (const batch of chunk(rowsToUpdate, 100)) {
+  for (const batch of chunk(nameMatchUpdates, 100)) {
     const { error } = await supabase.from("pharma_products").upsert(batch, { onConflict: "id" });
-    if (error) throw error;
-    log.updated += batch.length;
+    if (error) log.errors.push(`Name-link pass skipped for ${batch.length} products: ${error.message}`);
   }
 
-  for (const batch of chunk(rowsToInsert, 100)) {
-    const { error } = await supabase.from("pharma_products").insert(batch);
+  for (const batch of chunk(allPayloads, 100)) {
+    const { error } = await supabase.from("pharma_products").upsert(batch, { onConflict: "salesforce_id" });
     if (error) throw error;
-    log.imported += batch.length;
+  }
+
+  const { count: afterLinked, error: countError } = await supabase
+    .from("pharma_products")
+    .select("id", { count: "exact", head: true })
+    .not("salesforce_id", "is", null);
+  if (countError) throw countError;
+
+  log.imported = Math.max(0, (afterLinked || 0) - beforeLinked);
+  log.updated = Math.max(0, products.length - log.imported - log.skipped);
+
+  if (nameMatchUpdates.length > 0) {
+    const linkedIds = nameMatchUpdates.map((row) => row.id);
+    const { error: duplicateDeleteError } = await supabase
+      .from("pharma_products")
+      .delete()
+      .in("id", linkedIds)
+      .is("salesforce_id", null)
+      .eq("mrp", 0)
+      .eq("selling_price", 0);
+    if (duplicateDeleteError) log.errors.push(`Duplicate cleanup skipped: ${duplicateDeleteError.message}`);
   }
 }
 

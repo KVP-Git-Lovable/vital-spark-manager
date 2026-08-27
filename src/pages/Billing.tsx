@@ -100,7 +100,7 @@ const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
 const generateInvoicePDF = (inv: any) => {
   const date = new Date(inv.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
   const balance = Number(inv.total_amount) - Number(inv.paid_amount);
-  const drName = inv.appointments?.staff ? `Dr. ${inv.appointments.staff.first_name} ${inv.appointments.staff.last_name}` : "";
+  const drName = inv.appointments?.staff ? withDrPrefix(`${inv.appointments.staff.first_name || ""} ${inv.appointments.staff.last_name || ""}`) : "";
 
   const html = `
 <!DOCTYPE html>

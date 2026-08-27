@@ -1614,7 +1614,7 @@ const Billing = () => {
       }
       const doc: any = (doctorsList as any[]).find((d: any) => d.id === newDoctorId);
       const fee = Number(doc?.consultation_fee) || 0;
-      const docName = doc ? `Dr. ${doc.first_name || ""} ${doc.last_name || ""}`.trim() : "Doctor";
+      const docName = doc ? withDrPrefix(`${doc.first_name || ""} ${doc.last_name || ""}`) || "Doctor" : "Doctor";
       const feeRow = {
         name: `Consultation - ${docName}`,
         price: fee,

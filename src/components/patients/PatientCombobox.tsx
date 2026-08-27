@@ -71,12 +71,12 @@ export function PatientCombobox({
       const { data, error } = await supabase
         .from("patients")
         .select(columns)
-        .not("first_name", "is", null)
-        .neq("first_name", "")
         .order("first_name")
-        .range(0, PAGE_SIZE - 1);
+        .range(0, PAGE_SIZE * 2 - 1);
       if (error) throw error;
-      return ((data ?? []) as unknown) as PatientLite[];
+      const all = ((data ?? []) as unknown) as PatientLite[];
+      const withNames = all.filter(p => p.first_name && p.first_name.trim());
+      return withNames.slice(0, PAGE_SIZE);
     },
     enabled: open,
     staleTime: 5 * 60_000,

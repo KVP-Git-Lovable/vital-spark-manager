@@ -1923,27 +1923,29 @@ const Billing = () => {
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                           <Command>
                             <CommandInput placeholder="Search services..." />
-                            <CommandList className="max-h-64 overflow-y-auto">
-                              <CommandEmpty>No service found.</CommandEmpty>
-                              <CommandGroup>
-                                {serviceMaster.map((svc: any) => (
-                                  <CommandItem key={svc.id} value={svc.name} onSelect={() => {
-                                    updateServiceInput(i, {
-                                      name: svc.name,
-                                      price: Number(svc.price) || 0,
-                                      hsn: svc.hsn_code || "",
-                                      gst: Number(svc.gst_percent) || 0,
-                                      service_id: svc.id,
-                                    });
-                                    setServiceSearchOpen(null);
-                                  }}>
-                                    <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
-                                    <span>{svc.name}</span>
-                                    <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
+                            <div className="max-h-64 overflow-y-auto" style={{ scrollbarGutter: "stable" }}>
+                              <CommandList>
+                                <CommandEmpty>No service found.</CommandEmpty>
+                                <CommandGroup>
+                                  {serviceMaster.map((svc: any) => (
+                                    <CommandItem key={svc.id} value={svc.name} onSelect={() => {
+                                      updateServiceInput(i, {
+                                        name: svc.name,
+                                        price: Number(svc.price) || 0,
+                                        hsn: svc.hsn_code || "",
+                                        gst: Number(svc.gst_percent) || 0,
+                                        service_id: svc.id,
+                                      });
+                                      setServiceSearchOpen(null);
+                                    }}>
+                                      <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
+                                      <span>{svc.name}</span>
+                                      <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </div>
                           </Command>
                         </PopoverContent>
                       </Popover>

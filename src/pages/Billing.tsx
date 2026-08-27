@@ -1931,9 +1931,9 @@ const Billing = () => {
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                           <Command>
                             <CommandInput placeholder="Search services..." />
-                            <div className="max-h-64 overflow-y-auto" style={{ scrollbarGutter: "stable" }}>
-                              <CommandList>
-                                <CommandEmpty>No service found.</CommandEmpty>
+                            <CommandList className="max-h-64 overflow-y-auto overscroll-contain" style={{ scrollbarGutter: "stable" }}>
+                              <CommandEmpty>No service found.</CommandEmpty>
+
                                 <CommandGroup>
                                   {serviceMaster.map((svc: any) => (
                                     <CommandItem key={svc.id} value={svc.name} onSelect={() => {

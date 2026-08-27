@@ -1923,7 +1923,7 @@ const Billing = () => {
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                           <Command>
                             <CommandInput placeholder="Search services..." />
-                            <CommandList>
+                            <CommandList className="max-h-64 overflow-y-auto">
                               <CommandEmpty>No service found.</CommandEmpty>
                               <CommandGroup>
                                 {serviceMaster.map((svc: any) => (

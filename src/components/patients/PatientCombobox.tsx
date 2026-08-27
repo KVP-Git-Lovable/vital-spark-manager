@@ -71,6 +71,8 @@ export function PatientCombobox({
       const { data, error } = await supabase
         .from("patients")
         .select(columns)
+        .not("first_name", "is", null)
+        .neq("first_name", "")
         .order("first_name")
         .range(0, PAGE_SIZE - 1);
       if (error) throw error;

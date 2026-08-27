@@ -221,14 +221,22 @@ interface PharmaLineItem {
   uom_factor?: number;
 }
 
+/** Prefix a person's name with "Dr." unless it already starts with Dr/Dr. */
+const withDrPrefix = (name: string) => {
+  const clean = name.replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  return /^dr\.?\s/i.test(clean) ? clean.replace(/^dr\.?\s/i, "Dr. ") : `Dr. ${clean}`;
+};
+
 const getDrName = (inv: any) => {
   const d = inv.appointments?.doctors;
   if (d) {
     const full = [d.first_name, d.last_name].filter(Boolean).join(" ").trim();
-    if (full) return `Dr. ${full}`;
+    if (full) return withDrPrefix(full);
   }
   return "";
 };
+
 
 const BILLING_FIELDS = [
   { value: "invoice_number", label: "Invoice #" },

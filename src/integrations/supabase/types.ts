@@ -951,6 +951,7 @@ export type Database = {
           igst: number
           inactive_from: string | null
           is_active: boolean | null
+          sgst: number
           updated_at: string
         }
         Insert: {
@@ -962,6 +963,7 @@ export type Database = {
           igst?: number
           inactive_from?: string | null
           is_active?: boolean | null
+          sgst?: number
           updated_at?: string
         }
         Update: {
@@ -973,6 +975,7 @@ export type Database = {
           igst?: number
           inactive_from?: string | null
           is_active?: boolean | null
+          sgst?: number
           updated_at?: string
         }
         Relationships: []

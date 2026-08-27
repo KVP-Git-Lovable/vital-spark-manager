@@ -100,7 +100,7 @@ const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
 const generateInvoicePDF = (inv: any) => {
   const date = new Date(inv.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
   const balance = Number(inv.total_amount) - Number(inv.paid_amount);
-  const drName = inv.appointments?.staff ? `Dr. ${inv.appointments.staff.first_name} ${inv.appointments.staff.last_name}` : "";
+  const drName = inv.appointments?.staff ? withDrPrefix(`${inv.appointments.staff.first_name || ""} ${inv.appointments.staff.last_name || ""}`) : "";
 
   const html = `
 <!DOCTYPE html>
@@ -221,14 +221,22 @@ interface PharmaLineItem {
   uom_factor?: number;
 }
 
+/** Prefix a person's name with "Dr." unless it already starts with Dr/Dr. */
+const withDrPrefix = (name: string) => {
+  const clean = name.replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  return /^dr\.?\s/i.test(clean) ? clean.replace(/^dr\.?\s/i, "Dr. ") : `Dr. ${clean}`;
+};
+
 const getDrName = (inv: any) => {
   const d = inv.appointments?.doctors;
   if (d) {
     const full = [d.first_name, d.last_name].filter(Boolean).join(" ").trim();
-    if (full) return `Dr. ${full}`;
+    if (full) return withDrPrefix(full);
   }
   return "";
 };
+
 
 const BILLING_FIELDS = [
   { value: "invoice_number", label: "Invoice #" },
@@ -1606,7 +1614,7 @@ const Billing = () => {
       }
       const doc: any = (doctorsList as any[]).find((d: any) => d.id === newDoctorId);
       const fee = Number(doc?.consultation_fee) || 0;
-      const docName = doc ? `Dr. ${doc.first_name || ""} ${doc.last_name || ""}`.trim() : "Doctor";
+      const docName = doc ? withDrPrefix(`${doc.first_name || ""} ${doc.last_name || ""}`) || "Doctor" : "Doctor";
       const feeRow = {
         name: `Consultation - ${docName}`,
         price: fee,
@@ -1923,29 +1931,29 @@ const Billing = () => {
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                           <Command>
                             <CommandInput placeholder="Search services..." />
-                            <div className="max-h-64 overflow-y-auto" style={{ scrollbarGutter: "stable" }}>
-                              <CommandList>
-                                <CommandEmpty>No service found.</CommandEmpty>
-                                <CommandGroup>
-                                  {serviceMaster.map((svc: any) => (
-                                    <CommandItem key={svc.id} value={svc.name} onSelect={() => {
-                                      updateServiceInput(i, {
-                                        name: svc.name,
-                                        price: Number(svc.price) || 0,
-                                        hsn: svc.hsn_code || "",
-                                        gst: Number(svc.gst_percent) || 0,
-                                        service_id: svc.id,
-                                      });
-                                      setServiceSearchOpen(null);
-                                    }}>
-                                      <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
-                                      <span>{svc.name}</span>
-                                      <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </div>
+                            <CommandList className="max-h-64 overflow-y-auto overscroll-contain" style={{ scrollbarGutter: "stable" }}>
+                              <CommandEmpty>No service found.</CommandEmpty>
+
+                              <CommandGroup>
+                                {serviceMaster.map((svc: any) => (
+                                  <CommandItem key={svc.id} value={svc.name} onSelect={() => {
+                                    updateServiceInput(i, {
+                                      name: svc.name,
+                                      price: Number(svc.price) || 0,
+                                      hsn: svc.hsn_code || "",
+                                      gst: Number(svc.gst_percent) || 0,
+                                      service_id: svc.id,
+                                    });
+                                    setServiceSearchOpen(null);
+                                  }}>
+                                    <Check className={cn("mr-2 h-4 w-4", s.name === svc.name ? "opacity-100" : "opacity-0")} />
+                                    <span>{svc.name}</span>
+                                    <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+
                           </Command>
                         </PopoverContent>
                       </Popover>

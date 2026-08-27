@@ -20,7 +20,7 @@ type TaxRow = {
   hsn_code: string;
   igst: number;
   cgst: number;
-  sgst: number;
+  sgst?: number;
   is_active: boolean | null;
   active_from: string | null;
   inactive_from: string | null;
@@ -175,7 +175,7 @@ export default function TaxMaster() {
                 </TableCell>
                 <TableCell>{Number(r.igst)}%</TableCell>
                 <TableCell>{Number(r.cgst)}%</TableCell>
-                <TableCell>{Number(r.sgst)}%</TableCell>
+                <TableCell>{Number(r.sgst ?? 0)}%</TableCell>
                 <TableCell>
                   <Select
                     value={r.is_active === null ? "" : r.is_active ? "yes" : "no"}

@@ -14,7 +14,7 @@ type TaxRow = {
   hsn_code: string;
   igst: number;
   cgst: number;
-  sgst: number;
+  sgst?: number;
   is_active: boolean | null;
 };
 
@@ -47,7 +47,7 @@ const TaxMasterDetail = () => {
     if (taxRecord) {
       setIgst(String(taxRecord.igst || ""));
       setCgst(String(taxRecord.cgst || ""));
-      setSgst(String(taxRecord.sgst || ""));
+      setSgst(String(taxRecord.sgst ?? 0));
       setActive(taxRecord.is_active === null ? "" : taxRecord.is_active ? "yes" : "no");
     }
   }, [taxRecord]);

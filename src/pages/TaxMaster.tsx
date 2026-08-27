@@ -19,6 +19,7 @@ type TaxRow = {
   hsn_code: string;
   igst: number;
   cgst: number;
+  sgst: number;
   is_active: boolean | null;
   active_from: string | null;
   inactive_from: string | null;
@@ -33,6 +34,7 @@ export default function TaxMaster() {
   const [hsnCode, setHsnCode] = useState("");
   const [igst, setIgst] = useState("");
   const [cgst, setCgst] = useState("");
+  const [sgst, setSgst] = useState("");
   const [active, setActive] = useState<string>("");
 
   const { data: rows = [], isLoading } = useQuery({
@@ -47,7 +49,7 @@ export default function TaxMaster() {
     },
   });
 
-  const reset = () => { setHsnCode(""); setIgst(""); setCgst(""); setActive(""); };
+  const reset = () => { setHsnCode(""); setIgst(""); setCgst(""); setSgst(""); setActive(""); };
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -55,6 +57,7 @@ export default function TaxMaster() {
         hsn_code: hsnCode.trim(),
         igst: parseFloat(igst) || 0,
         cgst: parseFloat(cgst) || 0,
+        sgst: parseFloat(sgst) || 0,
         is_active: active === "" ? null : active === "yes",
       });
       if (error) throw error;
@@ -104,14 +107,18 @@ export default function TaxMaster() {
                 <Label>HSN Code *</Label>
                 <Input className="mt-1.5" placeholder="9993" value={hsnCode} onChange={(e) => setHsnCode(e.target.value)} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label>IGST (%)</Label>
-                  <Input type="number" className="mt-1.5" placeholder="18" value={igst} onChange={(e) => setIgst(e.target.value)} />
+                  <Input type="number" step="0.01" className="mt-1.5" placeholder="18" value={igst} onChange={(e) => setIgst(e.target.value)} />
                 </div>
                 <div>
                   <Label>CGST (%)</Label>
-                  <Input type="number" className="mt-1.5" placeholder="9" value={cgst} onChange={(e) => setCgst(e.target.value)} />
+                  <Input type="number" step="0.01" className="mt-1.5" placeholder="9" value={cgst} onChange={(e) => setCgst(e.target.value)} />
+                </div>
+                <div>
+                  <Label>SGST (%)</Label>
+                  <Input type="number" step="0.01" className="mt-1.5" placeholder="9" value={sgst} onChange={(e) => setSgst(e.target.value)} />
                 </div>
               </div>
               <div>
@@ -147,6 +154,7 @@ export default function TaxMaster() {
               <TableHead>HSN Code</TableHead>
               <TableHead>IGST %</TableHead>
               <TableHead>CGST %</TableHead>
+              <TableHead>SGST %</TableHead>
               <TableHead>Active</TableHead>
               <TableHead>Active From</TableHead>
               <TableHead>Inactive From</TableHead>
@@ -154,9 +162,9 @@ export default function TaxMaster() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : rows.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No tax records yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No tax records yet.</TableCell></TableRow>
             ) : rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell className="font-medium flex items-center gap-2">
@@ -164,6 +172,7 @@ export default function TaxMaster() {
                 </TableCell>
                 <TableCell>{Number(r.igst)}%</TableCell>
                 <TableCell>{Number(r.cgst)}%</TableCell>
+                <TableCell>{Number(r.sgst)}%</TableCell>
                 <TableCell>
                   <Select
                     value={r.is_active === null ? "" : r.is_active ? "yes" : "no"}
@@ -185,7 +194,7 @@ export default function TaxMaster() {
       </Card>
 
       <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-        <Percent className="h-3 w-3" /> Total tax applied on a service = IGST + CGST of its linked HSN code.
+        <Percent className="h-3 w-3" /> Total tax applied on a service = IGST + CGST + SGST of its linked HSN code.
       </p>
 
       <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">

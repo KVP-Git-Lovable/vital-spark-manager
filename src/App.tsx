@@ -32,6 +32,7 @@ import LeaveManagement from "./pages/LeaveManagement";
 import Assets from "./pages/Assets";
 import Settings from "./pages/Settings";
 import TaxMasterForm from "./pages/TaxMasterForm";
+import TaxMasterDetail from "./pages/TaxMasterDetail";
 import Orders from "./pages/Orders";
 import TaxMaster from "./pages/TaxMaster";
 import Expenses from "./pages/Expenses";
@@ -179,6 +180,7 @@ const App = () => (
                     <Route path="/Unit-master" element={<Navigate to="/unit-master" replace />} />
                     <Route path="/category-master" element={<ProtectedRoute moduleKey="category_master"><CategoryMaster /></ProtectedRoute>} />
                     <Route path="/tax-master" element={<ProtectedRoute moduleKey="settings"><TaxMaster /></ProtectedRoute>} />
+                    <Route path="/tax-master/:id" element={<ProtectedRoute moduleKey="settings"><TaxMasterDetail /></ProtectedRoute>} />
                     <Route path="/user-management" element={<ProtectedRoute moduleKey="user_management"><UserManagement /></ProtectedRoute>} />
                     <Route path="/validation-rules" element={<ProtectedRoute moduleKey="settings"><ValidationRules /></ProtectedRoute>} />
                     <Route path="/admin" element={<ProtectedRoute moduleKey="settings"><Admin /></ProtectedRoute>} />

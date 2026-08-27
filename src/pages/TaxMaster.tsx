@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Plus, Percent, Lock } from "lucide-react";
+import { Plus, Percent, Lock, Edit2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
@@ -30,6 +31,7 @@ const fmt = (d: string | null) =>
 
 export default function TaxMaster() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [hsnCode, setHsnCode] = useState("");
   const [igst, setIgst] = useState("");
@@ -158,6 +160,7 @@ export default function TaxMaster() {
               <TableHead>Active</TableHead>
               <TableHead>Active From</TableHead>
               <TableHead>Inactive From</TableHead>
+              <TableHead className="w-10">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -187,6 +190,17 @@ export default function TaxMaster() {
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">{fmt(r.active_from)}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{fmt(r.inactive_from)}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => navigate(`/tax-master/${r.id}`)}
+                    title="Edit tax record"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

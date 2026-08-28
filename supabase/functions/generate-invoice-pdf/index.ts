@@ -296,6 +296,7 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
     let y = height - 40;
 
     // Logo
+    let logoH = 0;
     try {
       const logoUrl = clinic?.logo_url;
       if (logoUrl) {
@@ -309,17 +310,18 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
           } else {
             img = await pdfDoc.embedJpg(buf);
           }
-          const targetH = 100;
+          const targetH = 60;
           const scale = targetH / img.height;
           const w = img.width * scale;
           page.drawImage(img, { x: 40, y: y - targetH, width: w, height: targetH });
+          logoH = targetH;
         }
       }
     } catch (e) {
       console.warn("logo embed failed", e);
     }
-    // Always draw clinic name as fallback below logo region
-    y -= 90;
+    // Start the header block below the logo (or tight to the top when absent).
+    y -= logoH > 0 ? logoH + 22 : 30;
 
     // Header info — two columns
     const leftX = 40;

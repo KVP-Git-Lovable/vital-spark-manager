@@ -265,20 +265,30 @@ const Billing = () => {
 
   const { views, currentView, selectedViewId, setSelectedViewId, createView, deleteView, isCreating } = useListViews("billing");
 
-  // Generate and open invoice PDF
-  const openInvoicePDF = (inv: any) => {
+  // Regenerate the official invoice PDF (same template as the WhatsApp copy) and open it.
+  const openInvoicePDF = async (inv: any) => {
+    if (!inv?.id) {
+      toast.error("Invoice id missing");
+      return;
+    }
+    const t = toast.loading("Generating invoice PDF…");
     try {
-      if (!inv?.id) {
-        toast.error("Invoice id missing");
-        return;
-      }
-      generateInvoicePDF(inv);
-      toast.success("Invoice opened for printing");
+      const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
+        body: { invoiceId: inv.id, wait: true },
+      });
+      if (error) throw error;
+      const url = (data as any)?.url;
+      if (!url) throw new Error("PDF url missing");
+      toast.dismiss(t);
+      window.open(`${url}?t=${Date.now()}`, "_blank");
     } catch (e: any) {
       console.error(e);
-      toast.error(e?.message || "Failed to open invoice PDF");
+      toast.dismiss(t);
+      toast.message("Falling back to the printable invoice");
+      generateInvoicePDF(inv);
     }
   };
+
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");

@@ -1,8 +1,7 @@
 // Portal authentication: check phone, set PIN, verify PIN
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -14,7 +13,9 @@ function cleanPhone(p: string): string {
 
 async function sha256(text: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 async function sb(path: string, init: RequestInit = {}) {
@@ -33,45 +34,62 @@ async function sb(path: string, init: RequestInit = {}) {
 
 async function findPatientByPhone(phone: string) {
   const cleaned = cleanPhone(phone);
-  if (cleaned.length < 10) return null;
+  console.log(`[portal-auth] Looking for phone: ${phone} (cleaned: ${cleaned})`);
+
+  if (cleaned.length < 10) {
+    console.log(`[portal-auth] Phone too short: ${cleaned.length} digits`);
+    return null;
+  }
 
   try {
     // Fetch patients with a large limit to handle all records
+    console.log(`[portal-auth] Querying patients table...`);
     const res = await sb(
       `patients?select=id,first_name,last_name,phone,portal_pin_hash,portal_pin_failed_attempts,portal_pin_locked_until&order=created_at.desc&limit=5000`,
     );
 
     if (!res.ok) {
-      console.error(`Query failed: ${res.status}`);
+      console.error(`[portal-auth] Query failed with status ${res.status}`);
+      const errorText = await res.text();
+      console.error(`[portal-auth] Error body: ${errorText}`);
       return null;
     }
 
     const rows = await res.json();
-    console.log(`Found ${rows.length} total patients, searching for phone ${cleaned}`);
+    console.log(`[portal-auth] Found ${rows.length} total patients in database`);
+
+    if (rows.length === 0) {
+      console.log(`[portal-auth] Database is empty!`);
+      return null;
+    }
+
+    // Log first 5 patients for debugging
+    console.log(`[portal-auth] First 5 patients in DB:`);
+    rows.slice(0, 5).forEach((r: any, i: number) => {
+      console.log(
+        `  [${i}] ${r.first_name} ${r.last_name} | Phone: "${r.phone}" | Cleaned: "${cleanPhone(r.phone || "")}"`,
+      );
+    });
 
     // Find patient with matching cleaned phone (handle various formats)
     const found = rows.find((r: any) => {
       const storedCleaned = cleanPhone(r.phone || "");
       const match = storedCleaned === cleaned;
       if (match) {
-        console.log(`✓ Found match: ${r.first_name} ${r.last_name} (${r.phone} -> ${storedCleaned})`);
+        console.log(
+          `[portal-auth] ✓ MATCH FOUND: ${r.first_name} ${r.last_name} (stored: "${r.phone}" -> cleaned: "${storedCleaned}")`,
+        );
       }
       return match;
     });
 
     if (!found) {
-      console.log(`No patient found matching phone ${cleaned}`);
-      // Log first few patients for debugging
-      console.log("First 3 patients in DB:", rows.slice(0, 3).map((r: any) => ({
-        name: `${r.first_name} ${r.last_name}`,
-        phone: r.phone,
-        cleaned: cleanPhone(r.phone || "")
-      })));
+      console.log(`[portal-auth] ✗ NO MATCH: Phone ${cleaned} not found in any of ${rows.length} patients`);
     }
 
     return found || null;
   } catch (err: any) {
-    console.error("findPatientByPhone error:", err);
+    console.error(`[portal-auth] Exception in findPatientByPhone:`, err);
     return null;
   }
 }
@@ -88,14 +106,20 @@ Deno.serve(async (req) => {
 
   try {
     const { action, phone, pin } = await req.json();
+    console.log(`[portal-auth] Request: action=${action}, phone=${phone}`);
+
     if (!action || !phone) return json({ error: "Missing action or phone" }, 400);
 
     const patient = await findPatientByPhone(phone);
     if (!patient) {
+      console.log(`[portal-auth] Patient not found, returning not_registered`);
       return json({ status: "not_registered" }, 200);
     }
 
+    console.log(`[portal-auth] Patient found: ${patient.first_name} ${patient.last_name}`);
+
     if (action === "check") {
+      console.log(`[portal-auth] Check action - has PIN: ${!!patient.portal_pin_hash}`);
       return json({
         status: patient.portal_pin_hash ? "pin_required" : "set_pin",
         patientId: patient.id,
@@ -116,6 +140,7 @@ Deno.serve(async (req) => {
         }),
       });
       if (!upd.ok) return json({ error: "Failed to save PIN" }, 500);
+      console.log(`[portal-auth] PIN set for ${patient.first_name} ${patient.last_name}`);
       return json({
         status: "ok",
         patientId: patient.id,
@@ -129,10 +154,14 @@ Deno.serve(async (req) => {
 
       // Locked?
       if (patient.portal_pin_locked_until && new Date(patient.portal_pin_locked_until) > new Date()) {
-        return json({
-          status: "locked",
-          lockedUntil: patient.portal_pin_locked_until,
-        }, 200);
+        console.log(`[portal-auth] Account locked until ${patient.portal_pin_locked_until}`);
+        return json(
+          {
+            status: "locked",
+            lockedUntil: patient.portal_pin_locked_until,
+          },
+          200,
+        );
       }
 
       const hash = await sha256(`${patient.id}:${pin}`);
@@ -141,6 +170,7 @@ Deno.serve(async (req) => {
           method: "PATCH",
           body: JSON.stringify({ portal_pin_failed_attempts: 0, portal_pin_locked_until: null }),
         });
+        console.log(`[portal-auth] ✓ PIN verified for ${patient.first_name} ${patient.last_name}`);
         return json({
           status: "ok",
           patientId: patient.id,
@@ -158,16 +188,20 @@ Deno.serve(async (req) => {
           portal_pin_locked_until: lockedUntil,
         }),
       });
-      return json({
-        status: lockNow ? "locked" : "wrong_pin",
-        lockedUntil,
-        attemptsLeft: lockNow ? 0 : 3 - attempts,
-      }, 200);
+      console.log(`[portal-auth] ✗ Wrong PIN attempt ${attempts} for ${patient.first_name} ${patient.last_name}`);
+      return json(
+        {
+          status: lockNow ? "locked" : "wrong_pin",
+          lockedUntil,
+          attemptsLeft: lockNow ? 0 : 3 - attempts,
+        },
+        200,
+      );
     }
 
     return json({ error: "Unknown action" }, 400);
   } catch (e: any) {
-    console.error("portal-auth error:", e);
+    console.error("[portal-auth] Exception:", e);
     return json({ error: e?.message || "Internal error" }, 500);
   }
 });

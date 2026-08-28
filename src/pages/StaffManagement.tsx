@@ -88,6 +88,20 @@ const StaffManagement = () => {
     },
   });
 
+  // Active HSN codes from Tax Master — used for the consultation tax code.
+  const { data: hsnCodes = [] } = useQuery({
+    queryKey: ["hsn-tax-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hsn_tax_master")
+        .select("id, hsn_code, igst, cgst, sgst")
+        .eq("is_active", true)
+        .order("hsn_code");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const roleOptions = Array.from(new Set([
     ...FALLBACK_ROLES,
     ...rolesData.map((r: any) => r.name).filter(Boolean),

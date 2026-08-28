@@ -459,24 +459,25 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       y -= thisRowH;
     });
 
-    // Totals rows: span cols 0..7 empty, label in col 8, value in col 9
+    // Totals rows: cols 0..6 empty, wide label cell (cols 7+8), value in col 9
     const drawTotalsRow = (label: string, value: string) => {
       cx = tableX;
-      // empty span
-      const spanW = cols.slice(0, 8).reduce((s, c) => s + c.w, 0);
+      const spanW = cols.slice(0, 7).reduce((s, c) => s + c.w, 0);
       drawCellBox(cx, y, spanW, rowH);
       cx += spanW;
-      // label cell
-      drawCellBox(cx, y, cols[8].w, rowH);
+      // label cell (merged) — right-aligned with padding so it never touches the value
+      const labelW = cols[7].w + cols[8].w;
+      drawCellBox(cx, y, labelW, rowH);
       const lw = bold.widthOfTextAtSize(sanitize(label), 9);
-      page.drawText(sanitize(label), { x: cx + (cols[8].w - lw) / 2, y: y - 14, size: 9, font: bold, color: dark });
-      cx += cols[8].w;
+      page.drawText(sanitize(label), { x: cx + labelW - lw - 6, y: y - 14, size: 9, font: bold, color: dark });
+      cx += labelW;
       // value cell
       drawCellBox(cx, y, cols[9].w, rowH);
       const vw = font.widthOfTextAtSize(sanitize(value), 8);
       page.drawText(sanitize(value), { x: cx + (cols[9].w - vw) / 2, y: y - 14, size: 8, font, color: dark });
       y -= rowH;
     };
+
 
     const taxableValue = lineItems.reduce((s, r) => s + r.amount, 0);
     const sgstAmt = lineItems.reduce((s, r) => s + (r.amount * r.sgst) / 100, 0);

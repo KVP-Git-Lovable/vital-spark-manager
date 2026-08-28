@@ -4,8 +4,8 @@
 
 - The current invoice PDF (INV-898115) already uses the Salesforce layout: header pairs (Patient Name/ID, Age/Sex, Billing ID, Mobile, Dr/Ref.By, Date, GST No), a bordered line-item table, Total Billed / Total Paid, Amount in words, Mode of payment, Authorized Signatory and a centered footer.
 - Remaining differences from the uploaded Salesforce sample:
-  - Doctor prints as "Dr. Dr Vindhya Pai Dermatology" (double "Dr" and specialization instead of qualification "M.B.B.S. MD").
-  - Footer prints "The Skin Clinic, The Skin Clinic, Vyas Rao Road, Kadri Kambla, Mangalore, Mangalore, 575001" (clinic name and city duplicated) and "Website: www.gmail.com" (derived from the Gmail address instead of theskinclinic.org.in).
+  - Doctor prints as "Dr. Dr Vindhya Pai Dermatology" (double "Dr" and specialization instead of qualification "M.B.B.S. MD"). Need only single "Dr"
+  - Footer prints "The Skin Clinic, The Skin Clinic, Vyas Rao Road, Kadri Kambla, Mangalore, Mangalore, 575001" (clinic name and city duplicated) and "Website: [www.gmail.com](http://www.gmail.com)" (derived from the Gmail address instead of theskinclinic.org.in).
   - Long particulars are truncated with an ellipsis instead of wrapping.
   - No tax-summary row; the sample shows a full tax breakup line.
 - GST columns show 0.00 because the saved `line_items` carry `gst: 0` even where the HSN has a rate (invoice INV-898115 has HSN `999722`, which is 5% in `hsn_tax_master`). One product line carries `AMG001`, which is a product code, not an HSN.
@@ -23,7 +23,7 @@
 
 ### 2. Match the Salesforce template exactly
 
-- Doctor line: print "Dr. <name> <qualification>" with no duplicate "Dr" prefix, using qualification when present and specialization only as a fallback.
+- Doctor line: print "Dr. &nbsp; &nbsp;" with no duplicate "Dr" prefix, using qualification when present and specialization only as a fallback.
 - Footer: clinic address line without repeating the clinic name or city; website taken from the clinic's website field (theskinclinic.org.in) rather than derived from the email domain; keep the contact-numbers line and the separator.
 - Replace the Salesforce system line with a neutral "System generated invoice" line.
 - Wrap long particulars onto a second line instead of truncating; grow the row height as needed.

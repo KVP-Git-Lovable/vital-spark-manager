@@ -35,15 +35,45 @@ async function findPatientByPhone(phone: string) {
   const cleaned = cleanPhone(phone);
   if (cleaned.length < 10) return null;
 
-  // Query by exact phone match first
-  const res = await sb(
-    `patients?select=id,first_name,last_name,phone,portal_pin_hash,portal_pin_failed_attempts,portal_pin_locked_until&phone=ilike.%${cleaned}%`,
-  );
-  if (!res.ok) return null;
-  const rows = await res.json();
+  try {
+    // Fetch patients with a large limit to handle all records
+    const res = await sb(
+      `patients?select=id,first_name,last_name,phone,portal_pin_hash,portal_pin_failed_attempts,portal_pin_locked_until&order=created_at.desc&limit=5000`,
+    );
 
-  // Find patient with matching cleaned phone (handle various formats)
-  return rows.find((r: any) => cleanPhone(r.phone || "") === cleaned) || null;
+    if (!res.ok) {
+      console.error(`Query failed: ${res.status}`);
+      return null;
+    }
+
+    const rows = await res.json();
+    console.log(`Found ${rows.length} total patients, searching for phone ${cleaned}`);
+
+    // Find patient with matching cleaned phone (handle various formats)
+    const found = rows.find((r: any) => {
+      const storedCleaned = cleanPhone(r.phone || "");
+      const match = storedCleaned === cleaned;
+      if (match) {
+        console.log(`✓ Found match: ${r.first_name} ${r.last_name} (${r.phone} -> ${storedCleaned})`);
+      }
+      return match;
+    });
+
+    if (!found) {
+      console.log(`No patient found matching phone ${cleaned}`);
+      // Log first few patients for debugging
+      console.log("First 3 patients in DB:", rows.slice(0, 3).map((r: any) => ({
+        name: `${r.first_name} ${r.last_name}`,
+        phone: r.phone,
+        cleaned: cleanPhone(r.phone || "")
+      })));
+    }
+
+    return found || null;
+  } catch (err: any) {
+    console.error("findPatientByPhone error:", err);
+    return null;
+  }
 }
 
 function json(body: unknown, status = 200) {

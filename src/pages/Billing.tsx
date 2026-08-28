@@ -808,26 +808,33 @@ const Billing = () => {
       };
     }
 
+    const hsnSplit = hsnTax
+      ? {
+          igst: Number(hsnTax.igst) || 0,
+          cgst: Number(hsnTax.cgst) || 0,
+          sgst: Number(hsnTax.sgst) || 0,
+        }
+      : null;
+    const hsnTotal = hsnSplit ? hsnSplit.igst + hsnSplit.cgst + hsnSplit.sgst : 0;
+    const fromHsn = () => ({
+      rate: hsnTotal,
+      cgst: (amount * (hsnSplit!.cgst)) / 100,
+      sgst: (amount * (hsnSplit!.sgst)) / 100,
+      igst: (amount * (hsnSplit!.igst)) / 100,
+      taxAmount: (amount * hsnTotal) / 100,
+    });
+
     const batchRate = Number(batch?.gst_percent) || 0;
     if (batchRate > 0 && amount) {
-      if (hsnTax) {
-        const igst = Number(hsnTax.igst) || 0;
-        const cgst = Number(hsnTax.cgst) || 0;
-        if (igst + cgst > 0) {
-          return { rate: igst + cgst, cgst: (amount * cgst) / 100, sgst: 0, igst: (amount * igst) / 100, taxAmount: (amount * (igst + cgst)) / 100 };
-        }
-      }
+      if (hsnTotal > 0) return fromHsn();
       const half = (amount * batchRate) / 200;
       return { rate: batchRate, cgst: half, sgst: half, igst: 0, taxAmount: half * 2 };
     }
 
-    if (hsnTax && amount) {
-      const igst = Number(hsnTax.igst) || 0;
-      const cgst = Number(hsnTax.cgst) || 0;
-      if (igst + cgst > 0) {
-        return { rate: igst + cgst, cgst: (amount * cgst) / 100, sgst: 0, igst: (amount * igst) / 100, taxAmount: (amount * (igst + cgst)) / 100 };
-      }
+    if (hsnTotal > 0 && amount) {
+      return fromHsn();
     }
+
 
     const mapped = getLineTax(getProductTaxId(productId), amount);
     if (mapped.rate > 0) return mapped;

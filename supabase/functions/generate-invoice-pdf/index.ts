@@ -309,7 +309,7 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
           } else {
             img = await pdfDoc.embedJpg(buf);
           }
-          const targetH = 70;
+          const targetH = 100;
           const scale = targetH / img.height;
           const w = img.width * scale;
           page.drawImage(img, { x: 40, y: y - targetH, width: w, height: targetH });
@@ -491,23 +491,8 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
     };
 
 
-    const taxableValue = lineItems.reduce((s, r) => s + r.amount, 0);
-    const sgstAmt = lineItems.reduce((s, r) => s + (r.amount * r.sgst) / 100, 0);
-    const cgstAmt = lineItems.reduce((s, r) => s + (r.amount * r.cgst) / 100, 0);
-    const igstAmt = lineItems.reduce((s, r) => s + (r.amount * r.igst) / 100, 0);
-    const totalTax = sgstAmt + cgstAmt + igstAmt;
-    const balanceDue = Math.max(0, Number(inv.total_amount || 0) - Number(inv.paid_amount || 0));
-
-    drawTotalsRow("Taxable Value", fmtINR(taxableValue));
-    if (totalTax > 0) {
-      if (igstAmt > 0) drawTotalsRow("IGST", fmtINR(igstAmt));
-      if (sgstAmt > 0) drawTotalsRow("SGST", fmtINR(sgstAmt));
-      if (cgstAmt > 0) drawTotalsRow("CGST", fmtINR(cgstAmt));
-      drawTotalsRow("Total Tax", fmtINR(totalTax));
-    }
     drawTotalsRow("Total Billed", fmtINR(Number(inv.total_amount || 0)));
     drawTotalsRow("Total Paid", fmtINR(Number(inv.paid_amount || 0)));
-    drawTotalsRow("Balance Due", fmtINR(balanceDue));
 
 
     // Amount in words / Mode of payment rows

@@ -69,6 +69,10 @@ const rateLabel = (n: number) =>
 /** Number input helper: 0 shows as an empty field with a "0" watermark. */
 const numVal = (n: number | undefined | null) => (n ? String(n) : "");
 
+/** Active HSN GST rates (total %), cached so the shared helpers below can resolve
+ *  a line's GST when the stored snapshot carries none. */
+const hsnRateCache: Record<string, number> = {};
+
 /** Normalised line-item rows (rate, tax, total) shared by the invoice view and the PDF. */
 export interface InvoiceLineRow {
   name: string; hsn: string; qty: number; price: number; amount: number; gst: number; tax: number; total: number;
@@ -83,9 +87,12 @@ const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
     const qty = Number(it.qty) || 1;
     const price = Number(it.price) || 0;
     const amount = qty * price;
-    const gst = Number(it.gst) || 0;
-    return { name: it.name || "—", hsn: it.hsn || "", qty, price, amount, gst, tax: (amount * gst) / 100, total: 0 };
+    const hsn = it.hsn || "";
+    // Fall back to the Tax Master rate for this HSN when the line has no GST snapshot.
+    const gst = Number(it.gst) || hsnRateCache[String(hsn).trim()] || 0;
+    return { name: it.name || "—", hsn, qty, price, amount, gst, tax: (amount * gst) / 100, total: 0 };
   });
+
   const taxSum = rows.reduce((s, r) => s + r.tax, 0);
   const amountSum = rows.reduce((s, r) => s + r.amount, 0);
   // Fall back to the invoice-level tax when the lines carry no GST snapshot.
@@ -432,7 +439,7 @@ const Billing = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("hsn_tax_master")
-        .select("id, hsn_code, igst, cgst")
+        .select("id, hsn_code, igst, cgst, sgst")
         .eq("is_active", true);
       if (error) throw error;
       return data;
@@ -728,11 +735,20 @@ const Billing = () => {
     return svc ? serviceTaxMap.get(svc.id) : undefined;
   };
 
-  // HSN-based tax (Tax Master): service → HSN code → IGST + CGST
+  // HSN-based tax (Tax Master): service → HSN code → SGST + CGST + IGST
   const hsnTaxMap = useMemo(() => {
     const m = new Map<string, any>();
     (hsnTaxes as any[]).forEach((h) => m.set(String(h.hsn_code), h));
     return m;
+  }, [hsnTaxes]);
+
+  // Keep the shared (module-level) HSN rate cache in sync so the invoice view
+  // and the printed invoice can resolve GST for older saved line items.
+  useEffect(() => {
+    (hsnTaxes as any[]).forEach((h) => {
+      hsnRateCache[String(h.hsn_code).trim()] =
+        (Number(h.sgst) || 0) + (Number(h.cgst) || 0) + (Number(h.igst) || 0);
+    });
   }, [hsnTaxes]);
 
   const getServiceLineTax = (serviceName: string, amount: number, lineHsn?: string) => {
@@ -742,12 +758,15 @@ const Billing = () => {
     if (hsnTax) {
       const igst = Number(hsnTax.igst) || 0;
       const cgst = Number(hsnTax.cgst) || 0;
+      const sgst = Number(hsnTax.sgst) || 0;
       const igstAmt = (amount * igst) / 100;
       const cgstAmt = (amount * cgst) / 100;
-      return { rate: igst + cgst, cgst: cgstAmt, sgst: 0, igst: igstAmt, taxAmount: igstAmt + cgstAmt };
+      const sgstAmt = (amount * sgst) / 100;
+      return { rate: igst + cgst + sgst, cgst: cgstAmt, sgst: sgstAmt, igst: igstAmt, taxAmount: igstAmt + cgstAmt + sgstAmt };
     }
     return getLineTax(getServiceTaxId(serviceName), amount);
   };
+
 
   const getProductTaxId = (productId: string): string | undefined => productTaxMap.get(productId);
 
@@ -789,26 +808,33 @@ const Billing = () => {
       };
     }
 
+    const hsnSplit = hsnTax
+      ? {
+          igst: Number(hsnTax.igst) || 0,
+          cgst: Number(hsnTax.cgst) || 0,
+          sgst: Number(hsnTax.sgst) || 0,
+        }
+      : null;
+    const hsnTotal = hsnSplit ? hsnSplit.igst + hsnSplit.cgst + hsnSplit.sgst : 0;
+    const fromHsn = () => ({
+      rate: hsnTotal,
+      cgst: (amount * (hsnSplit!.cgst)) / 100,
+      sgst: (amount * (hsnSplit!.sgst)) / 100,
+      igst: (amount * (hsnSplit!.igst)) / 100,
+      taxAmount: (amount * hsnTotal) / 100,
+    });
+
     const batchRate = Number(batch?.gst_percent) || 0;
     if (batchRate > 0 && amount) {
-      if (hsnTax) {
-        const igst = Number(hsnTax.igst) || 0;
-        const cgst = Number(hsnTax.cgst) || 0;
-        if (igst + cgst > 0) {
-          return { rate: igst + cgst, cgst: (amount * cgst) / 100, sgst: 0, igst: (amount * igst) / 100, taxAmount: (amount * (igst + cgst)) / 100 };
-        }
-      }
+      if (hsnTotal > 0) return fromHsn();
       const half = (amount * batchRate) / 200;
       return { rate: batchRate, cgst: half, sgst: half, igst: 0, taxAmount: half * 2 };
     }
 
-    if (hsnTax && amount) {
-      const igst = Number(hsnTax.igst) || 0;
-      const cgst = Number(hsnTax.cgst) || 0;
-      if (igst + cgst > 0) {
-        return { rate: igst + cgst, cgst: (amount * cgst) / 100, sgst: 0, igst: (amount * igst) / 100, taxAmount: (amount * (igst + cgst)) / 100 };
-      }
+    if (hsnTotal > 0 && amount) {
+      return fromHsn();
     }
+
 
     const mapped = getLineTax(getProductTaxId(productId), amount);
     if (mapped.rate > 0) return mapped;

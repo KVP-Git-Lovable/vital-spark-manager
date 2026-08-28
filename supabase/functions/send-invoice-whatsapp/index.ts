@@ -134,10 +134,67 @@ Deno.serve(async (req) => {
 
     console.log("Invoice WhatsApp sent:", { sid: result.sid, to: toFormatted, invoiceNumber });
 
+    // Attach the invoice PDF as a follow-up media message so the patient
+    // actually receives the document (templates cannot carry media here).
+    let mediaSid: string | null = null;
+    let mediaError: unknown = null;
+    if (invoiceUrl) {
+      const mediaRes = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          To: toFormatted,
+          From: fromFormatted,
+          Body: `Invoice ${invoiceNumber}`,
+          MediaUrl: String(invoiceUrl),
+        }).toString(),
+      });
+      const mediaJson = await mediaRes.json();
+      if (mediaRes.ok) {
+        mediaSid = mediaJson.sid;
+      } else {
+        mediaError = mediaJson;
+        console.error("Twilio media message error:", mediaJson);
+      }
+    }
+
+    // Poll the delivery status once so failures surface to the caller instead
+    // of silently showing "sent" in the UI.
+    let deliveryStatus: string | null = null;
+    let deliveryError: unknown = null;
+    try {
+      await new Promise((r) => setTimeout(r, 3000));
+      const statusRes = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages/${result.sid}.json`,
+        { headers: { Authorization: `Basic ${auth}` } },
+      );
+      const statusJson = await statusRes.json();
+      if (statusRes.ok) {
+        deliveryStatus = statusJson.status ?? null;
+        if (statusJson.error_code) {
+          deliveryError = { code: statusJson.error_code, message: statusJson.error_message };
+          console.error("Twilio delivery error:", deliveryError);
+        }
+      }
+    } catch (e) {
+      console.error("Status poll failed:", e);
+    }
+
     return new Response(
-      JSON.stringify({ success: true, messageSid: result.sid }),
+      JSON.stringify({
+        success: true,
+        messageSid: result.sid,
+        mediaSid,
+        mediaError,
+        deliveryStatus,
+        deliveryError,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
+
   } catch (err) {
     console.error("send-invoice-whatsapp error:", err);
     return new Response(

@@ -160,32 +160,43 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
         : Promise.resolve({ data: null }),
     ]);
 
+    // Print exactly one "Dr." prefix and no specialization suffix.
+    const formatDoctor = (first?: string | null, last?: string | null) => {
+      const nm = `${first || ""} ${last || ""}`.trim().replace(/^(dr\.?\s*)+/i, "").trim();
+      return nm ? `Dr. ${nm}` : "";
+    };
+
     let doctorName = "";
     // Prefer the doctor explicitly chosen on the invoice; fall back to appointment staff.
     if (inv.doctor_id) {
       const { data: st } = await supabase
-        .from("staff").select("first_name, last_name, specialization").eq("id", inv.doctor_id).maybeSingle();
-      if (st) {
-        const nm = `${st.first_name || ""} ${st.last_name || ""}`.trim();
-        const spec = st.specialization ? ` ${st.specialization}` : "";
-        doctorName = nm ? `Dr. ${nm}${spec}` : "";
-      }
+        .from("staff").select("first_name, last_name").eq("id", inv.doctor_id).maybeSingle();
+      if (st) doctorName = formatDoctor(st.first_name, st.last_name);
     }
     if (!doctorName && inv.appointment_id) {
       const { data: appt } = await supabase
         .from("appointments").select("staff_id").eq("id", inv.appointment_id).maybeSingle();
       if (appt?.staff_id) {
         const { data: st } = await supabase
-          .from("staff").select("first_name, last_name, specialization").eq("id", appt.staff_id).maybeSingle();
-        if (st) {
-          const nm = `${st.first_name || ""} ${st.last_name || ""}`.trim();
-          const spec = st.specialization ? ` ${st.specialization}` : "";
-          doctorName = nm ? `Dr. ${nm}${spec}` : "";
-        }
+          .from("staff").select("first_name, last_name").eq("id", appt.staff_id).maybeSingle();
+        if (st) doctorName = formatDoctor(st.first_name, st.last_name);
       }
     }
 
     const sameState = (clinic?.state || "").trim().toLowerCase() === (patient?.state || "").trim().toLowerCase() && (clinic?.state || "");
+
+    // ── Active HSN rates from the Tax Master ──
+    const { data: hsnRows } = await supabase
+      .from("hsn_tax_master")
+      .select("hsn_code, sgst, cgst, igst")
+      .eq("is_active", true);
+    const hsnMap = new Map<string, { sgst: number; cgst: number; igst: number; total: number }>();
+    (hsnRows || []).forEach((h: any) => {
+      const sgst = Number(h.sgst) || 0, cgst = Number(h.cgst) || 0, igst = Number(h.igst) || 0;
+      hsnMap.set(String(h.hsn_code).trim(), { sgst, cgst, igst, total: sgst + cgst + igst });
+    });
+    const hsnRate = (hsn: any) => hsnMap.get(String(hsn ?? "").trim())?.total ?? 0;
+
 
     // ── Build line items: prefer the structured snapshot persisted on the invoice ──
     type LineRow = { name: string; qty: number; charges: number; hsn: string; sgst: number; cgst: number; igst: number; taxAmount: number; amount: number };
@@ -211,32 +222,33 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
         const svc = svcMap.get(p.name);
         const prod = prodMap.get(p.name);
         const ref = svc || prod || { price: 0, hsn: "", gst: 0 };
-        const charges = ref.price;
-        const gross = charges * p.qty;
-        const gstRate = ref.gst || 0;
-        const taxAmount = gross * gstRate / (100 + gstRate);
-        const sgst = sameState ? gstRate / 2 : 0;
-        const cgst = sameState ? gstRate / 2 : 0;
-        const igst = sameState ? 0 : gstRate;
-        return { name: p.name, qty: p.qty, charges, hsn: ref.hsn || "", sgst, cgst, igst, taxAmount, amount: gross };
+        return makeRow(p.name, p.qty, ref.price, ref.hsn || "", ref.gst || 0);
       });
     };
 
+    // GST is applied on top of the line amount; the rate comes from the stored
+    // snapshot, falling back to the Tax Master rate for the line's HSN code.
+    const makeRow = (name: string, qty: number, charges: number, hsn: string, snapshotRate: number): LineRow => {
+      const gross = charges * qty;
+      const master = hsnMap.get(String(hsn ?? "").trim());
+      const gstRate = snapshotRate || hsnRate(hsn);
+      let sgst: number, cgst: number, igst: number;
+      if (master && master.total > 0 && !snapshotRate) {
+        sgst = master.sgst; cgst = master.cgst; igst = master.igst;
+      } else if (sameState) {
+        sgst = gstRate / 2; cgst = gstRate / 2; igst = 0;
+      } else {
+        sgst = 0; cgst = 0; igst = gstRate;
+      }
+      const rate = sgst + cgst + igst;
+      return { name: String(name || ""), qty, charges, hsn: hsn || "", sgst, cgst, igst, taxAmount: gross * rate / 100, amount: gross };
+    };
+
     if (Array.isArray(inv.line_items) && inv.line_items.length > 0) {
-      lineItems = (inv.line_items as any[]).map((it: any) => {
-        const qty = Number(it.qty) || 1;
-        const charges = Number(it.price) || 0;
-        const gross = charges * qty;
-        const gstRate = Number(it.gst) || 0;
-        const taxAmount = gross * gstRate / (100 + gstRate);
-        const sgst = sameState ? gstRate / 2 : 0;
-        const cgst = sameState ? gstRate / 2 : 0;
-        const igst = sameState ? 0 : gstRate;
-        return {
-          name: String(it.name || ""), qty, charges,
-          hsn: it.hsn || "", sgst, cgst, igst, taxAmount, amount: gross,
-        };
-      });
+      lineItems = (inv.line_items as any[]).map((it: any) =>
+        makeRow(it.name, Number(it.qty) || 1, Number(it.price) || 0, it.hsn || "", Number(it.gst) || 0),
+      );
+
     } else {
       // Legacy fallback for invoices created before line_items existed.
       const rawServices: string[] = Array.isArray(inv.services) ? inv.services : [];
@@ -384,9 +396,38 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
     }
     y -= headerH;
 
-    // Item rows
+    // Wrap a string into as many lines as fit the given width.
+    const wrapLines = (text: string, maxW: number, size: number): string[] => {
+      const words = String(text).split(/\s+/).filter(Boolean);
+      const out: string[] = [];
+      let cur = "";
+      for (const w of words) {
+        const test = cur ? `${cur} ${w}` : w;
+        if (font.widthOfTextAtSize(sanitize(test), size) <= maxW) {
+          cur = test;
+        } else {
+          if (cur) out.push(cur);
+          // Hard-split words longer than the column.
+          let long = w;
+          while (font.widthOfTextAtSize(sanitize(long), size) > maxW && long.length > 1) {
+            let cut = long.length;
+            while (cut > 1 && font.widthOfTextAtSize(sanitize(long.slice(0, cut)), size) > maxW) cut--;
+            out.push(long.slice(0, cut));
+            long = long.slice(cut);
+          }
+          cur = long;
+        }
+      }
+      if (cur) out.push(cur);
+      return out.length ? out : [""];
+    };
+
+    // Item rows (particulars wrap onto extra lines instead of being truncated)
     lineItems.forEach((it, i) => {
       cx = tableX;
+      const sz = 8;
+      const nameLines = wrapLines(it.name, cols[1].w - 6, sz);
+      const thisRowH = Math.max(rowH, 8 + nameLines.length * 11);
       const cells = [
         String(i + 1),
         it.name,
@@ -401,43 +442,61 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       ];
       for (let k = 0; k < cols.length; k++) {
         const c = cols[k];
-        drawCellBox(cx, y, c.w, rowH);
-        const txt = String(cells[k] ?? "");
-        // truncate name if too long
-        let display = txt;
-        const sz = 8;
-        if (font.widthOfTextAtSize(sanitize(display), sz) > c.w - 4) {
-          while (display.length > 1 && font.widthOfTextAtSize(sanitize(display + "…"), sz) > c.w - 4) display = display.slice(0, -1);
-          display = display + "…";
+        drawCellBox(cx, y, c.w, thisRowH);
+        if (k === 1) {
+          let ly = y - 14;
+          for (const l of nameLines) {
+            page.drawText(sanitize(l), { x: cx + 3, y: ly, size: sz, font, color: dark });
+            ly -= 11;
+          }
+        } else {
+          const display = String(cells[k] ?? "");
+          const tw = font.widthOfTextAtSize(sanitize(display), sz);
+          page.drawText(sanitize(display), { x: cx + (c.w - tw) / 2, y: y - 14, size: sz, font, color: dark });
         }
-        const tw = font.widthOfTextAtSize(sanitize(display), sz);
-        const tx = k === 1 ? cx + 3 : cx + (c.w - tw) / 2;
-        page.drawText(sanitize(display), { x: tx, y: y - 14, size: sz, font, color: dark });
         cx += c.w;
       }
-      y -= rowH;
+      y -= thisRowH;
     });
 
-    // Totals rows: span cols 0..7 empty, label in col 8, value in col 9
+    // Totals rows: cols 0..6 empty, wide label cell (cols 7+8), value in col 9
     const drawTotalsRow = (label: string, value: string) => {
       cx = tableX;
-      // empty span
-      const spanW = cols.slice(0, 8).reduce((s, c) => s + c.w, 0);
+      const spanW = cols.slice(0, 7).reduce((s, c) => s + c.w, 0);
       drawCellBox(cx, y, spanW, rowH);
       cx += spanW;
-      // label cell
-      drawCellBox(cx, y, cols[8].w, rowH);
+      // label cell (merged) — right-aligned with padding so it never touches the value
+      const labelW = cols[7].w + cols[8].w;
+      drawCellBox(cx, y, labelW, rowH);
       const lw = bold.widthOfTextAtSize(sanitize(label), 9);
-      page.drawText(sanitize(label), { x: cx + (cols[8].w - lw) / 2, y: y - 14, size: 9, font: bold, color: dark });
-      cx += cols[8].w;
+      page.drawText(sanitize(label), { x: cx + labelW - lw - 6, y: y - 14, size: 9, font: bold, color: dark });
+      cx += labelW;
       // value cell
       drawCellBox(cx, y, cols[9].w, rowH);
       const vw = font.widthOfTextAtSize(sanitize(value), 8);
       page.drawText(sanitize(value), { x: cx + (cols[9].w - vw) / 2, y: y - 14, size: 8, font, color: dark });
       y -= rowH;
     };
+
+
+    const taxableValue = lineItems.reduce((s, r) => s + r.amount, 0);
+    const sgstAmt = lineItems.reduce((s, r) => s + (r.amount * r.sgst) / 100, 0);
+    const cgstAmt = lineItems.reduce((s, r) => s + (r.amount * r.cgst) / 100, 0);
+    const igstAmt = lineItems.reduce((s, r) => s + (r.amount * r.igst) / 100, 0);
+    const totalTax = sgstAmt + cgstAmt + igstAmt;
+    const balanceDue = Math.max(0, Number(inv.total_amount || 0) - Number(inv.paid_amount || 0));
+
+    drawTotalsRow("Taxable Value", fmtINR(taxableValue));
+    if (totalTax > 0) {
+      if (igstAmt > 0) drawTotalsRow("IGST", fmtINR(igstAmt));
+      if (sgstAmt > 0) drawTotalsRow("SGST", fmtINR(sgstAmt));
+      if (cgstAmt > 0) drawTotalsRow("CGST", fmtINR(cgstAmt));
+      drawTotalsRow("Total Tax", fmtINR(totalTax));
+    }
     drawTotalsRow("Total Billed", fmtINR(Number(inv.total_amount || 0)));
     drawTotalsRow("Total Paid", fmtINR(Number(inv.paid_amount || 0)));
+    drawTotalsRow("Balance Due", fmtINR(balanceDue));
+
 
     // Amount in words / Mode of payment rows
     const labelColW = 110;
@@ -471,25 +530,35 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       x: width / 2 - font.widthOfTextAtSize(sanitize("----------------"), 10) / 2,
       y: footerY + 30, size: 10, font, color: grey,
     });
-    const addrParts = [clinic?.name, clinic?.address, clinic?.city, clinic?.pincode].filter(Boolean);
-    const addrLine = addrParts.join(", ");
+    // Address line — avoid repeating the clinic name / city already in the address.
+    const addrRaw = String(clinic?.address || "");
+    const norm = (s: string) => s.trim().toLowerCase();
+    const addrParts: string[] = [];
+    if (clinic?.name && !norm(addrRaw).includes(norm(clinic.name))) addrParts.push(clinic.name);
+    if (addrRaw) addrParts.push(addrRaw.trim());
+    if (clinic?.city && !norm(addrRaw).includes(norm(clinic.city))) addrParts.push(clinic.city);
+    if (clinic?.pincode) addrParts.push(String(clinic.pincode));
+    const addrLine = addrParts.filter(Boolean).join(", ");
     if (addrLine) {
       const aw = font.widthOfTextAtSize(sanitize(addrLine), 9);
       page.drawText(sanitize(addrLine), { x: (width - aw) / 2, y: footerY + 16, size: 9, font, color: dark });
     }
-    if (clinic?.email) {
-      const domain = String(clinic.email).split("@")[1];
-      if (domain) {
-        const site = `Website: www.${domain}`;
-        const sw2 = font.widthOfTextAtSize(sanitize(site), 9);
-        page.drawText(sanitize(site), { x: (width - sw2) / 2, y: footerY + 4, size: 9, font, color: dark });
-      }
+    // Website comes from clinic settings (never derived from a free e-mail domain).
+    const website = String((clinic as any)?.website || "").trim();
+    if (website) {
+      const site = `Website: ${website.replace(/^https?:\/\//i, "")}`;
+      const sw2 = font.widthOfTextAtSize(sanitize(site), 9);
+      page.drawText(sanitize(site), { x: (width - sw2) / 2, y: footerY + 4, size: 9, font, color: dark });
     }
     if (clinic?.phone) {
       const ct = `For appointments and emergency care, contact us @ ${clinic.phone}`;
       const ctw = font.widthOfTextAtSize(sanitize(ct), 9);
       page.drawText(sanitize(ct), { x: (width - ctw) / 2, y: footerY - 12, size: 9, font, color: dark });
     }
+    const sysLine = "System generated invoice";
+    const slw = font.widthOfTextAtSize(sanitize(sysLine), 8);
+    page.drawText(sanitize(sysLine), { x: (width - slw) / 2, y: footerY - 26, size: 8, font, color: grey });
+
 
     const pdfBytes = await pdfDoc.save();
 

@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Receipt, Pencil, Ruler, Calendar } from "lucide-react";
+import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Ruler, Calendar } from "lucide-react";
 import UnitMaster from "./UnitMaster";
 import { HolidayCalendar } from "@/components/settings/HolidayCalendar";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,6 @@ const Settings = () => {
   const [roleName, setRoleName] = useState("");
   const [roleDesc, setRoleDesc] = useState("");
   const [rolePerms, setRolePerms] = useState("");
-  const [showInactiveTax, setShowInactiveTax] = useState(false);
 
   // Clinic settings
   const { data: clinic, isLoading: clinicLoading } = useQuery({

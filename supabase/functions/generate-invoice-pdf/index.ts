@@ -396,9 +396,38 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
     }
     y -= headerH;
 
-    // Item rows
+    // Wrap a string into as many lines as fit the given width.
+    const wrapLines = (text: string, maxW: number, size: number): string[] => {
+      const words = String(text).split(/\s+/).filter(Boolean);
+      const out: string[] = [];
+      let cur = "";
+      for (const w of words) {
+        const test = cur ? `${cur} ${w}` : w;
+        if (font.widthOfTextAtSize(sanitize(test), size) <= maxW) {
+          cur = test;
+        } else {
+          if (cur) out.push(cur);
+          // Hard-split words longer than the column.
+          let long = w;
+          while (font.widthOfTextAtSize(sanitize(long), size) > maxW && long.length > 1) {
+            let cut = long.length;
+            while (cut > 1 && font.widthOfTextAtSize(sanitize(long.slice(0, cut)), size) > maxW) cut--;
+            out.push(long.slice(0, cut));
+            long = long.slice(cut);
+          }
+          cur = long;
+        }
+      }
+      if (cur) out.push(cur);
+      return out.length ? out : [""];
+    };
+
+    // Item rows (particulars wrap onto extra lines instead of being truncated)
     lineItems.forEach((it, i) => {
       cx = tableX;
+      const sz = 8;
+      const nameLines = wrapLines(it.name, cols[1].w - 6, sz);
+      const thisRowH = Math.max(rowH, 8 + nameLines.length * 11);
       const cells = [
         String(i + 1),
         it.name,
@@ -413,21 +442,21 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       ];
       for (let k = 0; k < cols.length; k++) {
         const c = cols[k];
-        drawCellBox(cx, y, c.w, rowH);
-        const txt = String(cells[k] ?? "");
-        // truncate name if too long
-        let display = txt;
-        const sz = 8;
-        if (font.widthOfTextAtSize(sanitize(display), sz) > c.w - 4) {
-          while (display.length > 1 && font.widthOfTextAtSize(sanitize(display + "…"), sz) > c.w - 4) display = display.slice(0, -1);
-          display = display + "…";
+        drawCellBox(cx, y, c.w, thisRowH);
+        if (k === 1) {
+          let ly = y - 14;
+          for (const l of nameLines) {
+            page.drawText(sanitize(l), { x: cx + 3, y: ly, size: sz, font, color: dark });
+            ly -= 11;
+          }
+        } else {
+          const display = String(cells[k] ?? "");
+          const tw = font.widthOfTextAtSize(sanitize(display), sz);
+          page.drawText(sanitize(display), { x: cx + (c.w - tw) / 2, y: y - 14, size: sz, font, color: dark });
         }
-        const tw = font.widthOfTextAtSize(sanitize(display), sz);
-        const tx = k === 1 ? cx + 3 : cx + (c.w - tw) / 2;
-        page.drawText(sanitize(display), { x: tx, y: y - 14, size: sz, font, color: dark });
         cx += c.w;
       }
-      y -= rowH;
+      y -= thisRowH;
     });
 
     // Totals rows: span cols 0..7 empty, label in col 8, value in col 9
@@ -448,8 +477,25 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       page.drawText(sanitize(value), { x: cx + (cols[9].w - vw) / 2, y: y - 14, size: 8, font, color: dark });
       y -= rowH;
     };
+
+    const taxableValue = lineItems.reduce((s, r) => s + r.amount, 0);
+    const sgstAmt = lineItems.reduce((s, r) => s + (r.amount * r.sgst) / 100, 0);
+    const cgstAmt = lineItems.reduce((s, r) => s + (r.amount * r.cgst) / 100, 0);
+    const igstAmt = lineItems.reduce((s, r) => s + (r.amount * r.igst) / 100, 0);
+    const totalTax = sgstAmt + cgstAmt + igstAmt;
+    const balanceDue = Math.max(0, Number(inv.total_amount || 0) - Number(inv.paid_amount || 0));
+
+    drawTotalsRow("Taxable Value", fmtINR(taxableValue));
+    if (totalTax > 0) {
+      if (igstAmt > 0) drawTotalsRow("IGST", fmtINR(igstAmt));
+      if (sgstAmt > 0) drawTotalsRow("SGST", fmtINR(sgstAmt));
+      if (cgstAmt > 0) drawTotalsRow("CGST", fmtINR(cgstAmt));
+      drawTotalsRow("Total Tax", fmtINR(totalTax));
+    }
     drawTotalsRow("Total Billed", fmtINR(Number(inv.total_amount || 0)));
     drawTotalsRow("Total Paid", fmtINR(Number(inv.paid_amount || 0)));
+    drawTotalsRow("Balance Due", fmtINR(balanceDue));
+
 
     // Amount in words / Mode of payment rows
     const labelColW = 110;

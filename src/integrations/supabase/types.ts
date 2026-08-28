@@ -2789,6 +2789,7 @@ export type Database = {
         Row: {
           auth_user_id: string | null
           consultation_fee: number
+          consultation_hsn: string | null
           created_at: string
           email: string | null
           first_name: string
@@ -2809,6 +2810,7 @@ export type Database = {
         Insert: {
           auth_user_id?: string | null
           consultation_fee?: number
+          consultation_hsn?: string | null
           created_at?: string
           email?: string | null
           first_name: string
@@ -2829,6 +2831,7 @@ export type Database = {
         Update: {
           auth_user_id?: string | null
           consultation_fee?: number
+          consultation_hsn?: string | null
           created_at?: string
           email?: string | null
           first_name?: string

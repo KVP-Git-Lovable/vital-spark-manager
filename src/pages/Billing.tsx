@@ -519,7 +519,7 @@ const Billing = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff")
-        .select("id, first_name, last_name, role, specialization, consultation_fee, is_active" as any)
+        .select("id, first_name, last_name, role, specialization, consultation_fee, consultation_hsn, is_active" as any)
         .eq("role", "Doctor")
         .eq("is_active", true)
         .order("first_name");
@@ -1661,7 +1661,7 @@ const Billing = () => {
       const feeRow = {
         name: `Consultation - ${docName}`,
         price: fee,
-        hsn: "9993",
+        hsn: doc?.consultation_hsn ? String(doc.consultation_hsn) : "",
         gst: 0,
         doctor_fee: true as const,
       };

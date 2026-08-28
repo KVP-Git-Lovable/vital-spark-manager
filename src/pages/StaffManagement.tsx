@@ -41,6 +41,7 @@ interface StaffForm {
   photo_url: string;
   is_active: boolean;
   consultation_fee: number;
+  consultation_hsn: string;
 }
 
 const emptyForm: StaffForm = {
@@ -55,6 +56,7 @@ const emptyForm: StaffForm = {
   photo_url: "",
   is_active: true,
   consultation_fee: 0,
+  consultation_hsn: "",
 };
 
 const StaffManagement = () => {
@@ -83,6 +85,20 @@ const StaffManagement = () => {
       const { data, error } = await supabase.from("staff_roles").select("name").order("name");
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Active HSN codes from Tax Master — used for the consultation tax code.
+  const { data: hsnCodes = [] } = useQuery({
+    queryKey: ["hsn-tax-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hsn_tax_master")
+        .select("id, hsn_code, igst, cgst, sgst")
+        .eq("is_active", true)
+        .order("hsn_code");
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -134,6 +150,7 @@ const StaffManagement = () => {
       (payload as any).work_end_time = form.work_end_time || "18:00";
       (payload as any).is_active = form.is_active;
       (payload as any).consultation_fee = Number(form.consultation_fee) || 0;
+      (payload as any).consultation_hsn = form.consultation_hsn || null;
 
       if (editId) {
         const { error } = await supabase.from("staff").update(payload).eq("id", editId);
@@ -180,6 +197,7 @@ const StaffManagement = () => {
       photo_url: s.photo_url || "",
       is_active: s.is_active ?? true,
       consultation_fee: Number(s.consultation_fee) || 0,
+      consultation_hsn: s.consultation_hsn || "",
     });
     setFormOpen(true);
   };
@@ -289,6 +307,26 @@ const StaffManagement = () => {
                   onChange={(e) => setForm({ ...form, consultation_fee: parseFloat(e.target.value) || 0 })}
                 />
                 <p className="text-[11px] text-muted-foreground mt-1">Auto-added as a line item when this doctor is selected on an invoice.</p>
+              </div>
+
+              {/* Consultation HSN (drives the tax on the consultation line item) */}
+              <div>
+                <Label>Consultation HSN</Label>
+                <Select
+                  value={form.consultation_hsn || "none"}
+                  onValueChange={(v) => setForm({ ...form, consultation_hsn: v === "none" ? "" : v })}
+                >
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select HSN code" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No HSN (no tax)</SelectItem>
+                    {(hsnCodes as any[]).map((h: any) => (
+                      <SelectItem key={h.id} value={String(h.hsn_code)}>
+                        {h.hsn_code} — {(Number(h.igst) || 0) + (Number(h.cgst) || 0) + (Number(h.sgst) || 0)}%
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground mt-1">Tax code applied to this doctor's consultation charge on invoices.</p>
               </div>
 
               {/* Active */}

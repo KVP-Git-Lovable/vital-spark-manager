@@ -160,32 +160,43 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
         : Promise.resolve({ data: null }),
     ]);
 
+    // Print exactly one "Dr." prefix and no specialization suffix.
+    const formatDoctor = (first?: string | null, last?: string | null) => {
+      const nm = `${first || ""} ${last || ""}`.trim().replace(/^(dr\.?\s*)+/i, "").trim();
+      return nm ? `Dr. ${nm}` : "";
+    };
+
     let doctorName = "";
     // Prefer the doctor explicitly chosen on the invoice; fall back to appointment staff.
     if (inv.doctor_id) {
       const { data: st } = await supabase
-        .from("staff").select("first_name, last_name, specialization").eq("id", inv.doctor_id).maybeSingle();
-      if (st) {
-        const nm = `${st.first_name || ""} ${st.last_name || ""}`.trim();
-        const spec = st.specialization ? ` ${st.specialization}` : "";
-        doctorName = nm ? `Dr. ${nm}${spec}` : "";
-      }
+        .from("staff").select("first_name, last_name").eq("id", inv.doctor_id).maybeSingle();
+      if (st) doctorName = formatDoctor(st.first_name, st.last_name);
     }
     if (!doctorName && inv.appointment_id) {
       const { data: appt } = await supabase
         .from("appointments").select("staff_id").eq("id", inv.appointment_id).maybeSingle();
       if (appt?.staff_id) {
         const { data: st } = await supabase
-          .from("staff").select("first_name, last_name, specialization").eq("id", appt.staff_id).maybeSingle();
-        if (st) {
-          const nm = `${st.first_name || ""} ${st.last_name || ""}`.trim();
-          const spec = st.specialization ? ` ${st.specialization}` : "";
-          doctorName = nm ? `Dr. ${nm}${spec}` : "";
-        }
+          .from("staff").select("first_name, last_name").eq("id", appt.staff_id).maybeSingle();
+        if (st) doctorName = formatDoctor(st.first_name, st.last_name);
       }
     }
 
     const sameState = (clinic?.state || "").trim().toLowerCase() === (patient?.state || "").trim().toLowerCase() && (clinic?.state || "");
+
+    // ── Active HSN rates from the Tax Master ──
+    const { data: hsnRows } = await supabase
+      .from("hsn_tax_master")
+      .select("hsn_code, sgst, cgst, igst")
+      .eq("is_active", true);
+    const hsnMap = new Map<string, { sgst: number; cgst: number; igst: number; total: number }>();
+    (hsnRows || []).forEach((h: any) => {
+      const sgst = Number(h.sgst) || 0, cgst = Number(h.cgst) || 0, igst = Number(h.igst) || 0;
+      hsnMap.set(String(h.hsn_code).trim(), { sgst, cgst, igst, total: sgst + cgst + igst });
+    });
+    const hsnRate = (hsn: any) => hsnMap.get(String(hsn ?? "").trim())?.total ?? 0;
+
 
     // ── Build line items: prefer the structured snapshot persisted on the invoice ──
     type LineRow = { name: string; qty: number; charges: number; hsn: string; sgst: number; cgst: number; igst: number; taxAmount: number; amount: number };

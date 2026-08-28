@@ -222,32 +222,33 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
         const svc = svcMap.get(p.name);
         const prod = prodMap.get(p.name);
         const ref = svc || prod || { price: 0, hsn: "", gst: 0 };
-        const charges = ref.price;
-        const gross = charges * p.qty;
-        const gstRate = ref.gst || 0;
-        const taxAmount = gross * gstRate / (100 + gstRate);
-        const sgst = sameState ? gstRate / 2 : 0;
-        const cgst = sameState ? gstRate / 2 : 0;
-        const igst = sameState ? 0 : gstRate;
-        return { name: p.name, qty: p.qty, charges, hsn: ref.hsn || "", sgst, cgst, igst, taxAmount, amount: gross };
+        return makeRow(p.name, p.qty, ref.price, ref.hsn || "", ref.gst || 0);
       });
     };
 
+    // GST is applied on top of the line amount; the rate comes from the stored
+    // snapshot, falling back to the Tax Master rate for the line's HSN code.
+    const makeRow = (name: string, qty: number, charges: number, hsn: string, snapshotRate: number): LineRow => {
+      const gross = charges * qty;
+      const master = hsnMap.get(String(hsn ?? "").trim());
+      const gstRate = snapshotRate || hsnRate(hsn);
+      let sgst: number, cgst: number, igst: number;
+      if (master && master.total > 0 && !snapshotRate) {
+        sgst = master.sgst; cgst = master.cgst; igst = master.igst;
+      } else if (sameState) {
+        sgst = gstRate / 2; cgst = gstRate / 2; igst = 0;
+      } else {
+        sgst = 0; cgst = 0; igst = gstRate;
+      }
+      const rate = sgst + cgst + igst;
+      return { name: String(name || ""), qty, charges, hsn: hsn || "", sgst, cgst, igst, taxAmount: gross * rate / 100, amount: gross };
+    };
+
     if (Array.isArray(inv.line_items) && inv.line_items.length > 0) {
-      lineItems = (inv.line_items as any[]).map((it: any) => {
-        const qty = Number(it.qty) || 1;
-        const charges = Number(it.price) || 0;
-        const gross = charges * qty;
-        const gstRate = Number(it.gst) || 0;
-        const taxAmount = gross * gstRate / (100 + gstRate);
-        const sgst = sameState ? gstRate / 2 : 0;
-        const cgst = sameState ? gstRate / 2 : 0;
-        const igst = sameState ? 0 : gstRate;
-        return {
-          name: String(it.name || ""), qty, charges,
-          hsn: it.hsn || "", sgst, cgst, igst, taxAmount, amount: gross,
-        };
-      });
+      lineItems = (inv.line_items as any[]).map((it: any) =>
+        makeRow(it.name, Number(it.qty) || 1, Number(it.price) || 0, it.hsn || "", Number(it.gst) || 0),
+      );
+
     } else {
       // Legacy fallback for invoices created before line_items existed.
       const rawServices: string[] = Array.isArray(inv.services) ? inv.services : [];

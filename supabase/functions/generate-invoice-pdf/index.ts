@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { invoiceId } = await req.json();
+    const { invoiceId, wait } = await req.json();
     if (!invoiceId) {
       return new Response(JSON.stringify({ error: "invoiceId required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -117,6 +117,17 @@ Deno.serve(async (req) => {
     if (invErr || !inv) {
       return new Response(JSON.stringify({ error: "Invoice not found", details: invErr }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Synchronous mode: callers that need the URL right away (e.g. Download PDF).
+    if (wait) {
+      const result = await buildInvoicePdf(supabase, inv);
+      if (result?.url) {
+        await supabase.from("invoices").update({ pdf_url: result.url }).eq("id", invoiceId);
+      }
+      return new Response(JSON.stringify({ ok: true, url: result?.url ?? null }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -139,6 +150,7 @@ Deno.serve(async (req) => {
       // Fallback: fire-and-forget
       buildAndStore();
     }
+
 
     return new Response(JSON.stringify({ ok: true, queued: true }), {
       status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -69,6 +69,10 @@ const rateLabel = (n: number) =>
 /** Number input helper: 0 shows as an empty field with a "0" watermark. */
 const numVal = (n: number | undefined | null) => (n ? String(n) : "");
 
+/** Active HSN GST rates (total %), cached so the shared helpers below can resolve
+ *  a line's GST when the stored snapshot carries none. */
+const hsnRateCache: Record<string, number> = {};
+
 /** Normalised line-item rows (rate, tax, total) shared by the invoice view and the PDF. */
 export interface InvoiceLineRow {
   name: string; hsn: string; qty: number; price: number; amount: number; gst: number; tax: number; total: number;
@@ -83,9 +87,12 @@ const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
     const qty = Number(it.qty) || 1;
     const price = Number(it.price) || 0;
     const amount = qty * price;
-    const gst = Number(it.gst) || 0;
-    return { name: it.name || "—", hsn: it.hsn || "", qty, price, amount, gst, tax: (amount * gst) / 100, total: 0 };
+    const hsn = it.hsn || "";
+    // Fall back to the Tax Master rate for this HSN when the line has no GST snapshot.
+    const gst = Number(it.gst) || hsnRateCache[String(hsn).trim()] || 0;
+    return { name: it.name || "—", hsn, qty, price, amount, gst, tax: (amount * gst) / 100, total: 0 };
   });
+
   const taxSum = rows.reduce((s, r) => s + r.tax, 0);
   const amountSum = rows.reduce((s, r) => s + r.amount, 0);
   // Fall back to the invoice-level tax when the lines carry no GST snapshot.

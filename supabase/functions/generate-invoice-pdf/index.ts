@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { invoiceId } = await req.json();
+    const { invoiceId, wait } = await req.json();
     if (!invoiceId) {
       return new Response(JSON.stringify({ error: "invoiceId required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },

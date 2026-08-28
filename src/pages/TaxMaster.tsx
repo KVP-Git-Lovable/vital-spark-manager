@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ProductServiceTaxRates from "@/components/settings/ProductServiceTaxRates";
 import { toast } from "sonner";
 
 type TaxRow = {
@@ -89,9 +91,22 @@ export default function TaxMaster() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
+      <div>
+        <h1 className="text-xl md:text-2xl font-semibold font-display">Tax Master</h1>
+        <p className="text-sm text-muted-foreground">
+          All tax configuration in one place — HSN rates for invoices and named rates linked to products &amp; services.
+        </p>
+      </div>
+
+      <Tabs defaultValue="hsn" className="space-y-4">
+        <TabsList className="tabs-scroll">
+          <TabsTrigger value="hsn">HSN Rates</TabsTrigger>
+          <TabsTrigger value="rates">Product &amp; Service Rates</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="hsn" className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold font-display">Tax Master</h1>
           <p className="text-sm text-muted-foreground">
             HSN codes with their IGST and CGST rates. Records are locked after saving — only the Active status can be changed.
           </p>
@@ -214,6 +229,12 @@ export default function TaxMaster() {
       <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
         Only HSN codes marked Active = Yes appear in Service Master
       </Badge>
+        </TabsContent>
+
+        <TabsContent value="rates">
+          <ProductServiceTaxRates />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

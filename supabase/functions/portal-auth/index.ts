@@ -34,12 +34,15 @@ async function sb(path: string, init: RequestInit = {}) {
 async function findPatientByPhone(phone: string) {
   const cleaned = cleanPhone(phone);
   if (cleaned.length < 10) return null;
-  // Fetch a batch and match in code (stored phones may have varying formats)
+
+  // Query by exact phone match first
   const res = await sb(
-    `patients?select=id,first_name,last_name,phone,portal_pin_hash,portal_pin_failed_attempts,portal_pin_locked_until&limit=2000`,
+    `patients?select=id,first_name,last_name,phone,portal_pin_hash,portal_pin_failed_attempts,portal_pin_locked_until&phone=ilike.%${cleaned}%`,
   );
   if (!res.ok) return null;
   const rows = await res.json();
+
+  // Find patient with matching cleaned phone (handle various formats)
   return rows.find((r: any) => cleanPhone(r.phone || "") === cleaned) || null;
 }
 

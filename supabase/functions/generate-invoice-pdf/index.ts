@@ -529,25 +529,35 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       x: width / 2 - font.widthOfTextAtSize(sanitize("----------------"), 10) / 2,
       y: footerY + 30, size: 10, font, color: grey,
     });
-    const addrParts = [clinic?.name, clinic?.address, clinic?.city, clinic?.pincode].filter(Boolean);
-    const addrLine = addrParts.join(", ");
+    // Address line — avoid repeating the clinic name / city already in the address.
+    const addrRaw = String(clinic?.address || "");
+    const norm = (s: string) => s.trim().toLowerCase();
+    const addrParts: string[] = [];
+    if (clinic?.name && !norm(addrRaw).includes(norm(clinic.name))) addrParts.push(clinic.name);
+    if (addrRaw) addrParts.push(addrRaw.trim());
+    if (clinic?.city && !norm(addrRaw).includes(norm(clinic.city))) addrParts.push(clinic.city);
+    if (clinic?.pincode) addrParts.push(String(clinic.pincode));
+    const addrLine = addrParts.filter(Boolean).join(", ");
     if (addrLine) {
       const aw = font.widthOfTextAtSize(sanitize(addrLine), 9);
       page.drawText(sanitize(addrLine), { x: (width - aw) / 2, y: footerY + 16, size: 9, font, color: dark });
     }
-    if (clinic?.email) {
-      const domain = String(clinic.email).split("@")[1];
-      if (domain) {
-        const site = `Website: www.${domain}`;
-        const sw2 = font.widthOfTextAtSize(sanitize(site), 9);
-        page.drawText(sanitize(site), { x: (width - sw2) / 2, y: footerY + 4, size: 9, font, color: dark });
-      }
+    // Website comes from clinic settings (never derived from a free e-mail domain).
+    const website = String((clinic as any)?.website || "").trim();
+    if (website) {
+      const site = `Website: ${website.replace(/^https?:\/\//i, "")}`;
+      const sw2 = font.widthOfTextAtSize(sanitize(site), 9);
+      page.drawText(sanitize(site), { x: (width - sw2) / 2, y: footerY + 4, size: 9, font, color: dark });
     }
     if (clinic?.phone) {
       const ct = `For appointments and emergency care, contact us @ ${clinic.phone}`;
       const ctw = font.widthOfTextAtSize(sanitize(ct), 9);
       page.drawText(sanitize(ct), { x: (width - ctw) / 2, y: footerY - 12, size: 9, font, color: dark });
     }
+    const sysLine = "System generated invoice";
+    const slw = font.widthOfTextAtSize(sanitize(sysLine), 8);
+    page.drawText(sanitize(sysLine), { x: (width - slw) / 2, y: footerY - 26, size: 8, font, color: grey });
+
 
     const pdfBytes = await pdfDoc.save();
 

@@ -1393,16 +1393,18 @@ const Billing = () => {
         return;
       }
 
-      // Fire PDF generation and WhatsApp delivery in parallel.
-      // The Twilio template builds the PDF link from the invoice number,
-      // so the WhatsApp send does not need to wait for the PDF URL.
-      const pdfPromise = result.summary.invoiceId
-        ? supabase.functions.invoke("generate-invoice-pdf", {
-            body: { invoiceId: result.summary.invoiceId },
-          })
-        : Promise.resolve({ error: null });
+      // Generate the PDF FIRST and wait for it, so the WhatsApp template link
+      // (and the attached media) point at a document that already exists.
+      let invoiceUrl: string | null = null;
+      if (result.summary.invoiceId) {
+        const { data: pdfData, error: pdfErr } = await supabase.functions.invoke("generate-invoice-pdf", {
+          body: { invoiceId: result.summary.invoiceId, wait: true },
+        });
+        if (pdfErr) console.error("Invoice PDF generation failed:", pdfErr);
+        invoiceUrl = (pdfData as any)?.url ?? null;
+      }
 
-      const waPromise = supabase.functions.invoke("send-invoice-whatsapp", {
+      const { data: waData, error: waErr } = await supabase.functions.invoke("send-invoice-whatsapp", {
         body: {
           phone: result.patientPhone,
           patientName: result.patientName,
@@ -1411,17 +1413,17 @@ const Billing = () => {
           paidAmount: Number(result.summary.paidAmount).toLocaleString("en-IN"),
           balanceAmount: balance.toLocaleString("en-IN"),
           status: result.summary.status,
+          invoiceUrl,
         },
       });
 
-      const [pdfRes, waRes] = await Promise.allSettled([pdfPromise, waPromise]);
-      if (pdfRes.status === "rejected") console.error("Invoice PDF generation error:", pdfRes.reason);
-      else if ((pdfRes.value as any)?.error) console.error("Invoice PDF generation failed:", (pdfRes.value as any).error);
-
-      if (waRes.status === "rejected") {
-        console.error("WhatsApp invoice send error:", waRes.reason);
-      } else if ((waRes.value as any)?.error) {
-        console.error("WhatsApp invoice send failed:", (waRes.value as any).error);
+      if (waErr) {
+        console.error("WhatsApp invoice send failed:", waErr);
+        toast.error("WhatsApp invoice could not be sent");
+      } else if ((waData as any)?.deliveryError) {
+        const de = (waData as any).deliveryError;
+        console.error("WhatsApp delivery error:", de);
+        toast.error(`WhatsApp not delivered (Twilio ${de.code})`);
       } else {
         toast.success("WhatsApp invoice sent to patient");
       }
@@ -1429,6 +1431,7 @@ const Billing = () => {
       console.error("dispatchInvoiceWhatsApp error:", e);
     }
   };
+
 
   // Helper: when a recurring installment invoice flips to Paid,
   // generate a PDF for that specific installment and send it via WhatsApp
@@ -1460,26 +1463,30 @@ const Billing = () => {
       const paid = Number((inv as any).paid_amount) || 0;
       const balance = Math.max(0, total - paid);
 
-      // PDF and WhatsApp run in parallel; the Twilio template builds the
-      // PDF link from the invoice number, so WhatsApp does not need the URL.
-      const [pdfRes, waRes] = await Promise.allSettled([
-        supabase.functions.invoke("generate-invoice-pdf", { body: { invoiceId } }),
-        supabase.functions.invoke("send-invoice-whatsapp", {
-          body: {
-            phone,
-            patientName: (inv as any).patient_name,
-            invoiceNumber: (inv as any).invoice_number,
-            totalAmount: total.toLocaleString("en-IN"),
-            paidAmount: paid.toLocaleString("en-IN"),
-            balanceAmount: balance.toLocaleString("en-IN"),
-            status: (inv as any).status,
-          },
-        }),
-      ]);
-      if (pdfRes.status === "rejected") console.error("Installment PDF generation error:", pdfRes.reason);
-      if (waRes.status === "rejected") console.error("Installment WhatsApp send failed:", waRes.reason);
-      else if ((waRes.value as any)?.error) console.error("Installment WhatsApp send failed:", (waRes.value as any).error);
-      else toast.success("Installment invoice sent to patient");
+      // Generate the PDF first so the WhatsApp link/attachment resolves.
+      const { data: pdfData, error: pdfErr } = await supabase.functions.invoke("generate-invoice-pdf", {
+        body: { invoiceId, wait: true },
+      });
+      if (pdfErr) console.error("Installment PDF generation error:", pdfErr);
+
+      const { data: waData, error: waErr } = await supabase.functions.invoke("send-invoice-whatsapp", {
+        body: {
+          phone,
+          patientName: (inv as any).patient_name,
+          invoiceNumber: (inv as any).invoice_number,
+          totalAmount: total.toLocaleString("en-IN"),
+          paidAmount: paid.toLocaleString("en-IN"),
+          balanceAmount: balance.toLocaleString("en-IN"),
+          status: (inv as any).status,
+          invoiceUrl: (pdfData as any)?.url ?? null,
+        },
+      });
+      if (waErr) console.error("Installment WhatsApp send failed:", waErr);
+      else if ((waData as any)?.deliveryError) {
+        console.error("WhatsApp delivery error:", (waData as any).deliveryError);
+        toast.error(`WhatsApp not delivered (Twilio ${(waData as any).deliveryError.code})`);
+      } else toast.success("Installment invoice sent to patient");
+
     } catch (e) {
       console.error("notifyInstallmentPaid error:", e);
     }

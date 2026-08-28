@@ -120,6 +120,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Synchronous mode: callers that need the URL right away (e.g. Download PDF).
+    if (wait) {
+      const result = await buildInvoicePdf(supabase, inv);
+      if (result?.url) {
+        await supabase.from("invoices").update({ pdf_url: result.url }).eq("id", invoiceId);
+      }
+      return new Response(JSON.stringify({ ok: true, url: result?.url ?? null }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Build + upload the PDF in the background so callers don't block on it.
     const buildAndStore = async () => {
       try {
@@ -139,6 +150,7 @@ Deno.serve(async (req) => {
       // Fallback: fire-and-forget
       buildAndStore();
     }
+
 
     return new Response(JSON.stringify({ ok: true, queued: true }), {
       status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },

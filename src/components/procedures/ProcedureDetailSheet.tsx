@@ -171,6 +171,32 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     enabled: !!procedureId,
   });
 
+  const { data: procedureServices = [] } = useQuery({
+    queryKey: ["procedure-services", procedureId],
+    queryFn: async () => {
+      if (!procedureId) return [];
+      const { data, error } = await supabase
+        .from("procedure_services")
+        .select("*")
+        .eq("procedure_id", procedureId)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!procedureId,
+  });
+
+  const { data: servicesMaster = [] } = useQuery({
+    queryKey: ["services-lookup"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("services").select("id, name, procedure_notes, recommendations").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+
+
   const { data: photos = [] } = useQuery({
     queryKey: ["procedure-photos", procedureId],
     queryFn: async () => {

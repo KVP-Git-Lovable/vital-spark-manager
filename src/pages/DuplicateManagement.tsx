@@ -158,7 +158,7 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
     patch({
       match_fields: [
         ...draft.match_fields,
-        { id: newId(), field_key: obj.fields[0].key, matchType: "exact", joiner: "and" } as MatchField,
+        { id: newId(), field_key: obj.fields[0].key, matchType: "exact", joiner: "and", severity: "alert" } as MatchField,
       ],
     });
 

@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
+
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt } from "lucide-react";
+import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,9 +23,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { MicButton } from "@/components/shared/MicButton";
 import { PatientToolsBar } from "@/components/shared/PatientToolsBar";
+import { StaffCombobox } from "@/components/shared/StaffCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -71,6 +74,9 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   // Editable fields
   const [editServiceName, setEditServiceName] = useState("");
   const [editStatus, setEditStatus] = useState("");
+  const [editStaffId, setEditStaffId] = useState("");
+  const [medical, setMedical] = useState<Record<string, string>>({});
+  const [medicalDirty, setMedicalDirty] = useState(false);
   const [editProcedureNotes, setEditProcedureNotes] = useState("");
   const [editRecommendations, setEditRecommendations] = useState("");
   const [editReviewNotes, setEditReviewNotes] = useState("");
@@ -234,10 +240,37 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     },
   });
 
+  // Patient medical snapshot — editable here and synced back to the patient record
+  const { data: patientRecord } = useQuery({
+    queryKey: ["procedure-detail-patient", procedure?.patient_id],
+    enabled: !!procedure?.patient_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select("id, medical_history, current_medications, allergies, skin_type, skin_concerns, previous_treatments")
+        .eq("id", procedure!.patient_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  if (patientRecord && !medicalDirty && Object.keys(medical).length === 0) {
+    setMedical({
+      medical_history: patientRecord.medical_history || "",
+      current_medications: patientRecord.current_medications || "",
+      allergies: patientRecord.allergies || "",
+      skin_type: patientRecord.skin_type || "",
+      skin_concerns: patientRecord.skin_concerns || "",
+      previous_treatments: patientRecord.previous_treatments || "",
+    });
+  }
+
   // Initialize form
   if (procedure && !initialized) {
     setEditServiceName(procedure.service_name || "");
     setEditStatus(procedure.status || "Completed");
+    setEditStaffId(procedure.staff_id || "");
     setEditProcedureNotes(procedure.procedure_notes || "");
     setEditRecommendations(procedure.recommendations || "");
     setEditReviewNotes(procedure.review_notes || "");
@@ -306,6 +339,8 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     setEditServiceLines([]);
     setEditPrescriptions([]);
     setAttachmentNotes("");
+    setMedical({});
+    setMedicalDirty(false);
     onClose();
   };
 
@@ -322,11 +357,28 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       const { error } = await supabase.from("procedures").update({
         service_name: kept.length ? kept.map((l) => l.service_name).join(", ") : editServiceName,
         status: editStatus,
+        staff_id: editStaffId && editStaffId.trim() ? editStaffId : null,
         procedure_notes: kept.length ? combine("procedure_notes") : editProcedureNotes,
         recommendations: kept.length ? combine("recommendations") : editRecommendations,
         review_notes: editReviewNotes,
       }).eq("id", procedureId!);
       if (error) throw error;
+
+      // Sync any edits to the patient's medical information back to the patient record
+      if (medicalDirty && procedure?.patient_id) {
+        const { error: medErr } = await supabase
+          .from("patients")
+          .update({
+            medical_history: medical.medical_history || null,
+            current_medications: medical.current_medications || null,
+            allergies: medical.allergies || null,
+            skin_type: medical.skin_type || null,
+            skin_concerns: medical.skin_concerns || null,
+            previous_treatments: medical.previous_treatments || null,
+          })
+          .eq("id", procedure.patient_id);
+        if (medErr) throw medErr;
+      }
 
       // Sync procedure_services
       for (const l of editServiceLines.filter((x) => x.id && x._deleted)) {
@@ -393,6 +445,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       queryClient.invalidateQueries({ queryKey: ["procedure-detail", procedureId] });
       queryClient.invalidateQueries({ queryKey: ["procedure-prescriptions", procedureId] });
       queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
+      queryClient.invalidateQueries({ queryKey: ["patient", procedure?.patient_id] });
       const savedId = procedureId!;
       handleClose();
       onSaved?.(savedId);
@@ -537,7 +590,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
             <div className="p-6 text-center text-muted-foreground">Loading...</div>
           ) : (
             <>
-              <SheetHeader className="p-6 pb-4 border-b bg-muted/30">
+              <SheetHeader className="p-6 pb-4 border-b bg-muted/30 shadow-sm sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-muted/60">
                 <div className="flex items-start justify-between">
                   <div>
                     <Badge variant="outline" className="text-[10px] text-muted-foreground mb-1.5 font-normal">Procedure</Badge>
@@ -559,14 +612,19 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 )}
               </SheetHeader>
 
-              <div className="p-6 space-y-4">
-                {procedure.patient_id && (
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-semibold">Surveys</h3>
-                    <SurveyHistoryPanel patientId={procedure.patient_id} appointmentId={(procedure as any).appointment_id || null} />
-                  </div>
-                )}
-                <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-3">
+              <div className="p-6 space-y-4 mx-auto w-full max-w-5xl">
+                <Tabs defaultValue="procedure" className="w-full">
+                  <TabsList>
+                    <TabsTrigger value="procedure">Procedure</TabsTrigger>
+                    <TabsTrigger value="medical" className="gap-1.5">
+                      <HeartPulse className="h-3.5 w-3.5" /> Medical Information
+                    </TabsTrigger>
+                    <TabsTrigger value="surveys" className="gap-1.5">
+                      <ClipboardList className="h-3.5 w-3.5" /> Surveys
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="procedure" className="space-y-4 mt-4">
+                <div className="rounded-xl border-2 border-primary/25 bg-primary/5 p-3 shadow-sm">
                   <div className="flex items-center gap-2">
                     <Repeat className="h-4 w-4 text-primary" />
                     <span className="text-sm font-semibold text-primary">
@@ -589,18 +647,30 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   )}
                 </div>
 
-                <div>
-                  <Label>Status</Label>
-                  <Select value={editStatus} onValueChange={setEditStatus}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                <div className="rounded-xl border bg-card p-4 shadow-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Patient</Label>
+                      <Input value={patientName} disabled className="mt-1.5 bg-muted/50" />
+                    </div>
+                    <div>
+                      <Label>Doctor</Label>
+                      <StaffCombobox value={editStaffId} onValueChange={setEditStaffId} placeholder="Select doctor" className="mt-1.5" roleFilter={["Doctor"]} />
+                    </div>
+                    <div>
+                      <Label>Status</Label>
+                      <Select value={editStatus} onValueChange={setEditStatus}>
+                        <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Services / Procedures */}
-                <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4 space-y-3">
+                <div className="rounded-xl border-2 border-primary/25 bg-primary/5 p-4 space-y-3 shadow-sm">
                   <div className="flex items-center justify-between">
                     <Label className="text-base font-display font-semibold text-primary">Services / Procedures</Label>
                     <Button type="button" variant="outline" size="sm" onClick={addLine}>
@@ -608,7 +678,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     </Button>
                   </div>
                   {visibleLines.map((line, i) => (
-                    <div key={line.key} className="rounded-lg border bg-background p-3 space-y-2">
+                    <div key={line.key} className="rounded-lg border bg-background p-3 space-y-2 shadow-sm transition-shadow hover:shadow-md">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-medium text-muted-foreground">Service {i + 1}</span>
                         {visibleLines.length > 1 && (
@@ -678,15 +748,8 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </div>
 
 
-                {procedure.staff && (
-                  <div>
-                    <Label>Doctor</Label>
-                    <Input value={`Dr. ${procedure.staff.first_name} ${procedure.staff.last_name}`} disabled className="mt-1.5 bg-muted/50" />
-                  </div>
-                )}
-
                 {/* Prescriptions - editable */}
-                <div className="border-t pt-4">
+                <div className="rounded-xl border-2 border-primary/25 bg-primary/5 p-4 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <Label className="text-base font-display font-semibold flex items-center gap-2">
                       <Pill className="h-4 w-4" /> Prescriptions
@@ -698,7 +761,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   {visibleRx.length > 0 ? visibleRx.map((rx, idx) => {
                     const realIdx = editPrescriptions.indexOf(rx);
                     return (
-                      <div key={realIdx} className="border rounded-lg p-3 mb-3 space-y-2 bg-muted/30">
+                      <div key={realIdx} className="border rounded-lg p-3 mb-3 space-y-2 bg-background shadow-sm transition-shadow hover:shadow-md">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-medium text-muted-foreground">Medicine {idx + 1}</span>
                           <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeRx(realIdx)}>Remove</Button>
@@ -746,7 +809,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </div>
 
                 {/* Photos */}
-                <div className="border-t pt-4">
+                <div className="rounded-xl border bg-card p-4 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <Label className="text-base font-display font-semibold flex items-center gap-2">
                       <Camera className="h-4 w-4" /> Photos
@@ -769,7 +832,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </div>
 
                 {/* Attachments */}
-                <div className="border-t pt-4">
+                <div className="rounded-xl border bg-card p-4 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <Label className="text-base font-display font-semibold flex items-center gap-2">
                       <Paperclip className="h-4 w-4" /> Attachments
@@ -815,6 +878,50 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     <p className="text-sm text-muted-foreground text-center py-2">No attachments yet.</p>
                   )}
                 </div>
+                  </TabsContent>
+
+                  <TabsContent value="medical" className="space-y-3 mt-4">
+                    <div className="flex items-center gap-2">
+                      <HeartPulse className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold">Medical Information</span>
+                      <span className="text-[11px] text-muted-foreground">(saved back to the patient record)</span>
+                    </div>
+                    {procedure.patient_id ? (
+                      <div className="rounded-xl border bg-card p-4 shadow-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {([
+                            ["medical_history", "Medical History"],
+                            ["current_medications", "Current Medications"],
+                            ["allergies", "Allergies"],
+                            ["previous_treatments", "Previous Treatments"],
+                            ["skin_type", "Skin Type"],
+                            ["skin_concerns", "Skin Concerns"],
+                          ] as [string, string][]).map(([field, label]) => (
+                            <div key={field}>
+                              <Label className="text-xs text-muted-foreground">{label}</Label>
+                              <Textarea
+                                rows={3}
+                                className="mt-1 text-sm"
+                                value={medical[field] || ""}
+                                onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground py-8 text-center">No patient linked to this procedure.</p>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="surveys" className="space-y-3 mt-4">
+                    {procedure.patient_id ? (
+                      <SurveyHistoryPanel patientId={procedure.patient_id} appointmentId={(procedure as any).appointment_id || null} />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No patient linked to this procedure.</p>
+                    )}
+                  </TabsContent>
+                </Tabs>
 
                 {/* Action buttons */}
                 <div className="flex flex-wrap gap-2 pt-4 border-t">

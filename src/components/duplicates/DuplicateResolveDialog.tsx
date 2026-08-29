@@ -40,49 +40,104 @@ const CARRY_GROUPS = [
   },
 ] as const;
 
+type ConflictPolicy = "keep_existing" | "prefer_latest" | "prefer_duplicate" | "manual";
+type InvoicePolicy = "keep_historical" | "skip_conflicting" | "fill_missing_tax";
+
+const CONFLICT_FIELDS = [
+  "first_name",
+  "last_name",
+  "phone",
+  "email",
+  "date_of_birth",
+  "gender",
+  "city",
+  "state",
+  "pincode",
+  "address",
+];
+
+const isBlank = (v: any) => v === null || v === undefined || v === "";
+
 export default function DuplicateResolveDialog({ open, onClose, primary, duplicate, onResolved }: Props) {
   const [keepId, setKeepId] = useState<string>("");
   const [carry, setCarry] = useState<Record<string, boolean>>({ appointments: true, invoices: true, clinical: true });
   const [fillBlanks, setFillBlanks] = useState(true);
   const [deactivate, setDeactivate] = useState(true);
+  const [conflictPolicy, setConflictPolicy] = useState<ConflictPolicy>("keep_existing");
+  const [manualPicks, setManualPicks] = useState<Record<string, "kept" | "dropped">>({});
+  const [invoicePolicy, setInvoicePolicy] = useState<InvoicePolicy>("keep_historical");
+  const [restampName, setRestampName] = useState(true);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (open && primary) setKeepId(primary.id);
+    if (open) setManualPicks({});
   }, [open, primary?.id]);
 
   const kept = keepId === duplicate?.id ? duplicate : primary;
   const dropped = keepId === duplicate?.id ? primary : duplicate;
 
   const diffRows = useMemo(() => {
-    if (!primary || !duplicate) return [];
-    const keys = ["first_name", "last_name", "phone", "email", "date_of_birth", "gender", "city", "status"];
-    return keys.map((k) => ({ key: k, a: primary[k], b: duplicate[k] }));
-  }, [primary, duplicate]);
+    if (!kept || !dropped) return [];
+    return CONFLICT_FIELDS.map((k) => ({
+      key: k,
+      keptValue: kept[k],
+      droppedValue: dropped[k],
+      conflict: !isBlank(kept[k]) && !isBlank(dropped[k]) && String(kept[k]) !== String(dropped[k]),
+    }));
+  }, [kept, dropped]);
+
+  const conflicts = diffRows.filter((r) => r.conflict);
+
+  /** Resolve a single conflicting value according to the configured policy. */
+  const resolveValue = (row: { key: string; keptValue: any; droppedValue: any }) => {
+    switch (conflictPolicy) {
+      case "prefer_duplicate":
+        return row.droppedValue;
+      case "prefer_latest": {
+        const keptAt = new Date((kept as any)?.updated_at || (kept as any)?.created_at || 0).getTime();
+        const dropAt = new Date((dropped as any)?.updated_at || (dropped as any)?.created_at || 0).getTime();
+        return dropAt > keptAt ? row.droppedValue : row.keptValue;
+      }
+      case "manual":
+        return manualPicks[row.key] === "dropped" ? row.droppedValue : row.keptValue;
+      default:
+        return row.keptValue;
+    }
+  };
 
   const run = async (mode: "merged" | "linked") => {
     if (!kept || !dropped) return;
     setBusy(true);
     try {
       if (mode === "merged") {
+        const patch: Record<string, any> = {};
+
         if (fillBlanks) {
-          const patch: Record<string, any> = {};
           Object.entries(dropped).forEach(([k, v]) => {
             if (["id", "created_at", "updated_at"].includes(k)) return;
-            const cur = (kept as any)[k];
-            if ((cur === null || cur === undefined || cur === "") && v !== null && v !== undefined && v !== "") {
-              patch[k] = v;
-            }
+            if (isBlank((kept as any)[k]) && !isBlank(v)) patch[k] = v;
           });
-          if (Object.keys(patch).length) {
-            const { error } = await (supabase as any).from("patients").update(patch).eq("id", kept.id);
-            if (error) throw error;
-          }
+        }
+
+        // Conflicting values follow the configured conflict policy.
+        diffRows.filter((r) => r.conflict).forEach((r) => {
+          const value = resolveValue(r);
+          if (String(value ?? "") !== String(r.keptValue ?? "")) patch[r.key] = value;
+        });
+
+        if (Object.keys(patch).length) {
+          const { error } = await (supabase as any).from("patients").update(patch).eq("id", kept.id);
+          if (error) throw error;
         }
 
         for (const group of CARRY_GROUPS) {
           if (!carry[group.key]) continue;
           for (const table of group.tables) {
+            if (group.key === "invoices") {
+              await carryInvoices(table, kept, dropped, invoicePolicy, restampName);
+              continue;
+            }
             const { error } = await (supabase as any)
               .from(table)
               .update({ patient_id: kept.id })
@@ -119,6 +174,7 @@ export default function DuplicateResolveDialog({ open, onClose, primary, duplica
       setBusy(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>

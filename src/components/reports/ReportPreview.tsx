@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getObjectByKey, isValidFieldKey, type ReportFilter, type ReportDisplayOptions, DEFAULT_DISPLAY_OPTIONS } from "@/lib/reportObjects";
+import { getObjectByKey, isValidFieldKey, evaluateFilterLogic, type ReportFilter, type ReportDisplayOptions, DEFAULT_DISPLAY_OPTIONS } from "@/lib/reportObjects";
 import { Badge } from "@/components/ui/badge";
 import {
   BarChart,
@@ -40,16 +40,21 @@ interface Props {
   compact?: boolean;
 }
 
-const RECORD_ROUTES: Record<string, string> = {
-  patients: "/patients",
-  appointments: "/appointments",
-  procedures: "/procedures",
-  invoices: "/billing",
-  services: "/services",
-  assets: "/assets",
-  pharma_products: "/pharma",
-  staff: "/settings",
-  vendors: "/assets",
+// Deep-link builders per object; each opens the specific record.
+const RECORD_URL_BUILDERS: Record<string, (id: string) => string> = {
+  patients: (id) => `/patients/${id}`,
+  appointments: (id) => `/appointments/${id}`,
+  staff: (id) => `/staff/${id}`,
+  campaigns: (id) => `/campaigns/${id}`,
+  procedures: (id) => `/procedures?id=${id}`,
+  invoices: (id) => `/billing?viewInvoice=${id}`,
+  services: (id) => `/services?id=${id}`,
+  assets: (id) => `/assets?id=${id}`,
+  vendors: (id) => `/vendors?id=${id}`,
+  pharma_products: (id) => `/pharma?id=${id}`,
+  asset_issues: (id) => `/assets?issue=${id}`,
+  leave_applications: (id) => `/leave?id=${id}`,
+  patient_feedback: (id) => `/appointments?feedback=${id}`,
 };
 
 // ---- Virtual / aggregate field helpers ----
@@ -507,10 +512,10 @@ export function ReportPreview({
   };
 
   const handleRecordClick = (record: any) => {
-    const route = RECORD_ROUTES[primaryObject];
-    if (route && record.id) {
-      const detailPath = primaryObject === "patients" ? `${route}/${record.id}` : route;
-      window.open(detailPath, "_blank");
+    const build = RECORD_URL_BUILDERS[primaryObject];
+    const id = record?.id ?? record?.[`${primaryObject}.id`];
+    if (build && id) {
+      window.open(build(String(id)), "_blank", "noopener,noreferrer");
     }
   };
 

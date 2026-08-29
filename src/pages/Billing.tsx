@@ -892,6 +892,38 @@ const Billing = () => {
       .filter(Boolean) as { name: string; percent: number; base: number; cost: number }[];
   }, [serviceInputs, serviceMaster]);
   const materialTotal = materialRows.reduce((s, r) => s + r.cost, 0);
+  const [materialOpen, setMaterialOpen] = useState(false);
+
+  const materialSection = materialRows.length > 0 ? (
+    <div className="rounded-lg border border-dashed bg-muted/30 mt-3">
+      <button
+        type="button"
+        onClick={() => setMaterialOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold"
+      >
+        <span>Material cost (internal only)</span>
+        <span className="text-muted-foreground font-normal">{materialOpen ? "Hide" : "Show"}</span>
+      </button>
+      {materialOpen && (
+        <div className="px-3 pb-3 space-y-1 text-[11px]">
+          {materialRows.map((r) => (
+            <div key={r.name} className="flex justify-between gap-2">
+              <span className="min-w-0 truncate">{r.name} · {r.percent}% of {money(r.base)}</span>
+              <span className="tabular-nums">{money(r.cost)}</span>
+            </div>
+          ))}
+          <div className="flex justify-between border-t pt-1 mt-1 font-semibold">
+            <span>Total material cost</span>
+            <span className="tabular-nums">{money(materialTotal)}</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground pt-1">
+            Calculated on pre-tax service value. Not included in invoice totals.
+          </p>
+        </div>
+      )}
+    </div>
+  ) : null;
+
 
 
   // Tax for a share of the bill (used by installments): each line taxed at its own rate, scaled.

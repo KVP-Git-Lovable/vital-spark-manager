@@ -347,7 +347,7 @@ const Patients = () => {
     toast.success(`Deleted ${ids.length} patient${ids.length > 1 ? "s" : ""}`);
     setSelectedIds(new Set());
     setConfirmOpen(false);
-    refetch();
+    reloadPatients();
   };
 
   const allFilteredSelected = paged.length > 0 && paged.every((p) => selectedIds.has(p.id));
@@ -585,13 +585,13 @@ const Patients = () => {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         patient={editingPatient}
-        onSuccess={() => refetch()}
+        onSuccess={() => reloadPatients()}
       />
 
       <ImportPatientsDialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        onSuccess={() => refetch()}
+        onSuccess={() => reloadPatients()}
       />
 
       {cameraPatient && (

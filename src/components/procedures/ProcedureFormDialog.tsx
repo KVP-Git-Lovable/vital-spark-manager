@@ -416,7 +416,7 @@ export function ProcedureFormDialog({
   const { data: services = [] } = useQuery({
     queryKey: ["services-lookup"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("services").select("id, name, symptoms, diagnosis, procedure_notes, recommendations").order("name");
+      const { data, error } = await supabase.from("services").select("id, name, procedure_notes, recommendations").order("name");
       if (error) throw error;
       return data;
     },
@@ -443,64 +443,90 @@ export function ProcedureFormDialog({
     },
   });
 
-  // Auto-fill from service master
-  const applyServiceData = async (svc: any, svcId: string) => {
-    setServiceId(svcId);
-    setServiceName(svc.name);
-    if (svc.symptoms) setSymptoms(svc.symptoms);
-    if (svc.diagnosis) setDiagnosis(svc.diagnosis);
-    if (svc.procedure_notes) setProcedureNotes(svc.procedure_notes);
-    if (svc.recommendations) {
-      setRecommendations((svc.recommendations as string[]).join("\n"));
-    }
-    // Load service medicines as prescriptions
+  const addServiceLine = () =>
+    setServiceLines((prev) => [
+      ...prev,
+      { key: `svc-${Date.now()}-${prev.length}`, service_id: "", name: "", procedure_notes: "", recommendations: "" },
+    ]);
+
+  const removeServiceLine = (key: string) =>
+    setServiceLines((prev) => (prev.length === 1 ? prev : prev.filter((l) => l.key !== key)));
+
+  const updateServiceLine = (key: string, patch: Partial<ServiceLine>) =>
+    setServiceLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+
+  // Auto-fill one service line (and merge its medicines / assets) from Service Master
+  const applyServiceData = async (svc: any, svcId: string, lineKey: string) => {
+    updateServiceLine(lineKey, {
+      service_id: svcId,
+      name: svc.name,
+      procedure_notes: svc.procedure_notes || "",
+      recommendations: Array.isArray(svc.recommendations)
+        ? (svc.recommendations as string[]).join("\n")
+        : svc.recommendations || "",
+    });
+
+    // Merge service medicines into prescriptions (no duplicates)
     const { data: meds } = await supabase
       .from("service_medicines")
       .select("*, pharma_products(name)")
       .eq("service_id", svcId);
     if (meds && meds.length > 0) {
-      setPrescriptions(meds.map((m: any) => ({
-        product_id: m.product_id,
-        medicine_name: m.pharma_products?.name || "",
-        dosage: "",
-        frequency: m.frequency || "",
-        duration: m.duration || "",
-        instructions: m.instructions || "",
-        quantity: 1,
-      })));
+      setPrescriptions((prev) => {
+        const next = [...prev];
+        for (const m of meds as any[]) {
+          if (next.some((rx) => rx.product_id && rx.product_id === m.product_id)) continue;
+          next.push({
+            product_id: m.product_id,
+            medicine_name: m.pharma_products?.name || "",
+            frequency: m.frequency || "",
+            duration: m.duration || "",
+            instructions: m.instructions || "",
+            quantity: 1,
+          });
+        }
+        return next;
+      });
     }
-    // Load service assets
+
+    // Merge service assets
     const { data: assetLinksData } = await supabase
       .from("asset_service_links")
       .select("*, assets(name)")
       .eq("service_id", svcId);
     if (assetLinksData && assetLinksData.length > 0) {
-      setProcedureAssets(assetLinksData.map((a: any) => ({
-        asset_id: a.asset_id,
-        asset_name: a.assets?.name || "",
-        usage_guideline: a.usage_guideline || "",
-        time_taken: a.time_taken ? String(a.time_taken) : "",
-      })));
-    } else {
-      setProcedureAssets([]);
+      setProcedureAssets((prev) => {
+        const next = [...prev];
+        for (const a of assetLinksData as any[]) {
+          if (next.some((x) => x.asset_id === a.asset_id)) continue;
+          next.push({
+            asset_id: a.asset_id,
+            asset_name: a.assets?.name || "",
+            usage_guideline: a.usage_guideline || "",
+            time_taken: a.time_taken ? String(a.time_taken) : "",
+          });
+        }
+        return next;
+      });
     }
     setAutoFilled(true);
-    toast.info("Fields auto-filled from Service Master — you can edit them.");
+    toast.info("Procedure & recommendations auto-filled from Service Master — you can edit them.");
   };
 
   // When a service is selected from dropdown
-  const handleServiceSelect = async (svcId: string) => {
+  const handleServiceSelect = async (svcId: string, lineKey: string) => {
     const svc = services.find((s: any) => s.id === svcId);
-    if (svc) await applyServiceData(svc, svcId);
+    if (svc) await applyServiceData(svc, svcId, lineKey);
   };
 
   // Auto-match defaultServiceName on first load
-  if (defaultServiceName && services.length > 0 && !autoFilled && !serviceId) {
+  if (defaultServiceName && services.length > 0 && !autoFilled && !serviceLines[0]?.service_id) {
     const match = services.find((s: any) => s.name === defaultServiceName);
     if (match) {
-      applyServiceData(match, match.id);
+      applyServiceData(match, match.id, serviceLines[0].key);
     }
   }
+
 
   const createMutation = useMutation({
     mutationFn: async () => {

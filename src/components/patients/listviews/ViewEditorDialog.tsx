@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import {
-  Plus, Trash2, Filter, Columns3, Users, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
+  Plus, Trash2, Filter, Columns3, Users, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Search,
 } from "lucide-react";
+
 import {
   PATIENT_FIELDS, OPERATORS, DEFAULT_VIEW_COLUMNS, fieldDef,
   GENDER_OPTIONS, STATUS_OPTIONS, SKIN_TYPE_OPTIONS, BLOOD_GROUP_OPTIONS, SOURCE_OPTIONS,

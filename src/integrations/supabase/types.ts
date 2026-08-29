@@ -3688,6 +3688,84 @@ export type Database = {
           },
         ]
       }
+      trash_items: {
+        Row: {
+          created_at: string
+          deleted_at: string
+          deleted_by: string | null
+          deleted_by_name: string | null
+          id: string
+          object_type: string
+          purged_at: string | null
+          purged_by: string | null
+          record_data: Json
+          record_id: string
+          record_label: string | null
+          restored_at: string | null
+          restored_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string
+          deleted_by?: string | null
+          deleted_by_name?: string | null
+          id?: string
+          object_type: string
+          purged_at?: string | null
+          purged_by?: string | null
+          record_data: Json
+          record_id: string
+          record_label?: string | null
+          restored_at?: string | null
+          restored_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string
+          deleted_by?: string | null
+          deleted_by_name?: string | null
+          id?: string
+          object_type?: string
+          purged_at?: string | null
+          purged_by?: string | null
+          record_data?: Json
+          record_id?: string
+          record_label?: string | null
+          restored_at?: string | null
+          restored_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      trash_settings: {
+        Row: {
+          auto_purge: boolean
+          created_at: string
+          id: boolean
+          retention_days: number
+          updated_at: string
+        }
+        Insert: {
+          auto_purge?: boolean
+          created_at?: string
+          id?: boolean
+          retention_days?: number
+          updated_at?: string
+        }
+        Update: {
+          auto_purge?: boolean
+          created_at?: string
+          id?: boolean
+          retention_days?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       unit_master: {
         Row: {
           conversion_qty: number | null
@@ -3963,6 +4041,13 @@ export type Database = {
         Args: { _column: string; _table: string }
         Returns: undefined
       }
+      move_to_trash: {
+        Args: { _label?: string; _object_type: string; _record_id: string }
+        Returns: string
+      }
+      purge_trash_item: { Args: { _trash_id: string }; Returns: undefined }
+      restore_from_trash: { Args: { _trash_id: string }; Returns: undefined }
+      trash_allowed_object: { Args: { _object_type: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

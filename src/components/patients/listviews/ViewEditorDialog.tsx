@@ -74,8 +74,16 @@ const labelFor = (key: string) => PATIENT_FIELDS.find((f) => f.key === key)?.lab
 function FieldPicker({ columns, onChange }: { columns: string[]; onChange: (next: string[]) => void }) {
   const [availSel, setAvailSel] = useState<string[]>([]);
   const [visSel, setVisSel] = useState<string[]>([]);
+  const [availQuery, setAvailQuery] = useState("");
+  const [visQuery, setVisQuery] = useState("");
 
-  const available = PATIENT_FIELDS.filter((f) => !columns.includes(f.key));
+  const available = PATIENT_FIELDS.filter(
+    (f) => !columns.includes(f.key) && f.label.toLowerCase().includes(availQuery.trim().toLowerCase())
+  );
+  const visibleShown = columns.filter((key) =>
+    labelFor(key).toLowerCase().includes(visQuery.trim().toLowerCase())
+  );
+
 
   const toggle = (list: string[], key: string, set: (v: string[]) => void, multi: boolean) => {
     if (multi) set(list.includes(key) ? list.filter((k) => k !== key) : [...list, key]);

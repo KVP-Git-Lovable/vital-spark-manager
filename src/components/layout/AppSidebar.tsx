@@ -26,7 +26,8 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Megaphone,
-, CopyCheck } from "lucide-react";
+  CopyCheck,
+} from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
 import { useEffect } from "react";

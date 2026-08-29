@@ -119,6 +119,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [activeTab, setActiveTab] = useState("personal");
   const [removedFamilyIds, setRemovedFamilyIds] = useState<string[]>([]);
   const [duplicates, setDuplicates] = useState<any[]>([]);
+  const [liveMatches, setLiveMatches] = useState<DuplicateMatch[]>([]);
+  const [resolveWith, setResolveWith] = useState<Record<string, any> | null>(null);
+
   const [duplicateAck, setDuplicateAck] = useState(false);
   const [dupMatches, setDupMatches] = useState<DuplicateMatch[]>([]);
   const [dupDialogOpen, setDupDialogOpen] = useState(false);

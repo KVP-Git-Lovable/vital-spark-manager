@@ -916,8 +916,12 @@ const Billing = () => {
             <span>Total material cost</span>
             <span className="tabular-nums">{money(materialTotal)}</span>
           </div>
+          <div className="flex justify-between pt-1 font-semibold text-primary">
+            <span>Actual service rate</span>
+            <span className="tabular-nums">{money(Math.max(servicesSubtotal - materialTotal, 0))}</span>
+          </div>
           <p className="text-[10px] text-muted-foreground pt-1">
-            Calculated on pre-tax service value. Not included in invoice totals.
+            Actual service rate = total pre-tax services − material cost (pharmacy excluded). Not included in invoice totals.
           </p>
         </div>
       )}

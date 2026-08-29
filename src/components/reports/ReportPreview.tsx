@@ -259,27 +259,38 @@ export function ReportPreview({
     }
 
     let query = supabase.from(primaryObj.table as any).select(selectStr);
-    filters
-      .filter((f) => f.field.startsWith(`${primaryObject}.`))
-      .filter((f) => {
-        const c = f.field.split(".")[1];
-        return primaryValidFieldSet.has(c) && !isVirtualField(c);
-      })
-      .forEach((f) => {
-        const col = f.field.split(".")[1];
-        const v = resolveFilterValue(f.value);
-        switch (f.operator) {
-          case "equals": query = query.eq(col, v); break;
-          case "not_equals": query = query.neq(col, v); break;
-          case "contains": query = query.ilike(col, `%${v}%`); break;
-          case "gt": query = query.gt(col, v); break;
-          case "lt": query = query.lt(col, v); break;
-          case "gte": query = query.gte(col, v); break;
-          case "lte": query = query.lte(col, v); break;
-          case "is_null": query = query.is(col, null); break;
-          case "is_not_null": query = query.not(col, "is", null); break;
-        }
-      });
+    // With custom filter logic (OR / grouping) everything is evaluated
+    // client-side, so no server-side narrowing is applied.
+    if (!filterLogic) {
+      filters
+        .filter((f) => f.field.startsWith(`${primaryObject}.`))
+        .filter((f) => {
+          const c = f.field.split(".")[1];
+          return primaryValidFieldSet.has(c) && !isVirtualField(c);
+        })
+        .forEach((f) => {
+          const col = f.field.split(".")[1];
+          const v = resolveFilterValue(f.value);
+          const list = v.split(",").map((s) => s.trim()).filter(Boolean);
+          switch (f.operator) {
+            case "equals": query = query.eq(col, v); break;
+            case "not_equals": query = query.neq(col, v); break;
+            case "contains": query = query.ilike(col, `%${v}%`); break;
+            case "does_not_contain": query = query.not(col, "ilike", `%${v}%`); break;
+            case "starts_with": query = query.ilike(col, `${v}%`); break;
+            case "ends_with": query = query.ilike(col, `%${v}`); break;
+            case "in": if (list.length) query = query.in(col, list); break;
+            case "not_in": if (list.length) query = query.not(col, "in", `(${list.join(",")})`); break;
+            case "gt": query = query.gt(col, v); break;
+            case "lt": query = query.lt(col, v); break;
+            case "gte": query = query.gte(col, v); break;
+            case "lte": query = query.lte(col, v); break;
+            case "is_null": query = query.is(col, null); break;
+            case "is_not_null": query = query.not(col, "is", null); break;
+          }
+        });
+    }
+
 
     query = query.limit(500);
     const { data: result, error } = await query;

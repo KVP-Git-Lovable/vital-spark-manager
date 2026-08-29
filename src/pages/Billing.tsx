@@ -507,7 +507,7 @@ const Billing = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
-        .select("id, name, price, hsn_code, gst_percent" as any)
+        .select("id, name, price, hsn_code, gst_percent, material_percent" as any)
         .order("name");
       if (error) throw error;
       return data;

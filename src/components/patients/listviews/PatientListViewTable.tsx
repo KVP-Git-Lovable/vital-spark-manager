@@ -1,6 +1,7 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { fieldDef, formatCell, PATIENT_FIELDS, rawValue } from "@/lib/patientFields";
+import { PatientAvatar } from "@/components/patients/PatientAvatar";
 
 interface Props {
   rows: any[];
@@ -10,6 +11,7 @@ interface Props {
   onToggleAll: () => void;
   onOpen: (row: any) => void;
   doctorLabels?: Record<string, string>;
+  avatars?: Record<string, string>;
 }
 
 const labelFor = (key: string) => PATIENT_FIELDS.find((f) => f.key === key)?.label ?? key;

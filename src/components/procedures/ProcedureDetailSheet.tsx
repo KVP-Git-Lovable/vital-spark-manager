@@ -55,15 +55,16 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   // Editable fields
   const [editServiceName, setEditServiceName] = useState("");
   const [editStatus, setEditStatus] = useState("");
-  const [editSymptoms, setEditSymptoms] = useState("");
-  const [editDiagnosis, setEditDiagnosis] = useState("");
   const [editProcedureNotes, setEditProcedureNotes] = useState("");
   const [editRecommendations, setEditRecommendations] = useState("");
   const [editReviewNotes, setEditReviewNotes] = useState("");
+  const [editServiceLines, setEditServiceLines] = useState<ServiceLineRow[]>([]);
+  const [servicesInitialized, setServicesInitialized] = useState(false);
   const [editPrescriptions, setEditPrescriptions] = useState<PrescriptionRow[]>([]);
   const [attachmentNotes, setAttachmentNotes] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [elaborating, setElaborating] = useState<null | "symptoms" | "diagnosis" | "procedure_notes" | "recommendations">(null);
+  const [elaborating, setElaborating] = useState<null | string>(null);
+
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [sendingWa, setSendingWa] = useState(false);
 

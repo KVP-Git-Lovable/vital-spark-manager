@@ -161,6 +161,12 @@ function matchesValue(val: any, operator: string, fv: string): boolean {
 }
 
 
+function isTextCol(objectKey: string, fieldKey: string): boolean {
+  const obj = getObjectByKey(objectKey);
+  const f = obj?.fields.find((x) => x.key === fieldKey);
+  return !f || f.type === "text";
+}
+
 export function ReportPreview({
   primaryObject,
   relatedObject,
@@ -248,12 +254,27 @@ export function ReportPreview({
     // evaluation (filter logic / OR branches) has the data it needs.
     filters.forEach((f) => {
       const [objKey, col] = (f.field || "").split(".");
-      if (!col || isVirtualField(col)) return;
-      if (objKey === primaryObject && primaryValidFieldSet.has(col) && !primaryFieldKeys.includes(col)) {
-        primaryFieldKeys.push(col);
-      }
-      if (objKey === relatedObject && relatedValidFieldSet.has(col) && !relatedFieldKeys.includes(col)) {
-        relatedFieldKeys.push(col);
+      if (!col) return;
+      // Virtual fields (e.g. _month, _full_name) are computed client-side, so
+      // pull in the real columns they depend on.
+      const deps = isVirtualField(col) ? virtualRealDeps(col) : [col];
+      deps.forEach((c) => {
+        if (objKey === primaryObject && primaryValidFieldSet.has(c) && !primaryFieldKeys.includes(c)) {
+          primaryFieldKeys.push(c);
+        }
+        if (objKey === relatedObject && relatedValidFieldSet.has(c) && !relatedFieldKeys.includes(c)) {
+          relatedFieldKeys.push(c);
+        }
+      });
+      if (col === "_doctor_name") {
+        if (objKey === primaryObject) {
+          const dfk = DOCTOR_FK_BY_OBJECT[primaryObject];
+          if (dfk && primaryValidFieldSet.has(dfk) && !primaryFieldKeys.includes(dfk)) primaryFieldKeys.push(dfk);
+        }
+        if (objKey === relatedObject && relatedObject) {
+          const dfk = DOCTOR_FK_BY_OBJECT[relatedObject];
+          if (dfk && relatedValidFieldSet.has(dfk) && !relatedFieldKeys.includes(dfk)) relatedFieldKeys.push(dfk);
+        }
       }
     });
 
@@ -300,7 +321,13 @@ export function ReportPreview({
     let query = supabase.from(primaryObj.table as any).select(selectStr);
     // With custom filter logic (OR / grouping) everything is evaluated
     // client-side, so no server-side narrowing is applied.
-    if (!filterLogic) {
+    // Any filter on a computed/virtual field must be evaluated client-side; in
+    // that case skip server narrowing entirely so nothing is lost.
+    const hasVirtualFilter = filters.some((f) => {
+      const c = (f.field || "").split(".")[1];
+      return !!c && isVirtualField(c);
+    });
+    if (!filterLogic && !hasVirtualFilter) {
       filters
         .filter((f) => f.field.startsWith(`${primaryObject}.`))
         .filter((f) => {
@@ -312,8 +339,13 @@ export function ReportPreview({
           const v = resolveFilterValue(f.value);
           const list = v.split(",").map((s) => s.trim()).filter(Boolean);
           switch (f.operator) {
-            case "equals": query = query.eq(col, v); break;
-            case "not_equals": query = query.neq(col, v); break;
+            case "equals":
+              // Case-insensitive match for text columns so "Active" == "active".
+              query = isTextCol(primaryObject, col) ? query.ilike(col, v) : query.eq(col, v);
+              break;
+            case "not_equals":
+              query = isTextCol(primaryObject, col) ? query.not(col, "ilike", v) : query.neq(col, v);
+              break;
             case "contains": query = query.ilike(col, `%${v}%`); break;
             case "does_not_contain": query = query.not(col, "ilike", `%${v}%`); break;
             case "starts_with": query = query.ilike(col, `${v}%`); break;
@@ -394,9 +426,10 @@ export function ReportPreview({
     // filters also run here when custom filter logic is in play.
     const evalFilters = filters.filter((f) => {
       const [objKey, c] = (f.field || "").split(".");
-      if (!c || isVirtualField(c)) return false;
+      if (!c) return false;
+      if (isVirtualField(c)) return true; // computed values -> always client-side
       if (objKey === relatedObject && relatedValidFieldSet.has(c)) return true;
-      if (objKey === primaryObject && primaryValidFieldSet.has(c)) return !!filterLogic;
+      if (objKey === primaryObject && primaryValidFieldSet.has(c)) return !!filterLogic || hasVirtualFilter;
       return false;
     });
 
@@ -591,6 +624,8 @@ export function ReportPreview({
     return Object.values(grouped);
   };
 
+  let chartNode: React.ReactNode = null;
+
   // Number summary
   if (chartType === "number") {
     const total = data.length;
@@ -599,7 +634,7 @@ export function ReportPreview({
       const sum = data.reduce((s, r) => s + (Number(r[dataKey]) || 0), 0);
       return { label: getFieldLabel(nc), sum };
     });
-    return (
+    chartNode = (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="data-table p-4 text-center">
           <div className="text-3xl font-display font-bold text-primary">{total}</div>
@@ -616,13 +651,13 @@ export function ReportPreview({
   }
 
   // Charts
-  if (chartType !== "table" && groupField) {
+  if (chartType !== "table" && chartType !== "number" && groupField) {
     const chartData = buildChartData();
     const valueKey = numericCols.length > 0 ? resolveDataKey(numericCols[0]) : "count";
     const height = compact ? 200 : 350;
 
     if (chartType === "bar") {
-      return (
+      chartNode = (
         <ResponsiveContainer width="100%" height={height}>
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
@@ -635,7 +670,7 @@ export function ReportPreview({
       );
     }
     if (chartType === "doughnut") {
-      return (
+      chartNode = (
         <div className="flex flex-col items-center">
           <ResponsiveContainer width="100%" height={height}>
             <PieChart>
@@ -657,7 +692,7 @@ export function ReportPreview({
       );
     }
     if (chartType === "line") {
-      return (
+      chartNode = (
         <ResponsiveContainer width="100%" height={height}>
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
@@ -671,7 +706,8 @@ export function ReportPreview({
     }
   }
 
-  // TABLE VIEW
+  // TABLE VIEW — always rendered, below the chart when one is selected.
+  const renderTable = (): React.ReactNode => {
   const displayCols = allDisplayCols.length > 0 ? allDisplayCols : groupRowFields;
   const finalDisplayCols = displayCols.length > 0
     ? displayCols
@@ -1034,6 +1070,14 @@ export function ReportPreview({
           Showing {compact ? 10 : 100} of {data.length} records
         </p>
       )}
+    </div>
+  );
+  };
+
+  return (
+    <div className="space-y-4">
+      {chartNode}
+      {renderTable()}
     </div>
   );
 }

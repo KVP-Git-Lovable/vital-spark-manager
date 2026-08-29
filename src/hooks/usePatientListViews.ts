@@ -129,6 +129,22 @@ export function usePatientListViews(section = "patients") {
     [section, load, selectView]
   );
 
+  const saveCharts = useCallback(
+    async (viewId: string, charts: ListView["charts"]) => {
+      // Charts live on the view row, so they inherit the view's sharing rules.
+      setViews((prev) => prev.map((v) => (v.id === viewId ? { ...v, charts } : v)));
+      const { error } = await supabase
+        .from("list_views")
+        .update({ charts: charts as any, updated_at: new Date().toISOString() })
+        .eq("id", viewId);
+      if (error) {
+        toast.error(error.message);
+        await load();
+      }
+    },
+    [load]
+  );
+
   const deleteView = useCallback(
     async (view: ListView) => {
       const { error } = await supabase.from("list_views").delete().eq("id", view.id);
@@ -139,6 +155,7 @@ export function usePatientListViews(section = "patients") {
     },
     [load, selectView]
   );
+
 
   const pinDefault = useCallback(
     async (view: ListView | null) => {

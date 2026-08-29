@@ -581,22 +581,39 @@ const Patients = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <NewListViewDialog
-        open={showNewViewDialog}
-        onOpenChange={setShowNewViewDialog}
-        section="patients"
-        availableFields={PATIENT_FIELDS}
-        defaultFields={DEFAULT_PATIENT_FIELDS}
-        onCreate={createView}
-        isLoading={isCreating}
-        teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
-        fieldOptions={{
-          status: ["Active", "Inactive", "Archived"].map((s) => ({ value: s, label: s })),
-          gender: ["Male", "Female", "Other"].map((s) => ({ value: s, label: s })),
-          engagement: ["High", "Medium", "Low"].map((s) => ({ value: s, label: s })),
-          skin_type: ["Oily", "Dry", "Combination", "Sensitive", "Normal"].map((s) => ({ value: s, label: s })),
-        }}
+      <ViewEditorDialog
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        view={editingView}
+        onSave={saveView}
+        doctorOptions={doctorOptions}
+        people={staffList
+          .filter((s: any) => s.auth_user_id)
+          .map((s: any) => ({ value: s.auth_user_id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() }))}
       />
+
+      <AlertDialog open={!!deleteViewTarget} onOpenChange={(o) => { if (!o) setDeleteViewTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteViewTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>This list view will be removed for everyone it is shared with.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteViewTarget) deleteView(deleteViewTarget);
+                setDeleteViewTarget(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 };

@@ -13,8 +13,10 @@ import {
 import {
   PATIENT_FIELDS, OPERATORS, DEFAULT_VIEW_COLUMNS, fieldDef,
   GENDER_OPTIONS, STATUS_OPTIONS, SKIN_TYPE_OPTIONS, BLOOD_GROUP_OPTIONS, SOURCE_OPTIONS,
+  ENGAGEMENT_TIER_OPTIONS,
   type FilterCondition, type ListView,
 } from "@/lib/patientFields";
+
 
 export interface PickOption { value: string; label: string }
 

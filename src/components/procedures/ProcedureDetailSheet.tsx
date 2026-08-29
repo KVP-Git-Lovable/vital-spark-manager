@@ -40,6 +40,16 @@ interface PrescriptionRow {
   _deleted?: boolean;
 }
 
+interface ServiceLineRow {
+  id?: string;
+  key: string;
+  service_id: string | null;
+  service_name: string;
+  procedure_notes: string;
+  recommendations: string;
+  _deleted?: boolean;
+}
+
 interface ProcedureDetailSheetProps {
   procedureId: string | null;
   onClose: () => void;
@@ -55,15 +65,16 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   // Editable fields
   const [editServiceName, setEditServiceName] = useState("");
   const [editStatus, setEditStatus] = useState("");
-  const [editSymptoms, setEditSymptoms] = useState("");
-  const [editDiagnosis, setEditDiagnosis] = useState("");
   const [editProcedureNotes, setEditProcedureNotes] = useState("");
   const [editRecommendations, setEditRecommendations] = useState("");
   const [editReviewNotes, setEditReviewNotes] = useState("");
+  const [editServiceLines, setEditServiceLines] = useState<ServiceLineRow[]>([]);
+  const [servicesInitialized, setServicesInitialized] = useState(false);
   const [editPrescriptions, setEditPrescriptions] = useState<PrescriptionRow[]>([]);
   const [attachmentNotes, setAttachmentNotes] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [elaborating, setElaborating] = useState<null | "symptoms" | "diagnosis" | "procedure_notes" | "recommendations">(null);
+  const [elaborating, setElaborating] = useState<null | string>(null);
+
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [sendingWa, setSendingWa] = useState(false);
 
@@ -113,10 +124,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     }
   };
 
-  const elaborate = async (fieldType: "symptoms" | "diagnosis" | "procedure_notes" | "recommendations") => {
-    const svcName = (editServiceName || "Consultation").trim();
-    const currentText = fieldType === "symptoms" ? editSymptoms : fieldType === "diagnosis" ? editDiagnosis : fieldType === "procedure_notes" ? editProcedureNotes : editRecommendations;
-    setElaborating(fieldType);
+  const elaborateLine = async (lineKey: string, fieldType: "procedure_notes" | "recommendations") => {
+    const line = editServiceLines.find((l) => l.key === lineKey);
+    if (!line) return;
+    const svcName = (line.service_name || editServiceName || "Consultation").trim();
+    const currentText = fieldType === "procedure_notes" ? line.procedure_notes : line.recommendations;
+    setElaborating(`${lineKey}:${fieldType}`);
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/elaborate-text`, {
         method: "POST",
@@ -125,14 +138,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       });
       if (!res.ok) { const err = await res.json().catch(() => ({ error: "AI request failed" })); throw new Error(err.error || "AI request failed"); }
       const { text } = await res.json();
-      if (fieldType === "symptoms") setEditSymptoms(text);
-      else if (fieldType === "diagnosis") setEditDiagnosis(text);
-      else if (fieldType === "procedure_notes") setEditProcedureNotes(text);
-      else setEditRecommendations(text);
+      setEditServiceLines((prev) => prev.map((l) => (l.key === lineKey ? { ...l, [fieldType]: text } : l)));
       toast.success("Text elaborated");
     } catch (e: any) { toast.error(e.message || "Failed to elaborate"); }
     finally { setElaborating(null); }
   };
+
 
   const { data: procedure, isLoading } = useQuery({
     queryKey: ["procedure-detail", procedureId],
@@ -159,6 +170,32 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     },
     enabled: !!procedureId,
   });
+
+  const { data: procedureServices = [] } = useQuery({
+    queryKey: ["procedure-services", procedureId],
+    queryFn: async () => {
+      if (!procedureId) return [];
+      const { data, error } = await supabase
+        .from("procedure_services")
+        .select("*")
+        .eq("procedure_id", procedureId)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!procedureId,
+  });
+
+  const { data: servicesMaster = [] } = useQuery({
+    queryKey: ["services-lookup"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("services").select("id, name, procedure_notes, recommendations").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+
 
   const { data: photos = [] } = useQuery({
     queryKey: ["procedure-photos", procedureId],
@@ -195,13 +232,48 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   if (procedure && !initialized) {
     setEditServiceName(procedure.service_name || "");
     setEditStatus(procedure.status || "Completed");
-    setEditSymptoms(procedure.symptoms || "");
-    setEditDiagnosis(procedure.diagnosis || "");
     setEditProcedureNotes(procedure.procedure_notes || "");
     setEditRecommendations(procedure.recommendations || "");
     setEditReviewNotes(procedure.review_notes || "");
     setInitialized(true);
   }
+
+  // Init service lines
+  if (procedure && initialized && !servicesInitialized) {
+    const rows: ServiceLineRow[] = procedureServices.length
+      ? procedureServices.map((s: any) => ({
+          id: s.id,
+          key: s.id,
+          service_id: s.service_id,
+          service_name: s.service_name || "",
+          procedure_notes: s.procedure_notes || "",
+          recommendations: s.recommendations || "",
+        }))
+      : [
+          {
+            key: `svc-${Date.now()}`,
+            service_id: null,
+            service_name: procedure.service_name || "",
+            procedure_notes: procedure.procedure_notes || "",
+            recommendations: procedure.recommendations || "",
+          },
+        ];
+    setEditServiceLines(rows);
+    setServicesInitialized(true);
+  }
+
+  const updateLine = (key: string, patch: Partial<ServiceLineRow>) =>
+    setEditServiceLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  const addLine = () =>
+    setEditServiceLines((prev) => [
+      ...prev,
+      { key: `svc-${Date.now()}-${prev.length}`, service_id: null, service_name: "", procedure_notes: "", recommendations: "" },
+    ]);
+  const removeLine = (key: string) =>
+    setEditServiceLines((prev) =>
+      prev.map((l) => (l.key === key ? { ...l, _deleted: true } : l)).filter((l) => l.id || !l._deleted),
+    );
+  const visibleLines = editServiceLines.filter((l) => !l._deleted);
 
   // Init prescriptions from fetched data
   if (prescriptions.length > 0 && initialized && editPrescriptions.length === 0) {
@@ -219,6 +291,8 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
   const handleClose = () => {
     setInitialized(false);
+    setServicesInitialized(false);
+    setEditServiceLines([]);
     setEditPrescriptions([]);
     setAttachmentNotes("");
     onClose();
@@ -226,17 +300,48 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
   const updateMutation = useMutation({
     mutationFn: async () => {
+      const kept = editServiceLines.filter((l) => !l._deleted && (l.service_name || "").trim());
+      const combine = (field: "procedure_notes" | "recommendations") =>
+        kept
+          .filter((l) => (l[field] || "").trim())
+          .map((l) => (kept.length > 1 ? `${l.service_name}: ${l[field]}` : l[field]))
+          .join("\n\n");
+
       // Update procedure
       const { error } = await supabase.from("procedures").update({
-        service_name: editServiceName,
+        service_name: kept.length ? kept.map((l) => l.service_name).join(", ") : editServiceName,
         status: editStatus,
-        symptoms: editSymptoms,
-        diagnosis: editDiagnosis,
-        procedure_notes: editProcedureNotes,
-        recommendations: editRecommendations,
+        procedure_notes: kept.length ? combine("procedure_notes") : editProcedureNotes,
+        recommendations: kept.length ? combine("recommendations") : editRecommendations,
         review_notes: editReviewNotes,
       }).eq("id", procedureId!);
       if (error) throw error;
+
+      // Sync procedure_services
+      for (const l of editServiceLines.filter((x) => x.id && x._deleted)) {
+        await supabase.from("procedure_services").delete().eq("id", l.id!);
+      }
+      for (const [i, l] of kept.entries()) {
+        if (l.id) {
+          await supabase.from("procedure_services").update({
+            service_id: l.service_id,
+            service_name: l.service_name,
+            procedure_notes: l.procedure_notes || null,
+            recommendations: l.recommendations || null,
+            sort_order: i,
+          }).eq("id", l.id);
+        } else {
+          await supabase.from("procedure_services").insert({
+            procedure_id: procedureId!,
+            service_id: l.service_id,
+            service_name: l.service_name,
+            procedure_notes: l.procedure_notes || null,
+            recommendations: l.recommendations || null,
+            sort_order: i,
+          });
+        }
+      }
+
 
       // Handle prescriptions: delete removed, update existing, insert new
       const existing = editPrescriptions.filter(rx => rx.id && !rx._deleted);
@@ -429,11 +534,6 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </div>
 
                 <div>
-                  <Label>Service / Procedure Name *</Label>
-                  <Input value={editServiceName} onChange={(e) => setEditServiceName(e.target.value)} className="mt-1.5" />
-                </div>
-
-                <div>
                   <Label>Status</Label>
                   <Select value={editStatus} onValueChange={setEditStatus}>
                     <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
@@ -443,57 +543,79 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   </Select>
                 </div>
 
-                <div>
+                {/* Services / Procedures */}
+                <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label>Symptoms</Label>
-                    <div className="flex items-center gap-1">
-                      <MicButton value={editSymptoms} onChange={setEditSymptoms} />
-                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("symptoms")} disabled={elaborating !== null}>
-                        {elaborating === "symptoms" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                      </Button>
-                    </div>
+                    <Label className="text-base font-display font-semibold text-primary">Services / Procedures</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={addLine}>
+                      <Plus className="h-3 w-3 mr-1" /> Add Service
+                    </Button>
                   </div>
-                  <Textarea value={editSymptoms} onChange={(e) => setEditSymptoms(e.target.value)} className="mt-1.5" rows={2} placeholder="e.g. Redness, itching, dry patches..." />
+                  {visibleLines.map((line, i) => (
+                    <div key={line.key} className="rounded-lg border bg-background p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Service {i + 1}</span>
+                        {visibleLines.length > 1 && (
+                          <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeLine(line.key)}>
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          className="flex-1"
+                          placeholder="Service / procedure name"
+                          value={line.service_name}
+                          onChange={(e) => updateLine(line.key, { service_name: e.target.value })}
+                        />
+                        <Select
+                          value={line.service_id || ""}
+                          onValueChange={(v) => {
+                            const svc: any = servicesMaster.find((s: any) => s.id === v);
+                            updateLine(line.key, {
+                              service_id: v,
+                              service_name: svc?.name || line.service_name,
+                              procedure_notes: line.procedure_notes || svc?.procedure_notes || "",
+                              recommendations:
+                                line.recommendations ||
+                                (Array.isArray(svc?.recommendations) ? svc.recommendations.join("\n") : svc?.recommendations || ""),
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="w-40"><SelectValue placeholder="From master" /></SelectTrigger>
+                          <SelectContent>
+                            {servicesMaster.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
+                          <div className="flex items-center gap-1">
+                            <MicButton value={line.procedure_notes} onChange={(v) => updateLine(line.key, { procedure_notes: v })} />
+                            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborateLine(line.key, "procedure_notes")} disabled={elaborating !== null}>
+                              {elaborating === `${line.key}:procedure_notes` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                            </Button>
+                          </div>
+                        </div>
+                        <Textarea value={line.procedure_notes} onChange={(e) => updateLine(line.key, { procedure_notes: e.target.value })} className="mt-1" rows={3} />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs text-muted-foreground">Recommendations</Label>
+                          <div className="flex items-center gap-1">
+                            <MicButton value={line.recommendations} onChange={(v) => updateLine(line.key, { recommendations: v })} />
+                            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborateLine(line.key, "recommendations")} disabled={elaborating !== null}>
+                              {elaborating === `${line.key}:recommendations` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                            </Button>
+                          </div>
+                        </div>
+                        <Textarea value={line.recommendations} onChange={(e) => updateLine(line.key, { recommendations: e.target.value })} className="mt-1" rows={3} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label>Diagnosis</Label>
-                    <div className="flex items-center gap-1">
-                      <MicButton value={editDiagnosis} onChange={setEditDiagnosis} />
-                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("diagnosis")} disabled={elaborating !== null}>
-                        {elaborating === "diagnosis" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                      </Button>
-                    </div>
-                  </div>
-                  <Textarea value={editDiagnosis} onChange={(e) => setEditDiagnosis(e.target.value)} className="mt-1.5" rows={2} />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label>Procedure Notes</Label>
-                    <div className="flex items-center gap-1">
-                      <MicButton value={editProcedureNotes} onChange={setEditProcedureNotes} />
-                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("procedure_notes")} disabled={elaborating !== null}>
-                        {elaborating === "procedure_notes" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                      </Button>
-                    </div>
-                  </div>
-                  <Textarea value={editProcedureNotes} onChange={(e) => setEditProcedureNotes(e.target.value)} className="mt-1.5" rows={3} />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label>Recommendations</Label>
-                    <div className="flex items-center gap-1">
-                      <MicButton value={editRecommendations} onChange={setEditRecommendations} />
-                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("recommendations")} disabled={elaborating !== null}>
-                        {elaborating === "recommendations" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                      </Button>
-                    </div>
-                  </div>
-                  <Textarea value={editRecommendations} onChange={(e) => setEditRecommendations(e.target.value)} className="mt-1.5" rows={3} />
-                </div>
 
                 {procedure.staff && (
                   <div>

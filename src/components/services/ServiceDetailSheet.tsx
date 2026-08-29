@@ -46,8 +46,6 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
   const [price, setPrice] = useState("");
   const [hsnCode, setHsnCode] = useState("");
   const [gstPercent, setGstPercent] = useState("");
-  const [symptoms, setSymptoms] = useState("");
-  const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [medicines, setMedicines] = useState<MedicineInput[]>([]);
@@ -135,8 +133,6 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
       setPrice(String(service.price));
       setHsnCode((service as any).hsn_code || "");
       setGstPercent(String((service as any).gst_percent ?? ""));
-      setSymptoms(service.symptoms || "");
-      setDiagnosis(service.diagnosis || "");
       setProcedureNotes(service.procedure_notes || "");
       setRecommendations((service.recommendations || []).join("\n"));
       setInitialized(true);
@@ -175,9 +171,9 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     onClose();
   };
 
-  const elaborate = async (fieldType: "symptoms" | "diagnosis" | "procedure_notes" | "recommendations") => {
+  const elaborate = async (fieldType: "procedure_notes" | "recommendations") => {
     if (!name.trim()) { toast.error("Enter a service name first"); return; }
-    const currentText = fieldType === "symptoms" ? symptoms : fieldType === "diagnosis" ? diagnosis : fieldType === "procedure_notes" ? procedureNotes : recommendations;
+    const currentText = fieldType === "procedure_notes" ? procedureNotes : recommendations;
     setElaborating(fieldType);
     try {
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elaborate-text`, {
@@ -187,9 +183,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
       });
       if (!res.ok) { const err = await res.json().catch(() => ({ error: "AI request failed" })); throw new Error(err.error || "AI request failed"); }
       const { text } = await res.json();
-      if (fieldType === "symptoms") setSymptoms(text);
-      else if (fieldType === "diagnosis") setDiagnosis(text);
-      else if (fieldType === "procedure_notes") setProcedureNotes(text);
+      if (fieldType === "procedure_notes") setProcedureNotes(text);
       else setRecommendations(text);
       toast.success("Text elaborated");
     } catch (e: any) { toast.error(e.message || "Failed to elaborate"); }
@@ -204,7 +198,6 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
         price: parseFloat(price) || 0,
         hsn_code: hsnCode || null,
         gst_percent: selectedHsn ? Number(selectedHsn.igst || 0) + Number(selectedHsn.cgst || 0) : 0,
-        symptoms: symptoms || null, diagnosis: diagnosis || null,
         procedure_notes: procedureNotes || null, recommendations: recs,
       } as any).eq("id", serviceId!);
       if (error) throw error;
@@ -331,28 +324,6 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
                   </p>
                 )}
               </div>
-            </div>
-
-            {/* Symptoms */}
-            <div>
-              <div className="flex items-center justify-between">
-                <Label>Symptoms</Label>
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("symptoms")} disabled={elaborating !== null}>
-                  {elaborating === "symptoms" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                </Button>
-              </div>
-              <Textarea className="mt-1.5" rows={2} placeholder="e.g. Redness, itching, dry patches..." value={symptoms} onChange={(e) => setSymptoms(e.target.value)} />
-            </div>
-
-            {/* Diagnosis */}
-            <div>
-              <div className="flex items-center justify-between">
-                <Label>Diagnosis</Label>
-                <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("diagnosis")} disabled={elaborating !== null}>
-                  {elaborating === "diagnosis" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                </Button>
-              </div>
-              <Textarea className="mt-1.5" rows={2} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} />
             </div>
 
             {/* Procedure Notes */}

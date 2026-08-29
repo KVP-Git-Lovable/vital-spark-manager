@@ -69,20 +69,18 @@ const Services = () => {
   const [hsnCode, setHsnCode] = useState("");
   const [gstPercent, setGstPercent] = useState("");
   const [problemAreaIds, setProblemAreaIds] = useState<string[]>([]);
-  const [symptoms, setSymptoms] = useState("");
-  const [diagnosis, setDiagnosis] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [medicines, setMedicines] = useState<MedicineInput[]>([]);
   const [assetLinks, setAssetLinks] = useState<AssetLinkInput[]>([]);
   const [elaborating, setElaborating] = useState<string | null>(null);
 
-  const elaborate = async (fieldType: "symptoms" | "diagnosis" | "procedure_notes" | "recommendations") => {
+  const elaborate = async (fieldType: "procedure_notes" | "recommendations") => {
     if (!name.trim()) {
       toast.error("Enter a service name first");
       return;
     }
-    const currentText = fieldType === "symptoms" ? symptoms : fieldType === "diagnosis" ? diagnosis : fieldType === "procedure_notes" ? procedureNotes : recommendations;
+    const currentText = fieldType === "procedure_notes" ? procedureNotes : recommendations;
     setElaborating(fieldType);
     try {
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elaborate-text`, {
@@ -95,9 +93,7 @@ const Services = () => {
         throw new Error(err.error || "AI request failed");
       }
       const { text } = await res.json();
-      if (fieldType === "symptoms") setSymptoms(text);
-      else if (fieldType === "diagnosis") setDiagnosis(text);
-      else if (fieldType === "procedure_notes") setProcedureNotes(text);
+      if (fieldType === "procedure_notes") setProcedureNotes(text);
       else setRecommendations(text);
       toast.success("Text elaborated — review and edit as needed");
     } catch (e: any) {
@@ -196,8 +192,6 @@ const Services = () => {
           hsn_code: hsnCode || null,
           gst_percent: selectedHsn ? Number(selectedHsn.igst || 0) + Number(selectedHsn.cgst || 0) : 0,
           problem_area_ids: problemAreaIds,
-          symptoms: symptoms || null,
-          diagnosis: diagnosis || null,
           procedure_notes: procedureNotes || null,
           recommendations: recs,
         } as any)
@@ -326,9 +320,7 @@ const Services = () => {
           category: sf.Category__c || "General",
           price: sf.Cost__c || 0,
           duration: sf.Duration__c || 30,
-          diagnosis: sf.Diagnosis__c || null,
           procedure_notes: sf.Procedure_Notes__c || null,
-          symptoms: sf.Symptoms__c || null,
           recommendations: recommendations,
           salesforce_id: sf.Id,
         };
@@ -365,8 +357,6 @@ const Services = () => {
     setHsnCode("");
     setGstPercent("");
     setProblemAreaIds([]);
-    setSymptoms("");
-    setDiagnosis("");
     setProcedureNotes("");
     setRecommendations("");
     setMedicines([]);
@@ -530,28 +520,6 @@ const Services = () => {
                     );
                   })}
                 </div>
-              </div>
-              {/* Symptoms */}
-              <div>
-                <div className="flex items-center justify-between">
-                  <Label>Symptoms</Label>
-                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("symptoms")} disabled={elaborating !== null}>
-                    {elaborating === "symptoms" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                    Elaborate AI
-                  </Button>
-                </div>
-                <Textarea placeholder="e.g. Redness, itching, dry patches..." className="mt-1.5" rows={2} value={symptoms} onChange={(e) => setSymptoms(e.target.value)} />
-              </div>
-              {/* Diagnosis */}
-              <div>
-                <div className="flex items-center justify-between">
-                  <Label>Diagnosis</Label>
-                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("diagnosis")} disabled={elaborating !== null}>
-                    {elaborating === "diagnosis" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                    Elaborate AI
-                  </Button>
-                </div>
-                <Textarea placeholder="Diagnosis template..." className="mt-1.5" rows={2} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} />
               </div>
               <div>
                 <div className="flex items-center justify-between">
@@ -725,12 +693,6 @@ const Services = () => {
                   </div>
                 </div>
 
-                {service.diagnosis && (
-                  <div className="mb-2">
-                    <p className="text-xs font-medium text-muted-foreground">Diagnosis</p>
-                    <p className="text-sm">{service.diagnosis}</p>
-                  </div>
-                )}
                 {service.procedure_notes && (
                   <div className="mb-2">
                     <p className="text-xs font-medium text-muted-foreground">Procedure Notes</p>

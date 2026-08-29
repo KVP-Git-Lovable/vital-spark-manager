@@ -619,16 +619,35 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     enabled: procedureIds.length > 0,
   });
 
+  const { data: procServices = [] } = useQuery({
+    queryKey: ["appointment-procedure-services", procedureIds],
+    queryFn: async () => {
+      if (procedureIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("procedure_services")
+        .select("service_name, sort_order, procedure_id")
+        .in("procedure_id", procedureIds)
+        .order("sort_order");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: procedureIds.length > 0,
+  });
+
   // Open the Billing module's Create Invoice dialog pre-filled from this appointment
   const handleNewBill = () => {
     const services = Array.from(
       new Set(
         [
-          ...(procedures as any[]).map((p: any) => p.service_name),
+          ...(procServices as any[]).map((s: any) => s.service_name),
+          ...((procServices as any[]).length === 0
+            ? (procedures as any[]).map((p: any) => p.service_name)
+            : []),
           ...(procedures.length === 0 && appointment?.service ? [appointment.service] : []),
         ].filter(Boolean),
       ),
     );
+
     const products = (procPrescriptions as any[])
       .filter((p: any) => p.medicine_name || p.product_id)
       .map((p: any) => ({

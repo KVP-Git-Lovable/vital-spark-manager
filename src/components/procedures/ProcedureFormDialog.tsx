@@ -51,6 +51,15 @@ interface AssetInput {
   time_taken: string;
 }
 
+interface ServiceLine {
+  key: string;
+  service_id: string;
+  name: string;
+  procedure_notes: string;
+  recommendations: string;
+}
+
+
 interface ProcedureFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -77,12 +86,10 @@ export function ProcedureFormDialog({
   const [medical, setMedical] = useState<Record<string, string>>({});
   const [medicalDirty, setMedicalDirty] = useState(false);
   const [appointmentId] = useState(defaultAppointmentId || "");
-  const [serviceId, setServiceId] = useState("");
-  const [serviceName, setServiceName] = useState(defaultServiceName || "");
-  const [symptoms, setSymptoms] = useState("");
-  const [diagnosis, setDiagnosis] = useState("");
-  const [procedureNotes, setProcedureNotes] = useState("");
-  const [recommendations, setRecommendations] = useState("");
+  const [serviceLines, setServiceLines] = useState<ServiceLine[]>([
+    { key: `svc-${Date.now()}`, service_id: "", name: defaultServiceName || "", procedure_notes: "", recommendations: "" },
+  ]);
+
   const [nextAppointmentAt, setNextAppointmentAt] = useState("");
   const [visitType, setVisitType] = useState<"Single" | "Recurring">("Single");
   const [recurringCount, setRecurringCount] = useState(2);
@@ -156,7 +163,11 @@ export function ProcedureFormDialog({
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
         body: JSON.stringify({
           transcript: trimmed,
-          currentFields: { service_name: serviceName, symptoms, diagnosis, procedure_notes: procedureNotes, recommendations },
+          currentFields: {
+            service_name: serviceLines[0]?.name || "",
+            procedure_notes: serviceLines[0]?.procedure_notes || "",
+            recommendations: serviceLines[0]?.recommendations || "",
+          },
           problemAreas: problemAreaList,
         }),
       });
@@ -229,11 +240,18 @@ export function ProcedureFormDialog({
       }
       setUnmatchedHints(nextHints);
 
-      if (data.service_name) { setServiceName(data.service_name); filled.push("service"); }
-      if (data.symptoms) { setSymptoms(data.symptoms); filled.push("symptoms"); }
-      if (data.diagnosis) { setDiagnosis(data.diagnosis); filled.push("diagnosis"); }
-      if (data.procedure_notes) { setProcedureNotes(data.procedure_notes); filled.push("procedure_notes"); }
-      if (data.recommendations) { setRecommendations(data.recommendations); filled.push("recommendations"); }
+      if (data.service_name) {
+        setServiceLines((prev) => prev.map((l, i) => (i === 0 ? { ...l, name: data.service_name } : l)));
+        filled.push("service");
+      }
+      if (data.procedure_notes) {
+        setServiceLines((prev) => prev.map((l, i) => (i === 0 ? { ...l, procedure_notes: data.procedure_notes } : l)));
+        filled.push("procedure_notes");
+      }
+      if (data.recommendations) {
+        setServiceLines((prev) => prev.map((l, i) => (i === 0 ? { ...l, recommendations: data.recommendations } : l)));
+        filled.push("recommendations");
+      }
       if (Array.isArray(data.prescriptions) && data.prescriptions.length > 0) {
         const newRx = data.prescriptions.map((p: any) => ({
           product_id: "",
@@ -270,38 +288,51 @@ export function ProcedureFormDialog({
   }, [dictation, speech.listening]);
 
   const elaborateAll = async () => {
-    if (!symptoms && !diagnosis && !procedureNotes && !recommendations) {
-      toast.info("Fill at least one section first, then Elaborate All.");
+    const targets = serviceLines.filter((l) => l.procedure_notes || l.recommendations);
+    if (targets.length === 0) {
+      toast.info("Fill procedure notes or recommendations first, then Elaborate All.");
       return;
     }
     setElaboratingAll(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/procedure-ai-elaborate-all`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
-        body: JSON.stringify({
-          serviceName: serviceName || "Consultation",
-          symptoms, diagnosis, procedure_notes: procedureNotes, recommendations,
+      const results = await Promise.all(
+        targets.map(async (line) => {
+          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/procedure-ai-elaborate-all`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+            body: JSON.stringify({
+              serviceName: line.name || "Consultation",
+              procedure_notes: line.procedure_notes,
+              recommendations: line.recommendations,
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: "Elaborate failed" }));
+            throw new Error(err.error || "Elaborate failed");
+          }
+          return { key: line.key, data: await res.json() };
         }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Elaborate failed" }));
-        throw new Error(err.error || "Elaborate failed");
-      }
-      const data = await res.json();
-      const filled: string[] = [];
-      if (data.symptoms) { setSymptoms(data.symptoms); filled.push("symptoms"); }
-      if (data.diagnosis) { setDiagnosis(data.diagnosis); filled.push("diagnosis"); }
-      if (data.procedure_notes) { setProcedureNotes(data.procedure_notes); filled.push("procedure_notes"); }
-      if (data.recommendations) { setRecommendations(data.recommendations); filled.push("recommendations"); }
-      flashFilled(filled);
-      toast.success("Elaborated all sections");
+      );
+      setServiceLines((prev) =>
+        prev.map((l) => {
+          const hit = results.find((r) => r.key === l.key);
+          if (!hit) return l;
+          return {
+            ...l,
+            procedure_notes: hit.data.procedure_notes || l.procedure_notes,
+            recommendations: hit.data.recommendations || l.recommendations,
+          };
+        }),
+      );
+      flashFilled(["procedure_notes", "recommendations"]);
+      toast.success("Elaborated all services");
     } catch (e: any) {
       toast.error(e.message || "Failed to elaborate");
     } finally {
       setElaboratingAll(false);
     }
   };
+
 
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],
@@ -385,7 +416,7 @@ export function ProcedureFormDialog({
   const { data: services = [] } = useQuery({
     queryKey: ["services-lookup"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("services").select("id, name, symptoms, diagnosis, procedure_notes, recommendations").order("name");
+      const { data, error } = await supabase.from("services").select("id, name, procedure_notes, recommendations").order("name");
       if (error) throw error;
       return data;
     },
@@ -412,64 +443,90 @@ export function ProcedureFormDialog({
     },
   });
 
-  // Auto-fill from service master
-  const applyServiceData = async (svc: any, svcId: string) => {
-    setServiceId(svcId);
-    setServiceName(svc.name);
-    if (svc.symptoms) setSymptoms(svc.symptoms);
-    if (svc.diagnosis) setDiagnosis(svc.diagnosis);
-    if (svc.procedure_notes) setProcedureNotes(svc.procedure_notes);
-    if (svc.recommendations) {
-      setRecommendations((svc.recommendations as string[]).join("\n"));
-    }
-    // Load service medicines as prescriptions
+  const addServiceLine = () =>
+    setServiceLines((prev) => [
+      ...prev,
+      { key: `svc-${Date.now()}-${prev.length}`, service_id: "", name: "", procedure_notes: "", recommendations: "" },
+    ]);
+
+  const removeServiceLine = (key: string) =>
+    setServiceLines((prev) => (prev.length === 1 ? prev : prev.filter((l) => l.key !== key)));
+
+  const updateServiceLine = (key: string, patch: Partial<ServiceLine>) =>
+    setServiceLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+
+  // Auto-fill one service line (and merge its medicines / assets) from Service Master
+  const applyServiceData = async (svc: any, svcId: string, lineKey: string) => {
+    updateServiceLine(lineKey, {
+      service_id: svcId,
+      name: svc.name,
+      procedure_notes: svc.procedure_notes || "",
+      recommendations: Array.isArray(svc.recommendations)
+        ? (svc.recommendations as string[]).join("\n")
+        : svc.recommendations || "",
+    });
+
+    // Merge service medicines into prescriptions (no duplicates)
     const { data: meds } = await supabase
       .from("service_medicines")
       .select("*, pharma_products(name)")
       .eq("service_id", svcId);
     if (meds && meds.length > 0) {
-      setPrescriptions(meds.map((m: any) => ({
-        product_id: m.product_id,
-        medicine_name: m.pharma_products?.name || "",
-        dosage: "",
-        frequency: m.frequency || "",
-        duration: m.duration || "",
-        instructions: m.instructions || "",
-        quantity: 1,
-      })));
+      setPrescriptions((prev) => {
+        const next = [...prev];
+        for (const m of meds as any[]) {
+          if (next.some((rx) => rx.product_id && rx.product_id === m.product_id)) continue;
+          next.push({
+            product_id: m.product_id,
+            medicine_name: m.pharma_products?.name || "",
+            frequency: m.frequency || "",
+            duration: m.duration || "",
+            instructions: m.instructions || "",
+            quantity: 1,
+          });
+        }
+        return next;
+      });
     }
-    // Load service assets
+
+    // Merge service assets
     const { data: assetLinksData } = await supabase
       .from("asset_service_links")
       .select("*, assets(name)")
       .eq("service_id", svcId);
     if (assetLinksData && assetLinksData.length > 0) {
-      setProcedureAssets(assetLinksData.map((a: any) => ({
-        asset_id: a.asset_id,
-        asset_name: a.assets?.name || "",
-        usage_guideline: a.usage_guideline || "",
-        time_taken: a.time_taken ? String(a.time_taken) : "",
-      })));
-    } else {
-      setProcedureAssets([]);
+      setProcedureAssets((prev) => {
+        const next = [...prev];
+        for (const a of assetLinksData as any[]) {
+          if (next.some((x) => x.asset_id === a.asset_id)) continue;
+          next.push({
+            asset_id: a.asset_id,
+            asset_name: a.assets?.name || "",
+            usage_guideline: a.usage_guideline || "",
+            time_taken: a.time_taken ? String(a.time_taken) : "",
+          });
+        }
+        return next;
+      });
     }
     setAutoFilled(true);
-    toast.info("Fields auto-filled from Service Master — you can edit them.");
+    toast.info("Procedure & recommendations auto-filled from Service Master — you can edit them.");
   };
 
   // When a service is selected from dropdown
-  const handleServiceSelect = async (svcId: string) => {
+  const handleServiceSelect = async (svcId: string, lineKey: string) => {
     const svc = services.find((s: any) => s.id === svcId);
-    if (svc) await applyServiceData(svc, svcId);
+    if (svc) await applyServiceData(svc, svcId, lineKey);
   };
 
   // Auto-match defaultServiceName on first load
-  if (defaultServiceName && services.length > 0 && !autoFilled && !serviceId) {
+  if (defaultServiceName && services.length > 0 && !autoFilled && !serviceLines[0]?.service_id) {
     const match = services.find((s: any) => s.name === defaultServiceName);
     if (match) {
-      applyServiceData(match, match.id);
+      applyServiceData(match, match.id, serviceLines[0].key);
     }
   }
+
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -496,6 +553,16 @@ export function ProcedureFormDialog({
         }
       }
 
+      const cleanLines = serviceLines.filter((l) => (l.name || "").trim());
+      const effectiveLines = cleanLines.length
+        ? cleanLines
+        : [{ key: "default", service_id: "", name: "Consultation", procedure_notes: "", recommendations: "" }];
+      const combine = (field: "procedure_notes" | "recommendations") =>
+        effectiveLines
+          .filter((l) => (l[field] || "").trim())
+          .map((l) => (effectiveLines.length > 1 ? `${l.name}: ${l[field]}` : l[field]))
+          .join("\n\n");
+
       const { data: proc, error } = await supabase
         .from("procedures")
         .insert({
@@ -503,11 +570,9 @@ export function ProcedureFormDialog({
           staff_id: staffId && staffId.trim() ? staffId : null,
           assisted_by: assistedBy && assistedBy.trim() ? assistedBy : null,
           appointment_id: appointmentId || null,
-          service_name: serviceName || "Consultation",
-          symptoms: symptoms || null,
-          diagnosis,
-          procedure_notes: procedureNotes,
-          recommendations: recommendations || null,
+          service_name: effectiveLines.map((l) => l.name).join(", "),
+          procedure_notes: combine("procedure_notes"),
+          recommendations: combine("recommendations") || null,
           visit_type: visitType,
           recurring_count: visitType === "Recurring" ? recurringCount : null,
           recurring_dates:
@@ -518,6 +583,19 @@ export function ProcedureFormDialog({
         .select()
         .single();
       if (error) throw error;
+
+      const { error: svcErr } = await supabase.from("procedure_services").insert(
+        effectiveLines.map((l, i) => ({
+          procedure_id: proc.id,
+          service_id: l.service_id || null,
+          service_name: l.name,
+          procedure_notes: l.procedure_notes || null,
+          recommendations: l.recommendations || null,
+          sort_order: i,
+        })),
+      );
+      if (svcErr) throw svcErr;
+
 
       if (prescriptions.length > 0) {
 
@@ -571,7 +649,7 @@ export function ProcedureFormDialog({
             patient_id: patientId,
             patient_name: p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() : null,
             staff_id: staffId || null,
-            service: serviceName || "Follow Up",
+            service: serviceLines.map((l) => l.name).filter(Boolean).join(", ") || "Follow Up",
             start_time: start.toISOString(),
             end_time: end.toISOString(),
             status: "Reserved",
@@ -832,42 +910,72 @@ export function ProcedureFormDialog({
             </div>
           </div>
 
-          <div>
-            <Label>Service / Procedure Name</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" className="mt-1.5 w-full justify-between font-normal">
-                  {serviceId ? (services.find((s: any) => s.id === serviceId)?.name || "Select service") : "Select service (optional)"}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Search service..." />
-                  <CommandList>
-                    <CommandEmpty>No service found.</CommandEmpty>
-                    <CommandGroup>
-                      {services.map((s: any) => (
-                        <CommandItem
-                          key={s.id}
-                          value={s.name}
-                          onSelect={() => handleServiceSelect(s.id)}
-                        >
-                          <Check className={`mr-2 h-4 w-4 ${serviceId === s.id ? "opacity-100" : "opacity-0"}`} />
-                          {s.name}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+          {/* Services / Procedures — multiple */}
+          <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-display font-semibold text-primary">Services / Procedures</Label>
+              <Button type="button" variant="outline" size="sm" onClick={addServiceLine}>
+                <Plus className="h-3 w-3 mr-1" /> Add Service
+              </Button>
+            </div>
+            {serviceLines.map((line, i) => (
+              <div key={line.key} className="rounded-lg border bg-background p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Service {i + 1}</span>
+                  {serviceLines.length > 1 && (
+                    <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeServiceLine(line.key)}>
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                      <span className="truncate">{line.name || "Select service"}</span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search service..." />
+                      <CommandList>
+                        <CommandEmpty>No service found.</CommandEmpty>
+                        <CommandGroup>
+                          {services.map((s: any) => (
+                            <CommandItem key={s.id} value={s.name} onSelect={() => handleServiceSelect(s.id, line.key)}>
+                              <Check className={`mr-2 h-4 w-4 ${line.service_id === s.id ? "opacity-100" : "opacity-0"}`} />
+                              {s.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
+                  <Textarea
+                    rows={3}
+                    className={`mt-1 transition-all ${recentlyFilled.procedure_notes ? "ring-2 ring-primary/40" : ""} ${elaboratingAll ? "opacity-60" : ""}`}
+                    placeholder="Details of the procedure performed..."
+                    value={line.procedure_notes}
+                    onChange={(e) => updateServiceLine(line.key, { procedure_notes: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Recommendations</Label>
+                  <Textarea
+                    rows={3}
+                    className={`mt-1 transition-all ${recentlyFilled.recommendations ? "ring-2 ring-primary/40" : ""} ${elaboratingAll ? "opacity-60" : ""}`}
+                    placeholder="Post-procedure recommendations..."
+                    value={line.recommendations}
+                    onChange={(e) => updateServiceLine(line.key, { recommendations: e.target.value })}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div>
-            <Label>Symptoms</Label>
-            <Textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)} placeholder="e.g. Redness, itching, dry patches..." className={`mt-1.5 transition-all ${recentlyFilled.symptoms ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />
-          </div>
 
           {/* Surveys filled before this procedure */}
           {patientSurveys.length > 0 && (
@@ -908,20 +1016,6 @@ export function ProcedureFormDialog({
             </div>
           )}
 
-          <div>
-            <Label>Diagnosis</Label>
-            <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Patient diagnosis..." className={`mt-1.5 transition-all ${recentlyFilled.diagnosis ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />
-          </div>
-
-          <div>
-            <Label>Procedure Notes</Label>
-            <Textarea value={procedureNotes} onChange={(e) => setProcedureNotes(e.target.value)} placeholder="Details of the procedure performed..." className={`mt-1.5 transition-all ${recentlyFilled.procedure_notes ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={3} />
-          </div>
-
-          <div>
-            <Label>Recommendations</Label>
-            <Textarea value={recommendations} onChange={(e) => setRecommendations(e.target.value)} placeholder="Post-procedure recommendations..." className={`mt-1.5 transition-all ${recentlyFilled.recommendations ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={3} />
-          </div>
 
           {/* Prescriptions */}
           <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4">

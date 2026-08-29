@@ -509,7 +509,7 @@ const Patients = () => {
           <span>
             Showing {total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–
             {Math.min(currentPage * PAGE_SIZE, total)} of {total.toLocaleString()}
-            {isFetching && !isLoading ? " · loading…" : ""}
+            {fetching && !loading ? " · loading…" : ""}
           </span>
           {totalPages > 1 && (
             <div className="flex items-center gap-2">

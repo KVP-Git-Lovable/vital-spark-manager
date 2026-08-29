@@ -160,7 +160,24 @@ const fetchPatientsPage = async (
   return { rows: (data as Patient[]) || [], total: count ?? 0 };
 };
 
+const fetchAllPatients = async (search: string): Promise<Patient[]> => {
+  const term = search.trim();
+  let q = supabase
+    .from("patients")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(2000);
+  if (term) {
+    const or = buildOrFilter(term, ["first_name", "last_name", "email", "phone"]);
+    if (or) q = q.or(or);
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data as Patient[]) || [];
+};
+
 const Patients = () => {
+
   const patientsTableRef = useStackedTable<HTMLTableElement>();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");

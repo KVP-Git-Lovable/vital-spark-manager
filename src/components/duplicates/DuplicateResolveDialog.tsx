@@ -279,19 +279,93 @@ export default function DuplicateResolveDialog({ open, onClose, primary, duplica
           </div>
 
           <Card className="p-3">
-            <div className="text-xs font-medium mb-2">Field comparison</div>
-            <div className="space-y-1 text-xs">
-              {diffRows.map((r) => (
-                <div key={r.key} className="grid grid-cols-3 gap-2">
-                  <span className="text-muted-foreground">{r.key.replace(/_/g, " ")}</span>
-                  <span className="truncate">{String(r.a ?? "—")}</span>
-                  <span className={"truncate " + (String(r.a ?? "") !== String(r.b ?? "") ? "text-amber-600" : "")}>
-                    {String(r.b ?? "—")}
-                  </span>
-                </div>
-              ))}
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="text-xs font-medium">Field comparison</div>
+              {conflicts.length > 0 && (
+                <Badge variant="secondary">{conflicts.length} conflicting field(s)</Badge>
+              )}
             </div>
+            <div className="grid grid-cols-[1fr_1fr_1fr] gap-2 text-[11px] text-muted-foreground mb-1">
+              <span>Field</span>
+              <span>Kept record</span>
+              <span>Duplicate</span>
+            </div>
+            <div className="space-y-1 text-xs">
+              {diffRows.map((r) => {
+                const winner = r.conflict ? resolveValue(r) : r.keptValue;
+                return (
+                  <div key={r.key} className="grid grid-cols-3 gap-2 items-center">
+                    <span className="text-muted-foreground">{r.key.replace(/_/g, " ")}</span>
+                    <button
+                      type="button"
+                      disabled={conflictPolicy !== "manual" || !r.conflict}
+                      onClick={() => setManualPicks((m) => ({ ...m, [r.key]: "kept" }))}
+                      className={
+                        "truncate text-left rounded px-1 " +
+                        (r.conflict && String(winner ?? "") === String(r.keptValue ?? "")
+                          ? "bg-primary/10 font-medium"
+                          : "")
+                      }
+                    >
+                      {String(r.keptValue ?? "—")}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={conflictPolicy !== "manual" || !r.conflict}
+                      onClick={() => setManualPicks((m) => ({ ...m, [r.key]: "dropped" }))}
+                      className={
+                        "truncate text-left rounded px-1 " +
+                        (r.conflict
+                          ? String(winner ?? "") === String(r.droppedValue ?? "")
+                            ? "bg-primary/10 font-medium"
+                            : "text-amber-600"
+                          : "")
+                      }
+                    >
+                      {String(r.droppedValue ?? "—")}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            {conflictPolicy === "manual" && conflicts.length > 0 && (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Click a value to choose which one survives the merge.
+              </p>
+            )}
           </Card>
+
+          <div className="space-y-2">
+            <Label>When both records have a value (e.g. two different phone numbers)</Label>
+            <Select value={conflictPolicy} onValueChange={(v) => setConflictPolicy(v as ConflictPolicy)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent className="z-50 bg-popover">
+                <SelectItem value="keep_existing">Keep the existing value on the kept record</SelectItem>
+                <SelectItem value="prefer_latest">Prefer the most recently updated record's value</SelectItem>
+                <SelectItem value="prefer_duplicate">Prefer the duplicate record's value</SelectItem>
+                <SelectItem value="manual">Decide field by field (pick above)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Invoices &amp; bills with a different tax / HSN</Label>
+            <Select value={invoicePolicy} onValueChange={(v) => setInvoicePolicy(v as InvoicePolicy)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent className="z-50 bg-popover">
+                <SelectItem value="keep_historical">Move them, keep their original tax / HSN (recommended)</SelectItem>
+                <SelectItem value="skip_conflicting">Leave mismatched bills on the duplicate record</SelectItem>
+                <SelectItem value="fill_missing_tax">Move them and fill missing tax / HSN from the kept record</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-2">
+              <Checkbox id="restamp-name" checked={restampName} onCheckedChange={(v) => setRestampName(!!v)} />
+              <Label htmlFor="restamp-name" className="text-sm font-normal">
+                Update the patient name printed on carried bills
+              </Label>
+            </div>
+          </div>
+
 
           <div className="space-y-2">
             <Label>Carry over to the kept record</Label>

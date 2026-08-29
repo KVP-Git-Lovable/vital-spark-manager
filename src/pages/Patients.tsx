@@ -173,9 +173,20 @@ const Patients = () => {
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [showNewViewDialog, setShowNewViewDialog] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingView, setEditingView] = useState<ListView | null>(null);
+  const [display, setDisplay] = useState<"cards" | "table">("cards");
+  const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
 
-  const { views, currentView, selectedViewId, setSelectedViewId, createView, deleteView, isCreating } = useListViews("patients");
+  const {
+    views,
+    userId,
+    activeView,
+    selectView,
+    saveView,
+    deleteView,
+    pinDefault,
+  } = usePatientListViews("patients");
 
   useEffect(() => {
     const t = setTimeout(() => {

@@ -910,42 +910,72 @@ export function ProcedureFormDialog({
             </div>
           </div>
 
-          <div>
-            <Label>Service / Procedure Name</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" className="mt-1.5 w-full justify-between font-normal">
-                  {serviceId ? (services.find((s: any) => s.id === serviceId)?.name || "Select service") : "Select service (optional)"}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Search service..." />
-                  <CommandList>
-                    <CommandEmpty>No service found.</CommandEmpty>
-                    <CommandGroup>
-                      {services.map((s: any) => (
-                        <CommandItem
-                          key={s.id}
-                          value={s.name}
-                          onSelect={() => handleServiceSelect(s.id)}
-                        >
-                          <Check className={`mr-2 h-4 w-4 ${serviceId === s.id ? "opacity-100" : "opacity-0"}`} />
-                          {s.name}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+          {/* Services / Procedures — multiple */}
+          <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-display font-semibold text-primary">Services / Procedures</Label>
+              <Button type="button" variant="outline" size="sm" onClick={addServiceLine}>
+                <Plus className="h-3 w-3 mr-1" /> Add Service
+              </Button>
+            </div>
+            {serviceLines.map((line, i) => (
+              <div key={line.key} className="rounded-lg border bg-background p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Service {i + 1}</span>
+                  {serviceLines.length > 1 && (
+                    <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeServiceLine(line.key)}>
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                      <span className="truncate">{line.name || "Select service"}</span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search service..." />
+                      <CommandList>
+                        <CommandEmpty>No service found.</CommandEmpty>
+                        <CommandGroup>
+                          {services.map((s: any) => (
+                            <CommandItem key={s.id} value={s.name} onSelect={() => handleServiceSelect(s.id, line.key)}>
+                              <Check className={`mr-2 h-4 w-4 ${line.service_id === s.id ? "opacity-100" : "opacity-0"}`} />
+                              {s.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
+                  <Textarea
+                    rows={3}
+                    className={`mt-1 transition-all ${recentlyFilled.procedure_notes ? "ring-2 ring-primary/40" : ""} ${elaboratingAll ? "opacity-60" : ""}`}
+                    placeholder="Details of the procedure performed..."
+                    value={line.procedure_notes}
+                    onChange={(e) => updateServiceLine(line.key, { procedure_notes: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Recommendations</Label>
+                  <Textarea
+                    rows={3}
+                    className={`mt-1 transition-all ${recentlyFilled.recommendations ? "ring-2 ring-primary/40" : ""} ${elaboratingAll ? "opacity-60" : ""}`}
+                    placeholder="Post-procedure recommendations..."
+                    value={line.recommendations}
+                    onChange={(e) => updateServiceLine(line.key, { recommendations: e.target.value })}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div>
-            <Label>Symptoms</Label>
-            <Textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)} placeholder="e.g. Redness, itching, dry patches..." className={`mt-1.5 transition-all ${recentlyFilled.symptoms ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />
-          </div>
 
           {/* Surveys filled before this procedure */}
           {patientSurveys.length > 0 && (

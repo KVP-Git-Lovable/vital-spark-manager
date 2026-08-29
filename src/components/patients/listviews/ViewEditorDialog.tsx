@@ -358,19 +358,15 @@ export default function ViewEditorDialog({ open, onOpenChange, view, onSave, doc
                     (def?.type !== "date" || dateNeedsInput);
                   return (
                     <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1.2fr_auto] gap-2 items-center border border-border rounded-lg bg-muted/20 p-3">
-                      <Select
+                      <FieldSelect
                         value={c.field}
-                        onValueChange={(v) => {
+                        onChange={(v) => {
                           const nd = fieldDef(v);
                           const defaultOp = OPERATORS[nd?.type ?? "text"][0].value;
                           updateCond(i, { field: v, operator: defaultOp, value: "", value2: "", values: [] });
                         }}
-                      >
-                        <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent className="max-h-72">
-                          {PATIENT_FIELDS.map((f) => (<SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
+                      />
+
 
                       <Select value={c.operator} onValueChange={(v) => updateCond(i, { operator: v })}>
                         <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>

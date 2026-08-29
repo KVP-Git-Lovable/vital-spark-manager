@@ -1314,8 +1314,10 @@ export type Database = {
         Row: {
           created_at: string
           display_fields: string[]
+          filter_match: string
           filters: Json
           id: string
+          is_default: boolean
           is_shared: boolean | null
           name: string
           section: string
@@ -1324,12 +1326,15 @@ export type Database = {
           sort_direction: string
           updated_at: string
           user_id: string
+          visibility: string
         }
         Insert: {
           created_at?: string
           display_fields: string[]
+          filter_match?: string
           filters?: Json
           id?: string
+          is_default?: boolean
           is_shared?: boolean | null
           name: string
           section: string
@@ -1338,12 +1343,15 @@ export type Database = {
           sort_direction?: string
           updated_at?: string
           user_id: string
+          visibility?: string
         }
         Update: {
           created_at?: string
           display_fields?: string[]
+          filter_match?: string
           filters?: Json
           id?: string
+          is_default?: boolean
           is_shared?: boolean | null
           name?: string
           section?: string
@@ -1352,6 +1360,7 @@ export type Database = {
           sort_direction?: string
           updated_at?: string
           user_id?: string
+          visibility?: string
         }
         Relationships: []
       }

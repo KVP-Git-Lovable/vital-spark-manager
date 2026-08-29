@@ -1,13 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { useNavigate } from "react-router-dom";
 import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Trash2, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ViewSelector } from "@/components/views/ViewSelector";
-import { NewListViewDialog } from "@/components/views/NewListViewDialog";
-import { useListViews } from "@/hooks/useListViews";
+import ViewBar from "@/components/patients/listviews/ViewBar";
+import ViewEditorDialog from "@/components/patients/listviews/ViewEditorDialog";
+import PatientListViewTable from "@/components/patients/listviews/PatientListViewTable";
+import { usePatientListViews } from "@/hooks/usePatientListViews";
+import { applyFilters, sortRows, DEFAULT_VIEW_COLUMNS, type ListView } from "@/lib/patientFields";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -157,7 +160,24 @@ const fetchPatientsPage = async (
   return { rows: (data as Patient[]) || [], total: count ?? 0 };
 };
 
+const fetchAllPatients = async (search: string): Promise<Patient[]> => {
+  const term = search.trim();
+  let q = supabase
+    .from("patients")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(2000);
+  if (term) {
+    const or = buildOrFilter(term, ["first_name", "last_name", "email", "phone"]);
+    if (or) q = q.or(or);
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data as Patient[]) || [];
+};
+
 const Patients = () => {
+
   const patientsTableRef = useStackedTable<HTMLTableElement>();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -170,9 +190,20 @@ const Patients = () => {
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [showNewViewDialog, setShowNewViewDialog] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingView, setEditingView] = useState<ListView | null>(null);
+  const [display, setDisplay] = useState<"cards" | "table">("cards");
+  const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
 
-  const { views, currentView, selectedViewId, setSelectedViewId, createView, deleteView, isCreating } = useListViews("patients");
+  const {
+    views,
+    userId,
+    activeView,
+    selectView,
+    saveView,
+    deleteView,
+    pinDefault,
+  } = usePatientListViews("patients");
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -182,10 +213,25 @@ const Patients = () => {
     return () => clearTimeout(t);
   }, [search]);
 
+  const viewActive = !!activeView;
+
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["patients", page, debouncedSearch],
     queryFn: () => fetchPatientsPage(page, debouncedSearch),
     placeholderData: keepPreviousData,
+    enabled: !viewActive,
+  });
+
+  const {
+    data: allPatients = [],
+    isLoading: viewLoading,
+    isFetching: viewFetching,
+    refetch: refetchAll,
+  } = useQuery({
+    queryKey: ["patients-all", debouncedSearch],
+    queryFn: () => fetchAllPatients(debouncedSearch),
+    placeholderData: keepPreviousData,
+    enabled: viewActive,
   });
 
   const { data: staffList = [] } = useQuery({
@@ -197,13 +243,33 @@ const Patients = () => {
     },
   });
 
-  const paged: Patient[] = data?.rows ?? [];
-  const total = data?.total ?? 0;
+  const viewRows = useMemo(() => {
+    if (!activeView) return [] as Patient[];
+    const filtered = applyFilters(allPatients as Patient[], activeView.filters);
+    return sortRows(filtered, activeView.sort_field, activeView.sort_dir);
+  }, [allPatients, activeView]);
+
+  const paged: Patient[] = viewActive
+    ? viewRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    : data?.rows ?? [];
+  const total = viewActive ? viewRows.length : data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
+  const loading = viewActive ? viewLoading : isLoading;
+  const fetching = viewActive ? viewFetching : isFetching;
+  const reloadPatients = () => (viewActive ? refetchAll() : refetch());
 
   const patientIds = paged.map((p) => p.id);
   const { data: engagementScores = {} } = useEngagementScores(patientIds);
+
+  const doctorOptions = useMemo(
+    () => staffList.map((s: any) => ({ value: s.id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() })),
+    [staffList]
+  );
+  const doctorLabels = useMemo(
+    () => Object.fromEntries(doctorOptions.map((d) => [d.value, d.label])),
+    [doctorOptions]
+  );
 
   const getAge = (dob: string | null) => {
     if (!dob) return null;
@@ -211,20 +277,34 @@ const Patients = () => {
     return Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
   };
 
-  // Get columns to display based on current view or default
-  const getDisplayColumns = () => {
-    if (currentView?.display_fields && currentView.display_fields.length > 0) {
-      return currentView.display_fields;
-    }
-    return DEFAULT_PATIENT_FIELDS;
+  const displayColumns = activeView?.columns?.length ? activeView.columns : DEFAULT_VIEW_COLUMNS;
+
+  const shouldShowColumn = (column: string) => DEFAULT_PATIENT_FIELDS.includes(column);
+
+
+  useEffect(() => {
+    setPage(1);
+    if (activeView) setDisplay("table");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView?.id]);
+
+  const openNewView = () => {
+    setEditingView(null);
+    setEditorOpen(true);
   };
 
-  const displayColumns = getDisplayColumns();
+  const openEditView = (v: ListView) => {
+    setEditingView(v);
+    setEditorOpen(true);
+  };
 
-  // Check if a column should be displayed
-  const shouldShowColumn = (column: string) => displayColumns.includes(column);
+  const cloneView = (v: ListView) => {
+    setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false });
+    setEditorOpen(true);
+  };
 
   const openAdd = () => {
+
     setEditingPatient(null);
     setSheetOpen(true);
   };
@@ -267,7 +347,7 @@ const Patients = () => {
     toast.success(`Deleted ${ids.length} patient${ids.length > 1 ? "s" : ""}`);
     setSelectedIds(new Set());
     setConfirmOpen(false);
-    refetch();
+    reloadPatients();
   };
 
   const allFilteredSelected = paged.length > 0 && paged.every((p) => selectedIds.has(p.id));
@@ -280,15 +360,8 @@ const Patients = () => {
           <p className="page-subtitle">Manage your patient records</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <ViewSelector
-            views={views}
-            selectedViewId={selectedViewId}
-            onSelectView={setSelectedViewId}
-            onCreateView={() => setShowNewViewDialog(true)}
-            onDeleteView={deleteView}
-            currentViewName={currentView?.name}
-          />
           {selectedIds.size > 0 && (
+
             <Button variant="destructive" className="gap-2" onClick={() => setConfirmOpen(true)}>
               <Trash2 className="h-4 w-4" />
               Delete ({selectedIds.size})
@@ -304,6 +377,24 @@ const Patients = () => {
           </Button>
         </div>
       </div>
+
+      <div className="mb-4">
+        <ViewBar
+          views={views}
+          activeView={activeView}
+          currentUserId={userId}
+          onSelect={selectView}
+          onNew={openNewView}
+          onEdit={openEditView}
+          onDelete={(v) => setDeleteViewTarget(v)}
+          onPin={pinDefault}
+          onClone={cloneView}
+          display={display}
+          onDisplayChange={setDisplay}
+          count={total}
+        />
+      </div>
+
 
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -327,7 +418,7 @@ const Patients = () => {
           </Button>
         </div>
 
-        {isLoading ? (
+        {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
@@ -335,7 +426,18 @@ const Patients = () => {
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <p className="text-sm">{debouncedSearch ? "No patients match your search." : "No patients yet. Add your first patient!"}</p>
           </div>
+        ) : display === "table" ? (
+          <PatientListViewTable
+            rows={paged}
+            columns={displayColumns}
+            selectedIds={selectedIds}
+            onToggle={toggleOne}
+            onToggleAll={toggleAll}
+            onOpen={(row) => navigate(`/patients/${row.id}`)}
+            doctorLabels={doctorLabels}
+          />
         ) : (
+
           <div className="overflow-x-auto table-scroll">
             <table ref={patientsTableRef} className="w-full responsive-table">
               <thead>
@@ -451,7 +553,7 @@ const Patients = () => {
           <span>
             Showing {total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–
             {Math.min(currentPage * PAGE_SIZE, total)} of {total.toLocaleString()}
-            {isFetching && !isLoading ? " · loading…" : ""}
+            {fetching && !loading ? " · loading…" : ""}
           </span>
           {totalPages > 1 && (
             <div className="flex items-center gap-2">
@@ -483,13 +585,13 @@ const Patients = () => {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         patient={editingPatient}
-        onSuccess={() => refetch()}
+        onSuccess={() => reloadPatients()}
       />
 
       <ImportPatientsDialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        onSuccess={() => refetch()}
+        onSuccess={() => reloadPatients()}
       />
 
       {cameraPatient && (
@@ -523,22 +625,39 @@ const Patients = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <NewListViewDialog
-        open={showNewViewDialog}
-        onOpenChange={setShowNewViewDialog}
-        section="patients"
-        availableFields={PATIENT_FIELDS}
-        defaultFields={DEFAULT_PATIENT_FIELDS}
-        onCreate={createView}
-        isLoading={isCreating}
-        teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
-        fieldOptions={{
-          status: ["Active", "Inactive", "Archived"].map((s) => ({ value: s, label: s })),
-          gender: ["Male", "Female", "Other"].map((s) => ({ value: s, label: s })),
-          engagement: ["High", "Medium", "Low"].map((s) => ({ value: s, label: s })),
-          skin_type: ["Oily", "Dry", "Combination", "Sensitive", "Normal"].map((s) => ({ value: s, label: s })),
-        }}
+      <ViewEditorDialog
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        view={editingView}
+        onSave={saveView}
+        doctorOptions={doctorOptions}
+        people={staffList
+          .filter((s: any) => s.auth_user_id)
+          .map((s: any) => ({ value: s.auth_user_id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() }))}
       />
+
+      <AlertDialog open={!!deleteViewTarget} onOpenChange={(o) => { if (!o) setDeleteViewTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteViewTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>This list view will be removed for everyone it is shared with.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteViewTarget) deleteView(deleteViewTarget);
+                setDeleteViewTarget(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 };

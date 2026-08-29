@@ -1792,6 +1792,7 @@ export type Database = {
           created_at: string
           current_medications: string | null
           date_of_birth: string | null
+          days_since_last_visit: number | null
           doctor_id: string | null
           email: string | null
           emergency_contact_name: string | null
@@ -1812,6 +1813,8 @@ export type Database = {
           id: string
           instagram_url: string | null
           last_name: string
+          last_visit_date: string | null
+          lifetime_value: number | null
           medical_history: string | null
           notes: string | null
           phone: string | null
@@ -1829,6 +1832,7 @@ export type Database = {
           source_referral_doctor: string | null
           state: string | null
           status: string
+          total_visits: number | null
           updated_at: string
         }
         Insert: {
@@ -1840,6 +1844,7 @@ export type Database = {
           created_at?: string
           current_medications?: string | null
           date_of_birth?: string | null
+          days_since_last_visit?: number | null
           doctor_id?: string | null
           email?: string | null
           emergency_contact_name?: string | null
@@ -1860,6 +1865,8 @@ export type Database = {
           id?: string
           instagram_url?: string | null
           last_name: string
+          last_visit_date?: string | null
+          lifetime_value?: number | null
           medical_history?: string | null
           notes?: string | null
           phone?: string | null
@@ -1877,6 +1884,7 @@ export type Database = {
           source_referral_doctor?: string | null
           state?: string | null
           status?: string
+          total_visits?: number | null
           updated_at?: string
         }
         Update: {
@@ -1888,6 +1896,7 @@ export type Database = {
           created_at?: string
           current_medications?: string | null
           date_of_birth?: string | null
+          days_since_last_visit?: number | null
           doctor_id?: string | null
           email?: string | null
           emergency_contact_name?: string | null
@@ -1908,6 +1917,8 @@ export type Database = {
           id?: string
           instagram_url?: string | null
           last_name?: string
+          last_visit_date?: string | null
+          lifetime_value?: number | null
           medical_history?: string | null
           notes?: string | null
           phone?: string | null
@@ -1925,6 +1936,7 @@ export type Database = {
           source_referral_doctor?: string | null
           state?: string | null
           status?: string
+          total_visits?: number | null
           updated_at?: string
         }
         Relationships: [

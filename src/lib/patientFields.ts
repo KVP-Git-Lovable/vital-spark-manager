@@ -18,7 +18,7 @@ export const PATIENT_FIELDS: FieldDef[] = [
   { key: "email", label: "Email", type: "text" },
   { key: "gender", label: "Gender", type: "picklist", optionsSource: "gender" },
   { key: "age", label: "Age", type: "number" },
-  { key: "date_of_birth", label: "Date of Birth", type: "date" },
+  { key: "date_of_birth", label: "Date of Birth (Birthday)", type: "date", anniversary: true },
   { key: "status", label: "Status", type: "picklist", optionsSource: "status" },
   { key: "skin_type", label: "Skin Type", type: "picklist", optionsSource: "skin_type" },
   { key: "skin_concerns", label: "Skin Concerns", type: "text" },

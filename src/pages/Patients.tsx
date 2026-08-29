@@ -282,7 +282,29 @@ const Patients = () => {
   const shouldShowColumn = (column: string) => DEFAULT_PATIENT_FIELDS.includes(column);
 
 
+  useEffect(() => {
+    setPage(1);
+    if (activeView) setDisplay("table");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView?.id]);
+
+  const openNewView = () => {
+    setEditingView(null);
+    setEditorOpen(true);
+  };
+
+  const openEditView = (v: ListView) => {
+    setEditingView(v);
+    setEditorOpen(true);
+  };
+
+  const cloneView = (v: ListView) => {
+    setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false });
+    setEditorOpen(true);
+  };
+
   const openAdd = () => {
+
     setEditingPatient(null);
     setSheetOpen(true);
   };

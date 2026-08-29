@@ -155,3 +155,101 @@ export async function findDuplicates(
   }
   return results;
 }
+
+/* ------------------------------------------------------------------ *
+ * Rule test simulator support
+ * ------------------------------------------------------------------ */
+
+export interface FieldTrace {
+  field: MatchField;
+  label: string;
+  inputValue: string;
+  recordValue: string;
+  matched: boolean;
+  /** Result of the expression evaluated up to and including this field. */
+  runningResult: boolean;
+}
+
+export interface RuleTrace {
+  rule: DuplicateRule;
+  record: Record<string, any>;
+  recordLabel: string;
+  fieldTraces: FieldTrace[];
+  expression: string;
+  isDuplicate: boolean;
+  severity: "alert" | "block";
+  message: string;
+}
+
+/** Evaluate one rule against one candidate record and explain every step. */
+export function traceRule(
+  rule: DuplicateRule,
+  objectKey: string,
+  values: Record<string, any>,
+  record: Record<string, any>,
+): RuleTrace {
+  const obj = getObject(objectKey);
+  const fields = rule.match_fields || [];
+  const fieldTraces: FieldTrace[] = [];
+  let running: boolean | null = null;
+  fields.forEach((f, i) => {
+    const matched = fieldMatches(f, values[f.field_key], record[f.field_key]);
+    running = i === 0 ? matched : f.joiner === "or" ? running! || matched : running! && matched;
+    fieldTraces.push({
+      field: f,
+      label: obj?.fields.find((x) => x.key === f.field_key)?.label || f.field_key,
+      inputValue: norm(values[f.field_key]),
+      recordValue: norm(record[f.field_key]),
+      matched,
+      runningResult: !!running,
+    });
+  });
+  const isDuplicate = !!running;
+  const matchedFields = fieldTraces.filter((t) => t.matched).map((t) => t.field);
+  const blocking = matchedFields.some((f) => f.severity === "block");
+  return {
+    rule,
+    record,
+    recordLabel: recordLabel(objectKey, record),
+    fieldTraces,
+    expression: fieldTraces
+      .map((t, i) => `${i > 0 ? `${t.field.joiner.toUpperCase()} ` : ""}${t.label}(${t.matched ? "match" : "no match"})`)
+      .join(" "),
+    isDuplicate,
+    severity: blocking || rule.notification?.severity === "error" ? "block" : "alert",
+    message: renderTemplate(rule.notification?.message || "", { objectKey, record, matchedFields }),
+  };
+}
+
+/** Run every active rule against sample input and return full traces for each candidate. */
+export async function simulateDuplicates(
+  objectKey: string,
+  values: Record<string, any>,
+  opts: { excludeId?: string | null; limit?: number } = {},
+): Promise<{ traces: RuleTrace[]; rulesEvaluated: number; candidatesScanned: number }> {
+  const obj = getObject(objectKey);
+  if (!obj) return { traces: [], rulesEvaluated: 0, candidatesScanned: 0 };
+  const rules = await fetchDuplicateRules(objectKey);
+  const traces: RuleTrace[] = [];
+  let candidatesScanned = 0;
+
+  for (const rule of rules) {
+    const fields = (rule.match_fields || []).filter((f) => norm(values[f.field_key]));
+    if (fields.length === 0) continue;
+    const orFilters = fields.map((f) => {
+      const v = String(values[f.field_key]).trim().replace(/[,()]/g, " ");
+      return f.matchType === "exact" ? `${f.field_key}.eq.${v}` : `${f.field_key}.ilike.%${v}%`;
+    });
+    const { data } = await (supabase as any)
+      .from(obj.table)
+      .select("*")
+      .or(orFilters.join(","))
+      .limit(opts.limit ?? 10);
+    for (const record of (data || []) as Record<string, any>[]) {
+      if (opts.excludeId && record.id === opts.excludeId) continue;
+      candidatesScanned++;
+      traces.push(traceRule(rule, objectKey, values, record));
+    }
+  }
+  return { traces, rulesEvaluated: rules.length, candidatesScanned };
+}

@@ -196,20 +196,22 @@ export default function DuplicateResolveDialog({ open, onClose, primary, duplica
           if (error) throw error;
         }
 
+        let skippedBills = 0;
         for (const group of CARRY_GROUPS) {
           if (!carry[group.key]) continue;
           for (const table of group.tables) {
             if (group.key === "invoices") {
-              await carryInvoices(table, kept, dropped, invoicePolicy, restampName);
+              skippedBills += await carryInvoices(table, kept, dropped, invoicePolicy, restampName);
               continue;
             }
             const { error } = await (supabase as any)
               .from(table)
               .update({ patient_id: kept.id })
               .eq("patient_id", dropped.id);
-            if (error && !/column .* does not exist|relation .* does not exist/i.test(error.message)) throw error;
+            if (error && !ignorable(error.message)) throw error;
           }
         }
+        skippedRef = skippedBills;
 
         if (deactivate) {
           const { error } = await supabase.from("patients").update({ status: "Inactive" } as any).eq("id", dropped.id);
@@ -228,9 +230,11 @@ export default function DuplicateResolveDialog({ open, onClose, primary, duplica
         title: mode === "merged" ? "Records merged" : "Records linked",
         description:
           mode === "merged"
-            ? `${label(dropped)} was folded into ${label(kept)}.`
+            ? `${label(dropped)} was folded into ${label(kept)}.` +
+              (skippedRef ? ` ${skippedRef} bill(s) with a different tax/HSN were left on the duplicate.` : "")
             : `Both records were kept and marked as reviewed.`,
       });
+
       onResolved?.(mode, kept.id);
       onClose();
     } catch (e: any) {

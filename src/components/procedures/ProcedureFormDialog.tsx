@@ -163,7 +163,11 @@ export function ProcedureFormDialog({
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
         body: JSON.stringify({
           transcript: trimmed,
-          currentFields: { service_name: serviceName, symptoms, diagnosis, procedure_notes: procedureNotes, recommendations },
+          currentFields: {
+            service_name: serviceLines[0]?.name || "",
+            procedure_notes: serviceLines[0]?.procedure_notes || "",
+            recommendations: serviceLines[0]?.recommendations || "",
+          },
           problemAreas: problemAreaList,
         }),
       });

@@ -664,24 +664,17 @@ const Appointments = () => {
       const startDT = buildDateTime(startDate, startTime);
       if (startDT < new Date()) throw new Error("Cannot book appointments in the past");
 
-      // Check for Sunday (day 0)
-      if (startDate.getDay() === 0) throw new Error("Appointments cannot be booked on Sundays");
-
-      // Check for holidays
+      // Sundays are allowed — only configured holidays block booking
       const dateStr = format(startDate, "yyyy-MM-dd");
       if (holidays.includes(dateStr)) {
-        const holiday = holidays.find((h: string) => h === dateStr);
         throw new Error(`Appointments cannot be booked on this date (holiday)`);
       }
 
-      // Check recurring dates for Sunday and holidays
+      // Check recurring dates for holidays
       if (isRecurring && recurrenceEndDate) {
         const recurringDates = generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate);
-        const blockedDates = recurringDates.filter((d) => {
-          if (d.getDay() === 0) return true; // Sunday
-          const dStr = format(d, "yyyy-MM-dd");
-          return holidays.includes(dStr); // Holiday
-        });
+        const blockedDates = recurringDates.filter((d) => holidays.includes(format(d, "yyyy-MM-dd")));
+
         if (blockedDates.length > 0) {
           const blockedStr = blockedDates.slice(0, 3).map((d) => format(d, "MMM dd")).join(", ");
           throw new Error(`Some dates in the recurrence are unavailable: ${blockedStr}${blockedDates.length > 3 ? "..." : ""}`);

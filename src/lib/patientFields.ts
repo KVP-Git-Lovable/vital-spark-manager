@@ -5,7 +5,7 @@ export interface FieldDef {
   label: string;
   type: FieldType;
   /** Where the picklist options come from (resolved at runtime by the caller). */
-  optionsSource?: "gender" | "status" | "skin_type" | "blood_group" | "source" | "doctor";
+  optionsSource?: "gender" | "status" | "skin_type" | "blood_group" | "source" | "doctor" | "engagement_tier";
   /** Recurring yearly date (birthday/anniversary) — matched on day+month, ignoring year. */
   anniversary?: boolean;
 }

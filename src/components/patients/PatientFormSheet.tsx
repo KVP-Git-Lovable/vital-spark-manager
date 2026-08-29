@@ -40,6 +40,9 @@ import { Sparkles, Loader2 } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { findDuplicates, type DuplicateMatch } from "@/lib/duplicates/engine";
 import DuplicateAlertDialog from "@/components/duplicates/DuplicateAlertDialog";
+import DuplicateNotificationBand from "@/components/duplicates/DuplicateNotificationBand";
+import DuplicateResolveDialog from "@/components/duplicates/DuplicateResolveDialog";
+
 
 type Patient = Tables<"patients">;
 

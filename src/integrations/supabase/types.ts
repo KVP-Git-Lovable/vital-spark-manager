@@ -828,6 +828,45 @@ export type Database = {
           },
         ]
       }
+      duplicate_rules: {
+        Row: {
+          actions: Json
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          match_fields: Json
+          name: string
+          notification: Json
+          object_key: string
+          updated_at: string
+        }
+        Insert: {
+          actions?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          match_fields?: Json
+          name: string
+          notification?: Json
+          object_key: string
+          updated_at?: string
+        }
+        Update: {
+          actions?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          match_fields?: Json
+          name?: string
+          notification?: Json
+          object_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       expense_categories: {
         Row: {
           created_at: string

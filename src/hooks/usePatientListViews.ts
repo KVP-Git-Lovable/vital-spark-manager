@@ -105,7 +105,9 @@ export function usePatientListViews(section = "patients") {
         shared_with: payload.visibility === "selected" ? payload.shared_user_ids ?? [] : [],
         is_shared: (payload.visibility ?? "private") !== "private",
         is_default: payload.is_default ?? false,
+        charts: (payload.charts ?? []) as any,
       };
+
 
       if (payload.id) {
         const { error } = await supabase

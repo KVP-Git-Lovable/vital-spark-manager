@@ -356,6 +356,7 @@ const Services = () => {
     setDuration("");
     setPrice("");
     setHsnCode("");
+    setMaterialPercent("");
     setGstPercent("");
     setProblemAreaIds([]);
     setProcedureNotes("");

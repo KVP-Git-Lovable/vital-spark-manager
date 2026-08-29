@@ -443,12 +443,8 @@ export default function ViewEditorDialog({ open, onOpenChange, view, onSave, doc
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label className="text-sm font-medium">Sort by</Label>
-                  <Select value={sortField} onValueChange={setSortField}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {PATIENT_FIELDS.map((f) => (<SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
+                  <FieldSelect value={sortField} onChange={setSortField} />
+
                 </div>
                 <div className="space-y-1">
                   <Label className="text-sm font-medium">Direction</Label>

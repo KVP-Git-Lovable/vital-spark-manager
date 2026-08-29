@@ -534,11 +534,6 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </div>
 
                 <div>
-                  <Label>Service / Procedure Name *</Label>
-                  <Input value={editServiceName} onChange={(e) => setEditServiceName(e.target.value)} className="mt-1.5" />
-                </div>
-
-                <div>
                   <Label>Status</Label>
                   <Select value={editStatus} onValueChange={setEditStatus}>
                     <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
@@ -548,57 +543,79 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   </Select>
                 </div>
 
-                <div>
+                {/* Services / Procedures */}
+                <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label>Symptoms</Label>
-                    <div className="flex items-center gap-1">
-                      <MicButton value={editSymptoms} onChange={setEditSymptoms} />
-                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("symptoms")} disabled={elaborating !== null}>
-                        {elaborating === "symptoms" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                      </Button>
-                    </div>
+                    <Label className="text-base font-display font-semibold text-primary">Services / Procedures</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={addLine}>
+                      <Plus className="h-3 w-3 mr-1" /> Add Service
+                    </Button>
                   </div>
-                  <Textarea value={editSymptoms} onChange={(e) => setEditSymptoms(e.target.value)} className="mt-1.5" rows={2} placeholder="e.g. Redness, itching, dry patches..." />
+                  {visibleLines.map((line, i) => (
+                    <div key={line.key} className="rounded-lg border bg-background p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Service {i + 1}</span>
+                        {visibleLines.length > 1 && (
+                          <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeLine(line.key)}>
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          className="flex-1"
+                          placeholder="Service / procedure name"
+                          value={line.service_name}
+                          onChange={(e) => updateLine(line.key, { service_name: e.target.value })}
+                        />
+                        <Select
+                          value={line.service_id || ""}
+                          onValueChange={(v) => {
+                            const svc: any = servicesMaster.find((s: any) => s.id === v);
+                            updateLine(line.key, {
+                              service_id: v,
+                              service_name: svc?.name || line.service_name,
+                              procedure_notes: line.procedure_notes || svc?.procedure_notes || "",
+                              recommendations:
+                                line.recommendations ||
+                                (Array.isArray(svc?.recommendations) ? svc.recommendations.join("\n") : svc?.recommendations || ""),
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="w-40"><SelectValue placeholder="From master" /></SelectTrigger>
+                          <SelectContent>
+                            {servicesMaster.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
+                          <div className="flex items-center gap-1">
+                            <MicButton value={line.procedure_notes} onChange={(v) => updateLine(line.key, { procedure_notes: v })} />
+                            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborateLine(line.key, "procedure_notes")} disabled={elaborating !== null}>
+                              {elaborating === `${line.key}:procedure_notes` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                            </Button>
+                          </div>
+                        </div>
+                        <Textarea value={line.procedure_notes} onChange={(e) => updateLine(line.key, { procedure_notes: e.target.value })} className="mt-1" rows={3} />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs text-muted-foreground">Recommendations</Label>
+                          <div className="flex items-center gap-1">
+                            <MicButton value={line.recommendations} onChange={(v) => updateLine(line.key, { recommendations: v })} />
+                            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborateLine(line.key, "recommendations")} disabled={elaborating !== null}>
+                              {elaborating === `${line.key}:recommendations` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                            </Button>
+                          </div>
+                        </div>
+                        <Textarea value={line.recommendations} onChange={(e) => updateLine(line.key, { recommendations: e.target.value })} className="mt-1" rows={3} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label>Diagnosis</Label>
-                    <div className="flex items-center gap-1">
-                      <MicButton value={editDiagnosis} onChange={setEditDiagnosis} />
-                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("diagnosis")} disabled={elaborating !== null}>
-                        {elaborating === "diagnosis" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                      </Button>
-                    </div>
-                  </div>
-                  <Textarea value={editDiagnosis} onChange={(e) => setEditDiagnosis(e.target.value)} className="mt-1.5" rows={2} />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label>Procedure Notes</Label>
-                    <div className="flex items-center gap-1">
-                      <MicButton value={editProcedureNotes} onChange={setEditProcedureNotes} />
-                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("procedure_notes")} disabled={elaborating !== null}>
-                        {elaborating === "procedure_notes" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                      </Button>
-                    </div>
-                  </div>
-                  <Textarea value={editProcedureNotes} onChange={(e) => setEditProcedureNotes(e.target.value)} className="mt-1.5" rows={3} />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label>Recommendations</Label>
-                    <div className="flex items-center gap-1">
-                      <MicButton value={editRecommendations} onChange={setEditRecommendations} />
-                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("recommendations")} disabled={elaborating !== null}>
-                        {elaborating === "recommendations" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
-                      </Button>
-                    </div>
-                  </div>
-                  <Textarea value={editRecommendations} onChange={(e) => setEditRecommendations(e.target.value)} className="mt-1.5" rows={3} />
-                </div>
 
                 {procedure.staff && (
                   <div>

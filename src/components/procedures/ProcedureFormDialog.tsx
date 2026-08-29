@@ -288,38 +288,51 @@ export function ProcedureFormDialog({
   }, [dictation, speech.listening]);
 
   const elaborateAll = async () => {
-    if (!symptoms && !diagnosis && !procedureNotes && !recommendations) {
-      toast.info("Fill at least one section first, then Elaborate All.");
+    const targets = serviceLines.filter((l) => l.procedure_notes || l.recommendations);
+    if (targets.length === 0) {
+      toast.info("Fill procedure notes or recommendations first, then Elaborate All.");
       return;
     }
     setElaboratingAll(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/procedure-ai-elaborate-all`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
-        body: JSON.stringify({
-          serviceName: serviceName || "Consultation",
-          symptoms, diagnosis, procedure_notes: procedureNotes, recommendations,
+      const results = await Promise.all(
+        targets.map(async (line) => {
+          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/procedure-ai-elaborate-all`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+            body: JSON.stringify({
+              serviceName: line.name || "Consultation",
+              procedure_notes: line.procedure_notes,
+              recommendations: line.recommendations,
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: "Elaborate failed" }));
+            throw new Error(err.error || "Elaborate failed");
+          }
+          return { key: line.key, data: await res.json() };
         }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Elaborate failed" }));
-        throw new Error(err.error || "Elaborate failed");
-      }
-      const data = await res.json();
-      const filled: string[] = [];
-      if (data.symptoms) { setSymptoms(data.symptoms); filled.push("symptoms"); }
-      if (data.diagnosis) { setDiagnosis(data.diagnosis); filled.push("diagnosis"); }
-      if (data.procedure_notes) { setProcedureNotes(data.procedure_notes); filled.push("procedure_notes"); }
-      if (data.recommendations) { setRecommendations(data.recommendations); filled.push("recommendations"); }
-      flashFilled(filled);
-      toast.success("Elaborated all sections");
+      );
+      setServiceLines((prev) =>
+        prev.map((l) => {
+          const hit = results.find((r) => r.key === l.key);
+          if (!hit) return l;
+          return {
+            ...l,
+            procedure_notes: hit.data.procedure_notes || l.procedure_notes,
+            recommendations: hit.data.recommendations || l.recommendations,
+          };
+        }),
+      );
+      flashFilled(["procedure_notes", "recommendations"]);
+      toast.success("Elaborated all services");
     } catch (e: any) {
       toast.error(e.message || "Failed to elaborate");
     } finally {
       setElaboratingAll(false);
     }
   };
+
 
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],

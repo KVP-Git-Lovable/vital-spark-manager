@@ -489,9 +489,11 @@ const Patients = () => {
                     {shouldShowColumn("name") && (
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-semibold text-sm shrink-0">
-                            {(patient.first_name?.[0] || "?")}{(patient.last_name?.[0] || "")}
-                          </div>
+                          <PatientAvatar
+                            firstName={patient.first_name}
+                            lastName={patient.last_name}
+                            photoUrl={avatars[patient.id]}
+                          />
                           <div>
                             <p className="font-medium text-sm">{`${patient.first_name || ""} ${patient.last_name || ""}`.trim() || "Unnamed"}</p>
                             <p className="text-xs text-muted-foreground">

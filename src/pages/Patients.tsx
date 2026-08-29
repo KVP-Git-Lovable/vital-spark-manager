@@ -457,6 +457,7 @@ const Patients = () => {
             onToggleAll={toggleAll}
             onOpen={(row) => navigate(`/patients/${row.id}`)}
             doctorLabels={doctorLabels}
+            avatars={avatars}
           />
         ) : (
 

@@ -205,6 +205,20 @@ export function ReportPreview({
       }
     }
 
+    // Always select the columns referenced by filters so client-side
+    // evaluation (filter logic / OR branches) has the data it needs.
+    filters.forEach((f) => {
+      const [objKey, col] = (f.field || "").split(".");
+      if (!col || isVirtualField(col)) return;
+      if (objKey === primaryObject && primaryValidFieldSet.has(col) && !primaryFieldKeys.includes(col)) {
+        primaryFieldKeys.push(col);
+      }
+      if (objKey === relatedObject && relatedValidFieldSet.has(col) && !relatedFieldKeys.includes(col)) {
+        relatedFieldKeys.push(col);
+      }
+    });
+
+
     let selectStr = primaryFieldKeys.join(",");
     // Embed staff for primary-side doctor_name
     if (primaryNeedsDoctorName && DOCTOR_FK_BY_OBJECT[primaryObject]) {

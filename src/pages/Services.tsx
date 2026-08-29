@@ -67,6 +67,7 @@ const Services = () => {
   const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
   const [hsnCode, setHsnCode] = useState("");
+  const [materialPercent, setMaterialPercent] = useState("");
   const [gstPercent, setGstPercent] = useState("");
   const [problemAreaIds, setProblemAreaIds] = useState<string[]>([]);
   const [procedureNotes, setProcedureNotes] = useState("");

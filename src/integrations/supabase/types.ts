@@ -2642,6 +2642,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          material_percent: number | null
           procedure_id: string
           procedure_notes: string | null
           recommendations: string | null
@@ -2653,6 +2654,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          material_percent?: number | null
           procedure_id: string
           procedure_notes?: string | null
           recommendations?: string | null
@@ -2664,6 +2666,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          material_percent?: number | null
           procedure_id?: string
           procedure_notes?: string | null
           recommendations?: string | null
@@ -3015,6 +3018,7 @@ export type Database = {
           gst_percent: number
           hsn_code: string | null
           id: string
+          material_percent: number | null
           name: string
           price: number
           problem_area_ids: string[]
@@ -3032,6 +3036,7 @@ export type Database = {
           gst_percent?: number
           hsn_code?: string | null
           id?: string
+          material_percent?: number | null
           name: string
           price?: number
           problem_area_ids?: string[]
@@ -3049,6 +3054,7 @@ export type Database = {
           gst_percent?: number
           hsn_code?: string | null
           id?: string
+          material_percent?: number | null
           name?: string
           price?: number
           problem_area_ids?: string[]

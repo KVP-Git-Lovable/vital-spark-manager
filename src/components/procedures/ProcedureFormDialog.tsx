@@ -986,20 +986,6 @@ export function ProcedureFormDialog({
             </div>
           )}
 
-          <div>
-            <Label>Diagnosis</Label>
-            <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} placeholder="Patient diagnosis..." className={`mt-1.5 transition-all ${recentlyFilled.diagnosis ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={2} />
-          </div>
-
-          <div>
-            <Label>Procedure Notes</Label>
-            <Textarea value={procedureNotes} onChange={(e) => setProcedureNotes(e.target.value)} placeholder="Details of the procedure performed..." className={`mt-1.5 transition-all ${recentlyFilled.procedure_notes ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={3} />
-          </div>
-
-          <div>
-            <Label>Recommendations</Label>
-            <Textarea value={recommendations} onChange={(e) => setRecommendations(e.target.value)} placeholder="Post-procedure recommendations..." className={`mt-1.5 transition-all ${recentlyFilled.recommendations ? "ring-2 ring-primary/40 animate-fade-in" : ""} ${elaboratingAll ? "opacity-60" : ""}`} rows={3} />
-          </div>
 
           {/* Prescriptions */}
           <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4">

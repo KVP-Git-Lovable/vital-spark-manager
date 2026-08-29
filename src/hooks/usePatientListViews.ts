@@ -26,8 +26,10 @@ function normalize(row: any): ListView {
     visibility: (row.visibility ?? "private") as ListView["visibility"],
     shared_user_ids: row.shared_with ?? [],
     is_default: !!row.is_default,
+    charts: Array.isArray(row.charts) ? row.charts : [],
   };
 }
+
 
 export function usePatientListViews(section = "patients") {
   const [views, setViews] = useState<ListView[]>([]);

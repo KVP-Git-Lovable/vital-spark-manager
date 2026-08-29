@@ -226,13 +226,33 @@ const Patients = () => {
     },
   });
 
-  const paged: Patient[] = data?.rows ?? [];
-  const total = data?.total ?? 0;
+  const viewRows = useMemo(() => {
+    if (!activeView) return [] as Patient[];
+    const filtered = applyFilters(allPatients as Patient[], activeView.filters);
+    return sortRows(filtered, activeView.sort_field, activeView.sort_dir);
+  }, [allPatients, activeView]);
+
+  const paged: Patient[] = viewActive
+    ? viewRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    : data?.rows ?? [];
+  const total = viewActive ? viewRows.length : data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
+  const loading = viewActive ? viewLoading : isLoading;
+  const fetching = viewActive ? viewFetching : isFetching;
+  const reloadPatients = () => (viewActive ? refetchAll() : refetch());
 
   const patientIds = paged.map((p) => p.id);
   const { data: engagementScores = {} } = useEngagementScores(patientIds);
+
+  const doctorOptions = useMemo(
+    () => staffList.map((s: any) => ({ value: s.id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() })),
+    [staffList]
+  );
+  const doctorLabels = useMemo(
+    () => Object.fromEntries(doctorOptions.map((d) => [d.value, d.label])),
+    [doctorOptions]
+  );
 
   const getAge = (dob: string | null) => {
     if (!dob) return null;
@@ -240,18 +260,10 @@ const Patients = () => {
     return Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
   };
 
-  // Get columns to display based on current view or default
-  const getDisplayColumns = () => {
-    if (currentView?.display_fields && currentView.display_fields.length > 0) {
-      return currentView.display_fields;
-    }
-    return DEFAULT_PATIENT_FIELDS;
-  };
+  const displayColumns = activeView?.columns?.length ? activeView.columns : DEFAULT_VIEW_COLUMNS;
 
-  const displayColumns = getDisplayColumns();
+  const shouldShowColumn = (column: string) => DEFAULT_PATIENT_FIELDS.includes(column);
 
-  // Check if a column should be displayed
-  const shouldShowColumn = (column: string) => displayColumns.includes(column);
 
   const openAdd = () => {
     setEditingPatient(null);

@@ -206,7 +206,9 @@ export default function ViewEditorDialog({ open, onOpenChange, view, onSave, doc
       case "skin_type": return SKIN_TYPE_OPTIONS;
       case "blood_group": return BLOOD_GROUP_OPTIONS;
       case "source": return SOURCE_OPTIONS;
+      case "engagement_tier": return ENGAGEMENT_TIER_OPTIONS;
       case "doctor": return doctorOptions;
+
       default: return [];
     }
   };

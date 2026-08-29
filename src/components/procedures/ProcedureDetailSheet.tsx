@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt } from "lucide-react";
+import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,9 +22,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { MicButton } from "@/components/shared/MicButton";
 import { PatientToolsBar } from "@/components/shared/PatientToolsBar";
+import { StaffCombobox } from "@/components/shared/StaffCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;

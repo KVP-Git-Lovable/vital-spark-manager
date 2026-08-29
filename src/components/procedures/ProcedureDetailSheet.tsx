@@ -62,7 +62,9 @@ interface ProcedureDetailSheetProps {
 
 export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: ProcedureDetailSheetProps) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [cameraOpen, setCameraOpen] = useState(false);
+
   const [initialized, setInitialized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 

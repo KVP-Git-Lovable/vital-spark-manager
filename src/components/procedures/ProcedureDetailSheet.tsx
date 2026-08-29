@@ -852,11 +852,21 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </div>
 
                 {/* Action buttons */}
-                <div className="flex gap-2 pt-4 border-t">
+                <div className="flex flex-wrap gap-2 pt-4 border-t">
                   <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="flex-1 gap-2">
                     <Save className="h-4 w-4" />
                     {updateMutation.isPending ? "Saving..." : "Save Changes"}
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 gap-2 border-primary/40 text-primary hover:bg-primary/5"
+                    onClick={handleCreateInvoice}
+                  >
+                    <Receipt className="h-4 w-4" />
+                    Create Invoice
+                  </Button>
+
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive" size="icon">

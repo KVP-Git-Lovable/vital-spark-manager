@@ -43,6 +43,71 @@ const CARRY_GROUPS = [
 type ConflictPolicy = "keep_existing" | "prefer_latest" | "prefer_duplicate" | "manual";
 type InvoicePolicy = "keep_historical" | "skip_conflicting" | "fill_missing_tax";
 
+const ignorable = (msg?: string) =>
+  !!msg && /column .* does not exist|relation .* does not exist/i.test(msg);
+
+/**
+ * Carry billing rows to the kept patient, honouring the configured tax/HSN conflict policy.
+ * Returns the number of rows left behind (skipped because their tax/HSN differs).
+ */
+async function carryInvoices(
+  table: string,
+  kept: Record<string, any>,
+  dropped: Record<string, any>,
+  policy: InvoicePolicy,
+  restampName: boolean,
+): Promise<number> {
+  const { data: rows, error } = await (supabase as any)
+    .from(table)
+    .select("*")
+    .eq("patient_id", dropped.id);
+  if (error) {
+    if (ignorable(error.message)) return 0;
+    throw error;
+  }
+  const list = (rows || []) as Record<string, any>[];
+  if (list.length === 0) return 0;
+
+  // Reference tax/HSN comes from the kept patient's most recent billing row.
+  const { data: keptRows } = await (supabase as any)
+    .from(table)
+    .select("*")
+    .eq("patient_id", kept.id)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const ref = ((keptRows || [])[0] || {}) as Record<string, any>;
+  const refTax = ref.tax_id ?? null;
+  const refRate = ref.tax_rate ?? null;
+
+  const keptName = [kept.first_name, kept.last_name].filter(Boolean).join(" ") || kept.phone || null;
+  let skipped = 0;
+
+  for (const row of list) {
+    const hasTax = row.tax_id !== null && row.tax_id !== undefined;
+    const mismatched =
+      (refTax !== null && hasTax && row.tax_id !== refTax) ||
+      (refRate !== null && row.tax_rate !== null && row.tax_rate !== undefined && Number(row.tax_rate) !== Number(refRate));
+
+    if (policy === "skip_conflicting" && mismatched) {
+      skipped++;
+      continue;
+    }
+
+    const patch: Record<string, any> = { patient_id: kept.id };
+    if (restampName && "patient_name" in row && keptName) patch.patient_name = keptName;
+    if (policy === "fill_missing_tax") {
+      if (!hasTax && refTax !== null) patch.tax_id = refTax;
+      if ((row.tax_rate === null || row.tax_rate === undefined) && refRate !== null) patch.tax_rate = refRate;
+    }
+
+    const { error: upErr } = await (supabase as any).from(table).update(patch).eq("id", row.id);
+    if (upErr && !ignorable(upErr.message)) throw upErr;
+  }
+  return skipped;
+}
+
+
+
 const CONFLICT_FIELDS = [
   "first_name",
   "last_name",

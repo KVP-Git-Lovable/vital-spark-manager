@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-// edit mode mirrors the create form layout (tabs + same field grid)
+
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList } from "lucide-react";
@@ -445,6 +445,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       queryClient.invalidateQueries({ queryKey: ["procedure-detail", procedureId] });
       queryClient.invalidateQueries({ queryKey: ["procedure-prescriptions", procedureId] });
       queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
+      queryClient.invalidateQueries({ queryKey: ["patient", procedure?.patient_id] });
       const savedId = procedureId!;
       handleClose();
       onSaved?.(savedId);
@@ -877,6 +878,50 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     <p className="text-sm text-muted-foreground text-center py-2">No attachments yet.</p>
                   )}
                 </div>
+                  </TabsContent>
+
+                  <TabsContent value="medical" className="space-y-3 mt-4">
+                    <div className="flex items-center gap-2">
+                      <HeartPulse className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold">Medical Information</span>
+                      <span className="text-[11px] text-muted-foreground">(saved back to the patient record)</span>
+                    </div>
+                    {procedure.patient_id ? (
+                      <div className="rounded-xl border bg-card p-4 shadow-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {([
+                            ["medical_history", "Medical History"],
+                            ["current_medications", "Current Medications"],
+                            ["allergies", "Allergies"],
+                            ["previous_treatments", "Previous Treatments"],
+                            ["skin_type", "Skin Type"],
+                            ["skin_concerns", "Skin Concerns"],
+                          ] as [string, string][]).map(([field, label]) => (
+                            <div key={field}>
+                              <Label className="text-xs text-muted-foreground">{label}</Label>
+                              <Textarea
+                                rows={3}
+                                className="mt-1 text-sm"
+                                value={medical[field] || ""}
+                                onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground py-8 text-center">No patient linked to this procedure.</p>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="surveys" className="space-y-3 mt-4">
+                    {procedure.patient_id ? (
+                      <SurveyHistoryPanel patientId={procedure.patient_id} appointmentId={(procedure as any).appointment_id || null} />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No patient linked to this procedure.</p>
+                    )}
+                  </TabsContent>
+                </Tabs>
 
                 {/* Action buttons */}
                 <div className="flex flex-wrap gap-2 pt-4 border-t">

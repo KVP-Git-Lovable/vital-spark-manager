@@ -2344,6 +2344,7 @@ const Billing = () => {
                           </div>
                         )}
                         <div className="flex justify-between font-semibold text-primary text-base"><span>Grand Total</span><span>{money(subtotal + totalTax)}</span></div>
+                        {materialSection}
                       </div>
                     );
                   })()}
@@ -2653,6 +2654,7 @@ const Billing = () => {
                     </div>
                   );
                 })()}
+                {materialSection}
               </div>
               <div className="border-t px-5 py-4 bg-background/60">
                 <Button className="w-full" onClick={() => createInvoice.mutate()} disabled={!canCreateInvoice() || createInvoice.isPending}>

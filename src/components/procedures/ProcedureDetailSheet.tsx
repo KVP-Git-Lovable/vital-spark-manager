@@ -232,13 +232,48 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   if (procedure && !initialized) {
     setEditServiceName(procedure.service_name || "");
     setEditStatus(procedure.status || "Completed");
-    setEditSymptoms(procedure.symptoms || "");
-    setEditDiagnosis(procedure.diagnosis || "");
     setEditProcedureNotes(procedure.procedure_notes || "");
     setEditRecommendations(procedure.recommendations || "");
     setEditReviewNotes(procedure.review_notes || "");
     setInitialized(true);
   }
+
+  // Init service lines
+  if (procedure && initialized && !servicesInitialized) {
+    const rows: ServiceLineRow[] = procedureServices.length
+      ? procedureServices.map((s: any) => ({
+          id: s.id,
+          key: s.id,
+          service_id: s.service_id,
+          service_name: s.service_name || "",
+          procedure_notes: s.procedure_notes || "",
+          recommendations: s.recommendations || "",
+        }))
+      : [
+          {
+            key: `svc-${Date.now()}`,
+            service_id: null,
+            service_name: procedure.service_name || "",
+            procedure_notes: procedure.procedure_notes || "",
+            recommendations: procedure.recommendations || "",
+          },
+        ];
+    setEditServiceLines(rows);
+    setServicesInitialized(true);
+  }
+
+  const updateLine = (key: string, patch: Partial<ServiceLineRow>) =>
+    setEditServiceLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  const addLine = () =>
+    setEditServiceLines((prev) => [
+      ...prev,
+      { key: `svc-${Date.now()}-${prev.length}`, service_id: null, service_name: "", procedure_notes: "", recommendations: "" },
+    ]);
+  const removeLine = (key: string) =>
+    setEditServiceLines((prev) =>
+      prev.map((l) => (l.key === key ? { ...l, _deleted: true } : l)).filter((l) => l.id || !l._deleted),
+    );
+  const visibleLines = editServiceLines.filter((l) => !l._deleted);
 
   // Init prescriptions from fetched data
   if (prescriptions.length > 0 && initialized && editPrescriptions.length === 0) {
@@ -256,6 +291,8 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
   const handleClose = () => {
     setInitialized(false);
+    setServicesInitialized(false);
+    setEditServiceLines([]);
     setEditPrescriptions([]);
     setAttachmentNotes("");
     onClose();
@@ -263,17 +300,48 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
   const updateMutation = useMutation({
     mutationFn: async () => {
+      const kept = editServiceLines.filter((l) => !l._deleted && (l.service_name || "").trim());
+      const combine = (field: "procedure_notes" | "recommendations") =>
+        kept
+          .filter((l) => (l[field] || "").trim())
+          .map((l) => (kept.length > 1 ? `${l.service_name}: ${l[field]}` : l[field]))
+          .join("\n\n");
+
       // Update procedure
       const { error } = await supabase.from("procedures").update({
-        service_name: editServiceName,
+        service_name: kept.length ? kept.map((l) => l.service_name).join(", ") : editServiceName,
         status: editStatus,
-        symptoms: editSymptoms,
-        diagnosis: editDiagnosis,
-        procedure_notes: editProcedureNotes,
-        recommendations: editRecommendations,
+        procedure_notes: kept.length ? combine("procedure_notes") : editProcedureNotes,
+        recommendations: kept.length ? combine("recommendations") : editRecommendations,
         review_notes: editReviewNotes,
       }).eq("id", procedureId!);
       if (error) throw error;
+
+      // Sync procedure_services
+      for (const l of editServiceLines.filter((x) => x.id && x._deleted)) {
+        await supabase.from("procedure_services").delete().eq("id", l.id!);
+      }
+      for (const [i, l] of kept.entries()) {
+        if (l.id) {
+          await supabase.from("procedure_services").update({
+            service_id: l.service_id,
+            service_name: l.service_name,
+            procedure_notes: l.procedure_notes || null,
+            recommendations: l.recommendations || null,
+            sort_order: i,
+          }).eq("id", l.id);
+        } else {
+          await supabase.from("procedure_services").insert({
+            procedure_id: procedureId!,
+            service_id: l.service_id,
+            service_name: l.service_name,
+            procedure_notes: l.procedure_notes || null,
+            recommendations: l.recommendations || null,
+            sort_order: i,
+          });
+        }
+      }
+
 
       // Handle prescriptions: delete removed, update existing, insert new
       const existing = editPrescriptions.filter(rx => rx.id && !rx._deleted);

@@ -1203,7 +1203,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
           <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button className="flex-1" onClick={handleSave} disabled={saving}>
+          <Button className="flex-1" onClick={() => void handleSave()} disabled={saving}>
             {saving ? "Saving..." : isEditing ? "Update Patient" : "Create Patient"}
           </Button>
         </div>
@@ -1289,6 +1289,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         </Dialog>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 

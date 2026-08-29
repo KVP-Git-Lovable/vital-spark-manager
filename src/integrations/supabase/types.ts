@@ -828,6 +828,71 @@ export type Database = {
           },
         ]
       }
+      duplicate_alerts: {
+        Row: {
+          created_at: string
+          id: string
+          match_record_id: string
+          match_record_label: string | null
+          matched_fields: Json
+          message: string | null
+          object_key: string
+          record_id: string
+          record_label: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          rule_id: string | null
+          rule_name: string | null
+          severity: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_record_id: string
+          match_record_label?: string | null
+          matched_fields?: Json
+          message?: string | null
+          object_key: string
+          record_id: string
+          record_label?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          rule_id?: string | null
+          rule_name?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_record_id?: string
+          match_record_label?: string | null
+          matched_fields?: Json
+          message?: string | null
+          object_key?: string
+          record_id?: string
+          record_label?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          rule_id?: string | null
+          rule_name?: string | null
+          severity?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "duplicate_alerts_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "duplicate_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       duplicate_rules: {
         Row: {
           actions: Json

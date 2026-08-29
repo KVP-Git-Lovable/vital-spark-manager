@@ -329,7 +329,7 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
           <TabsContent value="notification" className="space-y-3 pt-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label>Severity</Label>
+                <Label>Default severity</Label>
                 <Select
                   value={draft.notification.severity}
                   onValueChange={(v) => patch({ notification: { ...draft.notification, severity: v as any } })}
@@ -340,6 +340,9 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
                     <SelectItem value="error">Error (block save)</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Individual fields set to "Block save" always stop the user, whatever this is set to.
+                </p>
               </div>
               <div>
                 <Label>Title</Label>
@@ -359,9 +362,45 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
                 placeholder="A record with the same phone number already exists: {{match}}"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Use <code>{"{{match}}"}</code> for the matched record name and <code>{"{{field}}"}</code> for the matched field.
+                Click a token to insert data from the duplicate record into the message.
               </p>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {[
+                  { token: "{{match}}", label: "Matched record name" },
+                  { token: "{{field}}", label: "Matched field(s)" },
+                  ...obj.fields.map((f) => ({ token: `{{field.${f.key}}}`, label: f.label })),
+                ].map((t) => (
+                  <Button
+                    key={t.token}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() =>
+                      patch({
+                        notification: {
+                          ...draft.notification,
+                          message: `${draft.notification.message || ""}${draft.notification.message ? " " : ""}${t.token}`,
+                        },
+                      })
+                    }
+                  >
+                    {t.label}
+                  </Button>
+                ))}
+              </div>
             </div>
+            <Card className="p-3 bg-muted/40">
+              <div className="text-xs font-medium mb-1">Preview</div>
+              <div className="text-sm font-medium">{draft.notification.title || "Possible duplicate found"}</div>
+              <p className="text-sm text-muted-foreground">
+                {renderTemplate(draft.notification.message || "", {
+                  objectKey: draft.object_key,
+                  record: sampleRecord(obj),
+                  matchedFields: draft.match_fields,
+                })}
+              </p>
+            </Card>
             <div className="flex items-center gap-2">
               <Checkbox
                 id="show-list"
@@ -370,6 +409,8 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
               />
               <Label htmlFor="show-list">Show the list of matching records</Label>
             </div>
+          </TabsContent>
+
           </TabsContent>
 
           <TabsContent value="actions" className="space-y-2 pt-4">

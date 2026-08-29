@@ -162,7 +162,6 @@ function listValues(c: FilterCondition): string[] {
     .filter(Boolean);
 }
 
-const DAY = 86400000;
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const startOfWeek = (d: Date) => addDays(startOfDay(d), -((d.getDay() + 6) % 7)); // Monday start

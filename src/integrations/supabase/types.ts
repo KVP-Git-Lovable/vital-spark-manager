@@ -1312,6 +1312,7 @@ export type Database = {
       }
       list_views: {
         Row: {
+          charts: Json
           created_at: string
           display_fields: string[]
           filter_match: string
@@ -1329,6 +1330,7 @@ export type Database = {
           visibility: string
         }
         Insert: {
+          charts?: Json
           created_at?: string
           display_fields: string[]
           filter_match?: string
@@ -1346,6 +1348,7 @@ export type Database = {
           visibility?: string
         }
         Update: {
+          charts?: Json
           created_at?: string
           display_fields?: string[]
           filter_match?: string

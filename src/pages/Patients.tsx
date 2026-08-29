@@ -356,6 +356,24 @@ const Patients = () => {
         </div>
       </div>
 
+      <div className="mb-4">
+        <ViewBar
+          views={views}
+          activeView={activeView}
+          currentUserId={userId}
+          onSelect={selectView}
+          onNew={openNewView}
+          onEdit={openEditView}
+          onDelete={(v) => setDeleteViewTarget(v)}
+          onPin={pinDefault}
+          onClone={cloneView}
+          display={display}
+          onDisplayChange={setDisplay}
+          count={total}
+        />
+      </div>
+
+
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

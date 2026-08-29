@@ -553,6 +553,16 @@ export function ProcedureFormDialog({
         }
       }
 
+      const cleanLines = serviceLines.filter((l) => (l.name || "").trim());
+      const effectiveLines = cleanLines.length
+        ? cleanLines
+        : [{ key: "default", service_id: "", name: "Consultation", procedure_notes: "", recommendations: "" }];
+      const combine = (field: "procedure_notes" | "recommendations") =>
+        effectiveLines
+          .filter((l) => (l[field] || "").trim())
+          .map((l) => (effectiveLines.length > 1 ? `${l.name}: ${l[field]}` : l[field]))
+          .join("\n\n");
+
       const { data: proc, error } = await supabase
         .from("procedures")
         .insert({
@@ -560,11 +570,9 @@ export function ProcedureFormDialog({
           staff_id: staffId && staffId.trim() ? staffId : null,
           assisted_by: assistedBy && assistedBy.trim() ? assistedBy : null,
           appointment_id: appointmentId || null,
-          service_name: serviceName || "Consultation",
-          symptoms: symptoms || null,
-          diagnosis,
-          procedure_notes: procedureNotes,
-          recommendations: recommendations || null,
+          service_name: effectiveLines.map((l) => l.name).join(", "),
+          procedure_notes: combine("procedure_notes"),
+          recommendations: combine("recommendations") || null,
           visit_type: visitType,
           recurring_count: visitType === "Recurring" ? recurringCount : null,
           recurring_dates:
@@ -575,6 +583,19 @@ export function ProcedureFormDialog({
         .select()
         .single();
       if (error) throw error;
+
+      const { error: svcErr } = await supabase.from("procedure_services").insert(
+        effectiveLines.map((l, i) => ({
+          procedure_id: proc.id,
+          service_id: l.service_id || null,
+          service_name: l.name,
+          procedure_notes: l.procedure_notes || null,
+          recommendations: l.recommendations || null,
+          sort_order: i,
+        })),
+      );
+      if (svcErr) throw svcErr;
+
 
       if (prescriptions.length > 0) {
 

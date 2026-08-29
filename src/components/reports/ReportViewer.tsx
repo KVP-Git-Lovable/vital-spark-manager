@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft,
@@ -18,6 +19,7 @@ import {
   Hash,
   PanelRightClose,
   RotateCcw,
+  Save,
   Pin,
   PinOff,
 } from "lucide-react";
@@ -112,18 +114,21 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
   const safeFilters = report.filters.filter((f) => isValidFieldKey(f.field, allowed));
 
   const [chartType, setChartType] = useState(report.chart_type);
-  const [tempFilters, setTempFilters] = useState<ReportFilter[]>([]);
-  // Saved filters are editable at run time (operator + value); the field stays locked.
+  // Saved filters are fully editable at run time (field, operator, value) but
+  // changes only affect the current run until the user saves them back.
   const [runFilters, setRunFilters] = useState<ReportFilter[]>(safeFilters);
   const [showFilters, setShowFilters] = useState(false);
+  const [savingFilters, setSavingFilters] = useState(false);
 
-  useEffect(() => {
-    setRunFilters(report.filters.filter((f) => isValidFieldKey(f.field, allowed)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [report.id]);
   const [displayOptions, setDisplayOptions] = useState<ReportDisplayOptions>(
     report.display_options || { ...DEFAULT_DISPLAY_OPTIONS }
   );
+
+  useEffect(() => {
+    setRunFilters(report.filters.filter((f) => isValidFieldKey(f.field, allowed)));
+    setDisplayOptions(report.display_options || { ...DEFAULT_DISPLAY_OPTIONS });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report.id]);
 
   const primaryObj = getObjectByKey(report.primary_object);
   const relatedObj = report.related_object ? getObjectByKey(report.related_object) : null;
@@ -148,29 +153,62 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
     return obj?.fields.find((f) => f.key === fldKey)?.label || fk;
   };
 
-  const activeFilters = [...runFilters, ...tempFilters];
+  const activeFilters = runFilters;
+
+  const savedSnapshot = JSON.stringify({
+    filters: safeFilters,
+    logic: (report.display_options?.filter_logic || "").trim(),
+  });
+  const currentSnapshot = JSON.stringify({
+    filters: runFilters,
+    logic: (displayOptions.filter_logic || "").trim(),
+  });
+  const filtersDirty = savedSnapshot !== currentSnapshot;
 
   const updateRunFilter = (idx: number, patch: Partial<ReportFilter>) => {
     setRunFilters((p) => p.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
   };
 
-  const resetRunFilters = () => setRunFilters(safeFilters);
+  const resetRunFilters = () => {
+    setRunFilters(safeFilters);
+    setDisplayOptions((p) => ({ ...p, filter_logic: report.display_options?.filter_logic || "" }));
+  };
 
-  const addTempFilter = () => {
+  const addFilter = () => {
     if (allFields.length === 0) return;
     const first = allFields[0];
-    setTempFilters((p) => [
+    setRunFilters((p) => [
       ...p,
       { field: fieldKeyStr(first), operator: "equals", value: "", objectKey: first.objectKey },
     ]);
   };
 
-  const updateTempFilter = (idx: number, patch: Partial<ReportFilter>) => {
-    setTempFilters((p) => p.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
+  const removeFilter = (idx: number) => {
+    setRunFilters((p) => p.filter((_, i) => i !== idx));
   };
 
-  const removeTempFilter = (idx: number) => {
-    setTempFilters((p) => p.filter((_, i) => i !== idx));
+  const saveFilters = async () => {
+    if (!report.id) {
+      toast.error("Save the report first");
+      return;
+    }
+    setSavingFilters(true);
+    const { error } = await supabase
+      .from("saved_reports")
+      .update({
+        filters: runFilters as any,
+        display_options: displayOptions as any,
+      })
+      .eq("id", report.id);
+    setSavingFilters(false);
+    if (error) {
+      toast.error("Failed to save filters");
+      return;
+    }
+    // Keep the in-memory report in sync so "modified" clears.
+    report.filters = runFilters;
+    report.display_options = displayOptions;
+    toast.success("Filters saved to report");
   };
 
   const totalFilterCount = activeFilters.length;
@@ -304,54 +342,68 @@ export function ReportViewer({ report, onEdit, onClose }: Props) {
               </Button>
             </div>
 
-            {runFilters.length > 0 && (
-              <>
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-                    Saved Filters
-                  </Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 px-1 text-[10px] gap-1"
-                    onClick={resetRunFilters}
-                    title="Reset to saved values"
-                  >
-                    <RotateCcw className="h-3 w-3" /> Reset
-                  </Button>
-                </div>
-                {runFilters.map((filter, idx) => (
-                  <div key={`saved-${idx}`} className="mb-2">
-                    <FilterRow
-                      filter={filter}
-                      allFields={allFields}
-                      fieldKeyFn={fieldKeyStr}
-                      lockField
-                      onChange={(patch) => updateRunFilter(idx, patch)}
-                      onRemove={() => {}}
-                    />
-                  </div>
-                ))}
-              </>
-            )}
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                Saved Filters {filtersDirty && <span className="text-primary">(modified)</span>}
+              </Label>
+              {filtersDirty && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 px-1 text-[10px] gap-1"
+                  onClick={resetRunFilters}
+                  title="Reset to saved filters"
+                >
+                  <RotateCcw className="h-3 w-3" /> Reset
+                </Button>
+              )}
+            </div>
 
-            <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2 mt-3 block">
-              Additional Filters
-            </Label>
-            {tempFilters.map((filter, idx) => (
-              <div key={`temp-${idx}`} className="mb-2">
+            {runFilters.map((filter, idx) => (
+              <div key={`f-${idx}`} className="mb-2">
                 <FilterRow
                   filter={filter}
+                  index={idx + 1}
                   allFields={allFields}
                   fieldKeyFn={fieldKeyStr}
-                  onChange={(patch) => updateTempFilter(idx, patch)}
-                  onRemove={() => removeTempFilter(idx)}
+                  onChange={(patch) => updateRunFilter(idx, patch)}
+                  onRemove={() => removeFilter(idx)}
                 />
               </div>
             ))}
-            <Button size="sm" variant="outline" onClick={addTempFilter} className="w-full gap-1 text-xs h-7">
+
+            <Button size="sm" variant="outline" onClick={addFilter} className="w-full gap-1 text-xs h-7">
               <Plus className="h-3 w-3" /> Add Filter
             </Button>
+
+            {runFilters.length > 1 && (
+              <div className="mt-3">
+                <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 block">
+                  Filter Logic
+                </Label>
+                <Input
+                  value={displayOptions.filter_logic || ""}
+                  onChange={(e) => setDisplayOptions((p) => ({ ...p, filter_logic: e.target.value }))}
+                  placeholder="e.g. 1 AND (2 OR 3)"
+                  className="h-7 text-[11px]"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Leave blank to match all filters (AND).
+                </p>
+              </div>
+            )}
+
+            <Button
+              size="sm"
+              className="w-full gap-1 text-xs h-7 mt-3"
+              disabled={!filtersDirty || savingFilters || !report.id}
+              onClick={saveFilters}
+            >
+              <Save className="h-3 w-3" /> Save Filters to Report
+            </Button>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Changes apply to this run only until you save them.
+            </p>
           </div>
         )}
       </div>

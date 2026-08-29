@@ -73,6 +73,9 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   // Editable fields
   const [editServiceName, setEditServiceName] = useState("");
   const [editStatus, setEditStatus] = useState("");
+  const [editStaffId, setEditStaffId] = useState("");
+  const [medical, setMedical] = useState<Record<string, string>>({});
+  const [medicalDirty, setMedicalDirty] = useState(false);
   const [editProcedureNotes, setEditProcedureNotes] = useState("");
   const [editRecommendations, setEditRecommendations] = useState("");
   const [editReviewNotes, setEditReviewNotes] = useState("");

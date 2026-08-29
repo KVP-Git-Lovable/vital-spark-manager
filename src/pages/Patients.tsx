@@ -385,7 +385,7 @@ const Patients = () => {
           </Button>
         </div>
 
-        {isLoading ? (
+        {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
@@ -393,7 +393,18 @@ const Patients = () => {
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <p className="text-sm">{debouncedSearch ? "No patients match your search." : "No patients yet. Add your first patient!"}</p>
           </div>
+        ) : display === "table" ? (
+          <PatientListViewTable
+            rows={paged}
+            columns={displayColumns}
+            selectedIds={selectedIds}
+            onToggle={toggleOne}
+            onToggleAll={toggleAll}
+            onOpen={(row) => navigate(`/patients/${row.id}`)}
+            doctorLabels={doctorLabels}
+          />
         ) : (
+
           <div className="overflow-x-auto table-scroll">
             <table ref={patientsTableRef} className="w-full responsive-table">
               <thead>

@@ -612,13 +612,18 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
               </SheetHeader>
 
               <div className="p-6 space-y-4">
-                {procedure.patient_id && (
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-semibold">Surveys</h3>
-                    <SurveyHistoryPanel patientId={procedure.patient_id} appointmentId={(procedure as any).appointment_id || null} />
-                  </div>
-                )}
-                <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-3">
+                <Tabs defaultValue="procedure" className="w-full">
+                  <TabsList>
+                    <TabsTrigger value="procedure">Procedure</TabsTrigger>
+                    <TabsTrigger value="medical" className="gap-1.5">
+                      <HeartPulse className="h-3.5 w-3.5" /> Medical Information
+                    </TabsTrigger>
+                    <TabsTrigger value="surveys" className="gap-1.5">
+                      <ClipboardList className="h-3.5 w-3.5" /> Surveys
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="procedure" className="space-y-4 mt-4">
+                <div className="rounded-xl border-2 border-primary/25 bg-primary/5 p-3 shadow-sm">
                   <div className="flex items-center gap-2">
                     <Repeat className="h-4 w-4 text-primary" />
                     <span className="text-sm font-semibold text-primary">
@@ -641,14 +646,26 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   )}
                 </div>
 
-                <div>
-                  <Label>Status</Label>
-                  <Select value={editStatus} onValueChange={setEditStatus}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                <div className="rounded-xl border bg-card p-4 shadow-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Patient</Label>
+                      <Input value={patientName} disabled className="mt-1.5 bg-muted/50" />
+                    </div>
+                    <div>
+                      <Label>Doctor</Label>
+                      <StaffCombobox value={editStaffId} onValueChange={setEditStaffId} placeholder="Select doctor" className="mt-1.5" roleFilter={["Doctor"]} />
+                    </div>
+                    <div>
+                      <Label>Status</Label>
+                      <Select value={editStatus} onValueChange={setEditStatus}>
+                        <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Services / Procedures */}

@@ -40,6 +40,16 @@ interface PrescriptionRow {
   _deleted?: boolean;
 }
 
+interface ServiceLineRow {
+  id?: string;
+  key: string;
+  service_id: string | null;
+  service_name: string;
+  procedure_notes: string;
+  recommendations: string;
+  _deleted?: boolean;
+}
+
 interface ProcedureDetailSheetProps {
   procedureId: string | null;
   onClose: () => void;

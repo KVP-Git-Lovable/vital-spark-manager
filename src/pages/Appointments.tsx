@@ -1355,12 +1355,26 @@ const Appointments = () => {
                   <div>
                     <Label>Doctor</Label>
                     <Select value={staffId} onValueChange={setStaffId}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {doctorsList.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="text-[11px]">Doctors</SelectLabel>
+                            {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
+                          </SelectGroup>
+                        )}
+                        {otherStaffList.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="text-[11px]">Other staff</SelectLabel>
+                            {otherStaffList.map((d: any) => (
+                              <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}{d.role ? ` · ${d.role}` : ""}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div>
                     <Label>Status</Label>
                     <Select value={appointmentStatus} onValueChange={setAppointmentStatus}>

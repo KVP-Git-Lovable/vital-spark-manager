@@ -185,7 +185,9 @@ export function usePatientListViews(section = "patients") {
     activeViewId,
     selectView,
     saveView,
+    saveCharts,
     deleteView,
+
     pinDefault,
     reload: load,
   };

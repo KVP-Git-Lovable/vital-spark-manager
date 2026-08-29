@@ -486,6 +486,47 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
   const visibleRx = editPrescriptions.filter(rx => !rx._deleted);
 
+  // Hand this procedure over to Billing: service + medicine names come from the
+  // procedure, prices/HSN/GST are resolved from the masters inside Billing.
+  const handleCreateInvoice = () => {
+    if (!procedure) return;
+    const services = Array.from(
+      new Set(
+        [
+          ...editServiceLines.filter((l) => !l._deleted).map((l) => l.service_name),
+          ...(procedureServices as any[]).map((s: any) => s.service_name),
+          procedure.service_name,
+        ].filter(Boolean),
+      ),
+    );
+    const products = visibleRx
+      .filter((rx) => rx.medicine_name || rx.product_id)
+      .map((rx) => ({
+        name: rx.medicine_name,
+        product_id: rx.product_id || null,
+        quantity: Number(rx.quantity) || 1,
+      }));
+    const recurring = (procedure as any).visit_type === "Recurring";
+    const recurringDates = (((procedure as any).recurring_dates || []) as string[]).filter(Boolean);
+
+    sessionStorage.setItem(
+      "billing_prefill",
+      JSON.stringify({
+        patientId: procedure.patient_id || "",
+        doctorId: procedure.staff_id || "",
+        appointmentId: (procedure as any).appointment_id || "",
+        services,
+        products,
+        visitType: recurring ? "Recurring" : "Single",
+        recurringCount: recurring ? Number((procedure as any).recurring_count) || recurringDates.length || 1 : 0,
+        recurringDates,
+      }),
+    );
+    handleClose();
+    navigate("/billing?newInvoice=1");
+  };
+
+
   return (
     <>
       <Sheet open={!!procedureId} onOpenChange={(open) => { if (!open) handleClose(); }}>

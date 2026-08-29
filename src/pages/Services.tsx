@@ -67,6 +67,7 @@ const Services = () => {
   const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
   const [hsnCode, setHsnCode] = useState("");
+  const [materialPercent, setMaterialPercent] = useState("");
   const [gstPercent, setGstPercent] = useState("");
   const [problemAreaIds, setProblemAreaIds] = useState<string[]>([]);
   const [procedureNotes, setProcedureNotes] = useState("");
@@ -191,6 +192,7 @@ const Services = () => {
           price: parseFloat(price) || 0,
           hsn_code: hsnCode || null,
           gst_percent: selectedHsn ? Number(selectedHsn.igst || 0) + Number(selectedHsn.cgst || 0) : 0,
+          material_percent: materialPercent.trim() === "" ? null : parseFloat(materialPercent),
           problem_area_ids: problemAreaIds,
           procedure_notes: procedureNotes || null,
           recommendations: recs,
@@ -355,6 +357,7 @@ const Services = () => {
     setDuration("");
     setPrice("");
     setHsnCode("");
+    setMaterialPercent("");
     setGstPercent("");
     setProblemAreaIds([]);
     setProcedureNotes("");
@@ -490,6 +493,22 @@ const Services = () => {
                       IGST {Number(selectedHsn.igst)}% · CGST {Number(selectedHsn.cgst)}% · Total {Number(selectedHsn.igst) + Number(selectedHsn.cgst)}%
                     </p>
                   )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Material (%)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    placeholder="e.g. 20"
+                    className="mt-1.5"
+                    value={materialPercent}
+                    onChange={(e) => setMaterialPercent(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1.5">Leave blank if this service has no material component</p>
                 </div>
               </div>
               <div>

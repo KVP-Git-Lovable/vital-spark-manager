@@ -57,6 +57,8 @@ interface ServiceLine {
   name: string;
   procedure_notes: string;
   recommendations: string;
+  material_percent: string;
+  price: number;
 }
 
 
@@ -87,7 +89,7 @@ export function ProcedureFormDialog({
   const [medicalDirty, setMedicalDirty] = useState(false);
   const [appointmentId] = useState(defaultAppointmentId || "");
   const [serviceLines, setServiceLines] = useState<ServiceLine[]>([
-    { key: `svc-${Date.now()}`, service_id: "", name: defaultServiceName || "", procedure_notes: "", recommendations: "" },
+    { key: `svc-${Date.now()}`, service_id: "", name: defaultServiceName || "", procedure_notes: "", recommendations: "", material_percent: "", price: 0 },
   ]);
 
   const [nextAppointmentAt, setNextAppointmentAt] = useState("");
@@ -416,7 +418,7 @@ export function ProcedureFormDialog({
   const { data: services = [] } = useQuery({
     queryKey: ["services-lookup"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("services").select("id, name, procedure_notes, recommendations").order("name");
+      const { data, error } = await supabase.from("services").select("id, name, price, material_percent, procedure_notes, recommendations").order("name");
       if (error) throw error;
       return data;
     },
@@ -446,7 +448,7 @@ export function ProcedureFormDialog({
   const addServiceLine = () =>
     setServiceLines((prev) => [
       ...prev,
-      { key: `svc-${Date.now()}-${prev.length}`, service_id: "", name: "", procedure_notes: "", recommendations: "" },
+      { key: `svc-${Date.now()}-${prev.length}`, service_id: "", name: "", procedure_notes: "", recommendations: "", material_percent: "", price: 0 },
     ]);
 
   const removeServiceLine = (key: string) =>
@@ -464,6 +466,9 @@ export function ProcedureFormDialog({
       recommendations: Array.isArray(svc.recommendations)
         ? (svc.recommendations as string[]).join("\n")
         : svc.recommendations || "",
+      material_percent:
+        svc.material_percent === null || svc.material_percent === undefined ? "" : String(svc.material_percent),
+      price: Number(svc.price || 0),
     });
 
     // Merge service medicines into prescriptions (no duplicates)
@@ -556,7 +561,7 @@ export function ProcedureFormDialog({
       const cleanLines = serviceLines.filter((l) => (l.name || "").trim());
       const effectiveLines = cleanLines.length
         ? cleanLines
-        : [{ key: "default", service_id: "", name: "Consultation", procedure_notes: "", recommendations: "" }];
+        : [{ key: "default", service_id: "", name: "Consultation", procedure_notes: "", recommendations: "", material_percent: "", price: 0 }];
       const combine = (field: "procedure_notes" | "recommendations") =>
         effectiveLines
           .filter((l) => (l[field] || "").trim())
@@ -591,6 +596,7 @@ export function ProcedureFormDialog({
           service_name: l.name,
           procedure_notes: l.procedure_notes || null,
           recommendations: l.recommendations || null,
+          material_percent: l.material_percent.trim() === "" ? null : parseFloat(l.material_percent),
           sort_order: i,
         })),
       );
@@ -952,6 +958,33 @@ export function ProcedureFormDialog({
                     </Command>
                   </PopoverContent>
                 </Popover>
+                {line.material_percent.trim() !== "" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Material (%)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="0.01"
+                        className="mt-1"
+                        value={line.material_percent}
+                        onChange={(e) => updateServiceLine(line.key, { material_percent: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Material Value (₹)</Label>
+                      <Input
+                        readOnly
+                        className="mt-1 bg-muted/40"
+                        value={((Number(line.price) || 0) * (parseFloat(line.material_percent) || 0) / 100).toFixed(2)}
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {(parseFloat(line.material_percent) || 0)}% of pre-tax value ₹{(Number(line.price) || 0).toFixed(2)} · internal only
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
                   <Textarea
@@ -974,6 +1007,16 @@ export function ProcedureFormDialog({
                 </div>
               </div>
             ))}
+            {serviceLines.some((l) => l.material_percent.trim() !== "") && (
+              <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2 text-sm">
+                <span className="font-medium">Total Material Value (pre-tax)</span>
+                <span className="font-semibold">
+                  ₹{serviceLines
+                    .reduce((sum, l) => sum + (Number(l.price) || 0) * (parseFloat(l.material_percent) || 0) / 100, 0)
+                    .toFixed(2)}
+                </span>
+              </div>
+            )}
           </div>
 
 

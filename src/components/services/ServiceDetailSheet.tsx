@@ -46,6 +46,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
   const [price, setPrice] = useState("");
   const [hsnCode, setHsnCode] = useState("");
   const [gstPercent, setGstPercent] = useState("");
+  const [materialPercent, setMaterialPercent] = useState("");
   const [procedureNotes, setProcedureNotes] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [medicines, setMedicines] = useState<MedicineInput[]>([]);
@@ -133,6 +134,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
       setPrice(String(service.price));
       setHsnCode((service as any).hsn_code || "");
       setGstPercent(String((service as any).gst_percent ?? ""));
+      setMaterialPercent((service as any).material_percent === null || (service as any).material_percent === undefined ? "" : String((service as any).material_percent));
       setProcedureNotes(service.procedure_notes || "");
       setRecommendations((service.recommendations || []).join("\n"));
       setInitialized(true);
@@ -198,6 +200,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
         price: parseFloat(price) || 0,
         hsn_code: hsnCode || null,
         gst_percent: selectedHsn ? Number(selectedHsn.igst || 0) + Number(selectedHsn.cgst || 0) : 0,
+        material_percent: materialPercent.trim() === "" ? null : parseFloat(materialPercent),
         procedure_notes: procedureNotes || null, recommendations: recs,
       } as any).eq("id", serviceId!);
       if (error) throw error;
@@ -323,6 +326,23 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
                     IGST {Number(selectedHsn.igst)}% · CGST {Number(selectedHsn.cgst)}% · Total {Number(selectedHsn.igst) + Number(selectedHsn.cgst)}%
                   </p>
                 )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Material (%)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  placeholder="e.g. 20"
+                  className="mt-1.5"
+                  value={materialPercent}
+                  onChange={(e) => setMaterialPercent(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1.5">Leave blank if this service has no material component</p>
               </div>
             </div>
 

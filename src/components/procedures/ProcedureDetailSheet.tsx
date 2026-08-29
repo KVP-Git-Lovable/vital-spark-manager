@@ -47,6 +47,8 @@ interface ServiceLineRow {
   service_name: string;
   procedure_notes: string;
   recommendations: string;
+  material_percent: string;
+  price: number;
   _deleted?: boolean;
 }
 
@@ -189,7 +191,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const { data: servicesMaster = [] } = useQuery({
     queryKey: ["services-lookup"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("services").select("id, name, procedure_notes, recommendations").order("name");
+      const { data, error } = await supabase.from("services").select("id, name, price, material_percent, procedure_notes, recommendations").order("name");
       if (error) throw error;
       return data;
     },
@@ -248,6 +250,9 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
           service_name: s.service_name || "",
           procedure_notes: s.procedure_notes || "",
           recommendations: s.recommendations || "",
+          material_percent:
+            s.material_percent === null || s.material_percent === undefined ? "" : String(s.material_percent),
+          price: Number((servicesMaster as any[]).find((m: any) => m.id === s.service_id)?.price || 0),
         }))
       : [
           {
@@ -256,6 +261,8 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
             service_name: procedure.service_name || "",
             procedure_notes: procedure.procedure_notes || "",
             recommendations: procedure.recommendations || "",
+            material_percent: "",
+            price: 0,
           },
         ];
     setEditServiceLines(rows);
@@ -267,7 +274,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const addLine = () =>
     setEditServiceLines((prev) => [
       ...prev,
-      { key: `svc-${Date.now()}-${prev.length}`, service_id: null, service_name: "", procedure_notes: "", recommendations: "" },
+      { key: `svc-${Date.now()}-${prev.length}`, service_id: null, service_name: "", procedure_notes: "", recommendations: "", material_percent: "", price: 0 },
     ]);
   const removeLine = (key: string) =>
     setEditServiceLines((prev) =>
@@ -328,6 +335,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
             service_name: l.service_name,
             procedure_notes: l.procedure_notes || null,
             recommendations: l.recommendations || null,
+            material_percent: l.material_percent.trim() === "" ? null : parseFloat(l.material_percent),
             sort_order: i,
           }).eq("id", l.id);
         } else {
@@ -337,6 +345,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
             service_name: l.service_name,
             procedure_notes: l.procedure_notes || null,
             recommendations: l.recommendations || null,
+            material_percent: l.material_percent.trim() === "" ? null : parseFloat(l.material_percent),
             sort_order: i,
           });
         }
@@ -579,6 +588,11 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                               recommendations:
                                 line.recommendations ||
                                 (Array.isArray(svc?.recommendations) ? svc.recommendations.join("\n") : svc?.recommendations || ""),
+                              material_percent:
+                                svc?.material_percent === null || svc?.material_percent === undefined
+                                  ? ""
+                                  : String(svc.material_percent),
+                              price: Number(svc?.price || 0),
                             });
                           }}
                         >
@@ -588,6 +602,31 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                           </SelectContent>
                         </Select>
                       </div>
+                      {line.material_percent.trim() !== "" && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Material (%)</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step="0.01"
+                              className="mt-1"
+                              value={line.material_percent}
+                              onChange={(e) => updateLine(line.key, { material_percent: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Material Value (₹)</Label>
+                            <Input
+                              readOnly
+                              className="mt-1 bg-muted/40"
+                              value={((Number(line.price) || 0) * (parseFloat(line.material_percent) || 0) / 100).toFixed(2)}
+                            />
+                            <p className="text-[11px] text-muted-foreground mt-1">Pre-tax, internal only</p>
+                          </div>
+                        </div>
+                      )}
                       <div>
                         <div className="flex items-center justify-between">
                           <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
@@ -614,6 +653,16 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                       </div>
                     </div>
                   ))}
+                  {visibleLines.some((l) => l.material_percent.trim() !== "") && (
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2 text-sm">
+                      <span className="font-medium">Total Material Value (pre-tax)</span>
+                      <span className="font-semibold">
+                        ₹{visibleLines
+                          .reduce((sum, l) => sum + (Number(l.price) || 0) * (parseFloat(l.material_percent) || 0) / 100, 0)
+                          .toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
 

@@ -16,6 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, CopyCheck, Trash2, Pencil, ArrowUp, ArrowDown } from "lucide-react";
 import { VALIDATION_OBJECTS, getObject, type ValidationObject } from "@/lib/validation/schema";
 import { renderTemplate } from "@/lib/duplicates/engine";
+import RuleSimulator from "@/components/duplicates/RuleSimulator";
+import DuplicateAlertsPanel from "@/components/duplicates/DuplicateAlertsPanel";
+
 import {
   DUPLICATE_ACTIONS,
   DuplicateRule,
@@ -41,7 +44,9 @@ const sampleRecord = (obj: ValidationObject): Record<string, any> => {
 export default function DuplicateManagement() {
   const queryClient = useQueryClient();
   const [objectKey, setObjectKey] = useState(VALIDATION_OBJECTS[0].key);
+  const [section, setSection] = useState("rules");
   const [editing, setEditing] = useState<DuplicateRule | null>(null);
+
 
   const { data: rules = [], isLoading } = useQuery({
     queryKey: ["duplicate-rules"],
@@ -172,6 +177,9 @@ export default function DuplicateManagement() {
           </div>
         ))}
       </Card>
+        </TabsContent>
+      </Tabs>
+
 
       {editing && <RuleEditor rule={editing} onClose={() => setEditing(null)} />}
     </div>

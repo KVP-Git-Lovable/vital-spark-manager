@@ -958,33 +958,6 @@ export function ProcedureFormDialog({
                     </Command>
                   </PopoverContent>
                 </Popover>
-                {line.material_percent.trim() !== "" && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Material (%)</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step="0.01"
-                        className="mt-1"
-                        value={line.material_percent}
-                        onChange={(e) => updateServiceLine(line.key, { material_percent: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Material Value (₹)</Label>
-                      <Input
-                        readOnly
-                        className="mt-1 bg-muted/40"
-                        value={((Number(line.price) || 0) * (parseFloat(line.material_percent) || 0) / 100).toFixed(2)}
-                      />
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        {(parseFloat(line.material_percent) || 0)}% of pre-tax value ₹{(Number(line.price) || 0).toFixed(2)} · internal only
-                      </p>
-                    </div>
-                  </div>
-                )}
                 <div>
                   <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
                   <Textarea
@@ -1007,16 +980,6 @@ export function ProcedureFormDialog({
                 </div>
               </div>
             ))}
-            {serviceLines.some((l) => l.material_percent.trim() !== "") && (
-              <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2 text-sm">
-                <span className="font-medium">Total Material Value (pre-tax)</span>
-                <span className="font-semibold">
-                  ₹{serviceLines
-                    .reduce((sum, l) => sum + (Number(l.price) || 0) * (parseFloat(l.material_percent) || 0) / 100, 0)
-                    .toFixed(2)}
-                </span>
-              </div>
-            )}
           </div>
 
 

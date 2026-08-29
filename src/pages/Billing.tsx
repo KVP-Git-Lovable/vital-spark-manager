@@ -2344,7 +2344,6 @@ const Billing = () => {
                           </div>
                         )}
                         <div className="flex justify-between font-semibold text-primary text-base"><span>Grand Total</span><span>{money(subtotal + totalTax)}</span></div>
-                        {materialSection}
                       </div>
                     );
                   })()}
@@ -2547,6 +2546,8 @@ const Billing = () => {
                 <Label>Notes</Label>
                 <Textarea className="mt-1.5" placeholder="Optional notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
               </div>
+
+              {materialSection}
               {/* Mobile-only inline create button (sticky panel handles desktop) */}
               <Button className="w-full lg:hidden" onClick={() => createInvoice.mutate()} disabled={!canCreateInvoice() || createInvoice.isPending}>
                 {createInvoice.isPending ? "Creating..." : paymentType === "Staged" ? `Create ${stages.length} Staged Invoice(s)` : paymentType === "Recurring" ? `Create ${recurringCount} Recurring Invoice(s)` : "Create Invoice"}
@@ -2654,7 +2655,6 @@ const Billing = () => {
                     </div>
                   );
                 })()}
-                {materialSection}
               </div>
               <div className="border-t px-5 py-4 bg-background/60">
                 <Button className="w-full" onClick={() => createInvoice.mutate()} disabled={!canCreateInvoice() || createInvoice.isPending}>

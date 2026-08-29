@@ -196,6 +196,11 @@ Deno.serve(async (req) => {
               engagement_retention_signal: r.breakdown.retentionSignal,
               engagement_compliance: r.breakdown.compliance,
               engagement_updated_at: stamp,
+              total_visits: r.stats.completedAppointments,
+              lifetime_value: r.stats.totalBilled,
+              last_visit_date: r.stats.lastVisitDate,
+              days_since_last_visit:
+                r.stats.daysSinceLastVisit >= 999 ? null : r.stats.daysSinceLastVisit,
             })
             .eq("id", pid)
         )

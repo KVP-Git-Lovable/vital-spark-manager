@@ -5,6 +5,7 @@ import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
+import { PatientEngagementRollups } from "@/components/patients/PatientEngagementRollups";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -735,6 +736,7 @@ const PatientDetail = () => {
 
       <div className="space-y-4 mb-4">
         <EngagementScoreCard patientId={id!} />
+        <PatientEngagementRollups patient={patient} />
       </div>
 
       <Tabs defaultValue="details" className="mt-2">

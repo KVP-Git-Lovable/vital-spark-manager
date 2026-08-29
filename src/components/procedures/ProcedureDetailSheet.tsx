@@ -590,7 +590,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
             <div className="p-6 text-center text-muted-foreground">Loading...</div>
           ) : (
             <>
-              <SheetHeader className="p-6 pb-4 border-b bg-muted/30">
+              <SheetHeader className="p-6 pb-4 border-b bg-muted/30 shadow-sm sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-muted/60">
                 <div className="flex items-start justify-between">
                   <div>
                     <Badge variant="outline" className="text-[10px] text-muted-foreground mb-1.5 font-normal">Procedure</Badge>
@@ -612,7 +612,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 )}
               </SheetHeader>
 
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-4 mx-auto w-full max-w-5xl">
                 <Tabs defaultValue="procedure" className="w-full">
                   <TabsList>
                     <TabsTrigger value="procedure">Procedure</TabsTrigger>

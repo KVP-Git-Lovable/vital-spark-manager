@@ -6,6 +6,8 @@ export interface FieldDef {
   type: FieldType;
   /** Where the picklist options come from (resolved at runtime by the caller). */
   optionsSource?: "gender" | "status" | "skin_type" | "blood_group" | "source" | "doctor";
+  /** Recurring yearly date (birthday/anniversary) — matched on day+month, ignoring year. */
+  anniversary?: boolean;
 }
 
 export const PATIENT_FIELDS: FieldDef[] = [

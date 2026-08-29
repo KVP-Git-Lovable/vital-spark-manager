@@ -577,18 +577,16 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
           </div>
         )}
 
-        {duplicates.length > 0 && (
-          <div className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400 space-y-1">
-            <p className="flex items-center gap-1.5 font-medium">
-              <AlertCircle className="h-3.5 w-3.5" /> Possible duplicate patient found
-            </p>
-            {duplicates.map((d) => (
-              <p key={d.id}>
-                {d.first_name} {d.last_name} · {d.phone || "no phone"}{d.email ? ` · ${d.email}` : ""}
-              </p>
-            ))}
-          </div>
+        {liveMatches.length > 0 && (
+          <DuplicateNotificationBand
+            className="mt-4"
+            matches={liveMatches}
+            objectKey="patients"
+            onIgnore={() => { setDuplicateAck(true); setLiveMatches([]); }}
+            onResolve={(rec) => setResolveWith(rec)}
+          />
         )}
+
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
           <TabsList className="grid w-full grid-cols-3">

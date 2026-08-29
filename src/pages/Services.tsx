@@ -495,6 +495,22 @@ const Services = () => {
                   )}
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Material (%)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    placeholder="e.g. 20"
+                    className="mt-1.5"
+                    value={materialPercent}
+                    onChange={(e) => setMaterialPercent(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1.5">Leave blank if this service has no material component</p>
+                </div>
+              </div>
               <div>
                 <Label>Primary Concern</Label>
                 <div className="mt-1.5 flex flex-wrap gap-2 rounded-md border p-2">

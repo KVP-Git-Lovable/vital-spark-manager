@@ -124,6 +124,15 @@ function FieldPicker({ columns, onChange }: { columns: string[]; onChange: (next
     <div className="flex items-stretch gap-2">
       <div className="flex-1 min-w-0 space-y-1">
         <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Available Fields</Label>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={availQuery}
+            onChange={(e) => setAvailQuery(e.target.value)}
+            placeholder="Search fields..."
+            className="h-8 pl-7 text-xs"
+          />
+        </div>
         <div className="h-64 overflow-y-auto rounded-lg border border-border bg-background p-1.5 shadow-inner">
           {available.map((f) => (
             <button
@@ -137,7 +146,9 @@ function FieldPicker({ columns, onChange }: { columns: string[]; onChange: (next
             </button>
           ))}
           {available.length === 0 && (
-            <p className="px-2 py-4 text-center text-[11px] text-muted-foreground">All fields selected</p>
+            <p className="px-2 py-4 text-center text-[11px] text-muted-foreground">
+              {availQuery ? "No matching fields" : "All fields selected"}
+            </p>
           )}
         </div>
       </div>
@@ -153,8 +164,17 @@ function FieldPicker({ columns, onChange }: { columns: string[]; onChange: (next
 
       <div className="flex-1 min-w-0 space-y-1">
         <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Visible Fields (in order)</Label>
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={visQuery}
+            onChange={(e) => setVisQuery(e.target.value)}
+            placeholder="Search fields..."
+            className="h-8 pl-7 text-xs"
+          />
+        </div>
         <div className="h-64 overflow-y-auto rounded-lg border border-border bg-background p-1.5 shadow-inner">
-          {columns.map((key) => (
+          {visibleShown.map((key) => (
             <button
               key={key}
               type="button"
@@ -165,11 +185,14 @@ function FieldPicker({ columns, onChange }: { columns: string[]; onChange: (next
               {labelFor(key)}
             </button>
           ))}
-          {columns.length === 0 && (
-            <p className="px-2 py-4 text-center text-[11px] text-muted-foreground">No columns chosen</p>
+          {visibleShown.length === 0 && (
+            <p className="px-2 py-4 text-center text-[11px] text-muted-foreground">
+              {visQuery ? "No matching fields" : "No columns chosen"}
+            </p>
           )}
         </div>
       </div>
+
 
       <div className="flex flex-col justify-center gap-2 pt-5">
         <Button type="button" variant="outline" size="icon" className="h-9 w-9 bg-background hover:bg-accent" onClick={() => move(-1)} disabled={!visSel.length}>

@@ -1007,6 +1007,16 @@ export function ProcedureFormDialog({
                 </div>
               </div>
             ))}
+            {serviceLines.some((l) => l.material_percent.trim() !== "") && (
+              <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2 text-sm">
+                <span className="font-medium">Total Material Value (pre-tax)</span>
+                <span className="font-semibold">
+                  ₹{serviceLines
+                    .reduce((sum, l) => sum + (Number(l.price) || 0) * (parseFloat(l.material_percent) || 0) / 100, 0)
+                    .toFixed(2)}
+                </span>
+              </div>
+            )}
           </div>
 
 

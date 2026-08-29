@@ -77,12 +77,10 @@ export function ProcedureFormDialog({
   const [medical, setMedical] = useState<Record<string, string>>({});
   const [medicalDirty, setMedicalDirty] = useState(false);
   const [appointmentId] = useState(defaultAppointmentId || "");
-  const [serviceId, setServiceId] = useState("");
-  const [serviceName, setServiceName] = useState(defaultServiceName || "");
-  const [symptoms, setSymptoms] = useState("");
-  const [diagnosis, setDiagnosis] = useState("");
-  const [procedureNotes, setProcedureNotes] = useState("");
-  const [recommendations, setRecommendations] = useState("");
+  const [serviceLines, setServiceLines] = useState<ServiceLine[]>([
+    { key: `svc-${Date.now()}`, service_id: "", name: defaultServiceName || "", procedure_notes: "", recommendations: "" },
+  ]);
+
   const [nextAppointmentAt, setNextAppointmentAt] = useState("");
   const [visitType, setVisitType] = useState<"Single" | "Recurring">("Single");
   const [recurringCount, setRecurringCount] = useState(2);

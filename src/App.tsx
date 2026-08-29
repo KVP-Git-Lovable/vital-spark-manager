@@ -53,6 +53,7 @@ import ShopOrders from "./pages/shop/ShopOrders";
 import Website from "./pages/Website";
 import Landing from "./pages/clinic/Landing";
 import ProblemAreas from "./pages/ProblemAreas";
+import DuplicateManagement from "./pages/DuplicateManagement";
 import SurveyTemplates from "./pages/SurveyTemplates";
 import SurveyTemplateDetail from "./pages/SurveyTemplateDetail";
 import AllSurveys from "./pages/AllSurveys";
@@ -185,6 +186,7 @@ const App = () => (
                     <Route path="/validation-rules" element={<ProtectedRoute moduleKey="settings"><ValidationRules /></ProtectedRoute>} />
                     <Route path="/admin" element={<ProtectedRoute moduleKey="settings"><Admin /></ProtectedRoute>} />
                     <Route path="/validation-rules/:id" element={<ProtectedRoute moduleKey="settings"><ValidationRuleBuilder /></ProtectedRoute>} />
+                    <Route path="/duplicate-management" element={<ProtectedRoute moduleKey="settings"><DuplicateManagement /></ProtectedRoute>} />
                     <Route path="/custom-fields" element={<ProtectedRoute moduleKey="settings"><CustomFields /></ProtectedRoute>} />
                     <Route path="/settings" element={<ProtectedRoute moduleKey="settings"><Settings /></ProtectedRoute>} />
                     <Route path="/settings/tax-master/new" element={<ProtectedRoute moduleKey="settings"><TaxMasterForm /></ProtectedRoute>} />

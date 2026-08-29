@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -827,6 +827,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      duplicate_rules: {
+        Row: {
+          actions: Json
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          match_fields: Json
+          name: string
+          notification: Json
+          object_key: string
+          updated_at: string
+        }
+        Insert: {
+          actions?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          match_fields?: Json
+          name: string
+          notification?: Json
+          object_key: string
+          updated_at?: string
+        }
+        Update: {
+          actions?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          match_fields?: Json
+          name?: string
+          notification?: Json
+          object_key?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       expense_categories: {
         Row: {

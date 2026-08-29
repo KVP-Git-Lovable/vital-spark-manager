@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Megaphone,
+  CopyCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -96,6 +97,7 @@ const settingsItems = [
 const adminSubItems = [
   { title: "Validation Rules", url: "/validation-rules", icon: ShieldCheck },
   { title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal },
+  { title: "Duplicate Management", url: "/duplicate-management", icon: CopyCheck },
 ];
 
 export function AppSidebar() {

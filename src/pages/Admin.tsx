@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
-import { ShieldCheck, SlidersHorizontal, ChevronRight } from "lucide-react";
+import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck } from "lucide-react";
 
 const sections = [
   {
@@ -14,6 +14,12 @@ const sections = [
     description: "Create sections and custom fields on any object with a drag-and-drop layout.",
     url: "/custom-fields",
     icon: SlidersHorizontal,
+  },
+  {
+    title: "Duplicate Management",
+    description: "Define duplicate matching rules, notification text and the actions users can take.",
+    url: "/duplicate-management",
+    icon: CopyCheck,
   },
 ];
 

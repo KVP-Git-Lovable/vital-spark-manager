@@ -124,10 +124,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     }
   };
 
-  const elaborate = async (fieldType: "symptoms" | "diagnosis" | "procedure_notes" | "recommendations") => {
-    const svcName = (editServiceName || "Consultation").trim();
-    const currentText = fieldType === "symptoms" ? editSymptoms : fieldType === "diagnosis" ? editDiagnosis : fieldType === "procedure_notes" ? editProcedureNotes : editRecommendations;
-    setElaborating(fieldType);
+  const elaborateLine = async (lineKey: string, fieldType: "procedure_notes" | "recommendations") => {
+    const line = editServiceLines.find((l) => l.key === lineKey);
+    if (!line) return;
+    const svcName = (line.service_name || editServiceName || "Consultation").trim();
+    const currentText = fieldType === "procedure_notes" ? line.procedure_notes : line.recommendations;
+    setElaborating(`${lineKey}:${fieldType}`);
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/elaborate-text`, {
         method: "POST",
@@ -136,14 +138,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       });
       if (!res.ok) { const err = await res.json().catch(() => ({ error: "AI request failed" })); throw new Error(err.error || "AI request failed"); }
       const { text } = await res.json();
-      if (fieldType === "symptoms") setEditSymptoms(text);
-      else if (fieldType === "diagnosis") setEditDiagnosis(text);
-      else if (fieldType === "procedure_notes") setEditProcedureNotes(text);
-      else setEditRecommendations(text);
+      setEditServiceLines((prev) => prev.map((l) => (l.key === lineKey ? { ...l, [fieldType]: text } : l)));
       toast.success("Text elaborated");
     } catch (e: any) { toast.error(e.message || "Failed to elaborate"); }
     finally { setElaborating(null); }
   };
+
 
   const { data: procedure, isLoading } = useQuery({
     queryKey: ["procedure-detail", procedureId],

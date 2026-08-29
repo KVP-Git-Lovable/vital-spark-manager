@@ -30,6 +30,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CameraCapture } from "@/components/shared/CameraCapture";
@@ -760,7 +761,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("appointments").delete().eq("id", appointmentId!);
+      const error: any = await moveToTrash("appointments", appointmentId!).then(() => null).catch((e: any) => e);
       if (error) throw error;
     },
     onSuccess: () => {

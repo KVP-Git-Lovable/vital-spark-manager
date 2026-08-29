@@ -10,6 +10,8 @@ import ViewEditorDialog from "@/components/patients/listviews/ViewEditorDialog";
 import PatientListViewTable from "@/components/patients/listviews/PatientListViewTable";
 import { usePatientListViews } from "@/hooks/usePatientListViews";
 import { applyFilters, sortRows, DEFAULT_VIEW_COLUMNS, type ListView } from "@/lib/patientFields";
+import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
+import { moveToTrash } from "@/lib/trash";
 
 import {
   AlertDialog,
@@ -186,6 +188,7 @@ const Patients = () => {
   const [cameraPatient, setCameraPatient] = useState<Patient | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deletePatient, setDeletePatient] = useState<Patient | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -335,19 +338,35 @@ const Patients = () => {
     }
   };
 
+  const patientLabel = (p: Patient) => `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.phone || "Unnamed";
+
   const handleBulkDelete = async () => {
     setDeleting(true);
     const ids = Array.from(selectedIds);
-    const { error } = await supabase.from("patients").delete().in("id", ids);
-    setDeleting(false);
-    if (error) {
-      toast.error(`Failed to delete: ${error.message}`);
-      return;
+    try {
+      for (const id of ids) {
+        const row = paged.find((p) => p.id === id);
+        await moveToTrash("patients", id, row ? patientLabel(row) : undefined);
+      }
+      toast.success(`Moved ${ids.length} patient${ids.length > 1 ? "s" : ""} to Trash`);
+      setSelectedIds(new Set());
+      setConfirmOpen(false);
+      reloadPatients();
+    } catch (e: any) {
+      toast.error(`Failed to delete: ${e.message}`);
+    } finally {
+      setDeleting(false);
     }
-    toast.success(`Deleted ${ids.length} patient${ids.length > 1 ? "s" : ""}`);
-    setSelectedIds(new Set());
-    setConfirmOpen(false);
-    reloadPatients();
+  };
+
+  const handleDeleteOne = async (patient: Patient) => {
+    try {
+      await moveToTrash("patients", patient.id, patientLabel(patient));
+      toast.success("Patient moved to Trash");
+      reloadPatients();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
   };
 
   const allFilteredSelected = paged.length > 0 && paged.every((p) => selectedIds.has(p.id));
@@ -539,6 +558,12 @@ const Patients = () => {
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setCameraPatient(patient); }}>
                             <Camera className="h-3.5 w-3.5 mr-1.5" /> Take Photo
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={(e) => { e.stopPropagation(); setDeletePatient(patient); }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </td>
@@ -609,7 +634,8 @@ const Patients = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {selectedIds.size} patient{selectedIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. All selected patient records will be permanently removed.
+              The selected patient records will be moved to Trash. You can restore them from Trash, or permanently
+              delete them once the retention period set by your admin has passed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -619,11 +645,18 @@ const Patients = () => {
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? "Deleting..." : "Delete"}
+              {deleting ? "Deleting..." : "Move to Trash"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DeleteConfirmDialog
+        open={!!deletePatient}
+        onOpenChange={(o) => { if (!o) setDeletePatient(null); }}
+        entity={deletePatient ? `patient "${`${deletePatient.first_name || ""} ${deletePatient.last_name || ""}`.trim() || "Unnamed"}"` : "patient"}
+        onConfirm={async () => { if (deletePatient) await handleDeleteOne(deletePatient); setDeletePatient(null); }}
+      />
 
       <ViewEditorDialog
         open={editorOpen}

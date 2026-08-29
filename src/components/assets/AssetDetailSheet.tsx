@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -99,7 +100,7 @@ export function AssetDetailSheet({ open, onOpenChange, asset, vendors }: AssetDe
 
   const deleteAsset = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("assets").delete().eq("id", asset.id);
+      const error: any = await moveToTrash("assets", asset.id).then(() => null).catch((e: any) => e);
       if (error) throw error;
     },
     onSuccess: () => {

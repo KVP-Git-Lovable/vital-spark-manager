@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ServiceDetailSheet } from "@/components/services/ServiceDetailSheet";
@@ -251,7 +252,7 @@ const Services = () => {
     mutationFn: async (id: string) => {
       await supabase.from("service_medicines").delete().eq("service_id", id);
       await supabase.from("asset_service_links").delete().eq("service_id", id);
-      const { error } = await supabase.from("services").delete().eq("id", id);
+      const error: any = await moveToTrash("services", id).then(() => null).catch((e: any) => e);
       if (error) throw error;
     },
     onSuccess: () => {

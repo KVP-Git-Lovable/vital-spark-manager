@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -167,7 +168,7 @@ const Expenses = () => {
 
   const deleteExpense = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("expenses").delete().eq("id", id);
+      const error: any = await moveToTrash("expenses", id).then(() => null).catch((e: any) => e);
       if (error) throw error;
     },
     onSuccess: () => {

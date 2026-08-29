@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -1564,7 +1565,7 @@ const Billing = () => {
 
   const deleteInvoice = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("invoices").delete().eq("id", id);
+      const error: any = await moveToTrash("invoices", id).then(() => null).catch((e: any) => e);
       if (error) throw error;
     },
     onSuccess: () => {

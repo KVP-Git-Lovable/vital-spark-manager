@@ -12,6 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -113,7 +114,7 @@ const ProblemAreas = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("problem_areas").delete().eq("id", id);
+      const error: any = await moveToTrash("problem_areas", id).then(() => null).catch((e: any) => e);
       if (error) throw error;
     },
     onSuccess: () => {

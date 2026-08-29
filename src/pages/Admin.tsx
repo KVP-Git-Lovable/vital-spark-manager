@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
-import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck } from "lucide-react";
+import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck, Trash2 } from "lucide-react";
 
 const sections = [
   {
@@ -20,6 +20,12 @@ const sections = [
     description: "Define duplicate matching rules, notification text and the actions users can take.",
     url: "/duplicate-management",
     icon: CopyCheck,
+  },
+  {
+    title: "Trash Policy & Audit",
+    description: "Set how long deleted records are retained and review deletion activity for every user.",
+    url: "/admin/trash",
+    icon: Trash2,
   },
 ];
 

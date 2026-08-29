@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Pencil, Trash2, Copy, Plus, Check, X, AlertTriangle, Package, PackagePlus, Stethoscope, ShoppingBag, TrendingUp, DollarSign, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -196,7 +197,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
 
   const deleteProduct = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("pharma_products").delete().eq("id", productId!);
+      const error: any = await moveToTrash("pharma_products", productId!).then(() => null).catch((e: any) => e);
       if (error) throw error;
     },
     onSuccess: () => {

@@ -17,6 +17,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CameraCapture } from "@/components/shared/CameraCapture";
@@ -285,7 +286,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     mutationFn: async () => {
       await supabase.from("prescriptions").delete().eq("procedure_id", procedureId!);
       await supabase.from("procedure_attachments").delete().eq("procedure_id", procedureId!);
-      const { error } = await supabase.from("procedures").delete().eq("id", procedureId!);
+      const error: any = await moveToTrash("procedures", procedureId!).then(() => null).catch((e: any) => e);
       if (error) throw error;
     },
     onSuccess: () => {

@@ -277,7 +277,10 @@ export default function ViewEditorDialog({ open, onOpenChange, view, onSave, doc
                   const def = fieldDef(c.field);
                   const ops = OPERATORS[def?.type ?? "text"];
                   const picks = optionsFor(def?.optionsSource);
-                  const needsValue = !["is_empty", "is_not_empty", "this_month"].includes(c.operator);
+                  const dateNeedsInput = ["on", "before", "after", "between", "last_n_days", "next_n_days"].includes(c.operator);
+                  const needsValue =
+                    !["is_empty", "is_not_empty"].includes(c.operator) &&
+                    (def?.type !== "date" || dateNeedsInput);
                   return (
                     <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1.2fr_auto] gap-2 items-center border border-border rounded-lg bg-muted/20 p-3">
                       <Select

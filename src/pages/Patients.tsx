@@ -1,13 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { useNavigate } from "react-router-dom";
 import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Trash2, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ViewSelector } from "@/components/views/ViewSelector";
-import { NewListViewDialog } from "@/components/views/NewListViewDialog";
-import { useListViews } from "@/hooks/useListViews";
+import ViewBar from "@/components/patients/listviews/ViewBar";
+import ViewEditorDialog from "@/components/patients/listviews/ViewEditorDialog";
+import PatientListViewTable from "@/components/patients/listviews/PatientListViewTable";
+import { usePatientListViews } from "@/hooks/usePatientListViews";
+import { applyFilters, sortRows, DEFAULT_VIEW_COLUMNS, type ListView } from "@/lib/patientFields";
+
 import {
   AlertDialog,
   AlertDialogAction,

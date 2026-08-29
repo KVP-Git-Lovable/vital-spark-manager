@@ -669,7 +669,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </div>
 
                 {/* Services / Procedures */}
-                <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4 space-y-3">
+                <div className="rounded-xl border-2 border-primary/25 bg-primary/5 p-4 space-y-3 shadow-sm">
                   <div className="flex items-center justify-between">
                     <Label className="text-base font-display font-semibold text-primary">Services / Procedures</Label>
                     <Button type="button" variant="outline" size="sm" onClick={addLine}>
@@ -677,7 +677,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     </Button>
                   </div>
                   {visibleLines.map((line, i) => (
-                    <div key={line.key} className="rounded-lg border bg-background p-3 space-y-2">
+                    <div key={line.key} className="rounded-lg border bg-background p-3 space-y-2 shadow-sm transition-shadow hover:shadow-md">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-medium text-muted-foreground">Service {i + 1}</span>
                         {visibleLines.length > 1 && (

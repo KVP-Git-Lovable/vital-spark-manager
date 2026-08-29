@@ -556,6 +556,14 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
       onClose={() => setDupDialogOpen(false)}
       onIgnore={() => void handleSave({ skipDuplicateCheck: true })}
     />
+    <DuplicateResolveDialog
+      open={!!resolveWith}
+      onClose={() => setResolveWith(null)}
+      primary={(patient as any) || null}
+      duplicate={resolveWith}
+      onResolved={() => { setResolveWith(null); setLiveMatches([]); onSuccess(); }}
+    />
+
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto p-6">
         <DialogHeader>

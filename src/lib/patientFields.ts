@@ -260,30 +260,26 @@ function matchOne(row: any, c: FilterCondition): boolean {
     if (!val) return false;
     const d = new Date(String(val));
     if (isNaN(d.getTime())) return false;
-    const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-    const target = c.value ? day(new Date(c.value)) : NaN;
-    switch (c.operator) {
-      case "on": return day(d) === target;
-      case "before": return day(d) < target;
-      case "after": return day(d) > target;
-      case "between": {
-        const t2 = c.value2 ? day(new Date(c.value2)) : NaN;
-        if (isNaN(target) || isNaN(t2)) return true;
-        return day(d) >= Math.min(target, t2) && day(d) <= Math.max(target, t2);
+    const dayValue = startOfDay(d).getTime();
+
+    if (c.operator === "before" || c.operator === "after") {
+      if (!c.value) return true;
+      const target = startOfDay(new Date(c.value));
+      if (isNaN(target.getTime())) return true;
+      if (def.anniversary) {
+        // compare this year's occurrence
+        const occ = new Date(target.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        return c.operator === "before" ? occ < target.getTime() : occ > target.getTime();
       }
-      case "last_n_days": {
-        const n = Number(c.value || 0);
-        if (!n) return true;
-        const from = Date.now() - n * 86400000;
-        return d.getTime() >= from && d.getTime() <= Date.now() + 86400000;
-      }
-      case "this_month": {
-        const now = new Date();
-        return d >= startOfMonth(now) && d < startOfMonth(new Date(now.getFullYear(), now.getMonth() + 1, 1));
-      }
-      default: return true;
+      return c.operator === "before" ? dayValue < target.getTime() : dayValue > target.getTime();
     }
+
+    const range = dateRangeFor(c.operator, c.value, c.value2);
+    if (!range) return true;
+    if (def.anniversary) return anniversaryInRange(d, range);
+    return dayValue >= range.from.getTime() && dayValue <= range.to.getTime();
   }
+
 
   const s = String(val ?? "").toLowerCase();
   const q = String(c.value ?? "").toLowerCase();

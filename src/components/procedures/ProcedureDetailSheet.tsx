@@ -338,6 +338,8 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     setEditServiceLines([]);
     setEditPrescriptions([]);
     setAttachmentNotes("");
+    setMedical({});
+    setMedicalDirty(false);
     onClose();
   };
 

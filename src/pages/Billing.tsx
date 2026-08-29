@@ -878,6 +878,22 @@ const Billing = () => {
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
   const servicesSubtotal = useMemo(() => serviceInputs.reduce((sum, s) => sum + (Number(s.price) || 0), 0), [serviceInputs]);
 
+  // Internal-only material cost: % (from Service Master) of the pre-tax service value.
+  // Never used in any invoice calculation.
+  const materialRows = useMemo(() => {
+    return serviceInputs
+      .map((s: any) => {
+        const svc = (serviceMaster as any[]).find((m: any) => m.name === s.name);
+        const pct = Number(svc?.material_percent) || 0;
+        const base = Number(s.price) || 0;
+        if (!pct || !base) return null;
+        return { name: s.name as string, percent: pct, base, cost: (base * pct) / 100 };
+      })
+      .filter(Boolean) as { name: string; percent: number; base: number; cost: number }[];
+  }, [serviceInputs, serviceMaster]);
+  const materialTotal = materialRows.reduce((s, r) => s + r.cost, 0);
+
+
   // Tax for a share of the bill (used by installments): each line taxed at its own rate, scaled.
   const scaledLineTax = (scale: number) => {
     let cgst = 0, sgst = 0, igst = 0;

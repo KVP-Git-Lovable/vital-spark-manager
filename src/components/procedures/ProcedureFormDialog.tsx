@@ -649,7 +649,7 @@ export function ProcedureFormDialog({
             patient_id: patientId,
             patient_name: p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() : null,
             staff_id: staffId || null,
-            service: serviceName || "Follow Up",
+            service: serviceLines.map((l) => l.name).filter(Boolean).join(", ") || "Follow Up",
             start_time: start.toISOString(),
             end_time: end.toISOString(),
             status: "Reserved",

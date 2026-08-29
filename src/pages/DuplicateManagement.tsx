@@ -14,7 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, CopyCheck, Trash2, Pencil, ArrowUp, ArrowDown } from "lucide-react";
-import { VALIDATION_OBJECTS, getObject } from "@/lib/validation/schema";
+import { VALIDATION_OBJECTS, getObject, type ValidationObject } from "@/lib/validation/schema";
+import { renderTemplate } from "@/lib/duplicates/engine";
 import {
   DUPLICATE_ACTIONS,
   DuplicateRule,
@@ -22,6 +23,20 @@ import {
   emptyNotification,
   newId,
 } from "@/lib/duplicates/types";
+
+const sampleRecord = (obj: ValidationObject): Record<string, any> => {
+  const rec: Record<string, any> = { id: "sample" };
+  obj.fields.forEach((f) => {
+    rec[f.key] =
+      f.key === "first_name" ? "Priya" :
+      f.key === "last_name" ? "Sharma" :
+      f.key === "phone" ? "+91 98765 43210" :
+      f.key === "email" ? "priya@example.com" :
+      f.options?.[0] || `Sample ${f.label}`;
+  });
+  return rec;
+};
+
 
 export default function DuplicateManagement() {
   const queryClient = useQueryClient();
@@ -158,7 +173,7 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
     patch({
       match_fields: [
         ...draft.match_fields,
-        { id: newId(), field_key: obj.fields[0].key, matchType: "exact", joiner: "and" } as MatchField,
+        { id: newId(), field_key: obj.fields[0].key, matchType: "exact", joiner: "and", severity: "alert" } as MatchField,
       ],
     });
 
@@ -281,7 +296,7 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
                       </Button>
                     </div>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-3">
                     <Select value={f.field_key} onValueChange={(v) => updateField(f.id, { field_key: v })}>
                       <SelectTrigger><SelectValue placeholder="Field" /></SelectTrigger>
                       <SelectContent>
@@ -299,7 +314,23 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
                         <SelectItem value="starts_with">Starts with</SelectItem>
                       </SelectContent>
                     </Select>
+                    <Select
+                      value={f.severity || "alert"}
+                      onValueChange={(v) => updateField(f.id, { severity: v as any })}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="alert">Alert only (can still save)</SelectItem>
+                        <SelectItem value="block">Block save (stop the user)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    {(f.severity || "alert") === "block"
+                      ? "If this field matches an existing record, the user cannot save."
+                      : "If this field matches, the user is warned but may continue."}
+                  </p>
+
                 </Card>
               ))}
             </div>
@@ -313,7 +344,7 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
           <TabsContent value="notification" className="space-y-3 pt-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label>Severity</Label>
+                <Label>Default severity</Label>
                 <Select
                   value={draft.notification.severity}
                   onValueChange={(v) => patch({ notification: { ...draft.notification, severity: v as any } })}
@@ -324,6 +355,9 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
                     <SelectItem value="error">Error (block save)</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Individual fields set to "Block save" always stop the user, whatever this is set to.
+                </p>
               </div>
               <div>
                 <Label>Title</Label>
@@ -343,9 +377,45 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
                 placeholder="A record with the same phone number already exists: {{match}}"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Use <code>{"{{match}}"}</code> for the matched record name and <code>{"{{field}}"}</code> for the matched field.
+                Click a token to insert data from the duplicate record into the message.
               </p>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {[
+                  { token: "{{match}}", label: "Matched record name" },
+                  { token: "{{field}}", label: "Matched field(s)" },
+                  ...obj.fields.map((f) => ({ token: `{{field.${f.key}}}`, label: f.label })),
+                ].map((t) => (
+                  <Button
+                    key={t.token}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() =>
+                      patch({
+                        notification: {
+                          ...draft.notification,
+                          message: `${draft.notification.message || ""}${draft.notification.message ? " " : ""}${t.token}`,
+                        },
+                      })
+                    }
+                  >
+                    {t.label}
+                  </Button>
+                ))}
+              </div>
             </div>
+            <Card className="p-3 bg-muted/40">
+              <div className="text-xs font-medium mb-1">Preview</div>
+              <div className="text-sm font-medium">{draft.notification.title || "Possible duplicate found"}</div>
+              <p className="text-sm text-muted-foreground">
+                {renderTemplate(draft.notification.message || "", {
+                  objectKey: draft.object_key,
+                  record: sampleRecord(obj),
+                  matchedFields: draft.match_fields,
+                })}
+              </p>
+            </Card>
             <div className="flex items-center gap-2">
               <Checkbox
                 id="show-list"
@@ -355,6 +425,8 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
               <Label htmlFor="show-list">Show the list of matching records</Label>
             </div>
           </TabsContent>
+
+
 
           <TabsContent value="actions" className="space-y-2 pt-4">
             <p className="text-sm text-muted-foreground">

@@ -6,7 +6,10 @@ export interface MatchField {
   matchType: MatchType;
   /** How this field combines with the previous one. */
   joiner: "and" | "or";
+  /** What happens when this field matches: warn the user or stop the save. */
+  severity?: "alert" | "block";
 }
+
 
 export interface DuplicateNotification {
   title: string;

@@ -38,6 +38,8 @@ import type { ValidationMessage } from "@/lib/validation/engine";
 import { AlertCircle } from "lucide-react";
 import { Sparkles, Loader2 } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import { findDuplicates, type DuplicateMatch } from "@/lib/duplicates/engine";
+import DuplicateAlertDialog from "@/components/duplicates/DuplicateAlertDialog";
 
 type Patient = Tables<"patients">;
 
@@ -115,6 +117,8 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [removedFamilyIds, setRemovedFamilyIds] = useState<string[]>([]);
   const [duplicates, setDuplicates] = useState<any[]>([]);
   const [duplicateAck, setDuplicateAck] = useState(false);
+  const [dupMatches, setDupMatches] = useState<DuplicateMatch[]>([]);
+  const [dupDialogOpen, setDupDialogOpen] = useState(false);
   const [familyExisting, setFamilyExisting] = useState<Record<string, any>>({});
   const { toast } = useToast();
   const isEditing = !!patient;
@@ -443,22 +447,24 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (opts: { skipDuplicateCheck?: boolean } = {}) => {
     if (!form.first_name.trim()) {
       toast({ title: "Error", description: "First name is required", variant: "destructive" });
       return;
     }
 
     const cfErrors = validateCustomFields(customFieldDefs, customValues);
-    if (!isEditing && duplicates.length > 0 && !duplicateAck) {
-      setDuplicateAck(true);
-      toast({
-        title: "Possible duplicate patient",
-        description: `${duplicates.length} existing patient(s) match this phone/email. Press Save again to create anyway.`,
-        variant: "destructive",
+    if (!opts.skipDuplicateCheck) {
+      const matches = await findDuplicates("patients", form as Record<string, any>, {
+        excludeId: patient?.id ?? null,
       });
-      return;
+      if (matches.length > 0) {
+        setDupMatches(matches);
+        setDupDialogOpen(true);
+        return;
+      }
     }
+
     setCustomErrors(cfErrors);
     if (Object.keys(cfErrors).length) {
       toast({ title: "Validation failed", description: String(Object.values(cfErrors)[0]), variant: "destructive" });
@@ -534,6 +540,14 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   };
 
   return (
+    <>
+    <DuplicateAlertDialog
+      open={dupDialogOpen}
+      matches={dupMatches}
+      objectKey="patients"
+      onClose={() => setDupDialogOpen(false)}
+      onIgnore={() => void handleSave({ skipDuplicateCheck: true })}
+    />
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto p-6">
         <DialogHeader>
@@ -1189,7 +1203,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
           <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button className="flex-1" onClick={handleSave} disabled={saving}>
+          <Button className="flex-1" onClick={() => void handleSave()} disabled={saving}>
             {saving ? "Saving..." : isEditing ? "Update Patient" : "Create Patient"}
           </Button>
         </div>
@@ -1275,6 +1289,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         </Dialog>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 

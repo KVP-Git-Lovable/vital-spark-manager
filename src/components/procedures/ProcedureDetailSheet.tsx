@@ -495,10 +495,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         [
           ...editServiceLines.filter((l) => !l._deleted).map((l) => l.service_name),
           ...(procedureServices as any[]).map((s: any) => s.service_name),
-          procedure.service_name,
         ].filter(Boolean),
       ),
     );
+    if (services.length === 0 && procedure.service_name) {
+      services.push(...String(procedure.service_name).split(",").map((n) => n.trim()).filter(Boolean));
+    }
     const products = visibleRx
       .filter((rx) => rx.medicine_name || rx.product_id)
       .map((rx) => ({

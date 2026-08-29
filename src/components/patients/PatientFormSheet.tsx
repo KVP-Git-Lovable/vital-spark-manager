@@ -369,31 +369,33 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const updateFamilyRow = (idx: number, patch: Partial<FamilyRow>) =>
     setFamilyRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
 
-  // Duplicate patient detection by phone / email
+  // Live duplicate detection driven by the admin-configured duplicate rules
   useEffect(() => {
     if (!open) return;
     const phone = (form.phone || "").trim();
     const email = (form.email || "").trim();
-    if (phone.length < 6 && email.length < 5) {
-      setDuplicates([]);
+    const name = (form.first_name || "").trim();
+    if (phone.length < 6 && email.length < 5 && name.length < 3) {
+      setLiveMatches([]);
       return;
     }
     let cancelled = false;
     const t = setTimeout(async () => {
-      const filters: string[] = [];
-      if (phone.length >= 6) filters.push(`phone.ilike.%${phone}%`);
-      if (email.length >= 5) filters.push(`email.ilike.${email}`);
-      const { data } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name, phone, email")
-        .or(filters.join(","))
-        .limit(5);
-      if (cancelled) return;
-      setDuplicates(((data as any[]) || []).filter((p) => p.id !== patient?.id));
-      setDuplicateAck(false);
-    }, 400);
+      try {
+        const matches = await findDuplicates("patients", form as Record<string, any>, {
+          excludeId: patient?.id ?? null,
+        });
+        if (!cancelled) {
+          setLiveMatches(matches);
+          setDuplicateAck(false);
+        }
+      } catch {
+        if (!cancelled) setLiveMatches([]);
+      }
+    }, 500);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [open, form.phone, form.email, patient?.id]);
+  }, [open, form.phone, form.email, form.first_name, form.last_name, patient?.id]);
+
 
   // Flag family members who are already existing patients
   useEffect(() => {

@@ -37,9 +37,18 @@ export const PATIENT_FIELDS: FieldDef[] = [
   { key: "emergency_contact_name", label: "Emergency Contact", type: "text" },
   { key: "emergency_contact_phone", label: "Emergency Phone", type: "text" },
   { key: "notes", label: "Notes", type: "text" },
+  { key: "engagement_score", label: "Engagement Score", type: "number" },
+  { key: "engagement_tier", label: "Engagement Tier", type: "picklist", optionsSource: "engagement_tier" },
+  { key: "engagement_visit_frequency", label: "Engagement - Visit Frequency", type: "number" },
+  { key: "engagement_revenue_value", label: "Engagement - Revenue Value", type: "number" },
+  { key: "engagement_treatment_depth", label: "Engagement - Treatment Depth", type: "number" },
+  { key: "engagement_retention_signal", label: "Engagement - Retention Signal", type: "number" },
+  { key: "engagement_compliance", label: "Engagement - Compliance", type: "number" },
+  { key: "engagement_updated_at", label: "Engagement Updated", type: "date" },
   { key: "created_at", label: "Created Date", type: "date" },
   { key: "updated_at", label: "Last Modified", type: "date" },
 ];
+
 
 export const DEFAULT_VIEW_COLUMNS = ["full_name", "phone", "skin_type", "status", "created_at"];
 

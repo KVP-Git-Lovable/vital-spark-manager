@@ -443,22 +443,24 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (opts: { skipDuplicateCheck?: boolean } = {}) => {
     if (!form.first_name.trim()) {
       toast({ title: "Error", description: "First name is required", variant: "destructive" });
       return;
     }
 
     const cfErrors = validateCustomFields(customFieldDefs, customValues);
-    if (!isEditing && duplicates.length > 0 && !duplicateAck) {
-      setDuplicateAck(true);
-      toast({
-        title: "Possible duplicate patient",
-        description: `${duplicates.length} existing patient(s) match this phone/email. Press Save again to create anyway.`,
-        variant: "destructive",
+    if (!opts.skipDuplicateCheck) {
+      const matches = await findDuplicates("patients", form as Record<string, any>, {
+        excludeId: patient?.id ?? null,
       });
-      return;
+      if (matches.length > 0) {
+        setDupMatches(matches);
+        setDupDialogOpen(true);
+        return;
+      }
     }
+
     setCustomErrors(cfErrors);
     if (Object.keys(cfErrors).length) {
       toast({ title: "Validation failed", description: String(Object.values(cfErrors)[0]), variant: "destructive" });

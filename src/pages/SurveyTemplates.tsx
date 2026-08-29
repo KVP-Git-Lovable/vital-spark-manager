@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { SurveyTemplateForm } from "@/components/surveys/SurveyTemplateForm";
@@ -43,7 +44,7 @@ const SurveyTemplates = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("survey_templates").delete().eq("id", id);
+      const error: any = await moveToTrash("survey_templates", id).then(() => null).catch((e: any) => e);
       if (error) throw error;
     },
     onSuccess: () => {

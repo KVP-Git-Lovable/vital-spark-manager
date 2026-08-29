@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -113,7 +114,7 @@ const ReportConfigurator = () => {
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("saved_reports").delete().eq("id", id);
+    const error: any = await moveToTrash("saved_reports", id).then(() => null).catch((e: any) => e);
     if (error) {
       toast.error("Failed to delete report");
     } else {

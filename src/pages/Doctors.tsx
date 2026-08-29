@@ -16,6 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -57,7 +58,7 @@ const Doctors = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("doctors").delete().eq("id", id);
+      const error: any = await moveToTrash("doctors", id).then(() => null).catch((e: any) => e);
       if (error) throw error;
     },
     onSuccess: () => {

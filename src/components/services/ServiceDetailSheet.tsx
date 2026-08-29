@@ -12,6 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -245,7 +246,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
     mutationFn: async () => {
       await supabase.from("service_medicines").delete().eq("service_id", serviceId!);
       await supabase.from("asset_service_links").delete().eq("service_id", serviceId!);
-      const { error } = await supabase.from("services").delete().eq("id", serviceId!);
+      const error: any = await moveToTrash("services", serviceId!).then(() => null).catch((e: any) => e);
       if (error) throw error;
     },
     onSuccess: () => {

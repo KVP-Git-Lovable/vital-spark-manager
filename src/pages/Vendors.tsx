@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { moveToTrash } from "@/lib/trash";
 import { toast } from "sonner";
 import { Plus, Search, Trash2, Globe, Building2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -119,7 +120,7 @@ export default function Vendors() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("vendors").delete().eq("id", id);
+      const error: any = await moveToTrash("vendors", id).then(() => null).catch((e: any) => e);
       if (error) throw error;
     },
     onSuccess: () => {

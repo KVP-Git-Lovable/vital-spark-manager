@@ -264,6 +264,7 @@ const Patients = () => {
 
   const patientIds = paged.map((p) => p.id);
   const { data: engagementScores = {} } = useEngagementScores(patientIds);
+  const avatars = usePatientAvatars(patientIds);
 
   const doctorOptions = useMemo(
     () => staffList.map((s: any) => ({ value: s.id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() })),

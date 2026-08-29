@@ -40,6 +40,9 @@ import { Sparkles, Loader2 } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { findDuplicates, type DuplicateMatch } from "@/lib/duplicates/engine";
 import DuplicateAlertDialog from "@/components/duplicates/DuplicateAlertDialog";
+import DuplicateNotificationBand from "@/components/duplicates/DuplicateNotificationBand";
+import DuplicateResolveDialog from "@/components/duplicates/DuplicateResolveDialog";
+
 
 type Patient = Tables<"patients">;
 
@@ -116,6 +119,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [activeTab, setActiveTab] = useState("personal");
   const [removedFamilyIds, setRemovedFamilyIds] = useState<string[]>([]);
   const [duplicates, setDuplicates] = useState<any[]>([]);
+  const [liveMatches, setLiveMatches] = useState<DuplicateMatch[]>([]);
+  const [resolveWith, setResolveWith] = useState<Record<string, any> | null>(null);
+
   const [duplicateAck, setDuplicateAck] = useState(false);
   const [dupMatches, setDupMatches] = useState<DuplicateMatch[]>([]);
   const [dupDialogOpen, setDupDialogOpen] = useState(false);
@@ -369,31 +375,33 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const updateFamilyRow = (idx: number, patch: Partial<FamilyRow>) =>
     setFamilyRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
 
-  // Duplicate patient detection by phone / email
+  // Live duplicate detection driven by the admin-configured duplicate rules
   useEffect(() => {
     if (!open) return;
     const phone = (form.phone || "").trim();
     const email = (form.email || "").trim();
-    if (phone.length < 6 && email.length < 5) {
-      setDuplicates([]);
+    const name = (form.first_name || "").trim();
+    if (phone.length < 6 && email.length < 5 && name.length < 3) {
+      setLiveMatches([]);
       return;
     }
     let cancelled = false;
     const t = setTimeout(async () => {
-      const filters: string[] = [];
-      if (phone.length >= 6) filters.push(`phone.ilike.%${phone}%`);
-      if (email.length >= 5) filters.push(`email.ilike.${email}`);
-      const { data } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name, phone, email")
-        .or(filters.join(","))
-        .limit(5);
-      if (cancelled) return;
-      setDuplicates(((data as any[]) || []).filter((p) => p.id !== patient?.id));
-      setDuplicateAck(false);
-    }, 400);
+      try {
+        const matches = await findDuplicates("patients", form as Record<string, any>, {
+          excludeId: patient?.id ?? null,
+        });
+        if (!cancelled) {
+          setLiveMatches(matches);
+          setDuplicateAck(false);
+        }
+      } catch {
+        if (!cancelled) setLiveMatches([]);
+      }
+    }, 500);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [open, form.phone, form.email, patient?.id]);
+  }, [open, form.phone, form.email, form.first_name, form.last_name, patient?.id]);
+
 
   // Flag family members who are already existing patients
   useEffect(() => {
@@ -548,6 +556,14 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
       onClose={() => setDupDialogOpen(false)}
       onIgnore={() => void handleSave({ skipDuplicateCheck: true })}
     />
+    <DuplicateResolveDialog
+      open={!!resolveWith && !!patient}
+      onClose={() => setResolveWith(null)}
+      primary={(patient as any) || null}
+      duplicate={resolveWith}
+      onResolved={() => { setResolveWith(null); setLiveMatches([]); onSuccess(); }}
+    />
+
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto p-6">
         <DialogHeader>
@@ -575,18 +591,16 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
           </div>
         )}
 
-        {duplicates.length > 0 && (
-          <div className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400 space-y-1">
-            <p className="flex items-center gap-1.5 font-medium">
-              <AlertCircle className="h-3.5 w-3.5" /> Possible duplicate patient found
-            </p>
-            {duplicates.map((d) => (
-              <p key={d.id}>
-                {d.first_name} {d.last_name} · {d.phone || "no phone"}{d.email ? ` · ${d.email}` : ""}
-              </p>
-            ))}
-          </div>
+        {liveMatches.length > 0 && (
+          <DuplicateNotificationBand
+            className="mt-4"
+            matches={liveMatches}
+            objectKey="patients"
+            onIgnore={() => { setDuplicateAck(true); setLiveMatches([]); }}
+            onResolve={(rec) => setResolveWith(rec)}
+          />
         )}
+
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
           <TabsList className="grid w-full grid-cols-3">

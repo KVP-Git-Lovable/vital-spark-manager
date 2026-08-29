@@ -16,6 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, CopyCheck, Trash2, Pencil, ArrowUp, ArrowDown } from "lucide-react";
 import { VALIDATION_OBJECTS, getObject, type ValidationObject } from "@/lib/validation/schema";
 import { renderTemplate } from "@/lib/duplicates/engine";
+import RuleSimulator from "@/components/duplicates/RuleSimulator";
+import DuplicateAlertsPanel from "@/components/duplicates/DuplicateAlertsPanel";
+
 import {
   DUPLICATE_ACTIONS,
   DuplicateRule,
@@ -41,7 +44,9 @@ const sampleRecord = (obj: ValidationObject): Record<string, any> => {
 export default function DuplicateManagement() {
   const queryClient = useQueryClient();
   const [objectKey, setObjectKey] = useState(VALIDATION_OBJECTS[0].key);
+  const [section, setSection] = useState("rules");
   const [editing, setEditing] = useState<DuplicateRule | null>(null);
+
 
   const { data: rules = [], isLoading } = useQuery({
     queryKey: ["duplicate-rules"],
@@ -116,7 +121,24 @@ export default function DuplicateManagement() {
         </TabsList>
       </Tabs>
 
+      <Tabs value={section} onValueChange={setSection}>
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="rules">Rules</TabsTrigger>
+          <TabsTrigger value="simulator">Rule Test Simulator</TabsTrigger>
+          <TabsTrigger value="alerts">Duplicate Alerts &amp; Bulk Job</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="simulator" className="pt-4">
+          <RuleSimulator objectKey={objectKey} />
+        </TabsContent>
+
+        <TabsContent value="alerts" className="pt-4">
+          <DuplicateAlertsPanel objectKey={objectKey} />
+        </TabsContent>
+
+        <TabsContent value="rules" className="pt-4">
       <Card className="divide-y">
+
         {isLoading && <div className="p-6 text-sm text-muted-foreground">Loading…</div>}
         {!isLoading && list.length === 0 && (
           <div className="p-8 text-center text-sm text-muted-foreground">
@@ -155,6 +177,9 @@ export default function DuplicateManagement() {
           </div>
         ))}
       </Card>
+        </TabsContent>
+      </Tabs>
+
 
       {editing && <RuleEditor rule={editing} onClose={() => setEditing(null)} />}
     </div>

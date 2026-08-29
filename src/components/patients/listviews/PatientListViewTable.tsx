@@ -17,7 +17,7 @@ interface Props {
 const labelFor = (key: string) => PATIENT_FIELDS.find((f) => f.key === key)?.label ?? key;
 
 export default function PatientListViewTable({
-  rows, columns, selectedIds, onToggle, onToggleAll, onOpen, doctorLabels = {},
+  rows, columns, selectedIds, onToggle, onToggleAll, onOpen, doctorLabels = {}, avatars = {},
 }: Props) {
   const tableRef = useStackedTable<HTMLTableElement>();
   const allSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id));

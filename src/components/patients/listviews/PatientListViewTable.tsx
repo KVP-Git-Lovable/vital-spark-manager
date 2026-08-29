@@ -67,6 +67,21 @@ export default function PatientListViewTable({
                     </td>
                   );
                 }
+                if (key === "full_name") {
+                  return (
+                    <td key={key} className="p-4 text-sm font-medium" data-label={labelFor(key)}>
+                      <div className="flex items-center gap-3">
+                        <PatientAvatar
+                          firstName={row.first_name}
+                          lastName={row.last_name}
+                          photoUrl={avatars[row.id]}
+                          className="h-9 w-9"
+                        />
+                        <span className="line-clamp-2">{value}</span>
+                      </div>
+                    </td>
+                  );
+                }
                 return (
                   <td
                     key={key}

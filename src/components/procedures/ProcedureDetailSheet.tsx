@@ -239,10 +239,37 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     },
   });
 
+  // Patient medical snapshot — editable here and synced back to the patient record
+  const { data: patientRecord } = useQuery({
+    queryKey: ["procedure-detail-patient", procedure?.patient_id],
+    enabled: !!procedure?.patient_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select("id, medical_history, current_medications, allergies, skin_type, skin_concerns, previous_treatments")
+        .eq("id", procedure!.patient_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  if (patientRecord && !medicalDirty && Object.keys(medical).length === 0) {
+    setMedical({
+      medical_history: patientRecord.medical_history || "",
+      current_medications: patientRecord.current_medications || "",
+      allergies: patientRecord.allergies || "",
+      skin_type: patientRecord.skin_type || "",
+      skin_concerns: patientRecord.skin_concerns || "",
+      previous_treatments: patientRecord.previous_treatments || "",
+    });
+  }
+
   // Initialize form
   if (procedure && !initialized) {
     setEditServiceName(procedure.service_name || "");
     setEditStatus(procedure.status || "Completed");
+    setEditStaffId(procedure.staff_id || "");
     setEditProcedureNotes(procedure.procedure_notes || "");
     setEditRecommendations(procedure.recommendations || "");
     setEditReviewNotes(procedure.review_notes || "");

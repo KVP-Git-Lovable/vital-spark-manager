@@ -327,7 +327,7 @@ export default function ViewEditorDialog({ open, onOpenChange, view, onSave, doc
                               {picks.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
                             </SelectContent>
                           </Select>
-                        ) : def?.type === "date" && c.operator !== "last_n_days" ? (
+                        ) : def?.type === "date" && !["last_n_days", "next_n_days"].includes(c.operator) ? (
                           <>
                             <Input type="date" className="h-9 text-sm" value={c.value} onChange={(e) => updateCond(i, { value: e.target.value })} />
                             {c.operator === "between" && (
@@ -337,7 +337,7 @@ export default function ViewEditorDialog({ open, onOpenChange, view, onSave, doc
                         ) : (
                           <>
                             <Input
-                              type={def?.type === "number" || c.operator === "last_n_days" ? "number" : "text"}
+                              type={def?.type === "number" || def?.type === "date" ? "number" : "text"}
                               className="h-9 text-sm"
                               value={c.value}
                               placeholder="Value"

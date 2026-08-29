@@ -51,6 +51,15 @@ interface AssetInput {
   time_taken: string;
 }
 
+interface ServiceLine {
+  key: string;
+  service_id: string;
+  name: string;
+  procedure_notes: string;
+  recommendations: string;
+}
+
+
 interface ProcedureFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

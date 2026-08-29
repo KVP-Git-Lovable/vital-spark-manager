@@ -321,6 +321,9 @@ const Appointments = () => {
   });
 
   const doctorsList = useMemo(() => (staffList as any[]).filter((s: any) => (s.role || "").toLowerCase() === "doctor"), [staffList]);
+  // Other active staff (nurse, therapist, etc.) can also be assigned to an appointment
+  const otherStaffList = useMemo(() => (staffList as any[]).filter((s: any) => (s.role || "").toLowerCase() !== "doctor"), [staffList]);
+
 
   const { data: services = [] } = useQuery({
     queryKey: ["services-list"],

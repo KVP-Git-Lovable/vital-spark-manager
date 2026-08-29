@@ -426,7 +426,7 @@ function RuleEditor({ rule, onClose }: { rule: DuplicateRule; onClose: () => voi
             </div>
           </TabsContent>
 
-          </TabsContent>
+
 
           <TabsContent value="actions" className="space-y-2 pt-4">
             <p className="text-sm text-muted-foreground">

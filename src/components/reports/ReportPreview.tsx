@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getObjectByKey, isValidFieldKey, type ReportFilter, type ReportDisplayOptions, DEFAULT_DISPLAY_OPTIONS } from "@/lib/reportObjects";
+import { getObjectByKey, isValidFieldKey, evaluateFilterLogic, type ReportFilter, type ReportDisplayOptions, DEFAULT_DISPLAY_OPTIONS } from "@/lib/reportObjects";
 import { Badge } from "@/components/ui/badge";
 import {
   BarChart,
@@ -40,16 +40,21 @@ interface Props {
   compact?: boolean;
 }
 
-const RECORD_ROUTES: Record<string, string> = {
-  patients: "/patients",
-  appointments: "/appointments",
-  procedures: "/procedures",
-  invoices: "/billing",
-  services: "/services",
-  assets: "/assets",
-  pharma_products: "/pharma",
-  staff: "/settings",
-  vendors: "/assets",
+// Deep-link builders per object; each opens the specific record.
+const RECORD_URL_BUILDERS: Record<string, (id: string) => string> = {
+  patients: (id) => `/patients/${id}`,
+  appointments: (id) => `/appointments/${id}`,
+  staff: (id) => `/staff/${id}`,
+  campaigns: (id) => `/campaigns/${id}`,
+  procedures: (id) => `/procedures?id=${id}`,
+  invoices: (id) => `/billing?viewInvoice=${id}`,
+  services: (id) => `/services?id=${id}`,
+  assets: (id) => `/assets?id=${id}`,
+  vendors: (id) => `/vendors?id=${id}`,
+  pharma_products: (id) => `/pharma?id=${id}`,
+  asset_issues: (id) => `/assets?issue=${id}`,
+  leave_applications: (id) => `/leave?id=${id}`,
+  patient_feedback: (id) => `/appointments?feedback=${id}`,
 };
 
 // ---- Virtual / aggregate field helpers ----
@@ -124,6 +129,38 @@ function resolveFilterValue(v: string): string {
   return v;
 }
 
+// Client-side equivalent of the server-side operator handling.
+function matchesValue(val: any, operator: string, fv: string): boolean {
+  const strVal = String(val ?? "");
+  const lower = strVal.toLowerCase();
+  const fvLower = (fv ?? "").toLowerCase();
+  const list = (fv ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const asDate = (x: any) => {
+    const d = new Date(x);
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const dv = asDate(val);
+  const df = asDate(fv);
+  switch (operator) {
+    case "equals": return lower === fvLower;
+    case "not_equals": return lower !== fvLower;
+    case "contains": return lower.includes(fvLower);
+    case "does_not_contain": return !lower.includes(fvLower);
+    case "starts_with": return lower.startsWith(fvLower);
+    case "ends_with": return lower.endsWith(fvLower);
+    case "in": return list.includes(lower);
+    case "not_in": return !list.includes(lower);
+    case "gt": return dv && df ? dv > df : Number(val) > Number(fv);
+    case "lt": return dv && df ? dv < df : Number(val) < Number(fv);
+    case "gte": return dv && df ? dv >= df : Number(val) >= Number(fv);
+    case "lte": return dv && df ? dv <= df : Number(val) <= Number(fv);
+    case "is_null": return val === null || val === undefined || strVal === "";
+    case "is_not_null": return !(val === null || val === undefined || strVal === "");
+    default: return true;
+  }
+}
+
+
 export function ReportPreview({
   primaryObject,
   relatedObject,
@@ -139,10 +176,12 @@ export function ReportPreview({
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const opts = displayOptionsProp || DEFAULT_DISPLAY_OPTIONS;
+  const filterLogic = (opts.filter_logic || "").trim();
 
   useEffect(() => {
     fetchData();
-  }, [primaryObject, relatedObject, columns, groupRows, groupColumns, filters]);
+  }, [primaryObject, relatedObject, columns, groupRows, groupColumns, filters, filterLogic]);
+
 
   const fetchData = async () => {
     setLoading(true);
@@ -205,6 +244,20 @@ export function ReportPreview({
       }
     }
 
+    // Always select the columns referenced by filters so client-side
+    // evaluation (filter logic / OR branches) has the data it needs.
+    filters.forEach((f) => {
+      const [objKey, col] = (f.field || "").split(".");
+      if (!col || isVirtualField(col)) return;
+      if (objKey === primaryObject && primaryValidFieldSet.has(col) && !primaryFieldKeys.includes(col)) {
+        primaryFieldKeys.push(col);
+      }
+      if (objKey === relatedObject && relatedValidFieldSet.has(col) && !relatedFieldKeys.includes(col)) {
+        relatedFieldKeys.push(col);
+      }
+    });
+
+
     let selectStr = primaryFieldKeys.join(",");
     // Embed staff for primary-side doctor_name
     if (primaryNeedsDoctorName && DOCTOR_FK_BY_OBJECT[primaryObject]) {
@@ -245,27 +298,38 @@ export function ReportPreview({
     }
 
     let query = supabase.from(primaryObj.table as any).select(selectStr);
-    filters
-      .filter((f) => f.field.startsWith(`${primaryObject}.`))
-      .filter((f) => {
-        const c = f.field.split(".")[1];
-        return primaryValidFieldSet.has(c) && !isVirtualField(c);
-      })
-      .forEach((f) => {
-        const col = f.field.split(".")[1];
-        const v = resolveFilterValue(f.value);
-        switch (f.operator) {
-          case "equals": query = query.eq(col, v); break;
-          case "not_equals": query = query.neq(col, v); break;
-          case "contains": query = query.ilike(col, `%${v}%`); break;
-          case "gt": query = query.gt(col, v); break;
-          case "lt": query = query.lt(col, v); break;
-          case "gte": query = query.gte(col, v); break;
-          case "lte": query = query.lte(col, v); break;
-          case "is_null": query = query.is(col, null); break;
-          case "is_not_null": query = query.not(col, "is", null); break;
-        }
-      });
+    // With custom filter logic (OR / grouping) everything is evaluated
+    // client-side, so no server-side narrowing is applied.
+    if (!filterLogic) {
+      filters
+        .filter((f) => f.field.startsWith(`${primaryObject}.`))
+        .filter((f) => {
+          const c = f.field.split(".")[1];
+          return primaryValidFieldSet.has(c) && !isVirtualField(c);
+        })
+        .forEach((f) => {
+          const col = f.field.split(".")[1];
+          const v = resolveFilterValue(f.value);
+          const list = v.split(",").map((s) => s.trim()).filter(Boolean);
+          switch (f.operator) {
+            case "equals": query = query.eq(col, v); break;
+            case "not_equals": query = query.neq(col, v); break;
+            case "contains": query = query.ilike(col, `%${v}%`); break;
+            case "does_not_contain": query = query.not(col, "ilike", `%${v}%`); break;
+            case "starts_with": query = query.ilike(col, `${v}%`); break;
+            case "ends_with": query = query.ilike(col, `%${v}`); break;
+            case "in": if (list.length) query = query.in(col, list); break;
+            case "not_in": if (list.length) query = query.not(col, "in", `(${list.join(",")})`); break;
+            case "gt": query = query.gt(col, v); break;
+            case "lt": query = query.lt(col, v); break;
+            case "gte": query = query.gte(col, v); break;
+            case "lte": query = query.lte(col, v); break;
+            case "is_null": query = query.is(col, null); break;
+            case "is_not_null": query = query.not(col, "is", null); break;
+          }
+        });
+    }
+
 
     query = query.limit(500);
     const { data: result, error } = await query;
@@ -326,35 +390,30 @@ export function ReportPreview({
       return flat;
     });
 
-    const relatedFilters = filters
-      .filter((f) => relatedObject && f.field.startsWith(`${relatedObject}.`))
-      .filter((f) => {
-        const c = f.field.split(".")[1];
-        return relatedValidFieldSet.has(c) && !isVirtualField(c);
-      });
+    // Client-side evaluation. Related-object filters always run here; primary
+    // filters also run here when custom filter logic is in play.
+    const evalFilters = filters.filter((f) => {
+      const [objKey, c] = (f.field || "").split(".");
+      if (!c || isVirtualField(c)) return false;
+      if (objKey === relatedObject && relatedValidFieldSet.has(c)) return true;
+      if (objKey === primaryObject && primaryValidFieldSet.has(c)) return !!filterLogic;
+      return false;
+    });
+
     let filteredData = flattenedData;
-    if (relatedFilters.length > 0) {
+    if (evalFilters.length > 0) {
+      // Filter logic numbering follows the full filter list, so map back.
       filteredData = flattenedData.filter((row) => {
-        return relatedFilters.every((f) => {
-          const col = f.field.split(".")[1];
-          const val = row[`__related__.${col}`];
-          const fv = resolveFilterValue(f.value);
-          const strVal = String(val ?? "");
-          switch (f.operator) {
-            case "equals": return strVal === fv;
-            case "not_equals": return strVal !== fv;
-            case "contains": return strVal.toLowerCase().includes(fv.toLowerCase());
-            case "gt": return Number(val) > Number(fv);
-            case "lt": return Number(val) < Number(fv);
-            case "gte": return new Date(val).getTime() > 0 ? new Date(val) >= new Date(fv) : Number(val) >= Number(fv);
-            case "lte": return new Date(val).getTime() > 0 ? new Date(val) <= new Date(fv) : Number(val) <= Number(fv);
-            case "is_null": return val === null || val === undefined;
-            case "is_not_null": return val !== null && val !== undefined;
-            default: return true;
-          }
+        const results = filters.map((f) => {
+          if (!evalFilters.includes(f)) return true;
+          const [objKey, col] = f.field.split(".");
+          const val = objKey === relatedObject ? row[`__related__.${col}`] : row[col];
+          return matchesValue(val, f.operator, resolveFilterValue(f.value));
         });
+        return evaluateFilterLogic(filterLogic, results);
       });
     }
+
 
     // ---- Aggregation pass ----
     // If any selected column / groupColumn is an aggregate AND we have group_rows,
@@ -453,10 +512,10 @@ export function ReportPreview({
   };
 
   const handleRecordClick = (record: any) => {
-    const route = RECORD_ROUTES[primaryObject];
-    if (route && record.id) {
-      const detailPath = primaryObject === "patients" ? `${route}/${record.id}` : route;
-      window.open(detailPath, "_blank");
+    const build = RECORD_URL_BUILDERS[primaryObject];
+    const id = record?.id ?? record?.[`${primaryObject}.id`];
+    if (build && id) {
+      window.open(build(String(id)), "_blank", "noopener,noreferrer");
     }
   };
 

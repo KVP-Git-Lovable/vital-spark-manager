@@ -326,24 +326,130 @@ export const generateReportName = (primaryKey: string, relatedKey?: string): str
   return `${primary.label} Report`;
 };
 
+export type ReportFilterOperator =
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "does_not_contain"
+  | "starts_with"
+  | "ends_with"
+  | "in"
+  | "not_in"
+  | "gt"
+  | "lt"
+  | "gte"
+  | "lte"
+  | "is_null"
+  | "is_not_null";
+
 export interface ReportFilter {
   field: string;
-  operator: "equals" | "not_equals" | "contains" | "gt" | "lt" | "gte" | "lte" | "is_null" | "is_not_null";
+  operator: ReportFilterOperator;
   value: string;
   objectKey: string;
 }
+
+export const OPERATOR_LABELS: Record<ReportFilterOperator, string> = {
+  equals: "equals",
+  not_equals: "not equal to",
+  contains: "contains",
+  does_not_contain: "does not contain",
+  starts_with: "starts with",
+  ends_with: "ends with",
+  in: "is one of",
+  not_in: "is none of",
+  gt: "greater than",
+  lt: "less than",
+  gte: "greater or equal",
+  lte: "less or equal",
+  is_null: "is empty",
+  is_not_null: "is not empty",
+};
+
+/** Salesforce-style operator set, scoped to the field's data type. */
+export const getOperatorsForType = (
+  type: ReportField["type"] | undefined
+): ReportFilterOperator[] => {
+  switch (type) {
+    case "number":
+      return ["equals", "not_equals", "gt", "gte", "lt", "lte", "in", "not_in", "is_null", "is_not_null"];
+    case "date":
+      return ["equals", "not_equals", "gt", "gte", "lt", "lte", "is_null", "is_not_null"];
+    case "boolean":
+      return ["equals", "not_equals", "is_null", "is_not_null"];
+    default:
+      return [
+        "equals",
+        "not_equals",
+        "contains",
+        "does_not_contain",
+        "starts_with",
+        "ends_with",
+        "in",
+        "not_in",
+        "is_null",
+        "is_not_null",
+      ];
+  }
+};
+
+export const operatorNeedsValue = (op: ReportFilterOperator) =>
+  op !== "is_null" && op !== "is_not_null";
+
+export const getFieldDef = (fieldKey: string): ReportField | undefined => {
+  const [objKey, fk] = (fieldKey || "").split(".");
+  return getObjectByKey(objKey)?.fields.find((f) => f.key === fk);
+};
+
+/**
+ * Evaluate Salesforce-style filter logic, e.g. "1 AND (2 OR 3)".
+ * `results` is 0-indexed; the expression is 1-indexed.
+ * Falls back to AND of everything when the expression is empty/invalid.
+ */
+export const evaluateFilterLogic = (logic: string | undefined, results: boolean[]): boolean => {
+  const all = results.every(Boolean);
+  if (!logic || !logic.trim()) return all;
+  const tokens = logic.match(/\d+|AND|OR|NOT|\(|\)/gi);
+  if (!tokens) return all;
+  const js = tokens
+    .map((t) => {
+      if (/^\d+$/.test(t)) {
+        const idx = parseInt(t, 10) - 1;
+        if (idx < 0 || idx >= results.length) return null;
+        return results[idx] ? "true" : "false";
+      }
+      const up = t.toUpperCase();
+      if (up === "AND") return "&&";
+      if (up === "OR") return "||";
+      if (up === "NOT") return "!";
+      return t;
+    })
+    .join(" ");
+  if (js.includes("null")) return all;
+  try {
+    // Only booleans and operators remain, so this is safe to evaluate.
+    // eslint-disable-next-line no-new-func
+    return !!new Function(`return (${js});`)();
+  } catch {
+    return all;
+  }
+};
 
 export interface ReportDisplayOptions {
   show_row_counts: boolean;
   show_subtotals: boolean;
   show_grand_total: boolean;
+  /** Salesforce-style filter logic expression, e.g. "1 AND (2 OR 3)". Empty = AND all. */
+  filter_logic?: string;
 }
 
 export const DEFAULT_DISPLAY_OPTIONS: ReportDisplayOptions = {
   show_row_counts: true,
   show_subtotals: false,
   show_grand_total: true,
+  filter_logic: "",
 };
+
 
 export interface SavedReport {
   id?: string;

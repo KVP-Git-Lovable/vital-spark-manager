@@ -10,7 +10,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Trash2 } from "lucide-react";
-import { getObjectByKey, type ReportFilter, type ReportField } from "@/lib/reportObjects";
+import {
+  getObjectByKey,
+  getOperatorsForType,
+  operatorNeedsValue,
+  OPERATOR_LABELS,
+  type ReportFilter,
+  type ReportField,
+  type ReportFilterOperator,
+} from "@/lib/reportObjects";
 
 interface Props {
   filter: ReportFilter;
@@ -18,19 +26,25 @@ interface Props {
   fieldKeyFn: (f: { objectKey: string; key: string }) => string;
   onChange: (patch: Partial<ReportFilter>) => void;
   onRemove: () => void;
+  /** Show the Salesforce-style filter number used by filter logic */
+  index?: number;
   lockField?: boolean;
 }
 
-export function FilterRow({ filter, allFields, fieldKeyFn, onChange, onRemove, lockField }: Props) {
+export function FilterRow({ filter, allFields, fieldKeyFn, onChange, onRemove, index, lockField }: Props) {
   const [distinctValues, setDistinctValues] = useState<string[]>([]);
+
+  const [objKey, fieldKey] = filter.field.split(".");
+  const fieldDef = getObjectByKey(objKey)?.fields.find((f) => f.key === fieldKey);
+  const fieldType = fieldDef?.type || "text";
+  const operators = getOperatorsForType(fieldType);
 
   useEffect(() => {
     const fetchDistinct = async () => {
-      const [objKey, fieldKey] = filter.field.split(".");
       const obj = getObjectByKey(objKey);
       if (!obj) return;
       const field = obj.fields.find((f) => f.key === fieldKey);
-      if (!field || field.type !== "text") {
+      if (!field || field.type !== "text" || field.key.startsWith("_")) {
         setDistinctValues([]);
         return;
       }
@@ -49,25 +63,82 @@ export function FilterRow({ filter, allFields, fieldKeyFn, onChange, onRemove, l
       }
     };
     fetchDistinct();
+  }, [filter.field, objKey, fieldKey]);
+
+  // Keep the operator valid whenever the field type changes.
+  useEffect(() => {
+    if (!operators.includes(filter.operator)) {
+      onChange({ operator: operators[0] });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter.field]);
 
-  const operators = [
-    { key: "equals", label: "Equals" },
-    { key: "not_equals", label: "Not Equals" },
-    { key: "contains", label: "Contains" },
-    { key: "gt", label: ">" },
-    { key: "lt", label: "<" },
-    { key: "gte", label: "≥" },
-    { key: "lte", label: "≤" },
-    { key: "is_null", label: "Is Empty" },
-    { key: "is_not_null", label: "Not Empty" },
-  ];
+  const showDropdown =
+    distinctValues.length > 0 && ["equals", "not_equals"].includes(filter.operator);
 
-  const showDropdown = distinctValues.length > 0 && ["equals", "not_equals"].includes(filter.operator);
+  const changeField = (v: string) => {
+    const nextObj = v.split(".")[0];
+    onChange({ field: v, objectKey: nextObj });
+  };
+
+  const valueInput = () => {
+    if (!operatorNeedsValue(filter.operator)) return null;
+    if (fieldType === "boolean") {
+      return (
+        <Select value={filter.value} onValueChange={(v) => onChange({ value: v })}>
+          <SelectTrigger className="h-6 text-[11px] flex-1">
+            <SelectValue placeholder="Select" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true" className="text-xs">True</SelectItem>
+            <SelectItem value="false" className="text-xs">False</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    }
+    if (fieldType === "date") {
+      return (
+        <Input
+          type="date"
+          value={(filter.value || "").slice(0, 10)}
+          onChange={(e) => onChange({ value: e.target.value })}
+          className="h-6 text-[11px] flex-1"
+        />
+      );
+    }
+    if (showDropdown) {
+      return (
+        <Select value={filter.value} onValueChange={(v) => onChange({ value: v })}>
+          <SelectTrigger className="h-6 text-[11px] flex-1">
+            <SelectValue placeholder="Select value" />
+          </SelectTrigger>
+          <SelectContent>
+            {distinctValues.map((v) => (
+              <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    return (
+      <Input
+        type={fieldType === "number" && !["in", "not_in"].includes(filter.operator) ? "number" : "text"}
+        value={filter.value}
+        onChange={(e) => onChange({ value: e.target.value })}
+        className="h-6 text-[11px] flex-1"
+        placeholder={["in", "not_in"].includes(filter.operator) ? "Comma separated values" : "Value"}
+      />
+    );
+  };
 
   return (
     <div className="flex flex-col gap-1 p-1.5 bg-muted/30 rounded text-[11px]">
       <div className="flex gap-1 items-center">
+        {index !== undefined && (
+          <span className="shrink-0 h-4 min-w-4 px-1 rounded bg-primary/10 text-primary font-semibold text-[10px] flex items-center justify-center">
+            {index}
+          </span>
+        )}
         {lockField ? (
           <div className="flex-1 truncate font-medium px-1 py-0.5 rounded bg-background border border-border/50">
             {(() => {
@@ -76,18 +147,18 @@ export function FilterRow({ filter, allFields, fieldKeyFn, onChange, onRemove, l
             })()}
           </div>
         ) : (
-        <Select value={filter.field} onValueChange={(v) => onChange({ field: v })}>
-          <SelectTrigger className="h-6 text-[11px] flex-1">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {allFields.map((f) => (
-              <SelectItem key={fieldKeyFn(f)} value={fieldKeyFn(f)} className="text-xs">
-                {f.prefix}.{f.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={filter.field} onValueChange={changeField}>
+            <SelectTrigger className="h-6 text-[11px] flex-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-h-72">
+              {allFields.map((f) => (
+                <SelectItem key={fieldKeyFn(f)} value={fieldKeyFn(f)} className="text-xs">
+                  {f.prefix}.{f.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
         {!lockField && (
           <Button size="icon" variant="ghost" className="h-5 w-5 shrink-0" onClick={onRemove}>
@@ -96,37 +167,20 @@ export function FilterRow({ filter, allFields, fieldKeyFn, onChange, onRemove, l
         )}
       </div>
       <div className="flex gap-1">
-        <Select value={filter.operator} onValueChange={(v: any) => onChange({ operator: v })}>
-          <SelectTrigger className="h-6 text-[11px] w-24">
+        <Select
+          value={filter.operator}
+          onValueChange={(v: ReportFilterOperator) => onChange({ operator: v })}
+        >
+          <SelectTrigger className="h-6 text-[11px] w-32">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {operators.map((op) => (
-              <SelectItem key={op.key} value={op.key} className="text-xs">{op.label}</SelectItem>
+              <SelectItem key={op} value={op} className="text-xs">{OPERATOR_LABELS[op]}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-        {!["is_null", "is_not_null"].includes(filter.operator) && (
-          showDropdown ? (
-            <Select value={filter.value} onValueChange={(v) => onChange({ value: v })}>
-              <SelectTrigger className="h-6 text-[11px] flex-1">
-                <SelectValue placeholder="Select value" />
-              </SelectTrigger>
-              <SelectContent>
-                {distinctValues.map((v) => (
-                  <SelectItem key={v} value={v} className="text-xs">{v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <Input
-              value={filter.value}
-              onChange={(e) => onChange({ value: e.target.value })}
-              className="h-6 text-[11px] flex-1"
-              placeholder="Value"
-            />
-          )
-        )}
+        {valueInput()}
       </div>
     </div>
   );

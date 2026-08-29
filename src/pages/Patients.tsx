@@ -196,10 +196,25 @@ const Patients = () => {
     return () => clearTimeout(t);
   }, [search]);
 
+  const viewActive = !!activeView;
+
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["patients", page, debouncedSearch],
     queryFn: () => fetchPatientsPage(page, debouncedSearch),
     placeholderData: keepPreviousData,
+    enabled: !viewActive,
+  });
+
+  const {
+    data: allPatients = [],
+    isLoading: viewLoading,
+    isFetching: viewFetching,
+    refetch: refetchAll,
+  } = useQuery({
+    queryKey: ["patients-all", debouncedSearch],
+    queryFn: () => fetchAllPatients(debouncedSearch),
+    placeholderData: keepPreviousData,
+    enabled: viewActive,
   });
 
   const { data: staffList = [] } = useQuery({

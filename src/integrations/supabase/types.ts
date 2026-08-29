@@ -1709,6 +1709,14 @@ export type Database = {
           email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
+          engagement_compliance: number | null
+          engagement_retention_signal: number | null
+          engagement_revenue_value: number | null
+          engagement_score: number | null
+          engagement_tier: string | null
+          engagement_treatment_depth: number | null
+          engagement_updated_at: string | null
+          engagement_visit_frequency: number | null
           facebook_url: string | null
           first_name: string
           follows_facebook: boolean | null
@@ -1749,6 +1757,14 @@ export type Database = {
           email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
+          engagement_compliance?: number | null
+          engagement_retention_signal?: number | null
+          engagement_revenue_value?: number | null
+          engagement_score?: number | null
+          engagement_tier?: string | null
+          engagement_treatment_depth?: number | null
+          engagement_updated_at?: string | null
+          engagement_visit_frequency?: number | null
           facebook_url?: string | null
           first_name: string
           follows_facebook?: boolean | null
@@ -1789,6 +1805,14 @@ export type Database = {
           email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
+          engagement_compliance?: number | null
+          engagement_retention_signal?: number | null
+          engagement_revenue_value?: number | null
+          engagement_score?: number | null
+          engagement_tier?: string | null
+          engagement_treatment_depth?: number | null
+          engagement_updated_at?: string | null
+          engagement_visit_frequency?: number | null
           facebook_url?: string | null
           first_name?: string
           follows_facebook?: boolean | null

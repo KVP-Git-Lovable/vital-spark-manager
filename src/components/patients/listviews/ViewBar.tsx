@@ -76,12 +76,7 @@ export default function ViewBar({
               <Plus className="h-3.5 w-3.5" />
               New View
             </DropdownMenuItem>
-            {activeView && (
-              <DropdownMenuItem onClick={() => onClone(activeView)} className="gap-2">
-                <Copy className="h-3.5 w-3.5" />
-                Clone "{activeView.name}"
-              </DropdownMenuItem>
-            )}
+
           </DropdownMenuContent>
         </DropdownMenu>
 

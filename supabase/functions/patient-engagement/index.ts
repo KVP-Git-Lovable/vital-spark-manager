@@ -179,7 +179,33 @@ Deno.serve(async (req) => {
       };
     }
 
+    // Persist the highlight scores on the patient record so they can be used
+    // in list views, filters and reports.
+    try {
+      const stamp = new Date().toISOString();
+      await Promise.all(
+        Object.entries(results).map(([pid, r]: [string, any]) =>
+          supabase
+            .from("patients")
+            .update({
+              engagement_score: r.score,
+              engagement_tier: r.tier,
+              engagement_visit_frequency: r.breakdown.visitFrequency,
+              engagement_revenue_value: r.breakdown.revenueValue,
+              engagement_treatment_depth: r.breakdown.treatmentDepth,
+              engagement_retention_signal: r.breakdown.retentionSignal,
+              engagement_compliance: r.breakdown.compliance,
+              engagement_updated_at: stamp,
+            })
+            .eq("id", pid)
+        )
+      );
+    } catch (_e) {
+      // Persisting is best-effort; scores are still returned to the caller.
+    }
+
     return new Response(JSON.stringify({ scores: results }), {
+
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

@@ -351,35 +351,30 @@ export function ReportPreview({
       return flat;
     });
 
-    const relatedFilters = filters
-      .filter((f) => relatedObject && f.field.startsWith(`${relatedObject}.`))
-      .filter((f) => {
-        const c = f.field.split(".")[1];
-        return relatedValidFieldSet.has(c) && !isVirtualField(c);
-      });
+    // Client-side evaluation. Related-object filters always run here; primary
+    // filters also run here when custom filter logic is in play.
+    const evalFilters = filters.filter((f) => {
+      const [objKey, c] = (f.field || "").split(".");
+      if (!c || isVirtualField(c)) return false;
+      if (objKey === relatedObject && relatedValidFieldSet.has(c)) return true;
+      if (objKey === primaryObject && primaryValidFieldSet.has(c)) return !!filterLogic;
+      return false;
+    });
+
     let filteredData = flattenedData;
-    if (relatedFilters.length > 0) {
+    if (evalFilters.length > 0) {
+      // Filter logic numbering follows the full filter list, so map back.
       filteredData = flattenedData.filter((row) => {
-        return relatedFilters.every((f) => {
-          const col = f.field.split(".")[1];
-          const val = row[`__related__.${col}`];
-          const fv = resolveFilterValue(f.value);
-          const strVal = String(val ?? "");
-          switch (f.operator) {
-            case "equals": return strVal === fv;
-            case "not_equals": return strVal !== fv;
-            case "contains": return strVal.toLowerCase().includes(fv.toLowerCase());
-            case "gt": return Number(val) > Number(fv);
-            case "lt": return Number(val) < Number(fv);
-            case "gte": return new Date(val).getTime() > 0 ? new Date(val) >= new Date(fv) : Number(val) >= Number(fv);
-            case "lte": return new Date(val).getTime() > 0 ? new Date(val) <= new Date(fv) : Number(val) <= Number(fv);
-            case "is_null": return val === null || val === undefined;
-            case "is_not_null": return val !== null && val !== undefined;
-            default: return true;
-          }
+        const results = filters.map((f) => {
+          if (!evalFilters.includes(f)) return true;
+          const [objKey, col] = f.field.split(".");
+          const val = objKey === relatedObject ? row[`__related__.${col}`] : row[col];
+          return matchesValue(val, f.operator, resolveFilterValue(f.value));
         });
+        return evaluateFilterLogic(filterLogic, results);
       });
     }
+
 
     // ---- Aggregation pass ----
     // If any selected column / groupColumn is an aggregate AND we have group_rows,

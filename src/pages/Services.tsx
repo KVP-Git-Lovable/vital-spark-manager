@@ -192,6 +192,7 @@ const Services = () => {
           price: parseFloat(price) || 0,
           hsn_code: hsnCode || null,
           gst_percent: selectedHsn ? Number(selectedHsn.igst || 0) + Number(selectedHsn.cgst || 0) : 0,
+          material_percent: materialPercent.trim() === "" ? null : parseFloat(materialPercent),
           problem_area_ids: problemAreaIds,
           procedure_notes: procedureNotes || null,
           recommendations: recs,

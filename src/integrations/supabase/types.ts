@@ -2638,6 +2638,57 @@ export type Database = {
           },
         ]
       }
+      procedure_services: {
+        Row: {
+          created_at: string
+          id: string
+          procedure_id: string
+          procedure_notes: string | null
+          recommendations: string | null
+          service_id: string | null
+          service_name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          procedure_id: string
+          procedure_notes?: string | null
+          recommendations?: string | null
+          service_id?: string | null
+          service_name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          procedure_id?: string
+          procedure_notes?: string | null
+          recommendations?: string | null
+          service_id?: string | null
+          service_name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procedure_services_procedure_id_fkey"
+            columns: ["procedure_id"]
+            isOneToOne: false
+            referencedRelation: "procedures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedure_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procedures: {
         Row: {
           appointment_id: string | null

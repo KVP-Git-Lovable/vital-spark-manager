@@ -162,9 +162,73 @@ function listValues(c: FilterCondition): string[] {
     .filter(Boolean);
 }
 
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
+const DAY = 86400000;
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const startOfWeek = (d: Date) => addDays(startOfDay(d), -((d.getDay() + 6) % 7)); // Monday start
+const startOfMonth = (d: Date, offset = 0) => new Date(d.getFullYear(), d.getMonth() + offset, 1);
+const startOfQuarter = (d: Date, offset = 0) =>
+  new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3 + offset * 3, 1);
+const startOfYear = (d: Date, offset = 0) => new Date(d.getFullYear() + offset, 0, 1);
+
+export interface DateRange { from: Date; to: Date }
+
+/** Resolve a date operator into an inclusive [from, to] day range (or null when not a preset/range op). */
+export function dateRangeFor(operator: string, value?: string, value2?: string): DateRange | null {
+  const now = new Date();
+  const today = startOfDay(now);
+  const end = (d: Date) => addDays(d, -1); // exclusive-start → inclusive-end helper
+  switch (operator) {
+    case "today": return { from: today, to: today };
+    case "yesterday": return { from: addDays(today, -1), to: addDays(today, -1) };
+    case "tomorrow": return { from: addDays(today, 1), to: addDays(today, 1) };
+    case "this_week": return { from: startOfWeek(now), to: addDays(startOfWeek(now), 6) };
+    case "last_week": return { from: addDays(startOfWeek(now), -7), to: addDays(startOfWeek(now), -1) };
+    case "next_week": return { from: addDays(startOfWeek(now), 7), to: addDays(startOfWeek(now), 13) };
+    case "this_month": return { from: startOfMonth(now), to: end(startOfMonth(now, 1)) };
+    case "last_month": return { from: startOfMonth(now, -1), to: end(startOfMonth(now)) };
+    case "next_month": return { from: startOfMonth(now, 1), to: end(startOfMonth(now, 2)) };
+    case "this_quarter": return { from: startOfQuarter(now), to: end(startOfQuarter(now, 1)) };
+    case "last_quarter": return { from: startOfQuarter(now, -1), to: end(startOfQuarter(now)) };
+    case "next_quarter": return { from: startOfQuarter(now, 1), to: end(startOfQuarter(now, 2)) };
+    case "this_year": return { from: startOfYear(now), to: end(startOfYear(now, 1)) };
+    case "last_year": return { from: startOfYear(now, -1), to: end(startOfYear(now)) };
+    case "next_year": return { from: startOfYear(now, 1), to: end(startOfYear(now, 2)) };
+    case "last_n_days": {
+      const n = Number(value || 0);
+      if (!n) return null;
+      return { from: addDays(today, -(n - 1)), to: today };
+    }
+    case "next_n_days": {
+      const n = Number(value || 0);
+      if (!n) return null;
+      return { from: today, to: addDays(today, n - 1) };
+    }
+    case "on": {
+      if (!value) return null;
+      const d = startOfDay(new Date(value));
+      return isNaN(d.getTime()) ? null : { from: d, to: d };
+    }
+    case "between": {
+      if (!value || !value2) return null;
+      const a = startOfDay(new Date(value));
+      const b = startOfDay(new Date(value2));
+      if (isNaN(a.getTime()) || isNaN(b.getTime())) return null;
+      return a <= b ? { from: a, to: b } : { from: b, to: a };
+    }
+    default: return null;
+  }
 }
+
+/** True when a recurring yearly date (birthday) falls inside the range, ignoring the stored year. */
+function anniversaryInRange(d: Date, range: DateRange): boolean {
+  for (let y = range.from.getFullYear() - 1; y <= range.to.getFullYear() + 1; y++) {
+    const occ = new Date(y, d.getMonth(), d.getDate()).getTime();
+    if (occ >= range.from.getTime() && occ <= range.to.getTime()) return true;
+  }
+  return false;
+}
+
 
 function matchOne(row: any, c: FilterCondition): boolean {
   const def = fieldDef(c.field);

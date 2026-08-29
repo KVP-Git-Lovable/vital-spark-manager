@@ -72,6 +72,45 @@ function MultiPicker({
 
 const labelFor = (key: string) => PATIENT_FIELDS.find((f) => f.key === key)?.label ?? key;
 
+/** Field chooser with a built-in search box (field list is long). */
+function FieldSelect({ value, onChange }: { value: string; onChange: (key: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const shown = PATIENT_FIELDS.filter((f) => f.label.toLowerCase().includes(q.trim().toLowerCase()));
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQ(""); }}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-9 w-full justify-between text-sm font-normal bg-background">
+          <span className="truncate">{labelFor(value)}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 p-2 bg-popover z-50">
+        <div className="relative mb-2">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search fields..." className="h-8 pl-7 text-sm" />
+        </div>
+        <div className="max-h-60 overflow-y-auto space-y-0.5">
+          {shown.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              className={`w-full text-left px-2 py-1.5 text-sm rounded truncate ${
+                f.key === value ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+              }`}
+              onClick={() => { onChange(f.key); setOpen(false); setQ(""); }}
+            >
+              {f.label}
+            </button>
+          ))}
+          {shown.length === 0 && <p className="text-xs text-muted-foreground px-1 py-2">No matching fields.</p>}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+
 function FieldPicker({ columns, onChange }: { columns: string[]; onChange: (next: string[]) => void }) {
   const [availSel, setAvailSel] = useState<string[]>([]);
   const [visSel, setVisSel] = useState<string[]>([]);

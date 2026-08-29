@@ -1,6 +1,7 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { fieldDef, formatCell, PATIENT_FIELDS, rawValue } from "@/lib/patientFields";
+import { PatientAvatar } from "@/components/patients/PatientAvatar";
 
 interface Props {
   rows: any[];
@@ -10,12 +11,13 @@ interface Props {
   onToggleAll: () => void;
   onOpen: (row: any) => void;
   doctorLabels?: Record<string, string>;
+  avatars?: Record<string, string>;
 }
 
 const labelFor = (key: string) => PATIENT_FIELDS.find((f) => f.key === key)?.label ?? key;
 
 export default function PatientListViewTable({
-  rows, columns, selectedIds, onToggle, onToggleAll, onOpen, doctorLabels = {},
+  rows, columns, selectedIds, onToggle, onToggleAll, onOpen, doctorLabels = {}, avatars = {},
 }: Props) {
   const tableRef = useStackedTable<HTMLTableElement>();
   const allSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id));
@@ -62,6 +64,21 @@ export default function PatientListViewTable({
                       >
                         {row.status || "—"}
                       </span>
+                    </td>
+                  );
+                }
+                if (key === "full_name") {
+                  return (
+                    <td key={key} className="p-4 text-sm font-medium" data-label={labelFor(key)}>
+                      <div className="flex items-center gap-3">
+                        <PatientAvatar
+                          firstName={row.first_name}
+                          lastName={row.last_name}
+                          photoUrl={avatars[row.id]}
+                          className="h-9 w-9"
+                        />
+                        <span className="line-clamp-2">{value}</span>
+                      </div>
                     </td>
                   );
                 }

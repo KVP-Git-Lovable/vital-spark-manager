@@ -37,6 +37,8 @@ import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { ImportPatientsDialog } from "@/components/patients/ImportPatientsDialog";
 import { EngagementBadge } from "@/components/patients/EngagementBadge";
+import { PatientAvatar } from "@/components/patients/PatientAvatar";
+import { usePatientAvatars } from "@/hooks/usePatientAvatars";
 import { useEngagementScores } from "@/hooks/useEngagementScores";
 import { buildOrFilter, buildFuzzyOrFilter, fuzzyRank } from "@/lib/fuzzySearch";
 import type { Tables } from "@/integrations/supabase/types";
@@ -264,6 +266,7 @@ const Patients = () => {
 
   const patientIds = paged.map((p) => p.id);
   const { data: engagementScores = {} } = useEngagementScores(patientIds);
+  const avatars = usePatientAvatars(patientIds);
 
   const doctorOptions = useMemo(
     () => staffList.map((s: any) => ({ value: s.id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() })),
@@ -454,6 +457,7 @@ const Patients = () => {
             onToggleAll={toggleAll}
             onOpen={(row) => navigate(`/patients/${row.id}`)}
             doctorLabels={doctorLabels}
+            avatars={avatars}
           />
         ) : (
 
@@ -489,9 +493,11 @@ const Patients = () => {
                     {shouldShowColumn("name") && (
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-semibold text-sm shrink-0">
-                            {(patient.first_name?.[0] || "?")}{(patient.last_name?.[0] || "")}
-                          </div>
+                          <PatientAvatar
+                            firstName={patient.first_name}
+                            lastName={patient.last_name}
+                            photoUrl={avatars[patient.id]}
+                          />
                           <div>
                             <p className="font-medium text-sm">{`${patient.first_name || ""} ${patient.last_name || ""}`.trim() || "Unnamed"}</p>
                             <p className="text-xs text-muted-foreground">

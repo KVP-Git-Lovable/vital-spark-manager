@@ -6,6 +6,8 @@ export interface FieldDef {
   type: FieldType;
   /** Where the picklist options come from (resolved at runtime by the caller). */
   optionsSource?: "gender" | "status" | "skin_type" | "blood_group" | "source" | "doctor";
+  /** Recurring yearly date (birthday/anniversary) — matched on day+month, ignoring year. */
+  anniversary?: boolean;
 }
 
 export const PATIENT_FIELDS: FieldDef[] = [
@@ -16,7 +18,7 @@ export const PATIENT_FIELDS: FieldDef[] = [
   { key: "email", label: "Email", type: "text" },
   { key: "gender", label: "Gender", type: "picklist", optionsSource: "gender" },
   { key: "age", label: "Age", type: "number" },
-  { key: "date_of_birth", label: "Date of Birth", type: "date" },
+  { key: "date_of_birth", label: "Date of Birth (Birthday)", type: "date", anniversary: true },
   { key: "status", label: "Status", type: "picklist", optionsSource: "status" },
   { key: "skin_type", label: "Skin Type", type: "picklist", optionsSource: "skin_type" },
   { key: "skin_concerns", label: "Skin Concerns", type: "text" },
@@ -77,13 +79,31 @@ export const OPERATORS: Record<FieldType, { value: string; label: string }[]> = 
     { value: "is_empty", label: "is empty" },
   ],
   date: [
-    { value: "on", label: "on" },
-    { value: "before", label: "before" },
-    { value: "after", label: "after" },
-    { value: "between", label: "between" },
-    { value: "last_n_days", label: "in the last N days" },
-    { value: "this_month", label: "this month" },
+    { value: "today", label: "Today" },
+    { value: "yesterday", label: "Yesterday" },
+    { value: "tomorrow", label: "Tomorrow" },
+    { value: "this_week", label: "This week" },
+    { value: "last_week", label: "Last week" },
+    { value: "next_week", label: "Next week" },
+    { value: "this_month", label: "This month" },
+    { value: "last_month", label: "Last month" },
+    { value: "next_month", label: "Next month" },
+    { value: "this_quarter", label: "This quarter" },
+    { value: "last_quarter", label: "Last quarter" },
+    { value: "next_quarter", label: "Next quarter" },
+    { value: "this_year", label: "This year" },
+    { value: "last_year", label: "Last year" },
+    { value: "next_year", label: "Next year" },
+    { value: "last_n_days", label: "In the last N days" },
+    { value: "next_n_days", label: "In the next N days" },
+    { value: "on", label: "On (specific date)" },
+    { value: "before", label: "Before" },
+    { value: "after", label: "After" },
+    { value: "between", label: "Custom date range" },
+    { value: "is_empty", label: "is empty" },
+    { value: "is_not_empty", label: "is not empty" },
   ],
+
   number: [
     { value: "eq", label: "=" },
     { value: "neq", label: "≠" },
@@ -142,9 +162,72 @@ function listValues(c: FilterCondition): string[] {
     .filter(Boolean);
 }
 
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const startOfWeek = (d: Date) => addDays(startOfDay(d), -((d.getDay() + 6) % 7)); // Monday start
+const startOfMonth = (d: Date, offset = 0) => new Date(d.getFullYear(), d.getMonth() + offset, 1);
+const startOfQuarter = (d: Date, offset = 0) =>
+  new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3 + offset * 3, 1);
+const startOfYear = (d: Date, offset = 0) => new Date(d.getFullYear() + offset, 0, 1);
+
+export interface DateRange { from: Date; to: Date }
+
+/** Resolve a date operator into an inclusive [from, to] day range (or null when not a preset/range op). */
+export function dateRangeFor(operator: string, value?: string, value2?: string): DateRange | null {
+  const now = new Date();
+  const today = startOfDay(now);
+  const end = (d: Date) => addDays(d, -1); // exclusive-start → inclusive-end helper
+  switch (operator) {
+    case "today": return { from: today, to: today };
+    case "yesterday": return { from: addDays(today, -1), to: addDays(today, -1) };
+    case "tomorrow": return { from: addDays(today, 1), to: addDays(today, 1) };
+    case "this_week": return { from: startOfWeek(now), to: addDays(startOfWeek(now), 6) };
+    case "last_week": return { from: addDays(startOfWeek(now), -7), to: addDays(startOfWeek(now), -1) };
+    case "next_week": return { from: addDays(startOfWeek(now), 7), to: addDays(startOfWeek(now), 13) };
+    case "this_month": return { from: startOfMonth(now), to: end(startOfMonth(now, 1)) };
+    case "last_month": return { from: startOfMonth(now, -1), to: end(startOfMonth(now)) };
+    case "next_month": return { from: startOfMonth(now, 1), to: end(startOfMonth(now, 2)) };
+    case "this_quarter": return { from: startOfQuarter(now), to: end(startOfQuarter(now, 1)) };
+    case "last_quarter": return { from: startOfQuarter(now, -1), to: end(startOfQuarter(now)) };
+    case "next_quarter": return { from: startOfQuarter(now, 1), to: end(startOfQuarter(now, 2)) };
+    case "this_year": return { from: startOfYear(now), to: end(startOfYear(now, 1)) };
+    case "last_year": return { from: startOfYear(now, -1), to: end(startOfYear(now)) };
+    case "next_year": return { from: startOfYear(now, 1), to: end(startOfYear(now, 2)) };
+    case "last_n_days": {
+      const n = Number(value || 0);
+      if (!n) return null;
+      return { from: addDays(today, -(n - 1)), to: today };
+    }
+    case "next_n_days": {
+      const n = Number(value || 0);
+      if (!n) return null;
+      return { from: today, to: addDays(today, n - 1) };
+    }
+    case "on": {
+      if (!value) return null;
+      const d = startOfDay(new Date(value));
+      return isNaN(d.getTime()) ? null : { from: d, to: d };
+    }
+    case "between": {
+      if (!value || !value2) return null;
+      const a = startOfDay(new Date(value));
+      const b = startOfDay(new Date(value2));
+      if (isNaN(a.getTime()) || isNaN(b.getTime())) return null;
+      return a <= b ? { from: a, to: b } : { from: b, to: a };
+    }
+    default: return null;
+  }
 }
+
+/** True when a recurring yearly date (birthday) falls inside the range, ignoring the stored year. */
+function anniversaryInRange(d: Date, range: DateRange): boolean {
+  for (let y = range.from.getFullYear() - 1; y <= range.to.getFullYear() + 1; y++) {
+    const occ = new Date(y, d.getMonth(), d.getDate()).getTime();
+    if (occ >= range.from.getTime() && occ <= range.to.getTime()) return true;
+  }
+  return false;
+}
+
 
 function matchOne(row: any, c: FilterCondition): boolean {
   const def = fieldDef(c.field);
@@ -176,30 +259,26 @@ function matchOne(row: any, c: FilterCondition): boolean {
     if (!val) return false;
     const d = new Date(String(val));
     if (isNaN(d.getTime())) return false;
-    const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-    const target = c.value ? day(new Date(c.value)) : NaN;
-    switch (c.operator) {
-      case "on": return day(d) === target;
-      case "before": return day(d) < target;
-      case "after": return day(d) > target;
-      case "between": {
-        const t2 = c.value2 ? day(new Date(c.value2)) : NaN;
-        if (isNaN(target) || isNaN(t2)) return true;
-        return day(d) >= Math.min(target, t2) && day(d) <= Math.max(target, t2);
+    const dayValue = startOfDay(d).getTime();
+
+    if (c.operator === "before" || c.operator === "after") {
+      if (!c.value) return true;
+      const target = startOfDay(new Date(c.value));
+      if (isNaN(target.getTime())) return true;
+      if (def.anniversary) {
+        // compare this year's occurrence
+        const occ = new Date(target.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        return c.operator === "before" ? occ < target.getTime() : occ > target.getTime();
       }
-      case "last_n_days": {
-        const n = Number(c.value || 0);
-        if (!n) return true;
-        const from = Date.now() - n * 86400000;
-        return d.getTime() >= from && d.getTime() <= Date.now() + 86400000;
-      }
-      case "this_month": {
-        const now = new Date();
-        return d >= startOfMonth(now) && d < startOfMonth(new Date(now.getFullYear(), now.getMonth() + 1, 1));
-      }
-      default: return true;
+      return c.operator === "before" ? dayValue < target.getTime() : dayValue > target.getTime();
     }
+
+    const range = dateRangeFor(c.operator, c.value, c.value2);
+    if (!range) return true;
+    if (def.anniversary) return anniversaryInRange(d, range);
+    return dayValue >= range.from.getTime() && dayValue <= range.to.getTime();
   }
+
 
   const s = String(val ?? "").toLowerCase();
   const q = String(c.value ?? "").toLowerCase();

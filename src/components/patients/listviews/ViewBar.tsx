@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, ListFilter, Pencil, Pin, Plus, Trash2, LayoutGrid, Table2, Copy } from "lucide-react";
+import { ChevronDown, ListFilter, Pencil, Pin, Plus, Trash2, LayoutGrid, Table2, Copy, BarChart3 } from "lucide-react";
 import type { ListView } from "@/lib/patientFields";
 
 interface Props {
@@ -24,6 +24,8 @@ interface Props {
   display: "cards" | "table";
   onDisplayChange: (d: "cards" | "table") => void;
   count: number;
+  chartsOpen?: boolean;
+  onToggleCharts?: () => void;
 }
 
 export default function ViewBar({
@@ -39,6 +41,8 @@ export default function ViewBar({
   display,
   onDisplayChange,
   count,
+  chartsOpen,
+  onToggleCharts,
 }: Props) {
   const canManage = activeView && activeView.owner_id === currentUserId;
 
@@ -121,6 +125,18 @@ export default function ViewBar({
             </>
           )}
         </div>
+
+        {activeView && onToggleCharts && (
+          <Button
+            variant={chartsOpen ? "default" : "outline"}
+            size="icon"
+            className="h-9 w-9"
+            title="Charts"
+            onClick={onToggleCharts}
+          >
+            <BarChart3 className="h-4 w-4" />
+          </Button>
+        )}
 
         <div className="flex items-center rounded-lg border border-border bg-background overflow-hidden">
           <button

@@ -26,8 +26,10 @@ function normalize(row: any): ListView {
     visibility: (row.visibility ?? "private") as ListView["visibility"],
     shared_user_ids: row.shared_with ?? [],
     is_default: !!row.is_default,
+    charts: Array.isArray(row.charts) ? row.charts : [],
   };
 }
+
 
 export function usePatientListViews(section = "patients") {
   const [views, setViews] = useState<ListView[]>([]);
@@ -103,7 +105,9 @@ export function usePatientListViews(section = "patients") {
         shared_with: payload.visibility === "selected" ? payload.shared_user_ids ?? [] : [],
         is_shared: (payload.visibility ?? "private") !== "private",
         is_default: payload.is_default ?? false,
+        charts: (payload.charts ?? []) as any,
       };
+
 
       if (payload.id) {
         const { error } = await supabase
@@ -125,6 +129,22 @@ export function usePatientListViews(section = "patients") {
     [section, load, selectView]
   );
 
+  const saveCharts = useCallback(
+    async (viewId: string, charts: ListView["charts"]) => {
+      // Charts live on the view row, so they inherit the view's sharing rules.
+      setViews((prev) => prev.map((v) => (v.id === viewId ? { ...v, charts } : v)));
+      const { error } = await supabase
+        .from("list_views")
+        .update({ charts: charts as any, updated_at: new Date().toISOString() })
+        .eq("id", viewId);
+      if (error) {
+        toast.error(error.message);
+        await load();
+      }
+    },
+    [load]
+  );
+
   const deleteView = useCallback(
     async (view: ListView) => {
       const { error } = await supabase.from("list_views").delete().eq("id", view.id);
@@ -135,6 +155,7 @@ export function usePatientListViews(section = "patients") {
     },
     [load, selectView]
   );
+
 
   const pinDefault = useCallback(
     async (view: ListView | null) => {
@@ -164,7 +185,9 @@ export function usePatientListViews(section = "patients") {
     activeViewId,
     selectView,
     saveView,
+    saveCharts,
     deleteView,
+
     pinDefault,
     reload: load,
   };

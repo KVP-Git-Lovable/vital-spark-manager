@@ -139,6 +139,19 @@ export interface ViewFilters {
   conditions: FilterCondition[];
 }
 
+export type ChartType = "vertical_bar" | "horizontal_bar" | "donut" | "line";
+export type AggregateType = "count" | "sum" | "avg";
+
+export interface ViewChart {
+  id: string;
+  name: string;
+  chart_type: ChartType;
+  aggregate: AggregateType;
+  aggregate_field?: string | null;
+  group_field: string;
+  limit?: number;
+}
+
 export interface ListView {
   id: string;
   name: string;
@@ -150,7 +163,38 @@ export interface ListView {
   visibility: "private" | "everyone" | "selected";
   shared_user_ids: string[];
   is_default: boolean;
+  charts: ViewChart[];
 }
+
+/** Group + aggregate rows for a saved view chart. */
+export function computeChartData(rows: any[], chart: ViewChart): { name: string; value: number }[] {
+  const buckets = new Map<string, number[]>();
+  for (const row of rows) {
+    const raw = rawValue(row, chart.group_field);
+    let key: string;
+    const def = fieldDef(chart.group_field);
+    if (raw === null || raw === undefined || raw === "") key = "—";
+    else if (def?.type === "date") key = new Date(String(raw)).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+    else key = String(raw);
+    const metric =
+      chart.aggregate === "count"
+        ? 1
+        : Number(rawValue(row, chart.aggregate_field || "") ?? 0) || 0;
+    const arr = buckets.get(key) ?? [];
+    arr.push(metric);
+    buckets.set(key, arr);
+  }
+  const data = Array.from(buckets.entries()).map(([name, values]) => ({
+    name,
+    value:
+      chart.aggregate === "avg"
+        ? Math.round((values.reduce((a, b) => a + b, 0) / (values.length || 1)) * 100) / 100
+        : values.reduce((a, b) => a + b, 0),
+  }));
+  data.sort((a, b) => b.value - a.value);
+  return data.slice(0, chart.limit && chart.limit > 0 ? chart.limit : 12);
+}
+
 
 export function patientAge(dob: string | null | undefined): number | null {
   if (!dob) return null;

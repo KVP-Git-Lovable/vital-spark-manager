@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import ViewBar from "@/components/patients/listviews/ViewBar";
 import ViewEditorDialog from "@/components/patients/listviews/ViewEditorDialog";
 import PatientListViewTable from "@/components/patients/listviews/PatientListViewTable";
+import ViewChartsPanel from "@/components/patients/listviews/ViewChartsPanel";
 import { usePatientListViews } from "@/hooks/usePatientListViews";
 import { applyFilters, sortRows, DEFAULT_VIEW_COLUMNS, type ListView } from "@/lib/patientFields";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
@@ -199,6 +200,7 @@ const Patients = () => {
   const [editingView, setEditingView] = useState<ListView | null>(null);
   const [display, setDisplay] = useState<"cards" | "table">("cards");
   const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
+  const [chartsOpen, setChartsOpen] = useState(false);
 
   const {
     views,
@@ -206,6 +208,7 @@ const Patients = () => {
     activeView,
     selectView,
     saveView,
+    saveCharts,
     deleteView,
     pinDefault,
   } = usePatientListViews("patients");
@@ -414,8 +417,22 @@ const Patients = () => {
           display={display}
           onDisplayChange={setDisplay}
           count={total}
+          chartsOpen={chartsOpen}
+          onToggleCharts={() => setChartsOpen((o) => !o)}
         />
       </div>
+
+      {activeView && chartsOpen && (
+        <div className="mb-4">
+          <ViewChartsPanel
+            charts={activeView.charts ?? []}
+            rows={viewRows}
+            canManage={activeView.owner_id === userId}
+            onChange={(charts) => saveCharts(activeView.id, charts)}
+            onClose={() => setChartsOpen(false)}
+          />
+        </div>
+      )}
 
 
       <motion.div

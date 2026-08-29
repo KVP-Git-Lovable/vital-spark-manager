@@ -747,15 +747,8 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </div>
 
 
-                {procedure.staff && (
-                  <div>
-                    <Label>Doctor</Label>
-                    <Input value={`Dr. ${procedure.staff.first_name} ${procedure.staff.last_name}`} disabled className="mt-1.5 bg-muted/50" />
-                  </div>
-                )}
-
                 {/* Prescriptions - editable */}
-                <div className="border-t pt-4">
+                <div className="rounded-xl border-2 border-primary/25 bg-primary/5 p-4 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <Label className="text-base font-display font-semibold flex items-center gap-2">
                       <Pill className="h-4 w-4" /> Prescriptions
@@ -767,7 +760,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   {visibleRx.length > 0 ? visibleRx.map((rx, idx) => {
                     const realIdx = editPrescriptions.indexOf(rx);
                     return (
-                      <div key={realIdx} className="border rounded-lg p-3 mb-3 space-y-2 bg-muted/30">
+                      <div key={realIdx} className="border rounded-lg p-3 mb-3 space-y-2 bg-background shadow-sm transition-shadow hover:shadow-md">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-medium text-muted-foreground">Medicine {idx + 1}</span>
                           <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeRx(realIdx)}>Remove</Button>

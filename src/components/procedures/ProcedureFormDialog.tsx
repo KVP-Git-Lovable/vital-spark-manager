@@ -240,11 +240,18 @@ export function ProcedureFormDialog({
       }
       setUnmatchedHints(nextHints);
 
-      if (data.service_name) { setServiceName(data.service_name); filled.push("service"); }
-      if (data.symptoms) { setSymptoms(data.symptoms); filled.push("symptoms"); }
-      if (data.diagnosis) { setDiagnosis(data.diagnosis); filled.push("diagnosis"); }
-      if (data.procedure_notes) { setProcedureNotes(data.procedure_notes); filled.push("procedure_notes"); }
-      if (data.recommendations) { setRecommendations(data.recommendations); filled.push("recommendations"); }
+      if (data.service_name) {
+        setServiceLines((prev) => prev.map((l, i) => (i === 0 ? { ...l, name: data.service_name } : l)));
+        filled.push("service");
+      }
+      if (data.procedure_notes) {
+        setServiceLines((prev) => prev.map((l, i) => (i === 0 ? { ...l, procedure_notes: data.procedure_notes } : l)));
+        filled.push("procedure_notes");
+      }
+      if (data.recommendations) {
+        setServiceLines((prev) => prev.map((l, i) => (i === 0 ? { ...l, recommendations: data.recommendations } : l)));
+        filled.push("recommendations");
+      }
       if (Array.isArray(data.prescriptions) && data.prescriptions.length > 0) {
         const newRx = data.prescriptions.map((p: any) => ({
           product_id: "",

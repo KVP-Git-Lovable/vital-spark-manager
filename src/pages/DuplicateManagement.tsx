@@ -116,7 +116,24 @@ export default function DuplicateManagement() {
         </TabsList>
       </Tabs>
 
+      <Tabs value={section} onValueChange={setSection}>
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="rules">Rules</TabsTrigger>
+          <TabsTrigger value="simulator">Rule Test Simulator</TabsTrigger>
+          <TabsTrigger value="alerts">Duplicate Alerts &amp; Bulk Job</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="simulator" className="pt-4">
+          <RuleSimulator objectKey={objectKey} />
+        </TabsContent>
+
+        <TabsContent value="alerts" className="pt-4">
+          <DuplicateAlertsPanel objectKey={objectKey} />
+        </TabsContent>
+
+        <TabsContent value="rules" className="pt-4">
       <Card className="divide-y">
+
         {isLoading && <div className="p-6 text-sm text-muted-foreground">Loading…</div>}
         {!isLoading && list.length === 0 && (
           <div className="p-8 text-center text-sm text-muted-foreground">

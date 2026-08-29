@@ -38,6 +38,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { PatientAvatar } from "@/components/patients/PatientAvatar";
+import { usePatientAvatars } from "@/hooks/usePatientAvatars";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -565,6 +567,13 @@ const Appointments = () => {
     });
     return sorted;
   }, [filteredAppointments, sortColumn, sortDirection, invoiceByAppointmentId]);
+
+  // Patient display pictures for quick recognition in the appointment list
+  const appointmentPatientIds = useMemo(
+    () => sortedAppointments.map((a: any) => a.patient_id).filter(Boolean),
+    [sortedAppointments]
+  );
+  const appointmentAvatars = usePatientAvatars(appointmentPatientIds);
 
   // Get columns to display based on current view or default
   const getDisplayColumns = () => {
@@ -2042,16 +2051,26 @@ const Appointments = () => {
                         <tr key={apt.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors" onClick={() => setOpenModal("appointmentDetail", apt.id)}>
                           {shouldShowColumn("start_time") && (
                             <td className="p-3">
-                              <p className="font-medium">{format(new Date(apt.start_time), "MMM d, yyyy")}</p>
+                              <p className="font-medium whitespace-nowrap">{format(new Date(apt.start_time), "MMM d")}</p>
                             </td>
                           )}
                           {shouldShowColumn("time") && (
                             <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
-                              {format(new Date(apt.start_time), "h:mm a")} - {format(new Date(apt.end_time), "h:mm a")}
+                              {format(new Date(apt.start_time), "h:mm a")} – {format(new Date(apt.end_time), "h:mm a")}
                             </td>
                           )}
                           {shouldShowColumn("patient") && (
-                            <td className="p-3 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
+                            <td className="p-3 font-medium">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <PatientAvatar
+                                  firstName={apt.patients?.first_name || (apt.patient_name || "").split(" ")[0]}
+                                  lastName={apt.patients?.last_name || (apt.patient_name || "").split(" ").slice(1).join(" ")}
+                                  photoUrl={apt.patient_id ? appointmentAvatars[apt.patient_id] : undefined}
+                                  className="h-8 w-8"
+                                />
+                                <span className="truncate">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</span>
+                              </div>
+                            </td>
                           )}
                           {shouldShowColumn("phone") && (
                             <td className="p-3 text-muted-foreground">

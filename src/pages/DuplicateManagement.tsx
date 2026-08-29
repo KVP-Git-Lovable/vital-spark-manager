@@ -14,7 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, CopyCheck, Trash2, Pencil, ArrowUp, ArrowDown } from "lucide-react";
-import { VALIDATION_OBJECTS, getObject } from "@/lib/validation/schema";
+import { VALIDATION_OBJECTS, getObject, type ValidationObject } from "@/lib/validation/schema";
+import { renderTemplate } from "@/lib/duplicates/engine";
 import {
   DUPLICATE_ACTIONS,
   DuplicateRule,
@@ -22,6 +23,20 @@ import {
   emptyNotification,
   newId,
 } from "@/lib/duplicates/types";
+
+const sampleRecord = (obj: ValidationObject): Record<string, any> => {
+  const rec: Record<string, any> = { id: "sample" };
+  obj.fields.forEach((f) => {
+    rec[f.key] =
+      f.key === "first_name" ? "Priya" :
+      f.key === "last_name" ? "Sharma" :
+      f.key === "phone" ? "+91 98765 43210" :
+      f.key === "email" ? "priya@example.com" :
+      f.options?.[0] || `Sample ${f.label}`;
+  });
+  return rec;
+};
+
 
 export default function DuplicateManagement() {
   const queryClient = useQueryClient();

@@ -71,6 +71,10 @@ export const SOURCE_OPTIONS = [
   "Other",
 ].map((v) => ({ value: v, label: v }));
 
+export const ENGAGEMENT_TIER_OPTIONS = ["Platinum", "Gold", "Silver", "Early"].map((v) => ({ value: v, label: v }));
+
+
+
 export const OPERATORS: Record<FieldType, { value: string; label: string }[]> = {
   text: [
     { value: "contains", label: "contains" },

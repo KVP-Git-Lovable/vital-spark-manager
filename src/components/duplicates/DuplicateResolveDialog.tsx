@@ -174,7 +174,9 @@ export default function DuplicateResolveDialog({ open, onClose, primary, duplica
   const run = async (mode: "merged" | "linked") => {
     if (!kept || !dropped) return;
     setBusy(true);
+    let skippedRef = 0;
     try {
+
       if (mode === "merged") {
         const patch: Record<string, any> = {};
 

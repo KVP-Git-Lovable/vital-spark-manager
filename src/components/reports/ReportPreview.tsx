@@ -124,6 +124,38 @@ function resolveFilterValue(v: string): string {
   return v;
 }
 
+// Client-side equivalent of the server-side operator handling.
+function matchesValue(val: any, operator: string, fv: string): boolean {
+  const strVal = String(val ?? "");
+  const lower = strVal.toLowerCase();
+  const fvLower = (fv ?? "").toLowerCase();
+  const list = (fv ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const asDate = (x: any) => {
+    const d = new Date(x);
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const dv = asDate(val);
+  const df = asDate(fv);
+  switch (operator) {
+    case "equals": return lower === fvLower;
+    case "not_equals": return lower !== fvLower;
+    case "contains": return lower.includes(fvLower);
+    case "does_not_contain": return !lower.includes(fvLower);
+    case "starts_with": return lower.startsWith(fvLower);
+    case "ends_with": return lower.endsWith(fvLower);
+    case "in": return list.includes(lower);
+    case "not_in": return !list.includes(lower);
+    case "gt": return dv && df ? dv > df : Number(val) > Number(fv);
+    case "lt": return dv && df ? dv < df : Number(val) < Number(fv);
+    case "gte": return dv && df ? dv >= df : Number(val) >= Number(fv);
+    case "lte": return dv && df ? dv <= df : Number(val) <= Number(fv);
+    case "is_null": return val === null || val === undefined || strVal === "";
+    case "is_not_null": return !(val === null || val === undefined || strVal === "");
+    default: return true;
+  }
+}
+
+
 export function ReportPreview({
   primaryObject,
   relatedObject,

@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+// edit mode mirrors the create form layout (tabs + same field grid)
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList } from "lucide-react";
@@ -356,11 +357,28 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       const { error } = await supabase.from("procedures").update({
         service_name: kept.length ? kept.map((l) => l.service_name).join(", ") : editServiceName,
         status: editStatus,
+        staff_id: editStaffId && editStaffId.trim() ? editStaffId : null,
         procedure_notes: kept.length ? combine("procedure_notes") : editProcedureNotes,
         recommendations: kept.length ? combine("recommendations") : editRecommendations,
         review_notes: editReviewNotes,
       }).eq("id", procedureId!);
       if (error) throw error;
+
+      // Sync any edits to the patient's medical information back to the patient record
+      if (medicalDirty && procedure?.patient_id) {
+        const { error: medErr } = await supabase
+          .from("patients")
+          .update({
+            medical_history: medical.medical_history || null,
+            current_medications: medical.current_medications || null,
+            allergies: medical.allergies || null,
+            skin_type: medical.skin_type || null,
+            skin_concerns: medical.skin_concerns || null,
+            previous_treatments: medical.previous_treatments || null,
+          })
+          .eq("id", procedure.patient_id);
+        if (medErr) throw medErr;
+      }
 
       // Sync procedure_services
       for (const l of editServiceLines.filter((x) => x.id && x._deleted)) {

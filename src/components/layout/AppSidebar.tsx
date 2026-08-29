@@ -91,6 +91,7 @@ const masterDataItems = [
 ];
 
 const settingsItems = [
+  { title: "Trash", url: "/trash", icon: Trash2 },
   { title: "Settings", url: "/settings", icon: Settings, moduleKey: "settings" },
 ];
 
@@ -98,6 +99,7 @@ const adminSubItems = [
   { title: "Validation Rules", url: "/validation-rules", icon: ShieldCheck },
   { title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal },
   { title: "Duplicate Management", url: "/duplicate-management", icon: CopyCheck },
+  { title: "Trash Policy & Audit", url: "/admin/trash", icon: Trash2 },
 ];
 
 export function AppSidebar() {

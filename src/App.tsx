@@ -67,6 +67,8 @@ import ValidationRules from "./pages/ValidationRules";
 import ValidationRuleBuilder from "./pages/ValidationRuleBuilder";
 import CustomFields from "./pages/CustomFields";
 import Admin from "./pages/Admin";
+import TrashPage from "./pages/Trash";
+import TrashAdmin from "./pages/TrashAdmin";
 import CategoryMaster from "./pages/CategoryMaster";
 import Profile from "./pages/Profile";
 import AccessDenied from "./pages/AccessDenied";
@@ -185,6 +187,8 @@ const App = () => (
                     <Route path="/user-management" element={<ProtectedRoute moduleKey="user_management"><UserManagement /></ProtectedRoute>} />
                     <Route path="/validation-rules" element={<ProtectedRoute moduleKey="settings"><ValidationRules /></ProtectedRoute>} />
                     <Route path="/admin" element={<ProtectedRoute moduleKey="settings"><Admin /></ProtectedRoute>} />
+                    <Route path="/trash" element={<TrashPage />} />
+                    <Route path="/admin/trash" element={<ProtectedRoute moduleKey="settings"><TrashAdmin /></ProtectedRoute>} />
                     <Route path="/validation-rules/:id" element={<ProtectedRoute moduleKey="settings"><ValidationRuleBuilder /></ProtectedRoute>} />
                     <Route path="/duplicate-management" element={<ProtectedRoute moduleKey="settings"><DuplicateManagement /></ProtectedRoute>} />
                     <Route path="/custom-fields" element={<ProtectedRoute moduleKey="settings"><CustomFields /></ProtectedRoute>} />

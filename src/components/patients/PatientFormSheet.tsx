@@ -38,6 +38,8 @@ import type { ValidationMessage } from "@/lib/validation/engine";
 import { AlertCircle } from "lucide-react";
 import { Sparkles, Loader2 } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import { findDuplicates, type DuplicateMatch } from "@/lib/duplicates/engine";
+import DuplicateAlertDialog from "@/components/duplicates/DuplicateAlertDialog";
 
 type Patient = Tables<"patients">;
 
@@ -115,6 +117,8 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [removedFamilyIds, setRemovedFamilyIds] = useState<string[]>([]);
   const [duplicates, setDuplicates] = useState<any[]>([]);
   const [duplicateAck, setDuplicateAck] = useState(false);
+  const [dupMatches, setDupMatches] = useState<DuplicateMatch[]>([]);
+  const [dupDialogOpen, setDupDialogOpen] = useState(false);
   const [familyExisting, setFamilyExisting] = useState<Record<string, any>>({});
   const { toast } = useToast();
   const isEditing = !!patient;
@@ -536,6 +540,14 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   };
 
   return (
+    <>
+    <DuplicateAlertDialog
+      open={dupDialogOpen}
+      matches={dupMatches}
+      objectKey="patients"
+      onClose={() => setDupDialogOpen(false)}
+      onIgnore={() => void handleSave({ skipDuplicateCheck: true })}
+    />
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto p-6">
         <DialogHeader>

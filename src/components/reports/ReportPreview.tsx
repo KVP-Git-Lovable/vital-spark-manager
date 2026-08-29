@@ -171,10 +171,12 @@ export function ReportPreview({
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const opts = displayOptionsProp || DEFAULT_DISPLAY_OPTIONS;
+  const filterLogic = (opts.filter_logic || "").trim();
 
   useEffect(() => {
     fetchData();
-  }, [primaryObject, relatedObject, columns, groupRows, groupColumns, filters]);
+  }, [primaryObject, relatedObject, columns, groupRows, groupColumns, filters, filterLogic]);
+
 
   const fetchData = async () => {
     setLoading(true);

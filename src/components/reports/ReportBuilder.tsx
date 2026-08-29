@@ -532,6 +532,7 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
                 <div key={idx} className="mb-2">
                   <FilterRow
                     filter={filter}
+                    index={idx + 1}
                     allFields={allFields}
                     fieldKeyFn={fieldKeyStr}
                     onChange={(patch) => updateFilter(idx, patch)}
@@ -542,6 +543,25 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
               <Button size="sm" variant="outline" onClick={addFilter} className="w-full gap-1 text-xs h-7">
                 <Plus className="h-3 w-3" /> Add Filter
               </Button>
+
+              {filters.length > 1 && (
+                <div className="mt-2">
+                  <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1 block">
+                    Filter Logic
+                  </Label>
+                  <Input
+                    value={displayOptions.filter_logic || ""}
+                    onChange={(e) =>
+                      setDisplayOptions((p) => ({ ...p, filter_logic: e.target.value }))
+                    }
+                    placeholder={`e.g. 1 AND (2 OR 3)`}
+                    className="h-7 text-[11px]"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Leave blank to match all filters (AND).
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

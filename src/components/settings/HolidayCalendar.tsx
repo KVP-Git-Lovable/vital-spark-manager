@@ -88,7 +88,7 @@ export function HolidayCalendar() {
             <Calendar className="h-4 w-4" /> Holiday Dates
           </h3>
           <p className="text-xs text-muted-foreground mt-1">
-            Appointments cannot be booked on these dates. Sundays are always closed.
+            Appointments cannot be booked on these dates.
           </p>
         </div>
         <Button size="sm" onClick={() => setOpen(true)} className="gap-1.5">

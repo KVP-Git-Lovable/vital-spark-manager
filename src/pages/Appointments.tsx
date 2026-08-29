@@ -32,6 +32,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
+
 } from "@/components/ui/select";
 import {
   Popover,
@@ -321,6 +324,9 @@ const Appointments = () => {
   });
 
   const doctorsList = useMemo(() => (staffList as any[]).filter((s: any) => (s.role || "").toLowerCase() === "doctor"), [staffList]);
+  // Other active staff (nurse, therapist, etc.) can also be assigned to an appointment
+  const otherStaffList = useMemo(() => (staffList as any[]).filter((s: any) => (s.role || "").toLowerCase() !== "doctor"), [staffList]);
+
 
   const { data: services = [] } = useQuery({
     queryKey: ["services-list"],
@@ -658,24 +664,17 @@ const Appointments = () => {
       const startDT = buildDateTime(startDate, startTime);
       if (startDT < new Date()) throw new Error("Cannot book appointments in the past");
 
-      // Check for Sunday (day 0)
-      if (startDate.getDay() === 0) throw new Error("Appointments cannot be booked on Sundays");
-
-      // Check for holidays
+      // Sundays are allowed — only configured holidays block booking
       const dateStr = format(startDate, "yyyy-MM-dd");
       if (holidays.includes(dateStr)) {
-        const holiday = holidays.find((h: string) => h === dateStr);
         throw new Error(`Appointments cannot be booked on this date (holiday)`);
       }
 
-      // Check recurring dates for Sunday and holidays
+      // Check recurring dates for holidays
       if (isRecurring && recurrenceEndDate) {
         const recurringDates = generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate);
-        const blockedDates = recurringDates.filter((d) => {
-          if (d.getDay() === 0) return true; // Sunday
-          const dStr = format(d, "yyyy-MM-dd");
-          return holidays.includes(dStr); // Holiday
-        });
+        const blockedDates = recurringDates.filter((d) => holidays.includes(format(d, "yyyy-MM-dd")));
+
         if (blockedDates.length > 0) {
           const blockedStr = blockedDates.slice(0, 3).map((d) => format(d, "MMM dd")).join(", ");
           throw new Error(`Some dates in the recurrence are unavailable: ${blockedStr}${blockedDates.length > 3 ? "..." : ""}`);
@@ -1352,12 +1351,26 @@ const Appointments = () => {
                   <div>
                     <Label>Doctor</Label>
                     <Select value={staffId} onValueChange={setStaffId}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {doctorsList.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="text-[11px]">Doctors</SelectLabel>
+                            {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
+                          </SelectGroup>
+                        )}
+                        {otherStaffList.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="text-[11px]">Other staff</SelectLabel>
+                            {otherStaffList.map((d: any) => (
+                              <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}{d.role ? ` · ${d.role}` : ""}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div>
                     <Label>Status</Label>
                     <Select value={appointmentStatus} onValueChange={setAppointmentStatus}>

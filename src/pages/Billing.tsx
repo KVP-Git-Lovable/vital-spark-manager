@@ -507,7 +507,7 @@ const Billing = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
-        .select("id, name, price, hsn_code, gst_percent" as any)
+        .select("id, name, price, hsn_code, gst_percent, material_percent" as any)
         .order("name");
       if (error) throw error;
       return data;
@@ -877,6 +877,54 @@ const Billing = () => {
 
   const pharmaSubtotal = pharmaItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
   const servicesSubtotal = useMemo(() => serviceInputs.reduce((sum, s) => sum + (Number(s.price) || 0), 0), [serviceInputs]);
+
+  // Internal-only material cost: % (from Service Master) of the pre-tax service value.
+  // Never used in any invoice calculation.
+  const materialRows = useMemo(() => {
+    return serviceInputs
+      .map((s: any) => {
+        const svc = (serviceMaster as any[]).find((m: any) => m.name === s.name);
+        const pct = Number(svc?.material_percent) || 0;
+        const base = Number(s.price) || 0;
+        if (!pct || !base) return null;
+        return { name: s.name as string, percent: pct, base, cost: (base * pct) / 100 };
+      })
+      .filter(Boolean) as { name: string; percent: number; base: number; cost: number }[];
+  }, [serviceInputs, serviceMaster]);
+  const materialTotal = materialRows.reduce((s, r) => s + r.cost, 0);
+  const [materialOpen, setMaterialOpen] = useState(false);
+
+  const materialSection = materialRows.length > 0 ? (
+    <div className="rounded-lg border border-dashed bg-muted/30 mt-3">
+      <button
+        type="button"
+        onClick={() => setMaterialOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold"
+      >
+        <span>Material cost (internal only)</span>
+        <span className="text-muted-foreground font-normal">{materialOpen ? "Hide" : "Show"}</span>
+      </button>
+      {materialOpen && (
+        <div className="px-3 pb-3 space-y-1 text-[11px]">
+          {materialRows.map((r) => (
+            <div key={r.name} className="flex justify-between gap-2">
+              <span className="min-w-0 truncate">{r.name} · {r.percent}% of {money(r.base)}</span>
+              <span className="tabular-nums">{money(r.cost)}</span>
+            </div>
+          ))}
+          <div className="flex justify-between border-t pt-1 mt-1 font-semibold">
+            <span>Total material cost</span>
+            <span className="tabular-nums">{money(materialTotal)}</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground pt-1">
+            Calculated on pre-tax service value. Not included in invoice totals.
+          </p>
+        </div>
+      )}
+    </div>
+  ) : null;
+
+
 
   // Tax for a share of the bill (used by installments): each line taxed at its own rate, scaled.
   const scaledLineTax = (scale: number) => {
@@ -2296,6 +2344,7 @@ const Billing = () => {
                           </div>
                         )}
                         <div className="flex justify-between font-semibold text-primary text-base"><span>Grand Total</span><span>{money(subtotal + totalTax)}</span></div>
+                        {materialSection}
                       </div>
                     );
                   })()}
@@ -2605,6 +2654,7 @@ const Billing = () => {
                     </div>
                   );
                 })()}
+                {materialSection}
               </div>
               <div className="border-t px-5 py-4 bg-background/60">
                 <Button className="w-full" onClick={() => createInvoice.mutate()} disabled={!canCreateInvoice() || createInvoice.isPending}>

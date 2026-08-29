@@ -1,6 +1,8 @@
 import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat } from "lucide-react";
+import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,7 +62,9 @@ interface ProcedureDetailSheetProps {
 
 export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: ProcedureDetailSheetProps) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [cameraOpen, setCameraOpen] = useState(false);
+
   const [initialized, setInitialized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -482,6 +486,49 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
   const visibleRx = editPrescriptions.filter(rx => !rx._deleted);
 
+  // Hand this procedure over to Billing: service + medicine names come from the
+  // procedure, prices/HSN/GST are resolved from the masters inside Billing.
+  const handleCreateInvoice = () => {
+    if (!procedure) return;
+    const services = Array.from(
+      new Set(
+        [
+          ...editServiceLines.filter((l) => !l._deleted).map((l) => l.service_name),
+          ...(procedureServices as any[]).map((s: any) => s.service_name),
+        ].filter(Boolean),
+      ),
+    );
+    if (services.length === 0 && procedure.service_name) {
+      services.push(...String(procedure.service_name).split(",").map((n) => n.trim()).filter(Boolean));
+    }
+    const products = visibleRx
+      .filter((rx) => rx.medicine_name || rx.product_id)
+      .map((rx) => ({
+        name: rx.medicine_name,
+        product_id: rx.product_id || null,
+        quantity: Number(rx.quantity) || 1,
+      }));
+    const recurring = (procedure as any).visit_type === "Recurring";
+    const recurringDates = (((procedure as any).recurring_dates || []) as string[]).filter(Boolean);
+
+    sessionStorage.setItem(
+      "billing_prefill",
+      JSON.stringify({
+        patientId: procedure.patient_id || "",
+        doctorId: procedure.staff_id || "",
+        appointmentId: (procedure as any).appointment_id || "",
+        services,
+        products,
+        visitType: recurring ? "Recurring" : "Single",
+        recurringCount: recurring ? Number((procedure as any).recurring_count) || recurringDates.length || 1 : 0,
+        recurringDates,
+      }),
+    );
+    handleClose();
+    navigate("/billing?newInvoice=1");
+  };
+
+
   return (
     <>
       <Sheet open={!!procedureId} onOpenChange={(open) => { if (!open) handleClose(); }}>
@@ -805,11 +852,21 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </div>
 
                 {/* Action buttons */}
-                <div className="flex gap-2 pt-4 border-t">
+                <div className="flex flex-wrap gap-2 pt-4 border-t">
                   <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="flex-1 gap-2">
                     <Save className="h-4 w-4" />
                     {updateMutation.isPending ? "Saving..." : "Save Changes"}
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 gap-2 border-primary/40 text-primary hover:bg-primary/5"
+                    onClick={handleCreateInvoice}
+                  >
+                    <Receipt className="h-4 w-4" />
+                    Create Invoice
+                  </Button>
+
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive" size="icon">

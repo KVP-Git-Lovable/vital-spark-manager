@@ -60,7 +60,7 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
     queryKey: ["quick-appt-staff"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("staff").select("id, first_name, last_name").eq("is_active", true).eq("role", "Doctor").order("first_name");
+        .from("staff").select("id, first_name, last_name, role").eq("is_active", true).order("first_name");
       if (error) throw error; return data || [];
     },
     enabled: open,
@@ -195,7 +195,7 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
                   {staffList.map((d: any) => (
-                    <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>
+                    <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}{d.role ? ` · ${d.role}` : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

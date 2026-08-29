@@ -16,8 +16,18 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
-import { LayoutDashboard, Plus, Users, Lock, Pencil } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { LayoutDashboard, Plus, Users, Lock, Pencil, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface DashboardRow {
@@ -177,11 +187,31 @@ const Dashboards = () => {
                     <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => openEdit(row)}>
                       <Pencil className="h-3 w-3" /> Edit
                     </Button>
-                    <DeleteConfirmDialog
-                      title="Delete dashboard?"
-                      description={`"${row.name}" and its report components will be removed. Saved reports are not affected.`}
-                      onConfirm={() => remove(row.id)}
-                    />
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="outline" className="gap-1 text-xs text-destructive">
+                          <Trash2 className="h-3 w-3" /> Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete dashboard?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            "{row.name}" and its report components will be removed. The saved reports themselves are
+                            not affected.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => remove(row.id)}
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 )}
               </div>

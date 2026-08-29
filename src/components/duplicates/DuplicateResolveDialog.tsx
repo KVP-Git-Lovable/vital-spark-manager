@@ -75,7 +75,7 @@ export default function DuplicateResolveDialog({ open, onClose, primary, duplica
             }
           });
           if (Object.keys(patch).length) {
-            const { error } = await supabase.from("patients").update(patch).eq("id", kept.id);
+            const { error } = await (supabase as any).from("patients").update(patch).eq("id", kept.id);
             if (error) throw error;
           }
         }

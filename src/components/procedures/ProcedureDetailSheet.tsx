@@ -808,7 +808,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </div>
 
                 {/* Photos */}
-                <div className="border-t pt-4">
+                <div className="rounded-xl border bg-card p-4 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <Label className="text-base font-display font-semibold flex items-center gap-2">
                       <Camera className="h-4 w-4" /> Photos
@@ -831,7 +831,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </div>
 
                 {/* Attachments */}
-                <div className="border-t pt-4">
+                <div className="rounded-xl border bg-card p-4 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <Label className="text-base font-display font-semibold flex items-center gap-2">
                       <Paperclip className="h-4 w-4" /> Attachments

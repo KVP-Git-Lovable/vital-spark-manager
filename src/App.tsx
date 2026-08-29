@@ -24,6 +24,8 @@ import Billing from "./pages/Billing";
 import Reports from "./pages/Reports";
 import ReportView from "./pages/ReportView";
 import ReportConfigurator from "./pages/ReportConfigurator";
+import Dashboards from "./pages/Dashboards";
+import DashboardView from "./pages/DashboardView";
 import Procedures from "./pages/Procedures";
 import ProcedureNew from "./pages/ProcedureNew";
 import Pharma from "./pages/Pharma";
@@ -160,6 +162,8 @@ const App = () => (
                     <Route path="/reports" element={<ProtectedRoute moduleKey="reports"><Reports /></ProtectedRoute>} />
                     <Route path="/reports/:key" element={<ProtectedRoute moduleKey="reports"><ReportView /></ProtectedRoute>} />
                     <Route path="/report-builder" element={<ProtectedRoute moduleKey="report_builder"><ReportConfigurator /></ProtectedRoute>} />
+                    <Route path="/dashboards" element={<ProtectedRoute moduleKey="reports"><Dashboards /></ProtectedRoute>} />
+                    <Route path="/dashboards/:id" element={<ProtectedRoute moduleKey="reports"><DashboardView /></ProtectedRoute>} />
                     <Route path="/campaigns" element={<ProtectedRoute moduleKey="campaigns"><Campaigns /></ProtectedRoute>} />
                     <Route path="/campaigns/:id" element={<ProtectedRoute moduleKey="campaigns"><CampaignDetail /></ProtectedRoute>} />
                     <Route path="/procedures" element={<ProtectedRoute moduleKey="procedures"><Procedures /></ProtectedRoute>} />

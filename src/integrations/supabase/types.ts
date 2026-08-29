@@ -752,6 +752,60 @@ export type Database = {
           },
         ]
       }
+      dashboard_components: {
+        Row: {
+          chart_type: string | null
+          created_at: string
+          dashboard_id: string
+          height: string
+          id: string
+          position: number
+          report_id: string
+          title: string | null
+          updated_at: string
+          width: string
+        }
+        Insert: {
+          chart_type?: string | null
+          created_at?: string
+          dashboard_id: string
+          height?: string
+          id?: string
+          position?: number
+          report_id: string
+          title?: string | null
+          updated_at?: string
+          width?: string
+        }
+        Update: {
+          chart_type?: string | null
+          created_at?: string
+          dashboard_id?: string
+          height?: string
+          id?: string
+          position?: number
+          report_id?: string
+          title?: string | null
+          updated_at?: string
+          width?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_components_dashboard_id_fkey"
+            columns: ["dashboard_id"]
+            isOneToOne: false
+            referencedRelation: "dashboards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dashboard_components_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "saved_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dashboard_pins: {
         Row: {
           created_at: string
@@ -783,6 +837,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      dashboards: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_shared: boolean
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_shared?: boolean
+          name: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_shared?: boolean
+          name?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       doctors: {
         Row: {

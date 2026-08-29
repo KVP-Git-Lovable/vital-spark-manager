@@ -71,6 +71,7 @@ const mainItems = [
   { title: "Expenses", url: "/expenses", icon: Wallet, moduleKey: "expenses" },
   { title: "Reports", url: "/reports", icon: BarChart3, moduleKey: "reports" },
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart, moduleKey: "report_builder" },
+  { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard, moduleKey: "reports" },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone, moduleKey: "campaigns" },
 ];
 

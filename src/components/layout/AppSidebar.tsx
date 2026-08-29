@@ -27,6 +27,8 @@ import {
   SlidersHorizontal,
   Megaphone,
   CopyCheck,
+  Trash2,
+
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";

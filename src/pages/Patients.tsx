@@ -703,6 +703,35 @@ const Patients = () => {
         </div>
       </motion.div>
 
+      {(filtersOpen || chartsOpen) && (
+        <aside className="w-full shrink-0 lg:sticky lg:top-4 lg:w-80 xl:w-96 lg:max-h-[calc(100vh-8rem)]">
+          {filtersOpen ? (
+            <ViewFiltersPanel
+              view={activeView}
+              canManage={!!activeView && !activeView.is_standard && activeView.owner_id === userId}
+              doctorOptions={doctorOptions}
+              onSave={(filters) => { if (activeView) saveView({ ...activeView, filters }); }}
+              onClose={() => setFiltersOpen(false)}
+            />
+          ) : activeView && !activeView.is_standard ? (
+            <ViewChartsPanel
+              charts={activeView.charts ?? []}
+              rows={viewRows}
+              canManage={activeView.owner_id === userId}
+              onChange={(charts) => saveCharts(activeView.id, charts)}
+              onClose={() => setChartsOpen(false)}
+            />
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground shadow-sm">
+              Charts are available on custom list views. Create or select a custom view to add charts.
+            </div>
+          )}
+        </aside>
+      )}
+      </div>
+
+
+
       <PatientFormSheet
         open={sheetOpen}
         onOpenChange={setSheetOpen}

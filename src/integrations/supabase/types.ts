@@ -4481,6 +4481,14 @@ export type Database = {
         Returns: string
       }
       purge_trash_item: { Args: { _trash_id: string }; Returns: undefined }
+      recalc_patient_invoice_rollups: {
+        Args: { _patient_id: string }
+        Returns: undefined
+      }
+      recalc_patient_visit_rollups: {
+        Args: { _patient_id: string }
+        Returns: undefined
+      }
       restore_from_trash: { Args: { _trash_id: string }; Returns: undefined }
       trash_allowed_object: { Args: { _object_type: string }; Returns: boolean }
     }

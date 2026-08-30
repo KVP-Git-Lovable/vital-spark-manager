@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
-import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck, Trash2 } from "lucide-react";
+import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck, Trash2, History, Coins, Users } from "lucide-react";
 
 const sections = [
   {
@@ -22,12 +22,31 @@ const sections = [
     icon: CopyCheck,
   },
   {
+    title: "History Tracking",
+    description: "Enable field history per object and choose up to 20 fields to track on every record.",
+    url: "/admin/history-tracking",
+    icon: History,
+  },
+  {
+    title: "Currency & Billing",
+    description: "Set decimals, decimal digits and Indian (Lakh/Crore) or US (K/M) number formatting.",
+    url: "/admin/currency",
+    icon: Coins,
+  },
+  {
+    title: "User Management",
+    description: "Create users, manage profiles and assign profiles. Admins only.",
+    url: "/user-management",
+    icon: Users,
+  },
+  {
     title: "Trash Policy & Audit",
     description: "Set how long deleted records are retained and review deletion activity for every user.",
     url: "/admin/trash",
     icon: Trash2,
   },
 ];
+
 
 export default function Admin() {
   return (

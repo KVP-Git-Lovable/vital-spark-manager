@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/currency";
 import { CalendarDays, IndianRupee, Repeat, Timer } from "lucide-react";
 
 interface Props {
@@ -36,9 +37,7 @@ export function PatientEngagementRollups({ patient, visitsOverride, lifetimeValu
       icon: IndianRupee,
       label: "Lifetime Value",
       value:
-        ltv != null
-          ? `₹${Number(ltv).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
-          : "—",
+        ltv != null ? formatMoney(Number(ltv)) : "—",
     },
     {
       icon: Timer,

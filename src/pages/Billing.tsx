@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/currency";
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -63,7 +64,7 @@ const statusStyles: Record<string, string> = {
 
 /** Money is always shown rounded to whole rupees (no decimals). */
 const money = (n: number) =>
-  `₹${Math.round(Number(n) || 0).toLocaleString("en-IN")}`;
+  formatMoney(Math.round(Number(n) || 0));
 /** Tax rates keep their decimals (e.g. 2.5%). */
 const rateLabel = (n: number) =>
   `${Math.round((Number(n) || 0) * 100) / 100}`;
@@ -2303,7 +2304,7 @@ const Billing = () => {
                         </button>
                       )}
                       <div className="text-xs text-muted-foreground">
-                        Split total ₹{splitTotalAmount.toLocaleString("en-IN")} — auto-applied as Paid Amount
+                        Split total {formatMoney(splitTotalAmount)} — auto-applied as Paid Amount
                       </div>
                     </div>
                   )}
@@ -2958,19 +2959,19 @@ const Billing = () => {
                             <td className="px-3 py-2">{r.name}</td>
                             <td className="px-3 py-2 text-muted-foreground text-xs">{r.hsn || "—"}</td>
                             <td className="px-3 py-2 text-right">{r.qty}</td>
-                            <td className="px-3 py-2 text-right">₹{r.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
-                            <td className="px-3 py-2 text-right">₹{r.amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                            <td className="px-3 py-2 text-right">{formatMoney(r.price)}</td>
+                            <td className="px-3 py-2 text-right">{formatMoney(r.amount)}</td>
                             <td className="px-3 py-2 text-right">{r.gst ? `${r.gst}%` : "—"}</td>
-                            <td className="px-3 py-2 text-right">₹{r.tax.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
-                            <td className="px-3 py-2 text-right font-medium">₹{r.total.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                            <td className="px-3 py-2 text-right">{formatMoney(r.tax)}</td>
+                            <td className="px-3 py-2 text-right font-medium">{formatMoney(r.total)}</td>
                           </tr>
                         ))}
                         <tr className="border-t bg-muted/40 font-semibold">
                           <td className="px-3 py-2" colSpan={4}>Total</td>
-                          <td className="px-3 py-2 text-right">₹{t.amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                          <td className="px-3 py-2 text-right">{formatMoney(t.amount)}</td>
                           <td className="px-3 py-2" />
-                          <td className="px-3 py-2 text-right">₹{t.tax.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
-                          <td className="px-3 py-2 text-right">₹{t.total.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                          <td className="px-3 py-2 text-right">{formatMoney(t.tax)}</td>
+                          <td className="px-3 py-2 text-right">{formatMoney(t.total)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -3089,12 +3090,12 @@ const Billing = () => {
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 text-sm">
                 <div className="flex justify-between font-semibold text-primary text-base">
                   <span>Grand Total</span>
-                  <span>₹{Number(isEditing ? editData.total_amount : viewInvoice.total_amount).toLocaleString("en-IN")}</span>
+                  <span>{formatMoney(Number(isEditing ? editData.total_amount : viewInvoice.total_amount))}</span>
                 </div>
                 <div className="pt-2 mt-2 border-t space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Paid</span>
-                    <span>₹{Number(isEditing ? editData.paid_amount : viewInvoice.paid_amount).toLocaleString("en-IN")}</span>
+                    <span>{formatMoney(Number(isEditing ? editData.paid_amount : viewInvoice.paid_amount))}</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Payment Mode</span>
@@ -3107,14 +3108,14 @@ const Billing = () => {
                   {Array.isArray(viewInvoice.payment_splits) && viewInvoice.payment_splits.map((p: any, i: number) => (
                     <div key={i} className="flex justify-between text-xs text-muted-foreground pl-3">
                       <span>{p.mode}</span>
-                      <span>₹{Number(p.amount || 0).toLocaleString("en-IN")}</span>
+                      <span>{formatMoney(Number(p.amount || 0))}</span>
                     </div>
                   ))}
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Balance Due</span>
                     {(() => {
                       const bal = Number(isEditing ? editData.total_amount : viewInvoice.total_amount) - Number(isEditing ? editData.paid_amount : viewInvoice.paid_amount);
-                      return <span className={bal > 0 ? "text-destructive font-medium" : "text-primary font-medium"}>₹{bal.toLocaleString("en-IN")}</span>;
+                      return <span className={bal > 0 ? "text-destructive font-medium" : "text-primary font-medium"}>{formatMoney(bal)}</span>;
                     })()}
                   </div>
                 </div>

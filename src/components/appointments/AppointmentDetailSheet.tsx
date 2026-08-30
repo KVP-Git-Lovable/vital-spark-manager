@@ -926,10 +926,23 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       </p>
                     )}
                   </div>
-                  {(() => {
-                    const s = appointment.status;
-                    return <Badge variant="outline" className={`text-xs ${STATUS_BADGE_CLASSES[s] || ""}`}>{s}</Badge>;
-                  })()}
+                  <div className="flex flex-col items-end gap-2">
+                    {(() => {
+                      const s = appointment.status;
+                      return <Badge variant="outline" className={`text-xs ${STATUS_BADGE_CLASSES[s] || ""}`}>{s}</Badge>;
+                    })()}
+                    <RecordOwnerField
+                      variant="inline"
+                      objectType="appointments"
+                      objectLabel="Appointment"
+                      recordId={appointment.id}
+                      recordLabel={appointment.patient_name || "Appointment"}
+                      ownerId={appointment.owner_id}
+                      link="/appointments"
+                      onChanged={() => queryClient.invalidateQueries({ queryKey: ["appointment-detail", appointmentId] })}
+                    />
+                  </div>
+
                 </div>
               </SheetHeader>
 

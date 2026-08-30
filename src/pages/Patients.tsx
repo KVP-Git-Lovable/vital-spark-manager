@@ -9,6 +9,7 @@ import ViewBar from "@/components/patients/listviews/ViewBar";
 import ViewEditorDialog from "@/components/patients/listviews/ViewEditorDialog";
 import PatientListViewTable from "@/components/patients/listviews/PatientListViewTable";
 import ViewChartsPanel from "@/components/patients/listviews/ViewChartsPanel";
+import ViewFiltersPanel from "@/components/patients/listviews/ViewFiltersPanel";
 import PatientKanban from "@/components/patients/listviews/PatientKanban";
 import PatientSplitView from "@/components/patients/listviews/PatientSplitView";
 import KanbanSettingsDialog from "@/components/patients/listviews/KanbanSettingsDialog";
@@ -217,6 +218,7 @@ const Patients = () => {
   const [display, setDisplay] = useState<ListDisplayMode>("table");
   const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
   const [chartsOpen, setChartsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [kanbanOpen, setKanbanOpen] = useState(false);
   const [fieldsOpen, setFieldsOpen] = useState(false);
   const [kanban, setKanban] = useState(() => getKanbanConfig("patients", ALL_VIEW_ID));

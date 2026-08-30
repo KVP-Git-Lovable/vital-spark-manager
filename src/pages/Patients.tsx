@@ -740,7 +740,7 @@ const Patients = () => {
         config={kanban}
         onSave={(cfg) => {
           setKanban(cfg);
-          setKanbanConfig("patients", cfg);
+          setKanbanConfig("patients", activeView?.id ?? ALL_VIEW_ID, cfg);
           setDisplay("kanban");
         }}
       />

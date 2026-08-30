@@ -343,9 +343,10 @@ const Patients = () => {
 
   useEffect(() => {
     setPage(1);
-    if (activeView) setDisplay("table");
+    setKanban(getKanbanConfig("patients", activeView?.id ?? ALL_VIEW_ID));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView?.id]);
+
 
   const openNewView = () => {
     setEditingView(null);

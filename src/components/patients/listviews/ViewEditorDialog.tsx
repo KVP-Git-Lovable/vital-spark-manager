@@ -111,7 +111,7 @@ function FieldSelect({ value, onChange }: { value: string; onChange: (key: strin
 }
 
 
-function FieldPicker({ columns, onChange }: { columns: string[]; onChange: (next: string[]) => void }) {
+export function FieldPicker({ columns, onChange }: { columns: string[]; onChange: (next: string[]) => void }) {
   const [availSel, setAvailSel] = useState<string[]>([]);
   const [visSel, setVisSel] = useState<string[]>([]);
   const [availQuery, setAvailQuery] = useState("");

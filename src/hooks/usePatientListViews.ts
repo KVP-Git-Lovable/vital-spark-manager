@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DEFAULT_VIEW_COLUMNS, type ListView } from "@/lib/patientFields";
+import { ALL_VIEW_ID, buildStandardViews, isStandardViewId, setStandardColumns } from "@/lib/standardViews";
 
 const STORAGE_KEY = "patients.activeListView";
+
 
 function normalize(row: any): ListView {
   const rawFilters = row.filters;
@@ -31,11 +33,12 @@ function normalize(row: any): ListView {
 }
 
 
-export function usePatientListViews(section = "patients") {
+export function usePatientListViews(section = "patients", objectLabel = "Patients") {
   const [views, setViews] = useState<ListView[]>([]);
+  const [standardViews, setStandardViews] = useState<ListView[]>(() => buildStandardViews(section, objectLabel));
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | undefined>();
-  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const [activeViewId, setActiveViewId] = useState<string | null>(ALL_VIEW_ID);
   const [initialised, setInitialised] = useState(false);
 
   const load = useCallback(async () => {
@@ -61,13 +64,13 @@ export function usePatientListViews(section = "patients") {
     load().then((list) => {
       if (initialised) return;
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "__all__") {
-        setActiveViewId(null);
+      if (isStandardViewId(stored)) {
+        setActiveViewId(stored);
       } else if (stored && list.some((v) => v.id === stored)) {
         setActiveViewId(stored);
       } else {
         const pinned = list.find((v) => v.is_default);
-        if (pinned) setActiveViewId(pinned.id);
+        setActiveViewId(pinned ? pinned.id : ALL_VIEW_ID);
       }
       setInitialised(true);
     });
@@ -75,14 +78,27 @@ export function usePatientListViews(section = "patients") {
   }, [load]);
 
   const selectView = useCallback((id: string | null) => {
-    setActiveViewId(id);
-    localStorage.setItem(STORAGE_KEY, id ?? "__all__");
+    const next = id ?? ALL_VIEW_ID;
+    setActiveViewId(next);
+    localStorage.setItem(STORAGE_KEY, next);
   }, []);
 
+  const allViews = useMemo(() => [...standardViews, ...views], [standardViews, views]);
+
   const activeView = useMemo(
-    () => views.find((v) => v.id === activeViewId) ?? null,
-    [views, activeViewId]
+    () => allViews.find((v) => v.id === activeViewId) ?? allViews[0] ?? null,
+    [allViews, activeViewId]
   );
+
+  /** Standard views keep locked filters, but their displayed columns are user-configurable. */
+  const updateStandardColumns = useCallback(
+    (viewId: string, columns: string[]) => {
+      setStandardColumns(section, viewId, columns);
+      setStandardViews((prev) => prev.map((v) => (v.id === viewId ? { ...v, columns } : v)));
+    },
+    [section]
+  );
+
 
   const saveView = useCallback(
     async (payload: Partial<ListView> & { name: string }) => {
@@ -163,14 +179,14 @@ export function usePatientListViews(section = "patients") {
       const uid = auth.user?.id;
       if (!uid) return;
       await supabase.from("list_views").update({ is_default: false }).eq("section", section).eq("user_id", uid);
-      if (view && view.owner_id === uid) {
+      if (view && !view.is_standard && view.owner_id === uid) {
         const { error } = await supabase.from("list_views").update({ is_default: true }).eq("id", view.id);
         if (error) return toast.error(error.message);
         toast.success(`"${view.name}" pinned as default`);
-      } else if (view) {
+      } else if (view && !view.is_standard) {
         toast.error("You can only pin views you own");
       } else {
-        toast.success("All Patients pinned as default");
+        toast.success(`"${view?.name ?? "All Patients"}" pinned as default`);
       }
       await load();
     },
@@ -179,6 +195,10 @@ export function usePatientListViews(section = "patients") {
 
   return {
     views,
+    allViews,
+    standardViews,
+    updateStandardColumns,
+
     loading,
     userId,
     activeView,

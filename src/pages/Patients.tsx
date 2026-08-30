@@ -9,10 +9,17 @@ import ViewBar from "@/components/patients/listviews/ViewBar";
 import ViewEditorDialog from "@/components/patients/listviews/ViewEditorDialog";
 import PatientListViewTable from "@/components/patients/listviews/PatientListViewTable";
 import ViewChartsPanel from "@/components/patients/listviews/ViewChartsPanel";
+import PatientKanban from "@/components/patients/listviews/PatientKanban";
+import PatientSplitView from "@/components/patients/listviews/PatientSplitView";
+import KanbanSettingsDialog from "@/components/patients/listviews/KanbanSettingsDialog";
+import FieldsDisplayDialog from "@/components/patients/listviews/FieldsDisplayDialog";
 import { usePatientListViews } from "@/hooks/usePatientListViews";
-import { applyFilters, sortRows, DEFAULT_VIEW_COLUMNS, type ListView } from "@/lib/patientFields";
+import { applyFilters, sortRows, DEFAULT_VIEW_COLUMNS, fieldDef, GENDER_OPTIONS, STATUS_OPTIONS, SKIN_TYPE_OPTIONS, BLOOD_GROUP_OPTIONS, SOURCE_OPTIONS, ENGAGEMENT_TIER_OPTIONS, type ListView, type ListDisplayMode } from "@/lib/patientFields";
+import { ALL_VIEW_ID, RECENT_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/standardViews";
+import { getRecentlyViewed, markRecentlyViewed } from "@/lib/recentlyViewed";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
 import { moveToTrash } from "@/lib/trash";
+
 
 import {
   AlertDialog,
@@ -60,6 +67,15 @@ const PATIENT_FIELDS = [
 ];
 
 const DEFAULT_PATIENT_FIELDS = ["name", "contact", "skin_type", "engagement", "status"];
+
+const PICKLIST_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  gender: GENDER_OPTIONS,
+  status: STATUS_OPTIONS,
+  skin_type: SKIN_TYPE_OPTIONS,
+  blood_group: BLOOD_GROUP_OPTIONS,
+  source: SOURCE_OPTIONS,
+  engagement_tier: ENGAGEMENT_TIER_OPTIONS,
+};
 
 const fetchPatientsPage = async (
   page: number,
@@ -198,12 +214,15 @@ const Patients = () => {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingView, setEditingView] = useState<ListView | null>(null);
-  const [display, setDisplay] = useState<"cards" | "table">("cards");
+  const [display, setDisplay] = useState<ListDisplayMode>("table");
   const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
   const [chartsOpen, setChartsOpen] = useState(false);
+  const [kanbanOpen, setKanbanOpen] = useState(false);
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [kanban, setKanban] = useState(() => getKanbanConfig("patients", ALL_VIEW_ID));
 
   const {
-    views,
+    allViews,
     userId,
     activeView,
     selectView,
@@ -211,7 +230,10 @@ const Patients = () => {
     saveCharts,
     deleteView,
     pinDefault,
-  } = usePatientListViews("patients");
+    updateStandardColumns,
+  } = usePatientListViews("patients", "Patients");
+
+
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -221,13 +243,15 @@ const Patients = () => {
     return () => clearTimeout(t);
   }, [search]);
 
-  const viewActive = !!activeView;
+  const isAllView = !activeView || activeView.id === ALL_VIEW_ID;
+  const isRecentView = activeView?.id === RECENT_VIEW_ID;
+  const needsClientRows = !isAllView || display === "kanban" || display === "split";
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["patients", page, debouncedSearch],
     queryFn: () => fetchPatientsPage(page, debouncedSearch),
     placeholderData: keepPreviousData,
-    enabled: !viewActive,
+    enabled: !needsClientRows,
   });
 
   const {
@@ -239,7 +263,7 @@ const Patients = () => {
     queryKey: ["patients-all", debouncedSearch],
     queryFn: () => fetchAllPatients(debouncedSearch),
     placeholderData: keepPreviousData,
-    enabled: viewActive,
+    enabled: needsClientRows,
   });
 
   const { data: staffList = [] } = useQuery({
@@ -252,20 +276,27 @@ const Patients = () => {
   });
 
   const viewRows = useMemo(() => {
-    if (!activeView) return [] as Patient[];
-    const filtered = applyFilters(allPatients as Patient[], activeView.filters);
-    return sortRows(filtered, activeView.sort_field, activeView.sort_dir);
-  }, [allPatients, activeView]);
+    if (!needsClientRows) return [] as Patient[];
+    const source = allPatients as Patient[];
+    if (isRecentView) {
+      const ids = getRecentlyViewed("patients");
+      const byId = new Map(source.map((p) => [p.id, p]));
+      return ids.map((id) => byId.get(id)).filter(Boolean) as Patient[];
+    }
+    const filtered = activeView ? applyFilters(source, activeView.filters) : source;
+    return activeView ? sortRows(filtered, activeView.sort_field, activeView.sort_dir) : filtered;
+  }, [allPatients, activeView, needsClientRows, isRecentView]);
 
-  const paged: Patient[] = viewActive
-    ? viewRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const isBoard = display === "kanban" || display === "split";
+  const paged: Patient[] = needsClientRows
+    ? (isBoard ? viewRows : viewRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE))
     : data?.rows ?? [];
-  const total = viewActive ? viewRows.length : data?.total ?? 0;
+  const total = needsClientRows ? viewRows.length : data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const loading = viewActive ? viewLoading : isLoading;
-  const fetching = viewActive ? viewFetching : isFetching;
-  const reloadPatients = () => (viewActive ? refetchAll() : refetch());
+  const loading = needsClientRows ? viewLoading : isLoading;
+  const fetching = needsClientRows ? viewFetching : isFetching;
+  const reloadPatients = () => (needsClientRows ? refetchAll() : refetch());
 
   const patientIds = paged.map((p) => p.id);
   const { data: engagementScores = {} } = useEngagementScores(patientIds);
@@ -280,6 +311,24 @@ const Patients = () => {
     [doctorOptions]
   );
 
+  const kanbanOptions = useMemo(() => {
+    const src = fieldDef(kanban.group_field)?.optionsSource;
+    if (src === "doctor") return doctorOptions;
+    return PICKLIST_OPTIONS[src ?? ""] ?? [];
+  }, [kanban.group_field, doctorOptions]);
+
+  const openPatient = (row: Patient) => {
+    markRecentlyViewed("patients", row.id);
+    navigate(`/patients/${row.id}`);
+  };
+
+  const moveKanbanCard = async (row: Patient, field: string, value: string) => {
+    const { error } = await supabase.from("patients").update({ [field]: value || null } as any).eq("id", row.id);
+    if (error) return toast.error(error.message);
+    toast.success("Patient updated");
+    refetchAll();
+  };
+
   const getAge = (dob: string | null) => {
     if (!dob) return null;
     const diff = Date.now() - new Date(dob).getTime();
@@ -291,11 +340,13 @@ const Patients = () => {
   const shouldShowColumn = (column: string) => DEFAULT_PATIENT_FIELDS.includes(column);
 
 
+
   useEffect(() => {
     setPage(1);
-    if (activeView) setDisplay("table");
+    setKanban(getKanbanConfig("patients", activeView?.id ?? ALL_VIEW_ID));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView?.id]);
+
 
   const openNewView = () => {
     setEditingView(null);
@@ -405,7 +456,7 @@ const Patients = () => {
 
       <div className="mb-4">
         <ViewBar
-          views={views}
+          views={allViews}
           activeView={activeView}
           currentUserId={userId}
           onSelect={selectView}
@@ -414,15 +465,20 @@ const Patients = () => {
           onDelete={(v) => setDeleteViewTarget(v)}
           onPin={pinDefault}
           onClone={cloneView}
+          onFields={() => setFieldsOpen(true)}
+          onRefresh={() => reloadPatients()}
+          onKanbanSettings={() => setKanbanOpen(true)}
           display={display}
           onDisplayChange={setDisplay}
           count={total}
+          search={search}
+          onSearchChange={(v) => { setSearch(v); setPage(1); }}
           chartsOpen={chartsOpen}
           onToggleCharts={() => setChartsOpen((o) => !o)}
         />
       </div>
 
-      {activeView && chartsOpen && (
+      {activeView && !activeView.is_standard && chartsOpen && (
         <div className="mb-4">
           <ViewChartsPanel
             charts={activeView.charts ?? []}
@@ -441,22 +497,6 @@ const Patients = () => {
         transition={{ duration: 0.3 }}
         className="data-table"
       >
-          <div className="p-4 border-b flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, email, or phone..."
-              className="pl-9 bg-muted border-0"
-              value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            />
-          </div>
-          <Button variant="outline" className="gap-2">
-            <Filter className="h-4 w-4" />
-            Filter
-          </Button>
-        </div>
-
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -465,6 +505,18 @@ const Patients = () => {
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <p className="text-sm">{debouncedSearch ? "No patients match your search." : "No patients yet. Add your first patient!"}</p>
           </div>
+        ) : display === "kanban" ? (
+          <PatientKanban
+            rows={paged}
+            config={kanban}
+            options={kanbanOptions}
+            columns={displayColumns}
+            avatars={avatars}
+            onOpen={openPatient}
+            onMove={moveKanbanCard}
+          />
+        ) : display === "split" ? (
+          <PatientSplitView rows={paged} columns={displayColumns} avatars={avatars} onOpen={openPatient} />
         ) : display === "table" ? (
           <PatientListViewTable
             rows={paged}
@@ -472,11 +524,12 @@ const Patients = () => {
             selectedIds={selectedIds}
             onToggle={toggleOne}
             onToggleAll={toggleAll}
-            onOpen={(row) => navigate(`/patients/${row.id}`)}
+            onOpen={openPatient}
             doctorLabels={doctorLabels}
             avatars={avatars}
           />
         ) : (
+
 
           <div className="overflow-x-auto table-scroll">
             <table ref={patientsTableRef} className="w-full responsive-table">
@@ -499,7 +552,7 @@ const Patients = () => {
               </thead>
               <tbody className="divide-y">
                 {paged.map((patient) => (
-                  <tr key={patient.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => navigate(`/patients/${patient.id}`)}>
+                  <tr key={patient.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => openPatient(patient)}>
                     <td className="p-4" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={selectedIds.has(patient.id)}
@@ -575,7 +628,7 @@ const Patients = () => {
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEdit(patient); }}>
                             Edit Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/patients/${patient.id}`); }}>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openPatient(patient); }}>
                             View Details
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setCameraPatient(patient); }}>
@@ -599,11 +652,12 @@ const Patients = () => {
 
         <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
           <span>
-            Showing {total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–
-            {Math.min(currentPage * PAGE_SIZE, total)} of {total.toLocaleString()}
+            {isBoard
+              ? `Showing ${total.toLocaleString()} records`
+              : `Showing ${total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, total)} of ${total.toLocaleString()}`}
             {fetching && !loading ? " · loading…" : ""}
           </span>
-          {totalPages > 1 && (
+          {!isBoard && totalPages > 1 && (
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -681,7 +735,31 @@ const Patients = () => {
         onConfirm={async () => { if (deletePatient) await handleDeleteOne(deletePatient); setDeletePatient(null); }}
       />
 
+      <KanbanSettingsDialog
+        open={kanbanOpen}
+        onOpenChange={setKanbanOpen}
+        config={kanban}
+        onSave={(cfg) => {
+          setKanban(cfg);
+          setKanbanConfig("patients", activeView?.id ?? ALL_VIEW_ID, cfg);
+          setDisplay("kanban");
+        }}
+      />
+
+      <FieldsDisplayDialog
+        open={fieldsOpen}
+        onOpenChange={setFieldsOpen}
+        viewName={activeView?.name ?? "All Patients"}
+        columns={displayColumns}
+        onSave={(cols) => {
+          if (!activeView) return;
+          if (activeView.is_standard) updateStandardColumns(activeView.id, cols);
+          else saveView({ ...activeView, columns: cols });
+        }}
+      />
+
       <ViewEditorDialog
+
         open={editorOpen}
         onOpenChange={setEditorOpen}
         view={editingView}

@@ -156,6 +156,15 @@ export interface ViewChart {
   limit?: number;
 }
 
+export interface KanbanConfig {
+  /** Picklist field whose values become the Kanban columns. */
+  group_field: string;
+  /** Optional numeric field summed per column ("Summarize By"). */
+  summarize_field?: string | null;
+}
+
+export type ListDisplayMode = "cards" | "table" | "kanban" | "split";
+
 export interface ListView {
   id: string;
   name: string;
@@ -168,7 +177,15 @@ export interface ListView {
   shared_user_ids: string[];
   is_default: boolean;
   charts: ViewChart[];
+  /** Built-in views (All / Recently Viewed): filters are locked and they cannot be deleted. */
+  is_standard?: boolean;
 }
+
+/** Fields that can drive Kanban columns (picklists only). */
+export const KANBAN_GROUP_FIELDS = PATIENT_FIELDS.filter((f) => f.type === "picklist");
+/** Fields that can be summarised on a Kanban column header. */
+export const KANBAN_SUMMARY_FIELDS = PATIENT_FIELDS.filter((f) => f.type === "number");
+
 
 /** Group + aggregate rows for a saved view chart. */
 export function computeChartData(rows: any[], chart: ViewChart): { name: string; value: number }[] {

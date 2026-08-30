@@ -28,6 +28,8 @@ interface Props {
   canChange?: boolean;
   onChanged?: (ownerId: string) => void;
   className?: string;
+  /** "card" = boxed field inside System Record, "inline" = compact header field. */
+  variant?: "card" | "inline";
 }
 
 /**
@@ -45,15 +47,21 @@ export function RecordOwnerField({
   canChange = true,
   onChanged,
   className = "",
+  variant = "card",
 }: Props) {
   const { data: users = [] } = useAppUsers();
   const [open, setOpen] = useState(false);
+  // Local copy so the new owner name renders instantly, before the record refetches.
+  const [localOwner, setLocalOwner] = useState<string | null>(ownerId ?? null);
+  const effectiveOwner = localOwner ?? ownerId ?? null;
   const [nextOwner, setNextOwner] = useState<string>(ownerId ?? "");
   const [notifyApp, setNotifyApp] = useState(true);
   const [notifyEmail, setNotifyEmail] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const ownerName = users.find((u) => u.auth_user_id === ownerId)?.name ?? (ownerId ? "User" : "—");
+  const ownerName =
+    users.find((u) => u.auth_user_id === effectiveOwner)?.name ?? (effectiveOwner ? "User" : "—");
+
 
   const save = async () => {
     if (!nextOwner || nextOwner === ownerId) {

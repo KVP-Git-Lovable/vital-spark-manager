@@ -44,6 +44,8 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
+import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
+import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -3013,6 +3015,18 @@ const Billing = () => {
                   <span>{viewInvoice.appointments.service} · {format(new Date(viewInvoice.appointments.start_time), "MMM d, h:mm a")}</span>
                 </button>
               )}
+
+              <SystemRecordSection
+                record={viewInvoice}
+                owner={{
+                  objectType: "invoices",
+                  objectLabel: "Invoice",
+                  recordLabel: viewInvoice.invoice_number || viewInvoice.patient_name || "Invoice",
+                  link: `/billing?viewInvoice=${viewInvoice.id}`,
+                  onChanged: (ownerId) => setViewInvoice((v: any) => (v ? { ...v, owner_id: ownerId } : v)),
+                }}
+              />
+              <FieldHistorySection objectType="invoices" recordId={viewInvoice.id} />
             </div>
           )}
 

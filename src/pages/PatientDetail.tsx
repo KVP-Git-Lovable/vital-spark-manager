@@ -278,6 +278,16 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
+  // Live roll-ups: a "visit" is an appointment that actually happened.
+  const visitCount = useMemo(
+    () => (appointments as any[]).filter((a) => ["Completed", "Checked-in", "In Progress"].includes(a.status)).length,
+    [appointments]
+  );
+  const lifetimeValue = useMemo(
+    () => (invoices as any[]).reduce((sum, inv) => sum + (Number(inv.total_amount ?? inv.grand_total ?? 0) || 0), 0),
+    [invoices]
+  );
+
   const { data: photos = [] } = useQuery({
     queryKey: ["patient-photos", id],
     queryFn: async () => {

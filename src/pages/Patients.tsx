@@ -324,7 +324,10 @@ const Patients = () => {
 
   const moveKanbanCard = async (row: Patient, field: string, value: string) => {
     const { error } = await supabase.from("patients").update({ [field]: value || null } as any).eq("id", row.id);
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Patient updated");
     refetchAll();
   };
@@ -350,7 +353,10 @@ const Patients = () => {
 
   const saveInline = async (row: Patient, key: string, value: any) => {
     const { error } = await supabase.from("patients").update({ [key]: value } as any).eq("id", row.id);
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Patient updated");
     reloadPatients();
   };

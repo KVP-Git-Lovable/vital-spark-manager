@@ -551,7 +551,7 @@ const Patients = () => {
               </thead>
               <tbody className="divide-y">
                 {paged.map((patient) => (
-                  <tr key={patient.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => navigate(`/patients/${patient.id}`)}>
+                  <tr key={patient.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => openPatient(patient)}>
                     <td className="p-4" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={selectedIds.has(patient.id)}
@@ -627,7 +627,7 @@ const Patients = () => {
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEdit(patient); }}>
                             Edit Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/patients/${patient.id}`); }}>
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openPatient(patient); }}>
                             View Details
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setCameraPatient(patient); }}>

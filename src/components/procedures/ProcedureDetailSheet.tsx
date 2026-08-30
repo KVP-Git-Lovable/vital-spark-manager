@@ -602,7 +602,22 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                       {format(new Date(procedure.procedure_date), "EEE, MMM d, yyyy · h:mm a")}
                     </p>
                   </div>
-                  <Badge variant="secondary" className="text-xs">{procedure.status}</Badge>
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge variant="secondary" className="text-xs">{procedure.status}</Badge>
+                    {procedure.id && (
+                      <RecordOwnerField
+                        variant="inline"
+                        objectType="procedures"
+                        objectLabel="Procedure"
+                        recordId={procedure.id}
+                        recordLabel={patientName || "Procedure"}
+                        ownerId={procedure.owner_id}
+                        link="/procedures"
+                        onChanged={() => queryClient.invalidateQueries({ queryKey: ["procedure-detail"] })}
+                      />
+                    )}
+                  </div>
+
                 </div>
                 {procedure.patient_id && (
                   <PatientToolsBar

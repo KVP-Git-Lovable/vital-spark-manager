@@ -726,6 +726,8 @@ const PatientDetail = () => {
                 {patient.status}
               </Badge>
             </div>
+            </div>
+
           </div>
         </motion.div>
       </div>

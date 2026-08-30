@@ -324,7 +324,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).order("first_name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).not("auth_user_id", "is", null).order("first_name");
       if (error) throw error;
       return data;
     },

@@ -524,6 +524,7 @@ const Billing = () => {
         .select("id, first_name, last_name, role, specialization, consultation_fee, consultation_hsn, is_active" as any)
         .eq("role", "Doctor")
         .eq("is_active", true)
+        .not("auth_user_id", "is", null)
         .order("first_name");
       if (error) throw error;
       return data || [];
@@ -533,7 +534,7 @@ const Billing = () => {
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("id, first_name, last_name").eq("is_active", true).order("first_name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name").eq("is_active", true).not("auth_user_id", "is", null).order("first_name");
       if (error) throw error;
       return data;
     },

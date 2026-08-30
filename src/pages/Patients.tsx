@@ -213,7 +213,7 @@ const Patients = () => {
   const [kanban, setKanban] = useState(() => getKanbanConfig("patients"));
 
   const {
-    views: allViews,
+    allViews,
     userId,
     activeView,
     selectView,
@@ -222,10 +222,8 @@ const Patients = () => {
     deleteView,
     pinDefault,
     updateStandardColumns,
-  } = (() => {
-    const hook = usePatientListViews("patients", "Patients");
-    return { ...hook, views: hook.allViews };
-  })();
+  } = usePatientListViews("patients", "Patients");
+
 
 
   useEffect(() => {

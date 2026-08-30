@@ -9,10 +9,17 @@ import ViewBar from "@/components/patients/listviews/ViewBar";
 import ViewEditorDialog from "@/components/patients/listviews/ViewEditorDialog";
 import PatientListViewTable from "@/components/patients/listviews/PatientListViewTable";
 import ViewChartsPanel from "@/components/patients/listviews/ViewChartsPanel";
+import PatientKanban from "@/components/patients/listviews/PatientKanban";
+import PatientSplitView from "@/components/patients/listviews/PatientSplitView";
+import KanbanSettingsDialog from "@/components/patients/listviews/KanbanSettingsDialog";
+import FieldsDisplayDialog from "@/components/patients/listviews/FieldsDisplayDialog";
 import { usePatientListViews } from "@/hooks/usePatientListViews";
-import { applyFilters, sortRows, DEFAULT_VIEW_COLUMNS, type ListView } from "@/lib/patientFields";
+import { applyFilters, sortRows, DEFAULT_VIEW_COLUMNS, fieldDef, type ListView, type ListDisplayMode } from "@/lib/patientFields";
+import { ALL_VIEW_ID, RECENT_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/standardViews";
+import { getRecentlyViewed, markRecentlyViewed } from "@/lib/recentlyViewed";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
 import { moveToTrash } from "@/lib/trash";
+
 
 import {
   AlertDialog,

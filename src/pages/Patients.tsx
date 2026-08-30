@@ -9,6 +9,7 @@ import ViewBar from "@/components/patients/listviews/ViewBar";
 import ViewEditorDialog from "@/components/patients/listviews/ViewEditorDialog";
 import PatientListViewTable from "@/components/patients/listviews/PatientListViewTable";
 import ViewChartsPanel from "@/components/patients/listviews/ViewChartsPanel";
+import ViewFiltersPanel from "@/components/patients/listviews/ViewFiltersPanel";
 import PatientKanban from "@/components/patients/listviews/PatientKanban";
 import PatientSplitView from "@/components/patients/listviews/PatientSplitView";
 import KanbanSettingsDialog from "@/components/patients/listviews/KanbanSettingsDialog";
@@ -217,6 +218,7 @@ const Patients = () => {
   const [display, setDisplay] = useState<ListDisplayMode>("table");
   const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
   const [chartsOpen, setChartsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [kanbanOpen, setKanbanOpen] = useState(false);
   const [fieldsOpen, setFieldsOpen] = useState(false);
   const [kanban, setKanban] = useState(() => getKanbanConfig("patients", ALL_VIEW_ID));
@@ -498,29 +500,20 @@ const Patients = () => {
           search={search}
           onSearchChange={(v) => { setSearch(v); setPage(1); }}
           chartsOpen={chartsOpen}
-          onToggleCharts={() => setChartsOpen((o) => !o)}
+          onToggleCharts={() => { setChartsOpen((o) => !o); setFiltersOpen(false); }}
+          filtersOpen={filtersOpen}
+          onToggleFilters={() => { setFiltersOpen((o) => !o); setChartsOpen(false); }}
         />
       </div>
 
-      {activeView && !activeView.is_standard && chartsOpen && (
-        <div className="mb-4">
-          <ViewChartsPanel
-            charts={activeView.charts ?? []}
-            rows={viewRows}
-            canManage={activeView.owner_id === userId}
-            onChange={(charts) => saveCharts(activeView.id, charts)}
-            onClose={() => setChartsOpen(false)}
-          />
-        </div>
-      )}
-
-
+      <div className="flex flex-col items-start gap-4 lg:flex-row">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="data-table"
+        className="data-table min-w-0 flex-1 w-full"
       >
+
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -711,6 +704,35 @@ const Patients = () => {
           )}
         </div>
       </motion.div>
+
+      {(filtersOpen || chartsOpen) && (
+        <aside className="w-full shrink-0 lg:sticky lg:top-4 lg:w-80 xl:w-96 lg:max-h-[calc(100vh-8rem)]">
+          {filtersOpen ? (
+            <ViewFiltersPanel
+              view={activeView}
+              canManage={!!activeView && !activeView.is_standard && activeView.owner_id === userId}
+              doctorOptions={doctorOptions}
+              onSave={(filters) => { if (activeView) saveView({ ...activeView, filters }); }}
+              onClose={() => setFiltersOpen(false)}
+            />
+          ) : activeView && !activeView.is_standard ? (
+            <ViewChartsPanel
+              charts={activeView.charts ?? []}
+              rows={viewRows}
+              canManage={activeView.owner_id === userId}
+              onChange={(charts) => saveCharts(activeView.id, charts)}
+              onClose={() => setChartsOpen(false)}
+            />
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground shadow-sm">
+              Charts are available on custom list views. Create or select a custom view to add charts.
+            </div>
+          )}
+        </aside>
+      )}
+      </div>
+
+
 
       <PatientFormSheet
         open={sheetOpen}

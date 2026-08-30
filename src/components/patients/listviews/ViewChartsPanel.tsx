@@ -219,7 +219,7 @@ export default function ViewChartsPanel({ charts, rows, canManage, onChange, onC
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card shadow-sm p-4 space-y-3">
+    <div className="flex h-full flex-col rounded-xl border border-border bg-card shadow-sm p-4 space-y-3 overflow-y-auto">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-base font-semibold">
           <BarChart3 className="h-4 w-4 text-primary" />
@@ -332,7 +332,38 @@ export default function ViewChartsPanel({ charts, rows, canManage, onChange, onC
           <p className="text-xs text-muted-foreground text-center">
             {metricLabel} by {fieldDef(chart?.group_field || "")?.label ?? ""}
           </p>
+
+          <div className="divide-y divide-border rounded-lg border border-border">
+            {data.map((d: any, i: number) => (
+              <div key={i} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                <span className="truncate">{d.name}</span>
+                <span className="font-semibold tabular-nums">
+                  {typeof d.value === "number" ? Math.round(d.value * 100) / 100 : d.value}
+                </span>
+              </div>
+            ))}
+            {data.length > 0 && (
+              <div className="flex items-center justify-between gap-3 bg-muted/40 px-3 py-2 text-sm font-semibold">
+                <span>Total</span>
+                <span className="tabular-nums">
+                  {Math.round(data.reduce((s: number, d: any) => s + (Number(d.value) || 0), 0) * 100) / 100}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {canManage && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" className="flex-1 gap-1.5" onClick={() => { setEditing(null); setEditorOpen(true); }}>
+                <Plus className="h-3.5 w-3.5" /> New
+              </Button>
+              <Button size="sm" variant="outline" className="flex-1 gap-1.5" disabled={!chart} onClick={() => { setEditing(chart); setEditorOpen(true); }}>
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </Button>
+            </div>
+          )}
         </>
+
       )}
 
       <ChartEditor open={editorOpen} onOpenChange={setEditorOpen} value={editing} onSave={upsert} />

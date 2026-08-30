@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
+import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
 import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

@@ -219,7 +219,7 @@ const Patients = () => {
   const [chartsOpen, setChartsOpen] = useState(false);
   const [kanbanOpen, setKanbanOpen] = useState(false);
   const [fieldsOpen, setFieldsOpen] = useState(false);
-  const [kanban, setKanban] = useState(() => getKanbanConfig("patients"));
+  const [kanban, setKanban] = useState(() => getKanbanConfig("patients", ALL_VIEW_ID));
 
   const {
     allViews,

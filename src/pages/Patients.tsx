@@ -734,7 +734,31 @@ const Patients = () => {
         onConfirm={async () => { if (deletePatient) await handleDeleteOne(deletePatient); setDeletePatient(null); }}
       />
 
+      <KanbanSettingsDialog
+        open={kanbanOpen}
+        onOpenChange={setKanbanOpen}
+        config={kanban}
+        onSave={(cfg) => {
+          setKanban(cfg);
+          setKanbanConfig("patients", cfg);
+          setDisplay("kanban");
+        }}
+      />
+
+      <FieldsDisplayDialog
+        open={fieldsOpen}
+        onOpenChange={setFieldsOpen}
+        viewName={activeView?.name ?? "All Patients"}
+        columns={displayColumns}
+        onSave={(cols) => {
+          if (!activeView) return;
+          if (activeView.is_standard) updateStandardColumns(activeView.id, cols);
+          else saveView({ ...activeView, columns: cols });
+        }}
+      />
+
       <ViewEditorDialog
+
         open={editorOpen}
         onOpenChange={setEditorOpen}
         view={editingView}

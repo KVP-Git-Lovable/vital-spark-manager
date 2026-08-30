@@ -234,13 +234,15 @@ const Patients = () => {
     return () => clearTimeout(t);
   }, [search]);
 
-  const viewActive = !!activeView;
+  const isAllView = !activeView || activeView.id === ALL_VIEW_ID;
+  const isRecentView = activeView?.id === RECENT_VIEW_ID;
+  const needsClientRows = !isAllView || display === "kanban" || display === "split";
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["patients", page, debouncedSearch],
     queryFn: () => fetchPatientsPage(page, debouncedSearch),
     placeholderData: keepPreviousData,
-    enabled: !viewActive,
+    enabled: !needsClientRows,
   });
 
   const {
@@ -252,7 +254,7 @@ const Patients = () => {
     queryKey: ["patients-all", debouncedSearch],
     queryFn: () => fetchAllPatients(debouncedSearch),
     placeholderData: keepPreviousData,
-    enabled: viewActive,
+    enabled: needsClientRows,
   });
 
   const { data: staffList = [] } = useQuery({
@@ -265,20 +267,27 @@ const Patients = () => {
   });
 
   const viewRows = useMemo(() => {
-    if (!activeView) return [] as Patient[];
-    const filtered = applyFilters(allPatients as Patient[], activeView.filters);
-    return sortRows(filtered, activeView.sort_field, activeView.sort_dir);
-  }, [allPatients, activeView]);
+    if (!needsClientRows) return [] as Patient[];
+    const source = allPatients as Patient[];
+    if (isRecentView) {
+      const ids = getRecentlyViewed("patients");
+      const byId = new Map(source.map((p) => [p.id, p]));
+      return ids.map((id) => byId.get(id)).filter(Boolean) as Patient[];
+    }
+    const filtered = activeView ? applyFilters(source, activeView.filters) : source;
+    return activeView ? sortRows(filtered, activeView.sort_field, activeView.sort_dir) : filtered;
+  }, [allPatients, activeView, needsClientRows, isRecentView]);
 
-  const paged: Patient[] = viewActive
-    ? viewRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const isBoard = display === "kanban" || display === "split";
+  const paged: Patient[] = needsClientRows
+    ? (isBoard ? viewRows : viewRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE))
     : data?.rows ?? [];
-  const total = viewActive ? viewRows.length : data?.total ?? 0;
+  const total = needsClientRows ? viewRows.length : data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const loading = viewActive ? viewLoading : isLoading;
-  const fetching = viewActive ? viewFetching : isFetching;
-  const reloadPatients = () => (viewActive ? refetchAll() : refetch());
+  const loading = needsClientRows ? viewLoading : isLoading;
+  const fetching = needsClientRows ? viewFetching : isFetching;
+  const reloadPatients = () => (needsClientRows ? refetchAll() : refetch());
 
   const patientIds = paged.map((p) => p.id);
   const { data: engagementScores = {} } = useEngagementScores(patientIds);
@@ -293,6 +302,24 @@ const Patients = () => {
     [doctorOptions]
   );
 
+  const kanbanOptions = useMemo(() => {
+    const src = fieldDef(kanban.group_field)?.optionsSource;
+    if (src === "doctor") return doctorOptions;
+    return PICKLIST_OPTIONS[src ?? ""] ?? [];
+  }, [kanban.group_field, doctorOptions]);
+
+  const openPatient = (row: Patient) => {
+    markRecentlyViewed("patients", row.id);
+    navigate(`/patients/${row.id}`);
+  };
+
+  const moveKanbanCard = async (row: Patient, field: string, value: string) => {
+    const { error } = await supabase.from("patients").update({ [field]: value || null } as any).eq("id", row.id);
+    if (error) return toast.error(error.message);
+    toast.success("Patient updated");
+    refetchAll();
+  };
+
   const getAge = (dob: string | null) => {
     if (!dob) return null;
     const diff = Date.now() - new Date(dob).getTime();
@@ -302,6 +329,7 @@ const Patients = () => {
   const displayColumns = activeView?.columns?.length ? activeView.columns : DEFAULT_VIEW_COLUMNS;
 
   const shouldShowColumn = (column: string) => DEFAULT_PATIENT_FIELDS.includes(column);
+
 
 
   useEffect(() => {

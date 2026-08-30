@@ -455,7 +455,7 @@ const Patients = () => {
 
       <div className="mb-4">
         <ViewBar
-          views={views}
+          views={allViews}
           activeView={activeView}
           currentUserId={userId}
           onSelect={selectView}
@@ -464,15 +464,20 @@ const Patients = () => {
           onDelete={(v) => setDeleteViewTarget(v)}
           onPin={pinDefault}
           onClone={cloneView}
+          onFields={() => setFieldsOpen(true)}
+          onRefresh={() => reloadPatients()}
+          onKanbanSettings={() => setKanbanOpen(true)}
           display={display}
           onDisplayChange={setDisplay}
           count={total}
+          search={search}
+          onSearchChange={(v) => { setSearch(v); setPage(1); }}
           chartsOpen={chartsOpen}
           onToggleCharts={() => setChartsOpen((o) => !o)}
         />
       </div>
 
-      {activeView && chartsOpen && (
+      {activeView && !activeView.is_standard && chartsOpen && (
         <div className="mb-4">
           <ViewChartsPanel
             charts={activeView.charts ?? []}
@@ -491,22 +496,6 @@ const Patients = () => {
         transition={{ duration: 0.3 }}
         className="data-table"
       >
-          <div className="p-4 border-b flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, email, or phone..."
-              className="pl-9 bg-muted border-0"
-              value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            />
-          </div>
-          <Button variant="outline" className="gap-2">
-            <Filter className="h-4 w-4" />
-            Filter
-          </Button>
-        </div>
-
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -515,6 +504,18 @@ const Patients = () => {
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <p className="text-sm">{debouncedSearch ? "No patients match your search." : "No patients yet. Add your first patient!"}</p>
           </div>
+        ) : display === "kanban" ? (
+          <PatientKanban
+            rows={paged}
+            config={kanban}
+            options={kanbanOptions}
+            columns={displayColumns}
+            avatars={avatars}
+            onOpen={openPatient}
+            onMove={moveKanbanCard}
+          />
+        ) : display === "split" ? (
+          <PatientSplitView rows={paged} columns={displayColumns} avatars={avatars} onOpen={openPatient} />
         ) : display === "table" ? (
           <PatientListViewTable
             rows={paged}
@@ -522,11 +523,12 @@ const Patients = () => {
             selectedIds={selectedIds}
             onToggle={toggleOne}
             onToggleAll={toggleAll}
-            onOpen={(row) => navigate(`/patients/${row.id}`)}
+            onOpen={openPatient}
             doctorLabels={doctorLabels}
             avatars={avatars}
           />
         ) : (
+
 
           <div className="overflow-x-auto table-scroll">
             <table ref={patientsTableRef} className="w-full responsive-table">

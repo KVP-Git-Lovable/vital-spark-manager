@@ -64,6 +64,8 @@ import SurveyResponseEdit from "./pages/SurveyResponseEdit";
 import SurveyNew from "./pages/SurveyNew";
 import Vendors from "./pages/Vendors";
 import UserManagement from "./pages/UserManagement";
+import HistoryTracking from "./pages/admin/HistoryTracking";
+import CurrencyBilling from "./pages/admin/CurrencyBilling";
 import UnitMaster from "./pages/UnitMaster";
 import ValidationRules from "./pages/ValidationRules";
 import ValidationRuleBuilder from "./pages/ValidationRuleBuilder";
@@ -192,6 +194,8 @@ const App = () => (
                     <Route path="/validation-rules" element={<ProtectedRoute moduleKey="settings"><ValidationRules /></ProtectedRoute>} />
                     <Route path="/admin" element={<ProtectedRoute moduleKey="settings"><Admin /></ProtectedRoute>} />
                     <Route path="/trash" element={<TrashPage />} />
+                    <Route path="/admin/history-tracking" element={<ProtectedRoute moduleKey="settings"><HistoryTracking /></ProtectedRoute>} />
+                    <Route path="/admin/currency" element={<ProtectedRoute moduleKey="settings"><CurrencyBilling /></ProtectedRoute>} />
                     <Route path="/admin/trash" element={<ProtectedRoute moduleKey="settings"><TrashAdmin /></ProtectedRoute>} />
                     <Route path="/validation-rules/:id" element={<ProtectedRoute moduleKey="settings"><ValidationRuleBuilder /></ProtectedRoute>} />
                     <Route path="/duplicate-management" element={<ProtectedRoute moduleKey="settings"><DuplicateManagement /></ProtectedRoute>} />

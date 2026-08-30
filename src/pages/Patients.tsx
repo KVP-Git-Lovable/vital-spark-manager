@@ -498,29 +498,20 @@ const Patients = () => {
           search={search}
           onSearchChange={(v) => { setSearch(v); setPage(1); }}
           chartsOpen={chartsOpen}
-          onToggleCharts={() => setChartsOpen((o) => !o)}
+          onToggleCharts={() => { setChartsOpen((o) => !o); setFiltersOpen(false); }}
+          filtersOpen={filtersOpen}
+          onToggleFilters={() => { setFiltersOpen((o) => !o); setChartsOpen(false); }}
         />
       </div>
 
-      {activeView && !activeView.is_standard && chartsOpen && (
-        <div className="mb-4">
-          <ViewChartsPanel
-            charts={activeView.charts ?? []}
-            rows={viewRows}
-            canManage={activeView.owner_id === userId}
-            onChange={(charts) => saveCharts(activeView.id, charts)}
-            onClose={() => setChartsOpen(false)}
-          />
-        </div>
-      )}
-
-
+      <div className="flex flex-col items-start gap-4 lg:flex-row">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="data-table"
+        className="data-table min-w-0 flex-1 w-full"
       >
+
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

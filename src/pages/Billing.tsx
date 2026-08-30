@@ -2904,9 +2904,26 @@ const Billing = () => {
       <Dialog open={!!viewInvoice} onOpenChange={(o) => { if (!o) { setViewInvoice(null); setIsEditing(false); } }}>
         <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-3 border-b">
-            <DialogTitle className="font-display">{isEditing ? "Edit Invoice" : "Invoice Details"}</DialogTitle>
-            <p className="text-xs text-muted-foreground font-mono">{viewInvoice?.invoice_number}</p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <DialogTitle className="font-display">{isEditing ? "Edit Invoice" : "Invoice Details"}</DialogTitle>
+                <p className="text-xs text-muted-foreground font-mono">{viewInvoice?.invoice_number}</p>
+              </div>
+              {viewInvoice?.id && (
+                <RecordOwnerField
+                  variant="inline"
+                  objectType="invoices"
+                  objectLabel="Invoice"
+                  recordId={viewInvoice.id}
+                  recordLabel={viewInvoice.invoice_number || viewInvoice.patient_name || "Invoice"}
+                  ownerId={viewInvoice.owner_id}
+                  link={`/billing?viewInvoice=${viewInvoice.id}`}
+                  onChanged={(ownerId) => setViewInvoice((v: any) => (v ? { ...v, owner_id: ownerId } : v))}
+                />
+              )}
+            </div>
           </DialogHeader>
+
 
           <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-0 max-h-[calc(100vh-5rem)] overflow-x-auto">
           <div className="space-y-4 px-6 py-4 overflow-y-auto lg:max-h-[calc(100vh-5rem)] min-w-0">

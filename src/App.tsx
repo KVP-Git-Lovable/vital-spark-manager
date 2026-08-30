@@ -64,6 +64,9 @@ import SurveyResponseEdit from "./pages/SurveyResponseEdit";
 import SurveyNew from "./pages/SurveyNew";
 import Vendors from "./pages/Vendors";
 import UserManagement from "./pages/UserManagement";
+import HistoryTracking from "./pages/admin/HistoryTracking";
+import CurrencyBilling from "./pages/admin/CurrencyBilling";
+import { useCurrencySettings } from "@/lib/currency";
 import UnitMaster from "./pages/UnitMaster";
 import ValidationRules from "./pages/ValidationRules";
 import ValidationRuleBuilder from "./pages/ValidationRuleBuilder";
@@ -100,6 +103,19 @@ const queryClient = new QueryClient({
   }),
 });
 
+/** Loads admin currency settings once so every amount formats consistently. */
+function CurrencyLoader() {
+  useCurrencySettings();
+  return null;
+}
+
+/** Admin-only routes (user & profile management). */
+function AdminRoute({ children }: { children: ReactNode }) {
+  const { isAdmin, loading } = useAuth();
+  if (loading) return null;
+  return isAdmin ? <>{children}</> : <AccessDenied />;
+}
+
 function ProtectedRoute({ moduleKey, children }: { moduleKey: string; children: ReactNode }) {
   const { isAdmin, permissions, loading } = useAuth();
   if (loading) return null;
@@ -120,6 +136,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <InstallBanner />
+            <CurrencyLoader />
           <Routes>
             {/* Marketing website */}
             <Route path="/website" element={<Website />} />
@@ -188,10 +205,12 @@ const App = () => (
                     <Route path="/category-master" element={<ProtectedRoute moduleKey="category_master"><CategoryMaster /></ProtectedRoute>} />
                     <Route path="/tax-master" element={<ProtectedRoute moduleKey="settings"><TaxMaster /></ProtectedRoute>} />
                     <Route path="/tax-master/:id" element={<ProtectedRoute moduleKey="settings"><TaxMasterDetail /></ProtectedRoute>} />
-                    <Route path="/user-management" element={<ProtectedRoute moduleKey="user_management"><UserManagement /></ProtectedRoute>} />
+                    <Route path="/user-management" element={<AdminRoute><UserManagement /></AdminRoute>} />
                     <Route path="/validation-rules" element={<ProtectedRoute moduleKey="settings"><ValidationRules /></ProtectedRoute>} />
                     <Route path="/admin" element={<ProtectedRoute moduleKey="settings"><Admin /></ProtectedRoute>} />
                     <Route path="/trash" element={<TrashPage />} />
+                    <Route path="/admin/history-tracking" element={<ProtectedRoute moduleKey="settings"><HistoryTracking /></ProtectedRoute>} />
+                    <Route path="/admin/currency" element={<ProtectedRoute moduleKey="settings"><CurrencyBilling /></ProtectedRoute>} />
                     <Route path="/admin/trash" element={<ProtectedRoute moduleKey="settings"><TrashAdmin /></ProtectedRoute>} />
                     <Route path="/validation-rules/:id" element={<ProtectedRoute moduleKey="settings"><ValidationRuleBuilder /></ProtectedRoute>} />
                     <Route path="/duplicate-management" element={<ProtectedRoute moduleKey="settings"><DuplicateManagement /></ProtectedRoute>} />

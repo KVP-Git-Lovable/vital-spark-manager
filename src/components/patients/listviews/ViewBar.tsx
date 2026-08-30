@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   BarChart3, ChevronDown, Columns3, Copy, Filter, Kanban, LayoutGrid, ListFilter, Lock, Pencil, Pin, Plus,
-  RefreshCw, Search, Settings2, SplitSquareHorizontal, Table2, Trash2,
+  PinOff, RefreshCw, Search, Settings2, SplitSquareHorizontal, Table2, Trash2,
 } from "lucide-react";
 import type { ListDisplayMode, ListView } from "@/lib/patientFields";
 
@@ -98,7 +98,19 @@ export default function ViewBar({
             {savedViews.map((v) => (
               <DropdownMenuItem key={v.id} onClick={() => onSelect(v.id)} className="flex items-center gap-2">
                 <span className="flex-1 truncate">{v.name}</span>
-                {v.is_default && <Pin className="h-3 w-3 opacity-60" />}
+                <button
+                  type="button"
+                  title={v.is_default ? "Unpin this view" : "Pin as default view"}
+                  aria-label={v.is_default ? "Unpin this view" : "Pin as default view"}
+                  className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-primary"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onPin(v.is_default ? null : v);
+                  }}
+                >
+                  {v.is_default ? <PinOff className="h-3.5 w-3.5 text-primary" /> : <Pin className="h-3.5 w-3.5" />}
+                </button>
                 {v.visibility !== "private" && (
                   <Badge variant="secondary" className="px-1 py-0 text-[9px]">
                     {v.visibility === "everyone" ? "All" : "Shared"}
@@ -150,8 +162,12 @@ export default function ViewBar({
             <DropdownMenuItem onClick={onFields} className="gap-2">
               <Columns3 className="h-3.5 w-3.5" /> Select Fields to Display
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onPin(activeView)} className="gap-2">
-              <Pin className="h-3.5 w-3.5" /> Pin as default
+            <DropdownMenuItem
+              onClick={() => onPin(activeView?.is_default ? null : activeView)}
+              className="gap-2"
+            >
+              {activeView?.is_default ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+              {activeView?.is_default ? "Unpin default view" : "Pin as default"}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onKanbanSettings} className="gap-2">
               <Kanban className="h-3.5 w-3.5" /> Kanban Settings

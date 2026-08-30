@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/currency";
 import { useState, useEffect, useCallback } from "react";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -316,7 +317,7 @@ const Expenses = () => {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Total ({format(new Date(filterMonth + "-01"), "MMM yyyy")})</p>
-                <p className="text-xl font-bold">₹{totalExpenses.toLocaleString("en-IN")}</p>
+                <p className="text-xl font-bold">{formatMoney(totalExpenses)}</p>
               </div>
             </div>
           </CardContent>
@@ -407,7 +408,7 @@ const Expenses = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-sm">{exp.vendor_name || "—"}</TableCell>
-                    <TableCell className="text-right font-semibold">₹{Number(exp.amount).toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatMoney(Number(exp.amount))}</TableCell>
                     <TableCell><Badge variant="outline" className="text-xs">{exp.payment_mode || "Cash"}</Badge></TableCell>
                     <TableCell>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); openEditExpense(exp); }}>
@@ -437,7 +438,7 @@ const Expenses = () => {
                     <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
                       <div className="h-full bg-primary rounded-full" style={{ width: `${(total / totalExpenses) * 100}%` }} />
                     </div>
-                    <span className="text-sm font-semibold w-24 text-right">₹{total.toLocaleString("en-IN")}</span>
+                    <span className="text-sm font-semibold w-24 text-right">{formatMoney(total)}</span>
                   </div>
                 </div>
               ))}
@@ -462,7 +463,7 @@ const Expenses = () => {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Amount</p>
-                  <p className="font-bold text-lg">₹{Number(selectedExpense.amount).toLocaleString("en-IN")}</p>
+                  <p className="font-bold text-lg">{formatMoney(Number(selectedExpense.amount))}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Category</p>

@@ -1,4 +1,4 @@
-import { useState, useRef, createContext, useContext } from "react";
+import { useState, useRef, useMemo, createContext, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { shortPatientId } from "@/lib/utils";
 import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound, Megaphone, Search, Sparkles } from "lucide-react";
@@ -6,6 +6,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
 import { PatientEngagementRollups } from "@/components/patients/PatientEngagementRollups";
+import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
+import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -275,6 +277,16 @@ const PatientDetail = () => {
     },
     enabled: !!id,
   });
+
+  // Live roll-ups: a "visit" is an appointment that actually happened.
+  const visitCount = useMemo(
+    () => (appointments as any[]).filter((a) => ["Completed", "Checked-in", "In Progress"].includes(a.status)).length,
+    [appointments]
+  );
+  const lifetimeValue = useMemo(
+    () => (invoices as any[]).reduce((sum, inv) => sum + (Number(inv.total_amount ?? inv.grand_total ?? 0) || 0), 0),
+    [invoices]
+  );
 
   const { data: photos = [] } = useQuery({
     queryKey: ["patient-photos", id],
@@ -736,7 +748,6 @@ const PatientDetail = () => {
 
       <div className="space-y-4 mb-4">
         <EngagementScoreCard patientId={id!} />
-        <PatientEngagementRollups patient={patient} />
       </div>
 
       <Tabs defaultValue="details" className="mt-2">
@@ -989,11 +1000,24 @@ const PatientDetail = () => {
                     </div>
                   </div>
 
+                  {/* Patient Engagement (automated roll-ups) */}
+                  <PatientEngagementRollups
+                    patient={patient}
+                    visitsOverride={visitCount}
+                    lifetimeValueOverride={lifetimeValue}
+                  />
+
                   {/* Notes */}
                   <div className="stat-card p-4">
                     <SectionTitle>Notes</SectionTitle>
                     <TextareaField label="Additional Notes" value={d.notes} field="notes" />
                   </div>
+
+                  {/* System Record */}
+                  <SystemRecordSection record={patient} />
+
+                  {/* History Tracking */}
+                  <FieldHistorySection objectType="patients" recordId={id} />
                 </div>
                 </DetailsFieldContext.Provider>
               );

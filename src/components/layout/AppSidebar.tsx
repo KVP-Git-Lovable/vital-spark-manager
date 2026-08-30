@@ -28,7 +28,8 @@ import {
   Megaphone,
   CopyCheck,
   Trash2,
-
+  History,
+  Coins,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -102,6 +103,9 @@ const adminSubItems = [
   { title: "Validation Rules", url: "/validation-rules", icon: ShieldCheck },
   { title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal },
   { title: "Duplicate Management", url: "/duplicate-management", icon: CopyCheck },
+  { title: "History Tracking", url: "/admin/history-tracking", icon: History },
+  { title: "Currency & Billing", url: "/admin/currency", icon: Coins },
+  { title: "User Management", url: "/user-management", icon: Users },
   { title: "Trash Policy & Audit", url: "/admin/trash", icon: Trash2 },
 ];
 
@@ -133,7 +137,7 @@ export function AppSidebar() {
   const employeesPaths = ["/staff", "/leave"];
   const adminPaths = ["/admin", ...adminSubItems.map((i) => i.url)];
   const showAdmin = canView("settings");
-  const masterPaths = [...masterDataItems.map((i) => i.url), ...adminPaths];
+  const masterPaths = masterDataItems.map((i) => i.url);
 
   return (
     <Sidebar collapsible="icon">
@@ -263,25 +267,11 @@ export function AppSidebar() {
                 </Collapsible>
               )}
 
-              {canView("user_management") && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isActive("/user-management")}>
-                    <NavLink
-                      to="/user-management"
-                      className="hover:bg-sidebar-accent"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
-                    >
-                      <ShieldCheck className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>User Management</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {(filteredMaster.length > 0 || showAdmin) && (
+        {filteredMaster.length > 0 && (
           <SidebarGroup>
             <SidebarGroupLabel>Master Data</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -318,28 +308,57 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         ))}
-                        {showAdmin && (
-                          <>
-                            <SidebarMenuSubItem>
-                              <SidebarMenuSubButton asChild isActive={currentPath === "/admin"}>
-                                <Link to="/admin">
-                                  <Settings className="mr-2 h-3.5 w-3.5" />
-                                  <span>Admin</span>
-                                </Link>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                            {adminSubItems.map((item) => (
-                              <SidebarMenuSubItem key={item.title} className="pl-3">
-                                <SidebarMenuSubButton asChild isActive={isActive(item.url)}>
-                                  <Link to={item.url}>
-                                    <item.icon className="mr-2 h-3.5 w-3.5" />
-                                    <span>{item.title}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {showAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Admin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <Collapsible
+                  defaultOpen={adminPaths.some((p) => currentPath.startsWith(p))}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip="Admin"
+                        isActive={adminPaths.some((p) => currentPath.startsWith(p))}
+                      >
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>Admin</span>}
+                        {!collapsed && (
+                          <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
                         )}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={currentPath === "/admin"}>
+                            <Link to="/admin">
+                              <Settings className="mr-2 h-3.5 w-3.5" />
+                              <span>Admin Home</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        {adminSubItems.map((item) => (
+                          <SidebarMenuSubItem key={item.title}>
+                            <SidebarMenuSubButton asChild isActive={isActive(item.url)}>
+                              <Link to={item.url}>
+                                <item.icon className="mr-2 h-3.5 w-3.5" />
+                                <span>{item.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
                       </SidebarMenuSub>
                     </CollapsibleContent>
                   </SidebarMenuItem>

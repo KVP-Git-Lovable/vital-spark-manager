@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/currency";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
@@ -547,7 +548,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                       <div className="rounded-lg border bg-muted/30 p-3 text-center">
                         <DollarSign className="h-4 w-4 mx-auto text-success mb-1" />
                         <p className="text-xs text-muted-foreground">Total Revenue</p>
-                        <p className="text-xl font-bold">₹{totalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="text-xl font-bold">{formatMoney(totalRevenue)}</p>
                         {sellingPrice === 0 && clinicUnits > 0 && (
                           <p className="text-[10px] text-amber-600 mt-1">Clinic revenue estimated at ₹0 — selling price not set</p>
                         )}
@@ -565,12 +566,12 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                         <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setShowClinicSales(true)}>
                           <TableCell className="text-xs"><span className="inline-flex items-center gap-1.5"><Stethoscope className="h-3.5 w-3.5 text-primary" />Clinic Procedures <Eye className="h-3 w-3 text-muted-foreground" /></span></TableCell>
                           <TableCell className="text-xs text-right">{clinicUnits}</TableCell>
-                          <TableCell className="text-xs text-right">₹{clinicRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-xs text-right">{formatMoney(clinicRevenue)}</TableCell>
                         </TableRow>
                         <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setShowPortalSales(true)}>
                           <TableCell className="text-xs"><span className="inline-flex items-center gap-1.5"><ShoppingBag className="h-3.5 w-3.5 text-accent-foreground" />Portal Orders <Eye className="h-3 w-3 text-muted-foreground" /></span></TableCell>
                           <TableCell className="text-xs text-right">{portalUnits}</TableCell>
-                          <TableCell className="text-xs text-right">₹{portalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-xs text-right">{formatMoney(portalRevenue)}</TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>

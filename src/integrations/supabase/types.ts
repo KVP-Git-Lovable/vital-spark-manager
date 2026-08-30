@@ -20,6 +20,7 @@ export type Database = {
           consultation_reasons: string[] | null
           consultation_type: string | null
           created_at: string
+          created_by: string | null
           end_time: string
           id: string
           is_recurring: boolean | null
@@ -37,6 +38,7 @@ export type Database = {
           status: string
           survey_template_id: string | null
           updated_at: string
+          updated_by: string | null
           visit_status: string | null
         }
         Insert: {
@@ -44,6 +46,7 @@ export type Database = {
           consultation_reasons?: string[] | null
           consultation_type?: string | null
           created_at?: string
+          created_by?: string | null
           end_time: string
           id?: string
           is_recurring?: boolean | null
@@ -61,6 +64,7 @@ export type Database = {
           status?: string
           survey_template_id?: string | null
           updated_at?: string
+          updated_by?: string | null
           visit_status?: string | null
         }
         Update: {
@@ -68,6 +72,7 @@ export type Database = {
           consultation_reasons?: string[] | null
           consultation_type?: string | null
           created_at?: string
+          created_by?: string | null
           end_time?: string
           id?: string
           is_recurring?: boolean | null
@@ -85,6 +90,7 @@ export type Database = {
           status?: string
           survey_template_id?: string | null
           updated_at?: string
+          updated_by?: string | null
           visit_status?: string | null
         }
         Relationships: [
@@ -243,6 +249,7 @@ export type Database = {
           category: string
           condition: string | null
           created_at: string
+          created_by: string | null
           description: string | null
           id: string
           invoice_number: string | null
@@ -256,6 +263,7 @@ export type Database = {
           serial_number: string | null
           status: string
           updated_at: string
+          updated_by: string | null
           vendor_id: string | null
           warranty_end_date: string | null
           warranty_start_date: string | null
@@ -271,6 +279,7 @@ export type Database = {
           category?: string
           condition?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           invoice_number?: string | null
@@ -284,6 +293,7 @@ export type Database = {
           serial_number?: string | null
           status?: string
           updated_at?: string
+          updated_by?: string | null
           vendor_id?: string | null
           warranty_end_date?: string | null
           warranty_start_date?: string | null
@@ -299,6 +309,7 @@ export type Database = {
           category?: string
           condition?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           invoice_number?: string | null
@@ -312,6 +323,7 @@ export type Database = {
           serial_number?: string | null
           status?: string
           updated_at?: string
+          updated_by?: string | null
           vendor_id?: string | null
           warranty_end_date?: string | null
           warranty_start_date?: string | null
@@ -497,6 +509,7 @@ export type Database = {
           amount_spent: number
           budget: number
           created_at: string
+          created_by: string | null
           end_date: string | null
           goals: string | null
           id: string
@@ -506,11 +519,13 @@ export type Database = {
           target_audience: string | null
           type: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           amount_spent?: number
           budget?: number
           created_at?: string
+          created_by?: string | null
           end_date?: string | null
           goals?: string | null
           id?: string
@@ -520,11 +535,13 @@ export type Database = {
           target_audience?: string | null
           type?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           amount_spent?: number
           budget?: number
           created_at?: string
+          created_by?: string | null
           end_date?: string | null
           goals?: string | null
           id?: string
@@ -534,6 +551,7 @@ export type Database = {
           target_audience?: string | null
           type?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -648,6 +666,39 @@ export type Database = {
           state?: string | null
           updated_at?: string
           website?: string | null
+        }
+        Relationships: []
+      }
+      currency_settings: {
+        Row: {
+          abbreviate: boolean
+          created_at: string
+          decimal_digits: number
+          id: boolean
+          number_style: string
+          show_decimals: boolean
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          abbreviate?: boolean
+          created_at?: string
+          decimal_digits?: number
+          id?: boolean
+          number_style?: string
+          show_decimals?: boolean
+          symbol?: string
+          updated_at?: string
+        }
+        Update: {
+          abbreviate?: boolean
+          created_at?: string
+          decimal_digits?: number
+          id?: boolean
+          number_style?: string
+          show_decimals?: boolean
+          symbol?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -871,6 +922,7 @@ export type Database = {
       doctors: {
         Row: {
           created_at: string
+          created_by: string | null
           email: string | null
           id: string
           name: string
@@ -879,9 +931,11 @@ export type Database = {
           specialization: string | null
           status: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           email?: string | null
           id?: string
           name: string
@@ -890,9 +944,11 @@ export type Database = {
           specialization?: string | null
           status?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           email?: string | null
           id?: string
           name?: string
@@ -901,6 +957,7 @@ export type Database = {
           specialization?: string | null
           status?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -1047,6 +1104,7 @@ export type Database = {
           attachment_url: string | null
           category_id: string | null
           created_at: string
+          created_by: string | null
           description: string | null
           expense_date: string
           id: string
@@ -1055,6 +1113,7 @@ export type Database = {
           reference_number: string | null
           title: string
           updated_at: string
+          updated_by: string | null
           vendor_name: string | null
         }
         Insert: {
@@ -1063,6 +1122,7 @@ export type Database = {
           attachment_url?: string | null
           category_id?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           expense_date?: string
           id?: string
@@ -1071,6 +1131,7 @@ export type Database = {
           reference_number?: string | null
           title: string
           updated_at?: string
+          updated_by?: string | null
           vendor_name?: string | null
         }
         Update: {
@@ -1079,6 +1140,7 @@ export type Database = {
           attachment_url?: string | null
           category_id?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           expense_date?: string
           id?: string
@@ -1087,6 +1149,7 @@ export type Database = {
           reference_number?: string | null
           title?: string
           updated_at?: string
+          updated_by?: string | null
           vendor_name?: string | null
         }
         Relationships: [
@@ -1132,11 +1195,75 @@ export type Database = {
         }
         Relationships: []
       }
+      field_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          changed_by_name: string | null
+          created_at: string
+          field_name: string
+          id: string
+          new_value: string | null
+          object_type: string
+          old_value: string | null
+          record_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_name?: string | null
+          created_at?: string
+          field_name: string
+          id?: string
+          new_value?: string | null
+          object_type: string
+          old_value?: string | null
+          record_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_name?: string | null
+          created_at?: string
+          field_name?: string
+          id?: string
+          new_value?: string | null
+          object_type?: string
+          old_value?: string | null
+          record_id?: string
+        }
+        Relationships: []
+      }
+      history_tracking_config: {
+        Row: {
+          created_at: string
+          is_enabled: boolean
+          object_key: string
+          tracked_fields: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          is_enabled?: boolean
+          object_key: string
+          tracked_fields?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          is_enabled?: boolean
+          object_key?: string
+          tracked_fields?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       hsn_tax_master: {
         Row: {
           active_from: string | null
           cgst: number
           created_at: string
+          created_by: string | null
           hsn_code: string
           id: string
           igst: number
@@ -1144,11 +1271,13 @@ export type Database = {
           is_active: boolean | null
           sgst: number
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           active_from?: string | null
           cgst?: number
           created_at?: string
+          created_by?: string | null
           hsn_code: string
           id?: string
           igst?: number
@@ -1156,11 +1285,13 @@ export type Database = {
           is_active?: boolean | null
           sgst?: number
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           active_from?: string | null
           cgst?: number
           created_at?: string
+          created_by?: string | null
           hsn_code?: string
           id?: string
           igst?: number
@@ -1168,6 +1299,7 @@ export type Database = {
           is_active?: boolean | null
           sgst?: number
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -1176,6 +1308,7 @@ export type Database = {
           appointment_id: string | null
           cgst_amount: number | null
           created_at: string
+          created_by: string | null
           doctor_id: string | null
           due_date: string | null
           id: string
@@ -1202,11 +1335,13 @@ export type Database = {
           tax_rate: number | null
           total_amount: number
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           appointment_id?: string | null
           cgst_amount?: number | null
           created_at?: string
+          created_by?: string | null
           doctor_id?: string | null
           due_date?: string | null
           id?: string
@@ -1233,11 +1368,13 @@ export type Database = {
           tax_rate?: number | null
           total_amount?: number
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           appointment_id?: string | null
           cgst_amount?: number | null
           created_at?: string
+          created_by?: string | null
           doctor_id?: string | null
           due_date?: string | null
           id?: string
@@ -1264,6 +1401,7 @@ export type Database = {
           tax_rate?: number | null
           total_amount?: number
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -1790,6 +1928,7 @@ export type Database = {
           blood_group: string | null
           city: string | null
           created_at: string
+          created_by: string | null
           current_medications: string | null
           date_of_birth: string | null
           days_since_last_visit: number | null
@@ -1834,6 +1973,7 @@ export type Database = {
           status: string
           total_visits: number | null
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           address?: string | null
@@ -1842,6 +1982,7 @@ export type Database = {
           blood_group?: string | null
           city?: string | null
           created_at?: string
+          created_by?: string | null
           current_medications?: string | null
           date_of_birth?: string | null
           days_since_last_visit?: number | null
@@ -1886,6 +2027,7 @@ export type Database = {
           status?: string
           total_visits?: number | null
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           address?: string | null
@@ -1894,6 +2036,7 @@ export type Database = {
           blood_group?: string | null
           city?: string | null
           created_at?: string
+          created_by?: string | null
           current_medications?: string | null
           date_of_birth?: string | null
           days_since_last_visit?: number | null
@@ -1938,6 +2081,7 @@ export type Database = {
           status?: string
           total_visits?: number | null
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -2021,6 +2165,7 @@ export type Database = {
           bill_number: string
           cgst_amount: number | null
           created_at: string
+          created_by: string | null
           discount: number
           id: string
           igst_amount: number | null
@@ -2034,11 +2179,13 @@ export type Database = {
           tax_id: string | null
           tax_rate: number | null
           total_amount: number
+          updated_by: string | null
         }
         Insert: {
           bill_number: string
           cgst_amount?: number | null
           created_at?: string
+          created_by?: string | null
           discount?: number
           id?: string
           igst_amount?: number | null
@@ -2052,11 +2199,13 @@ export type Database = {
           tax_id?: string | null
           tax_rate?: number | null
           total_amount?: number
+          updated_by?: string | null
         }
         Update: {
           bill_number?: string
           cgst_amount?: number | null
           created_at?: string
+          created_by?: string | null
           discount?: number
           id?: string
           igst_amount?: number | null
@@ -2070,6 +2219,7 @@ export type Database = {
           tax_id?: string | null
           tax_rate?: number | null
           total_amount?: number
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -2210,6 +2360,7 @@ export type Database = {
           cgst_percent: number
           conversion_value: number
           created_at: string
+          created_by: string | null
           default_duration: string | null
           default_frequency: string | null
           default_instructions: string | null
@@ -2236,6 +2387,7 @@ export type Database = {
           sub_unit: string | null
           unit: string
           updated_at: string
+          updated_by: string | null
           vendor_id: string | null
         }
         Insert: {
@@ -2244,6 +2396,7 @@ export type Database = {
           cgst_percent?: number
           conversion_value?: number
           created_at?: string
+          created_by?: string | null
           default_duration?: string | null
           default_frequency?: string | null
           default_instructions?: string | null
@@ -2270,6 +2423,7 @@ export type Database = {
           sub_unit?: string | null
           unit?: string
           updated_at?: string
+          updated_by?: string | null
           vendor_id?: string | null
         }
         Update: {
@@ -2278,6 +2432,7 @@ export type Database = {
           cgst_percent?: number
           conversion_value?: number
           created_at?: string
+          created_by?: string | null
           default_duration?: string | null
           default_frequency?: string | null
           default_instructions?: string | null
@@ -2304,6 +2459,7 @@ export type Database = {
           sub_unit?: string | null
           unit?: string
           updated_at?: string
+          updated_by?: string | null
           vendor_id?: string | null
         }
         Relationships: [
@@ -2507,6 +2663,7 @@ export type Database = {
       prescriptions: {
         Row: {
           created_at: string
+          created_by: string | null
           dosage: string | null
           duration: string | null
           frequency: string | null
@@ -2517,9 +2674,11 @@ export type Database = {
           product_id: string | null
           quantity: number
           survey_response_id: string | null
+          updated_by: string | null
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           dosage?: string | null
           duration?: string | null
           frequency?: string | null
@@ -2530,9 +2689,11 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           survey_response_id?: string | null
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           dosage?: string | null
           duration?: string | null
           frequency?: string | null
@@ -2543,6 +2704,7 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           survey_response_id?: string | null
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -2710,6 +2872,7 @@ export type Database = {
           assisted_by: string | null
           consultation_notes: string | null
           created_at: string
+          created_by: string | null
           diagnosis: string | null
           id: string
           patient_id: string
@@ -2725,6 +2888,7 @@ export type Database = {
           survey_response_id: string | null
           symptoms: string | null
           updated_at: string
+          updated_by: string | null
           visit_type: string
         }
         Insert: {
@@ -2732,6 +2896,7 @@ export type Database = {
           assisted_by?: string | null
           consultation_notes?: string | null
           created_at?: string
+          created_by?: string | null
           diagnosis?: string | null
           id?: string
           patient_id: string
@@ -2747,6 +2912,7 @@ export type Database = {
           survey_response_id?: string | null
           symptoms?: string | null
           updated_at?: string
+          updated_by?: string | null
           visit_type?: string
         }
         Update: {
@@ -2754,6 +2920,7 @@ export type Database = {
           assisted_by?: string | null
           consultation_notes?: string | null
           created_at?: string
+          created_by?: string | null
           diagnosis?: string | null
           id?: string
           patient_id?: string
@@ -2769,6 +2936,7 @@ export type Database = {
           survey_response_id?: string | null
           symptoms?: string | null
           updated_at?: string
+          updated_by?: string | null
           visit_type?: string
         }
         Relationships: [
@@ -3025,6 +3193,7 @@ export type Database = {
         Row: {
           category: string
           created_at: string
+          created_by: string | null
           diagnosis: string | null
           duration: number
           gst_percent: number
@@ -3039,10 +3208,12 @@ export type Database = {
           salesforce_id: string | null
           symptoms: string | null
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           category?: string
           created_at?: string
+          created_by?: string | null
           diagnosis?: string | null
           duration?: number
           gst_percent?: number
@@ -3057,10 +3228,12 @@ export type Database = {
           salesforce_id?: string | null
           symptoms?: string | null
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           category?: string
           created_at?: string
+          created_by?: string | null
           diagnosis?: string | null
           duration?: number
           gst_percent?: number
@@ -3075,6 +3248,7 @@ export type Database = {
           salesforce_id?: string | null
           symptoms?: string | null
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -3084,6 +3258,7 @@ export type Database = {
           consultation_fee: number
           consultation_hsn: string | null
           created_at: string
+          created_by: string | null
           email: string | null
           first_name: string
           force_password_change: boolean | null
@@ -3097,6 +3272,7 @@ export type Database = {
           specialization: string | null
           theme_preference: string
           updated_at: string
+          updated_by: string | null
           work_end_time: string | null
           work_start_time: string | null
         }
@@ -3105,6 +3281,7 @@ export type Database = {
           consultation_fee?: number
           consultation_hsn?: string | null
           created_at?: string
+          created_by?: string | null
           email?: string | null
           first_name: string
           force_password_change?: boolean | null
@@ -3118,6 +3295,7 @@ export type Database = {
           specialization?: string | null
           theme_preference?: string
           updated_at?: string
+          updated_by?: string | null
           work_end_time?: string | null
           work_start_time?: string | null
         }
@@ -3126,6 +3304,7 @@ export type Database = {
           consultation_fee?: number
           consultation_hsn?: string | null
           created_at?: string
+          created_by?: string | null
           email?: string | null
           first_name?: string
           force_password_change?: boolean | null
@@ -3139,6 +3318,7 @@ export type Database = {
           specialization?: string | null
           theme_preference?: string
           updated_at?: string
+          updated_by?: string | null
           work_end_time?: string | null
           work_start_time?: string | null
         }
@@ -3662,6 +3842,7 @@ export type Database = {
           age_range_min: number | null
           approval_status: string
           created_at: string
+          created_by: string | null
           description: string | null
           id: string
           is_active: boolean | null
@@ -3669,12 +3850,14 @@ export type Database = {
           problem_area_id: string | null
           service_id: string | null
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           age_range_max?: number | null
           age_range_min?: number | null
           approval_status?: string
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
@@ -3682,12 +3865,14 @@ export type Database = {
           problem_area_id?: string | null
           service_id?: string | null
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           age_range_max?: number | null
           age_range_min?: number | null
           approval_status?: string
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
@@ -3695,6 +3880,7 @@ export type Database = {
           problem_area_id?: string | null
           service_id?: string | null
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -3717,6 +3903,7 @@ export type Database = {
         Row: {
           cgst: number | null
           created_at: string
+          created_by: string | null
           description: string | null
           id: string
           igst: number | null
@@ -3724,10 +3911,12 @@ export type Database = {
           name: string
           rate: number | null
           sgst: number | null
+          updated_by: string | null
         }
         Insert: {
           cgst?: number | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           igst?: number | null
@@ -3735,10 +3924,12 @@ export type Database = {
           name: string
           rate?: number | null
           sgst?: number | null
+          updated_by?: string | null
         }
         Update: {
           cgst?: number | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           igst?: number | null
@@ -3746,6 +3937,7 @@ export type Database = {
           name?: string
           rate?: number | null
           sgst?: number | null
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -4087,6 +4279,7 @@ export type Database = {
           city: string | null
           contact_person: string | null
           created_at: string
+          created_by: string | null
           email: string | null
           gst_number: string | null
           id: string
@@ -4096,6 +4289,7 @@ export type Database = {
           phone: string | null
           state: string | null
           updated_at: string
+          updated_by: string | null
           website: string | null
         }
         Insert: {
@@ -4104,6 +4298,7 @@ export type Database = {
           city?: string | null
           contact_person?: string | null
           created_at?: string
+          created_by?: string | null
           email?: string | null
           gst_number?: string | null
           id?: string
@@ -4113,6 +4308,7 @@ export type Database = {
           phone?: string | null
           state?: string | null
           updated_at?: string
+          updated_by?: string | null
           website?: string | null
         }
         Update: {
@@ -4121,6 +4317,7 @@ export type Database = {
           city?: string | null
           contact_person?: string | null
           created_at?: string
+          created_by?: string | null
           email?: string | null
           gst_number?: string | null
           id?: string
@@ -4130,6 +4327,7 @@ export type Database = {
           phone?: string | null
           state?: string | null
           updated_at?: string
+          updated_by?: string | null
           website?: string | null
         }
         Relationships: []

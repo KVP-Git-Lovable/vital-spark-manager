@@ -1,9 +1,20 @@
 import { Clock, UserRound } from "lucide-react";
 import { useUserNames } from "@/lib/history";
+import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
+
+type OwnerObject = "patients" | "appointments" | "procedures" | "invoices" | "pharma_bills";
 
 interface Props {
   record: any;
   className?: string;
+  /** Enables the Record Owner lookup for this object. */
+  owner?: {
+    objectType: OwnerObject;
+    objectLabel: string;
+    recordLabel: string;
+    link?: string;
+    onChanged?: (ownerId: string) => void;
+  };
 }
 
 const fmtDate = (v?: string | null) => {
@@ -23,7 +34,7 @@ const fmtDate = (v?: string | null) => {
  * Standard "System Record" block shown on every record: created by / created time
  * and last modified by / modified time.
  */
-export function SystemRecordSection({ record, className = "" }: Props) {
+export function SystemRecordSection({ record, className = "", owner }: Props) {
   const { data: names = {} } = useUserNames([record?.created_by, record?.updated_by]);
   if (!record) return null;
 
@@ -40,6 +51,18 @@ export function SystemRecordSection({ record, className = "" }: Props) {
     <div className={`rounded-xl border bg-card p-4 shadow-sm ${className}`}>
       <h3 className="font-display text-sm font-semibold mb-3">System Record</h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {owner && record.id && (
+          <RecordOwnerField
+            objectType={owner.objectType}
+            objectLabel={owner.objectLabel}
+            recordId={record.id}
+            recordLabel={owner.recordLabel}
+            ownerId={record.owner_id}
+            link={owner.link}
+            onChanged={owner.onChanged}
+            className="col-span-2 md:col-span-4"
+          />
+        )}
         {items.map((it, i) => (
           <div key={i} className="rounded-lg border bg-muted/30 px-3 py-2">
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">

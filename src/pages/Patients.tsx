@@ -68,6 +68,15 @@ const PATIENT_FIELDS = [
 
 const DEFAULT_PATIENT_FIELDS = ["name", "contact", "skin_type", "engagement", "status"];
 
+const PICKLIST_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  gender: GENDER_OPTIONS,
+  status: STATUS_OPTIONS,
+  skin_type: SKIN_TYPE_OPTIONS,
+  blood_group: BLOOD_GROUP_OPTIONS,
+  source: SOURCE_OPTIONS,
+  engagement_tier: ENGAGEMENT_TIER_OPTIONS,
+};
+
 const fetchPatientsPage = async (
   page: number,
   search: string

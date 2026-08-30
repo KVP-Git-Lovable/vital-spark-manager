@@ -35,6 +35,8 @@ interface Props {
   onSearchChange: (v: string) => void;
   chartsOpen?: boolean;
   onToggleCharts?: () => void;
+  filtersOpen?: boolean;
+  onToggleFilters?: () => void;
 }
 
 const DISPLAY_OPTIONS: { value: ListDisplayMode; label: string; icon: typeof Table2 }[] = [
@@ -64,6 +66,8 @@ export default function ViewBar({
   onSearchChange,
   chartsOpen,
   onToggleCharts,
+  filtersOpen,
+  onToggleFilters,
 }: Props) {
   const isStandard = !!activeView?.is_standard;
   const canManage = !!activeView && !isStandard && activeView.owner_id === currentUserId;
@@ -230,12 +234,11 @@ export default function ViewBar({
         )}
 
         <Button
-          variant="outline"
+          variant={filtersOpen ? "default" : "outline"}
           size="icon"
           className="h-9 w-9"
-          title={isStandard ? "Filters are locked for standard views" : "Edit filters"}
-          disabled={!canManage}
-          onClick={() => canManage && onEdit(activeView!)}
+          title={isStandard ? "Filters (locked for standard views)" : "Filters"}
+          onClick={() => (onToggleFilters ? onToggleFilters() : canManage && onEdit(activeView!))}
         >
           <Filter className="h-4 w-4" />
         </Button>

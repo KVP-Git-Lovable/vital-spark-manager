@@ -655,7 +655,19 @@ const PatientDetail = () => {
                 {patient.phone && <p className="text-xs text-muted-foreground sm:hidden mt-0.5">{patient.phone}</p>}
               </div>
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-col items-stretch sm:items-end gap-2">
+            <RecordOwnerField
+              variant="inline"
+              objectType="patients"
+              objectLabel="Patient"
+              recordId={id!}
+              recordLabel={`${patient.first_name ?? ""} ${patient.last_name ?? ""}`.trim() || "Patient"}
+              ownerId={(patient as any).owner_id}
+              link={`/patients/${id}`}
+              onChanged={() => queryClient.invalidateQueries({ queryKey: ["patient", id] })}
+            />
+            <div className="flex gap-2 flex-wrap sm:justify-end">
+
               <Patient360 patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
               <CaseAnalysis patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} />
               <Button variant="outline" size="sm" className="gap-1 h-8 text-xs" onClick={() => setCameraOpen(true)}>

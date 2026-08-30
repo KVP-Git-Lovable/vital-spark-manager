@@ -2,6 +2,10 @@ import { CalendarDays, IndianRupee, Repeat, Timer } from "lucide-react";
 
 interface Props {
   patient: any;
+  /** Live count of actual visits, overrides the stored roll-up when provided. */
+  visitsOverride?: number;
+  /** Live lifetime value (sum of invoices), overrides the stored roll-up. */
+  lifetimeValueOverride?: number;
 }
 
 const tierStyles: Record<string, string> = {
@@ -16,21 +20,24 @@ const tierStyles: Record<string, string> = {
  * engagement engine and stored on the patient record so they can also be
  * used in list views and reports.
  */
-export function PatientEngagementRollups({ patient }: Props) {
+export function PatientEngagementRollups({ patient, visitsOverride, lifetimeValueOverride }: Props) {
   if (!patient) return null;
+
+  const visits = visitsOverride ?? patient.total_visits;
+  const ltv = lifetimeValueOverride ?? patient.lifetime_value;
 
   const items = [
     {
       icon: Repeat,
       label: "# of Visits",
-      value: patient.total_visits != null ? String(patient.total_visits) : "—",
+      value: visits != null ? String(visits) : "—",
     },
     {
       icon: IndianRupee,
       label: "Lifetime Value",
       value:
-        patient.lifetime_value != null
-          ? `₹${Number(patient.lifetime_value).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+        ltv != null
+          ? `₹${Number(ltv).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
           : "—",
     },
     {

@@ -44,6 +44,8 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
+import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
+import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -524,6 +526,7 @@ const Billing = () => {
         .select("id, first_name, last_name, role, specialization, consultation_fee, consultation_hsn, is_active" as any)
         .eq("role", "Doctor")
         .eq("is_active", true)
+        .not("auth_user_id", "is", null)
         .order("first_name");
       if (error) throw error;
       return data || [];
@@ -533,7 +536,7 @@ const Billing = () => {
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("id, first_name, last_name").eq("is_active", true).order("first_name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name").eq("is_active", true).not("auth_user_id", "is", null).order("first_name");
       if (error) throw error;
       return data;
     },
@@ -3012,6 +3015,18 @@ const Billing = () => {
                   <span>{viewInvoice.appointments.service} · {format(new Date(viewInvoice.appointments.start_time), "MMM d, h:mm a")}</span>
                 </button>
               )}
+
+              <SystemRecordSection
+                record={viewInvoice}
+                owner={{
+                  objectType: "invoices",
+                  objectLabel: "Invoice",
+                  recordLabel: viewInvoice.invoice_number || viewInvoice.patient_name || "Invoice",
+                  link: `/billing?viewInvoice=${viewInvoice.id}`,
+                  onChanged: (ownerId) => setViewInvoice((v: any) => (v ? { ...v, owner_id: ownerId } : v)),
+                }}
+              />
+              <FieldHistorySection objectType="invoices" recordId={viewInvoice.id} />
             </div>
           )}
 

@@ -19,6 +19,8 @@ interface StaffComboboxProps {
   noneLabel?: string;
   className?: string;
   roleFilter?: string[];
+  /** Only show staff who have a login account (system users). Default true. */
+  onlyUsers?: boolean;
 }
 
 export function StaffCombobox({
@@ -29,18 +31,22 @@ export function StaffCombobox({
   noneLabel = "No staff assigned",
   className,
   roleFilter,
+  onlyUsers = true,
 }: StaffComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
   const { data: staffList = [] } = useQuery({
-    queryKey: ["staff-active-list", roleFilter?.join(",") || "all"],
+    queryKey: ["staff-active-list", roleFilter?.join(",") || "all", onlyUsers],
     queryFn: async () => {
       let q = supabase
         .from("staff")
-        .select("id, first_name, last_name, role, specialization")
+        .select("id, first_name, last_name, role, specialization, auth_user_id")
         .eq("is_active", true)
         .order("first_name");
+      if (onlyUsers) {
+        q = q.not("auth_user_id", "is", null);
+      }
       if (roleFilter && roleFilter.length > 0) {
         q = q.in("role", roleFilter);
       }

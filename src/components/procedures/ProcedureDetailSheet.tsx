@@ -20,6 +20,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
+import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -878,6 +880,22 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     <p className="text-sm text-muted-foreground text-center py-2">No attachments yet.</p>
                   )}
                 </div>
+
+                {procedure?.id && (
+                  <div className="space-y-4">
+                    <SystemRecordSection
+                      record={procedure}
+                      owner={{
+                        objectType: "procedures",
+                        objectLabel: "Procedure",
+                        recordLabel: patientName || "Procedure",
+                        link: `/procedures`,
+                        onChanged: () => queryClient.invalidateQueries({ queryKey: ["procedure-detail"] }),
+                      }}
+                    />
+                    <FieldHistorySection objectType="procedures" recordId={procedure.id} />
+                  </div>
+                )}
                   </TabsContent>
 
                   <TabsContent value="medical" className="space-y-3 mt-4">

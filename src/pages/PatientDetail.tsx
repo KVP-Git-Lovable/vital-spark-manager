@@ -1014,7 +1014,15 @@ const PatientDetail = () => {
                   </div>
 
                   {/* System Record */}
-                  <SystemRecordSection record={patient} />
+                  <SystemRecordSection
+                    record={patient}
+                    owner={{
+                      objectType: "patients",
+                      objectLabel: "Patient",
+                      recordLabel: `${patient?.first_name ?? ""} ${patient?.last_name ?? ""}`.trim() || "Patient",
+                      link: `/patients/${id}`,
+                    }}
+                  />
 
                   {/* History Tracking */}
                   <FieldHistorySection objectType="patients" recordId={id} />

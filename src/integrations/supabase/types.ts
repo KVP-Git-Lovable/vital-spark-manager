@@ -24,6 +24,7 @@ export type Database = {
           end_time: string
           id: string
           is_recurring: boolean | null
+          owner_id: string | null
           parent_appointment_id: string | null
           patient_id: string | null
           patient_name: string | null
@@ -50,6 +51,7 @@ export type Database = {
           end_time: string
           id?: string
           is_recurring?: boolean | null
+          owner_id?: string | null
           parent_appointment_id?: string | null
           patient_id?: string | null
           patient_name?: string | null
@@ -76,6 +78,7 @@ export type Database = {
           end_time?: string
           id?: string
           is_recurring?: boolean | null
+          owner_id?: string | null
           parent_appointment_id?: string | null
           patient_id?: string | null
           patient_name?: string | null
@@ -1319,6 +1322,7 @@ export type Database = {
           line_items: Json | null
           merged_into_invoice_id: string | null
           notes: string | null
+          owner_id: string | null
           paid_amount: number
           patient_id: string | null
           patient_name: string | null
@@ -1352,6 +1356,7 @@ export type Database = {
           line_items?: Json | null
           merged_into_invoice_id?: string | null
           notes?: string | null
+          owner_id?: string | null
           paid_amount?: number
           patient_id?: string | null
           patient_name?: string | null
@@ -1385,6 +1390,7 @@ export type Database = {
           line_items?: Json | null
           merged_into_invoice_id?: string | null
           notes?: string | null
+          owner_id?: string | null
           paid_amount?: number
           patient_id?: string | null
           patient_name?: string | null
@@ -1586,6 +1592,48 @@ export type Database = {
           updated_at?: string
           user_id?: string
           visibility?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_read: boolean
+          link: string | null
+          object_type: string | null
+          record_id: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          object_type?: string | null
+          record_id?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          object_type?: string | null
+          record_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1956,6 +2004,7 @@ export type Database = {
           lifetime_value: number | null
           medical_history: string | null
           notes: string | null
+          owner_id: string | null
           phone: string | null
           pincode: string | null
           portal_pin_failed_attempts: number
@@ -2010,6 +2059,7 @@ export type Database = {
           lifetime_value?: number | null
           medical_history?: string | null
           notes?: string | null
+          owner_id?: string | null
           phone?: string | null
           pincode?: string | null
           portal_pin_failed_attempts?: number
@@ -2064,6 +2114,7 @@ export type Database = {
           lifetime_value?: number | null
           medical_history?: string | null
           notes?: string | null
+          owner_id?: string | null
           phone?: string | null
           pincode?: string | null
           portal_pin_failed_attempts?: number
@@ -2170,6 +2221,7 @@ export type Database = {
           id: string
           igst_amount: number | null
           net_amount: number
+          owner_id: string | null
           patient_id: string | null
           patient_name: string | null
           payment_mode: string
@@ -2190,6 +2242,7 @@ export type Database = {
           id?: string
           igst_amount?: number | null
           net_amount?: number
+          owner_id?: string | null
           patient_id?: string | null
           patient_name?: string | null
           payment_mode?: string
@@ -2210,6 +2263,7 @@ export type Database = {
           id?: string
           igst_amount?: number | null
           net_amount?: number
+          owner_id?: string | null
           patient_id?: string | null
           patient_name?: string | null
           payment_mode?: string
@@ -2875,6 +2929,7 @@ export type Database = {
           created_by: string | null
           diagnosis: string | null
           id: string
+          owner_id: string | null
           patient_id: string
           procedure_date: string
           procedure_notes: string | null
@@ -2899,6 +2954,7 @@ export type Database = {
           created_by?: string | null
           diagnosis?: string | null
           id?: string
+          owner_id?: string | null
           patient_id: string
           procedure_date?: string
           procedure_notes?: string | null
@@ -2923,6 +2979,7 @@ export type Database = {
           created_by?: string | null
           diagnosis?: string | null
           id?: string
+          owner_id?: string | null
           patient_id?: string
           procedure_date?: string
           procedure_notes?: string | null

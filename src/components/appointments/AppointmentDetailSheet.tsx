@@ -30,6 +30,8 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
+import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -324,7 +326,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).order("first_name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).not("auth_user_id", "is", null).order("first_name");
       if (error) throw error;
       return data;
     },
@@ -1105,6 +1107,20 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
+                  </div>
+
+                  <div className="md:col-span-2 space-y-4">
+                    <SystemRecordSection
+                      record={appointment}
+                      owner={{
+                        objectType: "appointments",
+                        objectLabel: "Appointment",
+                        recordLabel: appointment.patient_name || "Appointment",
+                        link: `/appointments`,
+                        onChanged: () => queryClient.invalidateQueries({ queryKey: ["appointment-detail", appointmentId] }),
+                      }}
+                    />
+                    <FieldHistorySection objectType="appointments" recordId={appointment.id} />
                   </div>
                 </TabsContent>
 

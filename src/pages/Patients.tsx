@@ -14,7 +14,7 @@ import PatientSplitView from "@/components/patients/listviews/PatientSplitView";
 import KanbanSettingsDialog from "@/components/patients/listviews/KanbanSettingsDialog";
 import FieldsDisplayDialog from "@/components/patients/listviews/FieldsDisplayDialog";
 import { usePatientListViews } from "@/hooks/usePatientListViews";
-import { applyFilters, sortRows, DEFAULT_VIEW_COLUMNS, fieldDef, type ListView, type ListDisplayMode } from "@/lib/patientFields";
+import { applyFilters, sortRows, DEFAULT_VIEW_COLUMNS, fieldDef, GENDER_OPTIONS, STATUS_OPTIONS, SKIN_TYPE_OPTIONS, BLOOD_GROUP_OPTIONS, SOURCE_OPTIONS, ENGAGEMENT_TIER_OPTIONS, type ListView, type ListDisplayMode } from "@/lib/patientFields";
 import { ALL_VIEW_ID, RECENT_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/standardViews";
 import { getRecentlyViewed, markRecentlyViewed } from "@/lib/recentlyViewed";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";

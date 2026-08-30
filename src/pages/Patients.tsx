@@ -337,6 +337,24 @@ const Patients = () => {
 
   const displayColumns = activeView?.columns?.length ? activeView.columns : DEFAULT_VIEW_COLUMNS;
 
+  // Tri-state column sorting: ascending → descending → cleared. One column at a time.
+  const [sort, setSort] = useState<{ key: string | null; dir: "asc" | "desc" }>({ key: null, dir: "asc" });
+  const handleSort = (key: string) =>
+    setSort((s) =>
+      s.key !== key ? { key, dir: "asc" } : s.dir === "asc" ? { key, dir: "desc" } : { key: null, dir: "asc" }
+    );
+  const tableRows = useMemo(
+    () => (sort.key ? sortRows(paged, sort.key, sort.dir) : paged),
+    [paged, sort]
+  );
+
+  const saveInline = async (row: Patient, key: string, value: any) => {
+    const { error } = await supabase.from("patients").update({ [key]: value } as any).eq("id", row.id);
+    if (error) return toast.error(error.message);
+    toast.success("Patient updated");
+    reloadPatients();
+  };
+
   const shouldShowColumn = (column: string) => DEFAULT_PATIENT_FIELDS.includes(column);
 
 
@@ -519,7 +537,7 @@ const Patients = () => {
           <PatientSplitView rows={paged} columns={displayColumns} avatars={avatars} onOpen={openPatient} />
         ) : display === "table" ? (
           <PatientListViewTable
-            rows={paged}
+            rows={tableRows}
             columns={displayColumns}
             selectedIds={selectedIds}
             onToggle={toggleOne}
@@ -527,6 +545,11 @@ const Patients = () => {
             onOpen={openPatient}
             doctorLabels={doctorLabels}
             avatars={avatars}
+            sortKey={sort.key}
+            sortDir={sort.dir}
+            onSort={handleSort}
+            onInlineSave={saveInline}
+            picklistOptions={PICKLIST_OPTIONS}
           />
         ) : (
 

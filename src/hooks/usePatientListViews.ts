@@ -179,14 +179,14 @@ export function usePatientListViews(section = "patients", objectLabel = "Patient
       const uid = auth.user?.id;
       if (!uid) return;
       await supabase.from("list_views").update({ is_default: false }).eq("section", section).eq("user_id", uid);
-      if (view && view.owner_id === uid) {
+      if (view && !view.is_standard && view.owner_id === uid) {
         const { error } = await supabase.from("list_views").update({ is_default: true }).eq("id", view.id);
         if (error) return toast.error(error.message);
         toast.success(`"${view.name}" pinned as default`);
-      } else if (view) {
+      } else if (view && !view.is_standard) {
         toast.error("You can only pin views you own");
       } else {
-        toast.success("All Patients pinned as default");
+        toast.success(`"${view?.name ?? "All Patients"}" pinned as default`);
       }
       await load();
     },
@@ -195,6 +195,10 @@ export function usePatientListViews(section = "patients", objectLabel = "Patient
 
   return {
     views,
+    allViews,
+    standardViews,
+    updateStandardColumns,
+
     loading,
     userId,
     activeView,

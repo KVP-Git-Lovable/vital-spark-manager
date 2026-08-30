@@ -205,12 +205,15 @@ const Patients = () => {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingView, setEditingView] = useState<ListView | null>(null);
-  const [display, setDisplay] = useState<"cards" | "table">("cards");
+  const [display, setDisplay] = useState<ListDisplayMode>("table");
   const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
   const [chartsOpen, setChartsOpen] = useState(false);
+  const [kanbanOpen, setKanbanOpen] = useState(false);
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [kanban, setKanban] = useState(() => getKanbanConfig("patients"));
 
   const {
-    views,
+    views: allViews,
     userId,
     activeView,
     selectView,
@@ -218,7 +221,12 @@ const Patients = () => {
     saveCharts,
     deleteView,
     pinDefault,
-  } = usePatientListViews("patients");
+    updateStandardColumns,
+  } = (() => {
+    const hook = usePatientListViews("patients", "Patients");
+    return { ...hook, views: hook.allViews };
+  })();
+
 
   useEffect(() => {
     const t = setTimeout(() => {

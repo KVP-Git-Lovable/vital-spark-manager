@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
 import { PatientEngagementRollups } from "@/components/patients/PatientEngagementRollups";
 import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
+import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
 import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { Patient360 } from "@/components/patients/Patient360";
 import { useMutation, useQueryClient } from "@tanstack/react-query";

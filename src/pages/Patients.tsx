@@ -651,11 +651,12 @@ const Patients = () => {
 
         <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
           <span>
-            Showing {total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–
-            {Math.min(currentPage * PAGE_SIZE, total)} of {total.toLocaleString()}
+            {isBoard
+              ? `Showing ${total.toLocaleString()} records`
+              : `Showing ${total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, total)} of ${total.toLocaleString()}`}
             {fetching && !loading ? " · loading…" : ""}
           </span>
-          {totalPages > 1 && (
+          {!isBoard && totalPages > 1 && (
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"

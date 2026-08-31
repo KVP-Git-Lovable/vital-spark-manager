@@ -113,7 +113,27 @@ Rules:
     const result = await aiResponse.json();
     let text = result.choices?.[0]?.message?.content || "{}";
     text = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-    const analysis = JSON.parse(text);
+
+    // Models occasionally emit slightly malformed JSON. Try progressively more
+    // forgiving parses instead of failing the whole request with a 500.
+    const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return null; } };
+    let analysis = tryParse(text);
+    if (!analysis) {
+      const start = text.indexOf("{");
+      const end = text.lastIndexOf("}");
+      if (start !== -1 && end > start) analysis = tryParse(text.slice(start, end + 1));
+    }
+    if (!analysis) {
+      // Strip trailing commas and retry once more.
+      analysis = tryParse(text.replace(/,\s*([}\]])/g, "$1"));
+    }
+    if (!analysis) {
+      console.error("case-analysis: unparseable model output", text.slice(0, 500));
+      return new Response(
+        JSON.stringify({ error: "The AI returned an unreadable response. Please try again." }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     return new Response(JSON.stringify({ analysis }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {

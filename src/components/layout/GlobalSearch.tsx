@@ -114,7 +114,7 @@ export function GlobalSearch({ className }: { className?: string }) {
         ...((procs.data || []) as any[]).slice(0, 5).map((p: any) => ({
           id: p.id,
           kind: "procedure" as const,
-          title: p.patient_name || "Procedure",
+          title: `${p.patients?.first_name || ""} ${p.patients?.last_name || ""}`.trim() || "Procedure",
           subtitle: `${p.service_name || ""} · ${p.procedure_date ? format(new Date(p.procedure_date), "dd MMM yyyy") : ""}`,
           route: `/procedures?id=${p.id}`,
         })),

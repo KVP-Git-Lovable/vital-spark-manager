@@ -1,8 +1,21 @@
-// One-off Salesforce → Lovable Cloud import of Appointments (Appointment__c),
-// Invoices (Billing__c), and Procedures (Diagnosis__c) for a hardcoded set
-// of patients. All source datetimes are preserved. Existing rows for these
-// patients are wiped and replaced with the Salesforce snapshot on each run
-// (per user request). Traceability tags are stored in free-text columns.
+// Salesforce -> Lovable Cloud import of Appointments (Appointment__c),
+// Invoices (Billing__c), and Procedures (Diagnosis__c) for every patient
+// that has a Salesforce Id (patients.sf_id). Generalized from the earlier
+// 5-patient pilot: paginate through the patient list in safe batches
+// (?limit=&offset=), and skip any Salesforce record already imported
+// (tracked via the sf_id column added on appointments/procedures/invoices)
+// instead of wiping and re-inserting on every run.
+//
+// Query params:
+//   limit   - patients per call, default 25 (keep small; each patient does
+//             3 Salesforce queries plus inserts)
+//   offset  - pagination cursor when walking the full patient list
+//   only    - name substring or patient UUID, for spot-checking a single
+//             patient regardless of limit/offset
+//   reset   - "true" to delete this run's target patients' previously
+//             Salesforce-imported rows (sf_id IS NOT NULL only - never
+//             touches rows created directly in the app) before
+//             re-importing. Off by default.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
@@ -15,13 +28,7 @@ const SALESFORCE_API_KEY = Deno.env.get("SALESFORCE_API_KEY")!;
 const GATEWAY = "https://connector-gateway.lovable.dev/salesforce";
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-const MAPPING: Array<{ lovable_id: string; sf_id: string; name: string }> = [
-  { lovable_id: "713adea2-0f76-4417-99a1-6f549c361d4b", sf_id: "a0D9F000000aL1YUAU", name: "Lavita Jacob" },
-  { lovable_id: "32378284-1c8a-4af9-8926-62fbd758862c", sf_id: "a0D2w00000DJcL6EAL", name: "Nikitha Hegde" },
-  { lovable_id: "8c476060-4e42-44ce-b63f-f00ab5ac7da0", sf_id: "a0D2w0000018jHPEAY", name: "Ridhima Shetty" },
-  { lovable_id: "4b5aef92-6207-416a-badc-5af24ea21534", sf_id: "a0D2w0000025aFlEAI", name: "Megha Shetty" },
-  { lovable_id: "3f2ae043-6ffa-47f4-b623-38b763b754fc", sf_id: "a0D2w00000265v7EAA", name: "Casilla Peter" },
-];
+interface Target { lovable_id: string; sf_id: string; name: string }
 
 async function sfQuery(soql: string): Promise<any[]> {
   const out: any[] = [];
@@ -56,10 +63,8 @@ async function buildDoctorMap(): Promise<(sfName: string | null) => string | nul
   return (sfName: string | null) => {
     if (!sfName) return null;
     const key = normalize(sfName);
-    // Try substring match on any staff name key.
     for (const r of rows) {
       if (!r.key) continue;
-      // Match if SF name contains each significant token of staff key.
       const tokens = r.key.split(" ").filter((t) => t.length > 2 && t !== "dr");
       if (tokens.length && tokens.every((t) => key.includes(t))) return r.id;
     }
@@ -73,30 +78,71 @@ function chunk<T>(arr: T[], n: number): T[][] {
   return out;
 }
 
+async function fetchTargets(only: string, limit: number, offset: number): Promise<{ targets: Target[]; hasMore: boolean }> {
+  if (only) {
+    const { data, error } = await admin
+      .from("patients")
+      .select("id, sf_id, first_name, last_name")
+      .not("sf_id", "is", null);
+    if (error) throw error;
+    const targets = (data || [])
+      .filter((p) => p.id === only || `${p.first_name} ${p.last_name}`.toLowerCase().includes(only.toLowerCase()))
+      .map((p) => ({ lovable_id: p.id, sf_id: p.sf_id as string, name: `${p.first_name} ${p.last_name}`.trim() }));
+    return { targets, hasMore: false };
+  }
+  const { data, error } = await admin
+    .from("patients")
+    .select("id, sf_id, first_name, last_name")
+    .not("sf_id", "is", null)
+    .order("created_at", { ascending: true })
+    .range(offset, offset + limit); // fetch one extra to detect hasMore
+  if (error) throw error;
+  const rows = data || [];
+  const hasMore = rows.length > limit;
+  const page = rows.slice(0, limit);
+  return {
+    targets: page.map((p) => ({ lovable_id: p.id, sf_id: p.sf_id as string, name: `${p.first_name} ${p.last_name}`.trim() })),
+    hasMore,
+  };
+}
+
+async function existingSfIds(table: string, patientId: string): Promise<Set<string>> {
+  const { data } = await admin.from(table).select("sf_id").eq("patient_id", patientId).not("sf_id", "is", null);
+  return new Set((data || []).map((r: any) => r.sf_id as string));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
   const only = url.searchParams.get("only") || "";
-  const skipReset = url.searchParams.get("reset") === "false";
-  const targets = only
-    ? MAPPING.filter((m) => m.name.toLowerCase().includes(only.toLowerCase()) || m.lovable_id === only)
-    : MAPPING;
+  const limit = Math.max(1, Math.min(200, Number(url.searchParams.get("limit") || "25")));
+  const offset = Math.max(0, Number(url.searchParams.get("offset") || "0"));
+  const reset = url.searchParams.get("reset") === "true";
 
   const results: any[] = [];
   try {
+    const { targets, hasMore } = await fetchTargets(only, limit, offset);
     const doctorFor = await buildDoctorMap();
 
     for (const p of targets) {
-      const log: any = { patient: p.name, appointments: 0, invoices: 0, procedures: 0, errors: [] as any[] };
+      const log: any = { patient: p.name, appointments: 0, invoices: 0, procedures: 0, skipped: 0, errors: [] as any[] };
 
-      // 1. Reset existing rows for this patient (order: procedures, invoices, appointments)
-      if (!skipReset) {
-        await admin.from("procedures").delete().eq("patient_id", p.lovable_id);
-        await admin.from("invoices").delete().eq("patient_id", p.lovable_id);
-        await admin.from("appointments").delete().eq("patient_id", p.lovable_id);
+      if (reset) {
+        // Only ever remove rows this sync previously created - never rows
+        // entered directly in the app.
+        await admin.from("procedures").delete().eq("patient_id", p.lovable_id).not("sf_id", "is", null);
+        await admin.from("invoices").delete().eq("patient_id", p.lovable_id).not("sf_id", "is", null);
+        await admin.from("appointments").delete().eq("patient_id", p.lovable_id).not("sf_id", "is", null);
       }
 
-      // 2. Fetch Salesforce records
+      const [existingApptRows, existingInvoices, existingProcs] = await Promise.all([
+        admin.from("appointments").select("id, sf_id").eq("patient_id", p.lovable_id).not("sf_id", "is", null)
+          .then(({ data }) => data || []),
+        existingSfIds("invoices", p.lovable_id),
+        existingSfIds("procedures", p.lovable_id),
+      ]);
+      const existingAppts = new Set(existingApptRows.map((r: any) => r.sf_id as string));
+
       const appts = await sfQuery(
         `SELECT Id, Start_Time__c, End_Time__c, Appointment_Status__c, Appointment_type__c, Visit_Type__c, Doctor_Name__c, Investigation__c, Description__c, CreatedDate FROM Appointment__c WHERE Patient__c = '${p.sf_id}'`,
       );
@@ -107,10 +153,15 @@ Deno.serve(async (req) => {
         `SELECT Id, Appointment__c, Diagnosis__c, Diagnoses__c, Symptoms__c, Symptoms_all__c, Prescription__c, Advice__c, Dietary_Advice__c, Procedure_Type__c, Treatment__c, Service_Type__c, Type_Of_Appointment__c, Visit_type__c, Special_Instructions__c, Payment_Instruction__c, Required_Lab_Test_s__c, History__c, Review__c, Follow_Up_Date__c, Consultation_Fee__c, CreatedDate FROM Diagnosis__c WHERE Patient__c = '${p.sf_id}'`,
       );
 
-      // 3. Insert appointments and build sf_appt_id -> uuid map
+      // Insert appointments (skipping ones already imported), building
+      // sf_appt_id -> uuid map for cross-linking invoices/procedures below.
       const apptIdMap = new Map<string, string>();
-      const patientDisplay = p.name;
-      const apptRows = appts.map((a) => {
+      // Seed the map with rows imported on a previous run of this call.
+      existingApptRows.forEach((r: any) => apptIdMap.set(r.sf_id, r.id));
+
+      const newAppts = appts.filter((a) => !existingAppts.has(a.Id));
+      log.skipped += appts.length - newAppts.length;
+      const apptRows = newAppts.map((a) => {
         const start = a.Start_Time__c || a.CreatedDate;
         const end = a.End_Time__c || (start ? new Date(new Date(start).getTime() + 5 * 60000).toISOString() : new Date().toISOString());
         const statusMap: Record<string, string> = {
@@ -120,41 +171,38 @@ Deno.serve(async (req) => {
         const service = a.Investigation__c || a.Description__c || "Consultation";
         return {
           patient_id: p.lovable_id,
-          patient_name: patientDisplay,
+          patient_name: p.name,
           service: String(service).slice(0, 500),
           start_time: start,
           end_time: end,
           status: statusMap[a.Appointment_Status__c] || "Completed",
           appointment_type: a.Visit_Type__c || a.Appointment_type__c || "Walk-in",
-          reason_for_consultation: `${a.Investigation__c || ""}\n[sf_appt_id=${a.Id}${a.Doctor_Name__c ? `; doctor=${a.Doctor_Name__c}` : ""}]`.trim(),
+          reason_for_consultation: `${a.Investigation__c || ""}${a.Doctor_Name__c ? ` (Dr. ${a.Doctor_Name__c})` : ""}`.trim() || null,
           source: "salesforce",
           staff_id: doctorFor(a.Doctor_Name__c),
+          sf_id: a.Id,
           created_at: a.CreatedDate,
           updated_at: a.CreatedDate,
-          _sf_id: a.Id,
         };
       });
 
       for (const batch of chunk(apptRows, 100)) {
-        const rows = batch.map(({ _sf_id, ...rest }) => rest);
-        const { data, error } = await admin.from("appointments").insert(rows).select("id, reason_for_consultation");
+        const { data, error } = await admin.from("appointments").insert(batch).select("id, sf_id");
         if (error) { log.errors.push({ step: "appointments", error: error.message }); continue; }
-        // Match back via sf_appt_id tag
-        (data || []).forEach((row: any) => {
-          const m = row.reason_for_consultation?.match(/sf_appt_id=([a-zA-Z0-9]+)/);
-          if (m) apptIdMap.set(m[1], row.id);
-        });
-        log.appointments += rows.length;
+        (data || []).forEach((row: any) => apptIdMap.set(row.sf_id, row.id));
+        log.appointments += batch.length;
       }
 
-      // 4. Insert invoices
-      const invRows = billings.map((b) => {
+      // Insert invoices
+      const newBillings = billings.filter((b) => !existingInvoices.has(b.Id));
+      log.skipped += billings.length - newBillings.length;
+      const invRows = newBillings.map((b) => {
         const services = [b.Procedure_Type__c, b.Procedure_Type_2__c, b.Procedure_Type_3__c].filter(Boolean);
         const total = Number(b.Total_Amount__c || b.Total_Price__c || 0);
         return {
           invoice_number: b.Name,
           patient_id: p.lovable_id,
-          patient_name: patientDisplay,
+          patient_name: p.name,
           services: services.length ? services : ["Service"],
           total_amount: total,
           paid_amount: total, // SF billings are historical/paid
@@ -165,7 +213,8 @@ Deno.serve(async (req) => {
           tax_amount: Number(b.Total_Tax_Applicable__c || 0),
           appointment_id: b.Appointment__c ? apptIdMap.get(b.Appointment__c) || null : null,
           doctor_id: doctorFor(b.Doctor_Name__c),
-          notes: `[sf_bill_id=${b.Id}${b.Doctor_Name__c ? `; doctor=${b.Doctor_Name__c}` : ""}]`,
+          notes: b.Doctor_Name__c ? `Doctor: ${b.Doctor_Name__c}` : null,
+          sf_id: b.Id,
           created_at: b.CreatedDate,
           updated_at: b.CreatedDate,
         };
@@ -176,8 +225,7 @@ Deno.serve(async (req) => {
         log.invoices += batch.length;
       }
 
-      // Build sf_appt_id -> appointment.service and sf_appt_id -> billing.Procedure_Type__c maps
-      // for fallback service_name when Diagnosis has none.
+      // Fallback service-name lookups for procedures with no Treatment__c
       const apptServiceBySfId = new Map<string, string>();
       appts.forEach((a) => {
         const svc = a.Investigation__c || a.Description__c;
@@ -191,8 +239,10 @@ Deno.serve(async (req) => {
         }
       });
 
-      // 5. Insert procedures — preserve every non-empty SF field
-      const procRows = diagnoses.map((d) => {
+      // Insert procedures - preserve every non-empty SF field
+      const newDiagnoses = diagnoses.filter((d) => !existingProcs.has(d.Id));
+      log.skipped += diagnoses.length - newDiagnoses.length;
+      const procRows = newDiagnoses.map((d) => {
         const treatment = d.Treatment__c ? String(d.Treatment__c).replace(/;/g, ", ") : null;
         const serviceName =
           treatment ||
@@ -213,7 +263,6 @@ Deno.serve(async (req) => {
           d.Consultation_Fee__c ? `Consultation Fee: ₹${d.Consultation_Fee__c}` : null,
         ].filter(Boolean);
         const reviewBits = [
-          `[sf_diag_id=${d.Id}]`,
           d.Review__c && `Review: ${d.Review__c}`,
           d.Visit_type__c && `Visit Type: ${d.Visit_type__c}`,
           d.Type_Of_Appointment__c && `Type: ${d.Type_Of_Appointment__c}`,
@@ -230,7 +279,8 @@ Deno.serve(async (req) => {
           procedure_notes: d.Prescription__c || null,
           consultation_notes: consultationParts.length ? consultationParts.join("\n") : null,
           recommendations: d.Special_Instructions__c || null,
-          review_notes: reviewBits.join(" | "),
+          review_notes: reviewBits.length ? reviewBits.join(" | ") : null,
+          sf_id: d.Id,
           created_at: d.CreatedDate,
           updated_at: d.CreatedDate,
         };
@@ -244,9 +294,10 @@ Deno.serve(async (req) => {
       results.push(log);
     }
 
-    return new Response(JSON.stringify({ ok: true, results }, null, 2), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ ok: true, next_offset: only ? null : offset + limit, has_more: only ? false : hasMore, results }, null, 2),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (e) {
     console.error("sf-import-clinical failed:", e);
     return new Response(

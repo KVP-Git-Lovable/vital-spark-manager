@@ -29,3 +29,9 @@ verify_jwt = false
 
 [functions.sf-import-clinical]
 verify_jwt = false
+
+[functions.sf-import-pictures]
+verify_jwt = false
+
+[functions.sf-import-attachments]
+verify_jwt = false

@@ -684,11 +684,11 @@ const PatientDetail = () => {
                 onClick={async () => {
                   const code = Math.floor(100000 + Math.random() * 900000).toString();
                   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-                  const { error } = await supabase.from("patient_portal_tokens").insert({
-                    patient_id: id,
-                    otp_code: code,
-                    phone: patient.phone,
-                    expires_at: expiresAt,
+                  const { error } = await supabase.rpc("create_patient_portal_token" as any, {
+                    _patient_id: id,
+                    _otp_code: code,
+                    _phone: patient.phone,
+                    _expires_at: expiresAt,
                   });
                   if (error) {
                     toast.error("Failed to generate OTP");

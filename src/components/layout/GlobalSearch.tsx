@@ -73,15 +73,15 @@ export function GlobalSearch({ className }: { className?: string }) {
           .limit(10),
         supabase
           .from("procedures")
-          .select("id, patient_name, service_name, procedure_date")
-          .or(`patient_name.ilike.${like},service_name.ilike.${like}`)
+          .select("id, service_name, procedure_date, patients(first_name, last_name)")
+          .ilike("service_name", like)
           .order("procedure_date", { ascending: false })
           .limit(10),
         supabase
           .from("invoices")
-          .select("id, invoice_number, patient_name, total_amount, invoice_date")
+          .select("id, invoice_number, patient_name, total_amount, created_at")
           .or(`invoice_number.ilike.${like},patient_name.ilike.${like}`)
-          .order("invoice_date", { ascending: false })
+          .order("created_at", { ascending: false })
           .limit(10),
       ]);
 

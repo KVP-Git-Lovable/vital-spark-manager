@@ -1,9 +1,20 @@
-// One-off Salesforce → Lovable Cloud import for a hardcoded list of
-// patients. Pulls up to N `Pictures` records from Salesforce
-// `Notes_Pictures__c`, downloads each attached ContentVersion binary via
-// the Salesforce connector gateway, uploads to the `patient-photos`
-// storage bucket, and inserts a `patient_photos` row mapped to the
-// matching Lovable patient. Traceable via `sf_np_id=<id>` in notes.
+// Salesforce -> Lovable Cloud import of before/after photos
+// (Notes_Pictures__c where Document_Type__c = 'Pictures') for every
+// patient with a Salesforce Id. Generalized from the earlier 5-patient
+// pilot: paginate through the patient list in safe batches
+// (?limit=&offset=), and skip any ContentVersion already imported
+// (tracked via the sf_id column on patient_photos) instead of relying on
+// a free-text notes tag.
+//
+// Query params:
+//   limit   - patients per call, default 15 (each patient can pull and
+//             upload several image files)
+//   offset  - pagination cursor when walking the full patient list
+//   only    - name substring or patient UUID, for spot-checking one patient
+//   reset   - "true" to delete this run's target patients' previously
+//             Salesforce-imported photos (sf_id IS NOT NULL only - never
+//             touches photos taken directly in the app) before
+//             re-importing. Off by default.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
@@ -14,20 +25,11 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const SALESFORCE_API_KEY = Deno.env.get("SALESFORCE_API_KEY")!;
 
 const GATEWAY = "https://connector-gateway.lovable.dev/salesforce";
-
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-// Lovable patient UUID -> Salesforce Patient__c Id
-const MAPPING: Array<{ lovable_id: string; sf_id: string; name: string }> = [
-  { lovable_id: "713adea2-0f76-4417-99a1-6f549c361d4b", sf_id: "a0D9F000000aL1YUAU", name: "Lavita Jacob" },
-  { lovable_id: "32378284-1c8a-4af9-8926-62fbd758862c", sf_id: "a0D2w00000DJcL6EAL", name: "Nikitha Hegde" },
-  { lovable_id: "8c476060-4e42-44ce-b63f-f00ab5ac7da0", sf_id: "a0D2w0000018jHPEAY", name: "Ridhima Shetty" },
-  { lovable_id: "4b5aef92-6207-416a-badc-5af24ea21534", sf_id: "a0D2w0000025aFlEAI", name: "Megha Shetty" },
-  { lovable_id: "3f2ae043-6ffa-47f4-b623-38b763b754fc", sf_id: "a0D2w00000265v7EAA", name: "Casilla Peter" },
-];
+interface Target { lovable_id: string; sf_id: string; name: string }
 
-// Cap SF Notes_Pictures records fetched per patient. Set very high so we
-// import every Picture record available for the mapped patients.
+// Cap SF Notes_Pictures records fetched per patient per run.
 const PICTURES_PER_PATIENT = 500;
 
 const EXT_CONTENT_TYPE: Record<string, string> = {
@@ -63,6 +65,29 @@ async function sfDownload(versionId: string, ext?: string): Promise<{ bytes: Uin
   return { bytes, contentType };
 }
 
+async function fetchTargets(only: string, limit: number, offset: number): Promise<{ targets: Target[]; hasMore: boolean }> {
+  if (only) {
+    const { data, error } = await admin
+      .from("patients").select("id, sf_id, first_name, last_name").not("sf_id", "is", null);
+    if (error) throw error;
+    const targets = (data || [])
+      .filter((p) => p.id === only || `${p.first_name} ${p.last_name}`.toLowerCase().includes(only.toLowerCase()))
+      .map((p) => ({ lovable_id: p.id, sf_id: p.sf_id as string, name: `${p.first_name} ${p.last_name}`.trim() }));
+    return { targets, hasMore: false };
+  }
+  const { data, error } = await admin
+    .from("patients").select("id, sf_id, first_name, last_name").not("sf_id", "is", null)
+    .order("created_at", { ascending: true }).range(offset, offset + limit);
+  if (error) throw error;
+  const rows = data || [];
+  const hasMore = rows.length > limit;
+  const page = rows.slice(0, limit);
+  return {
+    targets: page.map((p) => ({ lovable_id: p.id, sf_id: p.sf_id as string, name: `${p.first_name} ${p.last_name}`.trim() })),
+    hasMore,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -71,19 +96,25 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const reset = url.searchParams.get("reset") === "true";
   const only = url.searchParams.get("only") || "";
-  const targets = only ? MAPPING.filter((m) => m.name.toLowerCase().includes(only.toLowerCase()) || m.lovable_id === only) : MAPPING;
+  const limit = Math.max(1, Math.min(100, Number(url.searchParams.get("limit") || "15")));
+  const offset = Math.max(0, Number(url.searchParams.get("offset") || "0"));
 
   try {
+    const { targets, hasMore } = await fetchTargets(only, limit, offset);
+
     if (reset) {
       for (const p of targets) {
-        await admin.from("patient_photos").delete().eq("patient_id", p.lovable_id).ilike("notes", "%sf_np_id=%");
+        await admin.from("patient_photos").delete().eq("patient_id", p.lovable_id).not("sf_id", "is", null);
       }
     }
 
     for (const p of targets) {
       const patientLog: any = { patient: p.name, lovable_id: p.lovable_id, sf_id: p.sf_id, imported: 0, skipped: 0, items: [] };
 
-      // 1. Fetch the top N Pictures records for this patient
+      const { data: existingRows } = await admin
+        .from("patient_photos").select("sf_id").eq("patient_id", p.lovable_id).not("sf_id", "is", null);
+      const existing = new Set((existingRows || []).map((r: any) => r.sf_id as string));
+
       const npQ = await sfQuery(
         `SELECT Id, Name, Notes_if_any__c, CreatedDate FROM Notes_Pictures__c WHERE Patient_ID__c = '${p.sf_id}' AND Document_Type__c = 'Pictures' ORDER BY CreatedDate DESC LIMIT ${PICTURES_PER_PATIENT}`,
       );
@@ -95,8 +126,6 @@ Deno.serve(async (req) => {
       }
 
       const npIds = npRecords.map((r) => `'${r.Id}'`).join(",");
-
-      // 2. Fetch ContentDocumentLinks for those Notes_Pictures records
       const cdlQ = await sfQuery(
         `SELECT LinkedEntityId, ContentDocument.Title, ContentDocument.FileExtension, ContentDocument.FileType, ContentDocument.LatestPublishedVersionId FROM ContentDocumentLink WHERE LinkedEntityId IN (${npIds})`,
       );
@@ -114,7 +143,6 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Import every attachment linked to this Notes_Pictures record (parallel).
         await Promise.all(links.map(async (link: any) => {
           const versionId = link.ContentDocument?.LatestPublishedVersionId;
           const ext = (link.ContentDocument?.FileExtension || link.ContentDocument?.FileType || "jpg").toLowerCase();
@@ -123,15 +151,7 @@ Deno.serve(async (req) => {
             return;
           }
 
-          // Idempotency: skip if we already imported this ContentVersion for this patient.
-          const tag = `sf_np_id=${np.Id} sf_cv_id=${versionId}`;
-          const { data: existing } = await admin
-            .from("patient_photos")
-            .select("id")
-            .eq("patient_id", p.lovable_id)
-            .ilike("notes", `%sf_cv_id=${versionId}%`)
-            .maybeSingle();
-          if (existing?.id) {
+          if (existing.has(versionId)) {
             patientLog.skipped++;
             patientLog.items.push({ np_id: np.Id, cv_id: versionId, status: "already-imported" });
             return;
@@ -146,11 +166,7 @@ Deno.serve(async (req) => {
             if (upErr) throw upErr;
 
             const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${path}`;
-            const notesText = [
-              `Imported from Salesforce (${np.Name})`,
-              np.Notes_if_any__c || null,
-              tag,
-            ].filter(Boolean).join("\n");
+            const notesText = [`Imported from Salesforce (${np.Name})`, np.Notes_if_any__c || null].filter(Boolean).join("\n");
 
             const { error: insErr } = await admin.from("patient_photos").insert({
               patient_id: p.lovable_id,
@@ -158,6 +174,7 @@ Deno.serve(async (req) => {
               photo_type: "before",
               taken_at: np.CreatedDate,
               notes: notesText,
+              sf_id: versionId,
             });
             if (insErr) throw insErr;
 
@@ -175,7 +192,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ ok: true, results, error_count: errors.length, errors }, null, 2),
+      JSON.stringify({ ok: true, next_offset: only ? null : offset + limit, has_more: only ? false : hasMore, results, error_count: errors.length, errors }, null, 2),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {

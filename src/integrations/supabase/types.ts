@@ -33,6 +33,7 @@ export type Database = {
           recurrence_end_date: string | null
           recurrence_pattern: string | null
           service: string
+          sf_id: string | null
           source: string | null
           staff_id: string | null
           start_time: string
@@ -60,6 +61,7 @@ export type Database = {
           recurrence_end_date?: string | null
           recurrence_pattern?: string | null
           service: string
+          sf_id?: string | null
           source?: string | null
           staff_id?: string | null
           start_time: string
@@ -87,6 +89,7 @@ export type Database = {
           recurrence_end_date?: string | null
           recurrence_pattern?: string | null
           service?: string
+          sf_id?: string | null
           source?: string | null
           staff_id?: string | null
           start_time?: string
@@ -1332,6 +1335,7 @@ export type Database = {
           pdf_url: string | null
           recurring_group_id: string | null
           services: string[]
+          sf_id: string | null
           sgst_amount: number | null
           status: string
           tax_amount: number | null
@@ -1366,6 +1370,7 @@ export type Database = {
           pdf_url?: string | null
           recurring_group_id?: string | null
           services?: string[]
+          sf_id?: string | null
           sgst_amount?: number | null
           status?: string
           tax_amount?: number | null
@@ -1400,6 +1405,7 @@ export type Database = {
           pdf_url?: string | null
           recurring_group_id?: string | null
           services?: string[]
+          sf_id?: string | null
           sgst_amount?: number | null
           status?: string
           tax_amount?: number | null
@@ -1844,6 +1850,7 @@ export type Database = {
           photo_type: string
           photo_url: string
           procedure_id: string | null
+          sf_id: string | null
           taken_at: string
         }
         Insert: {
@@ -1855,6 +1862,7 @@ export type Database = {
           photo_type?: string
           photo_url: string
           procedure_id?: string | null
+          sf_id?: string | null
           taken_at?: string
         }
         Update: {
@@ -1866,6 +1874,7 @@ export type Database = {
           photo_type?: string
           photo_url?: string
           procedure_id?: string | null
+          sf_id?: string | null
           taken_at?: string
         }
         Relationships: [
@@ -2819,6 +2828,7 @@ export type Database = {
           notes: string | null
           patient_id: string
           procedure_id: string | null
+          sf_id: string | null
         }
         Insert: {
           appointment_id?: string | null
@@ -2830,6 +2840,7 @@ export type Database = {
           notes?: string | null
           patient_id: string
           procedure_id?: string | null
+          sf_id?: string | null
         }
         Update: {
           appointment_id?: string | null
@@ -2841,6 +2852,7 @@ export type Database = {
           notes?: string | null
           patient_id?: string
           procedure_id?: string | null
+          sf_id?: string | null
         }
         Relationships: [
           {
@@ -2938,6 +2950,7 @@ export type Database = {
           recurring_dates: string[] | null
           review_notes: string | null
           service_name: string
+          sf_id: string | null
           staff_id: string | null
           status: string
           survey_response_id: string | null
@@ -2963,6 +2976,7 @@ export type Database = {
           recurring_dates?: string[] | null
           review_notes?: string | null
           service_name: string
+          sf_id?: string | null
           staff_id?: string | null
           status?: string
           survey_response_id?: string | null
@@ -2988,6 +3002,7 @@ export type Database = {
           recurring_dates?: string[] | null
           review_notes?: string | null
           service_name?: string
+          sf_id?: string | null
           staff_id?: string | null
           status?: string
           survey_response_id?: string | null

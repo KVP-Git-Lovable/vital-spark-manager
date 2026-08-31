@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -58,6 +58,13 @@ export function RecordOwnerField({
   const [notifyApp, setNotifyApp] = useState(true);
   const [notifyEmail, setNotifyEmail] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Reset the optimistic value whenever a different record (or a refetched owner)
+  // is rendered, so a previous record's owner never sticks around.
+  useEffect(() => {
+    setLocalOwner(ownerId ?? null);
+    setNextOwner(ownerId ?? "");
+  }, [recordId, ownerId]);
 
   const ownerName =
     users.find((u) => u.auth_user_id === effectiveOwner)?.name ?? (effectiveOwner ? "User" : "—");

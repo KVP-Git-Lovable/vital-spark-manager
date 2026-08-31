@@ -4472,6 +4472,15 @@ export type Database = {
         Args: { _column: string; _sql_type: string; _table: string }
         Returns: undefined
       }
+      create_patient_portal_token: {
+        Args: {
+          _expires_at: string
+          _otp_code: string
+          _patient_id: string
+          _phone: string
+        }
+        Returns: string
+      }
       drop_custom_field_column: {
         Args: { _column: string; _table: string }
         Returns: undefined

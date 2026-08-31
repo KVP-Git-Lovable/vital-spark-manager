@@ -93,13 +93,23 @@ Deno.serve(async (req) => {
 
     let updated = 0;
     const updateErrors: any[] = [];
+    const url = new URL(req.url);
+    const applyOffset = Number(url.searchParams.get("apply_offset") ?? "0");
+    const applyLimit = Number(url.searchParams.get("apply_limit") ?? "2000");
+    let nextApplyOffset: number | null = null;
     if (apply) {
-      for (const m of oneToOne) {
-        const { error } = await admin.from("patients")
-          .update({ sf_id: m.sf_id }).eq("id", m.lovable_id).is("sf_id", null);
-        if (error) updateErrors.push({ lovable_id: m.lovable_id, error: error.message });
-        else updated++;
+      const slice = oneToOne.slice(applyOffset, applyOffset + applyLimit);
+      const CONC = 25;
+      for (let i = 0; i < slice.length; i += CONC) {
+        await Promise.all(slice.slice(i, i + CONC).map(async (m) => {
+          const { error } = await admin.from("patients")
+            .update({ sf_id: m.sf_id }).eq("id", m.lovable_id).is("sf_id", null);
+          if (error) updateErrors.push({ lovable_id: m.lovable_id, error: error.message });
+          else updated++;
+        }));
       }
+      nextApplyOffset = applyOffset + slice.length < oneToOne.length
+        ? applyOffset + slice.length : null;
     }
 
     return new Response(JSON.stringify({
@@ -117,6 +127,8 @@ Deno.serve(async (req) => {
       salesforce_unmatched: sfUnmatched,
       lovable_unmatched: lovableUnmatched.length,
       updated,
+      apply_offset: applyOffset,
+      next_apply_offset: nextApplyOffset,
       update_errors: updateErrors.slice(0, 20),
       sample_matches: oneToOne.slice(0, 10),
       sample_lovable_unmatched: lovableUnmatched.slice(0, 10).map((p: any) => ({

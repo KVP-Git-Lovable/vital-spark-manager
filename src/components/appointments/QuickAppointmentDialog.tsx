@@ -126,38 +126,25 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
       toast.success("Appointment created");
       queryClient.invalidateQueries({ queryKey: ["patient-appointments", patient.id] });
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
-      // Only confirmed appointments get the confirmation template; cancelled ones
-      // get the cancellation message. Other statuses (e.g. Reserved) notify nobody.
+      // Send WhatsApp confirmation for any newly created appointment,
+      // matching the Appointments module's behavior (booking status here
+      // defaults to "Reserved", so gating this on status would silently
+      // skip the notification for the common case).
       if (patient.phone && data) {
         const patientName = `${patient.first_name} ${patient.last_name}`.trim();
-        if (appointmentStatus === "Confirmed") {
-          supabase.functions.invoke("send-appointment-whatsapp", {
-            body: {
-              phone: patient.phone,
-              patientName,
-              appointmentDate: format(data.start, "dd MMM yyyy"),
-              appointmentTime: format(data.start, "hh:mm a"),
-              serviceName: data.serviceName,
-              patientGender: patient.gender,
-            },
-          }).then(({ error }) => {
-            if (error) console.error("WhatsApp send failed:", error);
-            else toast.success("WhatsApp confirmation sent");
-          });
-        } else if (appointmentStatus === "Cancelled") {
-          supabase.functions.invoke("send-appointment-update-whatsapp", {
-            body: {
-              kind: "cancelled",
-              phone: patient.phone,
-              patientName,
-              appointmentDate: format(data.start, "dd MMM yyyy"),
-              appointmentTime: format(data.start, "hh:mm a"),
-              serviceName: data.serviceName,
-            },
-          }).then(({ error }) => {
-            if (error) console.error("WhatsApp send failed:", error);
-          });
-        }
+        supabase.functions.invoke("send-appointment-whatsapp", {
+          body: {
+            phone: patient.phone,
+            patientName,
+            appointmentDate: format(data.start, "dd MMM yyyy"),
+            appointmentTime: format(data.start, "hh:mm a"),
+            serviceName: data.serviceName,
+            patientGender: patient.gender,
+          },
+        }).then(({ error }) => {
+          if (error) console.error("WhatsApp send failed:", error);
+          else toast.success("WhatsApp confirmation sent");
+        });
       }
       onOpenChange(false);
     },

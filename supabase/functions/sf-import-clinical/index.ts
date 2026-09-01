@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
   const only = url.searchParams.get("only") || "";
-  const limit = Math.max(1, Math.min(200, Number(url.searchParams.get("limit") || "60")));
+  const limit = Math.max(1, Math.min(60, Number(url.searchParams.get("limit") || "30")));
   const reset = url.searchParams.get("reset") === "true";
 
   const results: any[] = [];
@@ -301,7 +301,12 @@ Deno.serve(async (req) => {
 
     // Patients are independent - process several concurrently rather than
     // one at a time, capped to stay within Salesforce API burst limits.
+    // Hard time budget: the platform kills the request at 150s, so stop
+    // picking up new patients well before that and return what we did.
+    const deadline = Date.now() + 110_000;
+    let stoppedEarly = false;
     await mapPool(targets, 8, async (p) => {
+      if (Date.now() > deadline) { stoppedEarly = true; return; }
       const log: any = { patient: p.name, appointments: 0, invoices: 0, procedures: 0, skipped: 0, errors: [] as any[] };
       try {
         await syncPatient(p, doctorFor, reset, log);
@@ -315,9 +320,10 @@ Deno.serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ ok: true, processed: targets.length, results }, null, 2),
+      JSON.stringify({ ok: true, processed: results.length, requested: targets.length, stopped_early: stoppedEarly, results }, null, 2),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
+
   } catch (e) {
     console.error("sf-import-clinical failed:", e);
     return new Response(

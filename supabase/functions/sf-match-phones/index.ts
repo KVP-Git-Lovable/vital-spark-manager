@@ -96,11 +96,15 @@ Deno.serve(async (req) => {
     const updateErrors: any[] = [];
     const url = new URL(req.url);
     const applyOffset = Number(url.searchParams.get("apply_offset") ?? "0");
-    const applyLimit = Number(url.searchParams.get("apply_limit") ?? "2000");
+    const applyLimit = Number(url.searchParams.get("apply_limit") ?? "400");
     let nextApplyOffset: number | null = null;
     if (apply) {
-      const slice = oneToOne.slice(applyOffset, applyOffset + applyLimit);
-      const CONC = 25;
+      // Only rows that still need linking - keeps each call well inside the
+      // 150s idle timeout.
+      const linked = new Set(patients.filter((p) => p.sf_id).map((p) => p.id));
+      const todo = oneToOne.filter((m) => !linked.has(m.lovable_id));
+      const slice = todo.slice(applyOffset, applyOffset + applyLimit);
+      const CONC = 50;
       for (let i = 0; i < slice.length; i += CONC) {
         await Promise.all(slice.slice(i, i + CONC).map(async (m) => {
           const { data: rows, error } = await admin.from("patients")
@@ -109,9 +113,11 @@ Deno.serve(async (req) => {
           else if (rows && rows.length > 0) updated++;
         }));
       }
-      nextApplyOffset = applyOffset + slice.length < oneToOne.length
-        ? applyOffset + slice.length : null;
+      // Rows just linked drop out of `todo` next call, so keep offset at 0
+      // and simply report whether more work remains.
+      nextApplyOffset = applyOffset + slice.length < todo.length ? applyOffset : null;
     }
+
 
     return new Response(JSON.stringify({
       ok: true,

@@ -18,6 +18,7 @@ import { ViewSelector } from "@/components/views/ViewSelector";
 import { NewListViewDialog } from "@/components/views/NewListViewDialog";
 import { useListViews } from "@/hooks/useListViews";
 import { toast } from "sonner";
+import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
 
 const PROCEDURE_FIELDS = [
   { value: "procedure_date", label: "Date" },
@@ -158,6 +159,7 @@ const Procedures = () => {
             onDeleteView={deleteView}
             currentViewName={currentView?.name}
           />
+          <SalesforceSyncButton />
           <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4" />
             Import Procedures

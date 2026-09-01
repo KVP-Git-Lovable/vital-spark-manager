@@ -7,6 +7,7 @@ import { ViewSelector } from "@/components/views/ViewSelector";
 import { NewListViewDialog } from "@/components/views/NewListViewDialog";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, Pin } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
+import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1251,6 +1252,7 @@ const Appointments = () => {
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary" />
             )}
           </Button>
+          <SalesforceSyncButton />
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setLockPatient(false); }}>
             <DialogTrigger asChild>
               <Button className="gap-2 h-8 md:h-9 text-xs md:text-sm"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">New</span> Appt</Button>

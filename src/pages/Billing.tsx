@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
 import {
   Dialog,
   DialogContent,
@@ -1926,6 +1927,7 @@ const Billing = () => {
             onDeleteView={deleteView}
             currentViewName={currentView?.name}
           />
+          <SalesforceSyncButton />
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setInvoiceSeq(Date.now().toString().slice(-6)); }}>
             <DialogTrigger asChild>
               <Button className="gap-2 w-fit">

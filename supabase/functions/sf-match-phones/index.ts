@@ -102,10 +102,10 @@ Deno.serve(async (req) => {
       const CONC = 25;
       for (let i = 0; i < slice.length; i += CONC) {
         await Promise.all(slice.slice(i, i + CONC).map(async (m) => {
-          const { error } = await admin.from("patients")
-            .update({ sf_id: m.sf_id }).eq("id", m.lovable_id).is("sf_id", null);
+          const { data: rows, error } = await admin.from("patients")
+            .update({ sf_id: m.sf_id }).eq("id", m.lovable_id).is("sf_id", null).select("id");
           if (error) updateErrors.push({ lovable_id: m.lovable_id, error: error.message });
-          else updated++;
+          else if (rows && rows.length > 0) updated++;
         }));
       }
       nextApplyOffset = applyOffset + slice.length < oneToOne.length

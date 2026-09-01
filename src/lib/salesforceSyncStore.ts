@@ -90,6 +90,19 @@ async function invoke(nameWithQuery: string): Promise<any> {
   return data;
 }
 
+// The per-patient-marker functions always return a numeric `processed`
+// count. If it's missing, the deployed function predates that change (an
+// old build still running offset/has_more logic) - fail loudly instead of
+// silently reading `undefined` as "nothing pending" and stopping after one
+// wasted, effectively no-op call.
+function assertProcessedShape(fnName: string, data: any) {
+  if (typeof data.processed !== "number") {
+    throw new Error(
+      `${fnName} returned an unexpected response shape (no "processed" field) - the deployed function is likely out of date and needs to be redeployed from the current repo code.`,
+    );
+  }
+}
+
 async function loopLinking() {
   let offset = 0;
   for (;;) {
@@ -106,6 +119,7 @@ async function loopClinical() {
   for (;;) {
     if (stopRequested) return;
     const data = await invoke("sf-import-clinical?limit=25");
+    assertProcessedShape("sf-import-clinical", data);
     const results: any[] = data.results || [];
     const imported = results.reduce((s, r) => s + (r.appointments || 0) + (r.invoices || 0) + (r.procedures || 0), 0);
     const skipped = results.reduce((s, r) => s + (r.skipped || 0), 0);
@@ -120,6 +134,7 @@ async function loopPictures() {
   for (;;) {
     if (stopRequested) return;
     const data = await invoke("sf-import-pictures?limit=12");
+    assertProcessedShape("sf-import-pictures", data);
     const results: any[] = data.results || [];
     const imported = results.reduce((s, r) => s + (r.imported || 0), 0);
     const skipped = results.reduce((s, r) => s + (r.skipped || 0), 0);
@@ -133,6 +148,7 @@ async function loopAttachments() {
   for (;;) {
     if (stopRequested) return;
     const data = await invoke("sf-import-attachments?limit=12");
+    assertProcessedShape("sf-import-attachments", data);
     const results: any[] = data.results || [];
     const imported = results.reduce((s, r) => s + (r.imported || 0), 0);
     const skipped = results.reduce((s, r) => s + (r.skipped || 0), 0);

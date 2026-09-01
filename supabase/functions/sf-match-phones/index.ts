@@ -47,16 +47,17 @@ Deno.serve(async (req) => {
       "SELECT Id, Name, Patient_Name__c, Mobile_Number__c FROM Patient__c",
     );
 
-    // Lovable patients (larger pages = fewer round trips)
+    // Lovable patients (PostgREST caps responses at 1000 rows per request)
     const patients: any[] = [];
-    for (let from = 0; ; from += 2000) {
+    for (let from = 0; ; from += 1000) {
       const { data, error } = await admin
         .from("patients").select("id, first_name, last_name, phone, sf_id")
-        .order("created_at", { ascending: true }).range(from, from + 1999);
+        .order("created_at", { ascending: true }).range(from, from + 999);
       if (error) throw error;
       patients.push(...(data || []));
-      if (!data || data.length < 2000) break;
+      if (!data || data.length < 1000) break;
     }
+
 
 
     const byPhoneL = new Map<string, any[]>();

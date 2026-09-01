@@ -79,6 +79,21 @@ function chunk<T>(arr: T[], n: number): T[][] {
   return out;
 }
 
+// Run `fn` over `items` with at most `concurrency` in flight at once.
+// Salesforce queries and DB inserts across different patients are fully
+// independent, so this is safe - it just caps how many we hit at once to
+// stay within Salesforce API burst limits.
+async function mapPool<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (i < items.length) {
+      const item = items[i++];
+      await fn(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
 async function fetchTargets(only: string, limit: number): Promise<Target[]> {
   if (only) {
     const { data, error } = await admin
@@ -121,15 +136,19 @@ async function syncPatient(p: Target, doctorFor: (n: string | null) => string | 
   ]);
   const existingAppts = new Set(existingApptRows.map((r: any) => r.sf_id as string));
 
-  const appts = await sfQuery(
-    `SELECT Id, Start_Time__c, End_Time__c, Appointment_Status__c, Appointment_type__c, Visit_Type__c, Doctor_Name__c, Investigation__c, Description__c, CreatedDate FROM Appointment__c WHERE Patient__c = '${p.sf_id}'`,
-  );
-  const billings = await sfQuery(
-    `SELECT Id, Name, Appointment__c, Billing_Date__c, Discount__c, GST__c, Quantity__c, Total_Amount__c, Total_Price__c, Total_Tax_Applicable__c, Total_Service_Fee__c, Payment_Mode__c, Procedure_Type__c, Procedure_Type_2__c, Procedure_Type_3__c, Doctor_Name__c, CreatedDate FROM Billing__c WHERE Patient__c = '${p.sf_id}'`,
-  );
-  const diagnoses = await sfQuery(
-    `SELECT Id, Appointment__c, Diagnosis__c, Diagnoses__c, Symptoms__c, Symptoms_all__c, Prescription__c, Advice__c, Dietary_Advice__c, Procedure_Type__c, Treatment__c, Service_Type__c, Type_Of_Appointment__c, Visit_type__c, Special_Instructions__c, Payment_Instruction__c, Required_Lab_Test_s__c, History__c, Review__c, Follow_Up_Date__c, Consultation_Fee__c, CreatedDate FROM Diagnosis__c WHERE Patient__c = '${p.sf_id}'`,
-  );
+  // Independent per-patient queries - run concurrently instead of one
+  // after another (this is the main driver of total sync time at scale).
+  const [appts, billings, diagnoses] = await Promise.all([
+    sfQuery(
+      `SELECT Id, Start_Time__c, End_Time__c, Appointment_Status__c, Appointment_type__c, Visit_Type__c, Doctor_Name__c, Investigation__c, Description__c, CreatedDate FROM Appointment__c WHERE Patient__c = '${p.sf_id}'`,
+    ),
+    sfQuery(
+      `SELECT Id, Name, Appointment__c, Billing_Date__c, Discount__c, GST__c, Quantity__c, Total_Amount__c, Total_Price__c, Total_Tax_Applicable__c, Total_Service_Fee__c, Payment_Mode__c, Procedure_Type__c, Procedure_Type_2__c, Procedure_Type_3__c, Doctor_Name__c, CreatedDate FROM Billing__c WHERE Patient__c = '${p.sf_id}'`,
+    ),
+    sfQuery(
+      `SELECT Id, Appointment__c, Diagnosis__c, Diagnoses__c, Symptoms__c, Symptoms_all__c, Prescription__c, Advice__c, Dietary_Advice__c, Procedure_Type__c, Treatment__c, Service_Type__c, Type_Of_Appointment__c, Visit_type__c, Special_Instructions__c, Payment_Instruction__c, Required_Lab_Test_s__c, History__c, Review__c, Follow_Up_Date__c, Consultation_Fee__c, CreatedDate FROM Diagnosis__c WHERE Patient__c = '${p.sf_id}'`,
+    ),
+  ]);
 
   const apptIdMap = new Map<string, string>();
   existingApptRows.forEach((r: any) => apptIdMap.set(r.sf_id, r.id));
@@ -268,7 +287,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
   const only = url.searchParams.get("only") || "";
-  const limit = Math.max(1, Math.min(100, Number(url.searchParams.get("limit") || "25")));
+  const limit = Math.max(1, Math.min(200, Number(url.searchParams.get("limit") || "60")));
   const reset = url.searchParams.get("reset") === "true";
 
   const results: any[] = [];
@@ -280,7 +299,9 @@ Deno.serve(async (req) => {
       await admin.from("patients").update({ sf_clinical_synced_at: null }).in("id", targets.map((t) => t.lovable_id));
     }
 
-    for (const p of targets) {
+    // Patients are independent - process several concurrently rather than
+    // one at a time, capped to stay within Salesforce API burst limits.
+    await mapPool(targets, 8, async (p) => {
       const log: any = { patient: p.name, appointments: 0, invoices: 0, procedures: 0, skipped: 0, errors: [] as any[] };
       try {
         await syncPatient(p, doctorFor, reset, log);
@@ -291,7 +312,7 @@ Deno.serve(async (req) => {
         log.errors.push((e as Error).message);
       }
       results.push(log);
-    }
+    });
 
     return new Response(
       JSON.stringify({ ok: true, processed: targets.length, results }, null, 2),

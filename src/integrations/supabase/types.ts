@@ -2020,7 +2020,10 @@ export type Database = {
           portal_pin_hash: string | null
           portal_pin_locked_until: string | null
           previous_treatments: string | null
+          sf_attachments_synced_at: string | null
+          sf_clinical_synced_at: string | null
           sf_id: string | null
+          sf_pictures_synced_at: string | null
           skin_concerns: string | null
           skin_type: string | null
           source: string | null
@@ -2075,7 +2078,10 @@ export type Database = {
           portal_pin_hash?: string | null
           portal_pin_locked_until?: string | null
           previous_treatments?: string | null
+          sf_attachments_synced_at?: string | null
+          sf_clinical_synced_at?: string | null
           sf_id?: string | null
+          sf_pictures_synced_at?: string | null
           skin_concerns?: string | null
           skin_type?: string | null
           source?: string | null
@@ -2130,7 +2136,10 @@ export type Database = {
           portal_pin_hash?: string | null
           portal_pin_locked_until?: string | null
           previous_treatments?: string | null
+          sf_attachments_synced_at?: string | null
+          sf_clinical_synced_at?: string | null
           sf_id?: string | null
+          sf_pictures_synced_at?: string | null
           skin_concerns?: string | null
           skin_type?: string | null
           source?: string | null

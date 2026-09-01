@@ -118,7 +118,7 @@ async function loopLinking() {
 async function loopClinical() {
   for (;;) {
     if (stopRequested) return;
-    const data = await invoke("sf-import-clinical?limit=25");
+    const data = await invoke("sf-import-clinical?limit=60");
     assertProcessedShape("sf-import-clinical", data);
     const results: any[] = data.results || [];
     const imported = results.reduce((s, r) => s + (r.appointments || 0) + (r.invoices || 0) + (r.procedures || 0), 0);
@@ -133,7 +133,7 @@ async function loopClinical() {
 async function loopPictures() {
   for (;;) {
     if (stopRequested) return;
-    const data = await invoke("sf-import-pictures?limit=12");
+    const data = await invoke("sf-import-pictures?limit=25");
     assertProcessedShape("sf-import-pictures", data);
     const results: any[] = data.results || [];
     const imported = results.reduce((s, r) => s + (r.imported || 0), 0);
@@ -147,7 +147,7 @@ async function loopPictures() {
 async function loopAttachments() {
   for (;;) {
     if (stopRequested) return;
-    const data = await invoke("sf-import-attachments?limit=12");
+    const data = await invoke("sf-import-attachments?limit=25");
     assertProcessedShape("sf-import-attachments", data);
     const results: any[] = data.results || [];
     const imported = results.reduce((s, r) => s + (r.imported || 0), 0);

@@ -82,6 +82,18 @@ async function fetchTargets(only: string, limit: number): Promise<Target[]> {
   return (data || []).map((p) => ({ lovable_id: p.id, sf_id: p.sf_id as string, name: `${p.first_name} ${p.last_name}`.trim() }));
 }
 
+// Run `fn` over `items` with at most `concurrency` in flight at once.
+async function mapPool<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (i < items.length) {
+      const item = items[i++];
+      await fn(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
 async function syncPatient(p: Target): Promise<{ imported: number; skipped: number; items: any[]; note?: string }> {
   const patientLog: { imported: number; skipped: number; items: any[]; note?: string } = { imported: 0, skipped: 0, items: [] };
 
@@ -166,7 +178,7 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const reset = url.searchParams.get("reset") === "true";
   const only = url.searchParams.get("only") || "";
-  const limit = Math.max(1, Math.min(50, Number(url.searchParams.get("limit") || "12")));
+  const limit = Math.max(1, Math.min(80, Number(url.searchParams.get("limit") || "25")));
 
   try {
     const targets = await fetchTargets(only, limit);
@@ -180,7 +192,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    for (const p of targets) {
+    // Patients are independent - process several concurrently rather than
+    // one at a time, capped lower than clinical since this also does file
+    // downloads/uploads.
+    await mapPool(targets, 5, async (p) => {
       try {
         const patientLog = await syncPatient(p);
         results.push({ patient: p.name, lovable_id: p.lovable_id, sf_id: p.sf_id, ...patientLog });
@@ -192,7 +207,7 @@ Deno.serve(async (req) => {
         results.push({ patient: p.name, lovable_id: p.lovable_id, sf_id: p.sf_id, error: msg });
         errors.push({ patient: p.name, error: msg });
       }
-    }
+    });
 
     return new Response(
       JSON.stringify({ ok: true, processed: targets.length, results, error_count: errors.length, errors }, null, 2),

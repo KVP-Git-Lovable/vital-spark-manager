@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
   const only = url.searchParams.get("only") || "";
-  const limit = Math.max(1, Math.min(200, Number(url.searchParams.get("limit") || "60")));
+  const limit = Math.max(1, Math.min(60, Number(url.searchParams.get("limit") || "30")));
   const reset = url.searchParams.get("reset") === "true";
 
   const results: any[] = [];

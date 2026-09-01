@@ -181,11 +181,12 @@ const CLINIC_CALL_MESSAGE =
   "To modify or cancel your booking, please call us on +91 96201 23030 / +91 63607 53030.\nThe Skin Clinic, Mangalore";
 
 // Quick-reply buttons from the appointment confirmation template
-function detectButtonIntent(text: string): "modify" | "cancel" | null {
+function detectButtonIntent(text: string): "modify" | "cancel" | "confirm" | null {
   const t = (text || "").toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
   if (!t) return null;
   if (t === "i need to modify" || t === "need to modify" || t === "modify") return "modify";
   if (t === "i want to cancel" || t === "want to cancel" || t === "cancel") return "cancel";
+  if (t === "confirm" || t === "i confirm" || t === "yes confirm") return "confirm";
   return null;
 }
 
@@ -238,11 +239,11 @@ async function processMessage(opts: { fromRaw: string; userBody: string; message
     // Appointment template quick-reply buttons — skip AI entirely
     const buttonIntent = detectButtonIntent(buttonText || "") || detectButtonIntent(userBody);
     if (buttonIntent) {
-      const intro =
-        buttonIntent === "cancel"
-          ? `Hi ${patient.first_name}, sorry to hear you'd like to cancel.`
-          : `Hi ${patient.first_name}, happy to help you change your appointment.`;
-      const reply = `${intro}\n\n${CLINIC_CALL_MESSAGE}`;
+      const reply = buttonIntent === "confirm"
+        ? `Thanks for confirming, ${patient.first_name}! 😊 See you soon.\nThe Skin Clinic, Mangalore`
+        : `${buttonIntent === "cancel"
+            ? `Hi ${patient.first_name}, sorry to hear you'd like to cancel.`
+            : `Hi ${patient.first_name}, happy to help you change your appointment.`}\n\n${CLINIC_CALL_MESSAGE}`;
       const ts = performance.now();
       const sid = await sendWhatsAppReply(phone, reply);
       log("twilio_send", `extra_ms=${(performance.now() - ts).toFixed(0)}`);

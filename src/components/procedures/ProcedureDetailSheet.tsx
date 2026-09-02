@@ -735,6 +735,9 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     <TabsTrigger value="surveys" className="gap-1.5">
                       <ClipboardList className="h-3.5 w-3.5" /> Surveys
                     </TabsTrigger>
+                    <TabsTrigger value="notes" className="gap-1.5">
+                      <StickyNote className="h-3.5 w-3.5" /> Notes
+                    </TabsTrigger>
                   </TabsList>
                   <TabsContent value="procedure" className="space-y-4 mt-4">
                 <div className="rounded-xl border-2 border-primary/25 bg-primary/5 p-3 shadow-sm">
@@ -992,126 +995,6 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   )}
                 </div>
 
-                {/* Sticky Notes */}
-                {procedure?.id && (
-                  <div className="rounded-xl border bg-card p-4 shadow-sm">
-                    <Label className="text-base font-display font-semibold flex items-center gap-2 mb-3">
-                      <StickyNote className="h-4 w-4" /> Notes
-                    </Label>
-
-                    {newNoteOpen ? (
-                      <div className="rounded-lg border bg-background p-3 space-y-2 shadow-sm mb-3">
-                        <Input
-                          placeholder="Title"
-                          value={newNoteTitle}
-                          onChange={(e) => setNewNoteTitle(e.target.value)}
-                          className="border-0 px-0 text-sm font-medium focus-visible:ring-0 shadow-none"
-                        />
-                        <div className="flex items-start gap-1">
-                          <Textarea
-                            autoFocus
-                            placeholder="Take a note..."
-                            value={newNoteContent}
-                            onChange={(e) => setNewNoteContent(e.target.value)}
-                            rows={3}
-                            className="border-0 px-0 text-sm resize-none focus-visible:ring-0 shadow-none"
-                          />
-                          <MicButton value={newNoteContent} onChange={setNewNoteContent} />
-                        </div>
-                        <div className="flex justify-end gap-2 pt-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => { setNewNoteOpen(false); setNewNoteTitle(""); setNewNoteContent(""); }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button type="button" size="sm" onClick={addNote} disabled={!newNoteContent.trim()}>
-                            Add
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setNewNoteOpen(true)}
-                        className="w-full rounded-lg border bg-background px-3 py-2 text-left text-sm text-muted-foreground shadow-sm hover:shadow-md transition-shadow mb-3"
-                      >
-                        Add a note...
-                      </button>
-                    )}
-
-                    {stickyNotes.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {stickyNotes.map((note: any) => {
-                          const isEditing = editingNoteId === note.id;
-                          return (
-                            <div
-                              key={note.id}
-                              className={cn(
-                                "relative rounded-lg border p-3 shadow-sm hover:shadow-md transition-shadow",
-                                noteColor(note.id),
-                              )}
-                            >
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-1 top-1 h-6 w-6 opacity-60 hover:opacity-100"
-                                onClick={() => deleteNote(note.id)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                              {isEditing ? (
-                                <div
-                                  className="space-y-1.5 pr-6"
-                                  onBlur={(e) => {
-                                    // Only save/exit once focus leaves this whole card - moving
-                                    // focus between the title and content fields (or the mic
-                                    // button) shouldn't prematurely close it.
-                                    if (!e.currentTarget.contains(e.relatedTarget as Node)) saveEditNote();
-                                  }}
-                                >
-                                  <Input
-                                    autoFocus
-                                    placeholder="Title"
-                                    value={editingTitle}
-                                    onChange={(e) => setEditingTitle(e.target.value)}
-                                    className="border-0 bg-transparent px-0 text-sm font-medium focus-visible:ring-0 shadow-none"
-                                  />
-                                  <div className="flex items-start gap-1">
-                                    <Textarea
-                                      placeholder="Take a note..."
-                                      value={editingContent}
-                                      onChange={(e) => setEditingContent(e.target.value)}
-                                      rows={4}
-                                      className="border-0 bg-transparent px-0 text-sm resize-none focus-visible:ring-0 shadow-none"
-                                    />
-                                    <MicButton value={editingContent} onChange={setEditingContent} />
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="cursor-text pr-6" onClick={() => startEditNote(note)}>
-                                  {note.title && <p className="text-sm font-medium mb-1 break-words">{note.title}</p>}
-                                  <p className="text-sm whitespace-pre-wrap break-words">{note.content}</p>
-                                </div>
-                              )}
-                              <p className="text-[10px] text-muted-foreground mt-2 pt-2 border-t border-black/5">
-                                {noteAttribution(note)}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      !newNoteOpen && (
-                        <p className="text-sm text-muted-foreground text-center py-2">No notes yet. Click "Add a note..." to create one.</p>
-                      )
-                    )}
-                  </div>
-                )}
-
                 {procedure?.id && (
                   <div className="space-y-4">
                     <SystemRecordSection
@@ -1168,6 +1051,123 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                       <SurveyHistoryPanel patientId={procedure.patient_id} appointmentId={(procedure as any).appointment_id || null} />
                     ) : (
                       <p className="text-sm text-muted-foreground">No patient linked to this procedure.</p>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="notes" className="space-y-3 mt-4">
+                    {procedure?.id && (
+                      <div className="rounded-xl border bg-card p-4 shadow-sm">
+                        {newNoteOpen ? (
+                          <div className="rounded-lg border bg-background p-3 space-y-2 shadow-sm mb-3">
+                            <Input
+                              placeholder="Title"
+                              value={newNoteTitle}
+                              onChange={(e) => setNewNoteTitle(e.target.value)}
+                              className="border-0 px-0 text-sm font-medium focus-visible:ring-0 shadow-none"
+                            />
+                            <div className="flex items-start gap-1">
+                              <Textarea
+                                autoFocus
+                                placeholder="Take a note..."
+                                value={newNoteContent}
+                                onChange={(e) => setNewNoteContent(e.target.value)}
+                                rows={3}
+                                className="border-0 px-0 text-sm resize-none focus-visible:ring-0 shadow-none"
+                              />
+                              <MicButton value={newNoteContent} onChange={setNewNoteContent} />
+                            </div>
+                            <div className="flex justify-end gap-2 pt-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => { setNewNoteOpen(false); setNewNoteTitle(""); setNewNoteContent(""); }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button type="button" size="sm" onClick={addNote} disabled={!newNoteContent.trim()}>
+                                Add
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setNewNoteOpen(true)}
+                            className="w-full rounded-lg border bg-background px-3 py-2 text-left text-sm text-muted-foreground shadow-sm hover:shadow-md transition-shadow mb-3"
+                          >
+                            Add a note...
+                          </button>
+                        )}
+
+                        {stickyNotes.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {stickyNotes.map((note: any) => {
+                              const isEditing = editingNoteId === note.id;
+                              return (
+                                <div
+                                  key={note.id}
+                                  className={cn(
+                                    "relative rounded-lg border p-3 shadow-sm hover:shadow-md transition-shadow",
+                                    noteColor(note.id),
+                                  )}
+                                >
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="absolute right-1 top-1 h-6 w-6 opacity-60 hover:opacity-100"
+                                    onClick={() => deleteNote(note.id)}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                  {isEditing ? (
+                                    <div
+                                      className="space-y-1.5 pr-6"
+                                      onBlur={(e) => {
+                                        // Only save/exit once focus leaves this whole card - moving
+                                        // focus between the title and content fields (or the mic
+                                        // button) shouldn't prematurely close it.
+                                        if (!e.currentTarget.contains(e.relatedTarget as Node)) saveEditNote();
+                                      }}
+                                    >
+                                      <Input
+                                        autoFocus
+                                        placeholder="Title"
+                                        value={editingTitle}
+                                        onChange={(e) => setEditingTitle(e.target.value)}
+                                        className="border-0 bg-transparent px-0 text-sm font-medium focus-visible:ring-0 shadow-none"
+                                      />
+                                      <div className="flex items-start gap-1">
+                                        <Textarea
+                                          placeholder="Take a note..."
+                                          value={editingContent}
+                                          onChange={(e) => setEditingContent(e.target.value)}
+                                          rows={4}
+                                          className="border-0 bg-transparent px-0 text-sm resize-none focus-visible:ring-0 shadow-none"
+                                        />
+                                        <MicButton value={editingContent} onChange={setEditingContent} />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="cursor-text pr-6" onClick={() => startEditNote(note)}>
+                                      {note.title && <p className="text-sm font-medium mb-1 break-words">{note.title}</p>}
+                                      <p className="text-sm whitespace-pre-wrap break-words">{note.content}</p>
+                                    </div>
+                                  )}
+                                  <p className="text-[10px] text-muted-foreground mt-2 pt-2 border-t border-black/5">
+                                    {noteAttribution(note)}
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          !newNoteOpen && (
+                            <p className="text-sm text-muted-foreground text-center py-2">No notes yet. Click "Add a note..." to create one.</p>
+                          )
+                        )}
+                      </div>
                     )}
                   </TabsContent>
                 </Tabs>

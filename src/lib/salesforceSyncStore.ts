@@ -90,6 +90,28 @@ async function invoke(nameWithQuery: string): Promise<any> {
   return data;
 }
 
+// A single failed batch (a network blip, a Salesforce rate-limit response)
+// used to abort the entire multi-hour sync, forcing a manual restart from
+// wherever it happened to stop. Retry a few times with backoff first - the
+// batch is idempotent (per-patient sf_..._synced_at markers), so a retry
+// just repeats the same bounded work.
+async function invokeWithRetry(nameWithQuery: string, attempts = 4): Promise<any> {
+  let lastErr: Error | null = null;
+  for (let i = 0; i < attempts; i++) {
+    if (stopRequested) throw lastErr || new Error("stopped");
+    try {
+      return await invoke(nameWithQuery);
+    } catch (e) {
+      lastErr = e as Error;
+      if (i < attempts - 1) {
+        pushLog(`Retrying after error: ${lastErr.message}`);
+        await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, i)));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 // The per-patient-marker functions always return a numeric `processed`
 // count. If it's missing, the deployed function predates that change (an
 // old build still running offset/has_more logic) - fail loudly instead of
@@ -107,7 +129,7 @@ async function loopLinking() {
   let offset = 0;
   for (;;) {
     if (stopRequested) return;
-    const data = await invoke(`sf-match-phones?apply=true&apply_offset=${offset}&apply_limit=2000`);
+    const data = await invokeWithRetry(`sf-match-phones?apply=true&apply_offset=${offset}&apply_limit=2000`);
     addTotals("linking", { processed: data.updated ?? 0, imported: data.updated ?? 0 });
     pushLog(`Linking: matched ${data.updated ?? 0} patient(s) by phone number`);
     if (data.next_apply_offset === null || data.next_apply_offset === undefined) return;
@@ -141,7 +163,7 @@ async function loopClinical() {
   let stalled = 0;
   for (;;) {
     if (stopRequested) return;
-    const data = await invoke("sf-import-clinical?limit=60");
+    const data = await invokeWithRetry("sf-import-clinical?limit=60");
     assertProcessedShape("sf-import-clinical", data);
     const results: any[] = data.results || [];
     const imported = results.reduce((s, r) => s + (r.appointments || 0) + (r.invoices || 0) + (r.procedures || 0), 0);
@@ -159,7 +181,7 @@ async function loopPictures() {
   let stalled = 0;
   for (;;) {
     if (stopRequested) return;
-    const data = await invoke("sf-import-pictures?limit=25");
+    const data = await invokeWithRetry("sf-import-pictures?limit=150");
     assertProcessedShape("sf-import-pictures", data);
     const results: any[] = data.results || [];
     const imported = results.reduce((s, r) => s + (r.imported || 0), 0);
@@ -176,7 +198,7 @@ async function loopAttachments() {
   let stalled = 0;
   for (;;) {
     if (stopRequested) return;
-    const data = await invoke("sf-import-attachments?limit=25");
+    const data = await invokeWithRetry("sf-import-attachments?limit=150");
     assertProcessedShape("sf-import-attachments", data);
     const results: any[] = data.results || [];
     const imported = results.reduce((s, r) => s + (r.imported || 0), 0);

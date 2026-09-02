@@ -245,6 +245,12 @@ const Portal = () => {
     enabled: !!patientId,
   });
 
+  useEffect(() => {
+    handleQueryError(patientError);
+    handleQueryError(invoicesError);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientError, invoicesError]);
+
   const { data: workingHours = [] } = useQuery({
     queryKey: ["portal-working-hours"],
     queryFn: async () => {
@@ -719,7 +725,13 @@ const Portal = () => {
                   </div>
                 )}
 
-                {invoices.length === 0 ? (
+                {invoicesError ? (
+                  <div className="text-center py-12">
+                    <Receipt className="h-10 w-10 mx-auto mb-3 opacity-40 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mb-3">We couldn't load your bills.</p>
+                    <Button variant="outline" size="sm" onClick={() => refetchInvoices()}>Try again</Button>
+                  </div>
+                ) : invoices.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <Receipt className="h-10 w-10 mx-auto mb-3 opacity-40" />
                     <p className="text-sm">No invoices yet</p>

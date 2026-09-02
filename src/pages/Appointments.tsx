@@ -1,4 +1,5 @@
 import { useStackedTable } from "@/hooks/useStackedTable";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useModal } from "@/hooks/useModal";
@@ -45,9 +46,10 @@ import {
 import { PatientAvatar } from "@/components/patients/PatientAvatar";
 import { usePatientAvatars } from "@/hooks/usePatientAvatars";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchAll } from "@/lib/supabasePaginate";
+import { fetchAppointmentsPage } from "@/lib/appointmentsPage";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { MicButton } from "@/components/shared/MicButton";
@@ -189,6 +191,15 @@ const Appointments = () => {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+
+  // Server-side pagination for the List/table view
+  const APPT_PAGE_SIZE = 200;
+  const [apptPage, setApptPage] = useState(1);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   const persistPinned = (next: Record<string, any>) => {
     setPinnedFilters(next);
@@ -438,7 +449,51 @@ const Appointments = () => {
         return q;
       });
     },
+    // Day/Week/Month views only - the List view uses the server-paginated
+    // query below instead of pulling the full date range into memory.
+    enabled: view !== "table",
   });
+
+  const sortedFilterDoctors = useMemo(() => Array.from(filterDoctors).sort(), [filterDoctors]);
+
+  const apptPageQueryKey = [
+    "appointments",
+    "page",
+    apptPage,
+    APPT_PAGE_SIZE,
+    datePreset,
+    appointmentsDateRange?.start?.toISOString(),
+    appointmentsDateRange?.end?.toISOString(),
+    sortedFilterDoctors.join(","),
+    filterStatus,
+    filterVisitStatus,
+    debouncedSearchQuery.trim(),
+    sortColumn,
+    sortDirection,
+  ];
+
+  const { data: apptPageData, isFetching: isApptPageFetching } = useQuery({
+    queryKey: apptPageQueryKey,
+    queryFn: () =>
+      fetchAppointmentsPage({
+        page: apptPage,
+        pageSize: APPT_PAGE_SIZE,
+        dateRange: appointmentsDateRange,
+        doctorIds: sortedFilterDoctors,
+        status: filterStatus,
+        visitStatus: filterVisitStatus,
+        search: debouncedSearchQuery,
+        sortColumn,
+        sortDirection,
+      }),
+    placeholderData: keepPreviousData,
+    enabled: view === "table",
+  });
+
+  // Reset to page 1 whenever any input that reshapes the result set changes
+  useEffect(() => {
+    setApptPage(1);
+  }, [datePreset, appointmentsDateRange?.start?.toISOString(), appointmentsDateRange?.end?.toISOString(), sortedFilterDoctors.join(","), filterStatus, filterVisitStatus, debouncedSearchQuery, sortColumn, sortDirection, currentView?.id]);
 
   // Build a staff lookup map
   const staffMap = useMemo(() => {
@@ -447,7 +502,10 @@ const Appointments = () => {
     return map;
   }, [staffList]);
 
-  // Fetch invoices for bill amount in table view
+  // Fetch invoices for bill amount - used by the Day/Week/Month calendar
+  // views (via filteredAppointments/getFieldValue), which still work off the
+  // full date-bounded appointments set, so this stays a full fetch too, just
+  // skipped while on the List/table view (see pageInvoiceByAppointmentId).
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices-for-appointments"],
     queryFn: async () => {
@@ -458,6 +516,7 @@ const Appointments = () => {
           .range(from, to)
       );
     },
+    enabled: view !== "table",
   });
 
   const invoiceByAppointmentId = useMemo(() => {
@@ -468,6 +527,33 @@ const Appointments = () => {
     return map;
   }, [invoices]);
 
+  // Invoices for the List/table view - scoped to just the current page's
+  // appointment ids instead of the whole invoices table.
+  const pageApptIds = useMemo(
+    () => (apptPageData?.rows ?? []).map((a: any) => a.id),
+    [apptPageData]
+  );
+  const { data: pageInvoices = [] } = useQuery({
+    queryKey: ["invoices-for-appointments", "page", pageApptIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("id, appointment_id, total_amount, paid_amount, payment_mode, status")
+        .in("appointment_id", pageApptIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: view === "table" && pageApptIds.length > 0,
+  });
+
+  const pageInvoiceByAppointmentId = useMemo(() => {
+    const map = new Map<string, any>();
+    pageInvoices.forEach((inv: any) => {
+      if (inv.appointment_id) map.set(inv.appointment_id, inv);
+    });
+    return map;
+  }, [pageInvoices]);
+
   const dateFilterLabel = (() => {
     if (datePreset === "specific") return specificDate ? format(specificDate, "MMM d, yyyy") : "Specific Date";
     if (datePreset === "range")
@@ -477,18 +563,20 @@ const Appointments = () => {
     return DATE_PRESETS.find((p) => p.key === datePreset)?.label || "All Dates";
   })();
 
-  // Apply view filters
-  const applyViewFilters = (items: any[]) => {
+  // Apply view filters. `invMap` lets callers pass a scoped invoice lookup
+  // (the table view only fetches invoices for its current page, per the
+  // "bill amount is page-scoped, not fetched full-table anymore" tradeoff).
+  const applyViewFilters = (items: any[], invMap: Map<string, any> = invoiceByAppointmentId) => {
     if (!currentView?.filters || currentView.filters.length === 0) return items;
     return items.filter((apt) => {
       return currentView.filters.every((filter) => {
-        const fieldValue = getFieldValue(apt, filter.field);
+        const fieldValue = getFieldValue(apt, filter.field, invMap);
         return applyFilterCondition(fieldValue, filter.operator, filter.value);
       });
     });
   };
 
-  const getFieldValue = (apt: any, field: string) => {
+  const getFieldValue = (apt: any, field: string, invMap: Map<string, any> = invoiceByAppointmentId) => {
     switch (field) {
       case "start_time": return new Date(apt.start_time).toLocaleDateString();
       case "time": return format(new Date(apt.start_time), "h:mm a");
@@ -497,9 +585,9 @@ const Appointments = () => {
       case "service": return apt.service || "";
       case "doctor": return staffMap.get(apt.staff_id) || "";
       case "status": return apt.status || "";
-      case "bill": return invoiceByAppointmentId.get(apt.id)?.total_amount || 0;
+      case "bill": return invMap.get(apt.id)?.total_amount || 0;
       case "visit_status": return apt.visit_status || "";
-      case "payment_mode": return invoiceByAppointmentId.get(apt.id)?.payment_mode || "";
+      case "payment_mode": return invMap.get(apt.id)?.payment_mode || "";
       default: return "";
     }
   };
@@ -547,52 +635,54 @@ const Appointments = () => {
   // Apply view filters
   filteredAppointments = applyViewFilters(filteredAppointments);
 
-  // Sorted appointments for table view
-  const sortedAppointments = useMemo(() => {
-    const sorted = [...filteredAppointments];
-    sorted.sort((a: any, b: any) => {
-      let valA: any, valB: any;
-      switch (sortColumn) {
-        case "start_time":
-          valA = new Date(a.start_time).getTime();
-          valB = new Date(b.start_time).getTime();
-          break;
-        case "patient":
-          valA = (a.patient_name || a.patients?.first_name || "").toLowerCase();
-          valB = (b.patient_name || b.patients?.first_name || "").toLowerCase();
-          break;
-        case "service":
-          valA = (a.service || "").toLowerCase();
-          valB = (b.service || "").toLowerCase();
-          break;
-        case "doctor":
-          valA = (staffMap.get(a.staff_id) || "").toLowerCase();
-          valB = (staffMap.get(b.staff_id) || "").toLowerCase();
-          break;
-        case "status":
-          valA = (a.status || "").toLowerCase();
-          valB = (b.status || "").toLowerCase();
-          break;
-        case "bill":
-          valA = invoiceByAppointmentId.get(a.id)?.total_amount || 0;
-          valB = invoiceByAppointmentId.get(b.id)?.total_amount || 0;
-          break;
-        default:
-          valA = 0; valB = 0;
-      }
-      if (valA < valB) return sortDirection === "asc" ? -1 : 1;
-      if (valA > valB) return sortDirection === "asc" ? 1 : -1;
-      return 0;
-    });
-    return sorted;
-  }, [filteredAppointments, sortColumn, sortDirection, invoiceByAppointmentId]);
+  // Rows for the List/table view: the current server-fetched page, plus a
+  // residual client-side pass for saved-view filter fields that only exist
+  // via client-side lookups (bill/payment_mode - see pageInvoiceByAppointmentId
+  // below).
+  const apptPageRows = apptPageData?.rows ?? [];
+  const visibleTableRows = useMemo(
+    () => applyViewFilters(apptPageRows, pageInvoiceByAppointmentId),
+    [apptPageRows, currentView, pageInvoiceByAppointmentId]
+  );
 
   // Patient display pictures for quick recognition in the appointment list
   const appointmentPatientIds = useMemo(
-    () => sortedAppointments.map((a: any) => a.patient_id).filter(Boolean),
-    [sortedAppointments]
+    () => visibleTableRows.map((a: any) => a.patient_id).filter(Boolean),
+    [visibleTableRows]
   );
   const appointmentAvatars = usePatientAvatars(appointmentPatientIds);
+
+  // Row virtualization for the List/table view - keeps only the rows near
+  // the viewport actually mounted, since each row is fairly heavy (avatar,
+  // a live status Select, badges). Windows against the page scroll itself
+  // (no nested scroll container) via scrollMargin = the table's offset from
+  // the top of the document.
+  const [tableScrollMargin, setTableScrollMargin] = useState(0);
+  useEffect(() => {
+    if (view !== "table") return;
+    const measure = () => {
+      const el = appointmentsTableRef.current;
+      if (el) setTableScrollMargin(el.getBoundingClientRect().top + window.scrollY);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    // Re-measure whenever page content above the table changes height (the
+    // filters panel opening/closing, filter chips wrapping, etc.) rather
+    // than trying to track every state that could cause a reflow.
+    const ro = new ResizeObserver(measure);
+    ro.observe(document.body);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro.disconnect();
+    };
+  }, [view]);
+
+  const rowVirtualizer = useWindowVirtualizer({
+    count: view === "table" ? visibleTableRows.length : 0,
+    estimateSize: () => 57,
+    overscan: 8,
+    scrollMargin: tableScrollMargin,
+  });
 
   // Get columns to display based on current view or default
   const getDisplayColumns = () => {
@@ -1940,7 +2030,10 @@ const Appointments = () => {
                   {datePreset === "range" && (rangeFrom || rangeTo) && (
                     <span className="text-xs text-muted-foreground">· {dateFilterLabel}</span>
                   )}
-                  <span className="text-xs text-muted-foreground ml-auto">{sortedAppointments.length} result{sortedAppointments.length !== 1 ? "s" : ""}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {(apptPageData?.total ?? 0).toLocaleString()} result{(apptPageData?.total ?? 0) !== 1 ? "s" : ""}
+                    {isApptPageFetching ? " · loading…" : ""}
+                  </span>
                 </div>
                 <table ref={appointmentsTableRef} className="w-full text-sm responsive-table">
                   <thead>
@@ -1977,8 +2070,8 @@ const Appointments = () => {
                         </th>
                       )}
                       {shouldShowColumn("bill") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("bill")}>
-                          <span className="flex items-center">Bill Amount<SortIcon column="bill" /></span>
+                        <th className="text-left p-3 font-medium text-muted-foreground" title="Not sortable across pages">
+                          Bill Amount
                         </th>
                       )}
                       {shouldShowColumn("visit_status") && (
@@ -1991,172 +2084,230 @@ const Appointments = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedAppointments.map((apt: any) => {
-                      const patientPhone = apt.patients?.phone || "";
-                      const invoice = invoiceByAppointmentId.get(apt.id);
-                      const isEditing = editingRow === apt.id;
-
-                      if (isEditing) {
-                        return (
-                          <tr key={apt.id} className="border-b bg-primary/5">
-                            {shouldShowColumn("start_time") && (
-                              <td className="p-2">
-                                <Input
-                                  type="datetime-local"
-                                  className="h-8 text-xs w-40"
-                                  value={editValues.start_time}
-                                  onChange={(e) => setEditValues({ ...editValues, start_time: e.target.value })}
-                                />
-                              </td>
-                            )}
-                            {shouldShowColumn("time") && (
-                              <td className="p-2">
-                                <Input
-                                  type="datetime-local"
-                                  className="h-8 text-xs w-40"
-                                  value={editValues.end_time}
-                                  onChange={(e) => setEditValues({ ...editValues, end_time: e.target.value })}
-                                />
-                              </td>
-                            )}
-                            {shouldShowColumn("patient") && (
-                              <td className="p-2 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
-                            )}
-                            {shouldShowColumn("phone") && (
-                              <td className="p-2 text-muted-foreground text-xs">{patientPhone || "—"}</td>
-                            )}
-                            {shouldShowColumn("service") && (
-                              <td className="p-2">
-                                <Select value={editValues.service} onValueChange={(val) => setEditValues({ ...editValues, service: val })}>
-                                  <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    {services.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                            )}
-                            {shouldShowColumn("doctor") && (
-                              <td className="p-2">
-                                <Select value={editValues.staff_id} onValueChange={(val) => setEditValues({ ...editValues, staff_id: val })}>
-                                  <SelectTrigger className="h-8 text-xs w-36"><SelectValue placeholder="Select" /></SelectTrigger>
-                                  <SelectContent>
-                                    {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                            )}
-                            {shouldShowColumn("status") && (
-                              <td className="p-2">
-                                <Select value={editValues.status} onValueChange={(val) => setEditValues({ ...editValues, status: val })}>
-                                  <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                            )}
-                            {shouldShowColumn("bill") && (
-                              <td className="p-2 text-muted-foreground text-xs">{invoice ? `₹${invoice.total_amount?.toLocaleString()}` : "—"}</td>
-                            )}
-                            {shouldShowColumn("visit_status") && (
-                              <td className="p-2 text-muted-foreground text-xs">{apt.visit_status || "—"}</td>
-                            )}
-                            {shouldShowColumn("payment_mode") && (
-                              <td className="p-2 text-muted-foreground text-xs">{invoice?.payment_mode || "—"}</td>
-                            )}
-                            <td className="p-2">
-                              <div className="flex items-center gap-1">
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-success" onClick={saveInlineEdit}><CheckIcon className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={cancelInlineEdit}><X className="h-3.5 w-3.5" /></Button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      }
+                    {(() => {
+                      const virtualRows = rowVirtualizer.getVirtualItems();
+                      const totalSize = rowVirtualizer.getTotalSize();
+                      const paddingTop = virtualRows.length > 0 ? virtualRows[0].start - tableScrollMargin : 0;
+                      const paddingBottom = virtualRows.length > 0
+                        ? totalSize - (virtualRows[virtualRows.length - 1].end - tableScrollMargin)
+                        : 0;
+                      const colSpan = displayColumns.length + 1;
 
                       return (
-                        <tr key={apt.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors" onClick={() => setOpenModal("appointmentDetail", apt.id)}>
-                          {shouldShowColumn("start_time") && (
-                            <td className="p-3">
-                              <p className="font-medium whitespace-nowrap">{format(new Date(apt.start_time), "MMM d")}</p>
-                            </td>
+                        <>
+                          {paddingTop > 0 && (
+                            <tr><td colSpan={colSpan} style={{ height: paddingTop, padding: 0, border: 0 }} /></tr>
                           )}
-                          {shouldShowColumn("time") && (
-                            <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
-                              {format(new Date(apt.start_time), "h:mm a")} – {format(new Date(apt.end_time), "h:mm a")}
-                            </td>
+                          {virtualRows.map((virtualRow) => {
+                            const apt = visibleTableRows[virtualRow.index];
+                            if (!apt) return null;
+                            const patientPhone = apt.patients?.phone || "";
+                            const invoice = pageInvoiceByAppointmentId.get(apt.id);
+                            const isEditing = editingRow === apt.id;
+
+                            if (isEditing) {
+                              return (
+                                <tr
+                                  key={apt.id}
+                                  ref={rowVirtualizer.measureElement}
+                                  data-index={virtualRow.index}
+                                  className="border-b bg-primary/5"
+                                >
+                                  {shouldShowColumn("start_time") && (
+                                    <td className="p-2">
+                                      <Input
+                                        type="datetime-local"
+                                        className="h-8 text-xs w-40"
+                                        value={editValues.start_time}
+                                        onChange={(e) => setEditValues({ ...editValues, start_time: e.target.value })}
+                                      />
+                                    </td>
+                                  )}
+                                  {shouldShowColumn("time") && (
+                                    <td className="p-2">
+                                      <Input
+                                        type="datetime-local"
+                                        className="h-8 text-xs w-40"
+                                        value={editValues.end_time}
+                                        onChange={(e) => setEditValues({ ...editValues, end_time: e.target.value })}
+                                      />
+                                    </td>
+                                  )}
+                                  {shouldShowColumn("patient") && (
+                                    <td className="p-2 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
+                                  )}
+                                  {shouldShowColumn("phone") && (
+                                    <td className="p-2 text-muted-foreground text-xs">{patientPhone || "—"}</td>
+                                  )}
+                                  {shouldShowColumn("service") && (
+                                    <td className="p-2">
+                                      <Select value={editValues.service} onValueChange={(val) => setEditValues({ ...editValues, service: val })}>
+                                        <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          {services.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                                        </SelectContent>
+                                      </Select>
+                                    </td>
+                                  )}
+                                  {shouldShowColumn("doctor") && (
+                                    <td className="p-2">
+                                      <Select value={editValues.staff_id} onValueChange={(val) => setEditValues({ ...editValues, staff_id: val })}>
+                                        <SelectTrigger className="h-8 text-xs w-36"><SelectValue placeholder="Select" /></SelectTrigger>
+                                        <SelectContent>
+                                          {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
+                                        </SelectContent>
+                                      </Select>
+                                    </td>
+                                  )}
+                                  {shouldShowColumn("status") && (
+                                    <td className="p-2">
+                                      <Select value={editValues.status} onValueChange={(val) => setEditValues({ ...editValues, status: val })}>
+                                        <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                        </SelectContent>
+                                      </Select>
+                                    </td>
+                                  )}
+                                  {shouldShowColumn("bill") && (
+                                    <td className="p-2 text-muted-foreground text-xs">{invoice ? `₹${invoice.total_amount?.toLocaleString()}` : "—"}</td>
+                                  )}
+                                  {shouldShowColumn("visit_status") && (
+                                    <td className="p-2 text-muted-foreground text-xs">{apt.visit_status || "—"}</td>
+                                  )}
+                                  {shouldShowColumn("payment_mode") && (
+                                    <td className="p-2 text-muted-foreground text-xs">{invoice?.payment_mode || "—"}</td>
+                                  )}
+                                  <td className="p-2">
+                                    <div className="flex items-center gap-1">
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-success" onClick={saveInlineEdit}><CheckIcon className="h-3.5 w-3.5" /></Button>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={cancelInlineEdit}><X className="h-3.5 w-3.5" /></Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            return (
+                              <tr
+                                key={apt.id}
+                                ref={rowVirtualizer.measureElement}
+                                data-index={virtualRow.index}
+                                className="border-b hover:bg-muted/20 cursor-pointer transition-colors"
+                                onClick={() => setOpenModal("appointmentDetail", apt.id)}
+                              >
+                                {shouldShowColumn("start_time") && (
+                                  <td className="p-3">
+                                    <p className="font-medium whitespace-nowrap">{format(new Date(apt.start_time), "MMM d")}</p>
+                                  </td>
+                                )}
+                                {shouldShowColumn("time") && (
+                                  <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
+                                    {format(new Date(apt.start_time), "h:mm a")} – {format(new Date(apt.end_time), "h:mm a")}
+                                  </td>
+                                )}
+                                {shouldShowColumn("patient") && (
+                                  <td className="p-3 font-medium">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <PatientAvatar
+                                        firstName={apt.patients?.first_name || (apt.patient_name || "").split(" ")[0]}
+                                        lastName={apt.patients?.last_name || (apt.patient_name || "").split(" ").slice(1).join(" ")}
+                                        photoUrl={apt.patient_id ? appointmentAvatars[apt.patient_id] : undefined}
+                                        className="h-8 w-8"
+                                      />
+                                      <span className="truncate">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</span>
+                                    </div>
+                                  </td>
+                                )}
+                                {shouldShowColumn("phone") && (
+                                  <td className="p-3 text-muted-foreground">
+                                    {patientPhone ? <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span> : "—"}
+                                  </td>
+                                )}
+                                {shouldShowColumn("service") && (
+                                  <td className="p-3">{apt.service || "—"}</td>
+                                )}
+                                {shouldShowColumn("doctor") && (
+                                  <td className="p-3 text-muted-foreground">{apt.staff_id ? (staffMap.get(apt.staff_id) || "—") : "—"}</td>
+                                )}
+                                {shouldShowColumn("status") && (
+                                  <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                                    <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({
+                                      id: apt.id,
+                                      status: val,
+                                      __notify: {
+                                        phone: apt.patients?.phone || "",
+                                        patientName: `${apt.patients?.first_name || ""} ${apt.patients?.last_name || ""}`.trim() || "Patient",
+                                        prevStatus: apt.status,
+                                        newStatus: val,
+                                        startTime: apt.start_time,
+                                        doctorName: apt.staff_id ? (staffMap.get(apt.staff_id) || "") : "",
+                                        serviceName: apt.service || "",
+                                        patientGender: apt.patients?.gender || null,
+                                      },
+                                    })}>
+                                      <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">
+                                        <Badge className={cn("text-xs", statusColor(apt.status))}>{apt.status}</Badge>
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  </td>
+                                )}
+                                {shouldShowColumn("bill") && (
+                                  <td className="p-3 text-xs">{invoice ? <span className="font-medium">₹{invoice.total_amount?.toLocaleString()}</span> : <span className="text-muted-foreground">—</span>}</td>
+                                )}
+                                {shouldShowColumn("visit_status") && (
+                                  <td className="p-3 text-xs">{apt.visit_status ? <Badge variant="outline" className="text-xs">{apt.visit_status}</Badge> : <span className="text-muted-foreground">—</span>}</td>
+                                )}
+                                {shouldShowColumn("payment_mode") && (
+                                  <td className="p-3 text-xs">{invoice?.payment_mode ? <Badge variant="outline" className="text-xs">{invoice.payment_mode}</Badge> : <span className="text-muted-foreground">—</span>}</td>
+                                )}
+                                <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startInlineEdit(apt)}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {paddingBottom > 0 && (
+                            <tr><td colSpan={colSpan} style={{ height: paddingBottom, padding: 0, border: 0 }} /></tr>
                           )}
-                          {shouldShowColumn("patient") && (
-                            <td className="p-3 font-medium">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <PatientAvatar
-                                  firstName={apt.patients?.first_name || (apt.patient_name || "").split(" ")[0]}
-                                  lastName={apt.patients?.last_name || (apt.patient_name || "").split(" ").slice(1).join(" ")}
-                                  photoUrl={apt.patient_id ? appointmentAvatars[apt.patient_id] : undefined}
-                                  className="h-8 w-8"
-                                />
-                                <span className="truncate">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</span>
-                              </div>
-                            </td>
-                          )}
-                          {shouldShowColumn("phone") && (
-                            <td className="p-3 text-muted-foreground">
-                              {patientPhone ? <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span> : "—"}
-                            </td>
-                          )}
-                          {shouldShowColumn("service") && (
-                            <td className="p-3">{apt.service || "—"}</td>
-                          )}
-                          {shouldShowColumn("doctor") && (
-                            <td className="p-3 text-muted-foreground">{apt.staff_id ? (staffMap.get(apt.staff_id) || "—") : "—"}</td>
-                          )}
-                          {shouldShowColumn("status") && (
-                            <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                              <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({
-                                id: apt.id,
-                                status: val,
-                                __notify: {
-                                  phone: apt.patients?.phone || "",
-                                  patientName: `${apt.patients?.first_name || ""} ${apt.patients?.last_name || ""}`.trim() || "Patient",
-                                  prevStatus: apt.status,
-                                  newStatus: val,
-                                  startTime: apt.start_time,
-                                  doctorName: apt.staff_id ? (staffMap.get(apt.staff_id) || "") : "",
-                                  serviceName: apt.service || "",
-                                  patientGender: apt.patients?.gender || null,
-                                },
-                              })}>
-                                <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">
-                                  <Badge className={cn("text-xs", statusColor(apt.status))}>{apt.status}</Badge>
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                            </td>
-                          )}
-                          {shouldShowColumn("bill") && (
-                            <td className="p-3 text-xs">{invoice ? <span className="font-medium">₹{invoice.total_amount?.toLocaleString()}</span> : <span className="text-muted-foreground">—</span>}</td>
-                          )}
-                          {shouldShowColumn("visit_status") && (
-                            <td className="p-3 text-xs">{apt.visit_status ? <Badge variant="outline" className="text-xs">{apt.visit_status}</Badge> : <span className="text-muted-foreground">—</span>}</td>
-                          )}
-                          {shouldShowColumn("payment_mode") && (
-                            <td className="p-3 text-xs">{invoice?.payment_mode ? <Badge variant="outline" className="text-xs">{invoice.payment_mode}</Badge> : <span className="text-muted-foreground">—</span>}</td>
-                          )}
-                          <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startInlineEdit(apt)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          </td>
-                        </tr>
+                        </>
                       );
-                    })}
-                    {sortedAppointments.length === 0 && (
+                    })()}
+                    {visibleTableRows.length === 0 && (
                       <tr><td colSpan={displayColumns.length + 1} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
                     )}
                   </tbody>
                 </table>
+                <div className="p-3 border-t flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span>
+                    Page {apptPage} of {Math.max(1, Math.ceil((apptPageData?.total ?? 0) / APPT_PAGE_SIZE))}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs px-3"
+                      disabled={apptPage <= 1}
+                      onClick={() => setApptPage((p) => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs px-3"
+                      disabled={apptPage >= Math.ceil((apptPageData?.total ?? 0) / APPT_PAGE_SIZE)}
+                      onClick={() => setApptPage((p) => p + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
               </div>
             ) : view === "month" ? (
               /* MONTH VIEW */

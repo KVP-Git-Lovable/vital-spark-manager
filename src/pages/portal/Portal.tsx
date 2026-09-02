@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { portalRequest, PortalSessionError, clearPortalSession } from "@/lib/portalApi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -54,13 +55,7 @@ function PortalSurveysList({ patientId, onOpen }: { patientId: string; onOpen: (
   const { data: assigned = [] } = useQuery({
     queryKey: ["portal-assigned-surveys", patientId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("survey_assignments")
-        .select("*, survey_templates(id, name, description)")
-        .eq("patient_id", patientId)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-      return data || [];
+      return (await portalRequest("assigned_surveys")) || [];
     },
     enabled: !!patientId,
   });
@@ -169,17 +164,27 @@ const Portal = () => {
 
   const patientId = session?.patientId;
 
+
   const logout = () => {
     localStorage.removeItem("portal_session");
     navigate("/portal");
   };
 
+  // A rejected session must send the patient back to sign-in rather than
+  // leaving them staring at an empty profile or billing page.
+  const handleQueryError = (error: unknown) => {
+    if (error instanceof PortalSessionError) {
+      clearPortalSession();
+      toast.error(error.message);
+      navigate("/portal");
+    }
+  };
+
   // ─── Queries ─────────────────────────────────────
-  const { data: patient } = useQuery({
+  const { data: patient, error: patientError, refetch: refetchPatient } = useQuery({
     queryKey: ["portal-patient", patientId],
     queryFn: async () => {
-      const { data } = await supabase.from("patients").select("*").eq("id", patientId!).single();
-      return data;
+      return await portalRequest("profile");
     },
     enabled: !!patientId,
   });
@@ -187,12 +192,7 @@ const Portal = () => {
   const { data: appointments = [] } = useQuery({
     queryKey: ["portal-appointments", patientId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("appointments")
-        .select("*, staff(first_name, last_name)")
-        .eq("patient_id", patientId!)
-        .order("start_time", { ascending: false });
-      return data || [];
+      return (await portalRequest("appointments")) || [];
     },
     enabled: !!patientId,
   });
@@ -200,12 +200,7 @@ const Portal = () => {
   const { data: procedures = [] } = useQuery({
     queryKey: ["portal-procedures", patientId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("procedures")
-        .select("*, staff:staff!procedures_staff_id_fkey(first_name, last_name), prescriptions(*)")
-        .eq("patient_id", patientId!)
-        .order("procedure_date", { ascending: false });
-      return data || [];
+      return (await portalRequest("procedures")) || [];
     },
     enabled: !!patientId,
   });
@@ -213,25 +208,15 @@ const Portal = () => {
   const { data: photos = [] } = useQuery({
     queryKey: ["portal-photos", patientId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("patient_photos")
-        .select("*, procedures(service_name)")
-        .eq("patient_id", patientId!)
-        .order("taken_at", { ascending: false });
-      return data || [];
+      return (await portalRequest("photos")) || [];
     },
     enabled: !!patientId,
   });
 
-  const { data: invoices = [] } = useQuery({
+  const { data: invoices = [], error: invoicesError, refetch: refetchInvoices } = useQuery({
     queryKey: ["portal-invoices", patientId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("invoices")
-        .select("*")
-        .eq("patient_id", patientId!)
-        .order("created_at", { ascending: false });
-      return data || [];
+      return (await portalRequest("invoices")) || [];
     },
     enabled: !!patientId,
   });
@@ -247,23 +232,24 @@ const Portal = () => {
   const { data: pharmaRequests = [] } = useQuery({
     queryKey: ["portal-pharma-requests", patientId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("patient_pharma_requests")
-        .select("*")
-        .eq("patient_id", patientId!)
-        .order("created_at", { ascending: false });
-      return data || [];
+      return (await portalRequest("pharma_requests")) || [];
     },
     enabled: !!patientId,
   });
 
   const { data: staff = [] } = useQuery({
-    queryKey: ["staff-active-list"],
+    queryKey: ["portal-staff-active-list", patientId],
     queryFn: async () => {
-      const { data } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).order("first_name");
-      return data || [];
+      return (await portalRequest("staff")) || [];
     },
+    enabled: !!patientId,
   });
+
+  useEffect(() => {
+    handleQueryError(patientError);
+    handleQueryError(invoicesError);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientError, invoicesError]);
 
   const { data: workingHours = [] } = useQuery({
     queryKey: ["portal-working-hours"],
@@ -323,16 +309,12 @@ const Portal = () => {
     mutationFn: async () => {
       const startTime = new Date(`${apptDate}T${apptTime}`);
       const endTime = new Date(startTime.getTime() + 30 * 60000);
-      const { error } = await supabase.from("appointments").insert({
-        patient_id: patientId,
-        patient_name: session?.patientName,
+      await portalRequest("create_appointment_request", {
+        patientName: session?.patientName,
         service: apptService,
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        status: "Requested",
-        source: "portal",
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portal-appointments"] });
@@ -349,14 +331,12 @@ const Portal = () => {
   const requestPharma = useMutation({
     mutationFn: async () => {
       const product = pharmaProducts.find((p: any) => p.id === pharmaProductId);
-      const { error } = await supabase.from("patient_pharma_requests").insert({
-        patient_id: patientId,
-        product_id: pharmaProductId,
-        product_name: product?.name || "",
+      await portalRequest("create_pharma_request", {
+        productId: pharmaProductId,
+        productName: product?.name || "",
         quantity: pharmaQty,
         notes: pharmaNotes || null,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portal-pharma-requests"] });
@@ -407,7 +387,7 @@ const Portal = () => {
     // Edge fn rebuilds in background; poll the row briefly for updated pdf_url
     for (let i = 0; i < 10; i++) {
       await new Promise((r) => setTimeout(r, 800));
-      const { data: row } = await supabase.from("invoices").select("pdf_url, updated_at").eq("id", inv.id).maybeSingle();
+      const row = await portalRequest<any>("invoice_pdf_url", { invoiceId: inv.id }).catch(() => null);
       if (row?.pdf_url) return `${row.pdf_url}?t=${Date.now()}`;
     }
     return inv?.pdf_url ? `${inv.pdf_url}?t=${Date.now()}` : null;
@@ -484,6 +464,12 @@ const Portal = () => {
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-20">
         <div className="max-w-lg mx-auto px-4 py-5">
+          {patientError && (
+            <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-center">
+              <p className="text-sm text-destructive mb-3">We couldn't load your details right now.</p>
+              <Button variant="outline" size="sm" onClick={() => refetchPatient()}>Try again</Button>
+            </div>
+          )}
           <AnimatePresence mode="wait">
             {/* ─── HOME ─── */}
             {activeTab === "home" && (
@@ -745,7 +731,13 @@ const Portal = () => {
                   </div>
                 )}
 
-                {invoices.length === 0 ? (
+                {invoicesError ? (
+                  <div className="text-center py-12">
+                    <Receipt className="h-10 w-10 mx-auto mb-3 opacity-40 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mb-3">We couldn't load your bills.</p>
+                    <Button variant="outline" size="sm" onClick={() => refetchInvoices()}>Try again</Button>
+                  </div>
+                ) : invoices.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <Receipt className="h-10 w-10 mx-auto mb-3 opacity-40" />
                     <p className="text-sm">No invoices yet</p>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { portalRequest } from "@/lib/portalApi";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -116,24 +117,16 @@ export default function PortalSurveyFill({ patientId, templateId, assignmentId, 
       const enrichedProducts = enrichAiProducts(aiResult.products || [], tplProducts || []);
       const enrichedServices = enrichAiServices(aiResult.services || [], tplServices || []);
 
-      const { data: inserted, error } = await supabase.from("survey_responses").insert({
-        template_id: templateId,
-        patient_id: patientId,
-        appointment_id: null,
+      // survey_responses is not writable by the anonymous role, so the portal
+      // submits through the trusted portal-data function.
+      const inserted = await portalRequest<any>("submit_survey", {
+        templateId,
         answers,
-        ai_recommendation: aiResult.recommendation ? { text: aiResult.recommendation } : {},
-        ai_products: enrichedProducts,
-        ai_services: enrichedServices,
-        dr_status: "pending_review",
-      }).select("id").single();
-      if (error) throw error;
-
-      if (assignmentId) {
-        await supabase.from("survey_assignments").update({
-          status: "completed",
-          response_id: inserted?.id,
-        }).eq("id", assignmentId);
-      }
+        aiRecommendation: aiResult.recommendation ? { text: aiResult.recommendation } : {},
+        aiProducts: enrichedProducts,
+        aiServices: enrichedServices,
+        assignmentId,
+      });
 
       // Fire-and-forget WhatsApp notification
       fetch(`${SUPABASE_URL}/functions/v1/send-survey-whatsapp`, {

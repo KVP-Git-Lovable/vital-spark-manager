@@ -31,10 +31,14 @@ const PortalLogin = () => {
     return () => clearTimeout(t);
   }, [resendIn]);
 
-  const completeLogin = (patientId: string, patientName: string) => {
+  const completeLogin = (patientId: string, patientName: string, sessionToken?: string) => {
+    if (!sessionToken) {
+      toast.error("Could not start your session. Please try signing in again.");
+      return;
+    }
     const session = {
       patientId,
-      sessionToken: crypto.randomUUID(),
+      sessionToken,
       patientName,
       expiresAt: new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000).toISOString(),
     };
@@ -73,7 +77,7 @@ const PortalLogin = () => {
         body: { action: "set_pin", phone, pin },
       });
       if (error) throw error;
-      if (data?.status === "ok") completeLogin(data.patientId, data.patientName);
+      if (data?.status === "ok") completeLogin(data.patientId, data.patientName, data.sessionToken);
       else toast.error(data?.error || "Failed to set PIN");
     } catch (e: any) {
       toast.error(e?.message || "Something went wrong");
@@ -91,7 +95,7 @@ const PortalLogin = () => {
       });
       if (error) throw error;
       if (data?.status === "ok") {
-        completeLogin(data.patientId, data.patientName);
+        completeLogin(data.patientId, data.patientName, data.sessionToken);
       } else if (data?.status === "locked") {
         setLockedUntil(data.lockedUntil);
         toast.error("Too many wrong attempts. Locked for 15 minutes.");
@@ -146,7 +150,7 @@ const PortalLogin = () => {
         body: { phone, otp, newPin },
       });
       if (error) throw error;
-      if (data?.status === "ok") completeLogin(data.patientId, data.patientName);
+      if (data?.status === "ok") completeLogin(data.patientId, data.patientName, data.sessionToken);
       else toast.error(data?.error || "Invalid OTP");
     } catch (e: any) {
       toast.error(e?.message || "Verification failed");

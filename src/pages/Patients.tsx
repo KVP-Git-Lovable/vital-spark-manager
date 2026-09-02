@@ -272,7 +272,7 @@ const Patients = () => {
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, auth_user_id").eq("is_active", true).order("first_name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, auth_user_id").eq("is_active", true).order("first_name");
       if (error) throw error;
       return data;
     },
@@ -306,7 +306,7 @@ const Patients = () => {
   const avatars = usePatientAvatars(patientIds);
 
   const doctorOptions = useMemo(
-    () => staffList.map((s: any) => ({ value: s.id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() })),
+    () => staffList.filter((s: any) => s.role === "Doctor").map((s: any) => ({ value: s.id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() })),
     [staffList]
   );
   const doctorLabels = useMemo(

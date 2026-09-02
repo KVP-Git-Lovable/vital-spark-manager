@@ -409,8 +409,7 @@ export function ProcedureFormDialog({
         .from("staff")
 
         .select("id, first_name, last_name, role")
-        .eq("is_active", true)
-        .not("auth_user_id", "is", null);
+        .eq("is_active", true);
       if (error) throw error;
       return data || [];
     },

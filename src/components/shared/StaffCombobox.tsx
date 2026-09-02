@@ -19,7 +19,9 @@ interface StaffComboboxProps {
   noneLabel?: string;
   className?: string;
   roleFilter?: string[];
-  /** Only show staff who have a login account (system users). Default true. */
+  /** Only show staff who have a login account (system users). Default false -
+   *  selecting a doctor/assistant for a record has nothing to do with
+   *  whether they've been set up with an app login. */
   onlyUsers?: boolean;
 }
 
@@ -31,7 +33,7 @@ export function StaffCombobox({
   noneLabel = "No staff assigned",
   className,
   roleFilter,
-  onlyUsers = true,
+  onlyUsers = false,
 }: StaffComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");

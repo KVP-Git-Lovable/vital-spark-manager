@@ -1,8 +1,9 @@
 import { useState, useRef } from "react";
 
 import { useNavigate } from "react-router-dom";
-import { format } from "date-fns";
-import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+import { cn } from "@/lib/utils";
+import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList, StickyNote } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
 import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
 import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
+import { useUserNames } from "@/lib/history";
 import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -89,6 +91,14 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [attachmentNotes, setAttachmentNotes] = useState("");
   const [uploading, setUploading] = useState(false);
   const [elaborating, setElaborating] = useState<null | string>(null);
+
+  // Sticky notes (Google Keep style)
+  const [newNoteOpen, setNewNoteOpen] = useState(false);
+  const [newNoteTitle, setNewNoteTitle] = useState("");
+  const [newNoteContent, setNewNoteContent] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [editingContent, setEditingContent] = useState("");
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [sendingWa, setSendingWa] = useState(false);
@@ -234,6 +244,24 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     enabled: !!procedureId,
   });
 
+  const { data: stickyNotes = [], refetch: refetchStickyNotes } = useQuery({
+    queryKey: ["procedure-sticky-notes", procedureId],
+    queryFn: async () => {
+      if (!procedureId) return [];
+      const { data, error } = await supabase
+        .from("procedure_sticky_notes")
+        .select("*")
+        .eq("procedure_id", procedureId)
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!procedureId,
+  });
+
+  const noteUserIds = stickyNotes.flatMap((n: any) => [n.created_by, n.updated_by]);
+  const { data: noteUserNames = {} } = useUserNames(noteUserIds);
+
   const { data: products = [] } = useQuery({
     queryKey: ["pharma-products-lookup"],
     queryFn: async () => {
@@ -344,6 +372,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     setAttachmentNotes("");
     setMedical({});
     setMedicalDirty(false);
+    setNewNoteOpen(false);
+    setNewNoteTitle("");
+    setNewNoteContent("");
+    setEditingNoteId(null);
     onClose();
   };
 
@@ -534,6 +566,65 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     await supabase.from("procedure_attachments").delete().eq("id", id);
     refetchAttachments();
     toast.success("Attachment removed");
+  };
+
+  const addNote = async () => {
+    if (!procedureId || !newNoteContent.trim()) return;
+    const { error } = await supabase.from("procedure_sticky_notes").insert({
+      procedure_id: procedureId,
+      title: newNoteTitle.trim() || null,
+      content: newNoteContent.trim(),
+    });
+    if (error) { toast.error(error.message); return; }
+    setNewNoteOpen(false);
+    setNewNoteTitle("");
+    setNewNoteContent("");
+    refetchStickyNotes();
+  };
+
+  const startEditNote = (note: any) => {
+    setEditingNoteId(note.id);
+    setEditingTitle(note.title || "");
+    setEditingContent(note.content || "");
+  };
+
+  const saveEditNote = async () => {
+    if (!editingNoteId) return;
+    const id = editingNoteId;
+    setEditingNoteId(null);
+    const { error } = await supabase
+      .from("procedure_sticky_notes")
+      .update({ title: editingTitle.trim() || null, content: editingContent.trim() })
+      .eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    refetchStickyNotes();
+  };
+
+  const deleteNote = async (id: string) => {
+    if (editingNoteId === id) setEditingNoteId(null);
+    await supabase.from("procedure_sticky_notes").delete().eq("id", id);
+    refetchStickyNotes();
+    toast.success("Note deleted");
+  };
+
+  const NOTE_PALETTE = [
+    "bg-amber-50 border-amber-200",
+    "bg-rose-50 border-rose-200",
+    "bg-sky-50 border-sky-200",
+    "bg-emerald-50 border-emerald-200",
+    "bg-violet-50 border-violet-200",
+    "bg-orange-50 border-orange-200",
+  ];
+  const noteColor = (id: string) => {
+    const sum = id.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
+    return NOTE_PALETTE[sum % NOTE_PALETTE.length];
+  };
+  const noteAttribution = (note: any) => {
+    const edited = note.updated_at !== note.created_at;
+    const userId = edited ? note.updated_by : note.created_by;
+    const name = (userId && noteUserNames[userId]) || "Someone";
+    const when = formatDistanceToNow(new Date(edited ? note.updated_at : note.created_at), { addSuffix: true });
+    return `${edited ? "Edited" : "Added"} by ${name} · ${when}`;
   };
 
   const patientName = procedure?.patients
@@ -900,6 +991,126 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     <p className="text-sm text-muted-foreground text-center py-2">No attachments yet.</p>
                   )}
                 </div>
+
+                {/* Sticky Notes */}
+                {procedure?.id && (
+                  <div className="rounded-xl border bg-card p-4 shadow-sm">
+                    <Label className="text-base font-display font-semibold flex items-center gap-2 mb-3">
+                      <StickyNote className="h-4 w-4" /> Notes
+                    </Label>
+
+                    {newNoteOpen ? (
+                      <div className="rounded-lg border bg-background p-3 space-y-2 shadow-sm mb-3">
+                        <Input
+                          placeholder="Title"
+                          value={newNoteTitle}
+                          onChange={(e) => setNewNoteTitle(e.target.value)}
+                          className="border-0 px-0 text-sm font-medium focus-visible:ring-0 shadow-none"
+                        />
+                        <div className="flex items-start gap-1">
+                          <Textarea
+                            autoFocus
+                            placeholder="Take a note..."
+                            value={newNoteContent}
+                            onChange={(e) => setNewNoteContent(e.target.value)}
+                            rows={3}
+                            className="border-0 px-0 text-sm resize-none focus-visible:ring-0 shadow-none"
+                          />
+                          <MicButton value={newNoteContent} onChange={setNewNoteContent} />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setNewNoteOpen(false); setNewNoteTitle(""); setNewNoteContent(""); }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="button" size="sm" onClick={addNote} disabled={!newNoteContent.trim()}>
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setNewNoteOpen(true)}
+                        className="w-full rounded-lg border bg-background px-3 py-2 text-left text-sm text-muted-foreground shadow-sm hover:shadow-md transition-shadow mb-3"
+                      >
+                        Add a note...
+                      </button>
+                    )}
+
+                    {stickyNotes.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {stickyNotes.map((note: any) => {
+                          const isEditing = editingNoteId === note.id;
+                          return (
+                            <div
+                              key={note.id}
+                              className={cn(
+                                "relative rounded-lg border p-3 shadow-sm hover:shadow-md transition-shadow",
+                                noteColor(note.id),
+                              )}
+                            >
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute right-1 top-1 h-6 w-6 opacity-60 hover:opacity-100"
+                                onClick={() => deleteNote(note.id)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                              {isEditing ? (
+                                <div
+                                  className="space-y-1.5 pr-6"
+                                  onBlur={(e) => {
+                                    // Only save/exit once focus leaves this whole card - moving
+                                    // focus between the title and content fields (or the mic
+                                    // button) shouldn't prematurely close it.
+                                    if (!e.currentTarget.contains(e.relatedTarget as Node)) saveEditNote();
+                                  }}
+                                >
+                                  <Input
+                                    autoFocus
+                                    placeholder="Title"
+                                    value={editingTitle}
+                                    onChange={(e) => setEditingTitle(e.target.value)}
+                                    className="border-0 bg-transparent px-0 text-sm font-medium focus-visible:ring-0 shadow-none"
+                                  />
+                                  <div className="flex items-start gap-1">
+                                    <Textarea
+                                      placeholder="Take a note..."
+                                      value={editingContent}
+                                      onChange={(e) => setEditingContent(e.target.value)}
+                                      rows={4}
+                                      className="border-0 bg-transparent px-0 text-sm resize-none focus-visible:ring-0 shadow-none"
+                                    />
+                                    <MicButton value={editingContent} onChange={setEditingContent} />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="cursor-text pr-6" onClick={() => startEditNote(note)}>
+                                  {note.title && <p className="text-sm font-medium mb-1 break-words">{note.title}</p>}
+                                  <p className="text-sm whitespace-pre-wrap break-words">{note.content}</p>
+                                </div>
+                              )}
+                              <p className="text-[10px] text-muted-foreground mt-2 pt-2 border-t border-black/5">
+                                {noteAttribution(note)}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      !newNoteOpen && (
+                        <p className="text-sm text-muted-foreground text-center py-2">No notes yet. Click "Add a note..." to create one.</p>
+                      )
+                    )}
+                  </div>
+                )}
 
                 {procedure?.id && (
                   <div className="space-y-4">

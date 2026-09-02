@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { portalRequest } from "@/lib/portalApi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatProductUnit } from "@/lib/unitDisplay";
 import { toast } from "sonner";
@@ -73,8 +74,7 @@ const PortalShop = ({ patientId, patientName }: PortalShopProps) => {
   const { data: patientData } = useQuery({
     queryKey: ["shop-patient", patientId],
     queryFn: async () => {
-      const { data } = await supabase.from("patients").select("address, city, state, pincode, phone").eq("id", patientId).single();
-      return data;
+      return await portalRequest("shop_address");
     },
   });
 

@@ -2663,6 +2663,41 @@ export type Database = {
           },
         ]
       }
+      portal_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          last_used_at: string | null
+          patient_id: string
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          last_used_at?: string | null
+          patient_id: string
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_used_at?: string | null
+          patient_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_sessions_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       portal_settings: {
         Row: {
           ai_bot_enabled: boolean

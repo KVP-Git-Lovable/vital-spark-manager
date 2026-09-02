@@ -184,11 +184,34 @@ export default function UserManagement() {
 
   const resetPassword = useMutation({
     mutationFn: async () => {
-      if (!resetPwStaff?.auth_user_id) throw new Error("User has no auth account");
+      if (!resetPwStaff) throw new Error("No user selected");
       if (resetPwMode === "manual") {
         if (resetPwValue !== resetPwConfirm) throw new Error("Passwords don't match");
         if (resetPwValue.length < 6) throw new Error("Password must be at least 6 characters");
       }
+
+      // Staff with no login yet (e.g. doctors added to the roster who were
+      // never issued an app account) - create one instead of erroring out.
+      if (!resetPwStaff.auth_user_id) {
+        if (!resetPwStaff.email) {
+          throw new Error(`${resetPwStaff.name} has no email on file - add one on the Edit User form first, then create their login.`);
+        }
+        const { data, error } = await supabase.functions.invoke("create-user-account", {
+          body: {
+            staff_id: resetPwStaff.id,
+            email: resetPwStaff.email,
+            full_name: resetPwStaff.name,
+            phone: resetPwStaff.phone,
+            role_id: resetPwStaff.role_id,
+            password: resetPwMode === "manual" ? resetPwValue : undefined,
+            force_password_change: true,
+          },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke("create-user-account", {
         body: {
           action: "reset_password",
@@ -200,7 +223,8 @@ export default function UserManagement() {
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
-      toast({ title: "Password reset successfully" });
+      toast({ title: resetPwStaff?.auth_user_id ? "Password reset successfully" : "Login account created" });
+      queryClient.invalidateQueries({ queryKey: ["staff-with-roles"] });
       setResetPwOpen(false);
       setResetPwStaff(null);
       setResetPwValue("");
@@ -520,13 +544,20 @@ export default function UserManagement() {
       <Dialog open={resetPwOpen} onOpenChange={setResetPwOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reset Password for {resetPwStaff?.name}</DialogTitle>
+            <DialogTitle>
+              {resetPwStaff?.auth_user_id ? "Reset Password for " : "Create Login for "}{resetPwStaff?.name}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {!resetPwStaff?.auth_user_id && (
+              <p className="text-sm text-muted-foreground">
+                {resetPwStaff?.name} doesn't have an app login yet{resetPwStaff?.email ? ` - one will be created using ${resetPwStaff.email}.` : "."}
+              </p>
+            )}
             <RadioGroup value={resetPwMode} onValueChange={(v) => setResetPwMode(v as "auto" | "manual")}>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="auto" id="reset-auto" />
-                <Label htmlFor="reset-auto">Auto-generate new password</Label>
+                <Label htmlFor="reset-auto">Auto-generate {resetPwStaff?.auth_user_id ? "new " : ""}password</Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="manual" id="reset-manual" />
@@ -552,7 +583,9 @@ export default function UserManagement() {
               disabled={resetPassword.isPending}
               className="w-full"
             >
-              {resetPassword.isPending ? "Resetting..." : "Reset Password"}
+              {resetPassword.isPending
+                ? (resetPwStaff?.auth_user_id ? "Resetting..." : "Creating...")
+                : (resetPwStaff?.auth_user_id ? "Reset Password" : "Create Login")}
             </Button>
           </div>
         </DialogContent>

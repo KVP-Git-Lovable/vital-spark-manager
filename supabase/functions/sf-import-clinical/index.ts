@@ -320,16 +320,16 @@ Deno.serve(async (req) => {
     await mapPool(targets, 8, async (p) => {
       if (Date.now() > deadline) { stoppedEarly = true; return; }
       const log: any = { patient: p.name, appointments: 0, invoices: 0, procedures: 0, skipped: 0, errors: [] as any[] };
+      const remainingMs = Math.max(1, deadline - Date.now());
+      const patientTimeoutMs = Math.min(20_000, remainingMs);
       try {
-        const remainingMs = Math.max(1, deadline - Date.now());
-        const patientTimeoutMs = Math.min(20_000, remainingMs);
         await syncPatient(p, doctorFor, reset, log, AbortSignal.timeout(patientTimeoutMs));
         if (!only) {
           await admin.from("patients").update({ sf_clinical_synced_at: new Date().toISOString() }).eq("id", p.lovable_id);
         }
       } catch (e) {
         const message = (e as Error).name === "TimeoutError" || (e as Error).name === "AbortError"
-          ? `Patient sync exceeded ${Math.round(Math.min(20_000, Math.max(1, deadline - Date.now())) / 1000)}s and was safely deferred`
+          ? `Patient sync exceeded ${Math.ceil(patientTimeoutMs / 1000)}s and was safely deferred`
           : (e as Error).message;
         log.errors.push(message);
       }

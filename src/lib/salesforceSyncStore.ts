@@ -115,7 +115,30 @@ async function loopLinking() {
   }
 }
 
+// A batch only makes progress when at least one patient completes without
+// errors - those are the ones that get their sf_*_synced_at marker set and
+// therefore drop out of the next batch. A patient that keeps failing comes
+// back in the identical batch forever, so we bail out after a few
+// consecutive no-progress rounds instead of looping endlessly.
+const MAX_STALLED_ROUNDS = 3;
+
+function countSucceeded(results: any[]) {
+  return results.filter((r) => !r?.error && !(r?.errors?.length)).length;
+}
+
+function stalledError(stage: string, results: any[]) {
+  const sample = results
+    .map((r) => r?.error || r?.errors?.[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("; ");
+  return new Error(
+    `${stage} stopped making progress - the same patient(s) keep failing after ${MAX_STALLED_ROUNDS} attempts${sample ? `: ${sample}` : ""}`,
+  );
+}
+
 async function loopClinical() {
+  let stalled = 0;
   for (;;) {
     if (stopRequested) return;
     const data = await invoke("sf-import-clinical?limit=60");
@@ -127,10 +150,13 @@ async function loopClinical() {
     addTotals("clinical", { processed: data.processed ?? 0, imported, skipped, errors });
     pushLog(`Clinical: processed ${data.processed ?? 0} patient(s), ${imported} record(s) imported`);
     if (!data.processed) return;
+    stalled = countSucceeded(results) > 0 ? 0 : stalled + 1;
+    if (stalled >= MAX_STALLED_ROUNDS) throw stalledError("Clinical sync", results);
   }
 }
 
 async function loopPictures() {
+  let stalled = 0;
   for (;;) {
     if (stopRequested) return;
     const data = await invoke("sf-import-pictures?limit=25");
@@ -141,10 +167,13 @@ async function loopPictures() {
     addTotals("pictures", { processed: data.processed ?? 0, imported, skipped, errors: data.error_count || 0 });
     pushLog(`Photos: processed ${data.processed ?? 0} patient(s), ${imported} photo(s) imported`);
     if (!data.processed) return;
+    stalled = countSucceeded(results) > 0 ? 0 : stalled + 1;
+    if (stalled >= MAX_STALLED_ROUNDS) throw stalledError("Photo sync", results);
   }
 }
 
 async function loopAttachments() {
+  let stalled = 0;
   for (;;) {
     if (stopRequested) return;
     const data = await invoke("sf-import-attachments?limit=25");
@@ -155,6 +184,8 @@ async function loopAttachments() {
     addTotals("attachments", { processed: data.processed ?? 0, imported, skipped, errors: data.error_count || 0 });
     pushLog(`Attachments: processed ${data.processed ?? 0} patient(s), ${imported} file(s) imported`);
     if (!data.processed) return;
+    stalled = countSucceeded(results) > 0 ? 0 : stalled + 1;
+    if (stalled >= MAX_STALLED_ROUNDS) throw stalledError("Attachment sync", results);
   }
 }
 

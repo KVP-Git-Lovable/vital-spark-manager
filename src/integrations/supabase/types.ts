@@ -1983,6 +1983,7 @@ export type Database = {
           allergies: string | null
           auth_user_id: string | null
           blood_group: string | null
+          cf_check: string | null
           city: string | null
           created_at: string
           created_by: string | null
@@ -2041,6 +2042,7 @@ export type Database = {
           allergies?: string | null
           auth_user_id?: string | null
           blood_group?: string | null
+          cf_check?: string | null
           city?: string | null
           created_at?: string
           created_by?: string | null
@@ -2099,6 +2101,7 @@ export type Database = {
           allergies?: string | null
           auth_user_id?: string | null
           blood_group?: string | null
+          cf_check?: string | null
           city?: string | null
           created_at?: string
           created_by?: string | null

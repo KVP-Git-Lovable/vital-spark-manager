@@ -164,13 +164,24 @@ const Portal = () => {
 
   const patientId = session?.patientId;
 
+
   const logout = () => {
     localStorage.removeItem("portal_session");
     navigate("/portal");
   };
 
+  // A rejected session must send the patient back to sign-in rather than
+  // leaving them staring at an empty profile or billing page.
+  const handleQueryError = (error: unknown) => {
+    if (error instanceof PortalSessionError) {
+      clearPortalSession();
+      toast.error(error.message);
+      navigate("/portal");
+    }
+  };
+
   // ─── Queries ─────────────────────────────────────
-  const { data: patient } = useQuery({
+  const { data: patient, error: patientError, refetch: refetchPatient } = useQuery({
     queryKey: ["portal-patient", patientId],
     queryFn: async () => {
       return await portalRequest("profile");
@@ -202,7 +213,7 @@ const Portal = () => {
     enabled: !!patientId,
   });
 
-  const { data: invoices = [] } = useQuery({
+  const { data: invoices = [], error: invoicesError, refetch: refetchInvoices } = useQuery({
     queryKey: ["portal-invoices", patientId],
     queryFn: async () => {
       return (await portalRequest("invoices")) || [];
@@ -227,10 +238,11 @@ const Portal = () => {
   });
 
   const { data: staff = [] } = useQuery({
-    queryKey: ["staff-active-list"],
+    queryKey: ["portal-staff-active-list", patientId],
     queryFn: async () => {
       return (await portalRequest("staff")) || [];
     },
+    enabled: !!patientId,
   });
 
   const { data: workingHours = [] } = useQuery({

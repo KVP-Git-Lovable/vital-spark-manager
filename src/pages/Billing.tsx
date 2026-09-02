@@ -3054,7 +3054,7 @@ const Billing = () => {
             <div className="space-y-4">
               <div>
                 <Label>Patient Name</Label>
-                <Input className="mt-1.5" value={editData.patient_name} onChange={(e) => setEditData({ ...editData, patient_name: e.target.value })} />
+                <Input className="mt-1.5" value={editData.patient_name} disabled />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

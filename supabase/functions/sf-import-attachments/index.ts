@@ -43,23 +43,25 @@ const EXT_CONTENT_TYPE: Record<string, string> = {
   pdf: "application/pdf",
 };
 
-async function sfQuery(soql: string): Promise<any> {
+async function sfQuery(soql: string, signal?: AbortSignal): Promise<any> {
   const r = await fetch(`${GATEWAY}/query?q=${encodeURIComponent(soql)}`, {
     headers: {
       Authorization: `Bearer ${LOVABLE_API_KEY}`,
       "X-Connection-Api-Key": SALESFORCE_API_KEY,
     },
+    signal,
   });
   if (!r.ok) throw new Error(`SF query failed [${r.status}]: ${await r.text()}`);
   return r.json();
 }
 
-async function sfDownload(versionId: string, ext?: string): Promise<{ bytes: Uint8Array; contentType: string }> {
+async function sfDownload(versionId: string, ext?: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; contentType: string }> {
   const r = await fetch(`${GATEWAY}/sobjects/ContentVersion/${versionId}/VersionData`, {
     headers: {
       Authorization: `Bearer ${LOVABLE_API_KEY}`,
       "X-Connection-Api-Key": SALESFORCE_API_KEY,
     },
+    signal,
   });
   if (!r.ok) throw new Error(`SF download failed [${r.status}]: ${await r.text()}`);
   const bytes = new Uint8Array(await r.arrayBuffer());
@@ -99,7 +101,7 @@ async function mapPool<T>(items: T[], concurrency: number, fn: (item: T) => Prom
   await Promise.all(workers);
 }
 
-async function syncPatient(p: Target): Promise<{ imported: number; skipped: number; items: any[]; note?: string }> {
+async function syncPatient(p: Target, signal?: AbortSignal): Promise<{ imported: number; skipped: number; items: any[]; note?: string }> {
   const patientLog: { imported: number; skipped: number; items: any[]; note?: string } = { imported: 0, skipped: 0, items: [] };
   const sfTypes = Object.keys(DOC_TYPE_MAP).map((t) => `'${t}'`).join(",");
 
@@ -109,6 +111,7 @@ async function syncPatient(p: Target): Promise<{ imported: number; skipped: numb
 
   const npQ = await sfQuery(
     `SELECT Id, Name, Document_Type__c, Notes_if_any__c, CreatedDate FROM Notes_Pictures__c WHERE Patient_ID__c = '${p.sf_id}' AND Document_Type__c IN (${sfTypes}) ORDER BY CreatedDate DESC LIMIT 200`,
+    signal,
   );
   const allRecords = (npQ.records || []) as any[];
 
@@ -130,6 +133,7 @@ async function syncPatient(p: Target): Promise<{ imported: number; skipped: numb
   const npIds = npRecords.map((r) => `'${r.Id}'`).join(",");
   const cdlQ = await sfQuery(
     `SELECT LinkedEntityId, ContentDocument.Title, ContentDocument.FileExtension, ContentDocument.FileType, ContentDocument.LatestPublishedVersionId FROM ContentDocumentLink WHERE LinkedEntityId IN (${npIds})`,
+    signal,
   );
   const cdlByNp = new Map<string, any[]>();
   for (const link of cdlQ.records || []) {
@@ -145,22 +149,22 @@ async function syncPatient(p: Target): Promise<{ imported: number; skipped: numb
       continue;
     }
 
-    for (const link of links) {
+    await Promise.all(links.map(async (link: any) => {
       const versionId = link.ContentDocument?.LatestPublishedVersionId;
       const title = link.ContentDocument?.Title || np.Name || "attachment";
       const ext = (link.ContentDocument?.FileExtension || link.ContentDocument?.FileType || "bin").toLowerCase();
       if (!versionId) {
         patientLog.items.push({ np_id: np.Id, type: np.Document_Type__c, status: "no-version" });
-        continue;
+        return;
       }
 
       if (existing.has(versionId)) {
         patientLog.skipped++;
         patientLog.items.push({ np_id: np.Id, cv_id: versionId, type: np.Document_Type__c, status: "already-imported" });
-        continue;
+        return;
       }
 
-      const { bytes, contentType } = await sfDownload(versionId, ext);
+      const { bytes, contentType } = await sfDownload(versionId, ext, signal);
       const path = `${p.lovable_id}/sf-att-${np.Id}-${versionId}.${ext}`;
       const { error: upErr } = await admin.storage
         .from("patient-photos")
@@ -186,7 +190,7 @@ async function syncPatient(p: Target): Promise<{ imported: number; skipped: numb
 
       patientLog.imported++;
       patientLog.items.push({ np_id: np.Id, cv_id: versionId, type: appDocType, status: "imported", url: publicUrl, date: np.CreatedDate, name: fileName });
-    }
+    }));
   }
 
   return patientLog;
@@ -200,7 +204,11 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const reset = url.searchParams.get("reset") === "true";
   const only = url.searchParams.get("only") || "";
-  const limit = Math.max(1, Math.min(80, Number(url.searchParams.get("limit") || "25")));
+  // The fetch limit can be generous - it's just a cheap indexed query, and
+  // the deadline below (not this number) is what actually bounds how much
+  // work one invocation attempts. Anything not reached this call is simply
+  // left for the next one (sf_attachments_synced_at stays NULL).
+  const limit = Math.max(1, Math.min(200, Number(url.searchParams.get("limit") || "25")));
 
   try {
     const targets = await fetchTargets(only, limit);
@@ -214,25 +222,37 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Patients are independent - process several concurrently rather than
-    // one at a time, capped lower than clinical since this also does file
-    // downloads/uploads.
-    await mapPool(targets, 5, async (p) => {
+    // Patients are independent - process several concurrently. Hard time
+    // budget: merely refusing to start new work isn't enough, since an
+    // in-flight Salesforce request can otherwise run until the platform's
+    // idle timeout kills the whole invocation (and everything in it that
+    // hadn't finished yet). Stop scheduling new patients at 90s and abort
+    // any individual patient's Salesforce calls after at most 20s - a
+    // deferred patient just gets picked up again by the next call, nothing
+    // is lost.
+    const deadline = Date.now() + 90_000;
+    let stoppedEarly = false;
+    await mapPool(targets, 10, async (p) => {
+      if (Date.now() > deadline) { stoppedEarly = true; return; }
+      const remainingMs = Math.max(1, deadline - Date.now());
+      const patientTimeoutMs = Math.min(20_000, remainingMs);
       try {
-        const patientLog = await syncPatient(p);
+        const patientLog = await syncPatient(p, AbortSignal.timeout(patientTimeoutMs));
         results.push({ patient: p.name, ...patientLog });
         if (!only) {
           await admin.from("patients").update({ sf_attachments_synced_at: new Date().toISOString() }).eq("id", p.lovable_id);
         }
       } catch (e) {
-        const msg = (e as Error).message;
+        const msg = (e as Error).name === "TimeoutError" || (e as Error).name === "AbortError"
+          ? `Patient sync exceeded ${Math.ceil(patientTimeoutMs / 1000)}s and was safely deferred`
+          : (e as Error).message;
         results.push({ patient: p.name, error: msg });
         errors.push({ patient: p.name, error: msg });
       }
     });
 
     return new Response(
-      JSON.stringify({ ok: true, processed: targets.length, results, error_count: errors.length, errors }, null, 2),
+      JSON.stringify({ ok: true, processed: results.length, batch_size: targets.length, stopped_early: stoppedEarly, results, error_count: errors.length, errors }, null, 2),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {

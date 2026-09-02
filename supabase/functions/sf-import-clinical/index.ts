@@ -297,7 +297,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
   const only = url.searchParams.get("only") || "";
-  const limit = Math.max(1, Math.min(60, Number(url.searchParams.get("limit") || "30")));
+  // A caller may still send the legacy `limit=60`; cap every invocation to a
+  // request-sized batch. The sync is checkpointed per patient, so subsequent
+  // calls continue with the next pending patients without losing progress.
+  const requestedLimit = Math.max(1, Number(url.searchParams.get("limit") || "20"));
+  const limit = Math.min(20, requestedLimit);
   const reset = url.searchParams.get("reset") === "true";
 
   const results: any[] = [];
@@ -337,7 +341,15 @@ Deno.serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ ok: true, processed: results.length, requested: targets.length, stopped_early: stoppedEarly, results }, null, 2),
+      JSON.stringify({
+        ok: true,
+        processed: results.length,
+        requested: requestedLimit,
+        batch_size: targets.length,
+        capped: requestedLimit > limit,
+        stopped_early: stoppedEarly,
+        results,
+      }, null, 2),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
 

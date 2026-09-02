@@ -390,16 +390,53 @@ const Appointments = () => {
     }
   }, [open, serviceId, selectedProblemAreas, activeSurveyTemplates, assignSurveyTemplateId, fillNowSurveyTemplateId]);
 
+  // Date filter logic (shared by quick buttons and the date dropdown) - also
+  // used to bound the appointments query itself (see below), since fetching
+  // every appointment ever (now tens of thousands, with Salesforce history
+  // synced in) on every page load is too slow. "All Dates" intentionally
+  // stays unbounded - that's an explicit choice to pull full history.
+  const getDateFilterRange = (preset: string): { start: Date; end: Date } | null => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart);
+    todayEnd.setHours(23, 59, 59, 999);
+    const endOfDay = (d: Date) => { const e = new Date(d); e.setHours(23, 59, 59, 999); return e; };
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    switch (preset) {
+      case "today": return { start: todayStart, end: todayEnd };
+      case "yesterday": return { start: addDays(todayStart, -1), end: addDays(todayEnd, -1) };
+      case "this_week": return { start: startOfWeek(todayStart), end: endOfWeek(todayStart) };
+      case "last_week": return { start: startOfWeek(addDays(todayStart, -7)), end: endOfWeek(addDays(todayStart, -7)) };
+      case "next_week": return { start: startOfWeek(addDays(todayStart, 7)), end: endOfWeek(addDays(todayStart, 7)) };
+      case "specific": return specificDate ? { start: startOfDay(specificDate), end: endOfDay(specificDate) } : null;
+      case "range":
+        if (!rangeFrom && !rangeTo) return null;
+        return {
+          start: rangeFrom ? startOfDay(rangeFrom) : new Date(1970, 0, 1),
+          end: rangeTo ? endOfDay(rangeTo) : new Date(2999, 0, 1),
+        };
+      default: return null;
+    }
+  };
+
+  const appointmentsDateRange = getDateFilterRange(datePreset);
+
   const { data: appointments = [] } = useQuery({
-    queryKey: ["appointments"],
+    queryKey: ["appointments", datePreset, appointmentsDateRange?.start?.toISOString(), appointmentsDateRange?.end?.toISOString()],
     queryFn: async () => {
-      return await fetchAll<any>((from, to) =>
-        supabase
+      return await fetchAll<any>((from, to) => {
+        let q = supabase
           .from("appointments")
           .select("*, patients(first_name, last_name, phone, gender)")
           .order("start_time")
-          .range(from, to)
-      );
+          .range(from, to);
+        if (appointmentsDateRange) {
+          q = q
+            .gte("start_time", appointmentsDateRange.start.toISOString())
+            .lte("start_time", appointmentsDateRange.end.toISOString());
+        }
+        return q;
+      });
     },
   });
 
@@ -430,31 +467,6 @@ const Appointments = () => {
     });
     return map;
   }, [invoices]);
-
-  // Date filter logic (shared by quick buttons and the date dropdown)
-  const getDateFilterRange = (preset: string): { start: Date; end: Date } | null => {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd = new Date(todayStart);
-    todayEnd.setHours(23, 59, 59, 999);
-    const endOfDay = (d: Date) => { const e = new Date(d); e.setHours(23, 59, 59, 999); return e; };
-    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    switch (preset) {
-      case "today": return { start: todayStart, end: todayEnd };
-      case "yesterday": return { start: addDays(todayStart, -1), end: addDays(todayEnd, -1) };
-      case "this_week": return { start: startOfWeek(todayStart), end: endOfWeek(todayStart) };
-      case "last_week": return { start: startOfWeek(addDays(todayStart, -7)), end: endOfWeek(addDays(todayStart, -7)) };
-      case "next_week": return { start: startOfWeek(addDays(todayStart, 7)), end: endOfWeek(addDays(todayStart, 7)) };
-      case "specific": return specificDate ? { start: startOfDay(specificDate), end: endOfDay(specificDate) } : null;
-      case "range":
-        if (!rangeFrom && !rangeTo) return null;
-        return {
-          start: rangeFrom ? startOfDay(rangeFrom) : new Date(1970, 0, 1),
-          end: rangeTo ? endOfDay(rangeTo) : new Date(2999, 0, 1),
-        };
-      default: return null;
-    }
-  };
 
   const dateFilterLabel = (() => {
     if (datePreset === "specific") return specificDate ? format(specificDate, "MMM d, yyyy") : "Specific Date";

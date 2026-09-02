@@ -99,6 +99,7 @@ Deno.serve(async (req) => {
       status: "ok",
       patientId: patient.id,
       patientName: `${patient.first_name} ${patient.last_name}`,
+      sessionToken: await createSession(patient.id),
     });
   } catch (e: any) {
     console.error("portal-otp-verify error:", e);

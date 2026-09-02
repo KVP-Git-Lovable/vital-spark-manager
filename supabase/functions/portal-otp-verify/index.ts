@@ -37,6 +37,25 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// Same session issuing as portal-auth: store only the hash, hand the raw
+// token to the browser for use with the portal-data function.
+const SESSION_DAYS = 30;
+
+async function createSession(patientId: string): Promise<string> {
+  const token = crypto.randomUUID();
+  const tokenHash = await sha256(token);
+  await sb(`portal_sessions`, {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      patient_id: patientId,
+      token_hash: tokenHash,
+      expires_at: new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+    }),
+  });
+  return token;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 

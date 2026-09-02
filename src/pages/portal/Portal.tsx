@@ -464,6 +464,12 @@ const Portal = () => {
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-20">
         <div className="max-w-lg mx-auto px-4 py-5">
+          {patientError && (
+            <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-center">
+              <p className="text-sm text-destructive mb-3">We couldn't load your details right now.</p>
+              <Button variant="outline" size="sm" onClick={() => refetchPatient()}>Try again</Button>
+            </div>
+          )}
           <AnimatePresence mode="wait">
             {/* ─── HOME ─── */}
             {activeTab === "home" && (

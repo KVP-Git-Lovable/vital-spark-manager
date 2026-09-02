@@ -31,11 +31,12 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
 interface Target { lovable_id: string; sf_id: string; name: string }
 
-async function sfQuery(soql: string): Promise<any[]> {
+async function sfQuery(soql: string, signal?: AbortSignal): Promise<any[]> {
   const out: any[] = [];
   let url: string | null = `${GATEWAY}/query?q=${encodeURIComponent(soql)}`;
   while (url) {
     const response: Response = await fetch(url, {
+      signal,
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "X-Connection-Api-Key": SALESFORCE_API_KEY,
@@ -121,7 +122,13 @@ async function existingSfIds(table: string, patientId: string): Promise<Set<stri
   return new Set((data || []).map((r: any) => r.sf_id as string));
 }
 
-async function syncPatient(p: Target, doctorFor: (n: string | null) => string | null, reset: boolean, log: any) {
+async function syncPatient(
+  p: Target,
+  doctorFor: (n: string | null) => string | null,
+  reset: boolean,
+  log: any,
+  signal?: AbortSignal,
+) {
   if (reset) {
     await admin.from("procedures").delete().eq("patient_id", p.lovable_id).not("sf_id", "is", null);
     await admin.from("invoices").delete().eq("patient_id", p.lovable_id).not("sf_id", "is", null);
@@ -141,12 +148,15 @@ async function syncPatient(p: Target, doctorFor: (n: string | null) => string | 
   const [appts, billings, diagnoses] = await Promise.all([
     sfQuery(
       `SELECT Id, Start_Time__c, End_Time__c, Appointment_Status__c, Appointment_type__c, Visit_Type__c, Doctor_Name__c, Investigation__c, Description__c, CreatedDate FROM Appointment__c WHERE Patient__c = '${p.sf_id}'`,
+      signal,
     ),
     sfQuery(
       `SELECT Id, Name, Appointment__c, Billing_Date__c, Discount__c, GST__c, Quantity__c, Total_Amount__c, Total_Price__c, Total_Tax_Applicable__c, Total_Service_Fee__c, Payment_Mode__c, Procedure_Type__c, Procedure_Type_2__c, Procedure_Type_3__c, Doctor_Name__c, CreatedDate FROM Billing__c WHERE Patient__c = '${p.sf_id}'`,
+      signal,
     ),
     sfQuery(
       `SELECT Id, Appointment__c, Diagnosis__c, Diagnoses__c, Symptoms__c, Symptoms_all__c, Prescription__c, Advice__c, Dietary_Advice__c, Procedure_Type__c, Treatment__c, Service_Type__c, Type_Of_Appointment__c, Visit_type__c, Special_Instructions__c, Payment_Instruction__c, Required_Lab_Test_s__c, History__c, Review__c, Follow_Up_Date__c, Consultation_Fee__c, CreatedDate FROM Diagnosis__c WHERE Patient__c = '${p.sf_id}'`,
+      signal,
     ),
   ]);
 
@@ -287,7 +297,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
   const only = url.searchParams.get("only") || "";
-  const limit = Math.max(1, Math.min(60, Number(url.searchParams.get("limit") || "30")));
+  // A caller may still send the legacy `limit=60`; cap every invocation to a
+  // request-sized batch. The sync is checkpointed per patient, so subsequent
+  // calls continue with the next pending patients without losing progress.
+  const requestedLimit = Math.max(1, Number(url.searchParams.get("limit") || "20"));
+  const limit = Math.min(20, requestedLimit);
   const reset = url.searchParams.get("reset") === "true";
 
   const results: any[] = [];
@@ -301,26 +315,41 @@ Deno.serve(async (req) => {
 
     // Patients are independent - process several concurrently rather than
     // one at a time, capped to stay within Salesforce API burst limits.
-    // Hard time budget: the platform kills the request at 150s, so stop
-    // picking up new patients well before that and return what we did.
-    const deadline = Date.now() + 110_000;
+    // Hard time budget: merely refusing to start new work is not enough,
+    // because an already-running Salesforce request can remain in flight
+    // until the platform's 150s idle timeout. Stop scheduling at 90s and
+    // abort every individual patient's Salesforce calls after at most 20s.
+    const deadline = Date.now() + 90_000;
     let stoppedEarly = false;
     await mapPool(targets, 8, async (p) => {
       if (Date.now() > deadline) { stoppedEarly = true; return; }
       const log: any = { patient: p.name, appointments: 0, invoices: 0, procedures: 0, skipped: 0, errors: [] as any[] };
+      const remainingMs = Math.max(1, deadline - Date.now());
+      const patientTimeoutMs = Math.min(20_000, remainingMs);
       try {
-        await syncPatient(p, doctorFor, reset, log);
+        await syncPatient(p, doctorFor, reset, log, AbortSignal.timeout(patientTimeoutMs));
         if (!only) {
           await admin.from("patients").update({ sf_clinical_synced_at: new Date().toISOString() }).eq("id", p.lovable_id);
         }
       } catch (e) {
-        log.errors.push((e as Error).message);
+        const message = (e as Error).name === "TimeoutError" || (e as Error).name === "AbortError"
+          ? `Patient sync exceeded ${Math.ceil(patientTimeoutMs / 1000)}s and was safely deferred`
+          : (e as Error).message;
+        log.errors.push(message);
       }
       results.push(log);
     });
 
     return new Response(
-      JSON.stringify({ ok: true, processed: results.length, requested: targets.length, stopped_early: stoppedEarly, results }, null, 2),
+      JSON.stringify({
+        ok: true,
+        processed: results.length,
+        requested: requestedLimit,
+        batch_size: targets.length,
+        capped: requestedLimit > limit,
+        stopped_early: stoppedEarly,
+        results,
+      }, null, 2),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
 

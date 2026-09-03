@@ -19,6 +19,7 @@ import { NewListViewDialog } from "@/components/views/NewListViewDialog";
 import { useListViews } from "@/hooks/useListViews";
 import { toast } from "sonner";
 import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
+import { withDrPrefix } from "@/lib/staffName";
 
 const PROCEDURE_FIELDS = [
   { value: "procedure_date", label: "Date" },
@@ -35,7 +36,8 @@ const DEFAULT_PROCEDURE_FIELDS = ["procedure_date", "patient", "service_name", "
 // on the procedure's linked appointment, which the import does set.
 const getProcedureDoctor = (proc: any) => {
   const s = proc.staff || proc.appointments?.staff;
-  return s ? `Dr. ${s.first_name} ${s.last_name}` : "";
+  const full = s ? [s.first_name, s.last_name].filter(Boolean).join(" ").trim() : "";
+  return full ? withDrPrefix(full) : "";
 };
 
 const Procedures = () => {

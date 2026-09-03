@@ -370,15 +370,27 @@ const Services = () => {
         updatedCount: toUpdate.length - updateErrors,
         unchangedCount,
         conflictCount: conflicts.length,
+        stats: data.stats as
+          | { from_template: number; from_visits: number; no_content: number }
+          | undefined,
       };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
       toast.success(
         `Synced from Salesforce: ${data.insertedCount} new, ${data.updatedCount} updated, ${data.unchangedCount} already up to date` +
-        (data.conflictCount ? `, ${data.conflictCount} skipped (salesforce_id conflict)` : "")
+        (data.conflictCount ? `, ${data.conflictCount} skipped (salesforce_id conflict)` : ""),
+        data.stats
+          ? {
+              description:
+                `Notes: ${data.stats.from_template} from Salesforce service templates, ` +
+                `${data.stats.from_visits} derived from past visits, ` +
+                `${data.stats.no_content} with no content in Salesforce.`,
+            }
+          : undefined
       );
     },
+
     onError: (err: Error) => toast.error(err.message),
   });
 

@@ -14,71 +14,74 @@ import { ModalProvider } from "@/hooks/useModal";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { ShopLayout } from "@/components/shop/ShopLayout";
-import Index from "./pages/Index";
-import Patients from "./pages/Patients";
-import PatientDetail from "./pages/PatientDetail";
-import Appointments from "./pages/Appointments";
-import AppointmentDetail from "./pages/AppointmentDetail";
-import Services from "./pages/Services";
-import Billing from "./pages/Billing";
-import Reports from "./pages/Reports";
-import ReportView from "./pages/ReportView";
-import ReportConfigurator from "./pages/ReportConfigurator";
-import Dashboards from "./pages/Dashboards";
-import DashboardView from "./pages/DashboardView";
-import Procedures from "./pages/Procedures";
-import ProcedureNew from "./pages/ProcedureNew";
-import Pharma from "./pages/Pharma";
-import Photos from "./pages/Photos";
-import LeaveManagement from "./pages/LeaveManagement";
-import Assets from "./pages/Assets";
-import Settings from "./pages/Settings";
-import TaxMasterForm from "./pages/TaxMasterForm";
-import TaxMasterDetail from "./pages/TaxMasterDetail";
-import Orders from "./pages/Orders";
-import TaxMaster from "./pages/TaxMaster";
-import Expenses from "./pages/Expenses";
-import StaffManagement from "./pages/StaffManagement";
-import StaffDetail from "./pages/StaffDetail";
-import Campaigns from "./pages/Campaigns";
-import CampaignDetail from "./pages/CampaignDetail";
-import PortalLanding from "./pages/portal/PortalLanding";
-import PortalLogin from "./pages/portal/PortalLogin";
-import Portal from "./pages/portal/Portal";
-import Login from "./pages/auth/Login";
-import Signup from "./pages/auth/Signup";
-import ShopHome from "./pages/shop/ShopHome";
-import ShopProduct from "./pages/shop/ShopProduct";
-import ShopCart from "./pages/shop/ShopCart";
-import ShopCheckout from "./pages/shop/ShopCheckout";
-import ShopOrders from "./pages/shop/ShopOrders";
-import Website from "./pages/Website";
-import Landing from "./pages/clinic/Landing";
-import ProblemAreas from "./pages/ProblemAreas";
-import DuplicateManagement from "./pages/DuplicateManagement";
-import SurveyTemplates from "./pages/SurveyTemplates";
-import SurveyTemplateDetail from "./pages/SurveyTemplateDetail";
-import AllSurveys from "./pages/AllSurveys";
-import SurveyResponseDetail from "./pages/SurveyResponseDetail";
-import SurveyResponseEdit from "./pages/SurveyResponseEdit";
-import SurveyNew from "./pages/SurveyNew";
-import Vendors from "./pages/Vendors";
-import UserManagement from "./pages/UserManagement";
-import HistoryTracking from "./pages/admin/HistoryTracking";
-import CurrencyBilling from "./pages/admin/CurrencyBilling";
+import { ReactNode, Suspense, lazy } from "react";
 import { useCurrencySettings } from "@/lib/currency";
-import UnitMaster from "./pages/UnitMaster";
-import ValidationRules from "./pages/ValidationRules";
-import ValidationRuleBuilder from "./pages/ValidationRuleBuilder";
-import CustomFields from "./pages/CustomFields";
-import Admin from "./pages/Admin";
-import TrashPage from "./pages/Trash";
-import TrashAdmin from "./pages/TrashAdmin";
-import CategoryMaster from "./pages/CategoryMaster";
-import Profile from "./pages/Profile";
-import AccessDenied from "./pages/AccessDenied";
-import NotFound from "./pages/NotFound";
-import { ReactNode } from "react";
+
+// Every page is its own lazy-loaded chunk instead of one large upfront
+// bundle - the browser only downloads the page currently being visited.
+const Index = lazy(() => import("./pages/Index"));
+const Patients = lazy(() => import("./pages/Patients"));
+const PatientDetail = lazy(() => import("./pages/PatientDetail"));
+const Appointments = lazy(() => import("./pages/Appointments"));
+const AppointmentDetail = lazy(() => import("./pages/AppointmentDetail"));
+const Services = lazy(() => import("./pages/Services"));
+const Billing = lazy(() => import("./pages/Billing"));
+const Reports = lazy(() => import("./pages/Reports"));
+const ReportView = lazy(() => import("./pages/ReportView"));
+const ReportConfigurator = lazy(() => import("./pages/ReportConfigurator"));
+const Dashboards = lazy(() => import("./pages/Dashboards"));
+const DashboardView = lazy(() => import("./pages/DashboardView"));
+const Procedures = lazy(() => import("./pages/Procedures"));
+const ProcedureNew = lazy(() => import("./pages/ProcedureNew"));
+const Pharma = lazy(() => import("./pages/Pharma"));
+const Photos = lazy(() => import("./pages/Photos"));
+const LeaveManagement = lazy(() => import("./pages/LeaveManagement"));
+const Assets = lazy(() => import("./pages/Assets"));
+const Settings = lazy(() => import("./pages/Settings"));
+const TaxMasterForm = lazy(() => import("./pages/TaxMasterForm"));
+const TaxMasterDetail = lazy(() => import("./pages/TaxMasterDetail"));
+const Orders = lazy(() => import("./pages/Orders"));
+const TaxMaster = lazy(() => import("./pages/TaxMaster"));
+const Expenses = lazy(() => import("./pages/Expenses"));
+const StaffManagement = lazy(() => import("./pages/StaffManagement"));
+const StaffDetail = lazy(() => import("./pages/StaffDetail"));
+const Campaigns = lazy(() => import("./pages/Campaigns"));
+const CampaignDetail = lazy(() => import("./pages/CampaignDetail"));
+const PortalLanding = lazy(() => import("./pages/portal/PortalLanding"));
+const PortalLogin = lazy(() => import("./pages/portal/PortalLogin"));
+const Portal = lazy(() => import("./pages/portal/Portal"));
+const Login = lazy(() => import("./pages/auth/Login"));
+const Signup = lazy(() => import("./pages/auth/Signup"));
+const ShopHome = lazy(() => import("./pages/shop/ShopHome"));
+const ShopProduct = lazy(() => import("./pages/shop/ShopProduct"));
+const ShopCart = lazy(() => import("./pages/shop/ShopCart"));
+const ShopCheckout = lazy(() => import("./pages/shop/ShopCheckout"));
+const ShopOrders = lazy(() => import("./pages/shop/ShopOrders"));
+const Website = lazy(() => import("./pages/Website"));
+const Landing = lazy(() => import("./pages/clinic/Landing"));
+const ProblemAreas = lazy(() => import("./pages/ProblemAreas"));
+const DuplicateManagement = lazy(() => import("./pages/DuplicateManagement"));
+const SurveyTemplates = lazy(() => import("./pages/SurveyTemplates"));
+const SurveyTemplateDetail = lazy(() => import("./pages/SurveyTemplateDetail"));
+const AllSurveys = lazy(() => import("./pages/AllSurveys"));
+const SurveyResponseDetail = lazy(() => import("./pages/SurveyResponseDetail"));
+const SurveyResponseEdit = lazy(() => import("./pages/SurveyResponseEdit"));
+const SurveyNew = lazy(() => import("./pages/SurveyNew"));
+const Vendors = lazy(() => import("./pages/Vendors"));
+const UserManagement = lazy(() => import("./pages/UserManagement"));
+const HistoryTracking = lazy(() => import("./pages/admin/HistoryTracking"));
+const CurrencyBilling = lazy(() => import("./pages/admin/CurrencyBilling"));
+const UnitMaster = lazy(() => import("./pages/UnitMaster"));
+const ValidationRules = lazy(() => import("./pages/ValidationRules"));
+const ValidationRuleBuilder = lazy(() => import("./pages/ValidationRuleBuilder"));
+const CustomFields = lazy(() => import("./pages/CustomFields"));
+const Admin = lazy(() => import("./pages/Admin"));
+const TrashPage = lazy(() => import("./pages/Trash"));
+const TrashAdmin = lazy(() => import("./pages/TrashAdmin"));
+const CategoryMaster = lazy(() => import("./pages/CategoryMaster"));
+const Profile = lazy(() => import("./pages/Profile"));
+const AccessDenied = lazy(() => import("./pages/AccessDenied"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -109,6 +112,15 @@ function CurrencyLoader() {
   return null;
 }
 
+/** Shown briefly while a lazy-loaded page chunk downloads. */
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+    </div>
+  );
+}
+
 /** Admin-only routes (user & profile management). */
 function AdminRoute({ children }: { children: ReactNode }) {
   const { isAdmin, loading } = useAuth();
@@ -137,6 +149,7 @@ const App = () => (
             <Sonner />
             <InstallBanner />
             <CurrencyLoader />
+          <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Marketing website */}
             <Route path="/website" element={<Website />} />
@@ -225,6 +238,7 @@ const App = () => (
               }
             />
           </Routes>
+          </Suspense>
           </BrowserRouter>
         </ModalProvider>
         </ThemeProvider>

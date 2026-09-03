@@ -407,7 +407,7 @@ const Billing = () => {
     }
   };
 
-  const { data: invoices = [] } = useQuery({
+  const { data: invoices = [], error: invoicesError } = useQuery({
     queryKey: ["invoices"],
     queryFn: async () => {
       // fetchAll pages past Supabase's default 1000-row cap - without it, a
@@ -422,6 +422,13 @@ const Billing = () => {
       );
     },
   });
+
+  useEffect(() => {
+    if (invoicesError) {
+      console.error("Failed to load invoices:", invoicesError);
+      toast.error(`Failed to load invoices: ${(invoicesError as Error).message}`);
+    }
+  }, [invoicesError]);
 
   // Appointments belonging to the invoice's patient — used to re-link an
   // installment to a different visit of the SAME patient.

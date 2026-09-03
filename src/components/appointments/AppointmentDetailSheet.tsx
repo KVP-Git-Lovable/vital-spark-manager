@@ -1554,6 +1554,21 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                             onClick={async () => {
                               const tpl = surveyTemplates.find((t: any) => t.id === selectedSurveyTemplateId);
                               if (!tpl || !appointment.patient_id) return;
+                              // Ensure a pending assignment exists so the portal shows this survey
+                              const { data: existing } = await supabase
+                                .from("survey_assignments")
+                                .select("id")
+                                .eq("patient_id", appointment.patient_id)
+                                .eq("template_id", tpl.id)
+                                .eq("status", "pending")
+                                .maybeSingle();
+                              if (!existing) {
+                                await supabase.from("survey_assignments").insert({
+                                  patient_id: appointment.patient_id,
+                                  template_id: tpl.id,
+                                  status: "pending",
+                                });
+                              }
                               const { error } = await supabase.functions.invoke("send-survey-whatsapp", {
                                 body: {
                                   patient_id: appointment.patient_id,

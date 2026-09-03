@@ -38,6 +38,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ServiceDetailSheet } from "@/components/services/ServiceDetailSheet";
 import { MicButton } from "@/components/shared/MicButton";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 
 interface MedicineInput {
   product_id: string;
@@ -657,14 +658,14 @@ const Services = () => {
                       <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeMedicine(i)}>Remove</Button>
                     </div>
                     <div>
-                      <Select value={med.product_id} onValueChange={(v) => updateMedicine(i, "product_id", v)}>
-                        <SelectTrigger><SelectValue placeholder="Select medicine" /></SelectTrigger>
-                        <SelectContent>
-                          {products.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        value={med.product_id}
+                        onChange={(v) => updateMedicine(i, "product_id", v)}
+                        options={products}
+                        placeholder="Select medicine"
+                        searchPlaceholder="Search medicines..."
+                        emptyText="No medicine found."
+                      />
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       <Input placeholder="Frequency" value={med.frequency} onChange={(e) => updateMedicine(i, "frequency", e.target.value)} />
@@ -691,14 +692,14 @@ const Services = () => {
                       <span className="text-xs font-medium text-muted-foreground">Asset {i + 1}</span>
                       <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeAssetLink(i)}>Remove</Button>
                     </div>
-                    <Select value={al.asset_id} onValueChange={(v) => updateAssetLink(i, "asset_id", v)}>
-                      <SelectTrigger><SelectValue placeholder="Select asset" /></SelectTrigger>
-                      <SelectContent>
-                        {allAssets.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      value={al.asset_id}
+                      onChange={(v) => updateAssetLink(i, "asset_id", v)}
+                      options={allAssets}
+                      placeholder="Select asset"
+                      searchPlaceholder="Search assets..."
+                      emptyText="No asset found."
+                    />
                     <div className="grid grid-cols-2 gap-2">
                       <Input placeholder="Usage guideline" value={al.usage_guideline} onChange={(e) => updateAssetLink(i, "usage_guideline", e.target.value)} />
                       <Input type="number" placeholder="Time taken (mins)" value={al.time_taken} onChange={(e) => updateAssetLink(i, "time_taken", e.target.value)} />

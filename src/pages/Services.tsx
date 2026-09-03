@@ -37,6 +37,7 @@ import { normalizeName } from "@/lib/textNormalize";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ServiceDetailSheet } from "@/components/services/ServiceDetailSheet";
+import { MicButton } from "@/components/shared/MicButton";
 
 interface MedicineInput {
   product_id: string;
@@ -603,20 +604,26 @@ const Services = () => {
               <div>
                 <div className="flex items-center justify-between">
                   <Label>Procedure Notes</Label>
-                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("procedure_notes")} disabled={elaborating !== null}>
-                    {elaborating === "procedure_notes" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                    Elaborate AI
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <MicButton value={procedureNotes} onChange={setProcedureNotes} />
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("procedure_notes")} disabled={elaborating !== null}>
+                      {elaborating === "procedure_notes" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                      Enrich with AI
+                    </Button>
+                  </div>
                 </div>
                 <Textarea placeholder="Procedure notes template..." className="mt-1.5" rows={2} value={procedureNotes} onChange={(e) => setProcedureNotes(e.target.value)} />
               </div>
               <div>
                 <div className="flex items-center justify-between">
                   <Label>Recommendations (one per line)</Label>
-                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("recommendations")} disabled={elaborating !== null}>
-                    {elaborating === "recommendations" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                    Elaborate AI
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <MicButton value={recommendations} onChange={setRecommendations} />
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborate("recommendations")} disabled={elaborating !== null}>
+                      {elaborating === "recommendations" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                      Enrich with AI
+                    </Button>
+                  </div>
                 </div>
                 <Textarea placeholder="Avoid sun exposure 48hrs&#10;Apply moisturizer daily" className="mt-1.5" rows={3} value={recommendations} onChange={(e) => setRecommendations(e.target.value)} />
               </div>

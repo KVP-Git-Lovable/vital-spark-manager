@@ -54,6 +54,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { fetchAll } from "@/lib/supabasePaginate";
+import { withDrPrefix } from "@/lib/staffName";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
 import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
@@ -233,13 +234,6 @@ interface PharmaLineItem {
   /** Units of `uom` per one base unit */
   uom_factor?: number;
 }
-
-/** Prefix a person's name with "Dr." unless it already starts with Dr/Dr. */
-const withDrPrefix = (name: string) => {
-  const clean = name.replace(/\s+/g, " ").trim();
-  if (!clean) return "";
-  return /^dr\.?\s/i.test(clean) ? clean.replace(/^dr\.?\s/i, "Dr. ") : `Dr. ${clean}`;
-};
 
 const getDrName = (inv: any, staffById?: Map<string, any>) => {
   const d = inv.appointments?.doctors;

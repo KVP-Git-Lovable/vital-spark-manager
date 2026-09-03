@@ -19,6 +19,7 @@ import { NewListViewDialog } from "@/components/views/NewListViewDialog";
 import { useListViews } from "@/hooks/useListViews";
 import { toast } from "sonner";
 import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
+import { withDrPrefix } from "@/lib/staffName";
 
 const PROCEDURE_FIELDS = [
   { value: "procedure_date", label: "Date" },
@@ -30,12 +31,20 @@ const PROCEDURE_FIELDS = [
 
 const DEFAULT_PROCEDURE_FIELDS = ["procedure_date", "patient", "service_name", "doctor", "status"];
 
+const toTitleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
 // Salesforce-imported procedures rarely have procedures.staff_id set (the
 // source object has no doctor field of its own) - fall back to the doctor
 // on the procedure's linked appointment, which the import does set.
 const getProcedureDoctor = (proc: any) => {
   const s = proc.staff || proc.appointments?.staff;
-  return s ? `Dr. ${s.first_name} ${s.last_name}` : "";
+  const full = s ? [s.first_name, s.last_name].filter(Boolean).join(" ").trim() : "";
+  if (full) return withDrPrefix(full);
+  // No internal staff match at all - often an external/referring doctor,
+  // not one of ours. Show the raw name Salesforce sent rather than nothing.
+  const raw: string | undefined = proc.appointments?.reason_for_consultation;
+  const m = raw?.match(/\(dr\.?\s*([^)]+)\)/i);
+  return m ? withDrPrefix(toTitleCase(m[1].trim())) : "";
 };
 
 const Procedures = () => {
@@ -76,7 +85,7 @@ const Procedures = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("procedures")
-        .select("*, patients(first_name, last_name), staff:staff!procedures_staff_id_fkey(first_name, last_name), appointments(staff:staff_id(first_name, last_name))")
+        .select("*, patients(first_name, last_name), staff:staff!procedures_staff_id_fkey(first_name, last_name), appointments(staff:staff_id(first_name, last_name), reason_for_consultation)")
         .order("procedure_date", { ascending: false });
       if (error) throw error;
       return data;

@@ -424,16 +424,31 @@ const Services = () => {
 
   const updateMedicine = (index: number, field: keyof MedicineInput, value: string) => {
     const updated = [...medicines];
-    updated[index][field] = value;
+    const row = { ...updated[index] };
     if (field === "product_id") {
+      const prevProd: any = products.find((p: any) => p.id === row.product_id);
       const prod: any = products.find((p: any) => p.id === value);
-      updated[index].product_name = prod?.name || "";
-      if (prod) {
-        if (!updated[index].frequency) updated[index].frequency = prod.default_frequency || "";
-        if (!updated[index].duration) updated[index].duration = prod.default_duration || "";
-        if (!updated[index].instructions) updated[index].instructions = prod.default_instructions || "";
-      }
+      row.product_id = value;
+      row.product_name = prod?.name || "";
+      // Only carry a field forward if it's empty or still matches the
+      // previous medicine's autofilled default - a manually typed value is
+      // never overwritten, but switching medicines should swap in the new
+      // medicine's own defaults instead of leaving the old one's behind.
+      const carryOver = (current: string, prevDefault?: string) =>
+        !current || current === (prevDefault || "");
+      row.frequency = carryOver(row.frequency, prevProd?.default_frequency)
+        ? prod?.default_frequency || ""
+        : row.frequency;
+      row.duration = carryOver(row.duration, prevProd?.default_duration)
+        ? prod?.default_duration || ""
+        : row.duration;
+      row.instructions = carryOver(row.instructions, prevProd?.default_instructions)
+        ? prod?.default_instructions || ""
+        : row.instructions;
+    } else {
+      (row[field] as string) = value;
     }
+    updated[index] = row;
     setMedicines(updated);
   };
 

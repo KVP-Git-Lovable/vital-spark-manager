@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { moveToTrash } from "@/lib/trash";
+import { normalizeName } from "@/lib/textNormalize";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ServiceDetailSheet } from "@/components/services/ServiceDetailSheet";
@@ -182,6 +183,9 @@ const Services = () => {
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      const dupe = services.find((s: any) => normalizeName(s.name) === normalizeName(name));
+      if (dupe) throw new Error(`A service named "${dupe.name}" already exists`);
+
       const recs = recommendations.split("\n").filter((r) => r.trim());
       const { data: svc, error } = await supabase
         .from("services")
@@ -241,7 +245,9 @@ const Services = () => {
       resetForm();
       setDialogOpen(false);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: any) => {
+      toast.error(err?.code === "23505" ? "A service with this name already exists" : err.message);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -297,55 +303,80 @@ const Services = () => {
       const data = await response.json();
       const sfServices = data.services || [];
 
-      // Filter out existing services by name
-      const newServices = sfServices.filter(
-        (sf: any) =>
-          !services.some(
-            (s: any) => s.name?.toLowerCase() === sf.Name?.toLowerCase()
-          )
-      );
+      // Re-fetch fresh rather than trusting the (possibly stale) query-cache
+      // `services` value, so this never races the initial page load.
+      const { data: existing, error: fetchErr } = await supabase.from("services").select("*");
+      if (fetchErr) throw fetchErr;
+      const existingByNorm = new Map((existing || []).map((s: any) => [normalizeName(s.name), s]));
 
-      if (newServices.length === 0) {
-        throw new Error(
-          "No new services to sync — all Salesforce services already exist"
-        );
-      }
+      const toInsert: any[] = [];
+      const toUpdate: { id: string; patch: Record<string, any> }[] = [];
+      const conflicts: string[] = [];
+      let unchangedCount = 0;
 
-      // Map Salesforce fields to our database schema
-      const servicesToInsert = newServices.map((sf: any) => {
-        const recommendations = sf.Recommendations__c
+      for (const sf of sfServices) {
+        const recs = sf.Recommendations__c
           ? sf.Recommendations__c.split("\n").filter((r: string) => r.trim())
           : [];
+        const match = existingByNorm.get(normalizeName(sf.Name));
 
-        return {
-          name: sf.Name,
-          category: sf.Category__c || "General",
-          price: sf.Cost__c || 0,
-          duration: sf.Duration__c || 30,
-          procedure_notes: sf.Procedure_Notes__c || null,
-          recommendations: recommendations,
-          salesforce_id: sf.Id,
-        };
-      });
+        if (!match) {
+          toInsert.push({
+            name: sf.Name,
+            category: sf.Category__c || "General",
+            price: sf.Cost__c || 0,
+            duration: sf.Duration__c || 30,
+            procedure_notes: sf.Procedure_Notes__c || null,
+            recommendations: recs,
+            salesforce_id: sf.Id,
+          });
+          continue;
+        }
 
-      // Insert into Supabase
-      const { data: inserted, error } = await supabase
-        .from("services")
-        .upsert(servicesToInsert, { onConflict: "salesforce_id" })
-        .select();
+        // Only fill in currently-empty fields - never overwrite a value a
+        // staff member may have edited in-app after the row was created.
+        const patch: Record<string, any> = {};
+        if (!match.procedure_notes && sf.Procedure_Notes__c) patch.procedure_notes = sf.Procedure_Notes__c;
+        if ((!match.recommendations || match.recommendations.length === 0) && recs.length > 0) {
+          patch.recommendations = recs;
+        }
+        if (!match.salesforce_id) {
+          patch.salesforce_id = sf.Id;
+        } else if (match.salesforce_id !== sf.Id) {
+          conflicts.push(sf.Name);
+        }
 
-      if (error) throw error;
+        if (Object.keys(patch).length > 0) toUpdate.push({ id: match.id, patch });
+        else unchangedCount++;
+      }
+
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from("services").upsert(toInsert, { onConflict: "salesforce_id" });
+        if (error) throw error;
+      }
+
+      let updateErrors = 0;
+      for (const { id, patch } of toUpdate) {
+        const { error } = await supabase.from("services").update(patch as any).eq("id", id);
+        if (error) updateErrors++;
+      }
+      if (updateErrors > 0 && updateErrors === toUpdate.length) {
+        throw new Error(`Failed to update ${updateErrors} service(s)`);
+      }
 
       return {
         total: sfServices.length,
-        newCount: newServices.length,
-        inserted,
+        insertedCount: toInsert.length,
+        updatedCount: toUpdate.length - updateErrors,
+        unchangedCount,
+        conflictCount: conflicts.length,
       };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
       toast.success(
-        `Synced ${data.newCount} new services from Salesforce (${data.total} total available)`
+        `Synced from Salesforce: ${data.insertedCount} new, ${data.updatedCount} updated, ${data.unchangedCount} already up to date` +
+        (data.conflictCount ? `, ${data.conflictCount} skipped (salesforce_id conflict)` : "")
       );
     },
     onError: (err: Error) => toast.error(err.message),
@@ -422,7 +453,7 @@ const Services = () => {
           <p className="page-subtitle">Manage clinic services, medicines and recommendations</p>
         </div>
         <div className="flex gap-2 w-fit">
-        <Button variant="outline" className="gap-2" onClick={() => syncSalesforceeMutation.mutate()} disabled={syncSalesforceeMutation.isPending}>
+        <Button variant="outline" className="gap-2" onClick={() => syncSalesforceeMutation.mutate()} disabled={syncSalesforceeMutation.isPending || isLoading}>
           {syncSalesforceeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
           {syncSalesforceeMutation.isPending ? "Syncing..." : "Sync from Salesforce"}
         </Button>

@@ -117,6 +117,15 @@ const Services = () => {
     },
   });
 
+  const { data: categoryMaster = [] } = useQuery({
+    queryKey: ["category-master"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("category_master").select("*").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: serviceMedicines = [] } = useQuery({
     queryKey: ["service-medicines"],
     queryFn: async () => {
@@ -497,7 +506,12 @@ const Services = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Category</Label>
-                  <Input placeholder="e.g. Skin Treatment" className="mt-1.5" value={category} onChange={(e) => setCategory(e.target.value)} />
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select category" /></SelectTrigger>
+                    <SelectContent>
+                      {categoryMaster.map((c: any) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label>Duration (mins)</Label>

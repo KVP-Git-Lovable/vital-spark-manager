@@ -30,6 +30,14 @@ const PROCEDURE_FIELDS = [
 
 const DEFAULT_PROCEDURE_FIELDS = ["procedure_date", "patient", "service_name", "doctor", "status"];
 
+// Salesforce-imported procedures rarely have procedures.staff_id set (the
+// source object has no doctor field of its own) - fall back to the doctor
+// on the procedure's linked appointment, which the import does set.
+const getProcedureDoctor = (proc: any) => {
+  const s = proc.staff || proc.appointments?.staff;
+  return s ? `Dr. ${s.first_name} ${s.last_name}` : "";
+};
+
 const Procedures = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -68,7 +76,7 @@ const Procedures = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("procedures")
-        .select("*, patients(first_name, last_name), staff:staff!procedures_staff_id_fkey(first_name, last_name)")
+        .select("*, patients(first_name, last_name), staff:staff!procedures_staff_id_fkey(first_name, last_name), appointments(staff:staff_id(first_name, last_name))")
         .order("procedure_date", { ascending: false });
       if (error) throw error;
       return data;
@@ -118,7 +126,7 @@ const Procedures = () => {
       case "procedure_date": return new Date(proc.procedure_date).toLocaleDateString();
       case "patient": return `${proc.patients?.first_name || ""} ${proc.patients?.last_name || ""}`;
       case "service_name": return proc.service_name || "";
-      case "doctor": return proc.staff ? `Dr. ${proc.staff.first_name} ${proc.staff.last_name}` : "";
+      case "doctor": return getProcedureDoctor(proc);
       case "status": return proc.status || "";
       default: return "";
     }
@@ -197,7 +205,7 @@ const Procedures = () => {
                   <p className="font-medium text-sm">{proc.patients?.first_name} {proc.patients?.last_name}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">{proc.service_name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {proc.staff ? `Dr. ${proc.staff.first_name} ${proc.staff.last_name}` : "—"}
+                    {getProcedureDoctor(proc) || "—"}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
@@ -239,7 +247,7 @@ const Procedures = () => {
                   {shouldShowColumn("service_name") && <TableCell>{proc.service_name}</TableCell>}
                   {shouldShowColumn("doctor") && (
                     <TableCell className="text-sm text-muted-foreground">
-                      {proc.staff ? `Dr. ${proc.staff.first_name} ${proc.staff.last_name}` : "—"}
+                      {getProcedureDoctor(proc) || "—"}
                     </TableCell>
                   )}
                   {shouldShowColumn("status") && (

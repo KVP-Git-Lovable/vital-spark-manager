@@ -229,9 +229,11 @@ async function syncPatient(
   }
 
   const apptServiceBySfId = new Map<string, string>();
+  const apptDoctorBySfId = new Map<string, string>();
   appts.forEach((a) => {
     const svc = a.Investigation__c || a.Description__c;
     if (svc) apptServiceBySfId.set(a.Id, String(svc));
+    if (a.Doctor_Name__c) apptDoctorBySfId.set(a.Id, String(a.Doctor_Name__c));
   });
   const billingProcBySfApptId = new Map<string, string>();
   billings.forEach((b) => {
@@ -275,6 +277,9 @@ async function syncPatient(
       procedure_date: d.CreatedDate,
       status: "Completed",
       appointment_id: d.Appointment__c ? apptIdMap.get(d.Appointment__c) || null : null,
+      // Diagnosis__c carries no doctor field of its own - borrow it from the
+      // linked appointment, same as invoices already do for Billing__c.
+      staff_id: d.Appointment__c ? doctorFor(apptDoctorBySfId.get(d.Appointment__c) || null) : null,
       diagnosis: [d.Diagnosis__c, d.Diagnoses__c].filter(Boolean).join("\n") || null,
       symptoms,
       procedure_notes: d.Prescription__c || null,

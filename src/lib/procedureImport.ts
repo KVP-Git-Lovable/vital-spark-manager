@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { normalizeName } from "./textNormalize";
 
 export const PROCEDURE_FIELDS = [
   "patient_sf_id",
@@ -86,8 +87,7 @@ export function autoDetectProcedureMapping(headers: string[]): Record<string, Pr
 export const normalizePhone = (v: any): string =>
   String(v ?? "").replace(/[\s\-()]/g, "").trim();
 
-export const normalizeName = (v: any): string =>
-  String(v ?? "").toLowerCase().trim().replace(/\s+/g, " ");
+export { normalizeName };
 
 function parseDate(v: any): string | null {
   if (v == null || v === "") return null;

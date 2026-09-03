@@ -24,30 +24,49 @@
 --     row_number() OVER (
 --       PARTITION BY lower(regexp_replace(btrim(s.name), '\s+', ' ', 'g'))
 --       ORDER BY
---         (s.salesforce_id IS NOT NULL) DESC,
 --         (s.procedure_notes IS NOT NULL AND s.procedure_notes <> '') DESC,
---         (s.recommendations IS NOT NULL AND array_length(s.recommendations, 1) > 0) DESC,
+--         (coalesce(array_length(s.recommendations, 1), 0) > 0) DESC,
+--         (s.salesforce_id IS NOT NULL) DESC,
 --         s.created_at ASC
 --     ) AS rn
 --   FROM public.services s
 -- )
 -- SELECT norm_name, rn, id, name, salesforce_id,
 --        (procedure_notes IS NOT NULL AND procedure_notes <> '') AS has_notes,
---        (recommendations IS NOT NULL AND array_length(recommendations,1) > 0) AS has_recs,
+--        (coalesce(array_length(recommendations,1), 0) > 0) AS has_recs,
 --        created_at
 -- FROM ranked
 -- WHERE norm_name IN (SELECT norm_name FROM ranked GROUP BY norm_name HAVING count(*) > 1)
 -- ORDER BY norm_name, rn;
+--
+-- Second preview - flags any group where MORE THAN ONE row has its own
+-- distinct, real salesforce_id (as opposed to one linked row plus one
+-- legacy manually-created row with salesforce_id NULL). This is the case
+-- that most needs a human look: it likely means Salesforce itself has two
+-- separate records that happen to share a name, and merging will silently
+-- drop the loser's specific Salesforce link (a future sync for that
+-- Salesforce record will then be reported as a "skipped, conflict" rather
+-- than silently duplicated - but it's still worth knowing about upfront):
+--
+-- SELECT norm_name, count(*) AS distinct_sf_ids, array_agg(salesforce_id) AS salesforce_ids, array_agg(name) AS names
+-- FROM public.services
+-- WHERE salesforce_id IS NOT NULL
+-- GROUP BY lower(regexp_replace(btrim(name), '\s+', ' ', 'g'))
+-- HAVING count(*) > 1;
 
 BEGIN;
 
 -- 1. Rank all services within each normalized-name group. Tie-break order:
---    prefer a row that already has a salesforce_id (a NULL salesforce_id is
---    exactly why a legacy manual row could never be reconciled by the old
---    sync logic - keeping the linked row avoids recreating that problem),
---    then prefer whichever twin already has real procedure_notes/
---    recommendations (so no clinical documentation is lost), then oldest
---    created_at as a final deterministic tiebreak.
+--    prefer whichever twin already has real procedure_notes, then whichever
+--    has real recommendations (so no clinical documentation staff already
+--    entered gets discarded - a missing salesforce_id can always be
+--    backfilled onto the surviving row by the next "Sync from Salesforce"
+--    click via name-matching, but manually-written content that gets
+--    deleted is only recoverable from Trash), then prefer a row that
+--    already has a salesforce_id, then oldest created_at as a final
+--    deterministic tiebreak. (array_length() returns NULL, not 0, for an
+--    empty array - default value of `recommendations` - so it's wrapped in
+--    coalesce() to avoid that quirk silently reordering the tiebreak.)
 CREATE TEMP TABLE _svc_ranked ON COMMIT DROP AS
 SELECT
   s.id, s.name,
@@ -55,9 +74,9 @@ SELECT
   row_number() OVER (
     PARTITION BY lower(regexp_replace(btrim(s.name), '\s+', ' ', 'g'))
     ORDER BY
-      (s.salesforce_id IS NOT NULL) DESC,
       (s.procedure_notes IS NOT NULL AND s.procedure_notes <> '') DESC,
-      (s.recommendations IS NOT NULL AND array_length(s.recommendations, 1) > 0) DESC,
+      (coalesce(array_length(s.recommendations, 1), 0) > 0) DESC,
+      (s.salesforce_id IS NOT NULL) DESC,
       s.created_at ASC
   ) AS rn
 FROM public.services s;

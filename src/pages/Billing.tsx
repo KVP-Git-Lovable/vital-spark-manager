@@ -113,7 +113,7 @@ const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
 const generateInvoicePDF = (inv: any) => {
   const date = new Date(inv.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
   const balance = Number(inv.total_amount) - Number(inv.paid_amount);
-  const drName = inv.appointments?.staff ? withDrPrefix(`${inv.appointments.staff.first_name || ""} ${inv.appointments.staff.last_name || ""}`) : "";
+  const drName = inv.appointments?.doctors ? withDrPrefix(`${inv.appointments.doctors.first_name || ""} ${inv.appointments.doctors.last_name || ""}`) : "";
 
   const html = `
 <!DOCTYPE html>
@@ -241,11 +241,30 @@ const withDrPrefix = (name: string) => {
   return /^dr\.?\s/i.test(clean) ? clean.replace(/^dr\.?\s/i, "Dr. ") : `Dr. ${clean}`;
 };
 
-const getDrName = (inv: any) => {
+const getDrName = (inv: any, staffById?: Map<string, any>) => {
   const d = inv.appointments?.doctors;
   if (d) {
     const full = [d.first_name, d.last_name].filter(Boolean).join(" ").trim();
     if (full) return withDrPrefix(full);
+  }
+  // No linked appointment (or its staff didn't resolve) - fall back to the
+  // doctor assigned directly on the invoice (invoices.doctor_id).
+  const s = inv.doctor_id ? staffById?.get(inv.doctor_id) : undefined;
+  if (s) {
+    const full = [s.first_name, s.last_name].filter(Boolean).join(" ").trim();
+    if (full) return withDrPrefix(full);
+  }
+  return "";
+};
+
+// invoices.patient_name is denormalized at creation time; fall back to a
+// live lookup by patient_id for rows that were saved without it.
+const getPatientName = (inv: any, patientById?: Map<string, any>) => {
+  if (inv.patient_name) return inv.patient_name;
+  const p = inv.patient_id ? patientById?.get(inv.patient_id) : undefined;
+  if (p) {
+    const full = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
+    if (full) return full;
   }
   return "";
 };
@@ -563,6 +582,14 @@ const Billing = () => {
     },
   });
 
+  // Doctor/patient name are denormalized onto each invoice at creation time
+  // and never recomputed - these maps let the UI fall back to a live lookup
+  // (by invoices.doctor_id / invoices.patient_id) for older or recurring-
+  // installment invoices that were saved without a name, or without an
+  // appointment link for getDrName's usual join to find a doctor through.
+  const staffById = useMemo(() => new Map(staffList.map((s: any) => [s.id, s])), [staffList]);
+  const patientById = useMemo(() => new Map(patients.map((p: any) => [p.id, p])), [patients]);
+
   const { data: productUnitsData } = usePharmaProductUnits();
   const unitsByProduct = productUnitsData?.byProduct || {};
 
@@ -727,11 +754,12 @@ const Billing = () => {
   const uniqueDoctors = useMemo(() => {
     const docs = new Map<string, string>();
     invoices.forEach((inv: any) => {
-      const name = getDrName(inv);
-      if (name) docs.set(inv.appointments?.staff_id, name);
+      const id = inv.appointments?.staff_id || inv.doctor_id;
+      const name = getDrName(inv, staffById);
+      if (id && name) docs.set(id, name);
     });
     return Array.from(docs.entries());
-  }, [invoices]);
+  }, [invoices, staffById]);
 
   const uniqueServices = useMemo(() => {
     const svcs = new Set<string>();
@@ -1776,11 +1804,12 @@ const Billing = () => {
     return invoices.filter((inv: any) => {
       const q = search.toLowerCase();
       if (q) {
-        const drName = getDrName(inv).toLowerCase();
+        const drName = getDrName(inv, staffById).toLowerCase();
+        const patientName = getPatientName(inv, patientById).toLowerCase();
         const servicesStr = (inv.services || []).join(" ").toLowerCase();
         const searchFields = [
           inv.invoice_number,
-          inv.patient_name,
+          patientName,
           servicesStr,
           inv.payment_type,
           inv.payment_mode,
@@ -1798,7 +1827,7 @@ const Billing = () => {
 
       // Doctor filter
       if (filterDoctor) {
-        const staffId = inv.appointments?.staff_id;
+        const staffId = inv.appointments?.staff_id || inv.doctor_id;
         if (staffId !== filterDoctor) return false;
       }
 
@@ -1815,7 +1844,7 @@ const Billing = () => {
 
       return true;
     });
-  }, [invoices, search, filterDateFrom, filterDateTo, filterDoctor, filterService, filterType, filterStatus]);
+  }, [invoices, search, filterDateFrom, filterDateTo, filterDoctor, filterService, filterType, filterStatus, staffById, patientById]);
 
   const hasActiveFilters = filterDateFrom || filterDateTo || filterDoctor || filterService || filterType || filterStatus;
 
@@ -1834,8 +1863,8 @@ const Billing = () => {
     const rows = viewFiltered.map((inv: any) => [
       inv.invoice_number,
       format(new Date(inv.created_at), "yyyy-MM-dd"),
-      inv.patient_name || "",
-      getDrName(inv),
+      getPatientName(inv, patientById),
+      getDrName(inv, staffById),
       (inv.services || []).join("; "),
       inv.payment_type,
       inv.payment_mode || "",
@@ -1864,7 +1893,7 @@ const Billing = () => {
     setViewInvoice(inv);
     setIsEditing(false);
     setEditData({
-      patient_name: inv.patient_name || "",
+      patient_name: getPatientName(inv, patientById),
       total_amount: inv.total_amount,
       paid_amount: inv.paid_amount,
       payment_mode: inv.payment_mode || "Cash",
@@ -1901,7 +1930,7 @@ const Billing = () => {
   function getFieldValue(inv: any, field: string) {
     switch (field) {
       case "invoice_number": return inv.invoice_number || "";
-      case "patient_name": return inv.patient_name || "";
+      case "patient_name": return getPatientName(inv, patientById);
       case "total_amount": return Number(inv.total_amount) || 0;
       case "paid_amount": return Number(inv.paid_amount) || 0;
       case "status": return inv.status || "";
@@ -2714,7 +2743,7 @@ const Billing = () => {
             <div className="space-y-4 pt-2">
               <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Invoice</span><span className="font-medium">{paymentInv.invoice_number}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Patient</span><span>{paymentInv.patient_name || "—"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Patient</span><span>{getPatientName(paymentInv, patientById) || "—"}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-semibold">₹{Number(paymentInv.total_amount).toLocaleString()}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Already Paid</span><span>₹{Number(paymentInv.paid_amount).toLocaleString()}</span></div>
                 <div className="flex justify-between font-semibold text-primary"><span>Balance Due</span><span>₹{(Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)).toLocaleString()}</span></div>
@@ -2871,10 +2900,10 @@ const Billing = () => {
                       <p className="font-medium text-sm text-primary hover:underline">{inv.invoice_number}</p>
                       <p className="text-xs text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</p>
                     </td>
-                    <td className="p-4 text-sm">{inv.patient_name || "—"}</td>
+                    <td className="p-4 text-sm">{getPatientName(inv, patientById) || "—"}</td>
                     <td className="p-4 hidden lg:table-cell">
-                      {getDrName(inv) ? (
-                        <span className="text-sm">{getDrName(inv)}</span>
+                      {getDrName(inv, staffById) ? (
+                        <span className="text-sm">{getDrName(inv, staffById)}</span>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
@@ -2979,9 +3008,9 @@ const Billing = () => {
               {/* Details */}
               <div className="bg-muted/50 rounded-lg p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-muted-foreground text-xs block">Patient</span><span className="font-medium">{viewInvoice.patient_name || "Walk-in"}</span></div>
+                  <div><span className="text-muted-foreground text-xs block">Patient</span><span className="font-medium">{getPatientName(viewInvoice, patientById) || "Walk-in"}</span></div>
                   <div><span className="text-muted-foreground text-xs block">Date</span><span className="font-medium">{format(new Date(viewInvoice.created_at), "PPP")}</span></div>
-                  <div><span className="text-muted-foreground text-xs block">Doctor</span><span className="font-medium">{getDrName(viewInvoice) || "—"}</span></div>
+                  <div><span className="text-muted-foreground text-xs block">Doctor</span><span className="font-medium">{getDrName(viewInvoice, staffById) || "—"}</span></div>
                   <div>
                     <span className="text-muted-foreground text-xs block">Payment Mode</span>
                     {Array.isArray(viewInvoice.payment_splits) && viewInvoice.payment_splits.length > 1 ? (

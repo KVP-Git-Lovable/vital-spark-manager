@@ -263,6 +263,8 @@ const BILLING_FIELDS = [
 
 const DEFAULT_BILLING_FIELDS = ["invoice_number", "patient_name", "total_amount", "status"];
 
+const PAGE_SIZE = 50;
+
 const Billing = () => {
   const invoiceTableRef = useStackedTable<HTMLTableElement>();
   const queryClient = useQueryClient();
@@ -316,6 +318,13 @@ const Billing = () => {
   const [filterService, setFilterService] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [page, setPage] = useState(1);
+
+  // Any change to search/filters/the active saved view changes which
+  // invoices match, so the current page number no longer means anything.
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterDateFrom, filterDateTo, filterDoctor, filterService, filterType, filterStatus, selectedViewId]);
 
   // Form state
   const [patientId, setPatientId] = useState("");
@@ -401,12 +410,16 @@ const Billing = () => {
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("*, appointments(id, service, start_time, staff_id, doctors:staff_id(first_name, last_name))")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
+      // fetchAll pages past Supabase's default 1000-row cap - without it, a
+      // clinic with more than 1000 invoices would silently lose the rest
+      // from every total, filter and export on this page.
+      return await fetchAll<any>((from, to) =>
+        supabase
+          .from("invoices")
+          .select("*, appointments(id, service, start_time, staff_id, doctors:staff_id(first_name, last_name))")
+          .order("created_at", { ascending: false })
+          .range(from, to)
+      );
     },
   });
 
@@ -1910,6 +1923,12 @@ const Billing = () => {
   // Apply custom view filters (helpers above are hoisted function declarations)
   const viewFiltered = applyViewFilters(filtered);
 
+  // Table is paginated for render performance; totals above and CSV export
+  // still operate over every matching invoice (viewFiltered), not just this page.
+  const totalPages = Math.max(1, Math.ceil(viewFiltered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedInvoices = viewFiltered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   return (
     <div>
       <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -2839,7 +2858,7 @@ const Billing = () => {
               {viewFiltered.length === 0 ? (
                 <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No invoices found</td></tr>
               ) : (
-                viewFiltered.map((inv: any) => (
+                pagedInvoices.map((inv: any) => (
                   <tr key={inv.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => openViewSheet(inv)}>
                     <td className="p-4">
                       <p className="font-medium text-sm text-primary hover:underline">{inv.invoice_number}</p>
@@ -2898,6 +2917,25 @@ const Billing = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
+          <span>
+            {viewFiltered.length === 0
+              ? "Showing 0 invoices"
+              : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, viewFiltered.length)} of ${viewFiltered.length.toLocaleString()}`}
+          </span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                Previous
+              </Button>
+              <span className="text-xs">Page {currentPage} of {totalPages}</span>
+              <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+                Next
+              </Button>
+            </div>
+          )}
         </div>
       </motion.div>
 

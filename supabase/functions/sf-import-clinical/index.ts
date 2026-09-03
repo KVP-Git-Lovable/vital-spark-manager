@@ -58,10 +58,21 @@ function normalize(s: string | null | undefined): string {
 // Build doctor -> staff.id map by fuzzy name contains.
 async function buildDoctorMap(): Promise<(sfName: string | null) => string | null> {
   const { data } = await admin.from("staff").select("id, first_name, last_name");
-  const rows = (data || []).map((s) => ({
-    id: s.id as string,
-    key: normalize(`${s.first_name} ${s.last_name}`),
-  }));
+  const rows = (data || []).map((s) => {
+    const firstTokens = normalize(s.first_name).split(" ").filter((t) => t.length > 2 && t !== "dr");
+    return {
+      id: s.id as string,
+      key: normalize(`${s.first_name} ${s.last_name}`),
+      firstToken: firstTokens[0] || null,
+    };
+  });
+  // A first name alone only safely identifies someone if it's unique across
+  // staff - never used as a fallback when two staff share a first name.
+  const firstNameCounts = new Map<string, number>();
+  rows.forEach((r) => {
+    if (r.firstToken) firstNameCounts.set(r.firstToken, (firstNameCounts.get(r.firstToken) || 0) + 1);
+  });
+
   return (sfName: string | null) => {
     if (!sfName) return null;
     const key = normalize(sfName);
@@ -69,6 +80,13 @@ async function buildDoctorMap(): Promise<(sfName: string | null) => string | nul
       if (!r.key) continue;
       const tokens = r.key.split(" ").filter((t) => t.length > 2 && t !== "dr");
       if (tokens.length && tokens.every((t) => key.includes(t))) return r.id;
+    }
+    // Fallback: an unambiguous first-name match - covers a staff member
+    // whose surname on file differs from what Salesforce sent (e.g. a
+    // maiden/alternate surname), as long as their first name alone
+    // uniquely identifies them among all staff.
+    for (const r of rows) {
+      if (r.firstToken && firstNameCounts.get(r.firstToken) === 1 && key.includes(r.firstToken)) return r.id;
     }
     return null;
   };

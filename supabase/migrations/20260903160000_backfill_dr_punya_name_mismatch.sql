@@ -15,26 +15,28 @@
 -- look right before running the UPDATEs:
 --
 -- SELECT count(*) AS appointments_to_fix FROM public.appointments
--- WHERE staff_id IS NULL AND reason_for_consultation ~* '\(dr[^)]*punya\b';
+-- WHERE staff_id IS NULL AND reason_for_consultation ILIKE '%punya%';
 --
 -- SELECT count(*) AS invoices_to_fix FROM public.invoices
--- WHERE doctor_id IS NULL AND notes ~* '^doctor:\s*dr\.?\s+punya\b';
+-- WHERE doctor_id IS NULL AND notes ILIKE '%punya%';
+--
+-- (A plain substring match, not a regex - notes/reason_for_consultation are
+-- system-generated with a narrow, predictable vocabulary, so "punya" only
+-- ever appears there referring to this doctor. Confirmed against the real
+-- data: both formats "Doctor: Dr PUNYA SUVARNA" and
+-- "[sf_bill_id=...; doctor=DR. PUNYA SUVARNA]" contain it as a substring.)
 
 BEGIN;
 
--- reason_for_consultation wraps the raw Salesforce value (which often
--- already starts with its own "Dr"/"DR.") inside a literal "(Dr. ...)" -
--- e.g. "(Dr. Dr PUNYA SUVARNA)" - so match loosely within the parens
--- rather than anchoring right after "(Dr. ".
 UPDATE public.appointments
 SET staff_id = '7017b1e5-434d-422d-92ec-1ae4fd941426'
 WHERE staff_id IS NULL
-  AND reason_for_consultation ~* '\(dr[^)]*punya\b';
+  AND reason_for_consultation ILIKE '%punya%';
 
 UPDATE public.invoices
 SET doctor_id = '7017b1e5-434d-422d-92ec-1ae4fd941426'
 WHERE doctor_id IS NULL
-  AND notes ~* '^doctor:\s*dr\.?\s+punya\b';
+  AND notes ILIKE '%punya%';
 
 -- Re-run: some procedures' linked appointments were just fixed above.
 UPDATE public.procedures p

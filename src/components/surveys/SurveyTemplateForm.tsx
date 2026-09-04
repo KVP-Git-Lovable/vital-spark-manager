@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, GripVertical, Search, Copy, Send, Mic, MicOff, Sparkles, Loader2 } from "lucide-react";
+import { Plus, Trash2, GripVertical, Search, Copy, Send, Mic, MicOff, Sparkles, Loader2, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,6 +82,9 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
 
   // Questions
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<Question[]>([]);
+  const [suggestCount, setSuggestCount] = useState(10);
+  const [suggesting, setSuggesting] = useState(false);
 
   // Products & Services
   const [templateProducts, setTemplateProducts] = useState<TemplateProduct[]>([]);
@@ -127,7 +130,7 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
   const resetForm = () => {
     setName(""); setDescription(""); setAgeMin(0); setAgeMax(120);
     setProblemAreaId(""); setServiceId(""); setIsActive(true);
-    setQuestions([]); setTemplateProducts([]); setTemplateServices([]);
+    setQuestions([]); setSuggestedQuestions([]); setTemplateProducts([]); setTemplateServices([]);
     setTab("basic");
     setDictation(""); lastParsedRef.current = "";
   };
@@ -372,6 +375,56 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
     }
   };
 
+  const suggestQuestions = async () => {
+    if (!description.trim()) {
+      toast.info("Add a description first, then Suggest Questions.");
+      return;
+    }
+    setSuggesting(true);
+    try {
+      const problemArea = (problemAreas as any[]).find(p => p.id === problemAreaId)?.name || "";
+      const serviceType = (services as any[]).find(s => s.id === serviceId)?.name || "";
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/survey-question-suggest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify({ description, problemArea, serviceType, ageMin, ageMax, count: suggestCount }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Suggest failed");
+      const incoming: Question[] = (json.questions || []).map((q: any) => ({
+        question_text: q.question_text || "",
+        question_type: q.question_type || "text",
+        options: Array.isArray(q.options) ? q.options : [],
+        ideal_answer: {},
+        sort_order: 0,
+      })).filter((q: Question) => q.question_text.trim());
+      if (incoming.length === 0) {
+        toast.info("No questions generated — try adding more detail to the description.");
+      } else {
+        setSuggestedQuestions((prev) => [...prev, ...incoming]);
+        toast.success(`${incoming.length} suggested question${incoming.length === 1 ? "" : "s"} — review and accept below`);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to suggest questions");
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  const acceptSuggestion = (index: number) => {
+    const q = suggestedQuestions[index];
+    if (!q) return;
+    setQuestions((prev) => [...prev, { ...q, sort_order: prev.length }]);
+    setSuggestedQuestions((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const rejectSuggestion = (index: number) => {
+    setSuggestedQuestions((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const questionTypeLabel = (t: string) =>
+    t === "single_choice" ? "Single Choice" : t === "multi_choice" ? "Multi Choice" : t === "scale" ? "Scale (1-10)" : "Text";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -489,6 +542,64 @@ export function SurveyTemplateForm({ open, onOpenChange, templateId }: Props) {
           </TabsContent>
 
           <TabsContent value="questions" className="space-y-4 mt-4">
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium text-primary">AI Suggest Questions</span>
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
+                    Uses the description in Basic Info, in plain patient-friendly language.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number" min={1} max={30}
+                    value={suggestCount}
+                    onChange={(e) => setSuggestCount(Math.max(1, Math.min(30, Number(e.target.value) || 1)))}
+                    className="h-8 w-16 text-center"
+                  />
+                  <Button type="button" size="sm" className="h-8 gap-1.5" onClick={suggestQuestions} disabled={suggesting}>
+                    {suggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    Suggest
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {suggestedQuestions.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">
+                    Suggested Questions ({suggestedQuestions.length}) — accept the ones you want
+                  </Label>
+                  <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={() => setSuggestedQuestions([])}>
+                    Dismiss all
+                  </Button>
+                </div>
+                {suggestedQuestions.map((q, i) => (
+                  <div key={i} className="flex items-start justify-between gap-3 rounded-lg border border-dashed p-3 bg-primary/[0.03]">
+                    <div className="min-w-0">
+                      <p className="text-sm">{q.question_text}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Badge variant="secondary" className="text-[10px]">{questionTypeLabel(q.question_type)}</Badge>
+                        {q.options.length > 0 && (
+                          <span className="text-[10px] text-muted-foreground truncate">{q.options.join(" · ")}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-success hover:text-success" title="Accept" onClick={() => acceptSuggestion(i)}>
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" title="Reject" onClick={() => rejectSuggestion(i)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {questions.map((q, i) => (
               <div key={i} className="border rounded-lg p-4 space-y-3 bg-muted/20">
                 <div className="flex items-start justify-between gap-2">

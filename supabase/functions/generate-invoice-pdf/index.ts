@@ -273,32 +273,22 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       lineItems = await buildFromRefs(parsed);
     }
 
-    // If we somehow have zero charges across all rows but the invoice carries a total,
-    // distribute the total proportionally so charges aren't shown as 0.
+    // If we somehow have zero charges across all rows (e.g. a Salesforce-
+    // imported service name with no match in services/pharma_products) but
+    // the invoice carries a total, synthesize charges from the invoice's own
+    // GST rate via makeRow (same sgst/cgst/igst split every other row uses).
+    // total_amount is tax-INCLUSIVE, so the pre-tax base must come from the
+    // rate algebraically (base * (1+rate/100) = total) - subtracting a
+    // separately-tracked tax amount and then re-applying the rate on top of
+    // that (unreduced) base would double-count the tax and inflate the
+    // printed total past what was actually billed.
     const sumCharges = lineItems.reduce((s, r) => s + r.amount, 0);
     const invTotal = Number(inv.total_amount) || 0;
     if (sumCharges === 0 && invTotal > 0 && lineItems.length > 0) {
-      const per = invTotal / lineItems.length;
-      lineItems = lineItems.map((r) => ({ ...r, charges: per / (r.qty || 1), amount: per }));
-    }
-
-    // If none of the rows resolved a GST rate (e.g. a Salesforce-imported
-    // service name with no match in services/pharma_products) but the
-    // invoice itself carries a tax figure, redistribute that proportionally
-    // by amount instead of showing 0% GST / 0 tax on every row.
-    const sumTax = lineItems.reduce((s, r) => s + r.taxAmount, 0);
-    const invTax = (Number(inv.cgst_amount) || 0) + (Number(inv.sgst_amount) || 0) + (Number(inv.igst_amount) || 0)
-      || Number(inv.tax_amount) || 0;
-    const chargesSum = lineItems.reduce((s, r) => s + r.amount, 0);
-    if (sumTax === 0 && invTax > 0 && chargesSum > 0) {
-      const effRate = (invTax / chargesSum) * 100;
-      lineItems = lineItems.map((r) => ({
-        ...r,
-        sgst: sameState ? effRate / 2 : 0,
-        cgst: sameState ? effRate / 2 : 0,
-        igst: sameState ? 0 : effRate,
-        taxAmount: (r.amount / chargesSum) * invTax,
-      }));
+      const gstRate = Number(inv.tax_rate) || 0;
+      const base = gstRate > 0 ? invTotal / (1 + gstRate / 100) : invTotal;
+      const per = base / lineItems.length;
+      lineItems = lineItems.map((r) => makeRow(r.name, r.qty, per / (r.qty || 1), r.hsn, gstRate));
     }
 
     // ---- PDF ----

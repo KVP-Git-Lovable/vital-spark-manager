@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { useState, useMemo } from "react";
 import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle, Megaphone } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -15,6 +16,11 @@ import {
   eachHourOfInterval, eachWeekOfInterval, differenceInDays,
 } from "date-fns";
 import { useNavigate } from "react-router-dom";
+
+// Data-heavy panels are capped so a large date range can never turn into a
+// full-table scan that the database cancels (statement timeout).
+const DASH_ROW_CAP = 5000;
+const NEW_PATIENTS_CAP = 500;
 
 const statusColors: Record<string, string> = {
   Scheduled: "bg-info/10 text-info",
@@ -90,7 +96,7 @@ const Index = () => {
     },
   });
 
-  const { data: appointments = [] } = useQuery({
+  const { data: appointments = [], isError: apptError, refetch: refetchAppts } = useQuery({
     queryKey: ["dashboard-appointments", startISO, endISO],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -98,13 +104,14 @@ const Index = () => {
         .select("*, patients(first_name, last_name)")
         .gte("start_time", startISO)
         .lte("start_time", endISO)
-        .order("start_time");
+        .order("start_time")
+        .limit(DASH_ROW_CAP);
       if (error) throw error;
       return data;
     },
   });
 
-  const { data: invoices = [] } = useQuery({
+  const { data: invoices = [], isError: invoiceError, refetch: refetchInvoices } = useQuery({
     queryKey: ["dashboard-invoices", startISO, endISO],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -112,7 +119,8 @@ const Index = () => {
         .select("*")
         .gte("created_at", startISO)
         .lte("created_at", endISO)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(DASH_ROW_CAP);
       if (error) throw error;
       return data;
     },
@@ -169,19 +177,23 @@ const Index = () => {
     },
   });
 
-  const { data: newPatientsRaw = [] } = useQuery({
+  const { data: newPatients = { rows: [] as any[], count: 0 } } = useQuery({
     queryKey: ["dashboard-new-patients", startISO, endISO],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Count comes from the database; only a capped slice of rows is pulled
+      // down for the drill-down list.
+      const { data, error, count } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, phone, email, gender, created_at")
+        .select("id, first_name, last_name, phone, email, gender, created_at", { count: "exact" })
         .gte("created_at", startISO)
         .lte("created_at", endISO)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(NEW_PATIENTS_CAP);
       if (error) throw error;
-      return data || [];
+      return { rows: data || [], count: count || 0 };
     },
   });
+  const newPatientsRaw = newPatients.rows;
 
   const doctorLookup = useMemo(
     () => new Map(staffList.map((d: any) => [d.id, `${d.first_name} ${d.last_name}`])),
@@ -404,6 +416,21 @@ const Index = () => {
         <p className="page-subtitle hidden sm:block">Clinic overview for {format(new Date(), "EEEE, MMMM d")}</p>
       </div>
 
+      {(apptError || invoiceError) && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+          <span className="text-sm text-destructive">
+            Some dashboard data took too long to load. Try a shorter date range, or retry.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { refetchAppts(); refetchInvoices(); }}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
       <DashboardFilters
         staffList={staffList}
         serviceList={serviceList}
@@ -426,7 +453,7 @@ const Index = () => {
           <StatCard title="Completed Appointments" value={completedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} />
         </div>
         <div className="cursor-pointer" onClick={() => openDrill("patients", `New Patients — ${dateLabel}`, newPatientsRaw as any[])}>
-          <StatCard title="New Patients Added" value={(newPatientsRaw as any[]).length} change={dateLabel} changeType="neutral" icon={Users} delay={0.15} />
+          <StatCard title="New Patients Added" value={newPatients.count} change={dateLabel} changeType="neutral" icon={Users} delay={0.15} />
         </div>
       </div>
 

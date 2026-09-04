@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, createContext, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { shortPatientId } from "@/lib/utils";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound, Megaphone, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound, Megaphone, Search, Sparkles, ImageOff } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
@@ -152,6 +152,7 @@ const PatientDetail = () => {
   const queryClient = useQueryClient();
   const photoCameraRef = useRef<HTMLInputElement>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [failedPhotoIds, setFailedPhotoIds] = useState<Set<string>>(new Set());
   const [attachmentCameraOpen, setAttachmentCameraOpen] = useState(false);
   const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [otpCode, setOtpCode] = useState<string | null>(null);
@@ -1196,7 +1197,20 @@ const PatientDetail = () => {
                 {photos.map((photo: any) => (
                   <div key={photo.id} className="stat-card p-0 overflow-hidden">
                     <div className="relative">
-                      <img src={photo.photo_url} alt="" className="w-full h-32 md:h-40 object-cover" loading="lazy" />
+                      {failedPhotoIds.has(photo.id) ? (
+                        <div className="w-full h-32 md:h-40 flex flex-col items-center justify-center gap-1 bg-muted text-muted-foreground">
+                          <ImageOff className="h-5 w-5" />
+                          <span className="text-[10px]">Photo unavailable</span>
+                        </div>
+                      ) : (
+                        <img
+                          src={photo.photo_url}
+                          alt=""
+                          className="w-full h-32 md:h-40 object-cover"
+                          loading="lazy"
+                          onError={() => setFailedPhotoIds((prev) => new Set(prev).add(photo.id))}
+                        />
+                      )}
                       <Button
                         variant="destructive"
                         size="icon"

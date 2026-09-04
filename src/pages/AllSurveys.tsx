@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,11 +17,26 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, ClipboardCheck, ChevronDown, Filter, X, Eye, Package, Stethoscope, Pencil } from "lucide-react";
+import { ClipboardCheck, ChevronDown, Filter, X, Eye, Package, Stethoscope, Pencil } from "lucide-react";
 import { format, subDays, startOfDay } from "date-fns";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { approveSurveyResponse } from "@/lib/surveyApproval";
+import { useModuleListViews } from "@/hooks/useModuleListViews";
+import ViewBar from "@/components/listViews/ViewBar";
+import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
+import { SURVEY_VIEW_FIELDS, DEFAULT_SURVEY_VIEW_COLUMNS } from "@/lib/listViews/surveyFields";
 
 const STATUS_OPTIONS = [
   { value: "pending_review", label: "⏳ Pending Review", variant: "outline" as const },
@@ -101,6 +115,22 @@ export default function AllSurveys() {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
+  const {
+    allViews, userId: viewsUserId, activeView, selectView, saveView, deleteView, pinDefault,
+  } = useModuleListViews("surveys", "Survey Responses", DEFAULT_SURVEY_VIEW_COLUMNS);
+  const [viewEditorOpen, setViewEditorOpen] = useState(false);
+  const [editingView, setEditingView] = useState<ListView | null>(null);
+  const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
+
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-active-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, auth_user_id").eq("is_active", true).order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: responses = [], isLoading } = useQuery({
     queryKey: ["all-survey-responses"],
     queryFn: async () => {
@@ -133,6 +163,32 @@ export default function AllSurveys() {
     }
     return true;
   });
+
+  // Denormalize a response into the flat shape SURVEY_VIEW_FIELDS' filter engine reads
+  const toViewRow = (r: any) => ({
+    id: r.id,
+    patient: r.patients ? `${r.patients.first_name} ${r.patients.last_name}`.trim() : "",
+    template: r.survey_templates?.name || "",
+    status: r.dr_status || "pending_review",
+    created_at: r.created_at,
+  });
+
+  // Apply the active saved view's filters (if any), on top of the quick filters above
+  const viewFiltered = (() => {
+    if (!activeView?.filters?.conditions?.length) return filtered;
+    const denormalized = filtered.map(toViewRow);
+    const kept = new Set(applyListFilters(denormalized, activeView.filters, SURVEY_VIEW_FIELDS).map((r) => r.id));
+    return filtered.filter((r: any) => kept.has(r.id));
+  })();
+
+  // Saved-view filter builder options for the picklist fields
+  const viewOptionsFor = (source?: string): PickOption[] => {
+    switch (source) {
+      case "status": return STATUS_OPTIONS.map((s) => ({ value: s.value, label: s.label }));
+      case "template": return templateNames.map((t) => ({ value: t, label: t }));
+      default: return [];
+    }
+  };
 
   const openDetail = (r: any) => {
     setSelectedResponse(r);
@@ -218,13 +274,29 @@ export default function AllSurveys() {
         )}
       </div>
 
+      <ViewBar
+        views={allViews}
+        activeView={activeView}
+        currentUserId={viewsUserId}
+        onSelect={selectView}
+        onNew={() => { setEditingView(null); setViewEditorOpen(true); }}
+        onEdit={(v) => { setEditingView(v); setViewEditorOpen(true); }}
+        onDelete={(v) => setDeleteViewTarget(v)}
+        onPin={pinDefault}
+        onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
+        onRefresh={() => queryClient.invalidateQueries({ queryKey: ["all-survey-responses"] })}
+        display="cards"
+        onDisplayChange={() => {}}
+        showDisplaySwitcher={false}
+        count={viewFiltered.length}
+        search={search}
+        onSearchChange={setSearch}
+        itemLabel="Surveys"
+      />
+
       {/* Filter Row */}
       <div className="flex flex-wrap gap-3 items-center p-3 rounded-lg border bg-muted/30">
         <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
-        <div className="relative flex-1 min-w-[180px] max-w-[250px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input placeholder="Search patient…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 text-xs" />
-        </div>
         <Select value={dateFilter} onValueChange={setDateFilter}>
           <SelectTrigger className="h-8 text-xs w-[140px]"><SelectValue placeholder="Date range" /></SelectTrigger>
           <SelectContent>
@@ -257,14 +329,14 @@ export default function AllSurveys() {
       {/* Card Grid */}
       {isLoading ? (
         <p className="text-sm text-muted-foreground text-center py-12">Loading…</p>
-      ) : filtered.length === 0 ? (
+      ) : viewFiltered.length === 0 ? (
         <div className="text-center py-16 space-y-3">
           <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground/40" />
           <p className="text-muted-foreground">No survey responses found</p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((r: any) => {
+          {viewFiltered.map((r: any) => {
             const status = getStatusDisplay(r.dr_status);
             const patientName = r.patients ? `${r.patients.first_name} ${r.patients.last_name}` : "—";
             const aiProducts = (r.ai_products || []) as any[];
@@ -491,6 +563,42 @@ export default function AllSurveys() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ViewEditorDialog
+        open={viewEditorOpen}
+        onOpenChange={setViewEditorOpen}
+        view={editingView}
+        onSave={saveView}
+        fields={SURVEY_VIEW_FIELDS}
+        defaultColumns={DEFAULT_SURVEY_VIEW_COLUMNS}
+        optionsFor={viewOptionsFor}
+        people={staffList
+          .filter((s: any) => s.auth_user_id)
+          .map((s: any) => ({ value: s.auth_user_id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() }))}
+        itemLabel="survey responses"
+      />
+
+      <AlertDialog open={!!deleteViewTarget} onOpenChange={(o) => { if (!o) setDeleteViewTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteViewTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>This list view will be removed for everyone it is shared with.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteViewTarget) deleteView(deleteViewTarget);
+                setDeleteViewTarget(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -18,7 +18,10 @@ import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
 import FieldsDisplayDialog from "@/components/listViews/FieldsDisplayDialog";
 import ViewFiltersPanel from "@/components/listViews/ViewFiltersPanel";
-import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
+import ListKanban from "@/components/listViews/ListKanban";
+import KanbanSettingsDialog from "@/components/listViews/KanbanSettingsDialog";
+import { applyFilters as applyListFilters, fieldDefIn, type ListDisplayMode, type ListView } from "@/lib/listViews/engine";
+import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/standardViews";
 import { PROCEDURE_VIEW_FIELDS, DEFAULT_PROCEDURE_VIEW_COLUMNS } from "@/lib/listViews/procedureFields";
 
 // Lazy: pulls in recharts, kept out of the main bundle until a user actually opens Charts.
@@ -77,6 +80,9 @@ const Procedures = () => {
   const [viewFieldsOpen, setViewFieldsOpen] = useState(false);
   const [viewFiltersOpen, setViewFiltersOpen] = useState(false);
   const [viewChartsOpen, setViewChartsOpen] = useState(false);
+  const [display, setDisplay] = useState<ListDisplayMode>("table");
+  const [kanbanOpen, setKanbanOpen] = useState(false);
+  const [kanban, setKanban] = useState(() => getKanbanConfig("procedures", ALL_VIEW_ID));
 
   const handleProcedureSaved = useCallback((savedId: string) => {
     setHighlightedId(savedId);
@@ -125,6 +131,20 @@ const Procedures = () => {
       default: return [];
     }
   };
+
+  const kanbanGroupFields = PROCEDURE_VIEW_FIELDS.filter((f) => f.type === "picklist");
+  const kanbanOptions = viewOptionsFor(fieldDefIn(PROCEDURE_VIEW_FIELDS, kanban.group_field)?.optionsSource);
+
+  const moveKanbanCard = async (proc: any, field: string, value: string) => {
+    const { error } = await supabase.from("procedures").update({ [field]: value || null } as any).eq("id", proc.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Procedure updated");
+    queryClient.invalidateQueries({ queryKey: ["procedures"] });
+  };
+
+  useEffect(() => {
+    setKanban(getKanbanConfig("procedures", activeView?.id ?? ALL_VIEW_ID));
+  }, [activeView?.id]);
 
   let filtered = procedures.filter((p: any) => {
     const name = `${p.patients?.first_name || ""} ${p.patients?.last_name || ""}`.toLowerCase();
@@ -193,9 +213,10 @@ const Procedures = () => {
           onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
           onFields={() => setViewFieldsOpen(true)}
           onRefresh={() => queryClient.invalidateQueries({ queryKey: ["procedures"] })}
-          display="table"
-          onDisplayChange={() => {}}
-          displayModes={["table"]}
+          display={display}
+          onDisplayChange={setDisplay}
+          displayModes={["table", "kanban"]}
+          onKanbanSettings={() => setKanbanOpen(true)}
           count={filtered.length}
           search={search}
           onSearchChange={setSearch}
@@ -242,6 +263,25 @@ const Procedures = () => {
         </Sheet>
       )}
 
+      {display === "kanban" ? (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="data-table">
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
+          ) : (
+            <ListKanban
+              rows={filtered}
+              config={kanban}
+              options={kanbanOptions}
+              columns={displayColumns}
+              fields={PROCEDURE_VIEW_FIELDS}
+              onOpen={(row) => setSelectedId(row.id)}
+              onMove={moveKanbanCard}
+              titleField="patient"
+            />
+          )}
+        </motion.div>
+      ) : (
+      <>
       {/* Mobile card view */}
       <div className="md:hidden space-y-3">
         {isLoading ? (
@@ -324,6 +364,8 @@ const Procedures = () => {
           </TableBody>
         </Table>
       </motion.div>
+      </>
+      )}
 
       {createOpen && (
         <ProcedureFormDialog open={createOpen} onOpenChange={setCreateOpen} />
@@ -358,6 +400,20 @@ const Procedures = () => {
           contextId={cameraProc.id}
         />
       )}
+
+      <KanbanSettingsDialog
+        open={kanbanOpen}
+        onOpenChange={setKanbanOpen}
+        config={kanban}
+        groupFields={kanbanGroupFields}
+        summaryFields={[]}
+        defaultGroupField="status"
+        onSave={(cfg) => {
+          setKanban(cfg);
+          setKanbanConfig("procedures", activeView?.id ?? ALL_VIEW_ID, cfg);
+          setDisplay("kanban");
+        }}
+      />
 
       <ViewEditorDialog
         open={viewEditorOpen}

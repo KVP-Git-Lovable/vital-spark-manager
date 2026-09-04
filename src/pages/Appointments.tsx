@@ -8,8 +8,11 @@ import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
 import FieldsDisplayDialog from "@/components/listViews/FieldsDisplayDialog";
 import ViewFiltersPanel from "@/components/listViews/ViewFiltersPanel";
+import ListKanban from "@/components/listViews/ListKanban";
+import KanbanSettingsDialog from "@/components/listViews/KanbanSettingsDialog";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
+import { applyFilters as applyListFilters, fieldDefIn, type ListDisplayMode, type ListView } from "@/lib/listViews/engine";
+import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/standardViews";
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, Pin } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
@@ -172,6 +175,11 @@ const Appointments = () => {
   const [viewFieldsOpen, setViewFieldsOpen] = useState(false);
   const [viewFiltersOpen, setViewFiltersOpen] = useState(false);
   const [viewChartsOpen, setViewChartsOpen] = useState(false);
+  // Display mode within the "List" (table) view specifically - table or
+  // kanban. Independent of `view` (Day/Week/Month/List) above.
+  const [tableDisplay, setTableDisplay] = useState<ListDisplayMode>("table");
+  const [kanbanOpen, setKanbanOpen] = useState(false);
+  const [kanban, setKanban] = useState(() => getKanbanConfig("appointments", ALL_VIEW_ID));
   const [currentDate, setCurrentDate] = useState(new Date());
   const [open, setOpen] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
@@ -367,6 +375,36 @@ const Appointments = () => {
       default: return [];
     }
   };
+
+  const kanbanGroupFields = APPOINTMENT_VIEW_FIELDS.filter((f) => f.type === "picklist");
+  const kanbanSummaryFields = APPOINTMENT_VIEW_FIELDS.filter((f) => f.type === "number");
+  const kanbanOptions = viewOptionsFor(fieldDefIn(APPOINTMENT_VIEW_FIELDS, kanban.group_field)?.optionsSource);
+  // Kanban cards keep working off the original appointment rows (so a drag
+  // still triggers the same WhatsApp-notify status-change path the inline
+  // table Select uses) - this resolves the denormalized field keys
+  // (doctor/bill/payment_mode/etc.) from them without remapping the rows.
+  const kanbanRawValue = (row: any, key: string) => (toViewRow(row, pageInvoiceByAppointmentId) as any)[key];
+
+  const moveKanbanCard = (apt: any, field: string, value: string) => {
+    const updates: any = { id: apt.id, [field]: value || null };
+    if (field === "status") {
+      updates.__notify = {
+        phone: apt.patients?.phone || "",
+        patientName: apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : ""),
+        prevStatus: apt.status,
+        newStatus: value,
+        startTime: apt.start_time,
+        doctorName: apt.staff_id ? (staffMap.get(apt.staff_id) || "") : "",
+        serviceName: apt.service || "",
+        patientGender: apt.patients?.gender || null,
+      };
+    }
+    inlineUpdateMutation.mutate(updates);
+  };
+
+  useEffect(() => {
+    setKanban(getKanbanConfig("appointments", activeView?.id ?? ALL_VIEW_ID));
+  }, [activeView?.id]);
 
 
   const { data: services = [] } = useQuery({
@@ -1802,9 +1840,10 @@ const Appointments = () => {
             onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
             onFields={() => setViewFieldsOpen(true)}
             onRefresh={() => queryClient.invalidateQueries({ queryKey: ["appointments"] })}
-            display="table"
-            onDisplayChange={() => {}}
-            showDisplaySwitcher={false}
+            display={tableDisplay}
+            onDisplayChange={setTableDisplay}
+            displayModes={["table", "kanban"]}
+            onKanbanSettings={() => setKanbanOpen(true)}
             count={apptPageData?.total ?? 0}
             search={searchQuery}
             onSearchChange={setSearchQuery}
@@ -2099,6 +2138,20 @@ const Appointments = () => {
                     {isApptPageFetching ? " · loading…" : ""}
                   </span>
                 </div>
+                {tableDisplay === "kanban" ? (
+                  <ListKanban
+                    rows={visibleTableRows}
+                    config={kanban}
+                    options={kanbanOptions}
+                    columns={displayColumns}
+                    fields={APPOINTMENT_VIEW_FIELDS}
+                    rawValue={kanbanRawValue}
+                    onOpen={(row) => setOpenModal("appointmentDetail", row.id)}
+                    onMove={moveKanbanCard}
+                    titleField="patient"
+                  />
+                ) : (
+                <>
                 <table ref={appointmentsTableRef} className="w-full text-sm responsive-table">
                   <thead>
                     <tr className="border-b bg-muted/30">
@@ -2372,6 +2425,8 @@ const Appointments = () => {
                     </Button>
                   </div>
                 </div>
+                </>
+                )}
               </div>
             ) : view === "month" ? (
               /* MONTH VIEW */
@@ -2575,6 +2630,20 @@ const Appointments = () => {
           onComplete={() => setPendingFillNow(null)}
         />
       )}
+
+      <KanbanSettingsDialog
+        open={kanbanOpen}
+        onOpenChange={setKanbanOpen}
+        config={kanban}
+        groupFields={kanbanGroupFields}
+        summaryFields={kanbanSummaryFields}
+        defaultGroupField="status"
+        onSave={(cfg) => {
+          setKanban(cfg);
+          setKanbanConfig("appointments", activeView?.id ?? ALL_VIEW_ID, cfg);
+          setTableDisplay("kanban");
+        }}
+      />
 
       <ViewEditorDialog
         open={viewEditorOpen}

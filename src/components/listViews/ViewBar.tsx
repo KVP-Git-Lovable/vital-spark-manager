@@ -31,7 +31,8 @@ interface Props {
   onDelete: (v: ListView) => void;
   onPin: (v: ListView | null) => void;
   onClone: (v: ListView) => void;
-  onFields: () => void;
+  /** Omit to hide "Select Fields to Display" - for pages with no meaningful column set (e.g. Photos' fixed card layout). */
+  onFields?: () => void;
   onRefresh: () => void;
   display: ListDisplayMode;
   onDisplayChange: (d: ListDisplayMode) => void;
@@ -180,9 +181,11 @@ export default function ViewBar({
                 <Copy className="h-3.5 w-3.5" /> Clone
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem onClick={onFields} className="gap-2">
-              <Columns3 className="h-3.5 w-3.5" /> Select Fields to Display
-            </DropdownMenuItem>
+            {onFields && (
+              <DropdownMenuItem onClick={onFields} className="gap-2">
+                <Columns3 className="h-3.5 w-3.5" /> Select Fields to Display
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               onClick={() => onPin(activeView?.is_default ? null : activeView)}
               className="gap-2"

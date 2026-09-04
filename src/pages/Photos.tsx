@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
-import { Plus, Search, Camera, Image, Trash2, Eye } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Plus, Camera, Image, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -14,6 +13,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -25,6 +34,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
+import { useModuleListViews } from "@/hooks/useModuleListViews";
+import ViewBar from "@/components/listViews/ViewBar";
+import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
+import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
+import { PHOTO_VIEW_FIELDS, DEFAULT_PHOTO_VIEW_COLUMNS } from "@/lib/listViews/photoFields";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -34,6 +48,13 @@ const Photos = () => {
   const [open, setOpen] = useState(false);
   const [viewPhoto, setViewPhoto] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    allViews, userId: viewsUserId, activeView, selectView, saveView, deleteView, pinDefault,
+  } = useModuleListViews("photos", "Photos", DEFAULT_PHOTO_VIEW_COLUMNS);
+  const [viewEditorOpen, setViewEditorOpen] = useState(false);
+  const [editingView, setEditingView] = useState<ListView | null>(null);
+  const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
 
   // Form state
   const [patientId, setPatientId] = useState("");
@@ -68,6 +89,23 @@ const Photos = () => {
       );
     },
   });
+
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-active-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, auth_user_id").eq("is_active", true).order("first_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Saved-view filter builder options for the picklist fields
+  const viewOptionsFor = (source?: string): PickOption[] => {
+    switch (source) {
+      case "photo_type": return [{ value: "before", label: "Before" }, { value: "after", label: "After" }];
+      default: return [];
+    }
+  };
 
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments-list"],
@@ -183,8 +221,26 @@ const Photos = () => {
     );
   });
 
+  // Denormalize a photo into the flat shape PHOTO_VIEW_FIELDS' filter engine reads
+  const toViewRow = (p: any) => ({
+    id: p.id,
+    patient: `${p.patients?.first_name || ""} ${p.patients?.last_name || ""}`.trim(),
+    photo_type: p.photo_type || "",
+    procedure: p.procedures?.service_name || "",
+    notes: p.notes || "",
+    taken_at: p.taken_at,
+  });
+
+  // Apply the active saved view's filters (if any)
+  const viewFiltered = (() => {
+    if (!activeView?.filters?.conditions?.length) return filtered;
+    const denormalized = filtered.map(toViewRow);
+    const kept = new Set(applyListFilters(denormalized, activeView.filters, PHOTO_VIEW_FIELDS).map((r) => r.id));
+    return filtered.filter((p: any) => kept.has(p.id));
+  })();
+
   // Group photos by patient for before/after comparison
-  const groupedByPatient = filtered.reduce((acc: Record<string, any[]>, photo: any) => {
+  const groupedByPatient = viewFiltered.reduce((acc: Record<string, any[]>, photo: any) => {
     const key = photo.patient_id;
     if (!acc[key]) acc[key] = [];
     acc[key].push(photo);
@@ -288,17 +344,32 @@ const Photos = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by patient, date or month..." className="pl-9 bg-card border" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
+      <div className="mb-6">
+        <ViewBar
+          views={allViews}
+          activeView={activeView}
+          currentUserId={viewsUserId}
+          onSelect={selectView}
+          onNew={() => { setEditingView(null); setViewEditorOpen(true); }}
+          onEdit={(v) => { setEditingView(v); setViewEditorOpen(true); }}
+          onDelete={(v) => setDeleteViewTarget(v)}
+          onPin={pinDefault}
+          onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
+          onRefresh={() => queryClient.invalidateQueries({ queryKey: ["patient-photos"] })}
+          display="cards"
+          onDisplayChange={() => {}}
+          showDisplaySwitcher={false}
+          count={viewFiltered.length}
+          search={search}
+          onSearchChange={setSearch}
+          itemLabel="Photos"
+        />
       </div>
 
       {/* Photo Grid */}
       {isLoading ? (
         <p className="text-center py-12 text-muted-foreground">Loading photos...</p>
-      ) : filtered.length === 0 ? (
+      ) : viewFiltered.length === 0 ? (
         <div className="text-center py-16">
           <Camera className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />
           <p className="text-muted-foreground">No photos uploaded yet</p>
@@ -306,7 +377,7 @@ const Photos = () => {
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((photo: any, i: number) => (
+          {viewFiltered.map((photo: any, i: number) => (
             <motion.div
               key={photo.id}
               initial={{ opacity: 0, scale: 0.95 }}
@@ -358,6 +429,42 @@ const Photos = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <ViewEditorDialog
+        open={viewEditorOpen}
+        onOpenChange={setViewEditorOpen}
+        view={editingView}
+        onSave={saveView}
+        fields={PHOTO_VIEW_FIELDS}
+        defaultColumns={DEFAULT_PHOTO_VIEW_COLUMNS}
+        optionsFor={viewOptionsFor}
+        people={staffList
+          .filter((s: any) => s.auth_user_id)
+          .map((s: any) => ({ value: s.auth_user_id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() }))}
+        itemLabel="photos"
+      />
+
+      <AlertDialog open={!!deleteViewTarget} onOpenChange={(o) => { if (!o) setDeleteViewTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteViewTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>This list view will be removed for everyone it is shared with.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteViewTarget) deleteView(deleteViewTarget);
+                setDeleteViewTarget(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

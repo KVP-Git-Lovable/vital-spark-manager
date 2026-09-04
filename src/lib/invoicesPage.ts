@@ -73,13 +73,16 @@ export interface InvoiceStats {
   totalRevenue: number;
   pendingAmount: number;
   partialAmount: number;
+  pendingCount: number;
+  partialCount: number;
 }
 
 /**
- * All-time revenue/pending/partial totals, independent of pagination and
- * filters - fetched separately (only 3 columns, no join) so a failure here
- * never blanks out the main invoice list, and so the cards stay accurate
- * while the user is searching/filtering the table.
+ * All-time revenue/pending/partial totals (and invoice counts), independent
+ * of pagination and filters - fetched separately (only 3 columns, no join)
+ * so a failure here never blanks out the main invoice list, and so the
+ * cards stay accurate while the user is searching/filtering/paging the
+ * table (the loaded `invoices` array is otherwise just the current page).
  */
 export async function fetchInvoiceStats(): Promise<InvoiceStats> {
   const rows = await fetchAll<any>((from, to) =>
@@ -88,12 +91,20 @@ export async function fetchInvoiceStats(): Promise<InvoiceStats> {
   let totalRevenue = 0;
   let pendingAmount = 0;
   let partialAmount = 0;
+  let pendingCount = 0;
+  let partialCount = 0;
   for (const inv of rows) {
     totalRevenue += Number(inv.paid_amount) || 0;
-    if (inv.status === "Pending") pendingAmount += Number(inv.total_amount) || 0;
-    if (inv.status === "Partial") partialAmount += (Number(inv.total_amount) || 0) - (Number(inv.paid_amount) || 0);
+    if (inv.status === "Pending") {
+      pendingAmount += Number(inv.total_amount) || 0;
+      pendingCount++;
+    }
+    if (inv.status === "Partial") {
+      partialAmount += (Number(inv.total_amount) || 0) - (Number(inv.paid_amount) || 0);
+      partialCount++;
+    }
   }
-  return { totalRevenue, pendingAmount, partialAmount };
+  return { totalRevenue, pendingAmount, partialAmount, pendingCount, partialCount };
 }
 
 export async function fetchInvoiceById(id: string): Promise<any | null> {

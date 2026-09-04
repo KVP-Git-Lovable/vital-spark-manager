@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { Loader2, TrendingUp, ChevronDown, ChevronUp, Sparkles, HelpCircle, Calendar, IndianRupee } from "lucide-react";
+import { Loader2, TrendingUp, ChevronDown, ChevronUp, Sparkles, HelpCircle, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 
 interface EngagementData {
   score: number;
@@ -117,16 +115,6 @@ export const EngagementScoreCard = ({ patientId }: { patientId: string }) => {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
 
-  const { data: invoices } = useQuery({
-    queryKey: ['patient-ltv', patientId],
-    queryFn: async () => {
-      const { data } = await supabase.from('invoices').select('total_amount').eq('patient_id', patientId);
-      return data;
-    },
-  });
-
-  const lifetimeValue = invoices?.reduce((sum, inv) => sum + (Number(inv.total_amount) || 0), 0) || 0;
-
   useEffect(() => {
     const fetchScore = async () => {
       try {
@@ -202,13 +190,6 @@ export const EngagementScoreCard = ({ patientId }: { patientId: string }) => {
           <div className="text-center flex-1">
             <p className="text-base font-bold">₹{data.stats.totalBilled >= 1000 ? `${(data.stats.totalBilled / 1000).toFixed(1)}k` : data.stats.totalBilled}</p>
             <p className="text-[10px] text-muted-foreground">Billed</p>
-          </div>
-          <div className="text-center flex-1">
-            <div className="flex items-center justify-center gap-0.5">
-              <IndianRupee className="h-3 w-3 text-muted-foreground" />
-              <p className="text-base font-bold">{lifetimeValue.toLocaleString('en-IN')}</p>
-            </div>
-            <p className="text-[10px] text-muted-foreground">Lifetime Value</p>
           </div>
           <div className="text-center flex-1">
             <div className="flex items-center justify-center gap-0.5">

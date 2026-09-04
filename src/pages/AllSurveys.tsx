@@ -25,6 +25,8 @@ import { approveSurveyResponse } from "@/lib/surveyApproval";
 import { useModuleListViews } from "@/hooks/useModuleListViews";
 import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
+import ViewFiltersPanel from "@/components/listViews/ViewFiltersPanel";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -121,6 +123,7 @@ export default function AllSurveys() {
   const [viewEditorOpen, setViewEditorOpen] = useState(false);
   const [editingView, setEditingView] = useState<ListView | null>(null);
   const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
+  const [viewFiltersOpen, setViewFiltersOpen] = useState(false);
 
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff-active-list"],
@@ -287,12 +290,30 @@ export default function AllSurveys() {
         onRefresh={() => queryClient.invalidateQueries({ queryKey: ["all-survey-responses"] })}
         display="cards"
         onDisplayChange={() => {}}
-        showDisplaySwitcher={false}
+        displayModes={["cards"]}
         count={viewFiltered.length}
         search={search}
         onSearchChange={setSearch}
         itemLabel="Surveys"
+        filtersOpen={viewFiltersOpen}
+        onToggleFilters={() => setViewFiltersOpen((o) => !o)}
       />
+
+      {viewFiltersOpen && (
+        <Sheet open onOpenChange={(o) => { if (!o) setViewFiltersOpen(false); }}>
+          <SheetContent side="right" className="w-full p-0 sm:max-w-md">
+            <ViewFiltersPanel
+              view={activeView}
+              canManage={!!activeView && !activeView.is_standard && activeView.owner_id === viewsUserId}
+              fields={SURVEY_VIEW_FIELDS}
+              optionsFor={viewOptionsFor}
+              onSave={(filters) => { if (activeView) saveView({ ...activeView, filters }); }}
+              onClose={() => setViewFiltersOpen(false)}
+              itemLabel="survey responses"
+            />
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Filter Row */}
       <div className="flex flex-wrap gap-3 items-center p-3 rounded-lg border bg-muted/30">

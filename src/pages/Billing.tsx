@@ -1,6 +1,6 @@
 import { formatMoney } from "@/lib/currency";
 import { useStackedTable } from "@/hooks/useStackedTable";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths, isSameDay } from "date-fns";
 import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown, Stethoscope } from "lucide-react";
@@ -8,8 +8,15 @@ import { useModuleListViews } from "@/hooks/useModuleListViews";
 import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
 import FieldsDisplayDialog from "@/components/listViews/FieldsDisplayDialog";
-import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
+import ViewFiltersPanel from "@/components/listViews/ViewFiltersPanel";
+import ListKanban from "@/components/listViews/ListKanban";
+import KanbanSettingsDialog from "@/components/listViews/KanbanSettingsDialog";
+import { applyFilters as applyListFilters, fieldDefIn, type ListDisplayMode, type ListView } from "@/lib/listViews/engine";
+import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/standardViews";
 import { BILLING_VIEW_FIELDS, DEFAULT_BILLING_VIEW_COLUMNS } from "@/lib/listViews/billingFields";
+
+// Lazy: pulls in recharts, kept out of the main bundle until a user actually opens Charts.
+const ViewChartsPanel = lazy(() => import("@/components/listViews/ViewChartsPanel"));
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -297,12 +304,17 @@ const Billing = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const {
-    allViews, userId: viewsUserId, activeView, selectView, saveView, deleteView, pinDefault, updateStandardColumns,
+    allViews, userId: viewsUserId, activeView, selectView, saveView, saveCharts, deleteView, pinDefault, updateStandardColumns,
   } = useModuleListViews("billing", "Invoices", DEFAULT_BILLING_VIEW_COLUMNS);
   const [viewEditorOpen, setViewEditorOpen] = useState(false);
   const [editingView, setEditingView] = useState<ListView | null>(null);
   const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
   const [viewFieldsOpen, setViewFieldsOpen] = useState(false);
+  const [viewFiltersOpen, setViewFiltersOpen] = useState(false);
+  const [viewChartsOpen, setViewChartsOpen] = useState(false);
+  const [display, setDisplay] = useState<ListDisplayMode>("table");
+  const [kanbanOpen, setKanbanOpen] = useState(false);
+  const [kanban, setKanban] = useState(() => getKanbanConfig("billing", ALL_VIEW_ID));
 
   // Regenerate the official invoice PDF (same template as the WhatsApp copy) and open it.
   const openInvoicePDF = async (inv: any) => {
@@ -602,6 +614,21 @@ const Billing = () => {
       default: return [];
     }
   };
+
+  const kanbanGroupFields = BILLING_VIEW_FIELDS.filter((f) => f.type === "picklist");
+  const kanbanSummaryFields = BILLING_VIEW_FIELDS.filter((f) => f.type === "number");
+  const kanbanOptions = viewOptionsFor(fieldDefIn(BILLING_VIEW_FIELDS, kanban.group_field)?.optionsSource);
+
+  const moveKanbanCard = async (inv: any, field: string, value: string) => {
+    const { error } = await supabase.from("invoices").update({ [field]: value || null } as any).eq("id", inv.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Invoice updated");
+    queryClient.invalidateQueries({ queryKey: ["invoices"] });
+  };
+
+  useEffect(() => {
+    setKanban(getKanbanConfig("billing", activeView?.id ?? ALL_VIEW_ID));
+  }, [activeView?.id]);
 
   // Doctor/patient name are denormalized onto each invoice at creation time
   // and never recomputed - these maps let the UI fall back to a live lookup
@@ -2803,15 +2830,55 @@ const Billing = () => {
           onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
           onFields={() => setViewFieldsOpen(true)}
           onRefresh={() => queryClient.invalidateQueries({ queryKey: ["invoices"] })}
-          display="table"
-          onDisplayChange={() => {}}
-          showDisplaySwitcher={false}
+          display={display}
+          onDisplayChange={setDisplay}
+          displayModes={["table", "kanban"]}
+          onKanbanSettings={() => setKanbanOpen(true)}
           count={viewFiltered.length}
           search={search}
           onSearchChange={setSearch}
           itemLabel="Invoices"
+          chartsOpen={viewChartsOpen}
+          onToggleCharts={() => { setViewChartsOpen((o) => !o); setViewFiltersOpen(false); }}
+          filtersOpen={viewFiltersOpen}
+          onToggleFilters={() => { setViewFiltersOpen((o) => !o); setViewChartsOpen(false); }}
         />
       </div>
+
+      {(viewFiltersOpen || viewChartsOpen) && (
+        <Sheet open onOpenChange={(o) => { if (!o) { setViewFiltersOpen(false); setViewChartsOpen(false); } }}>
+          <SheetContent side="right" className="w-full p-0 sm:max-w-md">
+            {viewFiltersOpen ? (
+              <ViewFiltersPanel
+                view={activeView}
+                canManage={!!activeView && !activeView.is_standard && activeView.owner_id === viewsUserId}
+                fields={BILLING_VIEW_FIELDS}
+                optionsFor={viewOptionsFor}
+                onSave={(filters) => { if (activeView) saveView({ ...activeView, filters }); }}
+                onClose={() => setViewFiltersOpen(false)}
+                itemLabel="invoices"
+              />
+            ) : activeView && !activeView.is_standard ? (
+              <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading charts…</div>}>
+                <ViewChartsPanel
+                  charts={activeView.charts ?? []}
+                  rows={viewFiltered.map(toViewRow)}
+                  canManage={activeView.owner_id === viewsUserId}
+                  onChange={(charts) => saveCharts(activeView.id, charts)}
+                  onClose={() => setViewChartsOpen(false)}
+                  fields={BILLING_VIEW_FIELDS}
+                  itemLabel="Invoices"
+                  defaultGroupField="status"
+                />
+              </Suspense>
+            ) : (
+              <div className="p-4 text-sm text-muted-foreground">
+                Charts are available on custom list views. Create or select a custom view to add charts.
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard title="Total Revenue" value={`₹${totalRevenue.toLocaleString()}`} change="All time" icon={IndianRupee} iconColor="bg-success/10 text-success" />
@@ -2915,6 +2982,19 @@ const Billing = () => {
           </div>
         </div>
 
+        {display === "kanban" ? (
+          <ListKanban
+            rows={pagedInvoices}
+            config={kanban}
+            options={kanbanOptions}
+            columns={displayColumns}
+            fields={BILLING_VIEW_FIELDS}
+            onOpen={(row) => openViewSheet(row)}
+            onMove={moveKanbanCard}
+            titleField="patient_name"
+          />
+        ) : (
+        <>
         <div className="overflow-x-auto table-scroll">
           <table ref={invoiceTableRef} className="w-full responsive-table">
             <thead>
@@ -3012,6 +3092,8 @@ const Billing = () => {
             </div>
           )}
         </div>
+        </>
+        )}
       </motion.div>
 
       {/* Invoice View/Edit — same shell & summary panel as Create Invoice */}
@@ -3302,6 +3384,20 @@ const Billing = () => {
       <AppointmentDetailSheet
         appointmentId={selectedAppointmentId}
         onClose={() => setSelectedAppointmentId(null)}
+      />
+
+      <KanbanSettingsDialog
+        open={kanbanOpen}
+        onOpenChange={setKanbanOpen}
+        config={kanban}
+        groupFields={kanbanGroupFields}
+        summaryFields={kanbanSummaryFields}
+        defaultGroupField="status"
+        onSave={(cfg) => {
+          setKanban(cfg);
+          setKanbanConfig("billing", activeView?.id ?? ALL_VIEW_ID, cfg);
+          setDisplay("kanban");
+        }}
       />
 
       <ViewEditorDialog

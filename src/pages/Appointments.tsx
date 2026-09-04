@@ -3,9 +3,12 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useModal } from "@/hooks/useModal";
-import { useListViews } from "@/hooks/useListViews";
-import { ViewSelector } from "@/components/views/ViewSelector";
-import { NewListViewDialog } from "@/components/views/NewListViewDialog";
+import { useModuleListViews } from "@/hooks/useModuleListViews";
+import ViewBar from "@/components/listViews/ViewBar";
+import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
+import FieldsDisplayDialog from "@/components/listViews/FieldsDisplayDialog";
+import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
+import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, Pin } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
@@ -28,6 +31,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -89,20 +102,6 @@ const DATE_PRESETS = [
   { key: "all", label: "All Dates" },
 ];
 
-// Available fields for list view customization
-const APPOINTMENT_FIELDS = [
-  { value: "start_time", label: "Date" },
-  { value: "time", label: "Time" },
-  { value: "patient", label: "Patient" },
-  { value: "phone", label: "Phone" },
-  { value: "service", label: "Service" },
-  { value: "doctor", label: "Doctor" },
-  { value: "status", label: "Status" },
-  { value: "bill", label: "Bill Amount" },
-  { value: "visit_status", label: "Next Visit" },
-  { value: "payment_mode", label: "Payment Mode" },
-];
-
 const DEFAULT_APPOINTMENT_FIELDS = [
   "start_time",
   "time",
@@ -149,17 +148,22 @@ const Appointments = () => {
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
   const [view, setView] = useState<"week" | "day" | "month" | "table">("table");
 
-  // List views management
+  // List views management (table view only - the calendar keeps its own
+  // doctor/status/date filter bar below, untouched)
   const {
-    views,
-    currentView,
-    selectedViewId,
-    setSelectedViewId,
-    createView,
+    allViews,
+    userId: viewsUserId,
+    activeView,
+    selectView,
+    saveView,
     deleteView,
-    isCreating,
-  } = useListViews("appointments");
-  const [showNewViewDialog, setShowNewViewDialog] = useState(false);
+    pinDefault,
+    updateStandardColumns,
+  } = useModuleListViews("appointments", "Appointments", DEFAULT_APPOINTMENT_VIEW_COLUMNS);
+  const [viewEditorOpen, setViewEditorOpen] = useState(false);
+  const [editingView, setEditingView] = useState<ListView | null>(null);
+  const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
+  const [viewFieldsOpen, setViewFieldsOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [open, setOpen] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
@@ -244,13 +248,16 @@ const Appointments = () => {
   const [sortColumn, setSortColumn] = useState<string>("start_time");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  // Apply view's sorting when view is selected
+  // Apply a custom saved view's sorting when one is selected. The standard
+  // "All"/"Recently Viewed" views default sort_field to "created_at" -
+  // ignored here so the table's default order (start_time/asc) is unchanged
+  // when no custom view is active.
   useEffect(() => {
-    if (currentView) {
-      setSortColumn(currentView.sort_by || "start_time");
-      setSortDirection(currentView.sort_direction || "asc");
+    if (activeView && !activeView.is_standard) {
+      setSortColumn(activeView.sort_field || "start_time");
+      setSortDirection(activeView.sort_dir || "asc");
     }
-  }, [currentView?.id]);
+  }, [activeView?.id]);
 
   // Inline edit state
   const [editingRow, setEditingRow] = useState<string | null>(null);
@@ -329,7 +336,7 @@ const Appointments = () => {
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, specialization").eq("is_active", true).order("first_name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, specialization, auth_user_id").eq("is_active", true).order("first_name");
       if (error) throw error;
       return data;
     },
@@ -338,6 +345,20 @@ const Appointments = () => {
   const doctorsList = useMemo(() => (staffList as any[]).filter((s: any) => (s.role || "").toLowerCase() === "doctor"), [staffList]);
   // Other active staff (nurse, therapist, etc.) can also be assigned to an appointment
   const otherStaffList = useMemo(() => (staffList as any[]).filter((s: any) => (s.role || "").toLowerCase() !== "doctor"), [staffList]);
+
+  // Saved-view filter builder options for the picklist fields
+  const viewDoctorOptions: PickOption[] = useMemo(
+    () => doctorsList.map((d: any) => ({ value: d.id, label: `${d.first_name || ""} ${d.last_name || ""}`.trim() })),
+    [doctorsList]
+  );
+  const viewOptionsFor = (source?: string): PickOption[] => {
+    switch (source) {
+      case "doctor": return viewDoctorOptions;
+      case "status": return statusOptions.map((s) => ({ value: s, label: s }));
+      case "visit_status": return visitStatusOptions.map((s) => ({ value: s, label: s }));
+      default: return [];
+    }
+  };
 
 
   const { data: services = [] } = useQuery({
@@ -493,7 +514,7 @@ const Appointments = () => {
   // Reset to page 1 whenever any input that reshapes the result set changes
   useEffect(() => {
     setApptPage(1);
-  }, [datePreset, appointmentsDateRange?.start?.toISOString(), appointmentsDateRange?.end?.toISOString(), sortedFilterDoctors.join(","), filterStatus, filterVisitStatus, debouncedSearchQuery, sortColumn, sortDirection, currentView?.id]);
+  }, [datePreset, appointmentsDateRange?.start?.toISOString(), appointmentsDateRange?.end?.toISOString(), sortedFilterDoctors.join(","), filterStatus, filterVisitStatus, debouncedSearchQuery, sortColumn, sortDirection, activeView?.id]);
 
   // Build a staff lookup map
   const staffMap = useMemo(() => {
@@ -503,9 +524,10 @@ const Appointments = () => {
   }, [staffList]);
 
   // Fetch invoices for bill amount - used by the Day/Week/Month calendar
-  // views (via filteredAppointments/getFieldValue), which still work off the
-  // full date-bounded appointments set, so this stays a full fetch too, just
-  // skipped while on the List/table view (see pageInvoiceByAppointmentId).
+  // views (via filteredAppointments/applyViewFilters/toViewRow), which still
+  // work off the full date-bounded appointments set, so this stays a full
+  // fetch too, just skipped while on the List/table view (see
+  // pageInvoiceByAppointmentId).
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices-for-appointments"],
     queryFn: async () => {
@@ -563,49 +585,36 @@ const Appointments = () => {
     return DATE_PRESETS.find((p) => p.key === datePreset)?.label || "All Dates";
   })();
 
-  // Apply view filters. `invMap` lets callers pass a scoped invoice lookup
-  // (the table view only fetches invoices for its current page, per the
-  // "bill amount is page-scoped, not fetched full-table anymore" tradeoff).
+  // Denormalize an appointment (+ its invoice) into the flat shape
+  // APPOINTMENT_VIEW_FIELDS' filter/sort engine reads. `invMap` lets callers
+  // pass a scoped invoice lookup (the table view only fetches invoices for
+  // its current page, per the "bill amount is page-scoped" tradeoff).
+  const toViewRow = (apt: any, invMap: Map<string, any>) => {
+    const inv = invMap.get(apt.id);
+    return {
+      id: apt.id,
+      start_time: apt.start_time,
+      time: format(new Date(apt.start_time), "h:mm a"),
+      patient: apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : ""),
+      phone: apt.patients?.phone || "",
+      service: apt.service || "",
+      doctor: apt.staff_id || "",
+      status: apt.status || "",
+      visit_status: apt.visit_status || "",
+      bill: inv?.total_amount || 0,
+      payment_mode: inv?.payment_mode || "",
+    };
+  };
+
+  // Apply the active saved view's filters (if any). Keeps the same call
+  // signature/sites as before so both calendar and table rows are filtered
+  // exactly as they were pre-migration - only the underlying engine and its
+  // (richer, multi-condition) filter UI changed.
   const applyViewFilters = (items: any[], invMap: Map<string, any> = invoiceByAppointmentId) => {
-    if (!currentView?.filters || currentView.filters.length === 0) return items;
-    return items.filter((apt) => {
-      return currentView.filters.every((filter) => {
-        const fieldValue = getFieldValue(apt, filter.field, invMap);
-        return applyFilterCondition(fieldValue, filter.operator, filter.value);
-      });
-    });
-  };
-
-  const getFieldValue = (apt: any, field: string, invMap: Map<string, any> = invoiceByAppointmentId) => {
-    switch (field) {
-      case "start_time": return new Date(apt.start_time).toLocaleDateString();
-      case "time": return format(new Date(apt.start_time), "h:mm a");
-      case "patient": return apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
-      case "phone": return apt.patients?.phone || "";
-      case "service": return apt.service || "";
-      case "doctor": return staffMap.get(apt.staff_id) || "";
-      case "status": return apt.status || "";
-      case "bill": return invMap.get(apt.id)?.total_amount || 0;
-      case "visit_status": return apt.visit_status || "";
-      case "payment_mode": return invMap.get(apt.id)?.payment_mode || "";
-      default: return "";
-    }
-  };
-
-  const applyFilterCondition = (value: any, operator: string, filterValue: any) => {
-    const val = String(value).toLowerCase();
-    const fval = String(filterValue).toLowerCase();
-    switch (operator) {
-      case "equals": return val === fval;
-      case "contains": return val.includes(fval);
-      case "starts_with": return val.startsWith(fval);
-      case "ends_with": return val.endsWith(fval);
-      case "greater_than": return Number(value) > Number(filterValue);
-      case "less_than": return Number(value) < Number(filterValue);
-      case "is_empty": return !value || value === "";
-      case "is_not_empty": return value && value !== "";
-      default: return true;
-    }
+    if (!activeView?.filters?.conditions?.length) return items;
+    const denormalized = items.map((apt) => toViewRow(apt, invMap));
+    const kept = new Set(applyListFilters(denormalized, activeView.filters, APPOINTMENT_VIEW_FIELDS).map((r) => r.id));
+    return items.filter((apt) => kept.has(apt.id));
   };
 
   // Filtered appointments
@@ -642,7 +651,7 @@ const Appointments = () => {
   const apptPageRows = apptPageData?.rows ?? [];
   const visibleTableRows = useMemo(
     () => applyViewFilters(apptPageRows, pageInvoiceByAppointmentId),
-    [apptPageRows, currentView, pageInvoiceByAppointmentId]
+    [apptPageRows, activeView, pageInvoiceByAppointmentId]
   );
 
   // Patient display pictures for quick recognition in the appointment list
@@ -684,15 +693,8 @@ const Appointments = () => {
     scrollMargin: tableScrollMargin,
   });
 
-  // Get columns to display based on current view or default
-  const getDisplayColumns = () => {
-    if (currentView?.display_fields && currentView.display_fields.length > 0) {
-      return currentView.display_fields;
-    }
-    return DEFAULT_APPOINTMENT_FIELDS;
-  };
-
-  const displayColumns = getDisplayColumns();
+  // Get columns to display based on active saved view or default
+  const displayColumns = activeView?.columns?.length ? activeView.columns : DEFAULT_APPOINTMENT_FIELDS;
 
   // Check if a column should be displayed
   const shouldShowColumn = (column: string) => displayColumns.includes(column);
@@ -1332,16 +1334,6 @@ const Appointments = () => {
             <Button variant={view === "month" ? "default" : "ghost"} size="sm" onClick={() => setView("month")} className="text-xs h-7 md:h-8 px-2 md:px-3">Month</Button>
             <Button variant={view === "table" ? "default" : "ghost"} size="sm" onClick={() => setView("table")} className="text-xs h-7 md:h-8 px-2 md:px-3 gap-1"><List className="h-3 w-3" />List</Button>
           </div>
-          {view === "table" && (
-            <ViewSelector
-              views={views}
-              selectedViewId={selectedViewId}
-              onSelectView={setSelectedViewId}
-              onCreateView={() => setShowNewViewDialog(true)}
-              onDeleteView={deleteView}
-              currentViewName={currentView?.name}
-            />
-          )}
           <Button
             variant="outline"
             size="icon"
@@ -1787,6 +1779,31 @@ const Appointments = () => {
           </Dialog>
         </div>
       </div>
+
+      {view === "table" && (
+        <div className="mb-4">
+          <ViewBar
+            views={allViews}
+            activeView={activeView}
+            currentUserId={viewsUserId}
+            onSelect={selectView}
+            onNew={() => { setEditingView(null); setViewEditorOpen(true); }}
+            onEdit={(v) => { setEditingView(v); setViewEditorOpen(true); }}
+            onDelete={(v) => setDeleteViewTarget(v)}
+            onPin={pinDefault}
+            onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
+            onFields={() => setViewFieldsOpen(true)}
+            onRefresh={() => queryClient.invalidateQueries({ queryKey: ["appointments"] })}
+            display="table"
+            onDisplayChange={() => {}}
+            showDisplaySwitcher={false}
+            count={apptPageData?.total ?? 0}
+            search={searchQuery}
+            onSearchChange={setSearchQuery}
+            itemLabel="Appointments"
+          />
+        </div>
+      )}
 
       {/* Collapsible Filters Bar */}
       <div className={showFilters ? "mb-4" : ""}>
@@ -2512,23 +2529,55 @@ const Appointments = () => {
         />
       )}
 
-      <NewListViewDialog
-        open={showNewViewDialog}
-        onOpenChange={setShowNewViewDialog}
-        section="appointments"
-        availableFields={APPOINTMENT_FIELDS}
-        defaultFields={DEFAULT_APPOINTMENT_FIELDS}
-        onCreate={createView}
-        isLoading={isCreating}
-        teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
-        fieldOptions={{
-          doctor: doctorsList.map((d: any) => ({ value: d.id, label: `${d.first_name} ${d.last_name}` })),
-          service: services.map((s: any) => ({ value: s.id, label: s.name })),
-          patient: patients.map((p: any) => ({ value: p.id, label: `${p.first_name} ${p.last_name}` })),
-          status: ["Reserved", "Confirmed", "Cancelled"].map((s) => ({ value: s, label: s })),
-          visit_status: ["Follow-up visit", "Recurring visit"].map((s) => ({ value: s, label: s })),
-        }}
+      <ViewEditorDialog
+        open={viewEditorOpen}
+        onOpenChange={setViewEditorOpen}
+        view={editingView}
+        onSave={saveView}
+        fields={APPOINTMENT_VIEW_FIELDS}
+        defaultColumns={DEFAULT_APPOINTMENT_VIEW_COLUMNS}
+        optionsFor={viewOptionsFor}
+        people={staffList
+          .filter((s: any) => s.auth_user_id)
+          .map((s: any) => ({ value: s.auth_user_id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() }))}
+        itemLabel="appointments"
       />
+
+      <FieldsDisplayDialog
+        open={viewFieldsOpen}
+        onOpenChange={setViewFieldsOpen}
+        viewName={activeView?.name ?? "All Appointments"}
+        columns={displayColumns}
+        onSave={(cols) => {
+          if (!activeView) return;
+          if (activeView.is_standard) updateStandardColumns(activeView.id, cols);
+          else saveView({ ...activeView, columns: cols });
+        }}
+        fields={APPOINTMENT_VIEW_FIELDS}
+        defaultColumns={DEFAULT_APPOINTMENT_VIEW_COLUMNS}
+      />
+
+      <AlertDialog open={!!deleteViewTarget} onOpenChange={(o) => { if (!o) setDeleteViewTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteViewTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>This list view will be removed for everyone it is shared with.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteViewTarget) deleteView(deleteViewTarget);
+                setDeleteViewTarget(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

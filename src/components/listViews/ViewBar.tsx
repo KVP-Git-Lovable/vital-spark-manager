@@ -35,7 +35,9 @@ interface Props {
   onRefresh: () => void;
   display: ListDisplayMode;
   onDisplayChange: (d: ListDisplayMode) => void;
-  onKanbanSettings: () => void;
+  onKanbanSettings?: () => void;
+  /** Hide the "Display As" switcher entirely - for pages (like Appointments) that already have their own view toggle. Defaults to true. */
+  showDisplaySwitcher?: boolean;
   count: number;
   search: string;
   onSearchChange: (v: string) => void;
@@ -80,13 +82,14 @@ export default function ViewBar({
   onToggleFilters,
   itemLabel = "Patients",
   displayModes,
+  showDisplaySwitcher = true,
 }: Props) {
   const isStandard = !!activeView?.is_standard;
   const canManage = !!activeView && !isStandard && activeView.owner_id === currentUserId;
   const standardViews = views.filter((v) => v.is_standard);
   const savedViews = views.filter((v) => !v.is_standard);
   const displayOptions = ALL_DISPLAY_OPTIONS.filter((o) => !displayModes || displayModes.includes(o.value));
-  const supportsKanban = displayOptions.some((o) => o.value === "kanban");
+  const supportsKanban = showDisplaySwitcher && displayOptions.some((o) => o.value === "kanban");
   const CurrentIcon = displayOptions.find((d) => d.value === display)?.icon ?? Table2;
 
   return (
@@ -187,7 +190,7 @@ export default function ViewBar({
               {activeView?.is_default ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
               {activeView?.is_default ? "Unpin default view" : "Pin as default"}
             </DropdownMenuItem>
-            {supportsKanban && (
+            {supportsKanban && onKanbanSettings && (
               <DropdownMenuItem onClick={onKanbanSettings} className="gap-2">
                 <Kanban className="h-3.5 w-3.5" /> Kanban Settings
               </DropdownMenuItem>
@@ -207,26 +210,28 @@ export default function ViewBar({
         </DropdownMenu>
 
         {/* Display mode */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5" title="Display as">
-              <CurrentIcon className="h-4 w-4" />
-              <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="z-50 w-44 bg-popover">
-            <DropdownMenuLabel className="text-xs">Display As</DropdownMenuLabel>
-            {displayOptions.map((o) => (
-              <DropdownMenuItem key={o.value} onClick={() => onDisplayChange(o.value)} className="gap-2">
-                <o.icon className="h-3.5 w-3.5" />
-                <span className="flex-1">{o.label}</span>
-                {display === o.value && <span className="text-xs text-primary">✓</span>}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {showDisplaySwitcher && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-1.5 px-2.5" title="Display as">
+                <CurrentIcon className="h-4 w-4" />
+                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-50 w-44 bg-popover">
+              <DropdownMenuLabel className="text-xs">Display As</DropdownMenuLabel>
+              {displayOptions.map((o) => (
+                <DropdownMenuItem key={o.value} onClick={() => onDisplayChange(o.value)} className="gap-2">
+                  <o.icon className="h-3.5 w-3.5" />
+                  <span className="flex-1">{o.label}</span>
+                  {display === o.value && <span className="text-xs text-primary">✓</span>}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
-        {supportsKanban && display === "kanban" && (
+        {supportsKanban && display === "kanban" && onKanbanSettings && (
           <Button variant="outline" size="icon" className="h-9 w-9" title="Kanban settings" onClick={onKanbanSettings}>
             <Kanban className="h-4 w-4" />
           </Button>

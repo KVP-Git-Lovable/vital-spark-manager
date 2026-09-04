@@ -4,9 +4,12 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths, isSameDay } from "date-fns";
 import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown, Stethoscope } from "lucide-react";
-import { ViewSelector } from "@/components/views/ViewSelector";
-import { NewListViewDialog } from "@/components/views/NewListViewDialog";
-import { useListViews } from "@/hooks/useListViews";
+import { useModuleListViews } from "@/hooks/useModuleListViews";
+import ViewBar from "@/components/listViews/ViewBar";
+import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
+import FieldsDisplayDialog from "@/components/listViews/FieldsDisplayDialog";
+import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
+import { BILLING_VIEW_FIELDS, DEFAULT_BILLING_VIEW_COLUMNS } from "@/lib/listViews/billingFields";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -24,6 +27,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -282,9 +295,14 @@ const Billing = () => {
   const invoiceTableRef = useStackedTable<HTMLTableElement>();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [showNewViewDialog, setShowNewViewDialog] = useState(false);
 
-  const { views, currentView, selectedViewId, setSelectedViewId, createView, deleteView, isCreating } = useListViews("billing");
+  const {
+    allViews, userId: viewsUserId, activeView, selectView, saveView, deleteView, pinDefault, updateStandardColumns,
+  } = useModuleListViews("billing", "Invoices", DEFAULT_BILLING_VIEW_COLUMNS);
+  const [viewEditorOpen, setViewEditorOpen] = useState(false);
+  const [editingView, setEditingView] = useState<ListView | null>(null);
+  const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
+  const [viewFieldsOpen, setViewFieldsOpen] = useState(false);
 
   // Regenerate the official invoice PDF (same template as the WhatsApp copy) and open it.
   const openInvoicePDF = async (inv: any) => {
@@ -337,7 +355,7 @@ const Billing = () => {
   // invoices match, so the current page number no longer means anything.
   useEffect(() => {
     setPage(1);
-  }, [search, filterDateFrom, filterDateTo, filterDoctor, filterService, filterType, filterStatus, selectedViewId]);
+  }, [search, filterDateFrom, filterDateTo, filterDoctor, filterService, filterType, filterStatus, activeView?.id]);
 
   // Form state
   const [patientId, setPatientId] = useState("");
@@ -570,11 +588,20 @@ const Billing = () => {
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("id, first_name, last_name").eq("is_active", true).order("first_name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, auth_user_id").eq("is_active", true).order("first_name");
       if (error) throw error;
       return data;
     },
   });
+
+  // Saved-view filter builder options for the picklist fields
+  const viewOptionsFor = (source?: string): PickOption[] => {
+    switch (source) {
+      case "status": return ["Paid", "Partial", "Pending"].map((s) => ({ value: s, label: s }));
+      case "payment_mode": return ["Cash", "Card", "Online Transfer", "Cheque"].map((s) => ({ value: s, label: s }));
+      default: return [];
+    }
+  };
 
   // Doctor/patient name are denormalized onto each invoice at creation time
   // and never recomputed - these maps let the UI fall back to a live lookup
@@ -1897,28 +1924,31 @@ const Billing = () => {
     });
   };
 
-  // Get columns to display based on current view or default
-  const getDisplayColumns = () => {
-    if (currentView?.display_fields && currentView.display_fields.length > 0) {
-      return currentView.display_fields;
-    }
-    return DEFAULT_BILLING_FIELDS;
-  };
-
-  const displayColumns = getDisplayColumns();
+  // Get columns to display based on active saved view or default
+  const displayColumns = activeView?.columns?.length ? activeView.columns : DEFAULT_BILLING_FIELDS;
 
   // Check if a column should be displayed
   const shouldShowColumn = (column: string) => displayColumns.includes(column);
 
-  // Apply view filters
+  // Denormalize an invoice into the flat shape BILLING_VIEW_FIELDS' filter
+  // engine reads.
+  const toViewRow = (inv: any) => ({
+    id: inv.id,
+    invoice_number: inv.invoice_number || "",
+    patient_name: getPatientName(inv, patientById),
+    total_amount: Number(inv.total_amount) || 0,
+    paid_amount: Number(inv.paid_amount) || 0,
+    status: inv.status || "",
+    payment_mode: inv.payment_mode || "",
+    created_at: inv.created_at,
+  });
+
+  // Apply the active saved view's filters (if any)
   function applyViewFilters(items: any[]) {
-    if (!currentView?.filters || currentView.filters.length === 0) return items;
-    return items.filter((inv) => {
-      return currentView.filters.every((filter) => {
-        const fieldValue = getFieldValue(inv, filter.field);
-        return applyFilterCondition(fieldValue, filter.operator, filter.value);
-      });
-    });
+    if (!activeView?.filters?.conditions?.length) return items;
+    const denormalized = items.map(toViewRow);
+    const kept = new Set(applyListFilters(denormalized, activeView.filters, BILLING_VIEW_FIELDS).map((r) => r.id));
+    return items.filter((inv) => kept.has(inv.id));
   }
 
   function getFieldValue(inv: any, field: string) {
@@ -1967,14 +1997,6 @@ const Billing = () => {
           <p className="page-subtitle">Manage invoices and payments</p>
         </div>
         <div className="flex gap-2 w-fit flex-wrap">
-          <ViewSelector
-            views={views}
-            selectedViewId={selectedViewId}
-            onSelectView={setSelectedViewId}
-            onCreateView={() => setShowNewViewDialog(true)}
-            onDeleteView={deleteView}
-            currentViewName={currentView?.name}
-          />
           <SalesforceSyncButton />
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setInvoiceSeq(Date.now().toString().slice(-6)); }}>
             <DialogTrigger asChild>
@@ -2768,6 +2790,29 @@ const Billing = () => {
         </DialogContent>
       </Dialog>
 
+      <div className="mb-4">
+        <ViewBar
+          views={allViews}
+          activeView={activeView}
+          currentUserId={viewsUserId}
+          onSelect={selectView}
+          onNew={() => { setEditingView(null); setViewEditorOpen(true); }}
+          onEdit={(v) => { setEditingView(v); setViewEditorOpen(true); }}
+          onDelete={(v) => setDeleteViewTarget(v)}
+          onPin={pinDefault}
+          onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
+          onFields={() => setViewFieldsOpen(true)}
+          onRefresh={() => queryClient.invalidateQueries({ queryKey: ["invoices"] })}
+          display="table"
+          onDisplayChange={() => {}}
+          showDisplaySwitcher={false}
+          count={viewFiltered.length}
+          search={search}
+          onSearchChange={setSearch}
+          itemLabel="Invoices"
+        />
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard title="Total Revenue" value={`₹${totalRevenue.toLocaleString()}`} change="All time" icon={IndianRupee} iconColor="bg-success/10 text-success" />
         <StatCard title="Pending" value={`₹${pendingAmount.toLocaleString()}`} change={`${invoices.filter((i: any) => i.status === "Pending").length} invoice(s)`} icon={IndianRupee} iconColor="bg-destructive/10 text-destructive" delay={0.05} />
@@ -3259,20 +3304,55 @@ const Billing = () => {
         onClose={() => setSelectedAppointmentId(null)}
       />
 
-      <NewListViewDialog
-        open={showNewViewDialog}
-        onOpenChange={setShowNewViewDialog}
-        section="billing"
-        availableFields={BILLING_FIELDS}
-        defaultFields={DEFAULT_BILLING_FIELDS}
-        onCreate={createView}
-        isLoading={isCreating}
-        teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
-        fieldOptions={{
-          status: ["Paid", "Partial", "Pending"].map((s) => ({ value: s, label: s })),
-          payment_mode: ["Cash", "Card", "Online Transfer", "Cheque"].map((s) => ({ value: s, label: s })),
-        }}
+      <ViewEditorDialog
+        open={viewEditorOpen}
+        onOpenChange={setViewEditorOpen}
+        view={editingView}
+        onSave={saveView}
+        fields={BILLING_VIEW_FIELDS}
+        defaultColumns={DEFAULT_BILLING_VIEW_COLUMNS}
+        optionsFor={viewOptionsFor}
+        people={staffList
+          .filter((s: any) => s.auth_user_id)
+          .map((s: any) => ({ value: s.auth_user_id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() }))}
+        itemLabel="invoices"
       />
+
+      <FieldsDisplayDialog
+        open={viewFieldsOpen}
+        onOpenChange={setViewFieldsOpen}
+        viewName={activeView?.name ?? "All Invoices"}
+        columns={displayColumns}
+        onSave={(cols) => {
+          if (!activeView) return;
+          if (activeView.is_standard) updateStandardColumns(activeView.id, cols);
+          else saveView({ ...activeView, columns: cols });
+        }}
+        fields={BILLING_VIEW_FIELDS}
+        defaultColumns={DEFAULT_BILLING_VIEW_COLUMNS}
+      />
+
+      <AlertDialog open={!!deleteViewTarget} onOpenChange={(o) => { if (!o) setDeleteViewTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteViewTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>This list view will be removed for everyone it is shared with.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteViewTarget) deleteView(deleteViewTarget);
+                setDeleteViewTarget(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

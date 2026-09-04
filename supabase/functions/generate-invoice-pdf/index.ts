@@ -179,21 +179,34 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
     };
 
     let doctorName = "";
+    let apptServiceName = "";
     // Prefer the doctor explicitly chosen on the invoice; fall back to appointment staff.
     if (inv.doctor_id) {
       const { data: st } = await supabase
         .from("staff").select("first_name, last_name").eq("id", inv.doctor_id).maybeSingle();
       if (st) doctorName = formatDoctor(st.first_name, st.last_name);
     }
-    if (!doctorName && inv.appointment_id) {
+    // Fetched whenever there's a linked appointment (not only when doctorName
+    // still needs resolving) - its service name is also the fallback used
+    // below for a line item saved with just the generic "Service" placeholder.
+    if (inv.appointment_id) {
       const { data: appt } = await supabase
-        .from("appointments").select("staff_id").eq("id", inv.appointment_id).maybeSingle();
-      if (appt?.staff_id) {
+        .from("appointments").select("staff_id, service").eq("id", inv.appointment_id).maybeSingle();
+      apptServiceName = appt?.service || "";
+      if (!doctorName && appt?.staff_id) {
         const { data: st } = await supabase
           .from("staff").select("first_name, last_name").eq("id", appt.staff_id).maybeSingle();
         if (st) doctorName = formatDoctor(st.first_name, st.last_name);
       }
     }
+    // Older Salesforce imports (and the earlier line_items backfill run
+    // before this fix existed) can store a literal "Service" placeholder
+    // name on a line item - prefer the linked appointment's real service
+    // name over that placeholder, same fallback the frontend uses.
+    const resolveItemName = (raw: string) => {
+      const name = String(raw || "").trim();
+      return name && name !== "Service" ? name : apptServiceName || "Service";
+    };
 
     const sameState = (clinic?.state || "").trim().toLowerCase() === (patient?.state || "").trim().toLowerCase() && (clinic?.state || "");
 
@@ -258,7 +271,7 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
 
     if (Array.isArray(inv.line_items) && inv.line_items.length > 0) {
       lineItems = (inv.line_items as any[]).map((it: any) =>
-        makeRow(it.name, Number(it.qty) || 1, Number(it.price) || 0, it.hsn || "", Number(it.gst) || 0),
+        makeRow(resolveItemName(it.name), Number(it.qty) || 1, Number(it.price) || 0, it.hsn || "", Number(it.gst) || 0),
       );
 
     } else {
@@ -267,8 +280,8 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       const parsed = rawServices.map((s) => {
         const str = String(s).trim();
         const m = str.match(/^(.*?)\s+x(\d+(?:\.\d+)?)$/i);
-        if (m) return { name: m[1].trim(), qty: Number(m[2]) || 1 };
-        return { name: str, qty: 1 };
+        if (m) return { name: resolveItemName(m[1]), qty: Number(m[2]) || 1 };
+        return { name: resolveItemName(str), qty: 1 };
       });
       lineItems = await buildFromRefs(parsed);
     }

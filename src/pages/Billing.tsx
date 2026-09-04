@@ -134,7 +134,13 @@ const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
     const hsn = it.hsn || "";
     // Fall back to the Tax Master rate for this HSN when the line has no GST snapshot.
     const gst = Number(it.gst) || hsnRateCache[String(hsn).trim()] || 0;
-    return { name: it.name || "—", hsn, qty, price, amount, gst, tax: (amount * gst) / 100, total: 0 };
+    // A saved line_items snapshot can itself carry the same literal
+    // "Service" placeholder displayServices() guards against (e.g. a
+    // Salesforce import saved before that fix existed) - resolve it here
+    // too, not just when synthesizing fallback rows from scratch.
+    const rawName = it.name || "";
+    const name = rawName && rawName !== "Service" ? rawName : inv?.appointments?.service || "Service";
+    return { name, hsn, qty, price, amount, gst, tax: (amount * gst) / 100, total: 0 };
   });
 
   const taxSum = rows.reduce((s, r) => s + r.tax, 0);

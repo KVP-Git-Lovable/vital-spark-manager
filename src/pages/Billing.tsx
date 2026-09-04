@@ -3251,6 +3251,36 @@ const Billing = () => {
                             <td className="px-3 py-2 text-right font-medium">{formatMoney(r.total)}</td>
                           </tr>
                         ))}
+                        {/* Tax breakdown - shown as its own row(s) right above Total,
+                            not a separate box further down the page. */}
+                        {Number(viewInvoice.cgst_amount) > 0 && (
+                          <tr className="border-t text-muted-foreground">
+                            <td className="px-3 py-1.5" colSpan={6}>CGST</td>
+                            <td className="px-3 py-1.5 text-right">{formatMoney(Number(viewInvoice.cgst_amount))}</td>
+                            <td className="px-3 py-1.5" />
+                          </tr>
+                        )}
+                        {Number(viewInvoice.sgst_amount) > 0 && (
+                          <tr className="border-t text-muted-foreground">
+                            <td className="px-3 py-1.5" colSpan={6}>SGST</td>
+                            <td className="px-3 py-1.5 text-right">{formatMoney(Number(viewInvoice.sgst_amount))}</td>
+                            <td className="px-3 py-1.5" />
+                          </tr>
+                        )}
+                        {Number(viewInvoice.igst_amount) > 0 && (
+                          <tr className="border-t text-muted-foreground">
+                            <td className="px-3 py-1.5" colSpan={6}>IGST</td>
+                            <td className="px-3 py-1.5 text-right">{formatMoney(Number(viewInvoice.igst_amount))}</td>
+                            <td className="px-3 py-1.5" />
+                          </tr>
+                        )}
+                        {!Number(viewInvoice.cgst_amount) && !Number(viewInvoice.sgst_amount) && !Number(viewInvoice.igst_amount) && viewInvoice.tax_rate > 0 && (
+                          <tr className="border-t text-muted-foreground">
+                            <td className="px-3 py-1.5" colSpan={6}>Tax ({viewInvoice.tax_rate}%)</td>
+                            <td className="px-3 py-1.5 text-right">{formatMoney(Math.round(t.tax))}</td>
+                            <td className="px-3 py-1.5" />
+                          </tr>
+                        )}
                         <tr className="border-t bg-muted/40 font-semibold">
                           <td className="px-3 py-2" colSpan={4}>Total</td>
                           <td className="px-3 py-2 text-right">{formatMoney(t.amount)}</td>
@@ -3263,27 +3293,6 @@ const Billing = () => {
                   </div>
                 );
               })()}
-
-              {/* Tax breakdown (totals live in the summary panel) */}
-              <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
-                {Number(viewInvoice.cgst_amount) > 0 && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">CGST</span><span>₹{Number(viewInvoice.cgst_amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                )}
-                {Number(viewInvoice.sgst_amount) > 0 && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">SGST</span><span>₹{Number(viewInvoice.sgst_amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                )}
-                {Number(viewInvoice.igst_amount) > 0 && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{Number(viewInvoice.igst_amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
-                )}
-                {!Number(viewInvoice.cgst_amount) && !Number(viewInvoice.sgst_amount) && !Number(viewInvoice.igst_amount) && viewInvoice.tax_rate > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tax ({viewInvoice.tax_rate}%)</span>
-                    {/* Derived the same way as the line-items table below, not the raw
-                        (possibly unset/stale) tax_amount field, so the two stay consistent. */}
-                    <span>₹{Math.round(invoiceLineRows(viewInvoice).reduce((s, r) => s + r.tax, 0)).toLocaleString()}</span>
-                  </div>
-                )}
-              </div>
 
               {viewInvoice.notes && (
                 <div className="bg-muted/30 rounded-lg p-3 text-sm">

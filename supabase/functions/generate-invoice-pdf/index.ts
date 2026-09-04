@@ -208,7 +208,16 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       return name && name !== "Service" ? name : apptServiceName || "Service";
     };
 
-    const sameState = (clinic?.state || "").trim().toLowerCase() === (patient?.state || "").trim().toLowerCase() && (clinic?.state || "");
+    // Prefer the invoice's own stored CGST/SGST/IGST split (the same one the
+    // in-app Invoice Details modal reads directly) over recomputing from
+    // patient/clinic state - a blank patient.state would otherwise fall
+    // through to "different state" (all-IGST) even when the invoice's
+    // actual stored split is an intra-state 50/50 CGST+SGST, showing
+    // 0.00%/0.00% here while the app correctly shows a non-zero split.
+    const invHasStoredSplit = Number(inv.cgst_amount) > 0 || Number(inv.sgst_amount) > 0 || Number(inv.igst_amount) > 0;
+    const sameState = invHasStoredSplit
+      ? Number(inv.igst_amount) <= 0
+      : (clinic?.state || "").trim().toLowerCase() === (patient?.state || "").trim().toLowerCase() && (clinic?.state || "");
 
     // ── Active HSN rates from the Tax Master ──
     const { data: hsnRows } = await supabase

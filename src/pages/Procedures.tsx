@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Plus, Camera, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,8 +17,12 @@ import { useModuleListViews } from "@/hooks/useModuleListViews";
 import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
 import FieldsDisplayDialog from "@/components/listViews/FieldsDisplayDialog";
+import ViewFiltersPanel from "@/components/listViews/ViewFiltersPanel";
 import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
 import { PROCEDURE_VIEW_FIELDS, DEFAULT_PROCEDURE_VIEW_COLUMNS } from "@/lib/listViews/procedureFields";
+
+// Lazy: pulls in recharts, kept out of the main bundle until a user actually opens Charts.
+const ViewChartsPanel = lazy(() => import("@/components/listViews/ViewChartsPanel"));
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
 import { withDrPrefix } from "@/lib/staffName";
@@ -64,12 +69,14 @@ const Procedures = () => {
   const queryClient = useQueryClient();
 
   const {
-    allViews, userId: viewsUserId, activeView, selectView, saveView, deleteView, pinDefault, updateStandardColumns,
+    allViews, userId: viewsUserId, activeView, selectView, saveView, saveCharts, deleteView, pinDefault, updateStandardColumns,
   } = useModuleListViews("procedures", "Procedures", DEFAULT_PROCEDURE_VIEW_COLUMNS);
   const [viewEditorOpen, setViewEditorOpen] = useState(false);
   const [editingView, setEditingView] = useState<ListView | null>(null);
   const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
   const [viewFieldsOpen, setViewFieldsOpen] = useState(false);
+  const [viewFiltersOpen, setViewFiltersOpen] = useState(false);
+  const [viewChartsOpen, setViewChartsOpen] = useState(false);
 
   const handleProcedureSaved = useCallback((savedId: string) => {
     setHighlightedId(savedId);
@@ -188,13 +195,52 @@ const Procedures = () => {
           onRefresh={() => queryClient.invalidateQueries({ queryKey: ["procedures"] })}
           display="table"
           onDisplayChange={() => {}}
-          showDisplaySwitcher={false}
+          displayModes={["table"]}
           count={filtered.length}
           search={search}
           onSearchChange={setSearch}
           itemLabel="Procedures"
+          chartsOpen={viewChartsOpen}
+          onToggleCharts={() => { setViewChartsOpen((o) => !o); setViewFiltersOpen(false); }}
+          filtersOpen={viewFiltersOpen}
+          onToggleFilters={() => { setViewFiltersOpen((o) => !o); setViewChartsOpen(false); }}
         />
       </div>
+
+      {(viewFiltersOpen || viewChartsOpen) && (
+        <Sheet open onOpenChange={(o) => { if (!o) { setViewFiltersOpen(false); setViewChartsOpen(false); } }}>
+          <SheetContent side="right" className="w-full p-0 sm:max-w-md">
+            {viewFiltersOpen ? (
+              <ViewFiltersPanel
+                view={activeView}
+                canManage={!!activeView && !activeView.is_standard && activeView.owner_id === viewsUserId}
+                fields={PROCEDURE_VIEW_FIELDS}
+                optionsFor={viewOptionsFor}
+                onSave={(filters) => { if (activeView) saveView({ ...activeView, filters }); }}
+                onClose={() => setViewFiltersOpen(false)}
+                itemLabel="procedures"
+              />
+            ) : activeView && !activeView.is_standard ? (
+              <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading charts…</div>}>
+                <ViewChartsPanel
+                  charts={activeView.charts ?? []}
+                  rows={filtered.map(toViewRow)}
+                  canManage={activeView.owner_id === viewsUserId}
+                  onChange={(charts) => saveCharts(activeView.id, charts)}
+                  onClose={() => setViewChartsOpen(false)}
+                  fields={PROCEDURE_VIEW_FIELDS}
+                  itemLabel="Procedures"
+                  defaultGroupField="status"
+                />
+              </Suspense>
+            ) : (
+              <div className="p-4 text-sm text-muted-foreground">
+                Charts are available on custom list views. Create or select a custom view to add charts.
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Mobile card view */}
       <div className="md:hidden space-y-3">

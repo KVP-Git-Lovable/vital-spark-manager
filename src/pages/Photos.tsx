@@ -37,6 +37,8 @@ import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { useModuleListViews } from "@/hooks/useModuleListViews";
 import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
+import ViewFiltersPanel from "@/components/listViews/ViewFiltersPanel";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
 import { PHOTO_VIEW_FIELDS, DEFAULT_PHOTO_VIEW_COLUMNS } from "@/lib/listViews/photoFields";
 
@@ -55,6 +57,7 @@ const Photos = () => {
   const [viewEditorOpen, setViewEditorOpen] = useState(false);
   const [editingView, setEditingView] = useState<ListView | null>(null);
   const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
+  const [viewFiltersOpen, setViewFiltersOpen] = useState(false);
 
   // Form state
   const [patientId, setPatientId] = useState("");
@@ -358,13 +361,31 @@ const Photos = () => {
           onRefresh={() => queryClient.invalidateQueries({ queryKey: ["patient-photos"] })}
           display="cards"
           onDisplayChange={() => {}}
-          showDisplaySwitcher={false}
+          displayModes={["cards"]}
           count={viewFiltered.length}
           search={search}
           onSearchChange={setSearch}
           itemLabel="Photos"
+          filtersOpen={viewFiltersOpen}
+          onToggleFilters={() => setViewFiltersOpen((o) => !o)}
         />
       </div>
+
+      {viewFiltersOpen && (
+        <Sheet open onOpenChange={(o) => { if (!o) setViewFiltersOpen(false); }}>
+          <SheetContent side="right" className="w-full p-0 sm:max-w-md">
+            <ViewFiltersPanel
+              view={activeView}
+              canManage={!!activeView && !activeView.is_standard && activeView.owner_id === viewsUserId}
+              fields={PHOTO_VIEW_FIELDS}
+              optionsFor={viewOptionsFor}
+              onSave={(filters) => { if (activeView) saveView({ ...activeView, filters }); }}
+              onClose={() => setViewFiltersOpen(false)}
+              itemLabel="photos"
+            />
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Photo Grid */}
       {isLoading ? (

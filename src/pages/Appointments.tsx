@@ -1,12 +1,14 @@
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useModal } from "@/hooks/useModal";
 import { useModuleListViews } from "@/hooks/useModuleListViews";
 import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
 import FieldsDisplayDialog from "@/components/listViews/FieldsDisplayDialog";
+import ViewFiltersPanel from "@/components/listViews/ViewFiltersPanel";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, Pin } from "lucide-react";
@@ -67,6 +69,9 @@ import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { MicButton } from "@/components/shared/MicButton";
 import { ConsultationReasonPicker, buildConsultationReasonsForSave, ConsultationType } from "@/components/appointments/ConsultationReasonPicker";
+
+// Lazy: pulls in recharts, kept out of the main bundle until a user actually opens Charts.
+const ViewChartsPanel = lazy(() => import("@/components/listViews/ViewChartsPanel"));
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 // 15-min slots from 8:00 to 19:45
@@ -156,6 +161,7 @@ const Appointments = () => {
     activeView,
     selectView,
     saveView,
+    saveCharts,
     deleteView,
     pinDefault,
     updateStandardColumns,
@@ -164,6 +170,8 @@ const Appointments = () => {
   const [editingView, setEditingView] = useState<ListView | null>(null);
   const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
   const [viewFieldsOpen, setViewFieldsOpen] = useState(false);
+  const [viewFiltersOpen, setViewFiltersOpen] = useState(false);
+  const [viewChartsOpen, setViewChartsOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [open, setOpen] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
@@ -1801,8 +1809,47 @@ const Appointments = () => {
             search={searchQuery}
             onSearchChange={setSearchQuery}
             itemLabel="Appointments"
+            chartsOpen={viewChartsOpen}
+            onToggleCharts={() => { setViewChartsOpen((o) => !o); setViewFiltersOpen(false); }}
+            filtersOpen={viewFiltersOpen}
+            onToggleFilters={() => { setViewFiltersOpen((o) => !o); setViewChartsOpen(false); }}
           />
         </div>
+      )}
+
+      {(viewFiltersOpen || viewChartsOpen) && (
+        <Sheet open onOpenChange={(o) => { if (!o) { setViewFiltersOpen(false); setViewChartsOpen(false); } }}>
+          <SheetContent side="right" className="w-full p-0 sm:max-w-md">
+            {viewFiltersOpen ? (
+              <ViewFiltersPanel
+                view={activeView}
+                canManage={!!activeView && !activeView.is_standard && activeView.owner_id === viewsUserId}
+                fields={APPOINTMENT_VIEW_FIELDS}
+                optionsFor={viewOptionsFor}
+                onSave={(filters) => { if (activeView) saveView({ ...activeView, filters }); }}
+                onClose={() => setViewFiltersOpen(false)}
+                itemLabel="appointments"
+              />
+            ) : activeView && !activeView.is_standard ? (
+              <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading charts…</div>}>
+                <ViewChartsPanel
+                  charts={activeView.charts ?? []}
+                  rows={visibleTableRows.map((apt) => toViewRow(apt, pageInvoiceByAppointmentId))}
+                  canManage={activeView.owner_id === viewsUserId}
+                  onChange={(charts) => saveCharts(activeView.id, charts)}
+                  onClose={() => setViewChartsOpen(false)}
+                  fields={APPOINTMENT_VIEW_FIELDS}
+                  itemLabel="Appointments"
+                  defaultGroupField="status"
+                />
+              </Suspense>
+            ) : (
+              <div className="p-4 text-sm text-muted-foreground">
+                Charts are available on custom list views. Create or select a custom view to add charts.
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
       )}
 
       {/* Collapsible Filters Bar */}

@@ -74,6 +74,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { fetchAll } from "@/lib/supabasePaginate";
+import { fetchInvoicesPage, fetchInvoicesBounded, fetchInvoiceStats, fetchInvoiceById } from "@/lib/invoicesPage";
 import { withDrPrefix } from "@/lib/staffName";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
@@ -326,6 +327,11 @@ const PAGE_SIZE = 50;
 const Billing = () => {
   const invoiceTableRef = useStackedTable<HTMLTableElement>();
   const queryClient = useQueryClient();
+  const invalidateInvoices = () => {
+    queryClient.invalidateQueries({ queryKey: ["invoices-page"] });
+    queryClient.invalidateQueries({ queryKey: ["invoices-bounded"] });
+    queryClient.invalidateQueries({ queryKey: ["invoice-stats"] });
+  };
   const [searchParams, setSearchParams] = useSearchParams();
 
   const {
@@ -392,7 +398,7 @@ const Billing = () => {
   // invoices match, so the current page number no longer means anything.
   useEffect(() => {
     setPage(1);
-  }, [search, filterDateFrom, filterDateTo, filterDoctor, filterService, filterType, filterStatus, activeView?.id]);
+  }, [search, filterDateFrom, filterDateTo, filterDoctor, filterService, filterType, filterStatus, activeView?.id, display]);
 
   // Form state
   const [patientId, setPatientId] = useState("");
@@ -475,21 +481,38 @@ const Billing = () => {
     }
   };
 
-  const { data: invoices = [], error: invoicesError } = useQuery({
-    queryKey: ["invoices"],
-    queryFn: async () => {
-      // fetchAll pages past Supabase's default 1000-row cap - without it, a
-      // clinic with more than 1000 invoices would silently lose the rest
-      // from every total, filter and export on this page.
-      return await fetchAll<any>((from, to) =>
-        supabase
-          .from("invoices")
-          .select("*, appointments(id, service, start_time, staff_id, doctors:staff_id(first_name, last_name))")
-          .order("created_at", { ascending: false })
-          .range(from, to)
-      );
-    },
+  // A quick filter, active search, any view other than the default "All"
+  // view (this includes "Recently Viewed", which - like a custom saved
+  // view - isn't just "the newest invoices" - and every custom saved
+  // view), or Kanban display all need the full (client-side-filterable)
+  // matching set in memory - everything else uses true server-side
+  // pagination so the common case (the default table view) costs one
+  // request instead of fetchAll()'s ~30 sequential requests across the
+  // whole invoices table. Mirrors Patients.tsx's isAllView/needsClientRows.
+  const isAllView = !activeView || activeView.id === ALL_VIEW_ID;
+  const hasActiveFilters = !!(filterDateFrom || filterDateTo || filterDoctor || filterService || filterType || filterStatus);
+  const needsClientRows = !isAllView || hasActiveFilters || !!search.trim() || display === "kanban";
+
+  const {
+    data: pagedData,
+    error: pagedError,
+  } = useQuery({
+    queryKey: ["invoices-page", page, filterDateFrom, filterDateTo],
+    queryFn: () => fetchInvoicesPage({ page, pageSize: PAGE_SIZE, dateFrom: filterDateFrom, dateTo: filterDateTo }),
+    enabled: !needsClientRows,
   });
+
+  const {
+    data: boundedInvoices = [],
+    error: boundedError,
+  } = useQuery({
+    queryKey: ["invoices-bounded", filterDateFrom, filterDateTo],
+    queryFn: () => fetchInvoicesBounded({ dateFrom: filterDateFrom, dateTo: filterDateTo, limit: 3000 }),
+    enabled: needsClientRows,
+  });
+
+  const invoices: any[] = needsClientRows ? boundedInvoices : pagedData?.rows ?? [];
+  const invoicesError = needsClientRows ? boundedError : pagedError;
 
   useEffect(() => {
     if (invoicesError) {
@@ -648,7 +671,7 @@ const Billing = () => {
     const { error } = await supabase.from("invoices").update({ [field]: value || null } as any).eq("id", inv.id);
     if (error) { toast.error(error.message); return; }
     toast.success("Invoice updated");
-    queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    invalidateInvoices();
   };
 
   useEffect(() => {
@@ -694,20 +717,33 @@ const Billing = () => {
     }
   }, [searchParams, serviceMaster]);
 
-  // Open a specific invoice via ?viewInvoice=<id> (e.g. from Patient detail)
+  // Open a specific invoice via ?viewInvoice=<id> (e.g. from Patient detail).
+  // Default (server-paginated) mode only holds one page of invoices in
+  // memory, so the target row usually isn't there - fetch it directly
+  // rather than depending on it happening to be on the loaded page/set.
   useEffect(() => {
     const viewId = searchParams.get("viewInvoice");
-    if (viewId === "__new__") return;
-    if (!viewId || !invoices?.length) return;
-    const inv = (invoices as any[]).find((i: any) => i.id === viewId);
-    if (inv) {
+    if (!viewId || viewId === "__new__") return;
+    const consume = (inv: any) => {
       setViewInvoice(inv);
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete("viewInvoice");
         return next;
       }, { replace: true });
+    };
+    const existing = (invoices as any[]).find((i: any) => i.id === viewId);
+    if (existing) {
+      consume(existing);
+      return;
     }
+    let cancelled = false;
+    fetchInvoiceById(viewId).then((inv) => {
+      if (!cancelled && inv) consume(inv);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [searchParams, invoices]);
 
   // Pre-fill the Create Invoice form from an appointment ("New Bill" flow).
@@ -823,22 +859,20 @@ const Billing = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPrefill, serviceMaster, pharmaInventory, pharmaProducts]);
 
-  // Unique doctors and services for filter dropdowns
+  // Doctor/service filter dropdown options - sourced from the doctors/
+  // services master lists (already fetched regardless) rather than scanned
+  // from `invoices`, since the default view only ever holds one page of
+  // invoices in memory now.
   const uniqueDoctors = useMemo(() => {
-    const docs = new Map<string, string>();
-    invoices.forEach((inv: any) => {
-      const id = inv.appointments?.staff_id || inv.doctor_id;
-      const name = getDrName(inv, staffById);
-      if (id && name) docs.set(id, name);
-    });
-    return Array.from(docs.entries());
-  }, [invoices, staffById]);
+    return (doctorsList as any[])
+      .map((d: any): [string, string] => [d.id, `${d.first_name || ""} ${d.last_name || ""}`.trim()])
+      .filter(([, name]) => !!name)
+      .sort((a, b) => a[1].localeCompare(b[1]));
+  }, [doctorsList]);
 
   const uniqueServices = useMemo(() => {
-    const svcs = new Set<string>();
-    invoices.forEach((inv: any) => (inv.services || []).forEach((s: string) => svcs.add(s)));
-    return Array.from(svcs).sort();
-  }, [invoices]);
+    return Array.from(new Set((serviceMaster as any[]).map((s: any) => s.name).filter(Boolean))).sort();
+  }, [serviceMaster]);
 
   const getTaxComponents = (tax: any) => {
     if (!tax) return { cgst: 0, sgst: 0, igst: 0, total: 0 };
@@ -1528,7 +1562,7 @@ const Billing = () => {
       return { summary, patientPhone, patientName };
     },
     onSuccess: async (result: any) => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      invalidateInvoices();
       queryClient.invalidateQueries({ queryKey: ["pharma-inventory-billing"] });
       queryClient.invalidateQueries({ queryKey: ["pharma-inventory"] });
       const msg = paymentType === "Staged" ? `${stages.length} staged invoices created` : paymentType === "Recurring" ? `${recurringCount} recurring invoices created` : "Invoice created";
@@ -1689,7 +1723,7 @@ const Billing = () => {
       return { invoiceId: paymentInv.id, becamePaid: status === "Paid" && paymentInv.status !== "Paid" };
     },
     onSuccess: async (res: any) => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      invalidateInvoices();
       toast.success("Payment updated");
       if (res?.becamePaid && res.invoiceId) {
         void notifyInstallmentPaid(res.invoiceId);
@@ -1710,7 +1744,7 @@ const Billing = () => {
       return { invoiceId: inv.id, becamePaid: inv.status !== "Paid" };
     },
     onSuccess: async (res: any) => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      invalidateInvoices();
       toast.success("Invoice marked as paid");
       if (res?.becamePaid && res.invoiceId) {
         await notifyInstallmentPaid(res.invoiceId);
@@ -1732,7 +1766,7 @@ const Billing = () => {
       return { invoiceId: id, becamePaid: status === "Paid" && prevStatus !== "Paid" };
     },
     onSuccess: async (res: any) => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      invalidateInvoices();
       toast.success("Status updated");
       if (res?.becamePaid && res.invoiceId) {
         await notifyInstallmentPaid(res.invoiceId);
@@ -1747,7 +1781,7 @@ const Billing = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      invalidateInvoices();
       toast.success("Invoice deleted");
       setViewInvoice(null);
       setIsEditing(false);
@@ -1781,7 +1815,7 @@ const Billing = () => {
       };
     },
     onSuccess: async (res: any) => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      invalidateInvoices();
       toast.success("Invoice updated");
       if (res?.becamePaid && res.invoiceId) {
         await notifyInstallmentPaid(res.invoiceId);
@@ -1868,58 +1902,67 @@ const Billing = () => {
     return (servicesSubtotal + pharmaSubtotal) > 0;
   };
 
-  const totalRevenue = invoices.reduce((s: number, inv: any) => s + Number(inv.paid_amount), 0);
-  const pendingAmount = invoices.filter((i: any) => i.status === "Pending").reduce((s: number, inv: any) => s + Number(inv.total_amount), 0);
-  const partialAmount = invoices.filter((i: any) => i.status === "Partial").reduce((s: number, inv: any) => s + (Number(inv.total_amount) - Number(inv.paid_amount)), 0);
+  // All-time totals, independent of pagination/filters/search - fetched
+  // separately (3 columns, no join) so a hiccup here never blanks the main
+  // invoice list, which no longer depends on this query.
+  const { data: invoiceStats } = useQuery({
+    queryKey: ["invoice-stats"],
+    queryFn: fetchInvoiceStats,
+  });
+  const totalRevenue = invoiceStats?.totalRevenue ?? 0;
+  const pendingAmount = invoiceStats?.pendingAmount ?? 0;
+  const partialAmount = invoiceStats?.partialAmount ?? 0;
 
-  // Full-text search + filters
+  // Full-text search + filters - a plain function (not memoized itself) so
+  // exportCSV can reuse the exact same predicate against a freshly-fetched
+  // export dataset, not just the invoices currently held in state.
+  const matchesQuickFilters = (inv: any) => {
+    const q = search.toLowerCase();
+    if (q) {
+      const drName = getDrName(inv, staffById).toLowerCase();
+      const patientName = getPatientName(inv, patientById).toLowerCase();
+      const servicesStr = (inv.services || []).join(" ").toLowerCase();
+      const searchFields = [
+        inv.invoice_number,
+        patientName,
+        servicesStr,
+        inv.payment_type,
+        inv.payment_mode,
+        drName,
+      ].join(" ").toLowerCase();
+      if (!searchFields.includes(q)) return false;
+    }
+
+    // Date filter
+    if (filterDateFrom || filterDateTo) {
+      const invDate = new Date(inv.created_at);
+      if (filterDateFrom && invDate < startOfDay(filterDateFrom)) return false;
+      if (filterDateTo && invDate > endOfDay(filterDateTo)) return false;
+    }
+
+    // Doctor filter
+    if (filterDoctor) {
+      const staffId = inv.appointments?.staff_id || inv.doctor_id;
+      if (staffId !== filterDoctor) return false;
+    }
+
+    // Service filter
+    if (filterService) {
+      if (!(inv.services || []).some((s: string) => s === filterService)) return false;
+    }
+
+    // Type filter
+    if (filterType && inv.payment_type !== filterType) return false;
+
+    // Status filter
+    if (filterStatus && inv.status !== filterStatus) return false;
+
+    return true;
+  };
+
   const filtered = useMemo(() => {
-    return invoices.filter((inv: any) => {
-      const q = search.toLowerCase();
-      if (q) {
-        const drName = getDrName(inv, staffById).toLowerCase();
-        const patientName = getPatientName(inv, patientById).toLowerCase();
-        const servicesStr = (inv.services || []).join(" ").toLowerCase();
-        const searchFields = [
-          inv.invoice_number,
-          patientName,
-          servicesStr,
-          inv.payment_type,
-          inv.payment_mode,
-          drName,
-        ].join(" ").toLowerCase();
-        if (!searchFields.includes(q)) return false;
-      }
-
-      // Date filter
-      if (filterDateFrom || filterDateTo) {
-        const invDate = new Date(inv.created_at);
-        if (filterDateFrom && invDate < startOfDay(filterDateFrom)) return false;
-        if (filterDateTo && invDate > endOfDay(filterDateTo)) return false;
-      }
-
-      // Doctor filter
-      if (filterDoctor) {
-        const staffId = inv.appointments?.staff_id || inv.doctor_id;
-        if (staffId !== filterDoctor) return false;
-      }
-
-      // Service filter
-      if (filterService) {
-        if (!(inv.services || []).some((s: string) => s === filterService)) return false;
-      }
-
-      // Type filter
-      if (filterType && inv.payment_type !== filterType) return false;
-
-      // Status filter
-      if (filterStatus && inv.status !== filterStatus) return false;
-
-      return true;
-    });
+    return invoices.filter(matchesQuickFilters);
   }, [invoices, search, filterDateFrom, filterDateTo, filterDoctor, filterService, filterType, filterStatus, staffById, patientById]);
-
-  const hasActiveFilters = filterDateFrom || filterDateTo || filterDoctor || filterService || filterType || filterStatus;
 
   const clearFilters = () => {
     setFilterDateFrom(undefined);
@@ -1931,9 +1974,27 @@ const Billing = () => {
   };
 
   // CSV Export
-  const exportCSV = () => {
+  const exportCSV = async () => {
+    // In default (server-paginated) mode `invoices`/`viewFiltered` only
+    // hold the current page - export needs the full matching set, so fetch
+    // it fresh (scoped by the date filter, if any) rather than exporting
+    // just what happens to be on-screen.
+    let exportSet: any[];
+    if (needsClientRows) {
+      exportSet = viewFiltered;
+    } else {
+      toast.loading("Preparing export…", { id: "export-csv" });
+      try {
+        const all = await fetchInvoicesBounded({ dateFrom: filterDateFrom, dateTo: filterDateTo, limit: 100000 });
+        exportSet = applyViewFilters(all.filter(matchesQuickFilters));
+      } catch (err: any) {
+        toast.error(`Export failed: ${err.message}`, { id: "export-csv" });
+        return;
+      }
+    }
+
     const headers = ["Invoice", "Date", "Patient", "Doctor", "Services", "Type", "Mode", "Total", "Paid", "Balance", "Status"];
-    const rows = viewFiltered.map((inv: any) => [
+    const rows = exportSet.map((inv: any) => [
       inv.invoice_number,
       format(new Date(inv.created_at), "yyyy-MM-dd"),
       getPatientName(inv, patientById),
@@ -1954,7 +2015,7 @@ const Billing = () => {
     a.download = `invoices-${format(new Date(), "yyyy-MM-dd")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(`Exported ${viewFiltered.length} invoices`);
+    toast.success(`Exported ${exportSet.length} invoices`, { id: "export-csv" });
   };
 
   const stagedTotal = stages.reduce((s, st) => s + st.amount, 0);
@@ -2003,43 +2064,19 @@ const Billing = () => {
     return items.filter((inv) => kept.has(inv.id));
   }
 
-  function getFieldValue(inv: any, field: string) {
-    switch (field) {
-      case "invoice_number": return inv.invoice_number || "";
-      case "patient_name": return getPatientName(inv, patientById);
-      case "total_amount": return Number(inv.total_amount) || 0;
-      case "paid_amount": return Number(inv.paid_amount) || 0;
-      case "status": return inv.status || "";
-      case "payment_mode": return inv.payment_mode || "";
-      case "created_at": return new Date(inv.created_at).toLocaleDateString();
-      default: return "";
-    }
-  }
-
-  function applyFilterCondition(value: any, operator: string, filterValue: any) {
-    const val = String(value).toLowerCase();
-    const fval = String(filterValue).toLowerCase();
-    switch (operator) {
-      case "equals": return val === fval;
-      case "contains": return val.includes(fval);
-      case "starts_with": return val.startsWith(fval);
-      case "ends_with": return val.endsWith(fval);
-      case "greater_than": return Number(value) > Number(filterValue);
-      case "less_than": return Number(value) < Number(filterValue);
-      case "is_empty": return !value || value === "";
-      case "is_not_empty": return value && value !== "";
-      default: return true;
-    }
-  }
-
   // Apply custom view filters (helpers above are hoisted function declarations)
   const viewFiltered = applyViewFilters(filtered);
 
-  // Table is paginated for render performance; totals above and CSV export
-  // still operate over every matching invoice (viewFiltered), not just this page.
-  const totalPages = Math.max(1, Math.ceil(viewFiltered.length / PAGE_SIZE));
+  // In the default (server-paginated) mode, `invoices` is already exactly
+  // one page, sized/counted by the server - no further client slicing.
+  // In needsClientRows mode, keep paginating the bounded, client-filtered
+  // `viewFiltered` set exactly as before.
+  const total = needsClientRows ? viewFiltered.length : pagedData?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const pagedInvoices = viewFiltered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pagedInvoices = needsClientRows
+    ? viewFiltered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+    : invoices;
 
   return (
     <div>
@@ -2854,12 +2891,12 @@ const Billing = () => {
           onPin={pinDefault}
           onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
           onFields={() => setViewFieldsOpen(true)}
-          onRefresh={() => queryClient.invalidateQueries({ queryKey: ["invoices"] })}
+          onRefresh={invalidateInvoices}
           display={display}
           onDisplayChange={setDisplay}
           displayModes={["table", "kanban"]}
           onKanbanSettings={() => setKanbanOpen(true)}
-          count={viewFiltered.length}
+          count={total}
           search={search}
           onSearchChange={setSearch}
           itemLabel="Invoices"
@@ -3035,7 +3072,7 @@ const Billing = () => {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {viewFiltered.length === 0 ? (
+              {total === 0 ? (
                 <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No invoices found</td></tr>
               ) : (
                 pagedInvoices.map((inv: any) => (
@@ -3101,9 +3138,9 @@ const Billing = () => {
 
         <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
           <span>
-            {viewFiltered.length === 0
+            {total === 0
               ? "Showing 0 invoices"
-              : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, viewFiltered.length)} of ${viewFiltered.length.toLocaleString()}`}
+              : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, total)} of ${total.toLocaleString()}`}
           </span>
           {totalPages > 1 && (
             <div className="flex items-center gap-2">

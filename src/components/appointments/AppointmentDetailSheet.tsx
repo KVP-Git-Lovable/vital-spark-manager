@@ -600,7 +600,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       setSelectedInstallments([]);
       queryClient.invalidateQueries({ queryKey: ["recurring-installments"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-page"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-bounded"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-stats"] });
     } catch (e: any) {
       toast.error(e.message || "Could not collect payment");
     } finally {
@@ -873,7 +875,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       const { error } = await supabase.from("invoices").insert(inserts);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["appointment-invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-page"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-bounded"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-stats"] });
       toast.success(`${inserts.length} invoice(s) created`);
       setBillingConfirmed(false);
       setBillingTotal(0);

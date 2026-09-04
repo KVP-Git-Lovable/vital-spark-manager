@@ -409,6 +409,7 @@ const Services = () => {
   const resetForm = () => {
     setName("");
     setCategory("");
+    setCustomCategory(false);
     setDuration("");
     setPrice("");
     setHsnCode("");
@@ -536,12 +537,38 @@ const Services = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Category</Label>
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select category" /></SelectTrigger>
-                    <SelectContent>
-                      {categoryMaster.map((c: any) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  {customCategory ? (
+                    <div className="mt-1.5 flex gap-2">
+                      <Input
+                        autoFocus
+                        placeholder="Type a category"
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { setCustomCategory(false); setCategory(""); }}
+                      >
+                        List
+                      </Button>
+                    </div>
+                  ) : (
+                    <Select
+                      value={category}
+                      onValueChange={(v) => {
+                        if (v === "__custom__") { setCustomCategory(true); setCategory(""); }
+                        else setCategory(v);
+                      }}
+                    >
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select category" /></SelectTrigger>
+                      <SelectContent>
+                        {categoryOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        <SelectItem value="__custom__">Other (type your own)…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
                 <div>
                   <Label>Duration (mins)</Label>

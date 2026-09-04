@@ -327,7 +327,11 @@ export function ReportPreview({
       const c = (f.field || "").split(".")[1];
       return !!c && isVirtualField(c);
     });
-    if (!filterLogic && !hasVirtualFilter) {
+    // Custom filter logic is normally evaluated client-side, but when the
+    // expression is pure AND (no OR branches) every condition must hold, so
+    // pushing them to the database is safe and keeps the query bounded.
+    const logicIsAndOnly = !!filterLogic && !/\bOR\b/i.test(filterLogic);
+    if ((!filterLogic || logicIsAndOnly) && !hasVirtualFilter) {
       filters
         .filter((f) => f.field.startsWith(`${primaryObject}.`))
         .filter((f) => {
@@ -368,7 +372,12 @@ export function ReportPreview({
 
     if (error) {
       console.error("Report query error:", error);
-      setErrorMsg(error.message || "Failed to load report data.");
+      const timedOut = (error as any)?.code === "57014" || /timeout/i.test(error.message || "");
+      setErrorMsg(
+        timedOut
+          ? "This report took too long to run. Narrow the date range or add a filter, then try again."
+          : error.message || "Failed to load report data."
+      );
       setData([]);
       setLoading(false);
       return;

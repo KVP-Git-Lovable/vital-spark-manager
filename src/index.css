@@ -187,6 +187,18 @@
     overflow-x: hidden;
   }
 
+  /* Radix's Dialog/Sheet scroll-lock only touches document.body
+     (react-remove-scroll-bar sets body[data-scroll-locked]{overflow:hidden}),
+     but this app's actual scroll container is <main overflow-auto> in
+     AppLayout.tsx, not the body - so an open Sheet/Dialog left the page
+     behind it independently scrollable (a "double scroll" - the sheet
+     scrolls its own content while the page behind it also scrolls).
+     Piggyback on the same attribute to lock <main> too, for every
+     Sheet/Dialog in the app. */
+  body[data-scroll-locked] main {
+    overflow: hidden !important;
+  }
+
   @media (max-width: 767px) {
     /* Page action rows wrap instead of overflowing off-screen */
     .page-header .flex {

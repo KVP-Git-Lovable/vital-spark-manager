@@ -109,16 +109,22 @@ const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
     || Number(inv?.tax_amount || 0);
   // Salesforce-imported invoices (and any other invoice saved without a
   // line_items snapshot) only carry an invoice-level total/tax, not a
-  // per-service price - synthesize one row per named service, splitting the
-  // pre-tax base evenly, so Rate/Amount/Tax don't render as a hollow 0
-  // despite the invoice having real total_amount/tax_amount.
+  // per-service price - synthesize one row per named service so Rate/Amount/
+  // Tax don't render as a hollow 0. total_amount is tax-INCLUSIVE (it's what
+  // "Grand Total"/paid_amount already read directly), so the pre-tax base
+  // must be derived algebraically from the GST rate (base * (1+rate/100) =
+  // total_amount) rather than by subtracting a separately-tracked tax
+  // figure - otherwise Amount+Tax ends up adding a fresh tax on top of a
+  // base that was never reduced by it, inflating the line-item Total past
+  // the invoice's actual Grand Total.
   const raw: any[] = Array.isArray(inv?.line_items) && inv.line_items.length > 0
     ? inv.line_items
     : (() => {
         const names: string[] = inv?.services?.length ? inv.services : ["Service"];
         const gstRate = Number(inv?.tax_rate) || 0;
-        const base = Math.max(Number(inv?.total_amount || 0) - invoiceTax, 0) / names.length;
-        return names.map((s: string) => ({ name: s, qty: 1, price: base, hsn: "", gst: gstRate }));
+        const totalAmt = Number(inv?.total_amount || 0);
+        const base = gstRate > 0 ? totalAmt / (1 + gstRate / 100) : Math.max(totalAmt - invoiceTax, 0);
+        return names.map((s: string) => ({ name: s, qty: 1, price: base / names.length, hsn: "", gst: gstRate }));
       })();
   const rows = raw.map((it: any) => {
     const qty = Number(it.qty) || 1;
@@ -3218,7 +3224,12 @@ const Billing = () => {
                   <div className="flex justify-between"><span className="text-muted-foreground">IGST</span><span>₹{Number(viewInvoice.igst_amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>
                 )}
                 {!Number(viewInvoice.cgst_amount) && !Number(viewInvoice.sgst_amount) && !Number(viewInvoice.igst_amount) && viewInvoice.tax_rate > 0 && (
-                  <div className="flex justify-between"><span className="text-muted-foreground">Tax ({viewInvoice.tax_rate}%)</span><span>₹{Number(viewInvoice.tax_amount || 0).toLocaleString()}</span></div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Tax ({viewInvoice.tax_rate}%)</span>
+                    {/* Derived the same way as the line-items table below, not the raw
+                        (possibly unset/stale) tax_amount field, so the two stay consistent. */}
+                    <span>₹{Math.round(invoiceLineRows(viewInvoice).reduce((s, r) => s + r.tax, 0)).toLocaleString()}</span>
+                  </div>
                 )}
               </div>
 

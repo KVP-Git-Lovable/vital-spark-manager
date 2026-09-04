@@ -221,16 +221,23 @@ async function syncPatient(
     const services = [b.Procedure_Type__c, b.Procedure_Type_2__c, b.Procedure_Type_3__c].filter(Boolean);
     const names = services.length ? services : ["Service"];
     const total = Number(b.Total_Amount__c || b.Total_Price__c || 0);
-    const taxAmount = Number(b.Total_Tax_Applicable__c || 0);
     const taxRate = Number(b.GST__c || 0);
     // Billing__c has no per-line item breakdown (Procedure_Type__c etc. are
-    // just names, no price/HSN) and no separate CGST/SGST fields - split the
-    // pre-tax total evenly across the named services for line_items, and
-    // assume an intrastate 50/50 CGST+SGST split (this clinic's own
-    // convention for GST elsewhere - see tax_master) rather than leaving tax
-    // only at the invoice level with no per-tax-head breakdown.
-    const base = Math.max(total - taxAmount, 0) / names.length;
-    const lineItems = names.map((name: string) => ({ name, qty: 1, price: base, hsn: "", gst: taxRate }));
+    // just names, no price/HSN) and no separate CGST/SGST fields. total is
+    // tax-INCLUSIVE (it's what total_amount/paid_amount store directly), so
+    // the pre-tax base must come from the GST rate algebraically
+    // (base * (1+rate/100) = total) rather than by subtracting
+    // Total_Tax_Applicable__c, which Salesforce doesn't always populate even
+    // when GST__c (the rate) is set - subtracting a missing/zero tax figure
+    // would leave line_items.price at the full total, then applying gst on
+    // top of that later (client/PDF) would double-count the tax. Derive tax
+    // amount the same way when SF didn't supply one, and split it 50/50 as
+    // CGST+SGST (this clinic's own convention for GST elsewhere - see
+    // tax_master) rather than leaving no per-tax-head breakdown.
+    const explicitTax = Number(b.Total_Tax_Applicable__c || 0);
+    const base = taxRate > 0 ? total / (1 + taxRate / 100) : Math.max(total - explicitTax, 0);
+    const taxAmount = taxRate > 0 ? total - base : explicitTax;
+    const lineItems = names.map((name: string) => ({ name, qty: 1, price: base / names.length, hsn: "", gst: taxRate }));
     return {
       invoice_number: b.Name,
       patient_id: p.lovable_id,

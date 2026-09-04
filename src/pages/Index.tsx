@@ -415,6 +415,21 @@ const Index = () => {
         <p className="page-subtitle hidden sm:block">Clinic overview for {format(new Date(), "EEEE, MMMM d")}</p>
       </div>
 
+      {(apptError || invoiceError) && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+          <span className="text-sm text-destructive">
+            Some dashboard data took too long to load. Try a shorter date range, or retry.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { refetchAppts(); refetchInvoices(); }}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
       <DashboardFilters
         staffList={staffList}
         serviceList={serviceList}

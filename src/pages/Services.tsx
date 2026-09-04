@@ -67,6 +67,7 @@ const Services = () => {
   // Form state
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState(false);
   const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
   const [hsnCode, setHsnCode] = useState("");

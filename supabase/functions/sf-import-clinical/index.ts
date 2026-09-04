@@ -219,19 +219,33 @@ async function syncPatient(
   log.skipped += billings.length - newBillings.length;
   const invRows = newBillings.map((b) => {
     const services = [b.Procedure_Type__c, b.Procedure_Type_2__c, b.Procedure_Type_3__c].filter(Boolean);
+    const names = services.length ? services : ["Service"];
     const total = Number(b.Total_Amount__c || b.Total_Price__c || 0);
+    const taxAmount = Number(b.Total_Tax_Applicable__c || 0);
+    const taxRate = Number(b.GST__c || 0);
+    // Billing__c has no per-line item breakdown (Procedure_Type__c etc. are
+    // just names, no price/HSN) and no separate CGST/SGST fields - split the
+    // pre-tax total evenly across the named services for line_items, and
+    // assume an intrastate 50/50 CGST+SGST split (this clinic's own
+    // convention for GST elsewhere - see tax_master) rather than leaving tax
+    // only at the invoice level with no per-tax-head breakdown.
+    const base = Math.max(total - taxAmount, 0) / names.length;
+    const lineItems = names.map((name: string) => ({ name, qty: 1, price: base, hsn: "", gst: taxRate }));
     return {
       invoice_number: b.Name,
       patient_id: p.lovable_id,
       patient_name: p.name,
-      services: services.length ? services : ["Service"],
+      services: names,
+      line_items: lineItems,
       total_amount: total,
       paid_amount: total, // SF billings are historical/paid
       status: total > 0 ? "Paid" : "Pending",
       payment_type: "One-time",
       payment_mode: b.Payment_Mode__c || "Cash",
-      tax_rate: Number(b.GST__c || 0),
-      tax_amount: Number(b.Total_Tax_Applicable__c || 0),
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      cgst_amount: taxAmount / 2,
+      sgst_amount: taxAmount / 2,
       appointment_id: b.Appointment__c ? apptIdMap.get(b.Appointment__c) || null : null,
       doctor_id: doctorFor(b.Doctor_Name__c),
       notes: b.Doctor_Name__c ? `Doctor: ${b.Doctor_Name__c}` : null,

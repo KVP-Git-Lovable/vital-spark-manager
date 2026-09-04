@@ -129,6 +129,16 @@ const Services = () => {
     },
   });
 
+  // Category Master entries plus any category already in use (Salesforce sync
+  // writes categories that were never added to Category Master), so the
+  // dropdown never hides an existing, filterable category.
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    (categoryMaster as any[]).forEach((c: any) => c?.name && set.add(String(c.name)));
+    (services as any[]).forEach((s: any) => s?.category && set.add(String(s.category)));
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [categoryMaster, services]);
+
   const { data: serviceMedicines = [] } = useQuery({
     queryKey: ["service-medicines"],
     queryFn: async () => {

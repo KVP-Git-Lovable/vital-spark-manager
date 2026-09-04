@@ -1918,13 +1918,15 @@ const Billing = () => {
   // All-time totals, independent of pagination/filters/search - fetched
   // separately (3 columns, no join) so a hiccup here never blanks the main
   // invoice list, which no longer depends on this query.
-  const { data: invoiceStats } = useQuery({
+  const { data: invoiceStats, isLoading: statsLoading } = useQuery({
     queryKey: ["invoice-stats"],
     queryFn: fetchInvoiceStats,
   });
   const totalRevenue = invoiceStats?.totalRevenue ?? 0;
   const pendingAmount = invoiceStats?.pendingAmount ?? 0;
   const partialAmount = invoiceStats?.partialAmount ?? 0;
+  const pendingCount = invoiceStats?.pendingCount ?? 0;
+  const partialCount = invoiceStats?.partialCount ?? 0;
 
   // Full-text search + filters - a plain function (not memoized itself) so
   // exportCSV can reuse the exact same predicate against a freshly-fetched
@@ -2956,9 +2958,9 @@ const Billing = () => {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <StatCard title="Total Revenue" value={`₹${totalRevenue.toLocaleString()}`} change="All time" icon={IndianRupee} iconColor="bg-success/10 text-success" />
-        <StatCard title="Pending" value={`₹${pendingAmount.toLocaleString()}`} change={`${invoices.filter((i: any) => i.status === "Pending").length} invoice(s)`} icon={IndianRupee} iconColor="bg-destructive/10 text-destructive" delay={0.05} />
-        <StatCard title="Partial Payments" value={`₹${partialAmount.toLocaleString()}`} change={`${invoices.filter((i: any) => i.status === "Partial").length} invoice(s)`} icon={IndianRupee} iconColor="bg-warning/10 text-warning" delay={0.1} />
+        <StatCard title="Total Revenue" value={`₹${totalRevenue.toLocaleString()}`} change="All time" icon={IndianRupee} iconColor="bg-success/10 text-success" loading={statsLoading} />
+        <StatCard title="Pending" value={`₹${pendingAmount.toLocaleString()}`} change={`${pendingCount} invoice(s)`} icon={IndianRupee} iconColor="bg-destructive/10 text-destructive" delay={0.05} loading={statsLoading} />
+        <StatCard title="Partial Payments" value={`₹${partialAmount.toLocaleString()}`} change={`${partialCount} invoice(s)`} icon={IndianRupee} iconColor="bg-warning/10 text-warning" delay={0.1} loading={statsLoading} />
       </div>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }} className="data-table">

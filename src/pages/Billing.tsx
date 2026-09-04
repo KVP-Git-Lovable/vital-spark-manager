@@ -139,7 +139,7 @@ const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
     // Salesforce import saved before that fix existed) - resolve it here
     // too, not just when synthesizing fallback rows from scratch.
     const rawName = it.name || "";
-    const name = rawName && rawName !== "Service" ? rawName : inv?.appointments?.service || "Service";
+    const name = rawName && rawName !== "Service" ? rawName : cleanApptService(inv?.appointments?.service) || "Service";
     return { name, hsn, qty, price, amount, gst, tax: (amount * gst) / 100, total: 0 };
   });
 
@@ -306,13 +306,20 @@ const getPatientName = (inv: any, patientById?: Map<string, any>) => {
   return "";
 };
 
+// Salesforce's appointment "service" field is really a free-text clinical
+// note, not a clean procedure name, and often carries a trailing "last
+// session on <date>" annotation - strip that when the field is used as a
+// display fallback (never touches the stored data itself).
+const cleanApptService = (raw: string | null | undefined): string =>
+  String(raw || "").replace(/\s*last\s+session\s+on\s+\d{1,2}\/\d{1,2}\/\d{2,4}\s*$/i, "").trim();
+
 /** Older Salesforce imports stored a literal ["Service"] placeholder (not an
  *  empty array) when there was no real per-procedure name - prefer the
  *  linked appointment's actual service name over that placeholder. */
 const displayServices = (inv: any): string[] => {
   const services: string[] = inv?.services || [];
   const isPlaceholder = services.length === 1 && services[0] === "Service";
-  return services.length && !isPlaceholder ? services : [inv?.appointments?.service || "Service"];
+  return services.length && !isPlaceholder ? services : [cleanApptService(inv?.appointments?.service) || "Service"];
 };
 
 
@@ -3275,11 +3282,22 @@ const Billing = () => {
                           </tr>
                         )}
                         {!Number(viewInvoice.cgst_amount) && !Number(viewInvoice.sgst_amount) && !Number(viewInvoice.igst_amount) && viewInvoice.tax_rate > 0 && (
-                          <tr className="border-t text-muted-foreground">
-                            <td className="px-3 py-1.5" colSpan={6}>Tax ({viewInvoice.tax_rate}%)</td>
-                            <td className="px-3 py-1.5 text-right">{formatMoney(Math.round(t.tax))}</td>
-                            <td className="px-3 py-1.5" />
-                          </tr>
+                          <>
+                            {/* No stored cgst/sgst/igst split on this invoice - default to
+                                the same unconditional 50/50 CGST+SGST assumption used
+                                everywhere else in this app (e.g. sf-import-clinical),
+                                rather than a flat, unlabeled "Tax" line. */}
+                            <tr className="border-t text-muted-foreground">
+                              <td className="px-3 py-1.5" colSpan={6}>CGST</td>
+                              <td className="px-3 py-1.5 text-right">{formatMoney(Math.round(t.tax) / 2)}</td>
+                              <td className="px-3 py-1.5" />
+                            </tr>
+                            <tr className="border-t text-muted-foreground">
+                              <td className="px-3 py-1.5" colSpan={6}>SGST</td>
+                              <td className="px-3 py-1.5 text-right">{formatMoney(Math.round(t.tax) / 2)}</td>
+                              <td className="px-3 py-1.5" />
+                            </tr>
+                          </>
                         )}
                         <tr className="border-t bg-muted/40 font-semibold">
                           <td className="px-3 py-2" colSpan={4}>Total</td>

@@ -192,7 +192,11 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
     if (inv.appointment_id) {
       const { data: appt } = await supabase
         .from("appointments").select("staff_id, service").eq("id", inv.appointment_id).maybeSingle();
-      apptServiceName = appt?.service || "";
+      // Salesforce's appointment "service" field is really a free-text
+      // clinical note, not a clean procedure name, and often carries a
+      // trailing "last session on <date>" annotation - strip that when
+      // used as a display fallback (never touches the stored data).
+      apptServiceName = String(appt?.service || "").replace(/\s*last\s+session\s+on\s+\d{1,2}\/\d{1,2}\/\d{2,4}\s*$/i, "").trim();
       if (!doctorName && appt?.staff_id) {
         const { data: st } = await supabase
           .from("staff").select("first_name, last_name").eq("id", appt.staff_id).maybeSingle();
@@ -210,14 +214,20 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
 
     // Prefer the invoice's own stored CGST/SGST/IGST split (the same one the
     // in-app Invoice Details modal reads directly) over recomputing from
-    // patient/clinic state - a blank patient.state would otherwise fall
-    // through to "different state" (all-IGST) even when the invoice's
-    // actual stored split is an intra-state 50/50 CGST+SGST, showing
-    // 0.00%/0.00% here while the app correctly shows a non-zero split.
+    // patient/clinic state. When there's no stored split, default to
+    // intra-state (CGST+SGST) - the same unconditional 50/50 assumption
+    // used everywhere else in this app (e.g. sf-import-clinical) - rather
+    // than compare state text, which is unreliable when patient.state is
+    // blank (common) and would otherwise silently fall through to
+    // "different state" (all-IGST, 0.00%/0.00% CGST/SGST). Only treat it
+    // as inter-state when both states are actually known and differ.
     const invHasStoredSplit = Number(inv.cgst_amount) > 0 || Number(inv.sgst_amount) > 0 || Number(inv.igst_amount) > 0;
+    const clinicState = (clinic?.state || "").trim().toLowerCase();
+    const patientState = (patient?.state || "").trim().toLowerCase();
+    const bothStatesKnown = !!clinicState && !!patientState;
     const sameState = invHasStoredSplit
       ? Number(inv.igst_amount) <= 0
-      : (clinic?.state || "").trim().toLowerCase() === (patient?.state || "").trim().toLowerCase() && (clinic?.state || "");
+      : bothStatesKnown ? clinicState === patientState : true;
 
     // ── Active HSN rates from the Tax Master ──
     const { data: hsnRows } = await supabase

@@ -3,7 +3,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList, StickyNote } from "lucide-react";
+import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList, StickyNote, Eye } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
 import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
@@ -101,34 +102,56 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [editingContent, setEditingContent] = useState("");
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [previewingPdf, setPreviewingPdf] = useState(false);
   const [sendingWa, setSendingWa] = useState(false);
 
+  const fetchPrescriptionPdf = async () => {
+    if (!procedureId) return null;
+    const { data, error } = await supabase.functions.invoke("generate-prescription-pdf", {
+      body: { procedureId },
+    });
+    if (error) throw error;
+    if (!data?.base64) throw new Error("No PDF returned");
+    const bin = atob(data.base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    return { url: URL.createObjectURL(blob), filename: data.filename || "Prescription.pdf" };
+  };
+
   const handleDownloadPrescription = async () => {
-    if (!procedureId) return;
     setDownloadingPdf(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-prescription-pdf", {
-        body: { procedureId },
-      });
-      if (error) throw error;
-      if (!data?.base64) throw new Error("No PDF returned");
-      const bin = atob(data.base64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
+      const pdf = await fetchPrescriptionPdf();
+      if (!pdf) return;
       const a = document.createElement("a");
-      a.href = url;
-      a.download = data.filename || "Prescription.pdf";
+      a.href = pdf.url;
+      a.download = pdf.filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(pdf.url);
       toast.success("Prescription downloaded");
     } catch (e: any) {
       toast.error(e.message || "Failed to generate prescription");
     } finally {
       setDownloadingPdf(false);
+    }
+  };
+
+  // Opens the same PDF the browser's native viewer instead of forcing a
+  // download - lets staff/patients view or print it without a file piling
+  // up on their device every time.
+  const handlePreviewPrescription = async () => {
+    setPreviewingPdf(true);
+    try {
+      const pdf = await fetchPrescriptionPdf();
+      if (!pdf) return;
+      window.open(pdf.url, "_blank");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to generate prescription");
+    } finally {
+      setPreviewingPdf(false);
     }
   };
 
@@ -723,6 +746,94 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     className="pt-3"
                   />
                 )}
+
+                {/* Record actions - icon-only and pinned in the sticky header so they
+                    never require scrolling to the bottom of a long procedure. */}
+                <TooltipProvider delayDuration={200}>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-3">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="icon" onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
+                          {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Save Changes</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button" variant="outline" size="icon"
+                          className="border-primary/40 text-primary hover:bg-primary/5"
+                          onClick={handleCreateInvoice}
+                        >
+                          <Receipt className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Create Invoice</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button" variant="outline" size="icon"
+                          onClick={handlePreviewPrescription}
+                          disabled={previewingPdf || downloadingPdf || sendingWa}
+                        >
+                          {previewingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Preview Prescription</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button" variant="outline" size="icon"
+                          onClick={handleDownloadPrescription}
+                          disabled={downloadingPdf || previewingPdf || sendingWa}
+                        >
+                          {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Download Prescription</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button" variant="outline" size="icon"
+                          className="border-primary/40 text-primary hover:bg-primary/5"
+                          onClick={handleSendWhatsApp}
+                          disabled={downloadingPdf || previewingPdf || sendingWa}
+                        >
+                          {sendingWa ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Send via WhatsApp</TooltipContent>
+                    </Tooltip>
+                    <AlertDialog>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="icon">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent>Delete Procedure</TooltipContent>
+                      </Tooltip>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete procedure?</AlertDialogTitle>
+                          <AlertDialogDescription>This will permanently remove this procedure, prescriptions and attachments.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </TooltipProvider>
               </SheetHeader>
 
               <div className="p-6 space-y-4 mx-auto w-full max-w-5xl">
@@ -1171,67 +1282,6 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     )}
                   </TabsContent>
                 </Tabs>
-
-                {/* Action buttons */}
-                <div className="flex flex-wrap gap-2 pt-4 border-t">
-                  <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="flex-1 gap-2">
-                    <Save className="h-4 w-4" />
-                    {updateMutation.isPending ? "Saving..." : "Save Changes"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1 gap-2 border-primary/40 text-primary hover:bg-primary/5"
-                    onClick={handleCreateInvoice}
-                  >
-                    <Receipt className="h-4 w-4" />
-                    Create Invoice
-                  </Button>
-
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="icon">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete procedure?</AlertDialogTitle>
-                        <AlertDialogDescription>This will permanently remove this procedure, prescriptions and attachments.</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => deleteMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-
-                {/* Prescription delivery */}
-                <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1 gap-2"
-                    onClick={handleDownloadPrescription}
-                    disabled={downloadingPdf || sendingWa}
-                  >
-                    {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                    Download Prescription
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1 gap-2 border-primary/40 text-primary hover:bg-primary/5"
-                    onClick={handleSendWhatsApp}
-                    disabled={downloadingPdf || sendingWa}
-                  >
-                    {sendingWa ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-                    Send via WhatsApp
-                  </Button>
-                </div>
               </div>
             </>
           )}

@@ -163,7 +163,7 @@ async function loopClinical() {
   let stalled = 0;
   for (;;) {
     if (stopRequested) return;
-    const data = await invokeWithRetry("sf-import-clinical?limit=60");
+    const data = await invokeWithRetry("sf-import-clinical?limit=20");
     assertProcessedShape("sf-import-clinical", data);
     const results: any[] = data.results || [];
     const imported = results.reduce((s, r) => s + (r.appointments || 0) + (r.invoices || 0) + (r.procedures || 0), 0);

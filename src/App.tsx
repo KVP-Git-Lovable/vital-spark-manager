@@ -129,8 +129,11 @@ function AdminRoute({ children }: { children: ReactNode }) {
 }
 
 function ProtectedRoute({ moduleKey, children }: { moduleKey: string; children: ReactNode }) {
-  const { isAdmin, permissions, loading } = useAuth();
+  const { isAdmin, permissions, loading, session } = useAuth();
   if (loading) return null;
+  // Without a session every query reaches the database as "anon", which the
+  // grants deny - send the user to sign in instead of rendering empty panels.
+  if (!session) return <Navigate to="/login" replace />;
   if (isAdmin) return <>{children}</>;
   if (permissions[moduleKey]?.can_view) return <>{children}</>;
   // If no permissions loaded at all (no staff profile / not logged in as staff), allow access

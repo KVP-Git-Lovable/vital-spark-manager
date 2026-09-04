@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Plus, Search, Edit2, Trash2, Clock, IndianRupee, Pill, Sparkles, Loader2, Wrench, Cloud } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,7 @@ const Services = () => {
   // Form state
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState(false);
   const [duration, setDuration] = useState("");
   const [price, setPrice] = useState("");
   const [hsnCode, setHsnCode] = useState("");
@@ -127,6 +128,16 @@ const Services = () => {
       return data;
     },
   });
+
+  // Category Master entries plus any category already in use (Salesforce sync
+  // writes categories that were never added to Category Master), so the
+  // dropdown never hides an existing, filterable category.
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    (categoryMaster as any[]).forEach((c: any) => c?.name && set.add(String(c.name)));
+    (services as any[]).forEach((s: any) => s?.category && set.add(String(s.category)));
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [categoryMaster, services]);
 
   const { data: serviceMedicines = [] } = useQuery({
     queryKey: ["service-medicines"],
@@ -408,6 +419,7 @@ const Services = () => {
   const resetForm = () => {
     setName("");
     setCategory("");
+    setCustomCategory(false);
     setDuration("");
     setPrice("");
     setHsnCode("");
@@ -535,12 +547,38 @@ const Services = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Category</Label>
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select category" /></SelectTrigger>
-                    <SelectContent>
-                      {categoryMaster.map((c: any) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  {customCategory ? (
+                    <div className="mt-1.5 flex gap-2">
+                      <Input
+                        autoFocus
+                        placeholder="Type a category"
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { setCustomCategory(false); setCategory(""); }}
+                      >
+                        List
+                      </Button>
+                    </div>
+                  ) : (
+                    <Select
+                      value={category}
+                      onValueChange={(v) => {
+                        if (v === "__custom__") { setCustomCategory(true); setCategory(""); }
+                        else setCategory(v);
+                      }}
+                    >
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select category" /></SelectTrigger>
+                      <SelectContent>
+                        {categoryOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        <SelectItem value="__custom__">Other (type your own)…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
                 <div>
                   <Label>Duration (mins)</Label>

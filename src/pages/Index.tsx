@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { useState, useMemo } from "react";
 import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle, Megaphone } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";

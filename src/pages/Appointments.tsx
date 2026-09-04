@@ -499,6 +499,13 @@ const Appointments = () => {
 
   const appointmentsDateRange = getDateFilterRange(datePreset);
 
+  // A saved view's filter conditions run client-side (some fields, like bill
+  // amount / payment mode, only exist after joining invoices). Server-side
+  // pagination would then filter just the current 200-row page, producing
+  // empty pages and wrong totals - so whenever a view has filters we fall
+  // back to the full date-bounded fetch and paginate in memory.
+  const viewHasFilters = Boolean(activeView?.filters?.conditions?.length);
+
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments", datePreset, appointmentsDateRange?.start?.toISOString(), appointmentsDateRange?.end?.toISOString()],
     queryFn: async () => {
@@ -517,8 +524,9 @@ const Appointments = () => {
       });
     },
     // Day/Week/Month views only - the List view uses the server-paginated
-    // query below instead of pulling the full date range into memory.
-    enabled: view !== "table",
+    // query below instead of pulling the full date range into memory
+    // (unless a saved view's client-side filters are active).
+    enabled: view !== "table" || viewHasFilters,
   });
 
   const sortedFilterDoctors = useMemo(() => Array.from(filterDoctors).sort(), [filterDoctors]);
@@ -554,7 +562,7 @@ const Appointments = () => {
         sortDirection,
       }),
     placeholderData: keepPreviousData,
-    enabled: view === "table",
+    enabled: view === "table" && !viewHasFilters,
   });
 
   // Reset to page 1 whenever any input that reshapes the result set changes
@@ -584,7 +592,7 @@ const Appointments = () => {
           .range(from, to)
       );
     },
-    enabled: view !== "table",
+    enabled: view !== "table" || viewHasFilters,
   });
 
   const invoiceByAppointmentId = useMemo(() => {
@@ -611,7 +619,7 @@ const Appointments = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: view === "table" && pageApptIds.length > 0,
+    enabled: view === "table" && !viewHasFilters && pageApptIds.length > 0,
   });
 
   const pageInvoiceByAppointmentId = useMemo(() => {
@@ -695,10 +703,16 @@ const Appointments = () => {
   // via client-side lookups (bill/payment_mode - see pageInvoiceByAppointmentId
   // below).
   const apptPageRows = apptPageData?.rows ?? [];
-  const visibleTableRows = useMemo(
+  const serverPageRows = useMemo(
     () => applyViewFilters(apptPageRows, pageInvoiceByAppointmentId),
     [apptPageRows, activeView, pageInvoiceByAppointmentId]
   );
+  // With saved-view filters active the full filtered set is already in memory,
+  // so slice it locally and report its true size.
+  const apptTotal = viewHasFilters ? filteredAppointments.length : (apptPageData?.total ?? 0);
+  const visibleTableRows = viewHasFilters
+    ? filteredAppointments.slice((apptPage - 1) * APPT_PAGE_SIZE, apptPage * APPT_PAGE_SIZE)
+    : serverPageRows;
 
   // Patient display pictures for quick recognition in the appointment list
   const appointmentPatientIds = useMemo(
@@ -1844,7 +1858,7 @@ const Appointments = () => {
             onDisplayChange={setTableDisplay}
             displayModes={["table", "kanban"]}
             onKanbanSettings={() => setKanbanOpen(true)}
-            count={apptPageData?.total ?? 0}
+            count={apptTotal}
             search={searchQuery}
             onSearchChange={setSearchQuery}
             itemLabel="Appointments"
@@ -1989,7 +2003,7 @@ const Appointments = () => {
             {(searchQuery || filterDoctors.size > 0 || datePreset !== "this_week" || filterStatus !== "all" || filterVisitStatus !== "all") && (
               <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterStatus("all"); setFilterVisitStatus("all"); setDatePreset("this_week"); setSpecificDate(undefined); setRangeFrom(undefined); setRangeTo(undefined); }}>Clear filters</Button>
             )}
-            <span className="text-xs text-muted-foreground ml-auto">{filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? "s" : ""}</span>
+            <span className="text-xs text-muted-foreground ml-auto">{(view === "table" ? apptTotal : filteredAppointments.length).toLocaleString()} appointment{(view === "table" ? apptTotal : filteredAppointments.length) !== 1 ? "s" : ""}</span>
           </motion.div>
         )}
         {/* Status color legend (click to filter by status) */}
@@ -2134,7 +2148,7 @@ const Appointments = () => {
                     <span className="text-xs text-muted-foreground">· {dateFilterLabel}</span>
                   )}
                   <span className="text-xs text-muted-foreground ml-auto">
-                    {(apptPageData?.total ?? 0).toLocaleString()} result{(apptPageData?.total ?? 0) !== 1 ? "s" : ""}
+                    {apptTotal.toLocaleString()} result{apptTotal !== 1 ? "s" : ""}
                     {isApptPageFetching ? " · loading…" : ""}
                   </span>
                 </div>
@@ -2402,7 +2416,7 @@ const Appointments = () => {
                 </table>
                 <div className="p-3 border-t flex items-center justify-between gap-3 text-xs text-muted-foreground">
                   <span>
-                    Page {apptPage} of {Math.max(1, Math.ceil((apptPageData?.total ?? 0) / APPT_PAGE_SIZE))}
+                    Page {apptPage} of {Math.max(1, Math.ceil(apptTotal / APPT_PAGE_SIZE))}
                   </span>
                   <div className="flex items-center gap-2">
                     <Button
@@ -2418,7 +2432,7 @@ const Appointments = () => {
                       variant="outline"
                       size="sm"
                       className="h-7 text-xs px-3"
-                      disabled={apptPage >= Math.ceil((apptPageData?.total ?? 0) / APPT_PAGE_SIZE)}
+                      disabled={apptPage >= Math.ceil(apptTotal / APPT_PAGE_SIZE)}
                       onClick={() => setApptPage((p) => p + 1)}
                     >
                       Next

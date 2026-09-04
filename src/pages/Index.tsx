@@ -95,7 +95,7 @@ const Index = () => {
     },
   });
 
-  const { data: appointments = [] } = useQuery({
+  const { data: appointments = [], isError: apptError, refetch: refetchAppts } = useQuery({
     queryKey: ["dashboard-appointments", startISO, endISO],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -110,7 +110,7 @@ const Index = () => {
     },
   });
 
-  const { data: invoices = [] } = useQuery({
+  const { data: invoices = [], isError: invoiceError, refetch: refetchInvoices } = useQuery({
     queryKey: ["dashboard-invoices", startISO, endISO],
     queryFn: async () => {
       const { data, error } = await supabase

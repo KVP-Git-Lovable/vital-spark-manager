@@ -30,6 +30,15 @@ import { toast } from "sonner";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { MicButton } from "@/components/shared/MicButton";
 
+const MEDICAL_FIELDS: [string, string][] = [
+  ["medical_history", "Medical History"],
+  ["current_medications", "Current Medications"],
+  ["allergies", "Allergies"],
+  ["previous_treatments", "Previous Treatments"],
+  ["skin_type", "Skin Type"],
+  ["skin_concerns", "Skin Concerns"],
+];
+
 interface PrescriptionInput {
   product_id: string;
   medicine_name: string;
@@ -105,6 +114,7 @@ export function ProcedureFormDialog({
   const [dictation, setDictation] = useState("");
   const [parsing, setParsing] = useState(false);
   const [elaboratingAll, setElaboratingAll] = useState(false);
+  const [elaboratingMedical, setElaboratingMedical] = useState(false);
   const [recentlyFilled, setRecentlyFilled] = useState<Record<string, boolean>>({});
   const [unmatchedHints, setUnmatchedHints] = useState<{
     patient?: string;
@@ -332,6 +342,48 @@ export function ProcedureFormDialog({
       toast.error(e.message || "Failed to elaborate");
     } finally {
       setElaboratingAll(false);
+    }
+  };
+
+  const elaborateMedical = async () => {
+    if (MEDICAL_FIELDS.every(([field]) => !medical[field])) {
+      toast.info("Fill in a medical information field first, then Elaborate.");
+      return;
+    }
+    setElaboratingMedical(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/medical-info-ai-elaborate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify(Object.fromEntries(MEDICAL_FIELDS.map(([field]) => [field, medical[field] || ""]))),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Elaborate failed" }));
+        throw new Error(err.error || "Elaborate failed");
+      }
+      const data = await res.json();
+      const filled: string[] = [];
+      setMedical((m) => {
+        const next = { ...m };
+        MEDICAL_FIELDS.forEach(([field]) => {
+          if (data[field]) {
+            next[field] = data[field];
+            filled.push(field);
+          }
+        });
+        return next;
+      });
+      if (filled.length === 0) {
+        toast.info("Nothing to elaborate.");
+      } else {
+        setMedicalDirty(true);
+        flashFilled(filled);
+        toast.success("Elaborated medical information");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to elaborate");
+    } finally {
+      setElaboratingMedical(false);
     }
   };
 
@@ -748,25 +800,47 @@ export function ProcedureFormDialog({
   };
 
   const medicalSection = (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-      {([
-        ["medical_history", "Medical History"],
-        ["current_medications", "Current Medications"],
-        ["allergies", "Allergies"],
-        ["previous_treatments", "Previous Treatments"],
-        ["skin_type", "Skin Type"],
-        ["skin_concerns", "Skin Concerns"],
-      ] as [string, string][]).map(([field, label]) => (
-        <div key={field}>
-          <Label className="text-xs text-muted-foreground">{label}</Label>
-          <Textarea
-            rows={3}
-            className="mt-1 text-sm"
-            value={medical[field] || ""}
-            onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
-          />
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium text-primary">AI Assist</span>
+          <span className="text-xs text-muted-foreground hidden sm:inline">
+            Use the mic on any field, then Elaborate to turn it into clinical language.
+          </span>
         </div>
-      ))}
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 gap-1.5"
+          onClick={elaborateMedical}
+          disabled={elaboratingMedical}
+        >
+          {elaboratingMedical ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          AI Elaborate All
+        </Button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {MEDICAL_FIELDS.map(([field, label]) => (
+          <div key={field}>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">{label}</Label>
+              <MicButton
+                size="sm"
+                value={medical[field] || ""}
+                onChange={(next) => { setMedical((m) => ({ ...m, [field]: next })); setMedicalDirty(true); }}
+                title={`Dictate ${label}`}
+              />
+            </div>
+            <Textarea
+              rows={3}
+              className={`mt-1 text-sm transition-all ${recentlyFilled[field] ? "ring-2 ring-primary/40" : ""} ${elaboratingMedical ? "opacity-60" : ""}`}
+              value={medical[field] || ""}
+              onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 

@@ -181,6 +181,18 @@ async function syncPatient(
   const apptIdMap = new Map<string, string>();
   existingApptRows.forEach((r: any) => apptIdMap.set(r.sf_id, r.id));
 
+  // Looked up by billing rows below (Billing__c's Procedure_Type__c fields
+  // are frequently blank - falling back to bare "Service" loses real
+  // information the linked appointment already has) and by procedure rows
+  // further down.
+  const apptServiceBySfId = new Map<string, string>();
+  const apptDoctorBySfId = new Map<string, string>();
+  appts.forEach((a) => {
+    const svc = a.Investigation__c || a.Description__c;
+    if (svc) apptServiceBySfId.set(a.Id, String(svc));
+    if (a.Doctor_Name__c) apptDoctorBySfId.set(a.Id, String(a.Doctor_Name__c));
+  });
+
   const newAppts = appts.filter((a) => !existingAppts.has(a.Id));
   log.skipped += appts.length - newAppts.length;
   const apptRows = newAppts.map((a) => {
@@ -219,7 +231,8 @@ async function syncPatient(
   log.skipped += billings.length - newBillings.length;
   const invRows = newBillings.map((b) => {
     const services = [b.Procedure_Type__c, b.Procedure_Type_2__c, b.Procedure_Type_3__c].filter(Boolean);
-    const names = services.length ? services : ["Service"];
+    const fallbackName = (b.Appointment__c && apptServiceBySfId.get(b.Appointment__c)) || "Service";
+    const names = services.length ? services : [fallbackName];
     const total = Number(b.Total_Amount__c || b.Total_Price__c || 0);
     const taxRate = Number(b.GST__c || 0);
     // Billing__c has no per-line item breakdown (Procedure_Type__c etc. are
@@ -267,13 +280,6 @@ async function syncPatient(
     log.invoices += batch.length;
   }
 
-  const apptServiceBySfId = new Map<string, string>();
-  const apptDoctorBySfId = new Map<string, string>();
-  appts.forEach((a) => {
-    const svc = a.Investigation__c || a.Description__c;
-    if (svc) apptServiceBySfId.set(a.Id, String(svc));
-    if (a.Doctor_Name__c) apptDoctorBySfId.set(a.Id, String(a.Doctor_Name__c));
-  });
   const billingProcBySfApptId = new Map<string, string>();
   billings.forEach((b) => {
     if (b.Appointment__c) {

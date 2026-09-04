@@ -120,7 +120,7 @@ const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
   const raw: any[] = Array.isArray(inv?.line_items) && inv.line_items.length > 0
     ? inv.line_items
     : (() => {
-        const names: string[] = inv?.services?.length ? inv.services : ["Service"];
+        const names: string[] = displayServices(inv);
         const gstRate = Number(inv?.tax_rate) || 0;
         const totalAmt = Number(inv?.total_amount || 0);
         const base = gstRate > 0 ? totalAmt / (1 + gstRate / 100) : Math.max(totalAmt - invoiceTax, 0);
@@ -297,6 +297,15 @@ const getPatientName = (inv: any, patientById?: Map<string, any>) => {
     if (full) return full;
   }
   return "";
+};
+
+/** Older Salesforce imports stored a literal ["Service"] placeholder (not an
+ *  empty array) when there was no real per-procedure name - prefer the
+ *  linked appointment's actual service name over that placeholder. */
+const displayServices = (inv: any): string[] => {
+  const services: string[] = inv?.services || [];
+  const isPlaceholder = services.length === 1 && services[0] === "Service";
+  return services.length && !isPlaceholder ? services : [inv?.appointments?.service || "Service"];
 };
 
 
@@ -1929,7 +1938,7 @@ const Billing = () => {
       format(new Date(inv.created_at), "yyyy-MM-dd"),
       getPatientName(inv, patientById),
       getDrName(inv, staffById),
-      (inv.services || []).join("; "),
+      displayServices(inv).join("; "),
       inv.payment_type,
       inv.payment_mode || "",
       Number(inv.total_amount),
@@ -3045,7 +3054,7 @@ const Billing = () => {
                     </td>
                     <td className="p-4 hidden md:table-cell">
                       <div className="flex flex-wrap gap-1">
-                        {(inv.services || []).map((s: string, i: number) => (
+                        {displayServices(inv).map((s: string, i: number) => (
                           <Badge key={i} variant="secondary" className="text-xs">{s}</Badge>
                         ))}
                       </div>

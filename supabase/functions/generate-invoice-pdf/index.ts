@@ -282,6 +282,25 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       lineItems = lineItems.map((r) => ({ ...r, charges: per / (r.qty || 1), amount: per }));
     }
 
+    // If none of the rows resolved a GST rate (e.g. a Salesforce-imported
+    // service name with no match in services/pharma_products) but the
+    // invoice itself carries a tax figure, redistribute that proportionally
+    // by amount instead of showing 0% GST / 0 tax on every row.
+    const sumTax = lineItems.reduce((s, r) => s + r.taxAmount, 0);
+    const invTax = (Number(inv.cgst_amount) || 0) + (Number(inv.sgst_amount) || 0) + (Number(inv.igst_amount) || 0)
+      || Number(inv.tax_amount) || 0;
+    const chargesSum = lineItems.reduce((s, r) => s + r.amount, 0);
+    if (sumTax === 0 && invTax > 0 && chargesSum > 0) {
+      const effRate = (invTax / chargesSum) * 100;
+      lineItems = lineItems.map((r) => ({
+        ...r,
+        sgst: sameState ? effRate / 2 : 0,
+        cgst: sameState ? effRate / 2 : 0,
+        igst: sameState ? 0 : effRate,
+        taxAmount: (r.amount / chargesSum) * invTax,
+      }));
+    }
+
     // ---- PDF ----
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([595, 842]); // A4 portrait

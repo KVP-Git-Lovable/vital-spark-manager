@@ -105,11 +105,21 @@ export interface InvoiceLineRow {
   name: string; hsn: string; qty: number; price: number; amount: number; gst: number; tax: number; total: number;
 }
 const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
-  const raw: any[] = Array.isArray(inv?.line_items) && inv.line_items.length > 0
-    ? inv.line_items
-    : (inv?.services || []).map((s: string) => ({ name: s, qty: 1, price: 0, hsn: "", gst: 0 }));
   const invoiceTax = Number(inv?.cgst_amount || 0) + Number(inv?.sgst_amount || 0) + Number(inv?.igst_amount || 0)
     || Number(inv?.tax_amount || 0);
+  // Salesforce-imported invoices (and any other invoice saved without a
+  // line_items snapshot) only carry an invoice-level total/tax, not a
+  // per-service price - synthesize one row per named service, splitting the
+  // pre-tax base evenly, so Rate/Amount/Tax don't render as a hollow 0
+  // despite the invoice having real total_amount/tax_amount.
+  const raw: any[] = Array.isArray(inv?.line_items) && inv.line_items.length > 0
+    ? inv.line_items
+    : (() => {
+        const names: string[] = inv?.services?.length ? inv.services : ["Service"];
+        const gstRate = Number(inv?.tax_rate) || 0;
+        const base = Math.max(Number(inv?.total_amount || 0) - invoiceTax, 0) / names.length;
+        return names.map((s: string) => ({ name: s, qty: 1, price: base, hsn: "", gst: gstRate }));
+      })();
   const rows = raw.map((it: any) => {
     const qty = Number(it.qty) || 1;
     const price = Number(it.price) || 0;

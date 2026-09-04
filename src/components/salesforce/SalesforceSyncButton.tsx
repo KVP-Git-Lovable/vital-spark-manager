@@ -53,7 +53,9 @@ export function SalesforceSyncButton() {
       refetch();
       queryClient.invalidateQueries({ queryKey: ["patients"] });
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-page"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-bounded"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-stats"] });
       queryClient.invalidateQueries({ queryKey: ["procedures"] });
       queryClient.invalidateQueries({ queryKey: ["patient-photos"] });
       if (sync.error) {

@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Plus, Search, Camera, Upload } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Plus, Camera, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
@@ -14,22 +13,27 @@ import { CameraCapture } from "@/components/shared/CameraCapture";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { ImportProceduresDialog } from "@/components/procedures/ImportProceduresDialog";
-import { ViewSelector } from "@/components/views/ViewSelector";
-import { NewListViewDialog } from "@/components/views/NewListViewDialog";
-import { useListViews } from "@/hooks/useListViews";
+import { useModuleListViews } from "@/hooks/useModuleListViews";
+import ViewBar from "@/components/listViews/ViewBar";
+import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
+import FieldsDisplayDialog from "@/components/listViews/FieldsDisplayDialog";
+import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
+import { PROCEDURE_VIEW_FIELDS, DEFAULT_PROCEDURE_VIEW_COLUMNS } from "@/lib/listViews/procedureFields";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
 import { withDrPrefix } from "@/lib/staffName";
 
-const PROCEDURE_FIELDS = [
-  { value: "procedure_date", label: "Date" },
-  { value: "patient", label: "Patient" },
-  { value: "service_name", label: "Service" },
-  { value: "doctor", label: "Doctor" },
-  { value: "status", label: "Status" },
-];
-
-const DEFAULT_PROCEDURE_FIELDS = ["procedure_date", "patient", "service_name", "doctor", "status"];
+const DEFAULT_PROCEDURE_FIELDS = DEFAULT_PROCEDURE_VIEW_COLUMNS;
 
 const toTitleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -53,14 +57,19 @@ const Procedures = () => {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [showNewViewDialog, setShowNewViewDialog] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("id"));
   const [cameraProc, setCameraProc] = useState<any>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
 
-  const { views, currentView, selectedViewId, setSelectedViewId, createView, deleteView, isCreating } = useListViews("procedures");
+  const {
+    allViews, userId: viewsUserId, activeView, selectView, saveView, deleteView, pinDefault, updateStandardColumns,
+  } = useModuleListViews("procedures", "Procedures", DEFAULT_PROCEDURE_VIEW_COLUMNS);
+  const [viewEditorOpen, setViewEditorOpen] = useState(false);
+  const [editingView, setEditingView] = useState<ListView | null>(null);
+  const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
+  const [viewFieldsOpen, setViewFieldsOpen] = useState(false);
 
   const handleProcedureSaved = useCallback((savedId: string) => {
     setHighlightedId(savedId);
@@ -95,66 +104,50 @@ const Procedures = () => {
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff-active-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role").eq("is_active", true).order("first_name");
+      const { data, error } = await supabase.from("staff").select("id, first_name, last_name, role, auth_user_id").eq("is_active", true).order("first_name");
       if (error) throw error;
       return data;
     },
   });
+
+  // Saved-view filter builder options for the picklist fields
+  const viewOptionsFor = (source?: string): PickOption[] => {
+    switch (source) {
+      case "doctor": return staffList.filter((s: any) => s.role === "Doctor").map((s: any) => ({ value: s.id, label: `${s.first_name} ${s.last_name}` }));
+      case "status": return ["Pending", "Completed", "Cancelled"].map((s) => ({ value: s, label: s }));
+      default: return [];
+    }
+  };
 
   let filtered = procedures.filter((p: any) => {
     const name = `${p.patients?.first_name || ""} ${p.patients?.last_name || ""}`.toLowerCase();
     return name.includes(search.toLowerCase()) || p.service_name?.toLowerCase().includes(search.toLowerCase());
   });
 
-  // Get columns to display based on current view or default
-  const getDisplayColumns = () => {
-    if (currentView?.display_fields && currentView.display_fields.length > 0) {
-      return currentView.display_fields;
-    }
-    return DEFAULT_PROCEDURE_FIELDS;
-  };
-
-  const displayColumns = getDisplayColumns();
+  // Get columns to display based on active saved view or default
+  const displayColumns = activeView?.columns?.length ? activeView.columns : DEFAULT_PROCEDURE_FIELDS;
 
   // Check if a column should be displayed
   const shouldShowColumn = (column: string) => displayColumns.includes(column);
 
-  // Apply view filters
+  // Denormalize a procedure into the flat shape PROCEDURE_VIEW_FIELDS' filter
+  // engine reads. `doctor` uses the raw staff_id (not the display name) so it
+  // matches the picklist options built from staffList.
+  const toViewRow = (proc: any) => ({
+    id: proc.id,
+    procedure_date: proc.procedure_date,
+    patient: `${proc.patients?.first_name || ""} ${proc.patients?.last_name || ""}`.trim(),
+    service_name: proc.service_name || "",
+    doctor: proc.staff_id || "",
+    status: proc.status || "",
+  });
+
+  // Apply the active saved view's filters (if any)
   const applyViewFilters = (items: any[]) => {
-    if (!currentView?.filters || currentView.filters.length === 0) return items;
-    return items.filter((proc) => {
-      return currentView.filters.every((filter) => {
-        const fieldValue = getFieldValue(proc, filter.field);
-        return applyFilterCondition(fieldValue, filter.operator, filter.value);
-      });
-    });
-  };
-
-  const getFieldValue = (proc: any, field: string) => {
-    switch (field) {
-      case "procedure_date": return new Date(proc.procedure_date).toLocaleDateString();
-      case "patient": return `${proc.patients?.first_name || ""} ${proc.patients?.last_name || ""}`;
-      case "service_name": return proc.service_name || "";
-      case "doctor": return getProcedureDoctor(proc);
-      case "status": return proc.status || "";
-      default: return "";
-    }
-  };
-
-  const applyFilterCondition = (value: any, operator: string, filterValue: any) => {
-    const val = String(value).toLowerCase();
-    const fval = String(filterValue).toLowerCase();
-    switch (operator) {
-      case "equals": return val === fval;
-      case "contains": return val.includes(fval);
-      case "starts_with": return val.startsWith(fval);
-      case "ends_with": return val.endsWith(fval);
-      case "greater_than": return Number(value) > Number(filterValue);
-      case "less_than": return Number(value) < Number(filterValue);
-      case "is_empty": return !value || value === "";
-      case "is_not_empty": return value && value !== "";
-      default: return true;
-    }
+    if (!activeView?.filters?.conditions?.length) return items;
+    const denormalized = items.map(toViewRow);
+    const kept = new Set(applyListFilters(denormalized, activeView.filters, PROCEDURE_VIEW_FIELDS).map((r) => r.id));
+    return items.filter((proc) => kept.has(proc.id));
   };
 
   // Apply view filters to filtered items
@@ -168,14 +161,6 @@ const Procedures = () => {
           <p className="page-subtitle">Record consultations, procedures & prescriptions</p>
         </div>
         <div className="flex gap-2 w-fit flex-wrap">
-          <ViewSelector
-            views={views}
-            selectedViewId={selectedViewId}
-            onSelectView={setSelectedViewId}
-            onCreateView={() => setShowNewViewDialog(true)}
-            onDeleteView={deleteView}
-            currentViewName={currentView?.name}
-          />
           <SalesforceSyncButton />
           <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4" />
@@ -188,9 +173,27 @@ const Procedures = () => {
         </div>
       </div>
 
-      <div className="relative max-w-md mb-4 md:mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Search by patient or service..." className="pl-9 bg-card border" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="mb-4 md:mb-6">
+        <ViewBar
+          views={allViews}
+          activeView={activeView}
+          currentUserId={viewsUserId}
+          onSelect={selectView}
+          onNew={() => { setEditingView(null); setViewEditorOpen(true); }}
+          onEdit={(v) => { setEditingView(v); setViewEditorOpen(true); }}
+          onDelete={(v) => setDeleteViewTarget(v)}
+          onPin={pinDefault}
+          onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
+          onFields={() => setViewFieldsOpen(true)}
+          onRefresh={() => queryClient.invalidateQueries({ queryKey: ["procedures"] })}
+          display="table"
+          onDisplayChange={() => {}}
+          showDisplaySwitcher={false}
+          count={filtered.length}
+          search={search}
+          onSearchChange={setSearch}
+          itemLabel="Procedures"
+        />
       </div>
 
       {/* Mobile card view */}
@@ -310,20 +313,55 @@ const Procedures = () => {
         />
       )}
 
-      <NewListViewDialog
-        open={showNewViewDialog}
-        onOpenChange={setShowNewViewDialog}
-        section="procedures"
-        availableFields={PROCEDURE_FIELDS}
-        defaultFields={DEFAULT_PROCEDURE_FIELDS}
-        onCreate={createView}
-        isLoading={isCreating}
-        teamMembers={staffList.map((s: any) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }))}
-        fieldOptions={{
-          doctor: staffList.filter((s: any) => s.role === "Doctor").map((s: any) => ({ value: s.id, label: `${s.first_name} ${s.last_name}` })),
-          status: ["Pending", "Completed", "Cancelled"].map((s) => ({ value: s, label: s })),
-        }}
+      <ViewEditorDialog
+        open={viewEditorOpen}
+        onOpenChange={setViewEditorOpen}
+        view={editingView}
+        onSave={saveView}
+        fields={PROCEDURE_VIEW_FIELDS}
+        defaultColumns={DEFAULT_PROCEDURE_VIEW_COLUMNS}
+        optionsFor={viewOptionsFor}
+        people={staffList
+          .filter((s: any) => s.auth_user_id)
+          .map((s: any) => ({ value: s.auth_user_id, label: `${s.first_name || ""} ${s.last_name || ""}`.trim() }))}
+        itemLabel="procedures"
       />
+
+      <FieldsDisplayDialog
+        open={viewFieldsOpen}
+        onOpenChange={setViewFieldsOpen}
+        viewName={activeView?.name ?? "All Procedures"}
+        columns={displayColumns}
+        onSave={(cols) => {
+          if (!activeView) return;
+          if (activeView.is_standard) updateStandardColumns(activeView.id, cols);
+          else saveView({ ...activeView, columns: cols });
+        }}
+        fields={PROCEDURE_VIEW_FIELDS}
+        defaultColumns={DEFAULT_PROCEDURE_VIEW_COLUMNS}
+      />
+
+      <AlertDialog open={!!deleteViewTarget} onOpenChange={(o) => { if (!o) setDeleteViewTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteViewTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>This list view will be removed for everyone it is shared with.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteViewTarget) deleteView(deleteViewTarget);
+                setDeleteViewTarget(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

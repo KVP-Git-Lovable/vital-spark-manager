@@ -750,7 +750,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 {/* Record actions - icon-only and pinned in the sticky header so they
                     never require scrolling to the bottom of a long procedure. */}
                 <TooltipProvider delayDuration={200}>
-                  <div className="flex flex-wrap items-center gap-1.5 pt-3">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 pt-3">
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button size="icon" onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>

@@ -74,7 +74,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { fetchAll } from "@/lib/supabasePaginate";
-import { fetchInvoicesPage, fetchInvoicesBounded, fetchInvoiceStats, fetchInvoiceById } from "@/lib/invoicesPage";
+import { fetchInvoicesPage, fetchInvoicesBounded, fetchInvoicesSearch, fetchInvoiceStats, fetchInvoiceById } from "@/lib/invoicesPage";
 import { withDrPrefix } from "@/lib/staffName";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";

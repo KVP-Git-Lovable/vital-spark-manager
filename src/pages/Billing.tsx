@@ -343,6 +343,7 @@ const Billing = () => {
   const invalidateInvoices = () => {
     queryClient.invalidateQueries({ queryKey: ["invoices-page"] });
     queryClient.invalidateQueries({ queryKey: ["invoices-bounded"] });
+    queryClient.invalidateQueries({ queryKey: ["invoices-search"] });
     queryClient.invalidateQueries({ queryKey: ["invoice-stats"] });
   };
   const [searchParams, setSearchParams] = useSearchParams();

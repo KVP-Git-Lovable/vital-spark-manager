@@ -74,7 +74,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { fetchAll } from "@/lib/supabasePaginate";
-import { fetchInvoicesPage, fetchInvoicesBounded, fetchInvoiceStats, fetchInvoiceById } from "@/lib/invoicesPage";
+import { fetchInvoicesPage, fetchInvoicesBounded, fetchInvoicesSearch, fetchInvoiceStats, fetchInvoiceById } from "@/lib/invoicesPage";
 import { withDrPrefix } from "@/lib/staffName";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
@@ -343,6 +343,7 @@ const Billing = () => {
   const invalidateInvoices = () => {
     queryClient.invalidateQueries({ queryKey: ["invoices-page"] });
     queryClient.invalidateQueries({ queryKey: ["invoices-bounded"] });
+    queryClient.invalidateQueries({ queryKey: ["invoices-search"] });
     queryClient.invalidateQueries({ queryKey: ["invoice-stats"] });
   };
   const [searchParams, setSearchParams] = useSearchParams();
@@ -503,8 +504,13 @@ const Billing = () => {
   // request instead of fetchAll()'s ~30 sequential requests across the
   // whole invoices table. Mirrors Patients.tsx's isAllView/needsClientRows.
   const isAllView = !activeView || activeView.id === ALL_VIEW_ID;
-  const hasActiveFilters = !!(filterDateFrom || filterDateTo || filterDoctor || filterService || filterType || filterStatus);
-  const needsClientRows = !isAllView || hasActiveFilters || !!search.trim() || display === "kanban";
+  // Search + the enum quick filters are pushed to the server
+  // (fetchInvoicesSearch) so they cover the WHOLE invoices table - the old
+  // bounded client-side fetch only kept the newest 3,000 rows, which made
+  // older invoices unreachable via search/filter.
+  const needsServerSearch = !!(search.trim() || filterDoctor || filterService || filterType || filterStatus);
+  const hasActiveFilters = !!(filterDateFrom || filterDateTo) || needsServerSearch;
+  const needsClientRows = !isAllView || hasActiveFilters || display === "kanban";
 
   const {
     data: pagedData,
@@ -521,11 +527,28 @@ const Billing = () => {
   } = useQuery({
     queryKey: ["invoices-bounded", filterDateFrom, filterDateTo],
     queryFn: () => fetchInvoicesBounded({ dateFrom: filterDateFrom, dateTo: filterDateTo, limit: 3000 }),
-    enabled: needsClientRows,
+    enabled: needsClientRows && !needsServerSearch,
   });
 
-  const invoices: any[] = needsClientRows ? boundedInvoices : pagedData?.rows ?? [];
-  const invoicesError = needsClientRows ? boundedError : pagedError;
+  const {
+    data: searchedInvoices = [],
+    error: searchError,
+  } = useQuery({
+    queryKey: ["invoices-search", search, filterDoctor, filterService, filterType, filterStatus, filterDateFrom, filterDateTo],
+    queryFn: () => fetchInvoicesSearch({
+      search,
+      doctorId: filterDoctor || undefined,
+      service: filterService || undefined,
+      paymentType: filterType || undefined,
+      status: filterStatus || undefined,
+      dateFrom: filterDateFrom,
+      dateTo: filterDateTo,
+    }),
+    enabled: needsServerSearch,
+  });
+
+  const invoices: any[] = needsServerSearch ? searchedInvoices : needsClientRows ? boundedInvoices : pagedData?.rows ?? [];
+  const invoicesError = needsServerSearch ? searchError : needsClientRows ? boundedError : pagedError;
 
   useEffect(() => {
     if (invoicesError) {

@@ -69,6 +69,103 @@ export async function fetchInvoicesBounded({ dateFrom, dateTo, limit }: FetchInv
   return all.slice(0, limit);
 }
 
+export interface FetchInvoicesSearchParams extends InvoiceDateRange {
+  search?: string;
+  doctorId?: string;
+  service?: string;
+  paymentType?: string;
+  status?: string;
+  limit?: number;
+}
+
+/**
+ * Server-side narrowed fetch for the Billing page's search box and quick
+ * filters. fetchInvoicesBounded() only keeps the newest N rows, so an older
+ * invoice was unreachable via search/filter; here every mappable predicate
+ * (date range, status, payment type, service, doctor, and the free-text
+ * search across invoice number / patient / payment fields) is pushed to
+ * PostgREST, so the returned (already small) set covers the whole table.
+ * The page still re-applies its exact client-side predicates on top for
+ * anything that can't be expressed server-side (e.g. appointment-doctor
+ * name substring matches).
+ */
+export async function fetchInvoicesSearch({
+  search,
+  doctorId,
+  service,
+  paymentType,
+  status,
+  dateFrom,
+  dateTo,
+  limit = 5000,
+}: FetchInvoicesSearchParams): Promise<any[]> {
+  const buildQuery = (innerJoinAppointments: boolean) => {
+    const select = innerJoinAppointments
+      ? "*, appointments!inner(id, service, start_time, staff_id, doctors:staff_id(first_name, last_name))"
+      : INVOICE_SELECT;
+    let q = supabase.from("invoices").select(select);
+    q = applyDateRange(q, { dateFrom, dateTo });
+    if (status) q = q.eq("status", status);
+    if (paymentType) q = q.eq("payment_type", paymentType);
+    if (service) q = q.contains("services", [service]);
+    return q;
+  };
+
+  const run = async (innerJoinAppointments: boolean, extra?: (q: any) => any) => {
+    let q = buildQuery(innerJoinAppointments);
+    if (extra) q = extra(q);
+    q = q.order("created_at", { ascending: false }).limit(limit);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data || [];
+  };
+
+  // Free-text search: match invoice number / payment fields / denormalized
+  // patient name directly, plus patient_id against a name/phone lookup so
+  // rows saved without the denormalized patient_name still match.
+  let searchExtra: ((q: any) => any) | undefined;
+  const term = search?.trim();
+  if (term) {
+    const like = `%${term.replace(/[%_]/g, "")}%`;
+    const orParts = [
+      `invoice_number.ilike.${like}`,
+      `patient_name.ilike.${like}`,
+      `payment_type.ilike.${like}`,
+      `payment_mode.ilike.${like}`,
+    ];
+    const { data: patientHits } = await supabase
+      .from("patients")
+      .select("id")
+      .or(`first_name.ilike.${like},last_name.ilike.${like},phone.ilike.${like}`)
+      .limit(500);
+    const ids = (patientHits || []).map((p: any) => p.id);
+    if (ids.length) orParts.push(`patient_id.in.(${ids.join(",")})`);
+    const orClause = orParts.join(",");
+    searchExtra = (q) => q.or(orClause);
+  }
+
+  if (doctorId) {
+    // Doctor can come from invoices.doctor_id OR the linked appointment's
+    // staff_id. An inner-join filter would drop appointment-less invoices,
+    // so run both variants and merge by id.
+    const [byDoctorId, byAppointment] = await Promise.all([
+      run(false, (q) => {
+        q = q.eq("doctor_id", doctorId);
+        return searchExtra ? searchExtra(q) : q;
+      }),
+      run(true, (q) => {
+        q = q.eq("appointments.staff_id", doctorId);
+        return searchExtra ? searchExtra(q) : q;
+      }),
+    ]);
+    const seen = new Map<string, any>();
+    for (const inv of [...byAppointment, ...byDoctorId]) seen.set(inv.id, inv);
+    return [...seen.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  }
+
+  return run(false, searchExtra);
+}
+
 export interface InvoiceStats {
   totalRevenue: number;
   pendingAmount: number;

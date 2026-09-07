@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 import { useNavigate } from "react-router-dom";
 import { format, formatDistanceToNow } from "date-fns";
@@ -72,6 +72,25 @@ interface ProcedureDetailSheetProps {
 export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: ProcedureDetailSheetProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  // Belt-and-braces scroll lock: Radix's own lock only ever touches
+  // document.body (this app's real scroll container is <main
+  // overflow-auto> in AppLayout.tsx - see the body[data-scroll-locked]
+  // rule in index.css), and relying on that CSS attribute hook alone
+  // wasn't reliably taking effect. Lock <main> directly here instead,
+  // tied to this sheet's own open/close lifecycle - no dependency on
+  // Radix internals or CSS cascade timing.
+  useEffect(() => {
+    if (!procedureId) return;
+    const main = document.querySelector("main");
+    if (!main) return;
+    const prevOverflow = main.style.overflow;
+    main.style.overflow = "hidden";
+    return () => {
+      main.style.overflow = prevOverflow;
+    };
+  }, [procedureId]);
+
   const [cameraOpen, setCameraOpen] = useState(false);
 
   const [initialized, setInitialized] = useState(false);

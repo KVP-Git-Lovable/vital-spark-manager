@@ -9,7 +9,7 @@ interface TimePicker12hProps {
   onChange: (next: string) => void;
   className?: string;
   disabled?: boolean;
-  /** Smaller triggers for dense contexts like a table row. */
+  /** Smaller footprint for dense contexts like a table row. */
   compact?: boolean;
 }
 
@@ -31,13 +31,20 @@ function to24h(hour12: number, minute: number, period: "AM" | "PM") {
   return `${String(h24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
+// Borderless Select trigger so hour/minute read as segments of one field,
+// not three separate dropdown boxes.
+const segmentTriggerClass = "h-full w-auto min-w-0 border-0 bg-transparent p-0 shadow-none focus:ring-0 [&>svg]:hidden";
+
 /**
  * <input type="time"> renders in whatever 24hr/12hr format the visitor's
  * OS/browser locale prefers - there's no HTML-level way to force 12hr with
- * an explicit AM/PM selector. This is a drop-in replacement with the same
- * value/onChange contract (24hr "HH:mm" in, 24hr "HH:mm" out) so every
- * existing caller - including WhatsApp message building, which formats its
- * own Date independently of this input - needs no other changes.
+ * an explicit AM/PM selector. This is a same-footprint replacement: one
+ * bordered field (matching the original input's look) with hour/minute as
+ * borderless dropdown segments plus a compact AM/PM toggle, rather than
+ * three separate boxes. Same value/onChange contract (24hr "HH:mm" in,
+ * 24hr "HH:mm" out) so every existing caller - including WhatsApp message
+ * building, which formats its own Date independently of this input - needs
+ * no other changes.
  */
 export function TimePicker12h({ value, onChange, className, disabled, compact }: TimePicker12hProps) {
   const parsed = parse24h(value);
@@ -50,13 +57,18 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
     onChange(to24h(patch.hour12 ?? hour12, patch.minute ?? minute, patch.period ?? period));
   };
 
-  const triggerHeight = compact ? "h-8" : "h-10";
-
   return (
-    <div className={cn("flex items-center gap-1", className)}>
+    <div
+      className={cn(
+        "flex items-center gap-1 rounded-md border border-input bg-background px-2 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+        compact ? "h-8" : "h-10",
+        disabled && "cursor-not-allowed opacity-50",
+        className,
+      )}
+    >
       <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
       <Select value={isSet ? String(hour12) : undefined} onValueChange={(v) => update({ hour12: Number(v) })} disabled={disabled}>
-        <SelectTrigger className={cn("w-[56px]", triggerHeight)}><SelectValue placeholder="--" /></SelectTrigger>
+        <SelectTrigger className={segmentTriggerClass}><SelectValue placeholder="--" /></SelectTrigger>
         <SelectContent className="max-h-60">
           {HOURS_12.map((h) => (
             <SelectItem key={h} value={String(h)}>{h}</SelectItem>
@@ -65,20 +77,38 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
       </Select>
       <span className="text-muted-foreground">:</span>
       <Select value={isSet ? String(minute) : undefined} onValueChange={(v) => update({ minute: Number(v) })} disabled={disabled}>
-        <SelectTrigger className={cn("w-[64px]", triggerHeight)}><SelectValue placeholder="--" /></SelectTrigger>
+        <SelectTrigger className={segmentTriggerClass}><SelectValue placeholder="--" /></SelectTrigger>
         <SelectContent className="max-h-60">
           {MINUTES_60.map((m) => (
             <SelectItem key={m} value={String(m)}>{String(m).padStart(2, "0")}</SelectItem>
           ))}
         </SelectContent>
       </Select>
-      <Select value={isSet ? period : undefined} onValueChange={(v) => update({ period: v as "AM" | "PM" })} disabled={disabled}>
-        <SelectTrigger className={cn("w-[64px]", triggerHeight)}><SelectValue placeholder="--" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="AM">AM</SelectItem>
-          <SelectItem value="PM">PM</SelectItem>
-        </SelectContent>
-      </Select>
+      {/* Compact AM/PM toggle - AM above PM - instead of a third dropdown box. */}
+      <div className="ml-auto flex flex-col items-center justify-center leading-none select-none">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => update({ period: "AM" })}
+          className={cn(
+            "px-1 text-[10px] font-semibold",
+            period === "AM" ? "text-primary" : "text-muted-foreground/50 hover:text-foreground",
+          )}
+        >
+          AM
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => update({ period: "PM" })}
+          className={cn(
+            "px-1 text-[10px] font-semibold",
+            period === "PM" ? "text-primary" : "text-muted-foreground/50 hover:text-foreground",
+          )}
+        >
+          PM
+        </button>
+      </div>
     </div>
   );
 }

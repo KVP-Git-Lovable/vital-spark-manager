@@ -14,7 +14,8 @@ import { ModalProvider } from "@/hooks/useModal";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { InstallBanner } from "@/components/pwa/InstallBanner";
 import { ShopLayout } from "@/components/shop/ShopLayout";
-import { ReactNode, Suspense, lazy } from "react";
+import { ReactNode, Suspense } from "react";
+import { lazyWithReload } from "@/lib/lazyWithReload";
 import { useCurrencySettings } from "@/lib/currency";
 
 // Every page is its own lazy-loaded chunk instead of one large upfront

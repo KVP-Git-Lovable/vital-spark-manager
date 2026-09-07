@@ -11,6 +11,7 @@ import PortalSurveyFill from "@/components/portal/PortalSurveyFill";
 import clinicLogo from "@/assets/skin-clinic-logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -851,7 +852,7 @@ const Portal = () => {
               </div>
               <div>
                 <Label>Preferred Time *</Label>
-                <Input type="time" className="mt-1.5" value={apptTime} onChange={(e) => setApptTime(e.target.value)} />
+                <TimePicker12h className="mt-1.5" value={apptTime} onChange={setApptTime} />
               </div>
             </div>
             <div>

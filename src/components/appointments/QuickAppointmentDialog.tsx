@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { shortPatientId } from "@/lib/utils";
+import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { ConsultationReasonPicker, buildConsultationReasonsForSave, ConsultationType } from "./ConsultationReasonPicker";
 
 interface QuickAppointmentDialogProps {
@@ -221,11 +222,11 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label>Start</Label>
-                <Input type="time" value={startTime} onChange={(e) => handleStartTimeChange(e.target.value)} className="mt-1.5" />
+                <TimePicker12h value={startTime} onChange={handleStartTimeChange} className="mt-1.5" />
               </div>
               <div>
                 <Label>End</Label>
-                <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="mt-1.5" />
+                <TimePicker12h value={endTime} onChange={setEndTime} className="mt-1.5" />
               </div>
             </div>
           </div>

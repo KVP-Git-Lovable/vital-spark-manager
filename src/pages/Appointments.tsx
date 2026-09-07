@@ -71,6 +71,7 @@ import { fetchAppointmentsPage } from "@/lib/appointmentsPage";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { MicButton } from "@/components/shared/MicButton";
+import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { ConsultationReasonPicker, buildConsultationReasonsForSave, ConsultationType } from "@/components/appointments/ConsultationReasonPicker";
 
 // Lazy: pulls in recharts, kept out of the main bundle until a user actually opens Charts.
@@ -1631,12 +1632,10 @@ const Appointments = () => {
                   </div>
                   <div>
                     <Label>Start Time *</Label>
-                    <Input
-                      type="time"
+                    <TimePicker12h
                       className="mt-1.5"
                       value={startTime}
-                      onChange={(e) => {
-                        const v = e.target.value;
+                      onChange={(v) => {
                         setStartTime(v);
                         const [h, m] = v.split(":").map(Number);
                         if (!Number.isNaN(h) && !Number.isNaN(m)) {
@@ -1648,7 +1647,7 @@ const Appointments = () => {
                   </div>
                   <div>
                     <Label>End Time *</Label>
-                    <Input type="time" className="mt-1.5" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                    <TimePicker12h className="mt-1.5" value={endTime} onChange={setEndTime} />
                   </div>
                 </div>
 

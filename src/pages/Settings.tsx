@@ -4,6 +4,7 @@ import { Save, Building2, Clock, Users, Plus, Trash2, Loader2, Ruler, Calendar }
 import UnitMaster from "./UnitMaster";
 import { HolidayCalendar } from "@/components/settings/HolidayCalendar";
 import { Input } from "@/components/ui/input";
+import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -327,41 +328,35 @@ const Settings = () => {
                       />
                     </TableCell>
                     <TableCell>
-                      <Input
-                        type="time"
-                        className="w-28 h-8"
+                      <TimePicker12h
+                        compact
                         value={hour.open_time}
-                        onChange={(e) => updateHours.mutate({ ...hour, open_time: e.target.value })}
+                        onChange={(v) => updateHours.mutate({ ...hour, open_time: v })}
                         disabled={!hour.is_open}
                       />
                     </TableCell>
                     <TableCell>
-                      <Input
-                        type="time"
-                        className="w-28 h-8"
+                      <TimePicker12h
+                        compact
                         value={hour.close_time}
-                        onChange={(e) => updateHours.mutate({ ...hour, close_time: e.target.value })}
+                        onChange={(v) => updateHours.mutate({ ...hour, close_time: v })}
                         disabled={!hour.is_open}
                       />
                     </TableCell>
                     <TableCell>
-                      <Input
-                        type="time"
-                        className="w-28 h-8"
+                      <TimePicker12h
+                        compact
                         value={hour.break_start || ""}
-                        onChange={(e) => updateHours.mutate({ ...hour, break_start: e.target.value || null })}
+                        onChange={(v) => updateHours.mutate({ ...hour, break_start: v || null })}
                         disabled={!hour.is_open}
-                        placeholder="—"
                       />
                     </TableCell>
                     <TableCell>
-                      <Input
-                        type="time"
-                        className="w-28 h-8"
+                      <TimePicker12h
+                        compact
                         value={hour.break_end || ""}
-                        onChange={(e) => updateHours.mutate({ ...hour, break_end: e.target.value || null })}
+                        onChange={(v) => updateHours.mutate({ ...hour, break_end: v || null })}
                         disabled={!hour.is_open}
-                        placeholder="—"
                       />
                     </TableCell>
                   </TableRow>

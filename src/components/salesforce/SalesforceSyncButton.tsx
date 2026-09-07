@@ -69,9 +69,15 @@ export function SalesforceSyncButton() {
     wasRunning.current = sync.running;
   }, [sync.running]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Only real incomplete-import backlog for already-linked patients counts
+  // as "pending" here - patients with no sf_id (totalPatients - linked)
+  // aren't necessarily unsynced Salesforce records; many are app-only
+  // patients (walk-ins/manual entries) that will never have a Salesforce
+  // match, so folding that gap into this badge overstated outstanding work.
   const totalPending = pending
-    ? (pending.totalPatients - pending.linked) + pending.clinicalPending + pending.picturesPending + pending.attachmentsPending
+    ? pending.clinicalPending + pending.picturesPending + pending.attachmentsPending
     : undefined;
+  const unmatchedPatients = pending ? pending.totalPatients - pending.linked : 0;
 
   return (
     <Popover>
@@ -98,6 +104,11 @@ export function SalesforceSyncButton() {
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>Patients linked</span>
             <span className="text-right font-medium text-foreground">{pending.linked.toLocaleString()} / {pending.totalPatients.toLocaleString()}</span>
+            {unmatchedPatients > 0 && (
+              <span className="col-span-2 text-[11px] text-muted-foreground/80">
+                {unmatchedPatients.toLocaleString()} have no Salesforce match by phone — likely app-only patients, not outstanding sync work.
+              </span>
+            )}
             <span>Appointments/billing/procedures pending</span>
             <span className="text-right font-medium text-foreground">{pending.clinicalPending.toLocaleString()}</span>
             <span>Photos pending</span>

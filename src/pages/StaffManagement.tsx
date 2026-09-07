@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, Edit, Trash2, Loader2, Phone, Mail, Camera, UserCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -288,11 +289,11 @@ const StaffManagement = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Work Start Time</Label>
-                  <Input type="time" className="mt-1" value={form.work_start_time} onChange={(e) => setForm({ ...form, work_start_time: e.target.value })} />
+                  <TimePicker12h className="mt-1" value={form.work_start_time} onChange={(v) => setForm({ ...form, work_start_time: v })} />
                 </div>
                 <div>
                   <Label>Work End Time</Label>
-                  <Input type="time" className="mt-1" value={form.work_end_time} onChange={(e) => setForm({ ...form, work_end_time: e.target.value })} />
+                  <TimePicker12h className="mt-1" value={form.work_end_time} onChange={(v) => setForm({ ...form, work_end_time: v })} />
                 </div>
               </div>
 

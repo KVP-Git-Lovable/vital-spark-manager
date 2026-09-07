@@ -82,7 +82,7 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
         placeholder="--"
         disabled={disabled}
         onChange={(e) => update({ hour12: wrapHour(Number(e.target.value)) })}
-        className="w-6 shrink-0 bg-transparent text-center outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="w-8 shrink-0 bg-transparent text-center outline-none cursor-pointer"
       />
       <span className="text-muted-foreground">:</span>
       <input
@@ -95,7 +95,7 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
         placeholder="--"
         disabled={disabled}
         onChange={(e) => update({ minute: wrapMinute(Number(e.target.value)) })}
-        className="w-7 shrink-0 bg-transparent text-center outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="w-9 shrink-0 bg-transparent text-center outline-none cursor-pointer"
       />
       {/* Two-state AM/PM toggle button, not text labels - the active side is filled. */}
       <div className={cn("ml-auto flex shrink-0 overflow-hidden rounded border border-input text-[10px] font-semibold")}>

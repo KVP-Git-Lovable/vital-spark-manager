@@ -1528,6 +1528,7 @@ const Billing = () => {
           services: allServices,
           line_items: lineItemsSnapshot,
           doctor_id: doctorId || null,
+          appointment_id: sourceAppointmentId || null,
           total_amount: grandTotal,
           paid_amount: paidAmount,
           status,

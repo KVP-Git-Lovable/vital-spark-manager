@@ -28,18 +28,16 @@ function to24h(hour12: number, minute: number, period: "AM" | "PM") {
   return `${String(h24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-/** Wraps into [1,12] - typing/incrementing past either end rolls over. */
-function wrapHour(h: number) {
+/** Clamps into [1,12] - never wraps, so typing can't silently pick another hour. */
+function clampHour(h: number) {
   if (Number.isNaN(h)) return 12;
-  let v = h % 12;
-  if (v <= 0) v += 12;
-  return v;
+  return Math.min(12, Math.max(1, h));
 }
 
-/** Wraps into [0,59]. */
-function wrapMinute(m: number) {
+/** Clamps into [0,59]. */
+function clampMinute(m: number) {
   if (Number.isNaN(m)) return 0;
-  return ((m % 60) + 60) % 60;
+  return Math.min(59, Math.max(0, m));
 }
 
 /**

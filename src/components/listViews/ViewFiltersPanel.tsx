@@ -62,18 +62,13 @@ export default function ViewFiltersPanel({ view, canManage, fields, optionsFor, 
 
   return (
     <div className="flex h-full flex-col rounded-xl border border-border bg-card shadow-sm">
-      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 pr-12">
         <h2 className="text-lg font-semibold">Filters</h2>
-        <div className="flex items-center gap-1">
-          {!locked && !editing && (
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={startEdit} aria-label="Edit filters">
-              <Pencil className="h-4 w-4" />
-            </Button>
-          )}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Close filters">
-            <X className="h-4 w-4" />
+        {!locked && !editing && (
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={startEdit} aria-label="Edit filters">
+            <Pencil className="h-4 w-4" />
           </Button>
-        </div>
+        )}
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-4">

@@ -534,8 +534,12 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
     };
 
 
+    const balanceDue = Number(inv.total_amount || 0) - Number(inv.paid_amount || 0);
     drawTotalsRow("Total Billed", fmtINR(Number(inv.total_amount || 0)));
     drawTotalsRow("Total Paid", fmtINR(Number(inv.paid_amount || 0)));
+    if (balanceDue > 0.5) {
+      drawTotalsRow("Balance Due", fmtINR(balanceDue));
+    }
 
 
     // Amount in words / Mode of payment rows
@@ -549,7 +553,7 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       y -= h;
     };
 
-    const amountWords = numberToIndianWords(Number(inv.total_amount || 0));
+    const amountWords = numberToIndianWords(Number(inv.paid_amount || 0));
     drawKVRow("Amount in words", amountWords);
 
     let modeText = inv.payment_mode || "Cash";

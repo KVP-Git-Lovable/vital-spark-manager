@@ -1444,7 +1444,6 @@ const Billing = () => {
           // on/after their due date. The effective tax rate is stored so tax can be
           // applied at collection time.
           const chargedNow = dueTodayIdx.includes(i);
-          const isFirst = chargedNow;
           const withPharma = i === pharmaHostIdx && pharmaSubtotal > 0;
           const effRate = recurringAmount > 0 ? (t.tax_amount / recurringAmount) * 100 : 0;
           const taxNow = {
@@ -1459,7 +1458,6 @@ const Billing = () => {
           let status = instStatus;
           if (collected >= lineTotal && lineTotal > 0) status = "Paid";
           else if (collected > 0 && instStatus === "Pending") status = "Partial";
-          else if (!isFirst && collected <= 0) status = "Scheduled";
           return {
             invoice_number: `INV-${baseNum}-R${i + 1}`,
             created_at: createdAt,
@@ -2256,8 +2254,10 @@ const Billing = () => {
                       const lineTax = getServiceLineTax(s.name, s.price, (s as any).hsn);
                       return (
                         <div className="text-xs text-muted-foreground text-right pr-7 mt-0.5">
-                          {lineTax.rate > 0
-                            ? `IGST ${rateLabel((lineTax.igst / (s.price || 1)) * 100)}% + CGST ${rateLabel((lineTax.cgst / (s.price || 1)) * 100)}% = Tax (${rateLabel(lineTax.rate)}%): ${money(lineTax.taxAmount)}`
+                          {lineTax.sgst > 0
+                            ? `CGST ${rateLabel((lineTax.cgst / (s.price || 1)) * 100)}% + SGST ${rateLabel((lineTax.sgst / (s.price || 1)) * 100)}% = Tax (${rateLabel(lineTax.rate)}%): ${money(lineTax.taxAmount)}`
+                            : lineTax.igst > 0
+                            ? `IGST ${rateLabel((lineTax.igst / (s.price || 1)) * 100)}% = Tax (${rateLabel(lineTax.rate)}%): ${money(lineTax.taxAmount)}`
                             : "No tax"}
                         </div>
                       );

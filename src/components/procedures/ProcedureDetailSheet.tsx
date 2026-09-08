@@ -704,9 +704,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         product_id: rx.product_id || null,
         quantity: Number(rx.quantity) || 1,
       }));
-    const recurring = (procedure as any).visit_type === "Recurring";
-    const recurringDates = (((procedure as any).recurring_dates || []) as string[]).filter(Boolean);
-
+    // Visit cadence (single/recurring) is intentionally not passed through here -
+    // it no longer drives Billing's Payment Type. A recurring visit plan and an
+    // installment payment plan are independent; staff picks "Recurring" billing
+    // explicitly in Billing when a package needs to be split into payments.
     sessionStorage.setItem(
       "billing_prefill",
       JSON.stringify({
@@ -715,9 +716,6 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         appointmentId: (procedure as any).appointment_id || "",
         services,
         products,
-        visitType: recurring ? "Recurring" : "Single",
-        recurringCount: recurring ? Number((procedure as any).recurring_count) || recurringDates.length || 1 : 0,
-        recurringDates,
       }),
     );
     handleClose();

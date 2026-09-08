@@ -47,7 +47,7 @@ export const VALIDATION_OBJECTS: ValidationObject[] = [
       { key: "service", label: "Service", type: "text" },
       { key: "start_time", label: "Start Time", type: "datetime" },
       { key: "end_time", label: "End Time", type: "datetime" },
-      { key: "status", label: "Status", type: "picklist", options: ["Scheduled", "Confirmed", "Completed", "Cancelled", "No-show"] },
+      { key: "status", label: "Status", type: "picklist", options: ["Reserved", "Confirmed", "Checked In", "Completed", "Cancelled", "No Show", "Scheduled", "No-show"] },
       { key: "appointment_type", label: "Appointment Type", type: "text" },
       { key: "consultation_type", label: "Consultation Type", type: "text" },
       { key: "reason_for_consultation", label: "Reason for Consultation", type: "text" },

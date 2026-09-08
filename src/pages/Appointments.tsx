@@ -27,7 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { format, addWeeks, addMonths, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isWithinInterval } from "date-fns";
+import { format, addWeeks, addMonths, addDays, startOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isWithinInterval } from "date-fns";
 import { motion } from "framer-motion";
 import {
   Dialog,
@@ -73,6 +73,7 @@ import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { MicButton } from "@/components/shared/MicButton";
 import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { ConsultationReasonPicker, buildConsultationReasonsForSave, ConsultationType } from "@/components/appointments/ConsultationReasonPicker";
+import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 
 // Lazy: pulls in recharts, kept out of the main bundle until a user actually opens Charts.
 const ViewChartsPanel = lazy(() => import("@/components/listViews/ViewChartsPanel"));
@@ -95,7 +96,7 @@ const DOCTOR_PALETTE = [
   { bg: "bg-accent", border: "border-accent-foreground/30", text: "text-accent-foreground", dot: "bg-accent-foreground" },
 ];
 
-const statusOptions = ["Reserved", "Confirmed", "Cancelled"];
+const statusOptions = [...MANUAL_APPOINTMENT_STATUSES];
 const visitStatusOptions = ["Follow-up visit", "Recurring visit"];
 
 const PINNED_FILTERS_KEY = "appointments.pinnedFilters";
@@ -128,7 +129,10 @@ const DEFAULT_APPOINTMENT_FIELDS = [
 const STATUS_CARD_CLASSES: Record<string, string> = {
   Reserved: "bg-info/15 border-info/30 text-info",
   Confirmed: "bg-success/15 border-success/30 text-success",
+  "Checked In": "bg-warning/15 border-warning/30 text-warning",
   Cancelled: "bg-destructive/15 border-destructive/30 text-destructive",
+  Completed: "bg-success/15 border-success/30 text-success",
+  "No Show": "bg-destructive/15 border-destructive/30 text-destructive",
   "Follow Up": "bg-warning/15 border-warning/30 text-warning",
 };
 
@@ -136,7 +140,10 @@ const STATUS_CARD_CLASSES: Record<string, string> = {
 const STATUS_BADGE_CLASSES: Record<string, string> = {
   Reserved: "bg-info/15 text-info border-info/30",
   Confirmed: "bg-success/15 text-success border-success/30",
+  "Checked In": "bg-warning/15 text-warning border-warning/30",
   Cancelled: "bg-destructive/15 text-destructive border-destructive/30",
+  Completed: "bg-success/15 text-success border-success/30",
+  "No Show": "bg-destructive/15 text-destructive border-destructive/30",
   "Follow Up": "bg-warning/15 text-warning border-warning/30",
   "Recurring appointment": "bg-primary/15 text-primary border-primary/30",
   Proposed: "bg-muted text-muted-foreground border-border",
@@ -570,6 +577,26 @@ const Appointments = () => {
   useEffect(() => {
     setApptPage(1);
   }, [datePreset, appointmentsDateRange?.start?.toISOString(), appointmentsDateRange?.end?.toISOString(), sortedFilterDoctors.join(","), filterStatus, filterVisitStatus, debouncedSearchQuery, sortColumn, sortDirection, activeView?.id]);
+
+  // No scheduled/cron job exists to flip a stale Confirmed appointment to
+  // "No Show" at end of day, so it's swept here once whenever this page
+  // loads instead: any appointment still Confirmed from a day that's
+  // already over never got checked in, so it's marked No Show.
+  useEffect(() => {
+    (async () => {
+      const { data: stale } = await supabase
+        .from("appointments")
+        .select("id")
+        .eq("status", "Confirmed")
+        .lt("start_time", startOfDay(new Date()).toISOString())
+        .limit(500);
+      const ids = (stale || []).map((a: any) => a.id);
+      if (ids.length === 0) return;
+      await supabase.from("appointments").update({ status: "No Show" }).in("id", ids);
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Build a staff lookup map
   const staffMap = useMemo(() => {

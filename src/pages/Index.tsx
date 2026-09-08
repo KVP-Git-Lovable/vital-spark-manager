@@ -23,6 +23,9 @@ const DASH_ROW_CAP = 5000;
 const NEW_PATIENTS_CAP = 500;
 
 const statusColors: Record<string, string> = {
+  Reserved: "bg-info/10 text-info",
+  Confirmed: "bg-primary/10 text-primary",
+  "Checked In": "bg-warning/10 text-warning",
   Scheduled: "bg-info/10 text-info",
   Completed: "bg-success/10 text-success",
   Cancelled: "bg-destructive/10 text-destructive",

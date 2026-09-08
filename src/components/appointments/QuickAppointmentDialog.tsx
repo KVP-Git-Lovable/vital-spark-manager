@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { shortPatientId } from "@/lib/utils";
+import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { ConsultationReasonPicker, buildConsultationReasonsForSave, ConsultationType } from "./ConsultationReasonPicker";
 
@@ -28,7 +29,7 @@ interface QuickAppointmentDialogProps {
   };
 }
 
-const STATUS_OPTIONS = ["Reserved", "Confirmed", "Cancelled"];
+const STATUS_OPTIONS = [...MANUAL_APPOINTMENT_STATUSES];
 
 export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickAppointmentDialogProps) {
   const queryClient = useQueryClient();

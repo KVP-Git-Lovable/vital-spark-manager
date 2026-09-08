@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/supabasePaginate";
+import { ALL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 
 export type ColumnType = "text" | "number" | "currency" | "date" | "datetime" | "badge";
 
@@ -107,7 +108,7 @@ function groupSumByMonth(rows: any[], dateField: string, valueField: string) {
   return Array.from(m, ([label, value]) => ({ label, value })).sort((a, b) => a.label.localeCompare(b.label));
 }
 
-const STATUS_APPT = ["Scheduled", "Confirmed", "Completed", "Cancelled", "No-show"];
+const STATUS_APPT = [...ALL_APPOINTMENT_STATUSES];
 const STATUS_INV = ["Pending", "Partial", "Paid", "Cancelled"];
 const PAY_MODES = ["Cash", "Card", "UPI", "Bank Transfer", "Cheque"];
 const CAMPAIGN_TYPES = ["Google Ads", "Meta Ads", "WhatsApp", "Email", "Other"];

@@ -454,6 +454,9 @@ const Billing = () => {
   const [recurringStatuses, setRecurringStatuses] = useState<string[]>(["Pending"]);
   // Per-installment "Invoice now" tick — ticked installments are billed on this invoice
   const [recurringInvoiceNow, setRecurringInvoiceNow] = useState<boolean[]>([true]);
+  // Per-installment "Book a visit" tick — independent of the installment count;
+  // an installment plan doesn't have to match the number of scheduled visits.
+  const [recurringCreateAppt, setRecurringCreateAppt] = useState<boolean[]>([true]);
   // Appointment this invoice originated from (installment #1 links to it)
   const [sourceAppointmentId, setSourceAppointmentId] = useState<string | null>(null);
   const [serviceSearchOpen, setServiceSearchOpen] = useState<number | null>(null);
@@ -482,6 +485,14 @@ const Billing = () => {
     });
     setRecurringInvoiceNow((prev) => {
       const arr = [...prev];
+      while (arr.length < c) arr.push(false);
+      return arr.slice(0, c);
+    });
+    setRecurringCreateAppt((prev) => {
+      const arr = [...prev];
+      // Only the first installment defaults to booking a visit (it usually
+      // links to the appointment this invoice was opened from); the rest
+      // default off - staff opts in per installment.
       while (arr.length < c) arr.push(false);
       return arr.slice(0, c);
     });
@@ -749,7 +760,9 @@ const Billing = () => {
         const svc = (serviceMaster as any[]).find((s: any) => s?.name === prefillService);
         setServiceInputs([{ name: prefillService, price: Number(svc?.price) || 0, hsn: svc?.hsn_code || "", gst: Number(svc?.gst_percent) || 0, service_id: svc?.id }]);
       }
-      setPaymentType("Recurring");
+      // Payment Type stays at its "One-time" default here - a visit being
+      // recurring doesn't imply the bill should be split into installments;
+      // staff picks "Recurring" (installment plan) explicitly when needed.
       setOpen(true);
       setSearchParams({}, { replace: true });
     }
@@ -798,19 +811,10 @@ const Billing = () => {
     if (payload?.doctorId) setDoctorId(payload.doctorId);
     if (payload?.appointmentId) setSourceAppointmentId(payload.appointmentId);
 
-    // Visit plan captured on the linked procedure: recurring visits pre-fill the
-    // installment count and due dates (still editable here).
-    if (payload?.visitType === "Recurring") {
-      const dates: string[] = Array.isArray(payload?.recurringDates) ? payload.recurringDates.filter(Boolean) : [];
-      const count = Math.max(1, Number(payload?.recurringCount) || dates.length || 1);
-      setPaymentType("Recurring");
-      handleRecurringCountChange(count);
-      setRecurringDueDates(
-        Array.from({ length: count }, (_, i) => (dates[i] ? new Date(dates[i]) : new Date())),
-      );
-      setRecurringInvoiceNow(Array.from({ length: count }, (_, i) => i === 0));
-    }
-
+    // Payment Type is left at its "One-time" default regardless of whether the
+    // source procedure/appointment is a recurring visit - visit cadence and
+    // billing plan are independent; staff picks "Recurring" (installment
+    // plan) explicitly, e.g. for a high-value package split into payments.
     setPendingPrefill(payload || {});
     setInvoiceDate(new Date());
     setInvoiceSeq(Date.now().toString().slice(-6));
@@ -1403,12 +1407,12 @@ const Billing = () => {
         const pharmaHostIdx = dueTodayIdx.length > 0 ? dueTodayIdx[0] : 0;
         const groupId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`) as string;
 
-        // Recurring installments are tied to appointments: #1 to the current
-        // appointment, the rest to auto-created "Recurring appointment" visits
-        // on each installment's due date, all pointing at the parent.
+        // Installments only get an appointment when explicitly ticked
+        // ("Book a visit") - the installment count and the number of
+        // scheduled visits are independent, not forced to match.
         const appointmentIds: (string | null)[] = Array.from({ length: recurringCount }, () => null);
         let parentAppt: any = null;
-        if (sourceAppointmentId) {
+        if (sourceAppointmentId && recurringCreateAppt[0]) {
           const { data: pa } = await supabase.from("appointments").select("*").eq("id", sourceAppointmentId).maybeSingle();
           parentAppt = pa || null;
           appointmentIds[0] = sourceAppointmentId;
@@ -1418,10 +1422,10 @@ const Billing = () => {
           const durationMs = parentAppt?.start_time && parentAppt?.end_time
             ? new Date(parentAppt.end_time).getTime() - new Date(parentAppt.start_time).getTime()
             : 30 * 60 * 1000;
-          const startFrom = appointmentIds[0] ? 1 : 0;
           let parentId = appointmentIds[0];
 
-          for (let i = startFrom; i < recurringCount; i++) {
+          for (let i = 0; i < recurringCount; i++) {
+            if (appointmentIds[i] || !recurringCreateAppt[i]) continue;
             const due = recurringDueDates[i] || addMonths(new Date(), i);
             const start = new Date(recurringApptDates[i] || due);
             if (parentAppt?.start_time) {
@@ -2689,6 +2693,17 @@ const Billing = () => {
                                 }}
                               />
                               <span className={invoiceNow ? "text-primary" : "text-muted-foreground"}>Invoice now</span>
+                            </label>
+                            <label className="col-span-5 flex items-center gap-2 text-[11px] font-medium cursor-pointer">
+                              <Checkbox
+                                checked={!!recurringCreateAppt[i]}
+                                onCheckedChange={(c) => {
+                                  const updated = [...recurringCreateAppt];
+                                  updated[i] = !!c;
+                                  setRecurringCreateAppt(updated);
+                                }}
+                              />
+                              <span className={recurringCreateAppt[i] ? "text-primary" : "text-muted-foreground"}>Book a visit for this installment</span>
                             </label>
                             <div className="col-span-5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                               {invoiceNow ? (

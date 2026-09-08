@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
 import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon, ClipboardCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -48,13 +49,16 @@ import { useAuth } from "@/hooks/useAuth";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-const statusOptions = ["Reserved", "Confirmed", "Cancelled"];
+const statusOptions = [...MANUAL_APPOINTMENT_STATUSES];
 const visitStatusOptions = ["Follow-up visit", "Recurring visit"];
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
   Reserved: "bg-info/15 text-info border-info/30",
   Confirmed: "bg-success/15 text-success border-success/30",
+  "Checked In": "bg-warning/15 text-warning border-warning/30",
   Cancelled: "bg-destructive/15 text-destructive border-destructive/30",
+  Completed: "bg-success/15 text-success border-success/30",
+  "No Show": "bg-destructive/15 text-destructive border-destructive/30",
   "Follow Up": "bg-warning/15 text-warning border-warning/30",
 };
 
@@ -679,16 +683,11 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         quantity: Number(p.quantity) || 1,
       }));
 
-    // Visit plan captured by the doctor on the procedure — drives the
-    // recurring installment schedule in Billing (editable there).
-    const recurringProc = (procedures as any[]).find((p: any) => p?.visit_type === "Recurring");
-    const recurringDates: string[] = recurringProc
-      ? ((recurringProc.recurring_dates || []) as string[]).filter(Boolean)
-      : [];
-    const recurringCount = recurringProc
-      ? Number(recurringProc.recurring_count) || recurringDates.length || 1
-      : 0;
-
+    // The linked procedure's visit cadence (single/recurring) is intentionally
+    // not passed through here - it no longer drives Billing's Payment Type. A
+    // recurring visit plan and an installment payment plan are independent;
+    // staff picks "Recurring" billing explicitly in Billing when a package
+    // needs to be split into payments.
     sessionStorage.setItem(
       "billing_prefill",
       JSON.stringify({
@@ -697,9 +696,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         appointmentId: appointmentId || "",
         services,
         products,
-        visitType: recurringProc ? "Recurring" : "Single",
-        recurringCount,
-        recurringDates,
       }),
     );
     handleClose();

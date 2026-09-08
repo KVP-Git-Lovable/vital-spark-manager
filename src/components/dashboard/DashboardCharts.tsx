@@ -9,8 +9,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 const STATUS_COLORS: Record<string, string> = {
   Completed: "hsl(152, 60%, 40%)",
+  Reserved: "hsl(210, 80%, 55%)",
   Scheduled: "hsl(210, 80%, 55%)",
   Confirmed: "hsl(174, 62%, 38%)",
+  "Checked In": "hsl(38, 92%, 50%)",
   "In Progress": "hsl(38, 92%, 50%)",
   "No Show": "hsl(0, 72%, 51%)",
   "No-show": "hsl(0, 72%, 51%)",

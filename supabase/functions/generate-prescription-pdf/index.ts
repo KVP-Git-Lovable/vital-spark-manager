@@ -364,7 +364,19 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     ensureSpace(30);
     page.drawText("Notes", { x: MARGIN, y, size: 11, font: bold, color: blue });
     y -= 15;
-    for (const note of noteRows) drawLabeledField(note.title || "Note", note.content);
+    for (const note of noteRows) {
+      if (note.title) {
+        drawLabeledField(note.title, note.content);
+        continue;
+      }
+      const lines = wrap(note.content, font, 10, PAGE_WIDTH - 2 * MARGIN - 8);
+      for (const textLine of lines) {
+        ensureSpace(13);
+        page.drawText(textLine, { x: MARGIN + 8, y, size: 10, font, color: dark });
+        y -= 13;
+      }
+      y -= 6;
+    }
     y -= 4;
   }
 

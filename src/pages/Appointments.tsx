@@ -2243,26 +2243,6 @@ const Appointments = () => {
                                   data-index={virtualRow.index}
                                   className="border-b bg-primary/5"
                                 >
-                                  {shouldShowColumn("start_time") && (
-                                    <td className="p-2">
-                                      <Input
-                                        type="datetime-local"
-                                        className="h-8 text-xs w-40"
-                                        value={editValues.start_time}
-                                        onChange={(e) => setEditValues({ ...editValues, start_time: e.target.value })}
-                                      />
-                                    </td>
-                                  )}
-                                  {shouldShowColumn("time") && (
-                                    <td className="p-2">
-                                      <Input
-                                        type="datetime-local"
-                                        className="h-8 text-xs w-40"
-                                        value={editValues.end_time}
-                                        onChange={(e) => setEditValues({ ...editValues, end_time: e.target.value })}
-                                      />
-                                    </td>
-                                  )}
                                   {shouldShowColumn("patient") && (
                                     <td className="p-2 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
                                   )}
@@ -2287,6 +2267,26 @@ const Appointments = () => {
                                           {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
                                         </SelectContent>
                                       </Select>
+                                    </td>
+                                  )}
+                                  {shouldShowColumn("start_time") && (
+                                    <td className="p-2">
+                                      <Input
+                                        type="datetime-local"
+                                        className="h-8 text-xs w-40"
+                                        value={editValues.start_time}
+                                        onChange={(e) => setEditValues({ ...editValues, start_time: e.target.value })}
+                                      />
+                                    </td>
+                                  )}
+                                  {shouldShowColumn("time") && (
+                                    <td className="p-2">
+                                      <Input
+                                        type="datetime-local"
+                                        className="h-8 text-xs w-40"
+                                        value={editValues.end_time}
+                                        onChange={(e) => setEditValues({ ...editValues, end_time: e.target.value })}
+                                      />
                                     </td>
                                   )}
                                   {shouldShowColumn("status") && (

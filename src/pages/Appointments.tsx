@@ -2326,16 +2326,6 @@ const Appointments = () => {
                                 className="border-b hover:bg-muted/20 cursor-pointer transition-colors"
                                 onClick={() => setOpenModal("appointmentDetail", apt.id)}
                               >
-                                {shouldShowColumn("start_time") && (
-                                  <td className="p-3">
-                                    <p className="font-medium whitespace-nowrap">{format(new Date(apt.start_time), "MMM d")}</p>
-                                  </td>
-                                )}
-                                {shouldShowColumn("time") && (
-                                  <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
-                                    {format(new Date(apt.start_time), "h:mm a")} – {format(new Date(apt.end_time), "h:mm a")}
-                                  </td>
-                                )}
                                 {shouldShowColumn("patient") && (
                                   <td className="p-3 font-medium">
                                     <div className="flex items-center gap-2.5 min-w-0">
@@ -2359,6 +2349,16 @@ const Appointments = () => {
                                 )}
                                 {shouldShowColumn("doctor") && (
                                   <td className="p-3 text-muted-foreground">{apt.staff_id ? (staffMap.get(apt.staff_id) || "—") : "—"}</td>
+                                )}
+                                {shouldShowColumn("start_time") && (
+                                  <td className="p-3">
+                                    <p className="font-medium whitespace-nowrap">{format(new Date(apt.start_time), "MMM d")}</p>
+                                  </td>
+                                )}
+                                {shouldShowColumn("time") && (
+                                  <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
+                                    {format(new Date(apt.start_time), "h:mm a")} – {format(new Date(apt.end_time), "h:mm a")}
+                                  </td>
                                 )}
                                 {shouldShowColumn("status") && (
                                   <td className="p-3" onClick={(e) => e.stopPropagation()}>

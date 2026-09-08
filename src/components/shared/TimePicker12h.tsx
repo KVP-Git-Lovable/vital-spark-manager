@@ -57,8 +57,37 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
   const minute = parsed?.minute ?? 0;
   const period = parsed?.period ?? "AM";
 
+  // While typing, the box holds the raw digits the user entered so mid-typing
+  // states ("1" on the way to "10") aren't rewritten under the cursor.
+  const [hourDraft, setHourDraft] = useState<string | null>(null);
+  const [minuteDraft, setMinuteDraft] = useState<string | null>(null);
+
   const update = (patch: Partial<{ hour12: number; minute: number; period: "AM" | "PM" }>) => {
     onChange(to24h(patch.hour12 ?? hour12, patch.minute ?? minute, patch.period ?? period));
+  };
+
+  const digits = (s: string) => s.replace(/\D/g, "").slice(0, 2);
+
+  const onHourInput = (raw: string) => {
+    const d = digits(raw);
+    setHourDraft(d);
+    if (d === "") {
+      onChange(""); // clearing the box clears the value (e.g. optional break times)
+      return;
+    }
+    const n = Number(d);
+    if (n >= 1 && n <= 12) update({ hour12: n });
+  };
+
+  const onMinuteInput = (raw: string) => {
+    const d = digits(raw);
+    setMinuteDraft(d);
+    if (d === "") {
+      onChange("");
+      return;
+    }
+    const n = Number(d);
+    if (n >= 0 && n <= 59) update({ minute: n });
   };
 
   return (
@@ -72,30 +101,45 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
     >
       <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
       <input
-        type="number"
+        type="text"
         inputMode="numeric"
-        min={1}
-        max={12}
+        maxLength={2}
         aria-label="Hour"
-        value={isSet ? hour12 : ""}
+        value={hourDraft ?? (isSet ? String(hour12) : "")}
         placeholder="--"
         disabled={disabled}
-        onChange={(e) => update({ hour12: wrapHour(Number(e.target.value)) })}
-        className="w-8 shrink-0 bg-transparent text-center outline-none cursor-pointer"
+        onChange={(e) => onHourInput(e.target.value)}
+        onFocus={(e) => e.currentTarget.select()}
+        onBlur={() => {
+          if (hourDraft && hourDraft !== "") {
+            const clamped = clampHour(Number(hourDraft));
+            update({ hour12: clamped });
+          }
+          setHourDraft(null);
+        }}
+        className="w-8 shrink-0 bg-transparent text-center outline-none"
       />
       <span className="text-muted-foreground">:</span>
       <input
-        type="number"
+        type="text"
         inputMode="numeric"
-        min={0}
-        max={59}
+        maxLength={2}
         aria-label="Minute"
-        value={isSet ? String(minute).padStart(2, "0") : ""}
+        value={minuteDraft ?? (isSet ? String(minute).padStart(2, "0") : "")}
         placeholder="--"
         disabled={disabled}
-        onChange={(e) => update({ minute: wrapMinute(Number(e.target.value)) })}
-        className="w-9 shrink-0 bg-transparent text-center outline-none cursor-pointer"
+        onChange={(e) => onMinuteInput(e.target.value)}
+        onFocus={(e) => e.currentTarget.select()}
+        onBlur={() => {
+          if (minuteDraft && minuteDraft !== "") {
+            const clamped = clampMinute(Number(minuteDraft));
+            update({ minute: clamped });
+          }
+          setMinuteDraft(null);
+        }}
+        className="w-9 shrink-0 bg-transparent text-center outline-none"
       />
+
       {/* Two-state AM/PM toggle button, not text labels - the active side is filled. */}
       <div className={cn("ml-auto flex shrink-0 overflow-hidden rounded border border-input text-[10px] font-semibold")}>
         <button

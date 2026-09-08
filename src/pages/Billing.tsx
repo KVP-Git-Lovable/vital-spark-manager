@@ -68,7 +68,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
 import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
 import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
-import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -86,6 +85,7 @@ const statusStyles: Record<string, string> = {
   Partial: "bg-warning/10 text-warning",
   Pending: "bg-destructive/10 text-destructive",
   Overdue: "bg-destructive/10 text-destructive",
+  Cancelled: "bg-muted text-muted-foreground",
 };
 
 /** Money is always shown rounded to whole rupees (no decimals). */
@@ -397,6 +397,8 @@ const Billing = () => {
   const [viewInvoice, setViewInvoice] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<any>({});
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   // Filter state
   const [showFilters, setShowFilters] = useState(false);
@@ -1810,14 +1812,23 @@ const Billing = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const deleteInvoice = useMutation({
-    mutationFn: async (id: string) => {
-      const error: any = await moveToTrash("invoices", id).then(() => null).catch((e: any) => e);
+  // Cancelling an invoice keeps the row (and its invoice_number) in place
+  // instead of hard-deleting it, so the number never disappears from the
+  // sequence or from Reports - a required reason is captured for audit.
+  const cancelInvoice = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { data: userData } = await supabase.auth.getUser();
+      const { error } = await supabase.from("invoices").update({
+        status: "Cancelled",
+        cancellation_reason: reason,
+        cancelled_at: new Date().toISOString(),
+        cancelled_by_name: userData?.user?.email || null,
+      } as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       invalidateInvoices();
-      toast.success("Invoice deleted");
+      toast.success("Invoice cancelled");
       setViewInvoice(null);
       setIsEditing(false);
     },
@@ -3145,20 +3156,29 @@ const Billing = () => {
                       )}
                     </td>
                     <td className="p-4" onClick={(e) => e.stopPropagation()}>
-                      <Select value={inv.status} onValueChange={(v) => updateInvoiceStatus.mutate({ id: inv.id, status: v, prevStatus: inv.status })}>
-                        <SelectTrigger className={`h-auto border-0 p-0 shadow-none w-auto gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[inv.status] || ""}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {["Pending", "Paid", "Partial", "Overdue"].map(s => (
-                            <SelectItem key={s} value={s}>{s}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {inv.status === "Cancelled" ? (
+                        <span
+                          className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles.Cancelled}`}
+                          title={inv.cancellation_reason || undefined}
+                        >
+                          Cancelled
+                        </span>
+                      ) : (
+                        <Select value={inv.status} onValueChange={(v) => updateInvoiceStatus.mutate({ id: inv.id, status: v, prevStatus: inv.status })}>
+                          <SelectTrigger className={`h-auto border-0 p-0 shadow-none w-auto gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[inv.status] || ""}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {["Pending", "Paid", "Partial", "Overdue"].map(s => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </td>
                     <td className="p-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-1">
-                        {inv.status !== "Paid" && (
+                        {inv.status !== "Paid" && inv.status !== "Cancelled" && (
                           <Button variant="ghost" size="icon" className="h-8 w-8" title="Add Payment" onClick={() => { setPaymentInv(inv); setAddPaymentAmount(0); setAddPaymentMode("Cash"); }}>
                             <CreditCard className="h-4 w-4" />
                           </Button>
@@ -3246,6 +3266,18 @@ const Billing = () => {
                   <div><span className="text-muted-foreground text-xs block">Type</span><Badge variant="outline" className="text-xs mt-0.5">{viewInvoice.payment_type}</Badge></div>
                   <div><span className="text-muted-foreground text-xs block">Status</span><span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[viewInvoice.status] || ""}`}>{viewInvoice.status}</span></div>
                 </div>
+                {viewInvoice.status === "Cancelled" && (
+                  <div className="rounded-md border border-muted-foreground/20 bg-background p-3 text-sm space-y-1">
+                    <p className="text-xs text-muted-foreground">Cancellation reason</p>
+                    <p className="font-medium">{viewInvoice.cancellation_reason || "—"}</p>
+                    {viewInvoice.cancelled_at && (
+                      <p className="text-xs text-muted-foreground">
+                        Cancelled {format(new Date(viewInvoice.cancelled_at), "PPP p")}
+                        {viewInvoice.cancelled_by_name ? ` by ${viewInvoice.cancelled_by_name}` : ""}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Line items with rate, tax and total */}
@@ -3483,6 +3515,10 @@ const Billing = () => {
                     </Button>
                     <Button variant="outline" className="w-full" onClick={() => setIsEditing(false)}>Cancel</Button>
                   </>
+                ) : viewInvoice.status === "Cancelled" ? (
+                  <Button variant="outline" size="sm" className="w-full gap-1.5" onClick={() => openInvoicePDF(viewInvoice)}>
+                    <FileText className="h-3.5 w-3.5" /> PDF
+                  </Button>
                 ) : (
                   <>
                     <Button className="w-full gap-1.5" onClick={() => setIsEditing(true)}>
@@ -3492,9 +3528,7 @@ const Billing = () => {
                       <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => openInvoicePDF(viewInvoice)}>
                         <FileText className="h-3.5 w-3.5" /> PDF
                       </Button>
-                      <Button variant="destructive" size="sm" className="flex-1 gap-1.5" onClick={() => {
-                        if (confirm("Are you sure you want to delete this invoice?")) deleteInvoice.mutate(viewInvoice.id);
-                      }}>
+                      <Button variant="destructive" size="sm" className="flex-1 gap-1.5" onClick={() => { setCancelReason(""); setCancelDialogOpen(true); }}>
                         <Trash2 className="h-3.5 w-3.5" /> Delete
                       </Button>
                     </div>
@@ -3553,6 +3587,41 @@ const Billing = () => {
         fields={BILLING_VIEW_FIELDS}
         defaultColumns={DEFAULT_BILLING_VIEW_COLUMNS}
       />
+
+      <AlertDialog open={cancelDialogOpen} onOpenChange={(o) => { if (!cancelInvoice.isPending) { setCancelDialogOpen(o); if (!o) setCancelReason(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel invoice {viewInvoice?.invoice_number}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The invoice stays on record with its number intact and shows as Cancelled - it isn't deleted, so
+              nothing disappears from Reports or breaks the invoice number sequence. A reason is required.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            autoFocus
+            placeholder="Reason for cancelling this invoice..."
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            rows={3}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelInvoice.isPending}>Back</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={cancelInvoice.isPending || !cancelReason.trim()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!viewInvoice || !cancelReason.trim()) return;
+                await cancelInvoice.mutateAsync({ id: viewInvoice.id, reason: cancelReason.trim() });
+                setCancelDialogOpen(false);
+                setCancelReason("");
+              }}
+            >
+              {cancelInvoice.isPending ? "Cancelling..." : "Cancel Invoice"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteViewTarget} onOpenChange={(o) => { if (!o) setDeleteViewTarget(null); }}>
         <AlertDialogContent>

@@ -219,7 +219,7 @@ const Index = () => {
   // Filter invoices by staff/service (via doctor_id or linked appointment) and enrich
   const filteredInvoices = useMemo(() => {
     const apptIds = new Set(filtered.map((a: any) => a.id));
-    let list = invoices as any[];
+    let list = (invoices as any[]).filter((inv: any) => inv.status !== "Cancelled");
     if (selectedStaff !== "all" || selectedService !== "all") {
       list = list.filter(
         (inv: any) =>

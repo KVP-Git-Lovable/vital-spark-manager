@@ -291,6 +291,7 @@ export const REPORTS: ReportConfig[] = [
       { key: "total_amount", label: "Total", sortable: true, type: "currency" },
       { key: "paid_amount", label: "Paid", sortable: true, type: "currency" },
       { key: "status", label: "Status", sortable: true, type: "badge" },
+      { key: "cancellation_reason", label: "Cancellation Reason", sortable: false },
       { key: "payment_mode", label: "Mode", sortable: true },
       { key: "created_at", label: "Date", sortable: true, type: "date" },
     ],

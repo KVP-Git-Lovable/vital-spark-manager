@@ -232,6 +232,7 @@ export async function fetchInvoiceStats(): Promise<InvoiceStats> {
   let pendingCount = 0;
   let partialCount = 0;
   for (const inv of rows) {
+    if (inv.status === "Cancelled") continue;
     totalRevenue += Number(inv.paid_amount) || 0;
     if (inv.status === "Pending") {
       pendingAmount += Number(inv.total_amount) || 0;

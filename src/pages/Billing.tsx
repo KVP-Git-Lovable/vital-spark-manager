@@ -79,6 +79,7 @@ import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
 import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
 import { getUomOptions, getSaleUom, findUom, toUomQty, toBaseQty, fmtQty } from "@/lib/uom";
+import { OTHERS_VALUE } from "@/lib/othersOption";
 
 const statusStyles: Record<string, string> = {
   Paid: "bg-success/10 text-success",
@@ -874,7 +875,22 @@ const Billing = () => {
               String(inv.pharma_products?.name || "").toLowerCase() === pname,
           )
           .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)))[0];
-        if (!batch && !master) continue;
+        if (!batch && !master) {
+          // Custom ("Others") medicine name with no master-list match -
+          // carry it over as a free-text pharma line instead of dropping it.
+          lines.push({
+            inventory_id: "",
+            product_id: OTHERS_VALUE,
+            product_name: p.name,
+            batch_number: "",
+            quantity: Math.max(1, Number(p.quantity) || 1),
+            unit_price: 0,
+            available: 0,
+            uom: "Unit",
+            uom_factor: 1,
+          });
+          continue;
+        }
         const saleUom = getSaleUom(master, unitsByProduct[(batch?.product_id || master?.id) as string]);
         const basePrice =
           Number(batch?.selling_price) ||
@@ -1240,28 +1256,37 @@ const Billing = () => {
     if (field === "product_id") {
       // Reset batch when product changes
       updated[idx].product_id = value;
-      const prod = pharmaProductOptions.find(p => p.id === value);
-      updated[idx].product_name = prod?.name || "";
       updated[idx].inventory_id = "";
       updated[idx].batch_number = "";
       updated[idx].available = 0;
-      // Default price: newest usable batch → product selling price → MRP
-      const batches = (pharmaInventory as any[])
-        .filter((i: any) => i.product_id === value && i.quantity > 0 && new Date(i.expiry_date) > new Date())
-        .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)));
-      const master = (pharmaProducts as any[]).find((p: any) => p.id === value);
-      // Default to the product's selling UOM; stock is stored in base units.
-      const saleUom = getSaleUom(master, unitsByProduct[value]);
-      updated[idx].uom = saleUom.name;
-      updated[idx].uom_factor = saleUom.factor;
-      if (batches[0]) {
-        const b = batches[0];
-        updated[idx].inventory_id = b.id;
-        updated[idx].batch_number = b.batch_number;
-        updated[idx].available = toUomQty(Number(b.quantity), saleUom.factor);
-        updated[idx].unit_price = (Number(b.selling_price) || Number(b.mrp) || Number(master?.selling_price) || Number(master?.mrp) || 0) / (saleUom.factor || 1);
+      if (value === OTHERS_VALUE) {
+        // Custom/free-text product: no master to look up, staff types the
+        // name and price manually. Default to a plain "Unit" UOM.
+        updated[idx].product_name = "";
+        updated[idx].uom = "Unit";
+        updated[idx].uom_factor = 1;
+        updated[idx].unit_price = 0;
       } else {
-        updated[idx].unit_price = (Number(master?.selling_price) || Number(master?.mrp) || 0) / (saleUom.factor || 1);
+        const prod = pharmaProductOptions.find(p => p.id === value);
+        updated[idx].product_name = prod?.name || "";
+        // Default price: newest usable batch → product selling price → MRP
+        const batches = (pharmaInventory as any[])
+          .filter((i: any) => i.product_id === value && i.quantity > 0 && new Date(i.expiry_date) > new Date())
+          .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)));
+        const master = (pharmaProducts as any[]).find((p: any) => p.id === value);
+        // Default to the product's selling UOM; stock is stored in base units.
+        const saleUom = getSaleUom(master, unitsByProduct[value]);
+        updated[idx].uom = saleUom.name;
+        updated[idx].uom_factor = saleUom.factor;
+        if (batches[0]) {
+          const b = batches[0];
+          updated[idx].inventory_id = b.id;
+          updated[idx].batch_number = b.batch_number;
+          updated[idx].available = toUomQty(Number(b.quantity), saleUom.factor);
+          updated[idx].unit_price = (Number(b.selling_price) || Number(b.mrp) || Number(master?.selling_price) || Number(master?.mrp) || 0) / (saleUom.factor || 1);
+        } else {
+          updated[idx].unit_price = (Number(master?.selling_price) || Number(master?.mrp) || 0) / (saleUom.factor || 1);
+        }
       }
     }
     if (field === "inventory_id") {
@@ -1313,7 +1338,7 @@ const Billing = () => {
             hsn: s.hsn || "",
             gst: Number(s.gst) || 0,
             doctor_fee: !!s.doctor_fee,
-            service_id: s.service_id || null,
+            service_id: s.service_id && s.service_id !== OTHERS_VALUE ? s.service_id : null,
           })),
         ...pharmaItems
           .filter((i) => i.product_name)
@@ -1322,9 +1347,9 @@ const Billing = () => {
             name: i.product_name,
             qty: i.quantity,
             price: Number(i.unit_price) || 0,
-            hsn: getProductHsn(i.product_id, i.inventory_id),
-            gst: getProductLineTax(i.product_id, 100, i.inventory_id).rate,
-            product_id: i.product_id || null,
+            hsn: i.product_id === OTHERS_VALUE ? "" : getProductHsn(i.product_id, i.inventory_id),
+            gst: i.product_id === OTHERS_VALUE ? 0 : getProductLineTax(i.product_id, 100, i.inventory_id).rate,
+            product_id: i.product_id && i.product_id !== OTHERS_VALUE ? i.product_id : null,
             batch_number: i.batch_number || null,
             uom: i.uom || null,
             uom_factor: i.uom_factor || 1,
@@ -2238,7 +2263,9 @@ const Billing = () => {
                       <Popover open={serviceSearchOpen === i} onOpenChange={(open) => setServiceSearchOpen(open ? i : null)}>
                         <PopoverTrigger asChild>
                           <Button variant="outline" role="combobox" className="w-full justify-between font-normal h-10">
-                            {s.name || <span className="text-muted-foreground">Select service...</span>}
+                            {s.service_id === OTHERS_VALUE
+                              ? (s.name || "Others (type manually)")
+                              : (s.name || <span className="text-muted-foreground">Select service...</span>)}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </PopoverTrigger>
@@ -2265,6 +2292,13 @@ const Billing = () => {
                                     <span className="ml-auto text-xs text-muted-foreground">₹{svc.price}</span>
                                   </CommandItem>
                                 ))}
+                                <CommandItem value="Others" onSelect={() => {
+                                  updateServiceInput(i, { name: "", price: 0, hsn: "", gst: 0, service_id: OTHERS_VALUE });
+                                  setServiceSearchOpen(null);
+                                }}>
+                                  <Check className={cn("mr-2 h-4 w-4", s.service_id === OTHERS_VALUE ? "opacity-100" : "opacity-0")} />
+                                  <span>Others (type manually)</span>
+                                </CommandItem>
                               </CommandGroup>
                             </CommandList>
 
@@ -2288,6 +2322,14 @@ const Billing = () => {
                         <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0 w-8 px-0" disabled={!!s.doctor_fee} onClick={() => removeServiceInput(i)}>✕</Button>
                       )}
                     </div>
+                    {s.service_id === OTHERS_VALUE && (
+                      <Input
+                        className="mt-1"
+                        placeholder="Service / procedure name"
+                        value={s.name}
+                        onChange={(e) => updateServiceInput(i, { name: e.target.value })}
+                      />
+                    )}
                     {s.price > 0 && (() => {
                       const lineTax = getServiceLineTax(s.name, s.price, (s as any).hsn);
                       return (
@@ -2350,17 +2392,26 @@ const Billing = () => {
                             {pharmaProductOptions.map((p) => (
                               <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                             ))}
+                            <SelectItem value={OTHERS_VALUE}>Others (type manually)</SelectItem>
                           </SelectContent>
                         </Select>
+                        {item.product_id === OTHERS_VALUE && (
+                          <Input
+                            className="mt-1"
+                            placeholder="Medicine / product name"
+                            value={item.product_name}
+                            onChange={(e) => updatePharmaItem(idx, "product_name", e.target.value)}
+                          />
+                        )}
                       </div>
                       <div>
                         <Label className="text-xs">Batch</Label>
                         <Select
                           value={item.inventory_id || "placeholder"}
                           onValueChange={(v) => updatePharmaItem(idx, "inventory_id", v === "placeholder" ? "" : v)}
-                          disabled={!item.product_id}
+                          disabled={!item.product_id || item.product_id === OTHERS_VALUE}
                         >
-                          <SelectTrigger className="mt-1"><SelectValue placeholder={item.product_id ? "No batch" : "Select product first"} /></SelectTrigger>
+                          <SelectTrigger className="mt-1"><SelectValue placeholder={item.product_id === OTHERS_VALUE ? "No batch" : item.product_id ? "No batch" : "Select product first"} /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="placeholder">No batch</SelectItem>
                             {(pharmaInventory as any[])

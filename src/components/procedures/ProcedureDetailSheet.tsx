@@ -35,6 +35,7 @@ import { MicButton } from "@/components/shared/MicButton";
 import { PatientToolsBar } from "@/components/shared/PatientToolsBar";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
+import { OTHERS_VALUE } from "@/lib/othersOption";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const statusOptions = ["Completed", "In Progress", "Cancelled"];
@@ -495,14 +496,14 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       // Handle prescriptions: delete removed, update existing, insert new
       const existing = editPrescriptions.filter(rx => rx.id && !rx._deleted);
       const deleted = editPrescriptions.filter(rx => rx.id && rx._deleted);
-      const newRx = editPrescriptions.filter(rx => !rx.id && !rx._deleted && (rx.medicine_name || rx.product_id));
+      const newRx = editPrescriptions.filter(rx => !rx.id && !rx._deleted && (rx.medicine_name || (rx.product_id && rx.product_id !== OTHERS_VALUE)));
 
       for (const rx of deleted) {
         await supabase.from("prescriptions").delete().eq("id", rx.id!);
       }
       for (const rx of existing) {
         await supabase.from("prescriptions").update({
-          product_id: rx.product_id || null,
+          product_id: rx.product_id && rx.product_id !== OTHERS_VALUE ? rx.product_id : null,
           medicine_name: rx.medicine_name,
           dosage: rx.dosage,
           frequency: rx.frequency,
@@ -514,7 +515,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       if (newRx.length > 0) {
         await supabase.from("prescriptions").insert(newRx.map(rx => ({
           procedure_id: procedureId!,
-          product_id: rx.product_id || null,
+          product_id: rx.product_id && rx.product_id !== OTHERS_VALUE ? rx.product_id : null,
           medicine_name: rx.medicine_name,
           dosage: rx.dosage,
           frequency: rx.frequency,
@@ -560,9 +561,14 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const updateRx = (index: number, field: string, value: any) => {
     const updated = [...editPrescriptions];
     if (field === "product_id") {
-      const prod = products.find((p) => p.id === value);
-      updated[index].product_id = value;
-      updated[index].medicine_name = prod?.name || "";
+      if (value === OTHERS_VALUE) {
+        updated[index].product_id = OTHERS_VALUE;
+        updated[index].medicine_name = "";
+      } else {
+        const prod = products.find((p) => p.id === value);
+        updated[index].product_id = value;
+        updated[index].medicine_name = prod?.name || "";
+      }
     } else {
       (updated[index] as any)[field] = value;
     }
@@ -698,10 +704,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       services.push(...String(procedure.service_name).split(",").map((n) => n.trim()).filter(Boolean));
     }
     const products = visibleRx
-      .filter((rx) => rx.medicine_name || rx.product_id)
+      .filter((rx) => rx.medicine_name || (rx.product_id && rx.product_id !== OTHERS_VALUE))
       .map((rx) => ({
         name: rx.medicine_name,
-        product_id: rx.product_id || null,
+        product_id: rx.product_id && rx.product_id !== OTHERS_VALUE ? rx.product_id : null,
         quantity: Number(rx.quantity) || 1,
       }));
     // Visit cadence (single/recurring) is intentionally not passed through here -
@@ -1026,8 +1032,17 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                                 {products.map((p) => (
                                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                                 ))}
+                                <SelectItem value={OTHERS_VALUE}>Others (type manually)</SelectItem>
                               </SelectContent>
                             </Select>
+                            {rx.product_id === OTHERS_VALUE && (
+                              <Input
+                                className="mt-1"
+                                placeholder="Medicine name"
+                                value={rx.medicine_name}
+                                onChange={(e) => updateRx(realIdx, "medicine_name", e.target.value)}
+                              />
+                            )}
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground flex items-center justify-between">Dosage <MicButton value={rx.dosage} onChange={(v) => updateRx(realIdx, "dosage", v)} mode="replace" /></Label>

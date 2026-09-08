@@ -29,6 +29,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { MicButton } from "@/components/shared/MicButton";
+import { OTHERS_VALUE } from "@/lib/othersOption";
 
 const MEDICAL_FIELDS: [string, string][] = [
   ["medical_history", "Medical History"],
@@ -651,7 +652,7 @@ export function ProcedureFormDialog({
       const { error: svcErr } = await supabase.from("procedure_services").insert(
         effectiveLines.map((l, i) => ({
           procedure_id: proc.id,
-          service_id: l.service_id || null,
+          service_id: l.service_id && l.service_id !== OTHERS_VALUE ? l.service_id : null,
           service_name: l.name,
           procedure_notes: l.procedure_notes || null,
           recommendations: l.recommendations || null,
@@ -665,10 +666,10 @@ export function ProcedureFormDialog({
       if (prescriptions.length > 0) {
 
         const rxRows = prescriptions
-          .filter((rx) => rx.medicine_name || rx.product_id)
+          .filter((rx) => rx.medicine_name || (rx.product_id && rx.product_id !== OTHERS_VALUE))
           .map((rx) => ({
             procedure_id: proc.id,
-            product_id: rx.product_id || null,
+            product_id: rx.product_id === OTHERS_VALUE ? null : (rx.product_id || null),
             medicine_name: rx.medicine_name,
             dosage: "",
             frequency: rx.frequency,
@@ -762,14 +763,19 @@ export function ProcedureFormDialog({
   const updatePrescription = (index: number, field: keyof PrescriptionInput, value: string | number) => {
     const updated = [...prescriptions];
     if (field === "product_id") {
-      const prod = products.find((p) => p.id === value) as any;
-      updated[index].product_id = value as string;
-      updated[index].medicine_name = prod?.name || "";
-      // Always populate prescription defaults from the product master when medicine is selected
-      updated[index].frequency = prod?.default_frequency || "";
-      updated[index].duration = prod?.default_duration || "";
-      updated[index].instructions = prod?.default_instructions || "";
-      fetchStock(value as string, index);
+      if (value === OTHERS_VALUE) {
+        updated[index].product_id = OTHERS_VALUE;
+        updated[index].medicine_name = "";
+      } else {
+        const prod = products.find((p) => p.id === value) as any;
+        updated[index].product_id = value as string;
+        updated[index].medicine_name = prod?.name || "";
+        // Always populate prescription defaults from the product master when medicine is selected
+        updated[index].frequency = prod?.default_frequency || "";
+        updated[index].duration = prod?.default_duration || "";
+        updated[index].instructions = prod?.default_instructions || "";
+        fetchStock(value as string, index);
+      }
     } else {
       (updated[index] as any)[field] = value;
     }
@@ -1054,11 +1060,22 @@ export function ProcedureFormDialog({
                               {s.name}
                             </CommandItem>
                           ))}
+                          <CommandItem value="Others" onSelect={() => updateServiceLine(line.key, { service_id: OTHERS_VALUE, name: "" })}>
+                            <Check className={`mr-2 h-4 w-4 ${line.service_id === OTHERS_VALUE ? "opacity-100" : "opacity-0"}`} />
+                            Others (type manually)
+                          </CommandItem>
                         </CommandGroup>
                       </CommandList>
                     </Command>
                   </PopoverContent>
                 </Popover>
+                {line.service_id === OTHERS_VALUE && (
+                  <Input
+                    placeholder="Service / procedure name"
+                    value={line.name}
+                    onChange={(e) => updateServiceLine(line.key, { name: e.target.value })}
+                  />
+                )}
                 <div>
                   <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
                   <Textarea
@@ -1147,9 +1164,18 @@ export function ProcedureFormDialog({
                       {products.map((p) => (
                         <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                       ))}
+                      <SelectItem value={OTHERS_VALUE}>Others (type manually)</SelectItem>
                     </SelectContent>
                   </Select>
-                  {rx.product_id && stockMap[i] && (
+                  {rx.product_id === OTHERS_VALUE && (
+                    <Input
+                      className="mt-1"
+                      placeholder="Medicine name"
+                      value={rx.medicine_name}
+                      onChange={(e) => updatePrescription(i, "medicine_name", e.target.value)}
+                    />
+                  )}
+                  {rx.product_id && rx.product_id !== OTHERS_VALUE && stockMap[i] && (
                     stockMap[i].loading ? (
                       <p className="text-xs text-muted-foreground mt-1">Checking stock...</p>
                     ) : stockMap[i].available <= 0 ? (

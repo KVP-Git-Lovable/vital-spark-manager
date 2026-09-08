@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
 import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon, ClipboardCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -267,6 +267,24 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [scanProcOpen, setScanProcOpen] = useState(false);
   const [selectedProcId, setSelectedProcId] = useState<string | null>(null);
   const [viewPhoto, setViewPhoto] = useState<any>(null);
+
+  // Radix's Dialog/Sheet scroll-lock only touches document.body, but this
+  // app's real scroll container is <main overflow-auto> in AppLayout.tsx -
+  // lock it directly while this sheet is open so the page behind it can't
+  // keep scrolling independently. Skip when rendered as a full page
+  // (variant="page"), since then this component's own content IS <main>'s
+  // content and locking it would break normal page scrolling.
+  useEffect(() => {
+    if (!appointmentId || isPage) return;
+    const main = document.querySelector("main");
+    if (!main) return;
+    const prevOverflow = main.style.overflow;
+    main.style.overflow = "hidden";
+    return () => {
+      main.style.overflow = prevOverflow;
+    };
+  }, [appointmentId, isPage]);
+
   // Billing plan state
   const [billingTotal, setBillingTotal] = useState(0);
   const [billingType, setBillingType] = useState<"one-time" | "recurring">("one-time");

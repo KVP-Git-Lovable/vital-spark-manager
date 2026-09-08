@@ -124,6 +124,10 @@ export async function fetchInvoicesSearch({
   // patient name directly, plus patient_id against a name/phone lookup so
   // rows saved without the denormalized patient_name still match.
   let searchExtra: ((q: any) => any) | undefined;
+  // Extra server-side passes for things that can't live in a single OR clause
+  // (array overlap on invoices.services, doctor-name matches). Their results
+  // are merged by id with the main pass.
+  const extraPasses: Array<[boolean, (q: any) => any]> = [];
   const term = search?.trim();
   if (term) {
     const like = `%${term.replace(/[%_]/g, "")}%`;
@@ -133,22 +137,48 @@ export async function fetchInvoicesSearch({
       `payment_type.ilike.${like}`,
       `payment_mode.ilike.${like}`,
     ];
-    const { data: patientHits } = await supabase
-      .from("patients")
-      .select("id")
-      .or(`first_name.ilike.${like},last_name.ilike.${like},phone.ilike.${like}`)
-      .limit(500);
+    const nameLike = `%${term.replace(/^dr\.?\s*/i, "").replace(/[%_]/g, "")}%`;
+    const [{ data: patientHits }, { data: serviceHits }, { data: staffHits }] = await Promise.all([
+      supabase
+        .from("patients")
+        .select("id")
+        .or(`first_name.ilike.${like},last_name.ilike.${like},phone.ilike.${like}`)
+        .limit(500),
+      supabase.from("services").select("name").ilike("name", like).limit(200),
+      supabase.from("staff").select("id").or(`first_name.ilike.${nameLike},last_name.ilike.${nameLike}`).limit(200),
+    ]);
     const ids = (patientHits || []).map((p: any) => p.id);
     if (ids.length) orParts.push(`patient_id.in.(${ids.join(",")})`);
     const orClause = orParts.join(",");
     searchExtra = (q) => q.or(orClause);
+
+    // Service-name search: invoices.services is text[], so ilike can't be used
+    // there - resolve matching service names from the master first and use an
+    // array overlap. The appointment's own service text is matched too.
+    const serviceNames = (serviceHits || []).map((s: any) => s.name).filter(Boolean);
+    if (serviceNames.length) extraPasses.push([false, (q) => q.overlaps("services", serviceNames)]);
+    extraPasses.push([true, (q) => q.ilike("appointments.service", like)]);
+
+    // Doctor-name search: match staff by name, then both the invoice's own
+    // doctor_id and the linked appointment's staff_id.
+    const staffIds = (staffHits || []).map((s: any) => s.id);
+    if (staffIds.length) {
+      extraPasses.push([false, (q) => q.in("doctor_id", staffIds)]);
+      extraPasses.push([true, (q) => q.in("appointments.staff_id", staffIds)]);
+    }
   }
+
+  const merge = (lists: any[][]) => {
+    const seen = new Map<string, any>();
+    for (const list of lists) for (const inv of list) seen.set(inv.id, inv);
+    return [...seen.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  };
 
   if (doctorId) {
     // Doctor can come from invoices.doctor_id OR the linked appointment's
     // staff_id. An inner-join filter would drop appointment-less invoices,
     // so run both variants and merge by id.
-    const [byDoctorId, byAppointment] = await Promise.all([
+    const lists = await Promise.all([
       run(false, (q) => {
         q = q.eq("doctor_id", doctorId);
         return searchExtra ? searchExtra(q) : q;
@@ -157,14 +187,25 @@ export async function fetchInvoicesSearch({
         q = q.eq("appointments.staff_id", doctorId);
         return searchExtra ? searchExtra(q) : q;
       }),
+      // Same doctor filter, but matching the search term on service/doctor name.
+      ...extraPasses.map(([inner, extra]) =>
+        run(inner, (q) => extra(inner ? q.eq("appointments.staff_id", doctorId) : q.eq("doctor_id", doctorId)))
+      ),
     ]);
-    const seen = new Map<string, any>();
-    for (const inv of [...byAppointment, ...byDoctorId]) seen.set(inv.id, inv);
-    return [...seen.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    return merge(lists);
+  }
+
+  if (extraPasses.length) {
+    const lists = await Promise.all([
+      run(false, searchExtra),
+      ...extraPasses.map(([inner, extra]) => run(inner, extra)),
+    ]);
+    return merge(lists);
   }
 
   return run(false, searchExtra);
 }
+
 
 export interface InvoiceStats {
   totalRevenue: number;

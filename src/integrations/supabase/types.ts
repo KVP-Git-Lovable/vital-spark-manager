@@ -1312,6 +1312,9 @@ export type Database = {
       invoices: {
         Row: {
           appointment_id: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by_name: string | null
           cgst_amount: number | null
           created_at: string
           created_by: string | null
@@ -1347,6 +1350,9 @@ export type Database = {
         }
         Insert: {
           appointment_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_name?: string | null
           cgst_amount?: number | null
           created_at?: string
           created_by?: string | null
@@ -1382,6 +1388,9 @@ export type Database = {
         }
         Update: {
           appointment_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_name?: string | null
           cgst_amount?: number | null
           created_at?: string
           created_by?: string | null

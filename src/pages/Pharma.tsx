@@ -928,7 +928,7 @@ const Pharma = () => {
                     <Label>Payment Mode</Label>
                     <Select value={billPaymentMode} onValueChange={setBillPaymentMode}>
                       <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>{["Cash", "Card", "UPI", "Insurance"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                      <SelectContent>{["Cash", "Card", "UPI", "Cheque"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>

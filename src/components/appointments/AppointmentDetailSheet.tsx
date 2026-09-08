@@ -1402,7 +1402,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                             <Select value={collectMode} onValueChange={setCollectMode}>
                               <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {["Cash", "Card", "UPI", "Bank Transfer", "Insurance"].map((m) => (
+                                {["Cash", "Card", "UPI", "Bank Transfer", "Cheque"].map((m) => (
                                   <SelectItem key={m} value={m}>{m}</SelectItem>
                                 ))}
                               </SelectContent>

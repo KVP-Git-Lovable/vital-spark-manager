@@ -2441,7 +2441,7 @@ const Billing = () => {
                     <Select value={paymentMode} onValueChange={setPaymentMode}>
                       <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {["Cash", "Card", "UPI", "Insurance", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                        {["Cash", "Card", "UPI", "Cheque", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   ) : (
@@ -2454,7 +2454,7 @@ const Billing = () => {
                           >
                             <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              {["Cash", "Card", "UPI", "Insurance", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                              {["Cash", "Card", "UPI", "Cheque", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                             </SelectContent>
                           </Select>
                           <Input
@@ -2878,7 +2878,7 @@ const Billing = () => {
                 <Select value={addPaymentMode} onValueChange={setAddPaymentMode}>
                   <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {["Cash", "Card", "UPI", "Insurance", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    {["Cash", "Card", "UPI", "Cheque", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -3379,7 +3379,7 @@ const Billing = () => {
                   <Select value={editData.payment_mode} onValueChange={(v) => setEditData({ ...editData, payment_mode: v })}>
                     <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {["Cash", "Card", "UPI", "Insurance", "Bank Transfer"].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      {["Cash", "Card", "UPI", "Cheque", "Bank Transfer"].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

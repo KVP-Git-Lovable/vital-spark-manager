@@ -19,12 +19,12 @@ export const APPOINTMENT_VIEW_FIELDS: FieldDef[] = [
 ];
 
 export const DEFAULT_APPOINTMENT_VIEW_COLUMNS = [
-  "start_time",
-  "time",
   "patient",
   "phone",
   "service",
   "doctor",
+  "start_time",
+  "time",
   "status",
   "bill",
   "visit_status",

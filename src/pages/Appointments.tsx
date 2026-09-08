@@ -112,12 +112,12 @@ const DATE_PRESETS = [
 ];
 
 const DEFAULT_APPOINTMENT_FIELDS = [
-  "start_time",
-  "time",
   "patient",
   "phone",
   "service",
   "doctor",
+  "start_time",
+  "time",
   "status",
   "bill",
   "visit_status",
@@ -2168,14 +2168,6 @@ const Appointments = () => {
                 <table ref={appointmentsTableRef} className="w-full text-sm responsive-table">
                   <thead>
                     <tr className="border-b bg-muted/30">
-                      {shouldShowColumn("start_time") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("start_time")}>
-                          <span className="flex items-center">Date<SortIcon column="start_time" /></span>
-                        </th>
-                      )}
-                      {shouldShowColumn("time") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground">Time</th>
-                      )}
                       {shouldShowColumn("patient") && (
                         <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("patient")}>
                           <span className="flex items-center">Patient<SortIcon column="patient" /></span>
@@ -2193,6 +2185,14 @@ const Appointments = () => {
                         <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("doctor")}>
                           <span className="flex items-center">Doctor<SortIcon column="doctor" /></span>
                         </th>
+                      )}
+                      {shouldShowColumn("start_time") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("start_time")}>
+                          <span className="flex items-center">Date<SortIcon column="start_time" /></span>
+                        </th>
+                      )}
+                      {shouldShowColumn("time") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground">Time</th>
                       )}
                       {shouldShowColumn("status") && (
                         <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("status")}>
@@ -2243,26 +2243,6 @@ const Appointments = () => {
                                   data-index={virtualRow.index}
                                   className="border-b bg-primary/5"
                                 >
-                                  {shouldShowColumn("start_time") && (
-                                    <td className="p-2">
-                                      <Input
-                                        type="datetime-local"
-                                        className="h-8 text-xs w-40"
-                                        value={editValues.start_time}
-                                        onChange={(e) => setEditValues({ ...editValues, start_time: e.target.value })}
-                                      />
-                                    </td>
-                                  )}
-                                  {shouldShowColumn("time") && (
-                                    <td className="p-2">
-                                      <Input
-                                        type="datetime-local"
-                                        className="h-8 text-xs w-40"
-                                        value={editValues.end_time}
-                                        onChange={(e) => setEditValues({ ...editValues, end_time: e.target.value })}
-                                      />
-                                    </td>
-                                  )}
                                   {shouldShowColumn("patient") && (
                                     <td className="p-2 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
                                   )}
@@ -2287,6 +2267,26 @@ const Appointments = () => {
                                           {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
                                         </SelectContent>
                                       </Select>
+                                    </td>
+                                  )}
+                                  {shouldShowColumn("start_time") && (
+                                    <td className="p-2">
+                                      <Input
+                                        type="datetime-local"
+                                        className="h-8 text-xs w-40"
+                                        value={editValues.start_time}
+                                        onChange={(e) => setEditValues({ ...editValues, start_time: e.target.value })}
+                                      />
+                                    </td>
+                                  )}
+                                  {shouldShowColumn("time") && (
+                                    <td className="p-2">
+                                      <Input
+                                        type="datetime-local"
+                                        className="h-8 text-xs w-40"
+                                        value={editValues.end_time}
+                                        onChange={(e) => setEditValues({ ...editValues, end_time: e.target.value })}
+                                      />
                                     </td>
                                   )}
                                   {shouldShowColumn("status") && (
@@ -2326,16 +2326,6 @@ const Appointments = () => {
                                 className="border-b hover:bg-muted/20 cursor-pointer transition-colors"
                                 onClick={() => setOpenModal("appointmentDetail", apt.id)}
                               >
-                                {shouldShowColumn("start_time") && (
-                                  <td className="p-3">
-                                    <p className="font-medium whitespace-nowrap">{format(new Date(apt.start_time), "MMM d")}</p>
-                                  </td>
-                                )}
-                                {shouldShowColumn("time") && (
-                                  <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
-                                    {format(new Date(apt.start_time), "h:mm a")} – {format(new Date(apt.end_time), "h:mm a")}
-                                  </td>
-                                )}
                                 {shouldShowColumn("patient") && (
                                   <td className="p-3 font-medium">
                                     <div className="flex items-center gap-2.5 min-w-0">
@@ -2359,6 +2349,16 @@ const Appointments = () => {
                                 )}
                                 {shouldShowColumn("doctor") && (
                                   <td className="p-3 text-muted-foreground">{apt.staff_id ? (staffMap.get(apt.staff_id) || "—") : "—"}</td>
+                                )}
+                                {shouldShowColumn("start_time") && (
+                                  <td className="p-3">
+                                    <p className="font-medium whitespace-nowrap">{format(new Date(apt.start_time), "MMM d")}</p>
+                                  </td>
+                                )}
+                                {shouldShowColumn("time") && (
+                                  <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
+                                    {format(new Date(apt.start_time), "h:mm a")} – {format(new Date(apt.end_time), "h:mm a")}
+                                  </td>
                                 )}
                                 {shouldShowColumn("status") && (
                                   <td className="p-3" onClick={(e) => e.stopPropagation()}>

@@ -118,9 +118,16 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     .single();
   if (procedureError || !procedure) throw new Error(procedureError?.message || "Procedure not found");
 
-  const [{ data: prescriptions, error: prescriptionError }, { data: clinicData }] = await Promise.all([
+  const [
+    { data: prescriptions, error: prescriptionError },
+    { data: clinicData },
+    { data: serviceLineRows },
+    { data: stickyNoteRows },
+  ] = await Promise.all([
     client.from("prescriptions").select("*").eq("procedure_id", procedureId).order("created_at"),
     client.from("clinic_settings").select("*").limit(1).maybeSingle(),
+    client.from("procedure_services").select("*").eq("procedure_id", procedureId).order("sort_order"),
+    client.from("procedure_sticky_notes").select("*").eq("procedure_id", procedureId).order("created_at"),
   ]);
   if (prescriptionError) throw new Error(prescriptionError.message);
 
@@ -227,10 +234,103 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     y -= 10;
   };
 
+  const drawLabeledField = (label: string, value: unknown) => {
+    const clean = sanitize(value);
+    if (!clean) return;
+    const lines = wrap(clean, font, 10, PAGE_WIDTH - 2 * MARGIN - 8);
+    ensureSpace(13 + lines.length * 13);
+    page.drawText(`${label}:`, { x: MARGIN, y, size: 10, font: bold, color: dark });
+    y -= 13;
+    for (const textLine of lines) {
+      ensureSpace(13);
+      page.drawText(textLine, { x: MARGIN + 8, y, size: 10, font, color: dark });
+      y -= 13;
+    }
+    y -= 6;
+  };
+
+  const drawServicesTable = (serviceRows: { service: string; notes: string; recommendations: string }[]) => {
+    if (!serviceRows.length) return;
+    const tableX = MARGIN;
+    const tableWidth = PAGE_WIDTH - 2 * MARGIN;
+    const serviceWidth = 105;
+    const notesWidth = Math.round((tableWidth - serviceWidth) / 2);
+    const recWidth = tableWidth - serviceWidth - notesWidth;
+    const colX = [tableX, tableX + serviceWidth, tableX + serviceWidth + notesWidth];
+
+    const drawHeader = (heading: string) => {
+      ensureSpace(42);
+      page.drawText(heading, { x: MARGIN, y, size: 11, font: bold, color: blue });
+      y -= 18;
+      const height = 22;
+      page.drawRectangle({ x: tableX, y: y - height + 6, width: tableWidth, height, borderColor: dark, borderWidth: 0.7 });
+      page.drawLine({ start: { x: colX[1], y: y - height + 6 }, end: { x: colX[1], y: y + 6 }, thickness: 0.7, color: dark });
+      page.drawLine({ start: { x: colX[2], y: y - height + 6 }, end: { x: colX[2], y: y + 6 }, thickness: 0.7, color: dark });
+      page.drawText("Service", { x: colX[0] + 8, y: y - 9, size: 9, font: bold, color: dark });
+      page.drawText("Procedure Notes", { x: colX[1] + 8, y: y - 9, size: 9, font: bold, color: dark });
+      page.drawText("Recommendations", { x: colX[2] + 8, y: y - 9, size: 9, font: bold, color: dark });
+      y -= height;
+    };
+
+    drawHeader("Procedure Details");
+
+    for (const row of serviceRows) {
+      const svcLines = wrap(row.service, font, 9, serviceWidth - 12);
+      const notesLines = wrap(row.notes, font, 9, notesWidth - 12);
+      const recLines = wrap(row.recommendations, font, 9, recWidth - 12);
+      const rowHeight = Math.max(25, Math.max(svcLines.length, notesLines.length, recLines.length) * 12 + 9);
+      if (y - rowHeight < CONTENT_BOTTOM) {
+        y = addContinuationPage();
+        drawHeader("Procedure Details (continued)");
+      }
+      page.drawRectangle({ x: tableX, y: y - rowHeight + 6, width: tableWidth, height: rowHeight, borderColor: dark, borderWidth: 0.7 });
+      page.drawLine({ start: { x: colX[1], y: y - rowHeight + 6 }, end: { x: colX[1], y: y + 6 }, thickness: 0.7, color: dark });
+      page.drawLine({ start: { x: colX[2], y: y - rowHeight + 6 }, end: { x: colX[2], y: y + 6 }, thickness: 0.7, color: dark });
+      svcLines.forEach((line, index) => page.drawText(line, { x: colX[0] + 8, y: y - 9 - index * 12, size: 9, font, color: dark }));
+      notesLines.forEach((line, index) => page.drawText(line, { x: colX[1] + 8, y: y - 9 - index * 12, size: 9, font, color: dark }));
+      recLines.forEach((line, index) => page.drawText(line, { x: colX[2] + 8, y: y - 9 - index * 12, size: 9, font, color: dark }));
+      y -= rowHeight;
+    }
+    y -= 10;
+  };
+
   drawSection("Symptoms", procedure.symptoms || procedure.consultation_notes);
   drawSection("Diagnosis", procedure.diagnosis);
-  drawSection("Procedure Details", procedure.procedure_notes);
-  drawSection("Recommendations", procedure.recommendations);
+
+  const serviceRows = (serviceLineRows && serviceLineRows.length
+    ? serviceLineRows.map((s: Record<string, unknown>) => ({ service: s.service_name, notes: s.procedure_notes, recommendations: s.recommendations }))
+    : [{ service: procedure.service_name, notes: procedure.procedure_notes, recommendations: procedure.recommendations }]
+  )
+    .map((r) => ({ service: sanitize(r.service), notes: sanitize(r.notes) || "-", recommendations: sanitize(r.recommendations) || "-" }))
+    .filter((r) => r.service);
+  drawServicesTable(serviceRows);
+
+  const medicalFields: [string, unknown][] = [
+    ["Medical History", patient.medical_history],
+    ["Current Medications", patient.current_medications],
+    ["Allergies", patient.allergies],
+    ["Previous Treatments", patient.previous_treatments],
+    ["Skin Type", patient.skin_type],
+    ["Skin Concerns", patient.skin_concerns],
+  ];
+  if (medicalFields.some(([, value]) => sanitize(value))) {
+    ensureSpace(30);
+    page.drawText("Medical Information", { x: MARGIN, y, size: 11, font: bold, color: blue });
+    y -= 15;
+    for (const [label, value] of medicalFields) drawLabeledField(label, value);
+    y -= 4;
+  }
+
+  const noteRows = (stickyNoteRows || [])
+    .map((note: Record<string, unknown>) => ({ title: sanitize(note.title), content: sanitize(note.content) }))
+    .filter((note) => note.content);
+  if (noteRows.length) {
+    ensureSpace(30);
+    page.drawText("Notes", { x: MARGIN, y, size: 11, font: bold, color: blue });
+    y -= 15;
+    for (const note of noteRows) drawLabeledField(note.title || "Note", note.content);
+    y -= 4;
+  }
 
   const rows = (prescriptions || []).map((prescription: Record<string, unknown>, index: number) => {
     const details = [prescription.dosage, prescription.frequency, prescription.duration ? `for ${prescription.duration}` : "", prescription.instructions]

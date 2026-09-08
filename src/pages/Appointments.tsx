@@ -112,12 +112,12 @@ const DATE_PRESETS = [
 ];
 
 const DEFAULT_APPOINTMENT_FIELDS = [
-  "start_time",
-  "time",
   "patient",
   "phone",
   "service",
   "doctor",
+  "start_time",
+  "time",
   "status",
   "bill",
   "visit_status",

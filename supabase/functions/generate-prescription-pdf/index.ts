@@ -294,6 +294,45 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     y -= 10;
   };
 
+  const drawKeyValueTable = (heading: string, fieldRows: { label: string; value: string }[]) => {
+    if (!fieldRows.length) return;
+    const tableX = MARGIN;
+    const tableWidth = PAGE_WIDTH - 2 * MARGIN;
+    const labelWidth = 140;
+    const valueWidth = tableWidth - labelWidth;
+    const colX = [tableX, tableX + labelWidth];
+
+    const drawHeader = (title: string) => {
+      ensureSpace(42);
+      page.drawText(title, { x: MARGIN, y, size: 11, font: bold, color: blue });
+      y -= 18;
+      const height = 22;
+      page.drawRectangle({ x: tableX, y: y - height + 6, width: tableWidth, height, borderColor: dark, borderWidth: 0.7 });
+      page.drawLine({ start: { x: colX[1], y: y - height + 6 }, end: { x: colX[1], y: y + 6 }, thickness: 0.7, color: dark });
+      page.drawText("Field", { x: colX[0] + 8, y: y - 9, size: 9, font: bold, color: dark });
+      page.drawText("Details", { x: colX[1] + 8, y: y - 9, size: 9, font: bold, color: dark });
+      y -= height;
+    };
+
+    drawHeader(heading);
+
+    for (const row of fieldRows) {
+      const labelLines = wrap(row.label, font, 9, labelWidth - 12);
+      const valueLines = wrap(row.value, font, 9, valueWidth - 12);
+      const rowHeight = Math.max(25, Math.max(labelLines.length, valueLines.length) * 12 + 9);
+      if (y - rowHeight < CONTENT_BOTTOM) {
+        y = addContinuationPage();
+        drawHeader(`${heading} (continued)`);
+      }
+      page.drawRectangle({ x: tableX, y: y - rowHeight + 6, width: tableWidth, height: rowHeight, borderColor: dark, borderWidth: 0.7 });
+      page.drawLine({ start: { x: colX[1], y: y - rowHeight + 6 }, end: { x: colX[1], y: y + 6 }, thickness: 0.7, color: dark });
+      labelLines.forEach((line, index) => page.drawText(line, { x: colX[0] + 8, y: y - 9 - index * 12, size: 9, font: bold, color: dark }));
+      valueLines.forEach((line, index) => page.drawText(line, { x: colX[1] + 8, y: y - 9 - index * 12, size: 9, font, color: dark }));
+      y -= rowHeight;
+    }
+    y -= 10;
+  };
+
   drawSection("Symptoms", procedure.symptoms || procedure.consultation_notes);
   drawSection("Diagnosis", procedure.diagnosis);
 
@@ -313,13 +352,10 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     ["Skin Type", patient.skin_type],
     ["Skin Concerns", patient.skin_concerns],
   ];
-  if (medicalFields.some(([, value]) => sanitize(value))) {
-    ensureSpace(30);
-    page.drawText("Medical Information", { x: MARGIN, y, size: 11, font: bold, color: blue });
-    y -= 15;
-    for (const [label, value] of medicalFields) drawLabeledField(label, value);
-    y -= 4;
-  }
+  const medicalRows = medicalFields
+    .map(([label, value]) => ({ label, value: sanitize(value) }))
+    .filter((row) => row.value);
+  drawKeyValueTable("Medical Information", medicalRows);
 
   const noteRows = (stickyNoteRows || [])
     .map((note: Record<string, unknown>) => ({ title: sanitize(note.title), content: sanitize(note.content) }))

@@ -241,7 +241,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     enabled: !!procedureId,
   });
 
-  const { data: procedureServices = [] } = useQuery({
+  const { data: procedureServices = [], isLoading: procedureServicesLoading } = useQuery({
     queryKey: ["procedure-services", procedureId],
     queryFn: async () => {
       if (!procedureId) return [];
@@ -353,8 +353,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     setInitialized(true);
   }
 
-  // Init service lines
-  if (procedure && initialized && !servicesInitialized) {
+  // Init service lines - wait for procedure_services to actually finish
+  // loading before deciding it's empty, otherwise its [] default (while
+  // still fetching) gets mistaken for "no existing services" and a
+  // duplicate id-less fallback line is fabricated from the parent
+  // procedure's fields, which then inserts a second identical row on save.
+  if (procedure && initialized && !servicesInitialized && !procedureServicesLoading) {
     const rows: ServiceLineRow[] = procedureServices.length
       ? procedureServices.map((s: any) => ({
           id: s.id,

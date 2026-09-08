@@ -39,6 +39,13 @@ const MEDICAL_FIELDS: [string, string][] = [
   ["skin_concerns", "Skin Concerns"],
 ];
 
+// patients.skin_type has a DB check constraint restricting it to these
+// exact values - must stay a dropdown, not free text, or saving fails.
+const SKIN_TYPE_OPTIONS = ["Normal", "Dry", "Oily", "Combination", "Sensitive"];
+// Skin Type is a constrained dropdown, not free text, so it's excluded from
+// AI elaboration (which would turn it into a sentence and break the constraint).
+const ELABORATABLE_MEDICAL_FIELDS = MEDICAL_FIELDS.filter(([field]) => field !== "skin_type");
+
 interface PrescriptionInput {
   product_id: string;
   medicine_name: string;
@@ -346,7 +353,7 @@ export function ProcedureFormDialog({
   };
 
   const elaborateMedical = async () => {
-    if (MEDICAL_FIELDS.every(([field]) => !medical[field])) {
+    if (ELABORATABLE_MEDICAL_FIELDS.every(([field]) => !medical[field])) {
       toast.info("Fill in a medical information field first, then Elaborate.");
       return;
     }
@@ -355,7 +362,7 @@ export function ProcedureFormDialog({
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/medical-info-ai-elaborate`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
-        body: JSON.stringify(Object.fromEntries(MEDICAL_FIELDS.map(([field]) => [field, medical[field] || ""]))),
+        body: JSON.stringify(Object.fromEntries(ELABORATABLE_MEDICAL_FIELDS.map(([field]) => [field, medical[field] || ""]))),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "Elaborate failed" }));
@@ -365,7 +372,7 @@ export function ProcedureFormDialog({
       const filled: string[] = [];
       setMedical((m) => {
         const next = { ...m };
-        MEDICAL_FIELDS.forEach(([field]) => {
+        ELABORATABLE_MEDICAL_FIELDS.forEach(([field]) => {
           if (data[field]) {
             next[field] = data[field];
             filled.push(field);
@@ -823,21 +830,38 @@ export function ProcedureFormDialog({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {MEDICAL_FIELDS.map(([field, label]) => (
           <div key={field}>
-            <div className="flex items-center justify-between">
-              <Label className="text-xs text-muted-foreground">{label}</Label>
-              <MicButton
-                size="sm"
-                value={medical[field] || ""}
-                onChange={(next) => { setMedical((m) => ({ ...m, [field]: next })); setMedicalDirty(true); }}
-                title={`Dictate ${label}`}
-              />
-            </div>
-            <Textarea
-              rows={3}
-              className={`mt-1 text-sm transition-all ${recentlyFilled[field] ? "ring-2 ring-primary/40" : ""} ${elaboratingMedical ? "opacity-60" : ""}`}
-              value={medical[field] || ""}
-              onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
-            />
+            {field === "skin_type" ? (
+              <>
+                <Label className="text-xs text-muted-foreground">{label}</Label>
+                <Select
+                  value={medical[field] || ""}
+                  onValueChange={(v) => { setMedical((m) => ({ ...m, [field]: v })); setMedicalDirty(true); }}
+                >
+                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    {SKIN_TYPE_OPTIONS.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">{label}</Label>
+                  <MicButton
+                    size="sm"
+                    value={medical[field] || ""}
+                    onChange={(next) => { setMedical((m) => ({ ...m, [field]: next })); setMedicalDirty(true); }}
+                    title={`Dictate ${label}`}
+                  />
+                </div>
+                <Textarea
+                  rows={3}
+                  className={`mt-1 text-sm transition-all ${recentlyFilled[field] ? "ring-2 ring-primary/40" : ""} ${elaboratingMedical ? "opacity-60" : ""}`}
+                  value={medical[field] || ""}
+                  onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
+                />
+              </>
+            )}
           </div>
         ))}
       </div>

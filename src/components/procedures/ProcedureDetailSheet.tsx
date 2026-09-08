@@ -38,6 +38,9 @@ import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const statusOptions = ["Completed", "In Progress", "Cancelled"];
+// patients.skin_type has a DB check constraint restricting it to these
+// exact values - must stay a dropdown, not free text, or saving fails.
+const SKIN_TYPE_OPTIONS = ["Normal", "Dry", "Oily", "Combination", "Sensitive"];
 
 interface PrescriptionRow {
   id?: string;
@@ -1161,12 +1164,24 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                           ] as [string, string][]).map(([field, label]) => (
                             <div key={field}>
                               <Label className="text-xs text-muted-foreground">{label}</Label>
-                              <Textarea
-                                rows={3}
-                                className="mt-1 text-sm"
-                                value={medical[field] || ""}
-                                onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
-                              />
+                              {field === "skin_type" ? (
+                                <Select
+                                  value={medical[field] || ""}
+                                  onValueChange={(v) => { setMedical((m) => ({ ...m, [field]: v })); setMedicalDirty(true); }}
+                                >
+                                  <SelectTrigger className="mt-1 h-9 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+                                  <SelectContent>
+                                    {SKIN_TYPE_OPTIONS.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <Textarea
+                                  rows={3}
+                                  className="mt-1 text-sm"
+                                  value={medical[field] || ""}
+                                  onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
+                                />
+                              )}
                             </div>
                           ))}
                         </div>

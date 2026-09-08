@@ -1078,7 +1078,7 @@ export function BillDetailSheet({ billId, onClose, onClone }: { billId: string |
                   <Label>Payment Mode</Label>
                   <Select value={form.payment_mode || "Cash"} onValueChange={(v) => setForm({ ...form, payment_mode: v })}>
                     <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                    <SelectContent>{["Cash", "Card", "UPI", "Insurance"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                    <SelectContent>{["Cash", "Card", "UPI", "Cheque"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               </div>

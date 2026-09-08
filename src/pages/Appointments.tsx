@@ -2168,14 +2168,6 @@ const Appointments = () => {
                 <table ref={appointmentsTableRef} className="w-full text-sm responsive-table">
                   <thead>
                     <tr className="border-b bg-muted/30">
-                      {shouldShowColumn("start_time") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("start_time")}>
-                          <span className="flex items-center">Date<SortIcon column="start_time" /></span>
-                        </th>
-                      )}
-                      {shouldShowColumn("time") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground">Time</th>
-                      )}
                       {shouldShowColumn("patient") && (
                         <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("patient")}>
                           <span className="flex items-center">Patient<SortIcon column="patient" /></span>
@@ -2193,6 +2185,14 @@ const Appointments = () => {
                         <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("doctor")}>
                           <span className="flex items-center">Doctor<SortIcon column="doctor" /></span>
                         </th>
+                      )}
+                      {shouldShowColumn("start_time") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("start_time")}>
+                          <span className="flex items-center">Date<SortIcon column="start_time" /></span>
+                        </th>
+                      )}
+                      {shouldShowColumn("time") && (
+                        <th className="text-left p-3 font-medium text-muted-foreground">Time</th>
                       )}
                       {shouldShowColumn("status") && (
                         <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("status")}>

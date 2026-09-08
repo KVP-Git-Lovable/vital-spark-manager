@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -858,6 +858,9 @@ export function ProcedureFormDialog({
               <TabsTrigger value="surveys" className="gap-1.5">
                 <ClipboardList className="h-3.5 w-3.5" /> Surveys
               </TabsTrigger>
+              <TabsTrigger value="notes" className="gap-1.5">
+                <StickyNote className="h-3.5 w-3.5" /> Notes
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="procedure" className="space-y-4 mt-4">
           {/* Unified AI bar */}
@@ -1288,7 +1291,7 @@ export function ProcedureFormDialog({
               <div className="flex items-center gap-2">
                 <HeartPulse className="h-4 w-4 text-primary" />
                 <span className="text-sm font-semibold">Medical Information</span>
-                <span className="text-[11px] text-muted-foreground">(saved back to the patient record)</span>
+                <span className="text-[11px] text-muted-foreground">(pre-filled from the patient's saved record — edit as needed for this visit, and it's saved back when you save the procedure)</span>
               </div>
               {patientId ? medicalSection : (
                 <p className="text-sm text-muted-foreground py-8 text-center">Select a patient to view medical information.</p>
@@ -1301,6 +1304,12 @@ export function ProcedureFormDialog({
               ) : (
                 <p className="text-sm text-muted-foreground">Select a patient to see their surveys.</p>
               )}
+            </TabsContent>
+
+            <TabsContent value="notes" className="space-y-3 mt-4">
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                Save the procedure first to add notes.
+              </p>
             </TabsContent>
           </Tabs>
 

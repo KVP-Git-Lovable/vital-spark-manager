@@ -470,7 +470,8 @@ export interface SavedReport {
 
 export const CHART_TYPES = [
   { key: "table", label: "Tabular", icon: "Table" },
-  { key: "bar", label: "Bar Chart", icon: "BarChart3" },
+  { key: "bar", label: "Vertical Bar", icon: "BarChart3" },
+  { key: "hbar", label: "Horizontal Bar", icon: "BarChartHorizontal" },
   { key: "doughnut", label: "Doughnut Chart", icon: "PieChart" },
   { key: "line", label: "Line Chart", icon: "LineChart" },
   { key: "number", label: "Summary Number", icon: "Hash" },

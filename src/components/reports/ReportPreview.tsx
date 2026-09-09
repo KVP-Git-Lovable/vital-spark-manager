@@ -1129,6 +1129,12 @@ export function ReportPreview({
   );
   };
 
+  // Dashboard widgets show only the visual, never the raw table underneath
+  // (unless the widget itself is a tabular one).
+  if (widgetProp && chartType !== "table") {
+    return <div className="space-y-2">{chartNode}</div>;
+  }
+
   return (
     <div className="space-y-4">
       {chartNode}

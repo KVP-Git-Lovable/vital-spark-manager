@@ -436,9 +436,10 @@ Deno.serve(async (req) => {
       const patientTimeoutMs = Math.min(20_000, remainingMs);
       try {
         await syncPatient(p, doctorFor, reset, log, AbortSignal.timeout(patientTimeoutMs));
-        if (!only) {
+        if (!only && mode !== "recent") {
           await admin.from("patients").update({ sf_clinical_synced_at: new Date().toISOString() }).eq("id", p.lovable_id);
         }
+
       } catch (e) {
         const message = (e as Error).name === "TimeoutError" || (e as Error).name === "AbortError"
           ? `Patient sync exceeded ${Math.ceil(patientTimeoutMs / 1000)}s and was safely deferred`

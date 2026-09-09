@@ -391,7 +391,9 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
         ) : (
         <div className="w-52 md:w-56 border-r border-border flex flex-col shrink-0 bg-card overflow-hidden">
           <div className="flex items-center justify-between px-2 pt-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Fields</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {schemaReady ? "Fields" : "Fields (loading…)"}
+            </span>
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setFieldsPanelOpen(false)} title="Hide fields">
               <PanelLeftClose className="h-3.5 w-3.5" />
             </Button>

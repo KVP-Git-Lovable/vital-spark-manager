@@ -211,7 +211,42 @@ async function loopAttachments() {
   }
 }
 
+// Date-window sync: pulls every Salesforce appointment (plus its billing and
+// procedure records) created for a given day/range, regardless of whether the
+// patient was already marked as backfilled. Patients that exist only in
+// Salesforce are created on the fly so their appointments aren't dropped.
+export async function startRecentSync(from: Date, to: Date) {
+  if (state.running) return;
+  stopRequested = false;
+  setState({ running: true, error: null, log: [], totals: initialTotals(), message: "Starting…", stage: "clinical" });
+  try {
+    let offset = 0;
+    let created = 0;
+    for (;;) {
+      if (stopRequested) { setState({ running: false, stage: null, message: "Stopped." }); return; }
+      const qs = `mode=recent&from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}&limit=20&offset=${offset}`;
+      const data = await invokeWithRetry(`sf-import-clinical?${qs}`);
+      assertProcessedShape("sf-import-clinical", data);
+      const results: any[] = data.results || [];
+      const imported = results.reduce((s, r) => s + (r.appointments || 0) + (r.invoices || 0) + (r.procedures || 0), 0);
+      const skipped = results.reduce((s, r) => s + (r.skipped || 0), 0);
+      const errors = results.reduce((s, r) => s + (r.errors?.length || 0), 0);
+      created += data.recent_created_patients || 0;
+      addTotals("clinical", { processed: data.processed ?? 0, imported, skipped, errors });
+      pushLog(`Date range: ${data.processed ?? 0} patient(s) of ${data.recent_total_patients ?? 0}, ${imported} record(s) imported`);
+      if (data.next_offset === null || data.next_offset === undefined) break;
+      offset = data.next_offset;
+    }
+    if (created > 0) pushLog(`${created} new patient(s) created from Salesforce.`);
+    setState({ running: false, stage: null, message: "Sync complete." });
+  } catch (e: any) {
+    setState({ running: false, stage: null, error: e.message, message: `Failed: ${e.message}` });
+    pushLog(`Error: ${e.message}`);
+  }
+}
+
 export async function startSync() {
+
   if (state.running) return;
   stopRequested = false;
   setState({ running: true, error: null, log: [], totals: initialTotals(), message: "Starting…" });

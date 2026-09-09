@@ -3,7 +3,7 @@ import { useStackedTable } from "@/hooks/useStackedTable";
 import { useState, useMemo, useRef, useEffect, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths, isSameDay } from "date-fns";
-import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown, Stethoscope } from "lucide-react";
+import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown, Stethoscope, MessageCircle } from "lucide-react";
 import { useModuleListViews } from "@/hooks/useModuleListViews";
 import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";

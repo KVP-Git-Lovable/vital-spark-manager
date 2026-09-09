@@ -523,7 +523,7 @@ Deno.serve(async (req) => {
     let stoppedEarly = false;
     await mapPool(targets, 8, async (p) => {
       if (Date.now() > deadline) { stoppedEarly = true; return; }
-      const log: any = { patient: p.name, appointments: 0, invoices: 0, procedures: 0, skipped: 0, errors: [] as any[] };
+      const log: any = { patient: p.name, appointments: 0, updated: 0, invoices: 0, procedures: 0, skipped: 0, errors: [] as any[] };
       const remainingMs = Math.max(1, deadline - Date.now());
       const patientTimeoutMs = Math.min(20_000, remainingMs);
       try {

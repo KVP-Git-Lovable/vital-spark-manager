@@ -140,7 +140,10 @@ async function fetchTargets(only: string, limit: number): Promise<Target[]> {
 // inside a date window and re-run the normal per-patient import for exactly
 // those. Everything already imported is skipped by sf_id, so repeated runs
 // are safe and only bring in newly-created Salesforce records.
-async function fetchRecentTargets(fromIso: string, toIso: string): Promise<{ targets: Target[]; unmatched: number; sfPatients: number }> {
+async function fetchRecentTargets(
+  fromIso: string,
+  toIso: string,
+): Promise<{ targets: Target[]; unmatched: number; sfPatients: number; createdPatients: number }> {
   const rows = await sfQuery(
     `SELECT Patient__c FROM Appointment__c WHERE Start_Time__c >= ${fromIso} AND Start_Time__c <= ${toIso} AND Patient__c != null`,
   );
@@ -158,8 +161,60 @@ async function fetchRecentTargets(fromIso: string, toIso: string): Promise<{ tar
       targets.push({ lovable_id: p.id, sf_id: p.sf_id, name: `${p.first_name} ${p.last_name}`.trim() });
     });
   }
-  return { targets, unmatched: sfIds.length - found.size, sfPatients: sfIds.length };
+
+  // Salesforce patients that don't exist in the app at all yet (brand-new
+  // walk-ins registered in Salesforce today). Without this their whole
+  // appointment simply never arrives. Link by phone when an app patient
+  // already has that number; otherwise create the patient record.
+  const missing = sfIds.filter((id) => !found.has(id));
+  let createdPatients = 0;
+  for (const batch of chunk(missing, 200)) {
+    const sfPatients = await sfQuery(
+      `SELECT Id, Patient_Name__c, Mobile_Number__c FROM Patient__c WHERE Id IN (${batch.map((id) => `'${id}'`).join(",")})`,
+    );
+    for (const sp of sfPatients) {
+      const fullName = String(sp.Patient_Name__c || "Unknown").trim();
+      const phone = String(sp.Mobile_Number__c || "").replace(/\D/g, "").slice(-10);
+      let lovableId: string | null = null;
+
+      if (phone.length === 10) {
+        const { data: byPhone } = await admin
+          .from("patients")
+          .select("id, sf_id")
+          .ilike("phone", `%${phone}%`)
+          .limit(2);
+        if (byPhone && byPhone.length === 1 && !byPhone[0].sf_id) {
+          await admin.from("patients").update({ sf_id: sp.Id }).eq("id", byPhone[0].id);
+          lovableId = byPhone[0].id;
+        }
+      }
+
+      if (!lovableId) {
+        const parts = fullName.split(/\s+/);
+        const { data: created, error } = await admin
+          .from("patients")
+          .insert({
+            first_name: parts[0] || "Unknown",
+            last_name: parts.slice(1).join(" ") || "",
+            phone: phone || null,
+            sf_id: sp.Id,
+            source: "salesforce",
+          })
+          .select("id")
+          .single();
+        if (error || !created) continue;
+        lovableId = created.id;
+        createdPatients++;
+      }
+
+      targets.push({ lovable_id: lovableId, sf_id: sp.Id, name: fullName });
+      found.add(sp.Id);
+    }
+  }
+
+  return { targets, unmatched: sfIds.length - found.size, sfPatients: sfIds.length, createdPatients };
 }
+
 
 
 async function existingSfIds(table: string, patientId: string): Promise<Set<string>> {

@@ -2349,11 +2349,14 @@ const Billing = () => {
                         value={s.price || ""}
                         onChange={(e) => updateServiceInput(i, { price: parseFloat(e.target.value) || 0 })}
                       />
-                      <Input
-                        className="h-10 w-24 shrink-0"
+                      <SearchableSelect
+                        className="h-10 w-28 shrink-0"
                         placeholder="HSN"
+                        searchPlaceholder="Search HSN…"
+                        emptyText="No HSN codes"
                         value={s.hsn || ""}
-                        onChange={(e) => updateServiceInput(i, { hsn: e.target.value })}
+                        onChange={(v) => updateServiceInput(i, { hsn: v })}
+                        options={hsnOptions}
                       />
                       {serviceInputs.length > 1 && (
                         <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0 w-8 px-0" disabled={!!s.doctor_fee} onClick={() => removeServiceInput(i)}>✕</Button>

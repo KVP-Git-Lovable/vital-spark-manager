@@ -478,6 +478,8 @@ Deno.serve(async (req) => {
   try {
     let targets: Target[];
     let recentInfo: { total: number; unmatched: number; sfPatients: number; created: number; nextOffset: number | null } | null = null;
+    let windowFrom: string | null = null;
+    let windowTo: string | null = null;
 
     if (mode === "recent") {
       const from = url.searchParams.get("from");

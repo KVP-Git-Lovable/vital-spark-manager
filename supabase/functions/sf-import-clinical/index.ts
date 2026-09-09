@@ -489,6 +489,8 @@ Deno.serve(async (req) => {
       const sfTime = (v: string) => new Date(v).toISOString().replace(/\.\d{3}Z$/, "Z");
       const fromIso = sfTime(from);
       const toIso = sfTime(to);
+      windowFrom = fromIso;
+      windowTo = toIso;
       const found = await fetchRecentTargets(fromIso, toIso);
       const slice = found.targets.slice(offset, offset + limit);
       const next = offset + slice.length;

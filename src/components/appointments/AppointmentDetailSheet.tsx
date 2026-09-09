@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MicButton } from "@/components/shared/MicButton";
 import { Input } from "@/components/ui/input";
+import TimePicker12h from "@/components/shared/TimePicker12h";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1080,12 +1081,35 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   )}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Start</Label>
-                      <Input type="datetime-local" value={editStartTime} onChange={(e) => setEditStartTime(e.target.value)} className="mt-1.5" />
+                      <Label>Date</Label>
+                      <Input
+                        type="date"
+                        className="mt-1.5"
+                        value={(editStartTime || "").split("T")[0] || ""}
+                        onChange={(e) => {
+                          const d = e.target.value;
+                          setEditStartTime((prev) => (d ? `${d}T${(prev || "").split("T")[1] || "09:00"}` : ""));
+                          setEditEndTime((prev) => (d ? `${d}T${(prev || "").split("T")[1] || "09:30"}` : ""));
+                        }}
+                      />
                     </div>
-                    <div>
-                      <Label>End</Label>
-                      <Input type="datetime-local" value={editEndTime} onChange={(e) => setEditEndTime(e.target.value)} className="mt-1.5" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label>Start</Label>
+                        <TimePicker12h
+                          className="mt-1.5"
+                          value={((editStartTime || "").split("T")[1] || "").slice(0, 5)}
+                          onChange={(t) => setEditStartTime((prev) => `${(prev || "").split("T")[0] || ""}T${t}`)}
+                        />
+                      </div>
+                      <div>
+                        <Label>End</Label>
+                        <TimePicker12h
+                          className="mt-1.5"
+                          value={((editEndTime || "").split("T")[1] || "").slice(0, 5)}
+                          onChange={(t) => setEditEndTime((prev) => `${(prev || (editStartTime || "")).split("T")[0] || ""}T${t}`)}
+                        />
+                      </div>
                     </div>
                   </div>
                   <div>

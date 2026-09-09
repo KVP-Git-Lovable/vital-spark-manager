@@ -523,7 +523,7 @@ Deno.serve(async (req) => {
       const remainingMs = Math.max(1, deadline - Date.now());
       const patientTimeoutMs = Math.min(20_000, remainingMs);
       try {
-        await syncPatient(p, doctorFor, reset, log, AbortSignal.timeout(patientTimeoutMs));
+        await syncPatient(p, doctorFor, reset, log, AbortSignal.timeout(patientTimeoutMs), mode === "recent");
         if (!only && mode !== "recent") {
           await admin.from("patients").update({ sf_clinical_synced_at: new Date().toISOString() }).eq("id", p.lovable_id);
         }
@@ -537,6 +537,32 @@ Deno.serve(async (req) => {
       results.push(log);
     });
 
+    // Deletion reconciliation: only once the whole window has been walked
+    // (otherwise appointments belonging to patients not yet processed would
+    // look "missing"). Anything still sitting in the window here that no
+    // longer exists in Salesforce is marked Cancelled rather than deleted.
+    let cancelledMissing = 0;
+    if (mode === "recent" && recentInfo && recentInfo.nextOffset === null && !stoppedEarly && windowFrom && windowTo) {
+      const sfRows = await sfQuery(`SELECT Id FROM Appointment__c WHERE Start_Time__c >= ${windowFrom} AND Start_Time__c <= ${windowTo}`);
+      const sfSet = new Set(sfRows.map((r: any) => String(r.Id)));
+      const { data: localRows } = await admin
+        .from("appointments")
+        .select("id, sf_id, status")
+        .not("sf_id", "is", null)
+        .gte("start_time", new Date(windowFrom).toISOString())
+        .lte("start_time", new Date(windowTo).toISOString());
+      const stale = (localRows || []).filter((r: any) => !sfSet.has(r.sf_id) && r.status !== "Cancelled");
+      for (const batch of chunk(stale.map((r: any) => r.id), 100)) {
+        if (!batch.length) continue;
+        const { error } = await admin
+          .from("appointments")
+          .update({ status: "Cancelled", notes: "Removed in Salesforce" })
+          .in("id", batch);
+        if (error) throw new Error(`appointments cancel: ${error.message}`);
+        cancelledMissing += batch.length;
+      }
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,
@@ -549,9 +575,11 @@ Deno.serve(async (req) => {
         recent_total_patients: recentInfo?.total ?? null,
         recent_unmatched_patients: recentInfo?.unmatched ?? null,
         recent_created_patients: recentInfo?.created ?? null,
+        recent_cancelled_missing: mode === "recent" ? cancelledMissing : null,
         next_offset: mode === "recent" ? (stoppedEarly ? offset + results.length : recentInfo?.nextOffset ?? null) : null,
         results,
       }, null, 2),
+
 
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

@@ -15,7 +15,7 @@ import { applyFilters as applyListFilters, fieldDefIn, type ListDisplayMode, typ
 import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/standardViews";
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, Pin, Printer, Trash2 } from "lucide-react";
-import TimePicker12h from "@/components/shared/TimePicker12h";
+import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
 import { moveToTrash } from "@/lib/trash";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";

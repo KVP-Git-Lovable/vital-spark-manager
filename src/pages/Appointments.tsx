@@ -578,25 +578,11 @@ const Appointments = () => {
     setApptPage(1);
   }, [datePreset, appointmentsDateRange?.start?.toISOString(), appointmentsDateRange?.end?.toISOString(), sortedFilterDoctors.join(","), filterStatus, filterVisitStatus, debouncedSearchQuery, sortColumn, sortDirection, activeView?.id]);
 
-  // No scheduled/cron job exists to flip a stale Confirmed appointment to
-  // "No Show" at end of day, so it's swept here once whenever this page
-  // loads instead: any appointment still Confirmed from a day that's
-  // already over never got checked in, so it's marked No Show.
-  useEffect(() => {
-    (async () => {
-      const { data: stale } = await supabase
-        .from("appointments")
-        .select("id")
-        .eq("status", "Confirmed")
-        .lt("start_time", startOfDay(new Date()).toISOString())
-        .limit(500);
-      const ids = (stale || []).map((a: any) => a.id);
-      if (ids.length === 0) return;
-      await supabase.from("appointments").update({ status: "No Show" }).in("id", ids);
-      queryClient.invalidateQueries({ queryKey: ["appointments"] });
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // NOTE: Past Confirmed appointments are intentionally NOT auto-flipped to
+  // "No Show" on page load. Doing so silently rewrote real attended visits
+  // (where staff simply never clicked "Checked In") as no-shows, corrupting
+  // history and status-based reporting. "No Show" is now a deliberate manual
+  // status change made by staff from the appointment record.
 
   // Build a staff lookup map
   const staffMap = useMemo(() => {

@@ -457,8 +457,13 @@ Deno.serve(async (req) => {
         batch_size: targets.length,
         capped: requestedLimit > limit,
         stopped_early: stoppedEarly,
+        mode: mode || "backlog",
+        recent_total_patients: recentInfo?.total ?? null,
+        recent_unmatched_patients: recentInfo?.unmatched ?? null,
+        next_offset: stoppedEarly ? offset + results.length : recentInfo?.nextOffset ?? null,
         results,
       }, null, 2),
+
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
 

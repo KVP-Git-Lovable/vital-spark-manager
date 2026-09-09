@@ -97,6 +97,9 @@ export function ReportBuilder({ initial, onSave, onSaveAndRun, onClose, folders 
     initial?.display_options || { ...DEFAULT_DISPLAY_OPTIONS }
   );
 
+  // Pulls the live column list (incl. newly created custom fields) into the catalog.
+  const schemaReady = useReportSchema();
+
   const primaryObj = getObjectByKey(primaryObject);
   const relatedObj = relatedObject ? getObjectByKey(relatedObject) : null;
   const relatedOptions = primaryObject ? getRelatedObjects(primaryObject) : [];

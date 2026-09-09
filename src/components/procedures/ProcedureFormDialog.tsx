@@ -23,6 +23,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
 import { PatientToolsBar } from "@/components/shared/PatientToolsBar";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
+import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +33,9 @@ import { MicButton } from "@/components/shared/MicButton";
 import { OTHERS_VALUE } from "@/lib/othersOption";
 
 const MEDICAL_FIELDS: [string, string][] = [
+  ["symptoms", "Symptoms"],
+  ["diagnosis", "Diagnosis"],
+  ["lab_tests", "Lab Tests"],
   ["medical_history", "Medical History"],
   ["current_medications", "Current Medications"],
   ["allergies", "Allergies"],
@@ -39,6 +43,9 @@ const MEDICAL_FIELDS: [string, string][] = [
   ["skin_type", "Skin Type"],
   ["skin_concerns", "Skin Concerns"],
 ];
+
+/** Visit-specific clinical fields: stored on the procedure, not on the patient record. */
+const PROCEDURE_MEDICAL_FIELDS = ["symptoms", "diagnosis", "lab_tests"];
 
 // patients.skin_type has a DB check constraint restricting it to these
 // exact values - must stay a dropdown, not free text, or saving fails.
@@ -100,7 +107,7 @@ export function ProcedureFormDialog({
   const queryClient = useQueryClient();
   const [patientId, setPatientId] = useState(defaultPatientId || "");
   const [staffId, setStaffId] = useState(defaultStaffId || "");
-  const [assistedBy, setAssistedBy] = useState("");
+  const [assistedByIds, setAssistedByIds] = useState<string[]>([]);
   const [selectedProblemAreas, setSelectedProblemAreas] = useState<string[]>(defaultProblemAreaIds || []);
   const [medical, setMedical] = useState<Record<string, string>>({});
   const [medicalDirty, setMedicalDirty] = useState(false);
@@ -240,7 +247,7 @@ export function ProcedureFormDialog({
       // Assistant
       if (data.assistant_name) {
         const id = fuzzyMatch(data.assistant_name, assistantList);
-        if (id) { setAssistedBy(id); filled.push("assistant"); }
+        if (id) { setAssistedByIds((prev) => (prev.includes(id) ? prev : [...prev, id])); filled.push("assistant"); }
         else nextHints.assistant = data.assistant_name;
       }
       // Primary concerns
@@ -602,7 +609,7 @@ export function ProcedureFormDialog({
         throw new Error("Selected doctor does not exist in the system. Please select a different doctor.");
       }
 
-      if (assistedBy && assistedBy.trim() && !validStaffIds.has(assistedBy)) {
+      if (assistedByIds.some((id) => !validStaffIds.has(id))) {
         throw new Error("Selected assistant does not exist in the system. Please select a different assistant.");
       }
 
@@ -633,7 +640,11 @@ export function ProcedureFormDialog({
         .insert({
           patient_id: patientId || null,
           staff_id: staffId && staffId.trim() ? staffId : null,
-          assisted_by: assistedBy && assistedBy.trim() ? assistedBy : null,
+          assisted_by: assistedByIds[0] || null,
+          assisted_by_ids: assistedByIds,
+          symptoms: medical.symptoms || null,
+          diagnosis: medical.diagnosis || null,
+          lab_tests: medical.lab_tests || null,
           appointment_id: appointmentId || null,
           service_name: effectiveLines.map((l) => l.name).join(", "),
           procedure_notes: combine("procedure_notes"),
@@ -879,12 +890,12 @@ export function ProcedureFormDialog({
           {patientId && (
             <PatientToolsBar patientId={patientId} patientName={selectedPatientName} context="patient" />
           )}
-          <Tabs defaultValue="procedure" className="w-full">
+          <Tabs defaultValue="medical" className="w-full">
             <TabsList>
-              <TabsTrigger value="procedure">Procedure</TabsTrigger>
               <TabsTrigger value="medical" className="gap-1.5">
                 <HeartPulse className="h-3.5 w-3.5" /> Medical Information
               </TabsTrigger>
+              <TabsTrigger value="procedure">Procedure</TabsTrigger>
               <TabsTrigger value="surveys" className="gap-1.5">
                 <ClipboardList className="h-3.5 w-3.5" /> Surveys
               </TabsTrigger>
@@ -977,7 +988,7 @@ export function ProcedureFormDialog({
             </div>
             <div>
               <Label>Assisted By</Label>
-              <StaffCombobox value={assistedBy} onValueChange={(v) => { setAssistedBy(v); setUnmatchedHints((h) => ({ ...h, assistant: undefined })); }} placeholder="Select assistant" allowNone noneLabel="No assistant" className="mt-1.5" />
+              <StaffMultiCombobox value={assistedByIds} onValueChange={(v) => { setAssistedByIds(v); setUnmatchedHints((h) => ({ ...h, assistant: undefined })); }} placeholder="Select assistants" className="mt-1.5" />
               {unmatchedHints.assistant && (
                 <p className="text-xs text-amber-600 mt-1">Couldn't match "{unmatchedHints.assistant}" — please select manually.</p>
               )}

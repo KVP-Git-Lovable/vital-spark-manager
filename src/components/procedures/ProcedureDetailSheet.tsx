@@ -34,6 +34,7 @@ import { CameraCapture } from "@/components/shared/CameraCapture";
 import { MicButton } from "@/components/shared/MicButton";
 import { PatientToolsBar } from "@/components/shared/PatientToolsBar";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
+import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 import { OTHERS_VALUE } from "@/lib/othersOption";
 
@@ -109,6 +110,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [editProcedureNotes, setEditProcedureNotes] = useState("");
   const [editRecommendations, setEditRecommendations] = useState("");
   const [editReviewNotes, setEditReviewNotes] = useState("");
+  const [editAssistedByIds, setEditAssistedByIds] = useState<string[]>([]);
   const [editServiceLines, setEditServiceLines] = useState<ServiceLineRow[]>([]);
   const [servicesInitialized, setServicesInitialized] = useState(false);
   const [editPrescriptions, setEditPrescriptions] = useState<PrescriptionRow[]>([]);
@@ -334,6 +336,9 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
   if (patientRecord && !medicalDirty && Object.keys(medical).length === 0) {
     setMedical({
+      symptoms: (procedure as any)?.symptoms || "",
+      diagnosis: (procedure as any)?.diagnosis || "",
+      lab_tests: (procedure as any)?.lab_tests || "",
       medical_history: patientRecord.medical_history || "",
       current_medications: patientRecord.current_medications || "",
       allergies: patientRecord.allergies || "",
@@ -351,6 +356,13 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     setEditProcedureNotes(procedure.procedure_notes || "");
     setEditRecommendations(procedure.recommendations || "");
     setEditReviewNotes(procedure.review_notes || "");
+    setEditAssistedByIds(
+      ((procedure as any).assisted_by_ids as string[] | null)?.length
+        ? ((procedure as any).assisted_by_ids as string[])
+        : (procedure as any).assisted_by
+          ? [(procedure as any).assisted_by as string]
+          : [],
+    );
     setInitialized(true);
   }
 
@@ -446,7 +458,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         procedure_notes: kept.length ? combine("procedure_notes") : editProcedureNotes,
         recommendations: kept.length ? combine("recommendations") : editRecommendations,
         review_notes: editReviewNotes,
-      }).eq("id", procedureId!);
+        assisted_by: editAssistedByIds[0] || null,
+        assisted_by_ids: editAssistedByIds,
+        symptoms: medical.symptoms || null,
+        diagnosis: medical.diagnosis || null,
+        lab_tests: medical.lab_tests || null,
+      } as any).eq("id", procedureId!);
       if (error) throw error;
 
       // Sync any edits to the patient's medical information back to the patient record
@@ -867,12 +884,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
               </SheetHeader>
 
               <div className="p-6 space-y-4 mx-auto w-full max-w-5xl">
-                <Tabs defaultValue="procedure" className="w-full">
+                <Tabs defaultValue="medical" className="w-full">
                   <TabsList>
-                    <TabsTrigger value="procedure">Procedure</TabsTrigger>
                     <TabsTrigger value="medical" className="gap-1.5">
                       <HeartPulse className="h-3.5 w-3.5" /> Medical Information
                     </TabsTrigger>
+                    <TabsTrigger value="procedure">Procedure</TabsTrigger>
                     <TabsTrigger value="surveys" className="gap-1.5">
                       <ClipboardList className="h-3.5 w-3.5" /> Surveys
                     </TabsTrigger>
@@ -913,6 +930,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     <div>
                       <Label>Doctor</Label>
                       <StaffCombobox value={editStaffId} onValueChange={setEditStaffId} placeholder="Select doctor" className="mt-1.5" roleFilter={["Doctor"]} />
+                    </div>
+                    <div>
+                      <Label>Assisted By</Label>
+                      <StaffMultiCombobox value={editAssistedByIds} onValueChange={setEditAssistedByIds} placeholder="Select assistants" className="mt-1.5" />
                     </div>
                     <div>
                       <Label>Status</Label>
@@ -1172,6 +1193,9 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                       <div className="rounded-xl border bg-card p-4 shadow-sm">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {([
+                            ["symptoms", "Symptoms"],
+                            ["diagnosis", "Diagnosis"],
+                            ["lab_tests", "Lab Tests"],
                             ["medical_history", "Medical History"],
                             ["current_medications", "Current Medications"],
                             ["allergies", "Allergies"],

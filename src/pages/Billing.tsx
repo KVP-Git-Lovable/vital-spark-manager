@@ -3,7 +3,8 @@ import { useStackedTable } from "@/hooks/useStackedTable";
 import { useState, useMemo, useRef, useEffect, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths, isSameDay } from "date-fns";
-import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown, Stethoscope } from "lucide-react";
+import SearchableSelect from "@/components/shared/SearchableSelect";
+import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown, Stethoscope, MessageCircle } from "lucide-react";
 import { useModuleListViews } from "@/hooks/useModuleListViews";
 import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
@@ -965,6 +966,13 @@ const Billing = () => {
   };
 
   // HSN-based tax (Tax Master): service → HSN code → SGST + CGST + IGST
+  /** Active HSN codes as dropdown options; keeps any legacy code already on a line. */
+  const hsnOptions = useMemo(() => {
+    const codes = (hsnTaxes as any[]).map((h) => String(h.hsn_code));
+    const extra = serviceInputs.map((s) => (s.hsn || "").trim()).filter((c) => c && !codes.includes(c));
+    return [...new Set([...codes, ...extra])].map((c) => ({ id: c, name: c }));
+  }, [hsnTaxes, serviceInputs]);
+
   const hsnTaxMap = useMemo(() => {
     const m = new Map<string, any>();
     (hsnTaxes as any[]).forEach((h) => m.set(String(h.hsn_code), h));
@@ -1634,8 +1642,8 @@ const Billing = () => {
       const msg = paymentType === "Staged" ? `${stages.length} staged invoices created` : paymentType === "Recurring" ? `${recurringCount} recurring invoices created` : "Invoice created";
       toast.success(msg);
 
-      // Close dialog immediately; run PDF + WhatsApp in background.
-      void dispatchInvoiceWhatsApp(result);
+      // The invoice is NOT sent automatically any more - front-desk staff
+      // review it first and press "Send via WhatsApp" on the invoice.
       resetForm();
       setOpen(false);
     },
@@ -1708,6 +1716,43 @@ const Billing = () => {
       }
     } catch (e) {
       console.error("dispatchInvoiceWhatsApp error:", e);
+    }
+  };
+
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+
+  /** Explicit "Send via WhatsApp" for a saved invoice - never fires on its own. */
+  const sendInvoiceWhatsApp = async (inv: any) => {
+    if (!inv?.id) return;
+    setSendingWhatsApp(true);
+    const t = toast.loading("Sending invoice on WhatsApp…");
+    try {
+      let phone: string | null = null;
+      if (inv.patient_id) {
+        const { data: pdata } = await supabase.from("patients").select("phone").eq("id", inv.patient_id).maybeSingle();
+        phone = (pdata as any)?.phone ?? null;
+      }
+      if (!phone) {
+        toast.dismiss(t);
+        toast.error("This patient has no phone number on file");
+        return;
+      }
+      await dispatchInvoiceWhatsApp({
+        patientPhone: phone,
+        patientName: inv.patient_name || "Patient",
+        summary: {
+          invoiceId: inv.id,
+          invoiceNumber: inv.invoice_number,
+          totalAmount: Number(inv.total_amount) || 0,
+          paidAmount: Number(inv.paid_amount) || 0,
+          status: inv.status,
+          isRecurring: false,
+        },
+      });
+      toast.dismiss(t);
+    } finally {
+      setSendingWhatsApp(false);
+      toast.dismiss(t);
     }
   };
 
@@ -2312,11 +2357,14 @@ const Billing = () => {
                         value={s.price || ""}
                         onChange={(e) => updateServiceInput(i, { price: parseFloat(e.target.value) || 0 })}
                       />
-                      <Input
-                        className="h-10 w-24 shrink-0"
+                      <SearchableSelect
+                        className="h-10 w-28 shrink-0"
                         placeholder="HSN"
+                        searchPlaceholder="Search HSN…"
+                        emptyText="No HSN codes"
                         value={s.hsn || ""}
-                        onChange={(e) => updateServiceInput(i, { hsn: e.target.value })}
+                        onChange={(v) => updateServiceInput(i, { hsn: v })}
+                        options={hsnOptions}
                       />
                       {serviceInputs.length > 1 && (
                         <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0 w-8 px-0" disabled={!!s.doctor_fee} onClick={() => removeServiceInput(i)}>✕</Button>
@@ -3589,6 +3637,14 @@ const Billing = () => {
                   <>
                     <Button className="w-full gap-1.5" onClick={() => setIsEditing(true)}>
                       <Pencil className="h-3.5 w-3.5" /> Edit Invoice
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full gap-1.5"
+                      disabled={sendingWhatsApp}
+                      onClick={() => sendInvoiceWhatsApp(viewInvoice)}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" /> {sendingWhatsApp ? "Sending…" : "Send via WhatsApp"}
                     </Button>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => openInvoicePDF(viewInvoice)}>

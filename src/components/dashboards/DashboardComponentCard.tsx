@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { ReportPreview } from "@/components/reports/ReportPreview";
 import { CHART_TYPES, isValidFieldKey, type SavedReport } from "@/lib/reportObjects";
+import { useReportSchema } from "@/lib/reportSchema";
 
 export type ComponentWidth = "small" | "medium" | "large";
 export type ComponentHeight = "short" | "medium" | "tall";

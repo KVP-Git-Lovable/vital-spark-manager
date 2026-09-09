@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getObjectByKey, isValidFieldKey, evaluateFilterLogic, type ReportFilter, type ReportDisplayOptions, DEFAULT_DISPLAY_OPTIONS } from "@/lib/reportObjects";
 import { Badge } from "@/components/ui/badge";
+import { useReportSchema } from "@/lib/reportSchema";
 import {
   BarChart,
   Bar,

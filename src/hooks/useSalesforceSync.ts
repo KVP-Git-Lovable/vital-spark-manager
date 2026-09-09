@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
-import { subscribeSync, getSyncState, startSync, stopSync } from "@/lib/salesforceSyncStore";
+import { subscribeSync, getSyncState, startSync, startRecentSync, stopSync } from "@/lib/salesforceSyncStore";
 
 export function useSalesforceSync() {
   const state = useSyncExternalStore(subscribeSync, getSyncState, getSyncState);
-  return { ...state, startSync, stopSync };
+  return { ...state, startSync, startRecentSync, stopSync };
 }

@@ -4,9 +4,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Appointment confirmation template with "I need to modify" / "I want to cancel"
-// quick-reply buttons. Takes 3 variables: name, date+time, service.
-const TEMPLATE_SID = "HX3605e6c6e69354ac1eba0b5858fba0c0";
+// Appointment confirmation template with "Confirm" / "I need to modify" /
+// "I want to cancel" quick-reply buttons. Takes 3 variables: name,
+// date+time, service.
+const TEMPLATE_SID = "HXd8f0239cce7e4bdb175ff927e4aa716d";
 
 function normalizePhone(phone: string): string | null {
   if (!phone) return null;

@@ -4603,6 +4603,14 @@ export type Database = {
         Args: { _column: string; _table: string }
         Returns: undefined
       }
+      get_report_fields: {
+        Args: never
+        Returns: {
+          column_name: string
+          data_type: string
+          table_name: string
+        }[]
+      }
       move_to_trash: {
         Args: { _label?: string; _object_type: string; _record_id: string }
         Returns: string

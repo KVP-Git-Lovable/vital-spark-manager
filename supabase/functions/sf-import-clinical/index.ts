@@ -228,6 +228,7 @@ async function syncPatient(
   reset: boolean,
   log: any,
   signal?: AbortSignal,
+  refreshExisting = false,
 ) {
   if (reset) {
     await admin.from("procedures").delete().eq("patient_id", p.lovable_id).not("sf_id", "is", null);

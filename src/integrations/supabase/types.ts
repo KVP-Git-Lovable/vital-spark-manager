@@ -812,6 +812,7 @@ export type Database = {
       dashboard_components: {
         Row: {
           chart_type: string | null
+          config: Json
           created_at: string
           dashboard_id: string
           height: string
@@ -824,6 +825,7 @@ export type Database = {
         }
         Insert: {
           chart_type?: string | null
+          config?: Json
           created_at?: string
           dashboard_id: string
           height?: string
@@ -836,6 +838,7 @@ export type Database = {
         }
         Update: {
           chart_type?: string | null
+          config?: Json
           created_at?: string
           dashboard_id?: string
           height?: string

@@ -42,6 +42,18 @@ export function SalesforceSyncButton() {
   const queryClient = useQueryClient();
   const wasRunning = useRef(false);
 
+  // Day boundaries in clinic time (IST) so "today" matches what staff see.
+  const runRecent = (daysBack: number) => {
+    const now = new Date();
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    const start = new Date(now);
+    start.setDate(start.getDate() - daysBack);
+    start.setHours(0, 0, 0, 0);
+    sync.startRecentSync(start, end);
+  };
+
+
   const { data: pending, refetch } = useQuery({
     queryKey: ["salesforce-sync-pending"],
     queryFn: fetchPendingCounts,

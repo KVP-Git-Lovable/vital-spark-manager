@@ -275,9 +275,7 @@ async function syncPatient(
     if (a.Doctor_Name__c) apptDoctorBySfId.set(a.Id, String(a.Doctor_Name__c));
   });
 
-  const newAppts = appts.filter((a) => !existingAppts.has(a.Id));
-  log.skipped += appts.length - newAppts.length;
-  const apptRows = newAppts.map((a) => {
+  const mapAppt = (a: any) => {
     const start = a.Start_Time__c || a.CreatedDate;
     const end = a.End_Time__c || (start ? new Date(new Date(start).getTime() + 5 * 60000).toISOString() : new Date().toISOString());
     // Completed/No Show mean the visit actually happened (or was missed) -
@@ -306,7 +304,11 @@ async function syncPatient(
       created_at: a.CreatedDate,
       updated_at: a.CreatedDate,
     };
-  });
+  };
+
+  const newAppts = appts.filter((a) => !existingAppts.has(a.Id));
+  const seenAppts = appts.filter((a) => existingAppts.has(a.Id));
+  const apptRows = newAppts.map(mapAppt);
 
   for (const batch of chunk(apptRows, 100)) {
     const { data, error } = await admin.from("appointments").insert(batch).select("id, sf_id");
@@ -314,6 +316,33 @@ async function syncPatient(
     (data || []).forEach((row: any) => apptIdMap.set(row.sf_id, row.id));
     log.appointments += batch.length;
   }
+
+  // Already-imported appointments: refresh only the columns Salesforce owns,
+  // so a reschedule, a status change (including Cancelled) or a changed
+  // service in Salesforce is reflected here. Everything the app owns
+  // (next visit, owner, notes typed here, linked invoice/procedure) is left
+  // untouched.
+  if (refreshExisting) {
+    for (const a of seenAppts) {
+      const row = mapAppt(a);
+      const { error } = await admin
+        .from("appointments")
+        .update({
+          start_time: row.start_time,
+          end_time: row.end_time,
+          status: row.status,
+          service: row.service,
+          staff_id: row.staff_id,
+          appointment_type: row.appointment_type,
+        })
+        .eq("sf_id", a.Id);
+      if (error) throw new Error(`appointments update: ${error.message}`);
+      log.updated = (log.updated || 0) + 1;
+    }
+  } else {
+    log.skipped += seenAppts.length;
+  }
+
 
   const newBillings = billings.filter((b) => !existingInvoices.has(b.Id));
   log.skipped += billings.length - newBillings.length;

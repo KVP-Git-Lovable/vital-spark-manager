@@ -135,6 +135,33 @@ async function fetchTargets(only: string, limit: number): Promise<Target[]> {
   return (data || []).map((p) => ({ lovable_id: p.id, sf_id: p.sf_id as string, name: `${p.first_name} ${p.last_name}`.trim() }));
 }
 
+// "Recent" mode: instead of walking never-synced patients (all of which are
+// long since marked done), ask Salesforce which patients have appointments
+// inside a date window and re-run the normal per-patient import for exactly
+// those. Everything already imported is skipped by sf_id, so repeated runs
+// are safe and only bring in newly-created Salesforce records.
+async function fetchRecentTargets(fromIso: string, toIso: string): Promise<{ targets: Target[]; unmatched: number; sfPatients: number }> {
+  const rows = await sfQuery(
+    `SELECT Patient__c FROM Appointment__c WHERE Start_Time__c >= ${fromIso} AND Start_Time__c <= ${toIso} AND Patient__c != null`,
+  );
+  const sfIds = Array.from(new Set(rows.map((r: any) => String(r.Patient__c))));
+  const targets: Target[] = [];
+  const found = new Set<string>();
+  for (const batch of chunk(sfIds, 200)) {
+    const { data, error } = await admin
+      .from("patients")
+      .select("id, sf_id, first_name, last_name")
+      .in("sf_id", batch);
+    if (error) throw error;
+    (data || []).forEach((p: any) => {
+      found.add(p.sf_id);
+      targets.push({ lovable_id: p.id, sf_id: p.sf_id, name: `${p.first_name} ${p.last_name}`.trim() });
+    });
+  }
+  return { targets, unmatched: sfIds.length - found.size, sfPatients: sfIds.length };
+}
+
+
 async function existingSfIds(table: string, patientId: string): Promise<Set<string>> {
   const { data } = await admin.from(table).select("sf_id").eq("patient_id", patientId).not("sf_id", "is", null);
   return new Set((data || []).map((r: any) => r.sf_id as string));

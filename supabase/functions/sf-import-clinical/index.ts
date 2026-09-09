@@ -398,8 +398,10 @@ Deno.serve(async (req) => {
       const from = url.searchParams.get("from");
       const to = url.searchParams.get("to");
       if (!from || !to) throw new Error("mode=recent requires from and to ISO datetimes");
-      const fromIso = new Date(from).toISOString();
-      const toIso = new Date(to).toISOString();
+      // SOQL datetime literals are unquoted and must not carry milliseconds.
+      const sfTime = (v: string) => new Date(v).toISOString().replace(/\.\d{3}Z$/, "Z");
+      const fromIso = sfTime(from);
+      const toIso = sfTime(to);
       const found = await fetchRecentTargets(fromIso, toIso);
       const slice = found.targets.slice(offset, offset + limit);
       const next = offset + slice.length;
@@ -460,7 +462,7 @@ Deno.serve(async (req) => {
         mode: mode || "backlog",
         recent_total_patients: recentInfo?.total ?? null,
         recent_unmatched_patients: recentInfo?.unmatched ?? null,
-        next_offset: stoppedEarly ? offset + results.length : recentInfo?.nextOffset ?? null,
+        next_offset: mode === "recent" ? (stoppedEarly ? offset + results.length : recentInfo?.nextOffset ?? null) : null,
         results,
       }, null, 2),
 

@@ -198,10 +198,16 @@ async function syncPatient(
   const apptRows = newAppts.map((a) => {
     const start = a.Start_Time__c || a.CreatedDate;
     const end = a.End_Time__c || (start ? new Date(new Date(start).getTime() + 5 * 60000).toISOString() : new Date().toISOString());
+    // Completed/No Show mean the visit actually happened (or was missed) -
+    // never stamp either on an appointment whose start_time hasn't arrived
+    // yet, no matter what Salesforce's own status field said.
+    const isFuture = new Date(start) > new Date();
     const statusMap: Record<string, string> = {
-      Confirmed: "Completed", Completed: "Completed", "No Show": "No-show",
-      Cancelled: "Cancelled", Scheduled: "Scheduled", Rescheduled: "Scheduled",
+      Confirmed: "Confirmed", Completed: "Completed", "No Show": "No Show",
+      Cancelled: "Cancelled", Scheduled: "Confirmed", Rescheduled: "Confirmed",
     };
+    let status = statusMap[a.Appointment_Status__c] || (isFuture ? "Confirmed" : "Completed");
+    if (isFuture && (status === "Completed" || status === "No Show")) status = "Confirmed";
     const service = a.Investigation__c || a.Description__c || "Consultation";
     return {
       patient_id: p.lovable_id,
@@ -209,7 +215,7 @@ async function syncPatient(
       service: String(service).slice(0, 500),
       start_time: start,
       end_time: end,
-      status: statusMap[a.Appointment_Status__c] || "Completed",
+      status,
       appointment_type: a.Visit_Type__c || a.Appointment_type__c || "Walk-in",
       reason_for_consultation: `${a.Investigation__c || ""}${a.Doctor_Name__c ? ` (Dr. ${a.Doctor_Name__c})` : ""}`.trim() || null,
       source: "salesforce",

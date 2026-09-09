@@ -447,7 +447,7 @@ Deno.serve(async (req) => {
   const results: any[] = [];
   try {
     let targets: Target[];
-    let recentInfo: { total: number; unmatched: number; sfPatients: number; nextOffset: number | null } | null = null;
+    let recentInfo: { total: number; unmatched: number; sfPatients: number; created: number; nextOffset: number | null } | null = null;
 
     if (mode === "recent") {
       const from = url.searchParams.get("from");
@@ -464,6 +464,7 @@ Deno.serve(async (req) => {
         total: found.targets.length,
         unmatched: found.unmatched,
         sfPatients: found.sfPatients,
+        created: found.createdPatients,
         nextOffset: next < found.targets.length ? next : null,
       };
       targets = slice;
@@ -517,6 +518,7 @@ Deno.serve(async (req) => {
         mode: mode || "backlog",
         recent_total_patients: recentInfo?.total ?? null,
         recent_unmatched_patients: recentInfo?.unmatched ?? null,
+        recent_created_patients: recentInfo?.created ?? null,
         next_offset: mode === "recent" ? (stoppedEarly ? offset + results.length : recentInfo?.nextOffset ?? null) : null,
         results,
       }, null, 2),

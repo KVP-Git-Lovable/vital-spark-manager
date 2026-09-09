@@ -14,7 +14,10 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { applyFilters as applyListFilters, fieldDefIn, type ListDisplayMode, type ListView } from "@/lib/listViews/engine";
 import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/standardViews";
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
-import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, Pin, Printer } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, Pin, Printer, Trash2 } from "lucide-react";
+import TimePicker12h from "@/components/shared/TimePicker12h";
+import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
+import { moveToTrash } from "@/lib/trash";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
 import { Button } from "@/components/ui/button";
@@ -80,6 +83,11 @@ import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 const ViewChartsPanel = lazy(() => import("@/components/listViews/ViewChartsPanel"));
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Helpers for splitting/rejoining the "yyyy-MM-ddTHH:mm" values the inline editor keeps. */
+const datePart = (v: string) => (v || "").split("T")[0] || "";
+const timePart = (v: string) => ((v || "").split("T")[1] || "").slice(0, 5);
+const joinDateTime = (d: string, t: string) => (d && t ? `${d}T${t}` : "");
 // 15-min slots from 8:00 to 19:45
 const slots: { hour: number; minute: number }[] = [];
 for (let h = 8; h < 20; h++) {
@@ -287,6 +295,7 @@ const Appointments = () => {
   // Inline edit state
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>({});
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
 
   // Drag-reschedule state
   const dragRef = useRef<{ aptId: string; originalStart: string; originalEnd: string } | null>(null);
@@ -773,20 +782,25 @@ const Appointments = () => {
     if (view !== "table") return;
     const measure = () => {
       const el = appointmentsTableRef.current;
-      if (el) setTableScrollMargin(el.getBoundingClientRect().top + window.scrollY);
+      if (!el) return;
+      const next = Math.round(el.getBoundingClientRect().top + window.scrollY);
+      // Observing the table itself (not the whole body) plus this equality
+      // guard stops the measure -> reflow -> measure loop that used to let
+      // the offset drift and leave a tall blank area under the last row.
+      setTableScrollMargin((prev) => (prev === next ? prev : next));
     };
     measure();
     window.addEventListener("resize", measure);
-    // Re-measure whenever page content above the table changes height (the
-    // filters panel opening/closing, filter chips wrapping, etc.) rather
-    // than trying to track every state that could cause a reflow.
+    window.addEventListener("scroll", measure, { passive: true });
+    const el = appointmentsTableRef.current;
     const ro = new ResizeObserver(measure);
-    ro.observe(document.body);
+    if (el) ro.observe(el);
     return () => {
       window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure);
       ro.disconnect();
     };
-  }, [view]);
+  }, [view, visibleTableRows.length]);
 
   const rowVirtualizer = useWindowVirtualizer({
     count: view === "table" ? visibleTableRows.length : 0,
@@ -2323,21 +2337,40 @@ const Appointments = () => {
                                   {shouldShowColumn("start_time") && (
                                     <td className="p-2">
                                       <Input
-                                        type="datetime-local"
-                                        className="h-8 text-xs w-40"
-                                        value={editValues.start_time}
-                                        onChange={(e) => setEditValues({ ...editValues, start_time: e.target.value })}
+                                        type="date"
+                                        className="h-8 text-xs w-36"
+                                        value={datePart(editValues.start_time)}
+                                        onChange={(e) =>
+                                          setEditValues((v: any) => ({
+                                            ...v,
+                                            start_time: joinDateTime(e.target.value, timePart(v.start_time)),
+                                            end_time: joinDateTime(e.target.value, timePart(v.end_time)),
+                                          }))
+                                        }
                                       />
                                     </td>
                                   )}
                                   {shouldShowColumn("time") && (
                                     <td className="p-2">
-                                      <Input
-                                        type="datetime-local"
-                                        className="h-8 text-xs w-40"
-                                        value={editValues.end_time}
-                                        onChange={(e) => setEditValues({ ...editValues, end_time: e.target.value })}
-                                      />
+                                      <div className="flex items-center gap-1.5">
+                                        <TimePicker12h
+                                          compact
+                                          className="w-32"
+                                          value={timePart(editValues.start_time)}
+                                          onChange={(t) =>
+                                            setEditValues((v: any) => ({ ...v, start_time: joinDateTime(datePart(v.start_time), t) }))
+                                          }
+                                        />
+                                        <span className="text-xs text-muted-foreground">–</span>
+                                        <TimePicker12h
+                                          compact
+                                          className="w-32"
+                                          value={timePart(editValues.end_time)}
+                                          onChange={(t) =>
+                                            setEditValues((v: any) => ({ ...v, end_time: joinDateTime(datePart(v.end_time) || datePart(editValues.start_time), t) }))
+                                          }
+                                        />
+                                      </div>
                                     </td>
                                   )}
                                   {shouldShowColumn("status") && (
@@ -2446,9 +2479,23 @@ const Appointments = () => {
                                   <td className="p-3 text-xs">{invoice?.payment_mode ? <Badge variant="outline" className="text-xs">{invoice.payment_mode}</Badge> : <span className="text-muted-foreground">—</span>}</td>
                                 )}
                                 <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startInlineEdit(apt)}>
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
+                                  <div className="flex items-center gap-0.5">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startInlineEdit(apt)}>
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-destructive"
+                                      title="Delete appointment"
+                                      onClick={() => setDeleteTarget({
+                                        id: apt.id,
+                                        label: `${apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "Appointment")} — ${format(new Date(apt.start_time), "MMM d, h:mm a")}`,
+                                      })}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             );

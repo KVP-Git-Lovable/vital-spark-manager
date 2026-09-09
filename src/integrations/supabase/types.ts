@@ -3030,12 +3030,14 @@ export type Database = {
         Row: {
           appointment_id: string | null
           assisted_by: string | null
+          assisted_by_ids: string[]
           cf_test: string | null
           consultation_notes: string | null
           created_at: string
           created_by: string | null
           diagnosis: string | null
           id: string
+          lab_tests: string | null
           owner_id: string | null
           patient_id: string
           procedure_date: string
@@ -3057,12 +3059,14 @@ export type Database = {
         Insert: {
           appointment_id?: string | null
           assisted_by?: string | null
+          assisted_by_ids?: string[]
           cf_test?: string | null
           consultation_notes?: string | null
           created_at?: string
           created_by?: string | null
           diagnosis?: string | null
           id?: string
+          lab_tests?: string | null
           owner_id?: string | null
           patient_id: string
           procedure_date?: string
@@ -3084,12 +3088,14 @@ export type Database = {
         Update: {
           appointment_id?: string | null
           assisted_by?: string | null
+          assisted_by_ids?: string[]
           cf_test?: string | null
           consultation_notes?: string | null
           created_at?: string
           created_by?: string | null
           diagnosis?: string | null
           id?: string
+          lab_tests?: string | null
           owner_id?: string | null
           patient_id?: string
           procedure_date?: string

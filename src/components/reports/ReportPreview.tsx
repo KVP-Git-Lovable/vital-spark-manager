@@ -183,10 +183,12 @@ export function ReportPreview({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const opts = displayOptionsProp || DEFAULT_DISPLAY_OPTIONS;
   const filterLogic = (opts.filter_logic || "").trim();
+  const schemaReady = useReportSchema();
 
   useEffect(() => {
+    if (!schemaReady) return;
     fetchData();
-  }, [primaryObject, relatedObject, columns, groupRows, groupColumns, filters, filterLogic]);
+  }, [schemaReady, primaryObject, relatedObject, columns, groupRows, groupColumns, filters, filterLogic]);
 
 
   const fetchData = async () => {

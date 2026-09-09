@@ -560,7 +560,7 @@ Deno.serve(async (req) => {
         if (!batch.length) continue;
         const { error } = await admin
           .from("appointments")
-          .update({ status: "Cancelled", notes: "Removed in Salesforce" })
+          .update({ status: "Cancelled" })
           .in("id", batch);
         if (error) throw new Error(`appointments cancel: ${error.message}`);
         cancelledMissing += batch.length;

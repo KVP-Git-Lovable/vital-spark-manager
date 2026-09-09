@@ -386,15 +386,40 @@ Deno.serve(async (req) => {
   const requestedLimit = Math.max(1, Number(url.searchParams.get("limit") || "20"));
   const limit = Math.min(20, requestedLimit);
   const reset = url.searchParams.get("reset") === "true";
+  const mode = url.searchParams.get("mode") || "";
+  const offset = Math.max(0, Number(url.searchParams.get("offset") || "0"));
 
   const results: any[] = [];
   try {
-    const targets = await fetchTargets(only, limit);
+    let targets: Target[];
+    let recentInfo: { total: number; unmatched: number; sfPatients: number; nextOffset: number | null } | null = null;
+
+    if (mode === "recent") {
+      const from = url.searchParams.get("from");
+      const to = url.searchParams.get("to");
+      if (!from || !to) throw new Error("mode=recent requires from and to ISO datetimes");
+      const fromIso = new Date(from).toISOString();
+      const toIso = new Date(to).toISOString();
+      const found = await fetchRecentTargets(fromIso, toIso);
+      const slice = found.targets.slice(offset, offset + limit);
+      const next = offset + slice.length;
+      recentInfo = {
+        total: found.targets.length,
+        unmatched: found.unmatched,
+        sfPatients: found.sfPatients,
+        nextOffset: next < found.targets.length ? next : null,
+      };
+      targets = slice;
+    } else {
+      targets = await fetchTargets(only, limit);
+    }
+
     const doctorFor = await buildDoctorMap();
 
     if (reset && only) {
       await admin.from("patients").update({ sf_clinical_synced_at: null }).in("id", targets.map((t) => t.lovable_id));
     }
+
 
     // Patients are independent - process several concurrently rather than
     // one at a time, capped to stay within Salesforce API burst limits.

@@ -135,6 +135,88 @@ async function fetchTargets(only: string, limit: number): Promise<Target[]> {
   return (data || []).map((p) => ({ lovable_id: p.id, sf_id: p.sf_id as string, name: `${p.first_name} ${p.last_name}`.trim() }));
 }
 
+// "Recent" mode: instead of walking never-synced patients (all of which are
+// long since marked done), ask Salesforce which patients have appointments
+// inside a date window and re-run the normal per-patient import for exactly
+// those. Everything already imported is skipped by sf_id, so repeated runs
+// are safe and only bring in newly-created Salesforce records.
+async function fetchRecentTargets(
+  fromIso: string,
+  toIso: string,
+): Promise<{ targets: Target[]; unmatched: number; sfPatients: number; createdPatients: number }> {
+  const rows = await sfQuery(
+    `SELECT Patient__c FROM Appointment__c WHERE Start_Time__c >= ${fromIso} AND Start_Time__c <= ${toIso} AND Patient__c != null`,
+  );
+  const sfIds = Array.from(new Set(rows.map((r: any) => String(r.Patient__c))));
+  const targets: Target[] = [];
+  const found = new Set<string>();
+  for (const batch of chunk(sfIds, 200)) {
+    const { data, error } = await admin
+      .from("patients")
+      .select("id, sf_id, first_name, last_name")
+      .in("sf_id", batch);
+    if (error) throw error;
+    (data || []).forEach((p: any) => {
+      found.add(p.sf_id);
+      targets.push({ lovable_id: p.id, sf_id: p.sf_id, name: `${p.first_name} ${p.last_name}`.trim() });
+    });
+  }
+
+  // Salesforce patients that don't exist in the app at all yet (brand-new
+  // walk-ins registered in Salesforce today). Without this their whole
+  // appointment simply never arrives. Link by phone when an app patient
+  // already has that number; otherwise create the patient record.
+  const missing = sfIds.filter((id) => !found.has(id));
+  let createdPatients = 0;
+  for (const batch of chunk(missing, 200)) {
+    const sfPatients = await sfQuery(
+      `SELECT Id, Patient_Name__c, Mobile_Number__c FROM Patient__c WHERE Id IN (${batch.map((id) => `'${id}'`).join(",")})`,
+    );
+    for (const sp of sfPatients) {
+      const fullName = String(sp.Patient_Name__c || "Unknown").trim();
+      const phone = String(sp.Mobile_Number__c || "").replace(/\D/g, "").slice(-10);
+      let lovableId: string | null = null;
+
+      if (phone.length === 10) {
+        const { data: byPhone } = await admin
+          .from("patients")
+          .select("id, sf_id")
+          .ilike("phone", `%${phone}%`)
+          .limit(2);
+        if (byPhone && byPhone.length === 1 && !byPhone[0].sf_id) {
+          await admin.from("patients").update({ sf_id: sp.Id }).eq("id", byPhone[0].id);
+          lovableId = byPhone[0].id;
+        }
+      }
+
+      if (!lovableId) {
+        const parts = fullName.split(/\s+/);
+        const { data: created, error } = await admin
+          .from("patients")
+          .insert({
+            first_name: parts[0] || "Unknown",
+            last_name: parts.slice(1).join(" ") || "",
+            phone: phone || null,
+            sf_id: sp.Id,
+            source: "salesforce",
+          })
+          .select("id")
+          .single();
+        if (error || !created) continue;
+        lovableId = created.id;
+        createdPatients++;
+      }
+
+      targets.push({ lovable_id: lovableId, sf_id: sp.Id, name: fullName });
+      found.add(sp.Id);
+    }
+  }
+
+  return { targets, unmatched: sfIds.length - found.size, sfPatients: sfIds.length, createdPatients };
+}
+
+
+
 async function existingSfIds(table: string, patientId: string): Promise<Set<string>> {
   const { data } = await admin.from(table).select("sf_id").eq("patient_id", patientId).not("sf_id", "is", null);
   return new Set((data || []).map((r: any) => r.sf_id as string));
@@ -359,15 +441,43 @@ Deno.serve(async (req) => {
   const requestedLimit = Math.max(1, Number(url.searchParams.get("limit") || "20"));
   const limit = Math.min(20, requestedLimit);
   const reset = url.searchParams.get("reset") === "true";
+  const mode = url.searchParams.get("mode") || "";
+  const offset = Math.max(0, Number(url.searchParams.get("offset") || "0"));
 
   const results: any[] = [];
   try {
-    const targets = await fetchTargets(only, limit);
+    let targets: Target[];
+    let recentInfo: { total: number; unmatched: number; sfPatients: number; created: number; nextOffset: number | null } | null = null;
+
+    if (mode === "recent") {
+      const from = url.searchParams.get("from");
+      const to = url.searchParams.get("to");
+      if (!from || !to) throw new Error("mode=recent requires from and to ISO datetimes");
+      // SOQL datetime literals are unquoted and must not carry milliseconds.
+      const sfTime = (v: string) => new Date(v).toISOString().replace(/\.\d{3}Z$/, "Z");
+      const fromIso = sfTime(from);
+      const toIso = sfTime(to);
+      const found = await fetchRecentTargets(fromIso, toIso);
+      const slice = found.targets.slice(offset, offset + limit);
+      const next = offset + slice.length;
+      recentInfo = {
+        total: found.targets.length,
+        unmatched: found.unmatched,
+        sfPatients: found.sfPatients,
+        created: found.createdPatients,
+        nextOffset: next < found.targets.length ? next : null,
+      };
+      targets = slice;
+    } else {
+      targets = await fetchTargets(only, limit);
+    }
+
     const doctorFor = await buildDoctorMap();
 
     if (reset && only) {
       await admin.from("patients").update({ sf_clinical_synced_at: null }).in("id", targets.map((t) => t.lovable_id));
     }
+
 
     // Patients are independent - process several concurrently rather than
     // one at a time, capped to stay within Salesforce API burst limits.
@@ -384,9 +494,10 @@ Deno.serve(async (req) => {
       const patientTimeoutMs = Math.min(20_000, remainingMs);
       try {
         await syncPatient(p, doctorFor, reset, log, AbortSignal.timeout(patientTimeoutMs));
-        if (!only) {
+        if (!only && mode !== "recent") {
           await admin.from("patients").update({ sf_clinical_synced_at: new Date().toISOString() }).eq("id", p.lovable_id);
         }
+
       } catch (e) {
         const message = (e as Error).name === "TimeoutError" || (e as Error).name === "AbortError"
           ? `Patient sync exceeded ${Math.ceil(patientTimeoutMs / 1000)}s and was safely deferred`
@@ -404,8 +515,14 @@ Deno.serve(async (req) => {
         batch_size: targets.length,
         capped: requestedLimit > limit,
         stopped_early: stoppedEarly,
+        mode: mode || "backlog",
+        recent_total_patients: recentInfo?.total ?? null,
+        recent_unmatched_patients: recentInfo?.unmatched ?? null,
+        recent_created_patients: recentInfo?.created ?? null,
+        next_offset: mode === "recent" ? (stoppedEarly ? offset + results.length : recentInfo?.nextOffset ?? null) : null,
         results,
       }, null, 2),
+
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
 

@@ -14,7 +14,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { applyFilters as applyListFilters, fieldDefIn, type ListDisplayMode, type ListView } from "@/lib/listViews/engine";
 import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/standardViews";
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
-import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, Pin } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, Pin, Printer } from "lucide-react";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { toast } from "sonner";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { fetchAppointmentsPage } from "@/lib/appointmentsPage";
+import { printAppointments } from "@/lib/printAppointments";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { MicButton } from "@/components/shared/MicButton";
@@ -583,6 +584,33 @@ const Appointments = () => {
   // (where staff simply never clicked "Checked In") as no-shows, corrupting
   // history and status-based reporting. "No Show" is now a deliberate manual
   // status change made by staff from the appointment record.
+
+  const [printing, setPrinting] = useState(false);
+  const handlePrint = async () => {
+    setPrinting(true);
+    try {
+      const presetLabel = DATE_PRESETS.find((p) => p.key === datePreset)?.label || "All dates";
+      const rangeLabel = appointmentsDateRange
+        ? `${presetLabel}: ${format(appointmentsDateRange.start, "dd MMM yyyy")} – ${format(appointmentsDateRange.end, "dd MMM yyyy")}`
+        : presetLabel;
+      await printAppointments(
+        {
+          dateRange: appointmentsDateRange,
+          doctorIds: sortedFilterDoctors,
+          status: filterStatus,
+          visitStatus: filterVisitStatus,
+          search: debouncedSearchQuery,
+          sortColumn,
+          sortDirection,
+        },
+        { rangeLabel, staffName: (id) => (id ? staffMap.get(id) || "" : ""), clinicName: "Appointments" },
+      );
+    } catch (e: any) {
+      toast.error(e.message || "Could not open the print view");
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   // Build a staff lookup map
   const staffMap = useMemo(() => {
@@ -1419,6 +1447,16 @@ const Appointments = () => {
             {(searchQuery || filterDoctors.size > 0 || datePreset !== "this_week" || filterStatus !== "all" || filterVisitStatus !== "all") && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary" />
             )}
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 md:h-9 md:w-9"
+            title="Print this list"
+            disabled={printing}
+            onClick={handlePrint}
+          >
+            <Printer className="h-4 w-4" />
           </Button>
           <SalesforceSyncButton />
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setLockPatient(false); }}>

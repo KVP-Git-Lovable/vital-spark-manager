@@ -42,6 +42,18 @@ export function SalesforceSyncButton() {
   const queryClient = useQueryClient();
   const wasRunning = useRef(false);
 
+  // Day boundaries in clinic time (IST) so "today" matches what staff see.
+  const runRecent = (daysBack: number) => {
+    const now = new Date();
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    const start = new Date(now);
+    start.setDate(start.getDate() - daysBack);
+    start.setHours(0, 0, 0, 0);
+    sync.startRecentSync(start, end);
+  };
+
+
   const { data: pending, refetch } = useQuery({
     queryKey: ["salesforce-sync-pending"],
     queryFn: fetchPendingCounts,
@@ -145,16 +157,30 @@ export function SalesforceSyncButton() {
           </div>
         )}
 
+        <div className="space-y-2 border-t pt-3">
+          <p className="text-xs font-medium">Bring in recent appointments</p>
+          <p className="text-[11px] text-muted-foreground">
+            Checks Salesforce for appointments booked on these dates — including patients who
+            were only ever registered in Salesforce.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" disabled={sync.running} onClick={() => runRecent(0)}>Today</Button>
+            <Button size="sm" variant="secondary" disabled={sync.running} onClick={() => runRecent(7)}>Last 7 days</Button>
+            <Button size="sm" variant="secondary" disabled={sync.running} onClick={() => runRecent(30)}>Last 30 days</Button>
+          </div>
+        </div>
+
         <div className="flex justify-end gap-2 pt-1">
           {sync.running ? (
             <Button size="sm" variant="outline" onClick={sync.stopSync}>Stop after current batch</Button>
           ) : (
             <Button size="sm" onClick={sync.startSync} className="gap-1.5">
               <Cloud className="h-3.5 w-3.5" />
-              Sync from Salesforce
+              Sync everything
             </Button>
           )}
         </div>
+
       </PopoverContent>
     </Popover>
   );

@@ -222,6 +222,8 @@ export async function startRecentSync(from: Date, to: Date) {
   try {
     let offset = 0;
     let created = 0;
+    let updatedTotal = 0;
+    let cancelledTotal = 0;
     for (;;) {
       if (stopRequested) { setState({ running: false, stage: null, message: "Stopped." }); return; }
       const qs = `mode=recent&from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}&limit=20&offset=${offset}`;
@@ -229,15 +231,21 @@ export async function startRecentSync(from: Date, to: Date) {
       assertProcessedShape("sf-import-clinical", data);
       const results: any[] = data.results || [];
       const imported = results.reduce((s, r) => s + (r.appointments || 0) + (r.invoices || 0) + (r.procedures || 0), 0);
+      const updated = results.reduce((s, r) => s + (r.updated || 0), 0);
       const skipped = results.reduce((s, r) => s + (r.skipped || 0), 0);
       const errors = results.reduce((s, r) => s + (r.errors?.length || 0), 0);
       created += data.recent_created_patients || 0;
+      updatedTotal += updated;
+      cancelledTotal += data.recent_cancelled_missing || 0;
       addTotals("clinical", { processed: data.processed ?? 0, imported, skipped, errors });
-      pushLog(`Date range: ${data.processed ?? 0} patient(s) of ${data.recent_total_patients ?? 0}, ${imported} record(s) imported`);
+      pushLog(`Date range: ${data.processed ?? 0} patient(s) of ${data.recent_total_patients ?? 0}, ${imported} imported, ${updated} updated`);
       if (data.next_offset === null || data.next_offset === undefined) break;
       offset = data.next_offset;
     }
     if (created > 0) pushLog(`${created} new patient(s) created from Salesforce.`);
+    if (updatedTotal > 0) pushLog(`${updatedTotal} existing appointment(s) refreshed from Salesforce.`);
+    if (cancelledTotal > 0) pushLog(`${cancelledTotal} appointment(s) cancelled (removed in Salesforce).`);
+
     setState({ running: false, stage: null, message: "Sync complete." });
   } catch (e: any) {
     setState({ running: false, stage: null, error: e.message, message: `Failed: ${e.message}` });

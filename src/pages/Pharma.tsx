@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
+import SearchableSelect from "@/components/shared/SearchableSelect";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { Plus, Search, Package, ShoppingCart, AlertTriangle, Settings, Trash2, Cloud } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -120,6 +121,27 @@ const Pharma = () => {
       return data;
     },
   });
+
+  const { data: hsnTaxes = [] } = useQuery({
+    queryKey: ["hsn-tax-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hsn_tax_master")
+        .select("id, hsn_code, igst, cgst, sgst")
+        .eq("is_active", true)
+        .order("hsn_code");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  /** Active HSN codes for the dropdowns, keeping any legacy code already saved on a record. */
+  const hsnCodes = useMemo(() => (hsnTaxes as any[]).map((h) => String(h.hsn_code)), [hsnTaxes]);
+  const hsnOptionsFor = (current?: string) => {
+    const cur = (current || "").trim();
+    const list = cur && !hsnCodes.includes(cur) ? [cur, ...hsnCodes] : hsnCodes;
+    return list.map((c) => ({ id: c, name: c }));
+  };
 
   const { data: unitsData } = usePharmaProductUnits();
   const unitsByProduct = unitsData?.byProduct || {};
@@ -734,7 +756,18 @@ const Pharma = () => {
                   );
                 })()}
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>HSN Code</Label><Input className="mt-1" value={productForm.hsn_code} onChange={(e) => setProductForm({ ...productForm, hsn_code: e.target.value })} /></div>
+                  <div>
+                    <Label>HSN Code</Label>
+                    <SearchableSelect
+                      className="mt-1"
+                      placeholder="Select HSN"
+                      searchPlaceholder="Search HSN…"
+                      emptyText="No HSN codes"
+                      value={productForm.hsn_code}
+                      onChange={(v) => setProductForm({ ...productForm, hsn_code: v })}
+                      options={hsnOptionsFor(productForm.hsn_code)}
+                    />
+                  </div>
                   <div><Label>GST % (total)</Label><Input type="number" readOnly className="mt-1 bg-muted/50" value={(Number(productForm.igst_percent) || 0) + (Number(productForm.cgst_percent) || 0)} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -809,7 +842,15 @@ const Pharma = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>HSN Code</Label>
-                    <Input className="mt-1" value={stockForm.hsn_code} onChange={(e) => setStockForm({ ...stockForm, hsn_code: e.target.value })} placeholder="From product master" />
+                    <SearchableSelect
+                      className="mt-1"
+                      placeholder="From product master"
+                      searchPlaceholder="Search HSN…"
+                      emptyText="No HSN codes"
+                      value={stockForm.hsn_code}
+                      onChange={(v) => setStockForm({ ...stockForm, hsn_code: v })}
+                      options={hsnOptionsFor(stockForm.hsn_code)}
+                    />
                   </div>
                   <div>
                     <Label>GST % (total)</Label>

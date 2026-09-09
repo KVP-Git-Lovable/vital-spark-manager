@@ -3,6 +3,7 @@ import { useStackedTable } from "@/hooks/useStackedTable";
 import { useState, useMemo, useRef, useEffect, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths, isSameDay } from "date-fns";
+import SearchableSelect from "@/components/shared/SearchableSelect";
 import { Search, Filter, Download, IndianRupee, Plus, FileText, CreditCard, Pill, Trash2, CalendarClock, Eye, Pencil, X, ChevronDown, Check, ChevronsUpDown, Stethoscope, MessageCircle } from "lucide-react";
 import { useModuleListViews } from "@/hooks/useModuleListViews";
 import ViewBar from "@/components/listViews/ViewBar";
@@ -965,6 +966,13 @@ const Billing = () => {
   };
 
   // HSN-based tax (Tax Master): service → HSN code → SGST + CGST + IGST
+  /** Active HSN codes as dropdown options; keeps any legacy code already on a line. */
+  const hsnOptions = useMemo(() => {
+    const codes = (hsnTaxes as any[]).map((h) => String(h.hsn_code));
+    const extra = serviceInputs.map((s) => (s.hsn || "").trim()).filter((c) => c && !codes.includes(c));
+    return [...new Set([...codes, ...extra])].map((c) => ({ id: c, name: c }));
+  }, [hsnTaxes, serviceInputs]);
+
   const hsnTaxMap = useMemo(() => {
     const m = new Map<string, any>();
     (hsnTaxes as any[]).forEach((h) => m.set(String(h.hsn_code), h));

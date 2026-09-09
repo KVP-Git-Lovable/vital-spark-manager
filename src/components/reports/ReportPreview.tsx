@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getObjectByKey, isValidFieldKey, evaluateFilterLogic, type ReportFilter, type ReportDisplayOptions, DEFAULT_DISPLAY_OPTIONS } from "@/lib/reportObjects";
 import { Badge } from "@/components/ui/badge";
+import { useReportSchema } from "@/lib/reportSchema";
+import { applyWidgetShaping, formatMetric, mergeWidgetOptions, type WidgetOptions } from "@/lib/dashboardWidgets";
 import {
   BarChart,
   Bar,
@@ -38,6 +40,8 @@ interface Props {
   chartType: string;
   displayOptions?: ReportDisplayOptions;
   compact?: boolean;
+  /** Salesforce-style dashboard widget presentation options. */
+  widget?: WidgetOptions;
 }
 
 // Deep-link builders per object; each opens the specific record.
@@ -177,16 +181,20 @@ export function ReportPreview({
   chartType,
   displayOptions: displayOptionsProp,
   compact,
+  widget: widgetProp,
 }: Props) {
+  const widget = mergeWidgetOptions(widgetProp);
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const opts = displayOptionsProp || DEFAULT_DISPLAY_OPTIONS;
   const filterLogic = (opts.filter_logic || "").trim();
+  const schemaReady = useReportSchema();
 
   useEffect(() => {
+    if (!schemaReady) return;
     fetchData();
-  }, [primaryObject, relatedObject, columns, groupRows, groupColumns, filters, filterLogic]);
+  }, [schemaReady, primaryObject, relatedObject, columns, groupRows, groupColumns, filters, filterLogic]);
 
 
   const fetchData = async () => {
@@ -638,6 +646,21 @@ export function ReportPreview({
   // Number summary
   if (chartType === "number") {
     const total = data.length;
+    if (widgetProp) {
+      const measure = widget.measure && widget.measure !== "record_count" ? widget.measure : null;
+      const value = measure
+        ? data.reduce((s, r) => s + (Number(r[resolveDataKey(measure)]) || 0), 0)
+        : total;
+      const label = measure ? getFieldLabel(measure) : "Record Count";
+      chartNode = (
+        <div className="flex flex-col items-center justify-center py-4">
+          <div className="font-display font-bold text-primary leading-none text-[clamp(2rem,7vw,4rem)]">
+            {formatMetric(value, widget)}
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-2 uppercase tracking-wide">{label}</div>
+        </div>
+      );
+    } else {
     const sums = numericCols.map((nc) => {
       const dataKey = resolveDataKey(nc);
       const sum = data.reduce((s, r) => s + (Number(r[dataKey]) || 0), 0);
@@ -656,13 +679,14 @@ export function ReportPreview({
           </div>
         ))}
       </div>
-    );
+      );
+    }
   }
 
   // Charts
   if (chartType !== "table" && chartType !== "number" && groupField) {
-    const chartData = buildChartData();
     const valueKey = numericCols.length > 0 ? resolveDataKey(numericCols[0]) : "count";
+    const chartData = applyWidgetShaping(buildChartData() as any[], valueKey, widget);
     const height = compact ? 200 : 350;
 
     if (chartType === "bar") {
@@ -678,9 +702,23 @@ export function ReportPreview({
         </ResponsiveContainer>
       );
     }
-    if (chartType === "doughnut") {
+    if (chartType === "hbar") {
       chartNode = (
-        <div className="flex flex-col items-center">
+        <ResponsiveContainer width="100%" height={height}>
+          <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 16 }}>
+            <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+            <XAxis type="number" tick={{ fontSize: 11 }} />
+            <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Bar dataKey={valueKey} fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      );
+    }
+    if (chartType === "doughnut") {
+      const legendPos = widget.legend_position || "bottom";
+      chartNode = (
+        <div className={legendPos === "right" ? "flex flex-row items-center gap-2" : "flex flex-col items-center"}>
           <ResponsiveContainer width="100%" height={height}>
             <PieChart>
               <Pie data={chartData} cx="50%" cy="50%" innerRadius={compact ? 40 : 60} outerRadius={compact ? 70 : 100} paddingAngle={3} dataKey={valueKey} nameKey="name">
@@ -689,7 +727,15 @@ export function ReportPreview({
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
-          <div className="flex flex-wrap gap-3 justify-center mt-2">
+          <div
+            className={
+              legendPos === "none"
+                ? "hidden"
+                : legendPos === "right"
+                  ? "flex flex-col gap-1.5 shrink-0"
+                  : "flex flex-wrap gap-3 justify-center mt-2"
+            }
+          >
             {chartData.map((item, i) => (
               <div key={item.name} className="flex items-center gap-1.5 text-xs">
                 <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
@@ -1082,6 +1128,12 @@ export function ReportPreview({
     </div>
   );
   };
+
+  // Dashboard widgets show only the visual, never the raw table underneath
+  // (unless the widget itself is a tabular one).
+  if (widgetProp && chartType !== "table") {
+    return <div className="space-y-2">{chartNode}</div>;
+  }
 
   return (
     <div className="space-y-4">

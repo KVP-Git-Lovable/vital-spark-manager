@@ -36,9 +36,8 @@ import { CHART_TYPES, type SavedReport } from "@/lib/reportObjects";
 import {
   DashboardComponentCard,
   type DashboardComponent,
-  type ComponentHeight,
-  type ComponentWidth,
 } from "@/components/dashboards/DashboardComponentCard";
+import { EditWidgetDialog } from "@/components/dashboards/EditWidgetDialog";
 
 interface DashboardRow {
   id: string;
@@ -74,12 +73,8 @@ const DashboardView = () => {
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Configure-component dialog
+  // Edit Widget dialog
   const [configTarget, setConfigTarget] = useState<DashboardComponent | null>(null);
-  const [cfgTitle, setCfgTitle] = useState("");
-  const [cfgChart, setCfgChart] = useState("default");
-  const [cfgWidth, setCfgWidth] = useState<ComponentWidth>("medium");
-  const [cfgHeight, setCfgHeight] = useState<ComponentHeight>("medium");
 
   const canEdit = !!user?.id && dashboard?.owner_id === user.id;
 
@@ -167,30 +162,20 @@ const DashboardView = () => {
     );
   };
 
-  const openConfigure = (component: DashboardComponent) => {
-    setConfigTarget(component);
-    setCfgTitle(component.title || "");
-    setCfgChart(component.chart_type || "default");
-    setCfgWidth(component.width);
-    setCfgHeight(component.height);
-  };
+  const openConfigure = (component: DashboardComponent) => setConfigTarget(component);
 
-  const saveConfigure = async () => {
+  const saveConfigure = async (patch: any) => {
     if (!configTarget) return;
-    const patch = {
-      title: cfgTitle.trim() || null,
-      chart_type: cfgChart === "default" ? null : cfgChart,
-      width: cfgWidth,
-      height: cfgHeight,
-    };
     const { error } = await supabase
       .from("dashboard_components" as any)
       .update(patch as any)
       .eq("id", configTarget.id);
-    if (error) return toast.error("Failed to save component");
-    setComponents((prev) => prev.map((c) => (c.id === configTarget.id ? { ...c, ...patch } as DashboardComponent : c)));
+    if (error) return toast.error("Failed to save widget");
+    setComponents((prev) =>
+      prev.map((c) => (c.id === configTarget.id ? ({ ...c, ...patch } as DashboardComponent) : c))
+    );
     setConfigTarget(null);
-    toast.success("Component updated");
+    toast.success("Widget updated");
   };
 
   if (loading) {
@@ -308,64 +293,11 @@ const DashboardView = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Configure component dialog */}
-      <Dialog open={!!configTarget} onOpenChange={(o) => !o && setConfigTarget(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Component Settings</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Title</Label>
-              <Input
-                value={cfgTitle}
-                onChange={(e) => setCfgTitle(e.target.value)}
-                placeholder={configTarget?.report?.name || "Report title"}
-              />
-            </div>
-            <div>
-              <Label>Display as</Label>
-              <Select value={cfgChart} onValueChange={setCfgChart}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Report default</SelectItem>
-                  {CHART_TYPES.map((c) => (
-                    <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Width</Label>
-                <Select value={cfgWidth} onValueChange={(v) => setCfgWidth(v as ComponentWidth)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="small">Small (1/3)</SelectItem>
-                    <SelectItem value="medium">Medium (1/2)</SelectItem>
-                    <SelectItem value="large">Full width</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Height</Label>
-                <Select value={cfgHeight} onValueChange={(v) => setCfgHeight(v as ComponentHeight)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="short">Short</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="tall">Tall</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfigTarget(null)}>Cancel</Button>
-            <Button onClick={saveConfigure}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EditWidgetDialog
+        component={configTarget}
+        onClose={() => setConfigTarget(null)}
+        onSave={saveConfigure}
+      />
     </div>
   );
 };

@@ -32,7 +32,7 @@ export function StatCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay }}
-      className="stat-card"
+      className="stat-card h-full flex flex-col justify-between"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">

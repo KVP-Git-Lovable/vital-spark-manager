@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { formatMoney } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -268,7 +269,7 @@ export default function DashboardExplore() {
 
   const fmt = (f: FieldDef, v: any) => {
     if (v === null || v === undefined || v === "") return "—";
-    if (f.type === "currency") return `₹${Number(v).toLocaleString()}`;
+    if (f.type === "currency") return formatMoney(Number(v));
     if (f.type === "date") return format(new Date(v), "dd MMM yyyy");
     if (f.type === "datetime") return format(new Date(v), "dd MMM yyyy h:mm a");
     return String(v);

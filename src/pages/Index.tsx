@@ -21,6 +21,8 @@ import {
   eachHourOfInterval, eachWeekOfInterval, differenceInDays,
 } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { useMoneyFormat } from "@/lib/currency";
+import { formatMoneyCompact } from "@/lib/currency";
 
 
 // Data-heavy panels are capped so a large date range can never turn into a
@@ -91,6 +93,7 @@ function getDateRange(key: string, customStart?: string, customEnd?: string): { 
 
 const Index = () => {
   const navigate = useNavigate();
+  const { formatMoney } = useMoneyFormat();
   const [selectedStaff, setSelectedStaff] = useState("all");
   const [selectedDateRange, setSelectedDateRange] = useState("today");
   const [selectedService, setSelectedService] = useState("all");
@@ -308,6 +311,15 @@ const Index = () => {
         _areas: ((appt?.problem_area_ids as string[]) || [])
           .map((id) => areaLookup.get(id))
           .filter(Boolean) as string[],
+        _serviceNames: (() => {
+          const fromInv = Array.isArray((inv as any).services)
+            ? ((inv as any).services as any[])
+                .map((x) => (typeof x === "string" ? x : x?.name || x?.service_name))
+                .filter(Boolean)
+            : [];
+          if (fromInv.length) return fromInv as string[];
+          return appt?.service ? [appt.service as string] : ["Unspecified"];
+        })(),
       };
     });
   }, [invoices, filtered, selectedStaff, selectedService, apptById, doctorLookup, areaLookup]);
@@ -339,6 +351,7 @@ const Index = () => {
     const drBillInvoiced: Record<string, number> = {};
     const areaRevenue: Record<string, number> = {};
     const modeRevenue: Record<string, number> = {};
+    const serviceRevenue: Record<string, number> = {};
     filteredInvoices.forEach((inv: any) => {
       const drName = inv._doctorName || "Walk-in / Direct";
       const paid = Number(inv.paid_amount || 0);
@@ -348,6 +361,9 @@ const Index = () => {
       const billed = Number(inv.total_amount || 0);
       const areas: string[] = inv._areas?.length ? inv._areas : ["Unspecified"];
       areas.forEach((a) => { areaRevenue[a] = (areaRevenue[a] || 0) + billed / areas.length; });
+
+      const svcs: string[] = inv._serviceNames?.length ? inv._serviceNames : ["Unspecified"];
+      svcs.forEach((sv) => { serviceRevenue[sv] = (serviceRevenue[sv] || 0) + billed / svcs.length; });
 
       const mode = inv.payment_mode || "Unspecified";
       modeRevenue[mode] = (modeRevenue[mode] || 0) + billed;
@@ -406,7 +422,13 @@ const Index = () => {
       invoiced: invByBucket[k],
     }));
 
-    return { appointmentStatus, appointmentsByDr, revenueByDr, revenueByProblemArea, revenueByPaymentMode, revenueByDate };
+    const revenueByService = Object.entries(serviceRevenue)
+      .map(([name, value]) => ({ name, value: Math.round(value) }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+
+    return { appointmentStatus, appointmentsByDr, revenueByDr, revenueByProblemArea, revenueByPaymentMode, revenueByDate, revenueByService };
   }, [filtered, filteredInvoices, start, end]);
 
   // Stat card values
@@ -454,6 +476,8 @@ const Index = () => {
         const id = staffIdByName(key);
         return openDrill("invoices", `Revenue by Doctor${suffix}`, id ? { staff: id } : {});
       }
+      case "revenue_by_service":
+        return openDrill("invoices", `Revenue by Service${suffix}`, key && key !== "Unspecified" ? { service: key } : {});
       case "revenue_by_problem_area":
         return openDrill("invoices", `Revenue by Primary Concern${suffix}`);
       case "revenue_by_payment_mode":
@@ -524,34 +548,34 @@ const Index = () => {
         onCustomEndChange={setCustomEnd}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4 items-stretch auto-rows-fr">
         {shows("appointments_total") && (
-          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Total Appointments — ${dateLabel}`)}>
+          <div className="cursor-pointer h-full" onClick={() => openDrill("appointments", `Total Appointments — ${dateLabel}`)}>
             <StatCard title="Total Appointments" value={filtered.length} change={dateLabel} changeType="neutral" icon={Calendar} iconColor="bg-info/10 text-info" delay={0} />
           </div>
         )}
         {shows("appointments_confirmed") && (
-          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Confirmed Appointments — ${dateLabel}`, { status: "Confirmed" })}>
+          <div className="cursor-pointer h-full" onClick={() => openDrill("appointments", `Confirmed Appointments — ${dateLabel}`, { status: "Confirmed" })}>
             <StatCard title="Confirmed Appointments" value={confirmedAppts.length} change={`${scheduledCount} scheduled • ${dateLabel}`} changeType="neutral" icon={ClipboardList} iconColor="bg-primary/10 text-primary" delay={0.05} />
           </div>
         )}
         {shows("appointments_completed") && (
-          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Completed Appointments — ${dateLabel}`, { status: "Completed" })}>
+          <div className="cursor-pointer h-full" onClick={() => openDrill("appointments", `Completed Appointments — ${dateLabel}`, { status: "Completed" })}>
             <StatCard title="Completed Appointments" value={completedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} />
           </div>
         )}
         {shows("new_patients") && (
-          <div className="cursor-pointer" onClick={() => openDrill("patients", `New Patients — ${dateLabel}`)}>
+          <div className="cursor-pointer h-full" onClick={() => openDrill("patients", `New Patients — ${dateLabel}`)}>
             <StatCard title="New Patients Added" value={newPatients.count} change={dateLabel} changeType="neutral" icon={Users} delay={0.15} />
           </div>
         )}
         {shows("revenue") && (
-          <div className="cursor-pointer" onClick={() => openDrill("invoices", `Revenue — ${dateLabel}`)}>
-            <StatCard title="Revenue" value={`₹${paidRevenue.toLocaleString()}`} change={`of ₹${invoicedRevenue.toLocaleString()} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.2} />
+          <div className="cursor-pointer h-full" onClick={() => openDrill("invoices", `Revenue — ${dateLabel}`)}>
+            <StatCard title="Revenue" value={formatMoneyCompact(paidRevenue)} change={`of ${formatMoneyCompact(invoicedRevenue)} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.2} />
           </div>
         )}
         {shows("total_patients") && (
-          <div className="cursor-pointer" onClick={() => openDrill("patients", "Total Patients", { from: "", to: "" })}>
+          <div className="cursor-pointer h-full" onClick={() => openDrill("patients", "Total Patients", { from: "", to: "" })}>
             <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.22} />
           </div>
         )}
@@ -559,11 +583,11 @@ const Index = () => {
           <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.24} />
         )}
         {shows("active_campaigns") && (
-          <div onClick={() => navigate("/campaigns")} className="cursor-pointer">
+          <div onClick={() => navigate("/campaigns")} className="cursor-pointer h-full">
             <StatCard
               title="Active Campaigns"
               value={activeCampaigns.length}
-              change={`₹${activeCampaigns.reduce((s, c: any) => s + Number(c.amount_spent || 0), 0).toLocaleString()} total spend`}
+              change={`${formatMoneyCompact(activeCampaigns.reduce((s, c: any) => s + Number(c.amount_spent || 0), 0))} total spend`}
               changeType="neutral"
               icon={Megaphone}
               iconColor="bg-primary/10 text-primary"
@@ -575,7 +599,13 @@ const Index = () => {
 
       {shows("pinned_reports") && <PinnedReports start={start} end={end} staffId={selectedStaff} />}
 
-      {shows("charts") && <DashboardCharts data={chartData} onChartClick={handleChartClick} />}
+      {(shows("charts") || shows("revenue_by_service")) && (
+        <DashboardCharts
+          data={shows("charts") ? chartData : ({ ...chartData, appointmentStatus: [], appointmentsByDr: [], revenueByDr: [], revenueByProblemArea: [], revenueByPaymentMode: [], revenueByDate: [] } as any)}
+          onChartClick={handleChartClick}
+          showRevenueByService={shows("revenue_by_service")}
+        />
+      )}
 
 
 
@@ -636,7 +666,7 @@ const Index = () => {
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="truncate mr-2">{inv.patient_name || "Walk-in"}</span>
-                    <span className="font-medium text-foreground whitespace-nowrap">₹{(Number(inv.total_amount) - Number(inv.paid_amount)).toLocaleString()}</span>
+                    <span className="font-medium text-foreground whitespace-nowrap">{formatMoney(Number(inv.total_amount) - Number(inv.paid_amount))}</span>
                   </div>
                 </div>
               ))
@@ -646,7 +676,7 @@ const Index = () => {
             <div className="p-3 md:p-4 border-t bg-destructive/5">
               <div className="flex items-center gap-2 text-destructive">
                 <AlertCircle className="h-4 w-4" />
-                <span className="text-sm font-medium">₹{pendingAmount.toLocaleString()} total pending</span>
+                <span className="text-sm font-medium">{formatMoney(pendingAmount)} total pending</span>
               </div>
             </div>
           )}

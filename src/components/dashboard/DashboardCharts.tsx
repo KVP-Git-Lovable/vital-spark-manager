@@ -6,6 +6,7 @@ import {
   LineChart, Line, Legend,
 } from "recharts";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useMoneyFormat } from "@/lib/currency";
 
 const STATUS_COLORS: Record<string, string> = {
   Completed: "hsl(152, 60%, 40%)",
@@ -36,11 +37,13 @@ interface ChartData {
   revenueByProblemArea: NameValue[];
   revenueByPaymentMode: NameValue[];
   revenueByDate: { date: string; paid: number; invoiced: number }[];
+  revenueByService?: NameValue[];
 }
 
 interface Props {
   data: ChartData;
   onChartClick: (type: string, key?: string) => void;
+  showRevenueByService?: boolean;
 }
 
 function ChartCard({
@@ -60,10 +63,10 @@ function ChartCard({
   );
 }
 
-const money = (v: number, n: string) => [`₹${Number(v).toLocaleString()}`, n] as [string, string];
-
-export function DashboardCharts({ data, onChartClick }: Props) {
+export function DashboardCharts({ data, onChartClick, showRevenueByService }: Props) {
   const isMobile = useIsMobile();
+  const { formatMoney, formatNumber } = useMoneyFormat();
+  const money = (v: number, n: string) => [formatMoney(Number(v)), n] as [string, string];
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
       <ChartCard title="Appointment Status" delay={0.2} empty={data.appointmentStatus.length === 0} onClick={() => onChartClick("appointment_status")}>
@@ -138,7 +141,7 @@ export function DashboardCharts({ data, onChartClick }: Props) {
               data={data.revenueByPaymentMode}
               cx="50%" cy="50%" innerRadius={isMobile ? 42 : 50} outerRadius={isMobile ? 68 : 80}
               paddingAngle={3} dataKey="value"
-              label={isMobile ? false : ({ name, value }) => `${name}: ₹${Number(value).toLocaleString()}`}
+              label={isMobile ? false : ({ name, value }) => `${name}: ${formatMoney(Number(value))}`}
               onClick={(e: any) => onChartClick("revenue_by_payment_mode", e?.name)}
             >
               {data.revenueByPaymentMode.map((_, i) => (
@@ -163,6 +166,29 @@ export function DashboardCharts({ data, onChartClick }: Props) {
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
+
+      {showRevenueByService && (
+        <ChartCard
+          title="Revenue by Service"
+          delay={0.38}
+          empty={!data.revenueByService || data.revenueByService.length === 0}
+          onClick={() => onChartClick("revenue_by_service")}
+        >
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={data.revenueByService || []} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => formatNumber(Number(v))} />
+              <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10 }} />
+              <Tooltip formatter={money} />
+              <Bar dataKey="value" name="Revenue" radius={[0, 4, 4, 0]} onClick={(e: any) => onChartClick("revenue_by_service", e?.name)}>
+                {(data.revenueByService || []).map((_, i) => (
+                  <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      )}
     </div>
   );
 }

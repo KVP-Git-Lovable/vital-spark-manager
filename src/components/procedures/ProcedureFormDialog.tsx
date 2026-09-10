@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/command";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
+import { ProcedureStickyNotes, type DraftNote } from "@/components/procedures/ProcedureStickyNotes";
 import { ClipboardList } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
@@ -123,6 +124,9 @@ export function ProcedureFormDialog({
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
   const [stockMap, setStockMap] = useState<Record<number, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);
+  // Notes typed before the procedure exists. procedure_sticky_notes.procedure_id is NOT NULL,
+  // so these are buffered here and flushed once the procedure row has an id.
+  const [draftNotes, setDraftNotes] = useState<DraftNote[]>([]);
   const [autoFilled, setAutoFilled] = useState(false);
 
   // Unified AI bar state
@@ -600,6 +604,10 @@ export function ProcedureFormDialog({
   }
 
 
+  // A ref, not a plain local: a re-render between mutationFn and onSuccess would
+  // otherwise hand onSuccess a freshly-reset variable.
+  const notesFlushFailedRef = useRef(false);
+
   const createMutation = useMutation({
     mutationFn: async () => {
       // Validate that selected staff actually exist in database
@@ -694,6 +702,36 @@ export function ProcedureFormDialog({
         }
       }
 
+      notesFlushFailedRef.current = false;
+      if (draftNotes.length > 0) {
+        const noteRows = draftNotes.filter((n) => n.content.trim());
+        if (noteRows.length > 0) {
+          // Stagger the timestamps: one INSERT stamps every row with the same now(), which
+          // leaves the order arbitrary both here (updated_at desc) and in the prescription
+          // PDF (created_at asc). updated_at must equal created_at or each note renders as
+          // "Edited by ..." instead of "Added by ...".
+          const base = Date.now() - noteRows.length * 1000;
+          const { error: notesErr } = await supabase.from("procedure_sticky_notes").insert(
+            noteRows.map((n, i) => {
+              const ts = new Date(base + i * 1000).toISOString();
+              return {
+                procedure_id: proc.id,
+                title: n.title.trim() || null,
+                content: n.content.trim(),
+                created_at: ts,
+                updated_at: ts,
+              };
+            }),
+          );
+          // Non-fatal: the procedure is already saved by this point, so throwing would report
+          // a failure the user can only "retry" by creating a duplicate procedure.
+          if (notesErr) {
+            notesFlushFailedRef.current = true;
+            toast.warning(`Procedure saved, but the notes could not be attached: ${notesErr.message}`);
+          }
+        }
+      }
+
       // Sync any edits to the patient's medical information back to the patient record
       if (medicalDirty && patientId) {
         const { error: medErr } = await supabase
@@ -750,6 +788,9 @@ export function ProcedureFormDialog({
       } else {
         toast.success("Procedure created successfully");
       }
+      if (proc?.id) queryClient.invalidateQueries({ queryKey: ["procedure-sticky-notes", proc.id] });
+      // Keep the buffer on failure so the user's words survive a retry.
+      if (!notesFlushFailedRef.current) setDraftNotes([]);
       onSaved?.(proc?.id);
       onOpenChange(false);
     },
@@ -1368,9 +1409,7 @@ export function ProcedureFormDialog({
             </TabsContent>
 
             <TabsContent value="notes" className="space-y-3 mt-4">
-              <p className="text-sm text-muted-foreground py-8 text-center">
-                Save the procedure first to add notes.
-              </p>
+              <ProcedureStickyNotes notes={draftNotes} onNotesChange={setDraftNotes} />
             </TabsContent>
           </Tabs>
 

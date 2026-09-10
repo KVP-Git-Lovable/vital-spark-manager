@@ -186,7 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
     if (limitErr) {
       console.warn("report_period_limit unavailable, defaulting to unrestricted", limitErr.message);
-    } else if (limitRow?.report_period_limit === "day") {
+    } else if ((limitRow as any)?.report_period_limit === "day") {
       periodLimit = "day";
     }
     setReportPeriodLimit(periodLimit);

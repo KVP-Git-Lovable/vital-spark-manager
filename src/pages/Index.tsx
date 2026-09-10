@@ -526,32 +526,34 @@ const Index = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
         {shows("appointments_total") && (
-          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Total Appointments — ${dateLabel}`, filtered)}>
+          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Total Appointments — ${dateLabel}`)}>
             <StatCard title="Total Appointments" value={filtered.length} change={dateLabel} changeType="neutral" icon={Calendar} iconColor="bg-info/10 text-info" delay={0} />
           </div>
         )}
         {shows("appointments_confirmed") && (
-          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Confirmed Appointments — ${dateLabel}`, confirmedAppts)}>
+          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Confirmed Appointments — ${dateLabel}`, { status: "Confirmed" })}>
             <StatCard title="Confirmed Appointments" value={confirmedAppts.length} change={`${scheduledCount} scheduled • ${dateLabel}`} changeType="neutral" icon={ClipboardList} iconColor="bg-primary/10 text-primary" delay={0.05} />
           </div>
         )}
         {shows("appointments_completed") && (
-          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Completed Appointments — ${dateLabel}`, completedAppts)}>
+          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Completed Appointments — ${dateLabel}`, { status: "Completed" })}>
             <StatCard title="Completed Appointments" value={completedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} />
           </div>
         )}
         {shows("new_patients") && (
-          <div className="cursor-pointer" onClick={() => openDrill("patients", `New Patients — ${dateLabel}`, newPatientsRaw as any[])}>
+          <div className="cursor-pointer" onClick={() => openDrill("patients", `New Patients — ${dateLabel}`)}>
             <StatCard title="New Patients Added" value={newPatients.count} change={dateLabel} changeType="neutral" icon={Users} delay={0.15} />
           </div>
         )}
         {shows("revenue") && (
-          <div className="cursor-pointer" onClick={() => openDrill("invoices", `Revenue — ${dateLabel}`, filteredInvoices)}>
+          <div className="cursor-pointer" onClick={() => openDrill("invoices", `Revenue — ${dateLabel}`)}>
             <StatCard title="Revenue" value={`₹${paidRevenue.toLocaleString()}`} change={`of ₹${invoicedRevenue.toLocaleString()} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.2} />
           </div>
         )}
         {shows("total_patients") && (
-          <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.22} />
+          <div className="cursor-pointer" onClick={() => openDrill("patients", "Total Patients", { from: "", to: "" })}>
+            <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.22} />
+          </div>
         )}
         {shows("staff_present") && (
           <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.24} />
@@ -576,13 +578,6 @@ const Index = () => {
       {shows("charts") && <DashboardCharts data={chartData} onChartClick={handleChartClick} />}
 
 
-      <DashboardDrillDown
-        open={drillDown.open}
-        onOpenChange={(open) => setDrillDown((p) => ({ ...p, open }))}
-        title={drillDown.title}
-        records={drillDown.records}
-        kind={drillDown.kind}
-      />
 
       {/* Lists section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">

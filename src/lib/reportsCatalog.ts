@@ -334,7 +334,7 @@ export const REPORTS: ReportConfig[] = [
         { label: "Invoices", value: rows.length.toLocaleString() },
         { label: "Total Billed", value: formatMoneyCompact(total) },
         { label: "Collected", value: formatMoneyCompact(paid) },
-        { label: "Outstanding", value: formatMoneyCompact((total - paid)) },
+        { label: "Outstanding", value: formatMoneyCompact(total - paid) },
       ];
     },
     chart: {
@@ -447,10 +447,13 @@ export const REPORTS: ReportConfig[] = [
     ],
     searchFields: ["name"],
     rowHref: (r) => `/campaigns/${r.id}`,
-    fetcher: async () => {
-      const campaigns = await fetchAll<any>((s, e) =>
-        supabase.from("campaigns").select("*").order("start_date", { ascending: false }).range(s, e),
-      );
+    fetcher: async ({ from, to }) => {
+      const campaigns = await fetchAll<any>((s, e) => {
+        let q = supabase.from("campaigns").select("*").order("start_date", { ascending: false }).range(s, e);
+        if (from) q = q.gte("start_date", from.slice(0, 10));
+        if (to) q = q.lte("start_date", to.slice(0, 10));
+        return q;
+      });
       // Junction-table-based metrics (distinct patients, no duplication)
       const links = await fetchAll<any>((s, e) =>
         (supabase.from("patient_campaigns") as any).select("campaign_id, patient_id").range(s, e),

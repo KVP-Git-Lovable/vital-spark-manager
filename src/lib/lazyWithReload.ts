@@ -15,18 +15,31 @@ export function lazyWithReload<T extends ComponentType<any>>(
     try {
       return await factory();
     } catch (err) {
+      // A stale index.html is pointing at asset filenames that no longer
+      // exist. Drop every cached copy (service worker + Cache Storage) so the
+      // reload fetches the current asset manifest.
       try {
-        return await factory();
-      } catch {
-        const last = Number(sessionStorage.getItem(RELOAD_KEY) || 0);
-        if (Date.now() - last > 60_000) {
-          sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
-          window.location.reload();
-          // Never resolves; the reload takes over.
-          return await new Promise<{ default: T }>(() => {});
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
         }
-        throw err;
+        if ("serviceWorker" in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister()));
+        }
+      } catch {
+        /* cache clearing is best-effort */
       }
+
+      const last = Number(sessionStorage.getItem(RELOAD_KEY) || 0);
+      if (Date.now() - last > 30_000) {
+        sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+        window.location.reload();
+        // Never resolves; the reload takes over.
+        return await new Promise<{ default: T }>(() => {});
+      }
+      throw err;
     }
   });
 }
+

@@ -3446,7 +3446,6 @@ export type Database = {
           phone: string | null
           photo_url: string | null
           role: string
-          report_period_limit: string
           role_id: string | null
           specialization: string | null
           theme_preference: string
@@ -3470,7 +3469,6 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           role: string
-          report_period_limit?: string
           role_id?: string | null
           specialization?: string | null
           theme_preference?: string
@@ -3494,7 +3492,6 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           role?: string
-          report_period_limit?: string
           role_id?: string | null
           specialization?: string | null
           theme_preference?: string
@@ -4599,6 +4596,7 @@ export type Database = {
         Args: { _column: string; _sql_type: string; _table: string }
         Returns: undefined
       }
+      can_see_procedure: { Args: { _procedure_id: string }; Returns: boolean }
       create_patient_portal_token: {
         Args: {
           _expires_at: string
@@ -4608,6 +4606,7 @@ export type Database = {
         }
         Returns: string
       }
+      current_staff_id: { Args: never; Returns: string }
       drop_custom_field_column: {
         Args: { _column: string; _table: string }
         Returns: undefined
@@ -4620,6 +4619,7 @@ export type Database = {
           table_name: string
         }[]
       }
+      has_full_data_scope: { Args: never; Returns: boolean }
       move_to_trash: {
         Args: { _label?: string; _object_type: string; _record_id: string }
         Returns: string

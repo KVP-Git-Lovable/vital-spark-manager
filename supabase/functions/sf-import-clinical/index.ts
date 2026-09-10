@@ -361,6 +361,13 @@ async function syncPatient(
   // service in Salesforce is reflected here. Everything the app owns
   // (next visit, owner, notes typed here, linked invoice/procedure) is left
   // untouched.
+  //
+  // reason_for_consultation is refreshed alongside service, and must stay that
+  // way: service now holds a resolved service name rather than the raw
+  // Investigation__c/Description__c text, so this column is the only place that
+  // text survives in the app. Refreshing one without the other would drop it for
+  // any appointment whose text came from Description__c - those carry just
+  // "(Dr. Whoever)" in reason, so there would be nothing left to read.
   if (refreshExisting) {
     for (const a of seenAppts) {
       const row = mapAppt(a);
@@ -371,6 +378,7 @@ async function syncPatient(
           end_time: row.end_time,
           status: row.status,
           service: row.service,
+          reason_for_consultation: row.reason_for_consultation,
           staff_id: row.staff_id,
           appointment_type: row.appointment_type,
         })

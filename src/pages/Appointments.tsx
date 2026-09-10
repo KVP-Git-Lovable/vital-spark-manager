@@ -2508,7 +2508,7 @@ const Appointments = () => {
                                         if (apt.patient_id) params.set("patient_id", apt.patient_id);
                                         if (apt.staff_id) params.set("staff_id", apt.staff_id);
                                         if (apt.service) params.set("service", apt.service);
-                                        navigate(`/procedures/new?${params.toString()}`);
+                                        routerNavigate(`/procedures/new?${params.toString()}`);
                                       }}
                                     >
                                       <ClipboardList className="h-3.5 w-3.5" />

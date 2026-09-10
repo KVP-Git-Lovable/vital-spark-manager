@@ -1,13 +1,14 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useState, useMemo, useEffect } from "react";
-import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle, Megaphone, Plus, Check } from "lucide-react";
+import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle, Megaphone, Pin, PinOff } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { DashboardFilters, DATE_RANGE_OPTIONS } from "@/components/dashboard/DashboardFilters";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
-import { DashboardDrillDown } from "@/components/dashboard/DashboardDrillDown";
 import { PinnedReports } from "@/components/dashboard/PinnedReports";
-import { DASHBOARD_WIDGETS, DEFAULT_DASHBOARDS, loadDashboardTabs, saveDashboardTabs, type DashboardTab } from "@/lib/dashboardTabs";
+import {
+  DEFAULT_DASHBOARDS, loadDashboardTabs, loadPinnedFilters, savePinnedFilters,
+  clearPinnedFilters, type DashboardTab,
+} from "@/lib/dashboardTabs";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -97,43 +98,47 @@ const Index = () => {
   const [customEnd, setCustomEnd] = useState(format(new Date(), "yyyy-MM-dd"));
   const [dashboards, setDashboards] = useState<DashboardTab[]>(DEFAULT_DASHBOARDS);
   const [selectedDashboard, setSelectedDashboard] = useState(DEFAULT_DASHBOARDS[0].id);
-  const [dashboardName, setDashboardName] = useState(DEFAULT_DASHBOARDS[0].name);
-  const [drillDown, setDrillDown] = useState<{ open: boolean; kind: "invoices" | "appointments" | "patients"; title: string; records: any[] }>({
-    open: false, kind: "appointments", title: "", records: [],
-  });
+  const [hasPin, setHasPin] = useState(false);
 
   useEffect(() => {
     const tabs = loadDashboardTabs();
     setDashboards(tabs);
-    setSelectedDashboard(tabs[0].id);
-    setDashboardName(tabs[0].name);
+    const pinned = loadPinnedFilters();
+    if (pinned) {
+      setSelectedDashboard(pinned.dashboard);
+      setSelectedStaff(pinned.staff);
+      setSelectedDateRange(pinned.dateRange);
+      setSelectedService(pinned.service);
+      if (pinned.customStart) setCustomStart(pinned.customStart);
+      if (pinned.customEnd) setCustomEnd(pinned.customEnd);
+      setHasPin(true);
+    } else {
+      setSelectedDashboard(tabs[0].id);
+    }
   }, []);
 
   const activeDashboard = dashboards.find((d) => d.id === selectedDashboard) || dashboards[0];
   const shows = (key: string) => !!activeDashboard?.widgets.includes(key);
 
-  const pickDashboard = (id: string) => {
-    setSelectedDashboard(id);
-    setDashboardName(dashboards.find((d) => d.id === id)?.name || "");
+  const pickDashboard = (id: string) => setSelectedDashboard(id);
+
+  const pinCurrent = () => {
+    savePinnedFilters({
+      dashboard: selectedDashboard,
+      staff: selectedStaff,
+      dateRange: selectedDateRange,
+      service: selectedService,
+      customStart,
+      customEnd,
+    });
+    setHasPin(true);
+    toast.success("These filters will load every time you sign in");
   };
 
-  const renameDashboard = () => {
-    const name = dashboardName.trim();
-    if (!name) return toast.error("Dashboard name is required");
-    const next = dashboards.map((d) => (d.id === selectedDashboard ? { ...d, name } : d));
-    setDashboards(next);
-    saveDashboardTabs(next);
-    toast.success("Dashboard renamed");
-  };
-
-  const addDashboard = () => {
-    const name = dashboardName.trim() || "New Dashboard";
-    const id = `dash-${Date.now()}`;
-    const next = [...dashboards, { id, name, widgets: DASHBOARD_WIDGETS.map((w) => w.key), custom: true }];
-    setDashboards(next);
-    saveDashboardTabs(next);
-    setSelectedDashboard(id);
-    toast.success(`${name} created`);
+  const unpin = () => {
+    clearPinnedFilters();
+    setHasPin(false);
+    toast.success("Pinned filters removed");
   };
 
   const { start, end } = useMemo(
@@ -415,54 +420,46 @@ const Index = () => {
   const pendingAmount = pendingInvoices.reduce((s, inv: any) => s + (Number(inv.total_amount) - Number(inv.paid_amount)), 0);
   const dateLabel = DATE_RANGE_OPTIONS.find((o) => o.key === selectedDateRange)?.label || "Today";
 
-  // Drill-down
+  // Drill-down — opens the full explorer page in a new tab
   const openDrill = (
     kind: "invoices" | "appointments" | "patients",
     title: string,
-    records: any[]
-  ) => setDrillDown({ open: true, kind, title, records });
+    extra: Record<string, string> = {}
+  ) => {
+    const qs = new URLSearchParams({
+      kind,
+      title,
+      from: format(start, "yyyy-MM-dd"),
+      to: format(end, "yyyy-MM-dd"),
+      staff: selectedStaff,
+      service: selectedService,
+      ...extra,
+    });
+    window.open(`/dashboard-explore?${qs.toString()}`, "_blank", "noopener,noreferrer");
+  };
+
+  const staffIdByName = (name?: string) =>
+    (staffList as any[]).find((s) => `${s.first_name} ${s.last_name}` === name)?.id;
 
   const handleChartClick = (type: string, key?: string) => {
     const suffix = key ? ` — ${key}` : "";
     switch (type) {
       case "appointment_status":
-        return openDrill(
-          "appointments",
-          `Appointments — Status${suffix}`,
-          key ? filtered.filter((a: any) => a.status === key) : filtered
-        );
-      case "appointments_by_dr":
-        return openDrill(
-          "appointments",
-          `Appointments — By Staff${suffix}`,
-          key ? filtered.filter((a: any) => a._staffName === key) : filtered
-        );
-      case "revenue_by_dr":
-        return openDrill(
-          "invoices",
-          `Revenue by Doctor${suffix}`,
-          key ? filteredInvoices.filter((i: any) => i._doctorName === key) : filteredInvoices
-        );
+        return openDrill("appointments", `Appointments — Status${suffix}`, key ? { status: key } : {});
+      case "appointments_by_dr": {
+        const id = staffIdByName(key);
+        return openDrill("appointments", `Appointments — By Doctor${suffix}`, id ? { staff: id } : {});
+      }
+      case "revenue_by_dr": {
+        const id = staffIdByName(key);
+        return openDrill("invoices", `Revenue by Doctor${suffix}`, id ? { staff: id } : {});
+      }
       case "revenue_by_problem_area":
-        return openDrill(
-          "invoices",
-          `Revenue by Primary Concern${suffix}`,
-          key
-            ? filteredInvoices.filter((i: any) =>
-                key === "Unspecified" ? !i._areas?.length : i._areas?.includes(key)
-              )
-            : filteredInvoices
-        );
+        return openDrill("invoices", `Revenue by Primary Concern${suffix}`);
       case "revenue_by_payment_mode":
-        return openDrill(
-          "invoices",
-          `Revenue by Payment Mode${suffix}`,
-          key
-            ? filteredInvoices.filter((i: any) => (i.payment_mode || "Unspecified") === key)
-            : filteredInvoices
-        );
+        return openDrill("invoices", `Revenue by Payment Mode${suffix}`);
       default:
-        return openDrill("invoices", "Revenue — Detail", filteredInvoices);
+        return openDrill("invoices", "Revenue — Detail");
     }
   };
 
@@ -499,18 +496,14 @@ const Index = () => {
       )}
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <Input
-          value={dashboardName}
-          onChange={(e) => setDashboardName(e.target.value)}
-          placeholder="Dashboard name"
-          className="h-8 w-[220px] text-xs"
-        />
-        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={renameDashboard}>
-          <Check className="h-3 w-3" /> Save name
+        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={pinCurrent}>
+          <Pin className="h-3 w-3" /> Pin these filters
         </Button>
-        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={addDashboard}>
-          <Plus className="h-3 w-3" /> New dashboard
-        </Button>
+        {hasPin && (
+          <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={unpin}>
+            <PinOff className="h-3 w-3" /> Remove pin
+          </Button>
+        )}
       </div>
 
       <DashboardFilters
@@ -533,32 +526,34 @@ const Index = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
         {shows("appointments_total") && (
-          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Total Appointments — ${dateLabel}`, filtered)}>
+          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Total Appointments — ${dateLabel}`)}>
             <StatCard title="Total Appointments" value={filtered.length} change={dateLabel} changeType="neutral" icon={Calendar} iconColor="bg-info/10 text-info" delay={0} />
           </div>
         )}
         {shows("appointments_confirmed") && (
-          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Confirmed Appointments — ${dateLabel}`, confirmedAppts)}>
+          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Confirmed Appointments — ${dateLabel}`, { status: "Confirmed" })}>
             <StatCard title="Confirmed Appointments" value={confirmedAppts.length} change={`${scheduledCount} scheduled • ${dateLabel}`} changeType="neutral" icon={ClipboardList} iconColor="bg-primary/10 text-primary" delay={0.05} />
           </div>
         )}
         {shows("appointments_completed") && (
-          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Completed Appointments — ${dateLabel}`, completedAppts)}>
+          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Completed Appointments — ${dateLabel}`, { status: "Completed" })}>
             <StatCard title="Completed Appointments" value={completedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} />
           </div>
         )}
         {shows("new_patients") && (
-          <div className="cursor-pointer" onClick={() => openDrill("patients", `New Patients — ${dateLabel}`, newPatientsRaw as any[])}>
+          <div className="cursor-pointer" onClick={() => openDrill("patients", `New Patients — ${dateLabel}`)}>
             <StatCard title="New Patients Added" value={newPatients.count} change={dateLabel} changeType="neutral" icon={Users} delay={0.15} />
           </div>
         )}
         {shows("revenue") && (
-          <div className="cursor-pointer" onClick={() => openDrill("invoices", `Revenue — ${dateLabel}`, filteredInvoices)}>
+          <div className="cursor-pointer" onClick={() => openDrill("invoices", `Revenue — ${dateLabel}`)}>
             <StatCard title="Revenue" value={`₹${paidRevenue.toLocaleString()}`} change={`of ₹${invoicedRevenue.toLocaleString()} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.2} />
           </div>
         )}
         {shows("total_patients") && (
-          <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.22} />
+          <div className="cursor-pointer" onClick={() => openDrill("patients", "Total Patients", { from: "", to: "" })}>
+            <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.22} />
+          </div>
         )}
         {shows("staff_present") && (
           <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.24} />
@@ -583,13 +578,6 @@ const Index = () => {
       {shows("charts") && <DashboardCharts data={chartData} onChartClick={handleChartClick} />}
 
 
-      <DashboardDrillDown
-        open={drillDown.open}
-        onOpenChange={(open) => setDrillDown((p) => ({ ...p, open }))}
-        title={drillDown.title}
-        records={drillDown.records}
-        kind={drillDown.kind}
-      />
 
       {/* Lists section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">

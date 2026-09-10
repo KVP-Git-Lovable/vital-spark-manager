@@ -32,6 +32,7 @@ const ReportView = lazyWithReload(() => import("./pages/ReportView"));
 const ReportConfigurator = lazyWithReload(() => import("./pages/ReportConfigurator"));
 const Dashboards = lazyWithReload(() => import("./pages/Dashboards"));
 const DashboardView = lazyWithReload(() => import("./pages/DashboardView"));
+const DashboardExplore = lazyWithReload(() => import("./pages/DashboardExplore"));
 const Procedures = lazyWithReload(() => import("./pages/Procedures"));
 const ProcedureNew = lazyWithReload(() => import("./pages/ProcedureNew"));
 const Pharma = lazyWithReload(() => import("./pages/Pharma"));
@@ -198,6 +199,7 @@ const App = () => (
                     <Route path="/report-builder" element={<ProtectedRoute moduleKey="report_builder"><ReportConfigurator /></ProtectedRoute>} />
                     <Route path="/dashboards" element={<ProtectedRoute moduleKey="reports"><Dashboards /></ProtectedRoute>} />
                     <Route path="/dashboards/:id" element={<ProtectedRoute moduleKey="reports"><DashboardView /></ProtectedRoute>} />
+                    <Route path="/dashboard-explore" element={<ProtectedRoute moduleKey="dashboard"><DashboardExplore /></ProtectedRoute>} />
                     <Route path="/campaigns" element={<ProtectedRoute moduleKey="campaigns"><Campaigns /></ProtectedRoute>} />
                     <Route path="/campaigns/:id" element={<ProtectedRoute moduleKey="campaigns"><CampaignDetail /></ProtectedRoute>} />
                     <Route path="/procedures" element={<ProtectedRoute moduleKey="procedures"><Procedures /></ProtectedRoute>} />

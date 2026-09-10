@@ -593,7 +593,9 @@ const Index = () => {
 
       {/* Lists section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+        {shows("today_appointments") && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="lg:col-span-2 data-table">
+
           <div className="p-4 md:p-5 border-b flex items-center justify-between">
             <h2 className="font-display font-semibold text-base md:text-lg">Today's Appointments</h2>
             <button onClick={() => navigate("/appointments")} className="text-xs text-primary hover:underline">View All</button>

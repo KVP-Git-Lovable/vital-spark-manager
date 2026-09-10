@@ -5,9 +5,16 @@ const corsHeaders = {
 };
 
 // Appointment confirmation template with "Confirm" / "I need to modify" /
-// "I want to cancel" quick-reply buttons. Takes 3 variables: name,
-// date+time, service.
-const TEMPLATE_SID = "HXd8f0239cce7e4bdb175ff927e4aa716d";
+// "I want to cancel" quick-reply buttons. Takes 2 variables: name and
+// date+time. The button labels are load-bearing - whatsapp-webhook matches
+// replies against that exact text - so a future revision must keep them.
+//
+// Read from the environment so the next revision is a secret change rather than
+// a deploy (Twilio cannot edit an approved template, so every reword means a new
+// id). Same shape as portal-otp-send.
+const TEMPLATE_SID =
+  Deno.env.get("TWILIO_APPOINTMENT_TEMPLATE_SID") ||
+  "HX2c965add7f2cc9d16757d594cd30f04c";
 
 function normalizePhone(phone: string): string | null {
   if (!phone) return null;
@@ -99,10 +106,12 @@ Deno.serve(async (req) => {
 
     const dateAndTime = `${dayAndDate} at ${ensureIstTime(appointmentTime)}`;
 
+    // Exactly as many variables as the template declares - Twilio rejects the
+    // send outright on a mismatch. serviceName is still accepted in the request
+    // body (callers pass it) but the template no longer names the service.
     const contentVariables = JSON.stringify({
       "1": namedPatient,
       "2": dateAndTime,
-      "3": serviceName || "Consultation",
     });
 
     const body = new URLSearchParams({

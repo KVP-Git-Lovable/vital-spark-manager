@@ -39,7 +39,7 @@ const invoiceStatusColors: Record<string, string> = {
   Pending: "bg-destructive/10 text-destructive",
 };
 
-function getDateRange(key: string): { start: Date; end: Date } {
+function getDateRange(key: string, customStart?: string, customEnd?: string): { start: Date; end: Date } {
   const now = new Date();
   switch (key) {
     case "yesterday": {
@@ -62,10 +62,26 @@ function getDateRange(key: string): { start: Date; end: Date } {
     }
     case "this_quarter":
       return { start: startOfQuarter(now), end: endOfDay(now) };
+    case "last_quarter": {
+      const q = subMonths(startOfQuarter(now), 1);
+      return { start: startOfQuarter(q), end: endOfQuarter(q) };
+    }
+    case "this_year":
+      return { start: startOfYear(now), end: endOfDay(now) };
+    case "last_year": {
+      const y = subYears(now, 1);
+      return { start: startOfYear(y), end: endOfYear(y) };
+    }
+    case "custom": {
+      const s = customStart ? startOfDay(new Date(customStart)) : startOfDay(now);
+      const e = customEnd ? endOfDay(new Date(customEnd)) : endOfDay(now);
+      return { start: s, end: e < s ? endOfDay(s) : e };
+    }
     default:
       return { start: startOfDay(now), end: endOfDay(now) };
   }
 }
+
 
 const Index = () => {
   const navigate = useNavigate();

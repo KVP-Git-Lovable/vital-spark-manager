@@ -215,7 +215,6 @@ export default function DashboardExplore() {
   }, [normalized, search, status, staff, service, fields]);
 
   const chartData = useMemo(() => {
-    void sliceKey;
     const map: Record<string, number> = {};
     filtered.forEach((r: any) => {
       const key = String(r[groupBy] ?? "—") || "—";
@@ -226,6 +225,44 @@ export default function DashboardExplore() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 12);
   }, [filtered, groupBy, measure]);
+
+  // Clicking a chart slice narrows the table to that group; clicking outside clears it.
+  const sliced = useMemo(() => {
+    if (!sliceKey) return filtered;
+    return filtered.filter((r: any) => (String(r[groupBy] ?? "—") || "—") === sliceKey);
+  }, [filtered, sliceKey, groupBy]);
+
+  const visibleRows = useMemo(() => {
+    if (!sort) return sliced;
+    const def = fields.find((f) => f.key === sort.key);
+    const copy = [...sliced];
+    copy.sort((a: any, b: any) => {
+      const av = a[sort.key];
+      const bv = b[sort.key];
+      if (av == null || av === "") return 1;
+      if (bv == null || bv === "") return -1;
+      let cmp: number;
+      if (def?.type === "currency" || typeof av === "number") cmp = Number(av) - Number(bv);
+      else if (def?.type === "date" || def?.type === "datetime") cmp = new Date(av).getTime() - new Date(bv).getTime();
+      else cmp = String(av).localeCompare(String(bv));
+      return sort.dir === "asc" ? cmp : -cmp;
+    });
+    return copy;
+  }, [sliced, sort, fields]);
+
+  const toggleSort = (key: string) =>
+    setSort((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return null;
+    });
+
+  const recordHref = (r: any) =>
+    kind === "appointments" ? `/appointments/${r.id}`
+      : kind === "invoices" ? `/billing?viewInvoice=${r.id}`
+      : `/patients/${r.id}`;
+
+  const openRecord = (r: any) => window.open(recordHref(r), "_blank", "noopener");
 
   const fmt = (f: FieldDef, v: any) => {
     if (v === null || v === undefined || v === "") return "—";

@@ -1,5 +1,4 @@
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
 import { fetchAppointmentsPage, type FetchAppointmentsPageParams } from "@/lib/appointmentsPage";
 
 const esc = (v: any) =>
@@ -23,24 +22,10 @@ export async function printAppointments(
     if (rows.length >= res.total || res.rows.length === 0) break;
   }
 
-  // Bill amounts live on invoices, matched by appointment.
-  const billByAppt = new Map<string, number>();
-  const ids = rows.map((r) => r.id);
-  for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await supabase
-      .from("invoices")
-      .select("appointment_id, total_amount")
-      .in("appointment_id", ids.slice(i, i + 200));
-    (data || []).forEach((inv: any) => {
-      if (inv.appointment_id) billByAppt.set(inv.appointment_id, Number(inv.total_amount || 0));
-    });
-  }
-
   const body = rows
     .map((a) => {
       const p = a.patients;
       const name = p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() : a.patient_name || "—";
-      const bill = billByAppt.get(a.id);
       return `<tr>
         <td>${esc(name)}</td>
         <td>${esc(p?.phone || "")}</td>
@@ -49,8 +34,6 @@ export async function printAppointments(
         <td>${a.start_time ? esc(format(new Date(a.start_time), "dd MMM yyyy")) : ""}</td>
         <td>${a.start_time ? esc(format(new Date(a.start_time), "hh:mm a")) : ""}</td>
         <td>${esc(a.status || "")}</td>
-        <td class="num">${bill !== undefined ? `₹${bill.toLocaleString("en-IN")}` : ""}</td>
-        <td>${esc(a.visit_status || "")}</td>
       </tr>`;
     })
     .join("");
@@ -67,13 +50,12 @@ export async function printAppointments(
   th, td { border: 1px solid #d4d4d4; padding: 4px 6px; text-align: left; }
   th { background: #f1f5f4; font-weight: 600; }
   tr { page-break-inside: avoid; }
-  td.num { text-align: right; }
   .empty { font-size: 12px; color: #666; }
 </style></head><body>
 <h1>${esc(opts.clinicName || "Appointments")}</h1>
 <div class="meta">${esc(opts.rangeLabel)} · ${rows.length} appointment(s) · printed ${esc(format(new Date(), "dd MMM yyyy, hh:mm a"))}</div>
 ${rows.length === 0 ? '<p class="empty">No appointments match the current filters.</p>' : `<table>
-<thead><tr><th>Patient</th><th>Phone</th><th>Service</th><th>Doctor</th><th>Date</th><th>Time</th><th>Status</th><th>Bill Amount</th><th>Next Visit</th></tr></thead>
+<thead><tr><th>Patient</th><th>Phone</th><th>Service</th><th>Doctor</th><th>Date</th><th>Time</th><th>Status</th></tr></thead>
 <tbody>${body}</tbody></table>`}
 </body></html>`;
 

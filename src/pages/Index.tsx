@@ -496,18 +496,14 @@ const Index = () => {
       )}
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <Input
-          value={dashboardName}
-          onChange={(e) => setDashboardName(e.target.value)}
-          placeholder="Dashboard name"
-          className="h-8 w-[220px] text-xs"
-        />
-        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={renameDashboard}>
-          <Check className="h-3 w-3" /> Save name
+        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={pinCurrent}>
+          <Pin className="h-3 w-3" /> Pin these filters
         </Button>
-        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={addDashboard}>
-          <Plus className="h-3 w-3" /> New dashboard
-        </Button>
+        {hasPin && (
+          <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={unpin}>
+            <PinOff className="h-3 w-3" /> Remove pin
+          </Button>
+        )}
       </div>
 
       <DashboardFilters

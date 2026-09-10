@@ -109,11 +109,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loadStaffProfile = async (u: User) => {
-    const { data: staffData } = await supabase
+    // Keep this select to columns that have always existed. Anything newer is looked
+    // up separately below - a failed select here returns no row, which is
+    // indistinguishable from "not a staff user" and would strip the user of every
+    // permission they have.
+    const { data: staffData, error: staffErr } = await supabase
       .from("staff")
-      .select("id, first_name, last_name, email, phone, role_id, user_roles_config(id, name, data_scope)")
+      .select("id, first_name, last_name, email, phone, role_id, user_roles_config(id, name)")
       .eq("auth_user_id", u.id)
       .maybeSingle();
+
+    if (staffErr) {
+      console.error("Failed to load staff profile", staffErr);
+    }
 
     if (!staffData) {
       setStaffProfile(null);
@@ -137,9 +145,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     setStaffProfile(profile);
 
-    // Mirrors public.has_full_data_scope() in the database: only an explicit 'own'
-    // narrows the user, so a role without the column set behaves as it always did.
-    setDataScope(role?.data_scope === "own" ? "own" : "all");
+    // Looked up on its own, and tolerant of failure: data_scope ships with a
+    // migration, so until that migration is applied the column simply isn't there.
+    // Falling back to "all" mirrors public.has_full_data_scope() - only an explicit
+    // 'own' narrows anyone - and keeps sign-in working either way.
+    let scope: DataScope = "all";
+    if (staffData.role_id) {
+      const { data: roleRow, error: scopeErr } = await supabase
+        .from("user_roles_config")
+        .select("data_scope")
+        .eq("id", staffData.role_id)
+        .maybeSingle();
+      if (scopeErr) {
+        console.warn("data_scope unavailable, defaulting to full access", scopeErr.message);
+      } else if (roleRow?.data_scope === "own") {
+        scope = "own";
+      }
+    }
+    setDataScope(scope);
 
     const admin = roleName?.toLowerCase() === "admin";
     setIsAdmin(admin);

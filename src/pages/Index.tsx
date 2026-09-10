@@ -1,21 +1,26 @@
 import { Button } from "@/components/ui/button";
-import { useState, useMemo } from "react";
-import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle, Megaphone } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useState, useMemo, useEffect } from "react";
+import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle, Megaphone, Plus, Check } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { DashboardFilters, DATE_RANGE_OPTIONS } from "@/components/dashboard/DashboardFilters";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { DashboardDrillDown } from "@/components/dashboard/DashboardDrillDown";
 import { PinnedReports } from "@/components/dashboard/PinnedReports";
+import { DASHBOARD_WIDGETS, DEFAULT_DASHBOARDS, loadDashboardTabs, saveDashboardTabs, type DashboardTab } from "@/lib/dashboardTabs";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek,
-  startOfMonth, endOfMonth, subMonths, startOfQuarter, eachDayOfInterval,
+  startOfMonth, endOfMonth, subMonths, startOfQuarter, endOfQuarter,
+  startOfYear, endOfYear, subYears, eachDayOfInterval,
   eachHourOfInterval, eachWeekOfInterval, differenceInDays,
 } from "date-fns";
 import { useNavigate } from "react-router-dom";
+
 
 // Data-heavy panels are capped so a large date range can never turn into a
 // full-table scan that the database cancels (statement timeout).

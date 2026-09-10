@@ -62,6 +62,24 @@ export function formatMoney(value: number | string | null | undefined): string {
   return `${cache.symbol}${formatNumber(n)}`;
 }
 
+/** Currency string that always shortens large amounts (Lakh/Crore or K/M),
+ *  so big figures never overflow a small card. Small amounts stay grouped. */
+export function formatMoneyCompact(value: number | string | null | undefined): string {
+  const n = typeof value === "string" ? Number(value) : value;
+  if (n == null || Number.isNaN(n)) return `${cache.symbol}0`;
+  const s = cache;
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (s.number_style === "indian") {
+    if (abs >= 1_00_00_000) return `${sign}${s.symbol}${(abs / 1_00_00_000).toFixed(2)} Cr`;
+    if (abs >= 1_00_000) return `${sign}${s.symbol}${(abs / 1_00_000).toFixed(2)} L`;
+  } else {
+    if (abs >= 1_000_000_000) return `${sign}${s.symbol}${(abs / 1_000_000_000).toFixed(2)}B`;
+    if (abs >= 1_000_000) return `${sign}${s.symbol}${(abs / 1_000_000).toFixed(2)}M`;
+  }
+  return formatMoney(n);
+}
+
 async function fetchCurrencySettings(): Promise<CurrencySettings> {
   const { data } = await supabase.from("currency_settings").select("*").maybeSingle();
   return { ...DEFAULT_CURRENCY_SETTINGS, ...((data as any) ?? {}) };

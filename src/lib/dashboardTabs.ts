@@ -18,6 +18,7 @@ export const DASHBOARD_WIDGETS = [
   { key: "charts", label: "Charts" },
   { key: "today_appointments", label: "Today's Appointments" },
   { key: "pending_invoices", label: "Pending Invoices" },
+  { key: "revenue_by_service", label: "Revenue by Service" },
 ];
 
 /** Dashboards are defined here (driven from the prompt), never edited in the UI. */
@@ -32,14 +33,13 @@ export const DEFAULT_DASHBOARDS: DashboardTab[] = [
       "revenue",
       "pinned_reports",
       "charts",
-      "today_appointments",
-      "pending_invoices",
+      "revenue_by_service",
     ],
   },
   {
     id: "patient360",
     name: "Patient 360 Dashboard",
-    widgets: ["new_patients", "total_patients", "today_appointments"],
+    widgets: ["new_patients", "total_patients", "today_appointments", "pending_invoices"],
   },
   {
     id: "marketing360",

@@ -98,43 +98,47 @@ const Index = () => {
   const [customEnd, setCustomEnd] = useState(format(new Date(), "yyyy-MM-dd"));
   const [dashboards, setDashboards] = useState<DashboardTab[]>(DEFAULT_DASHBOARDS);
   const [selectedDashboard, setSelectedDashboard] = useState(DEFAULT_DASHBOARDS[0].id);
-  const [dashboardName, setDashboardName] = useState(DEFAULT_DASHBOARDS[0].name);
-  const [drillDown, setDrillDown] = useState<{ open: boolean; kind: "invoices" | "appointments" | "patients"; title: string; records: any[] }>({
-    open: false, kind: "appointments", title: "", records: [],
-  });
+  const [hasPin, setHasPin] = useState(false);
 
   useEffect(() => {
     const tabs = loadDashboardTabs();
     setDashboards(tabs);
-    setSelectedDashboard(tabs[0].id);
-    setDashboardName(tabs[0].name);
+    const pinned = loadPinnedFilters();
+    if (pinned) {
+      setSelectedDashboard(pinned.dashboard);
+      setSelectedStaff(pinned.staff);
+      setSelectedDateRange(pinned.dateRange);
+      setSelectedService(pinned.service);
+      if (pinned.customStart) setCustomStart(pinned.customStart);
+      if (pinned.customEnd) setCustomEnd(pinned.customEnd);
+      setHasPin(true);
+    } else {
+      setSelectedDashboard(tabs[0].id);
+    }
   }, []);
 
   const activeDashboard = dashboards.find((d) => d.id === selectedDashboard) || dashboards[0];
   const shows = (key: string) => !!activeDashboard?.widgets.includes(key);
 
-  const pickDashboard = (id: string) => {
-    setSelectedDashboard(id);
-    setDashboardName(dashboards.find((d) => d.id === id)?.name || "");
+  const pickDashboard = (id: string) => setSelectedDashboard(id);
+
+  const pinCurrent = () => {
+    savePinnedFilters({
+      dashboard: selectedDashboard,
+      staff: selectedStaff,
+      dateRange: selectedDateRange,
+      service: selectedService,
+      customStart,
+      customEnd,
+    });
+    setHasPin(true);
+    toast.success("These filters will load every time you sign in");
   };
 
-  const renameDashboard = () => {
-    const name = dashboardName.trim();
-    if (!name) return toast.error("Dashboard name is required");
-    const next = dashboards.map((d) => (d.id === selectedDashboard ? { ...d, name } : d));
-    setDashboards(next);
-    saveDashboardTabs(next);
-    toast.success("Dashboard renamed");
-  };
-
-  const addDashboard = () => {
-    const name = dashboardName.trim() || "New Dashboard";
-    const id = `dash-${Date.now()}`;
-    const next = [...dashboards, { id, name, widgets: DASHBOARD_WIDGETS.map((w) => w.key), custom: true }];
-    setDashboards(next);
-    saveDashboardTabs(next);
-    setSelectedDashboard(id);
-    toast.success(`${name} created`);
+  const unpin = () => {
+    clearPinnedFilters();
+    setHasPin(false);
+    toast.success("Pinned filters removed");
   };
 
   const { start, end } = useMemo(

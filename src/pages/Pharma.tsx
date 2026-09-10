@@ -85,7 +85,8 @@ function ToggleRow({ label, desc, checked, onChange }: { label: string; desc?: s
 
 const Pharma = () => {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState("");
+  // Seeded from ?q= so global search can hand a term to this list view
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [expiryView, setExpiryView] = useState<"near" | "expired" | null>(null);
   const [productOpen, setProductOpen] = useState(false);
   const [stockOpen, setStockOpen] = useState(false);

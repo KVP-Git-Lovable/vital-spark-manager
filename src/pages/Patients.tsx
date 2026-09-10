@@ -203,7 +203,8 @@ const Patients = () => {
 
   const patientsTableRef = useStackedTable<HTMLTableElement>();
   const navigate = useNavigate();
-  const [search, setSearch] = useState("");
+  // Seeded from ?q= so global search can hand a term to this list view
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [cameraPatient, setCameraPatient] = useState<Patient | null>(null);

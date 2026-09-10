@@ -62,7 +62,8 @@ const getProcedureDoctor = (proc: any) => {
 const Procedures = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [search, setSearch] = useState("");
+  // Seeded from ?q= so global search can hand a term to this list view
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("id"));

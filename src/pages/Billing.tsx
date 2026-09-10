@@ -389,7 +389,8 @@ const Billing = () => {
 
 
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  // Seeded from ?q= so global search can hand a term to this list view
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [paymentInv, setPaymentInv] = useState<any>(null);
   const [addPaymentAmount, setAddPaymentAmount] = useState(0);
   const [addPaymentMode, setAddPaymentMode] = useState("Cash");
@@ -3106,11 +3107,6 @@ const Billing = () => {
         </Sheet>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <StatCard title="Total Revenue" value={`₹${totalRevenue.toLocaleString()}`} change="All time" icon={IndianRupee} iconColor="bg-success/10 text-success" loading={statsLoading} />
-        <StatCard title="Pending" value={`₹${pendingAmount.toLocaleString()}`} change={`${pendingCount} invoice(s)`} icon={IndianRupee} iconColor="bg-destructive/10 text-destructive" delay={0.05} loading={statsLoading} />
-        <StatCard title="Partial Payments" value={`₹${partialAmount.toLocaleString()}`} change={`${partialCount} invoice(s)`} icon={IndianRupee} iconColor="bg-warning/10 text-warning" delay={0.1} loading={statsLoading} />
-      </div>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }} className="data-table">
         <div className="p-4 border-b flex flex-col sm:flex-row gap-3 items-center justify-between">

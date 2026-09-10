@@ -931,14 +931,14 @@ export function ProcedureFormDialog({
           {patientId && (
             <PatientToolsBar patientId={patientId} patientName={selectedPatientName} context="patient" />
           )}
-          <Tabs defaultValue="medical" className="w-full">
+          <Tabs defaultValue="procedure" className="w-full">
             <TabsList>
-              <TabsTrigger value="medical" className="gap-1.5">
-                <HeartPulse className="h-3.5 w-3.5" /> Medical Information
-              </TabsTrigger>
               <TabsTrigger value="procedure">Procedure</TabsTrigger>
               <TabsTrigger value="surveys" className="gap-1.5">
                 <ClipboardList className="h-3.5 w-3.5" /> Surveys
+              </TabsTrigger>
+              <TabsTrigger value="medical" className="gap-1.5">
+                <HeartPulse className="h-3.5 w-3.5" /> Medical Information
               </TabsTrigger>
               <TabsTrigger value="notes" className="gap-1.5">
                 <StickyNote className="h-3.5 w-3.5" /> Notes

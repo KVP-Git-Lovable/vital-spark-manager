@@ -111,10 +111,12 @@ const PINNED_FILTERS_KEY = "appointments.pinnedFilters";
 
 const DATE_PRESETS = [
   { key: "today", label: "Today" },
+  { key: "tomorrow", label: "Tomorrow" },
   { key: "yesterday", label: "Yesterday" },
   { key: "this_week", label: "This Week" },
   { key: "last_week", label: "Last Week" },
   { key: "next_week", label: "Next Week" },
+  { key: "this_month", label: "This Month" },
   { key: "specific", label: "Specific Date" },
   { key: "range", label: "Date Range" },
   { key: "all", label: "All Dates" },
@@ -225,7 +227,8 @@ const Appointments = () => {
   const [rangeTo, setRangeTo] = useState<Date | undefined>(
     pinnedInit.rangeTo ? new Date(pinnedInit.rangeTo) : undefined
   );
-  const [searchQuery, setSearchQuery] = useState("");
+  // Seeded from ?q= so global search can hand a term to this list view
+  const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [showFilters, setShowFilters] = useState(false);
 
   // Server-side pagination for the List/table view
@@ -499,10 +502,12 @@ const Appointments = () => {
     const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
     switch (preset) {
       case "today": return { start: todayStart, end: todayEnd };
+      case "tomorrow": return { start: addDays(todayStart, 1), end: addDays(todayEnd, 1) };
       case "yesterday": return { start: addDays(todayStart, -1), end: addDays(todayEnd, -1) };
       case "this_week": return { start: startOfWeek(todayStart), end: endOfWeek(todayStart) };
       case "last_week": return { start: startOfWeek(addDays(todayStart, -7)), end: endOfWeek(addDays(todayStart, -7)) };
       case "next_week": return { start: startOfWeek(addDays(todayStart, 7)), end: endOfWeek(addDays(todayStart, 7)) };
+      case "this_month": return { start: startOfMonth(todayStart), end: endOfDay(endOfMonth(todayStart)) };
       case "specific": return specificDate ? { start: startOfDay(specificDate), end: endOfDay(specificDate) } : null;
       case "range":
         if (!rangeFrom && !rangeTo) return null;
@@ -514,7 +519,20 @@ const Appointments = () => {
     }
   };
 
-  const appointmentsDateRange = getDateFilterRange(datePreset);
+  // The Day/Week/Month calendars navigate on their own (currentDate), so they
+  // must be bounded by the visible calendar window - not by the List view's
+  // Quick date preset, which previously left Week/Month empty whenever the
+  // preset (e.g. "Today") was narrower than the calendar window.
+  const calendarDateRange = useMemo(() => {
+    const dayStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+    const dayEnd = new Date(dayStart); dayEnd.setHours(23, 59, 59, 999);
+    if (view === "day") return { start: dayStart, end: dayEnd };
+    if (view === "week") return { start: startOfWeek(dayStart), end: endOfWeek(dayStart) };
+    if (view === "month") return { start: startOfWeek(startOfMonth(dayStart)), end: endOfWeek(endOfMonth(dayStart)) };
+    return null;
+  }, [view, currentDate]);
+
+  const appointmentsDateRange = view === "table" ? getDateFilterRange(datePreset) : calendarDateRange;
 
   // A saved view's filter conditions run client-side (some fields, like bill
   // amount / payment mode, only exist after joining invoices). Server-side
@@ -740,7 +758,7 @@ const Appointments = () => {
       const haystack = `${name} ${apt.patients?.phone || ""} ${apt.service || ""} ${dateTokens}`.toLowerCase();
       if (!haystack.includes(q)) return false;
     }
-    const dateRange = getDateFilterRange(datePreset);
+    const dateRange = appointmentsDateRange;
     if (dateRange && !isWithinInterval(new Date(apt.start_time), dateRange)) return false;
     return true;
   });

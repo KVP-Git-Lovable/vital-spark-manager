@@ -1,13 +1,14 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useState, useMemo, useEffect } from "react";
-import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle, Megaphone, Plus, Check } from "lucide-react";
+import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle, Megaphone, Pin, PinOff } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { DashboardFilters, DATE_RANGE_OPTIONS } from "@/components/dashboard/DashboardFilters";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
-import { DashboardDrillDown } from "@/components/dashboard/DashboardDrillDown";
 import { PinnedReports } from "@/components/dashboard/PinnedReports";
-import { DASHBOARD_WIDGETS, DEFAULT_DASHBOARDS, loadDashboardTabs, saveDashboardTabs, type DashboardTab } from "@/lib/dashboardTabs";
+import {
+  DEFAULT_DASHBOARDS, loadDashboardTabs, loadPinnedFilters, savePinnedFilters,
+  clearPinnedFilters, type DashboardTab,
+} from "@/lib/dashboardTabs";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";

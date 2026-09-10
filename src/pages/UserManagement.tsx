@@ -131,6 +131,21 @@ export default function UserManagement() {
     },
   });
 
+  const saveDataScope = useMutation({
+    mutationFn: async ({ roleId, scope }: { roleId: string; scope: "all" | "own" }) => {
+      const { error } = await supabase
+        .from("user_roles_config")
+        .update({ data_scope: scope })
+        .eq("id", roleId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-roles-config"] });
+      toast({ title: "Data access updated" });
+    },
+    onError: (e: Error) => toast({ title: "Could not update data access", description: e.message, variant: "destructive" }),
+  });
+
   const savePerms = useMutation({
     mutationFn: async () => {
       if (!dirtyPerms || !selectedRoleId) return;
@@ -476,6 +491,38 @@ export default function UserManagement() {
               {selectedRole?.name?.toLowerCase() === "admin" && (
                 <div className="mb-4 p-3 bg-muted rounded-md text-sm text-muted-foreground">
                   System Administrator has all permissions granted automatically and cannot be modified.
+                </div>
+              )}
+              {selectedRole && (
+                <div className="mb-4 rounded-md border p-3">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                      <Label className="text-sm font-medium">Data access</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
+                        The permissions below decide which modules this role can open. This decides
+                        which records they see inside them. Patients are always visible to everyone.
+                      </p>
+                    </div>
+                    <Select
+                      value={selectedRole.data_scope === "own" ? "own" : "all"}
+                      onValueChange={(v) => saveDataScope.mutate({ roleId: selectedRole.id, scope: v as "all" | "own" })}
+                      disabled={selectedRole?.name?.toLowerCase() === "admin" || saveDataScope.isPending}
+                    >
+                      <SelectTrigger className="w-64">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All records</SelectItem>
+                        <SelectItem value="own">Own records only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedRole.data_scope === "own" && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Sees only the appointments, procedures and invoices they performed or assisted
+                      on - including in Reports and Dashboards.
+                    </p>
+                  )}
                 </div>
               )}
               <Table>

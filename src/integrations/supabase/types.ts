@@ -4349,6 +4349,7 @@ export type Database = {
       user_roles_config: {
         Row: {
           created_at: string
+          data_scope: string
           description: string | null
           id: string
           is_system: boolean
@@ -4356,6 +4357,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          data_scope?: string
           description?: string | null
           id?: string
           is_system?: boolean
@@ -4363,6 +4365,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          data_scope?: string
           description?: string | null
           id?: string
           is_system?: boolean

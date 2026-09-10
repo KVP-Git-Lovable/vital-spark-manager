@@ -13,6 +13,14 @@ interface StaffProfile {
   initials: string;
 }
 
+/**
+ * How much data the signed-in user's role may see. 'own' limits appointments,
+ * procedures and invoices to the ones they performed or assisted on; patients stay
+ * visible to everyone. Enforced in the database by RLS - this is only so the UI can
+ * label and explain what is being filtered.
+ */
+export type DataScope = "all" | "own";
+
 type PermMap = Record<string, { can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }>;
 
 interface AuthContextType {
@@ -23,6 +31,7 @@ interface AuthContextType {
   staffProfile: StaffProfile | null;
   permissions: PermMap;
   isAdmin: boolean;
+  dataScope: DataScope;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -35,6 +44,7 @@ const AuthContext = createContext<AuthContextType>({
   staffProfile: null,
   permissions: {},
   isAdmin: false,
+  dataScope: "all",
   loading: true,
   signOut: async () => {},
 });
@@ -56,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
   const [permissions, setPermissions] = useState<PermMap>({});
   const [isAdmin, setIsAdmin] = useState(false);
+  const [dataScope, setDataScope] = useState<DataScope>("all");
   const [loading, setLoading] = useState(true);
 
   const loadPatientProfile = async (u: User) => {
@@ -100,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadStaffProfile = async (u: User) => {
     const { data: staffData } = await supabase
       .from("staff")
-      .select("id, first_name, last_name, email, phone, role_id, user_roles_config(id, name)")
+      .select("id, first_name, last_name, email, phone, role_id, user_roles_config(id, name, data_scope)")
       .eq("auth_user_id", u.id)
       .maybeSingle();
 
@@ -108,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStaffProfile(null);
       setPermissions({});
       setIsAdmin(false);
+      setDataScope("all");
       return;
     }
 
@@ -124,6 +136,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       initials: getInitials(staffData.first_name, staffData.last_name, staffData.email),
     };
     setStaffProfile(profile);
+
+    // Mirrors public.has_full_data_scope() in the database: only an explicit 'own'
+    // narrows the user, so a role without the column set behaves as it always did.
+    setDataScope(role?.data_scope === "own" ? "own" : "all");
 
     const admin = roleName?.toLowerCase() === "admin";
     setIsAdmin(admin);
@@ -215,7 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, patientId, patientName, staffProfile, permissions, isAdmin, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, patientId, patientName, staffProfile, permissions, isAdmin, dataScope, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

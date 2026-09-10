@@ -389,7 +389,8 @@ const Billing = () => {
 
 
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  // Seeded from ?q= so global search can hand a term to this list view
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [paymentInv, setPaymentInv] = useState<any>(null);
   const [addPaymentAmount, setAddPaymentAmount] = useState(0);
   const [addPaymentMode, setAddPaymentMode] = useState("Cash");

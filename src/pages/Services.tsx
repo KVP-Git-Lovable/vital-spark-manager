@@ -59,7 +59,8 @@ const categories = ["All", "Skin Treatment", "Injectable", "Laser Treatment", "R
 
 const Services = () => {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState("");
+  // Seeded from ?q= so global search can hand a term to this list view
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [activeCategory, setActiveCategory] = useState("All");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);

@@ -65,7 +65,8 @@ const StaffManagement = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const photoRef = useRef<HTMLInputElement>(null);
-  const [search, setSearch] = useState("");
+  // Seeded from ?q= so global search can hand a term to this list view
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [formOpen, setFormOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);

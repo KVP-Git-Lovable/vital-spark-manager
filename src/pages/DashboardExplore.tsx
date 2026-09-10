@@ -277,7 +277,7 @@ export default function DashboardExplore() {
   const cols = fields.filter((f) => visible.includes(f.key));
 
   const exportXls = () => {
-    const data = filtered.map((r: any) => {
+    const data = visibleRows.map((r: any) => {
       const o: Record<string, any> = {};
       cols.forEach((c) => { o[c.label] = c.type === "date" || c.type === "datetime" ? fmt(c, r[c.key]) : r[c.key] ?? ""; });
       return o;

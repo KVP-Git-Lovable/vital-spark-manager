@@ -184,18 +184,18 @@ const Procedures = () => {
     <div>
       <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
         <div>
-          <h1 className="page-title">Procedures</h1>
-          <p className="page-subtitle">Record consultations, procedures & prescriptions</p>
+          <h1 className="page-title">Prescriptions</h1>
+          <p className="page-subtitle">Record consultations & prescriptions</p>
         </div>
         <div className="flex gap-2 w-fit flex-wrap">
           <SalesforceSyncButton />
           <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4" />
-            Import Procedures
+            Import Prescriptions
           </Button>
           <Button className="gap-2" onClick={() => navigate("/procedures/new")}>
             <Plus className="h-4 w-4" />
-            New Procedure
+            New Prescription
           </Button>
         </div>
       </div>

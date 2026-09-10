@@ -5,6 +5,7 @@ import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getReport } from "@/lib/reportsCatalog";
 import { useAuth } from "@/hooks/useAuth";
+import { useMoneyFormat } from "@/lib/currency";
 import { ReportFilterBar, type FilterState } from "@/components/reports/ReportFilterBar";
 import { DEFAULT_REPORT_PRESET, getReportDateRange, loadReportPin } from "@/lib/reportDateRange";
 import { SortableDataTable } from "@/components/reports/SortableDataTable";
@@ -38,6 +39,7 @@ const ReportView = () => {
   const report = key ? getReport(key) : undefined;
 
   const { reportPeriodLimit } = useAuth();
+  useMoneyFormat(); // keeps currency formatting in step with admin settings
   const dayOnly = reportPeriodLimit === "day";
 
   const [filterState, setFilterState] = useState<FilterState>(() => {

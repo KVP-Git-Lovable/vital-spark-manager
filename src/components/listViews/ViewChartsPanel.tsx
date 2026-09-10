@@ -281,9 +281,6 @@ export default function ViewChartsPanel({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Close charts">
-            <X className="h-4 w-4" />
-          </Button>
         </div>
       </div>
 

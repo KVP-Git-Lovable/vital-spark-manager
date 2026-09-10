@@ -757,7 +757,7 @@ const Appointments = () => {
       const haystack = `${name} ${apt.patients?.phone || ""} ${apt.service || ""} ${dateTokens}`.toLowerCase();
       if (!haystack.includes(q)) return false;
     }
-    const dateRange = getDateFilterRange(datePreset);
+    const dateRange = appointmentsDateRange;
     if (dateRange && !isWithinInterval(new Date(apt.start_time), dateRange)) return false;
     return true;
   });

@@ -25,7 +25,7 @@ export const DASHBOARD_WIDGETS = [
 export const DEFAULT_DASHBOARDS: DashboardTab[] = [
   {
     id: "dr360",
-    name: "Dr. 360 Dashboard",
+    name: "Clinic 360 Dashboard",
     widgets: [
       "appointments_total",
       "appointments_confirmed",

@@ -19,7 +19,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { BarChart3, MoreVertical, Pencil, Plus, Trash2, X } from "lucide-react";
+import { BarChart3, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -281,9 +281,6 @@ export default function ViewChartsPanel({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Close charts">
-            <X className="h-4 w-4" />
-          </Button>
         </div>
       </div>
 

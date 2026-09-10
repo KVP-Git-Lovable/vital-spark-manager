@@ -1076,8 +1076,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       </Select>
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="min-w-0">
                       <Label>Date</Label>
                       <Input
                         type="date"
@@ -1090,7 +1090,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         }}
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-3 min-w-0">
                       <div>
                         <Label>Start</Label>
                         <TimePicker12h

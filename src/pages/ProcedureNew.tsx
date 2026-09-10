@@ -14,10 +14,10 @@ export default function ProcedureNew() {
   return (
     <div className="space-y-4">
       <Button variant="ghost" size="sm" className="gap-2" onClick={() => navigate("/procedures")}>
-        <ArrowLeft className="h-4 w-4" /> Back to Procedures
+        <ArrowLeft className="h-4 w-4" /> Back to Prescriptions
       </Button>
       <div className="page-header">
-        <h1 className="page-title">New Procedure</h1>
+        <h1 className="page-title">New Prescription</h1>
         <p className="page-subtitle">Record consultation, prescriptions & next appointment</p>
       </div>
       <ProcedureFormDialog

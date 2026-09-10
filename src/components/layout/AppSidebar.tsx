@@ -63,7 +63,7 @@ const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, moduleKey: "dashboard" },
   { title: "Patients", url: "/patients", icon: Users, moduleKey: "patients" },
   { title: "Appointments", url: "/appointments", icon: Calendar, moduleKey: "appointments" },
-  { title: "Procedures", url: "/procedures", icon: ClipboardList, moduleKey: "procedures" },
+  { title: "Prescriptions", url: "/procedures", icon: ClipboardList, moduleKey: "procedures" },
   { title: "Billing", url: "/billing", icon: Receipt, moduleKey: "billing" },
   { title: "Pharmacy", url: "/pharma", icon: Pill, moduleKey: "pharmacy" },
   { title: "Photos", url: "/photos", icon: Camera, moduleKey: "photos" },

@@ -93,7 +93,7 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
   return (
     <div
       className={cn(
-        "flex items-center gap-1.5 rounded-md border border-input bg-background px-2 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+        "flex w-full min-w-0 items-center gap-1 overflow-hidden rounded-md border border-input bg-background px-2 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
         compact ? "h-8" : "h-10",
         disabled && "cursor-not-allowed opacity-50",
         className,

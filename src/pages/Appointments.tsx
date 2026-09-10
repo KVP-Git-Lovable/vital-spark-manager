@@ -111,10 +111,12 @@ const PINNED_FILTERS_KEY = "appointments.pinnedFilters";
 
 const DATE_PRESETS = [
   { key: "today", label: "Today" },
+  { key: "tomorrow", label: "Tomorrow" },
   { key: "yesterday", label: "Yesterday" },
   { key: "this_week", label: "This Week" },
   { key: "last_week", label: "Last Week" },
   { key: "next_week", label: "Next Week" },
+  { key: "this_month", label: "This Month" },
   { key: "specific", label: "Specific Date" },
   { key: "range", label: "Date Range" },
   { key: "all", label: "All Dates" },

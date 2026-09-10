@@ -168,6 +168,7 @@ const PatientDetail = () => {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [quickApptOpen, setQuickApptOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [pendingAttachmentFile, setPendingAttachmentFile] = useState<File | null>(null);
@@ -1182,15 +1183,38 @@ const PatientDetail = () => {
         {/* Photos Tab */}
         <TabsContent value="photos">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
-            <div className="flex justify-end mb-3">
-              <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setCameraOpen(true)}>
+            <div className="flex justify-end gap-2 mb-3">
+              {/* accept="image/*" with no capture attribute is what makes a phone offer
+                  the gallery rather than jumping straight into the camera. */}
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoCapture}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 h-8 text-xs"
+                disabled={uploadingPhoto}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                <Paperclip className="h-3.5 w-3.5" /> {uploadingPhoto ? "Uploading..." : "Attach Photo"}
+              </Button>
+              <Button
+                size="sm"
+                className="gap-1.5 h-8 text-xs"
+                disabled={uploadingPhoto}
+                onClick={() => setCameraOpen(true)}
+              >
                 <Plus className="h-3.5 w-3.5" /> Take Photo
               </Button>
             </div>
             {photos.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Camera className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No photos yet. Take a photo to start documenting.</p>
+                <p className="text-sm">No photos yet. Take or attach a photo to start documenting.</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">

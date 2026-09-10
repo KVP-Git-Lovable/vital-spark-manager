@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { getReport } from "@/lib/reportsCatalog";
 import { useAuth } from "@/hooks/useAuth";
 import { ReportFilterBar, type FilterState } from "@/components/reports/ReportFilterBar";
+import { DEFAULT_REPORT_PRESET, getReportDateRange, loadReportPin } from "@/lib/reportDateRange";
 import { SortableDataTable } from "@/components/reports/SortableDataTable";
 import { ReportChart } from "@/components/reports/ReportChart";
 import NotFound from "./NotFound";
@@ -149,9 +150,13 @@ const ReportView = () => {
     let rows = rawRows as any[];
     // Select filters
     for (const f of report.filters) {
-      if (f.type !== "select") continue;
       const v = filterState.selects[f.key];
       if (!v) continue;
+      if (f.type === "doctor" || f.type === "service") {
+        if (f.matches) rows = rows.filter((r) => f.matches!(r, v));
+        continue;
+      }
+      if (f.type !== "select") continue;
       const field = f.field || f.key;
       rows = rows.filter((r) => String(r[field] ?? "") === v);
     }

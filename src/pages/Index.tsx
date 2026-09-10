@@ -624,8 +624,11 @@ const Index = () => {
             )}
           </div>
         </motion.div>
+        )}
 
+        {shows("pending_invoices") && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }} className="data-table">
+
           <div className="p-4 md:p-5 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Receipt className="h-4 w-4 text-muted-foreground" />

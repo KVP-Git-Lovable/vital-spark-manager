@@ -1124,7 +1124,7 @@ const Appointments = () => {
       // WhatsApp notification on inline status change
       try {
         if (__notify) {
-          const { phone, patientName, prevStatus, newStatus, startTime, doctorName, serviceName } = __notify;
+          const { phone, patientName, prevStatus, newStatus, startTime, serviceName } = __notify;
           const notifyStatuses = ["Confirmed", "Cancelled"];
           const changed = newStatus !== prevStatus && notifyStatuses.includes(newStatus);
           console.log("[appt-notify-inline] check", { phone, prevStatus, newStatus });
@@ -1138,8 +1138,12 @@ const Appointments = () => {
               });
               toast.success("WhatsApp cancellation sent");
             } else if (newStatus === "Confirmed") {
-              await supabase.functions.invoke("send-appointment-update-whatsapp", {
-                body: { kind: "update", phone, patientName, status: newStatus, appointmentDate: apptDate, appointmentTime: apptTime, doctorName: doctorName || "To be assigned", serviceName: serviceName || "-", patientGender: __notify.patientGender || null },
+              // Confirming sends the booking-confirmation template, not the update one.
+              // The update template renders only the time (its {{2}} is the time alone)
+              // and carries no quick-reply buttons, so a confirmation sent through it
+              // reached the patient without a date and without Confirm/Modify/Cancel.
+              await supabase.functions.invoke("send-appointment-whatsapp", {
+                body: { phone, patientName, appointmentDate: apptDate, appointmentTime: apptTime, serviceName: serviceName || "-", patientGender: __notify.patientGender || null },
               });
               toast.success("WhatsApp notification sent");
             }

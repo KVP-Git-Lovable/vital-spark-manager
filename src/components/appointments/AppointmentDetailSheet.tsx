@@ -763,19 +763,16 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
             if (nErr) { console.error("[appt-notify] cancel error", nErr); toast.error("WhatsApp notification failed"); }
             else toast.success("WhatsApp cancellation sent");
           } else if (newStatus === "Confirmed" && statusChanged) {
-            const assignedStaff = staffList.find((s: any) => s.id === newStaffId);
-            const doctorName = assignedStaff
-              ? `${assignedStaff.first_name || ""} ${assignedStaff.last_name || ""}`.trim()
-              : "To be assigned";
-            const { error: nErr } = await supabase.functions.invoke("send-appointment-update-whatsapp", {
+            // Confirming sends the booking-confirmation template, not the update one -
+            // see the matching comment in Appointments.tsx. The doctor name that used
+            // to be resolved here fed only the update template, which no longer runs
+            // on this path.
+            const { error: nErr } = await supabase.functions.invoke("send-appointment-whatsapp", {
               body: {
-                kind: "update",
                 phone,
                 patientName,
-                status: newStatus,
                 appointmentDate: apptDate,
                 appointmentTime: apptTime,
-                doctorName,
                 serviceName: editService || "-",
                 patientGender: (appointment as any)?.patients?.gender || null,
               },

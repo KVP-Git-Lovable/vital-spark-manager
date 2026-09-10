@@ -227,7 +227,8 @@ const Appointments = () => {
   const [rangeTo, setRangeTo] = useState<Date | undefined>(
     pinnedInit.rangeTo ? new Date(pinnedInit.rangeTo) : undefined
   );
-  const [searchQuery, setSearchQuery] = useState("");
+  // Seeded from ?q= so global search can hand a term to this list view
+  const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [showFilters, setShowFilters] = useState(false);
 
   // Server-side pagination for the List/table view

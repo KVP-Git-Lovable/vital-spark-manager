@@ -501,10 +501,12 @@ const Appointments = () => {
     const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
     switch (preset) {
       case "today": return { start: todayStart, end: todayEnd };
+      case "tomorrow": return { start: addDays(todayStart, 1), end: addDays(todayEnd, 1) };
       case "yesterday": return { start: addDays(todayStart, -1), end: addDays(todayEnd, -1) };
       case "this_week": return { start: startOfWeek(todayStart), end: endOfWeek(todayStart) };
       case "last_week": return { start: startOfWeek(addDays(todayStart, -7)), end: endOfWeek(addDays(todayStart, -7)) };
       case "next_week": return { start: startOfWeek(addDays(todayStart, 7)), end: endOfWeek(addDays(todayStart, 7)) };
+      case "this_month": return { start: startOfMonth(todayStart), end: endOfDay(endOfMonth(todayStart)) };
       case "specific": return specificDate ? { start: startOfDay(specificDate), end: endOfDay(specificDate) } : null;
       case "range":
         if (!rangeFrom && !rangeTo) return null;

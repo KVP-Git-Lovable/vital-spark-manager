@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReportFilterBar, type FilterState } from "./ReportFilterBar";
 import type { ReportFilterDef } from "@/lib/reportsCatalog";
 
@@ -17,8 +18,9 @@ function Harness({ singleDay }: { singleDay: boolean }) {
     dateTo: singleDay ? DAY : undefined,
     selects: {},
   });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return (
-    <>
+    <QueryClientProvider client={client}>
       <ReportFilterBar filters={FILTERS} state={state} onChange={setState} singleDay={singleDay} />
       <output data-testid="out">
         {JSON.stringify({
@@ -27,7 +29,7 @@ function Harness({ singleDay }: { singleDay: boolean }) {
           search: state.search,
         })}
       </output>
-    </>
+    </QueryClientProvider>
   );
 }
 

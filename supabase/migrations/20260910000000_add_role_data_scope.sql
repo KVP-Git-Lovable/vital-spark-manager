@@ -28,7 +28,7 @@ COMMENT ON COLUMN public.user_roles_config.data_scope IS
 
 -- 2. Helpers ----------------------------------------------------------------------
 -- SECURITY DEFINER so the policies below can read staff / user_roles_config without
--- being subject to those tables'' own RLS (which would recurse).
+-- being subject to those tables' own RLS (which would recurse).
 
 CREATE OR REPLACE FUNCTION public.current_staff_id()
 RETURNS uuid
@@ -40,7 +40,7 @@ AS $$
   SELECT id FROM public.staff WHERE auth_user_id = auth.uid() LIMIT 1;
 $$;
 
--- True unless the caller''s role explicitly says 'own'. Defaulting to true keeps this
+-- True unless the caller's role explicitly says 'own'. Defaulting to true keeps this
 -- migration purely additive: anyone without a staff row or without a role behaves
 -- exactly as they did before, and only roles deliberately set to 'own' are narrowed.
 CREATE OR REPLACE FUNCTION public.has_full_data_scope()
@@ -91,7 +91,7 @@ $$;
 -- renamed or recreated. They target `authenticated` only.
 --
 -- INSERT is left alone throughout: the point is who can SEE and CHANGE a record, not
--- who may create one (a doctor may well book on a colleague''s behalf). UPDATE and
+-- who may create one (a doctor may well book on a colleague's behalf). UPDATE and
 -- DELETE are scoped alongside SELECT, because a row you cannot see is not a row you
 -- should be able to edit or remove. UPDATE carries WITH CHECK (true) so that only
 -- visibility is enforced, never the value being written.

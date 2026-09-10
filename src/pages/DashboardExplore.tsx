@@ -414,28 +414,85 @@ export default function DashboardExplore() {
           </Select>
         </div>
         {chartType !== "none" && chartData.length > 0 && (
-          <ResponsiveContainer width="100%" height={280}>
-            {chartType === "pie" ? (
-              <PieChart>
-                <Pie data={chartData} dataKey="value" nameKey="name" outerRadius={100} label>
-                  {chartData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                </Pie>
-                <Tooltip /><Legend />
-              </PieChart>
-            ) : chartType === "line" ? (
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
-                <Tooltip /><Line type="monotone" dataKey="value" stroke={CHART_COLORS[0]} strokeWidth={2} />
-              </LineChart>
-            ) : (
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
-                <Tooltip /><Bar dataKey="value" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            )}
-          </ResponsiveContainer>
+          <div onClick={() => setSliceKey(null)}>
+            <ResponsiveContainer width="100%" height={280}>
+              {chartType === "pie" ? (
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    dataKey="value"
+                    nameKey="name"
+                    outerRadius={100}
+                    label
+                    onClick={(d: any, i: number) => {
+                      const name = d?.name ?? chartData[i]?.name;
+                      setSliceKey((prev) => (prev === name ? null : name));
+                    }}
+                  >
+                    {chartData.map((d, i) => (
+                      <Cell
+                        key={i}
+                        fill={CHART_COLORS[i % CHART_COLORS.length]}
+                        opacity={sliceKey && sliceKey !== d.name ? 0.35 : 1}
+                        className="cursor-pointer"
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip /><Legend />
+                </PieChart>
+              ) : chartType === "line" ? (
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke={CHART_COLORS[0]}
+                    strokeWidth={2}
+                    activeDot={{
+                      onClick: (_e: any, p: any) => {
+                        const name = p?.payload?.name;
+                        setSliceKey((prev) => (prev === name ? null : name));
+                      },
+                    }}
+                  />
+                </LineChart>
+              ) : (
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar
+                    dataKey="value"
+                    fill={CHART_COLORS[0]}
+                    radius={[4, 4, 0, 0]}
+                    className="cursor-pointer"
+                    onClick={(d: any) => {
+                      const name = d?.name ?? d?.payload?.name;
+                      setSliceKey((prev) => (prev === name ? null : name));
+                    }}
+                  >
+                    {chartData.map((d, i) => (
+                      <Cell key={i} fill={CHART_COLORS[0]} opacity={sliceKey && sliceKey !== d.name ? 0.35 : 1} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        )}
+        {sliceKey && (
+          <div className="mt-2 flex items-center gap-2 text-xs print:hidden">
+            <Badge variant="secondary" className="text-[10px]">Showing: {sliceKey}</Badge>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+              onClick={() => setSliceKey(null)}
+            >
+              <X className="h-3 w-3" /> Clear selection
+            </button>
+          </div>
         )}
       </div>
 
@@ -448,23 +505,45 @@ export default function DashboardExplore() {
           </div>
         ) : isLoading ? (
           <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
-        ) : filtered.length === 0 ? (
+        ) : visibleRows.length === 0 ? (
           <div className="p-8 text-center text-sm text-muted-foreground">No records found</div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                {cols.map((c) => <TableHead key={c.key} className="text-xs whitespace-nowrap">{c.label}</TableHead>)}
+                {cols.map((c) => {
+                  const active = sort?.key === c.key;
+                  const Icon = active ? (sort?.dir === "asc" ? ArrowUp : ArrowDown) : ChevronsUpDown;
+                  return (
+                    <TableHead key={c.key} className="text-xs whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(c.key)}
+                        className={`inline-flex items-center gap-1 hover:text-foreground ${active ? "text-foreground" : ""}`}
+                        title="Sort ascending / descending / clear"
+                      >
+                        {c.label}
+                        <Icon className="h-3 w-3" />
+                      </button>
+                    </TableHead>
+                  );
+                })}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((r: any) => (
-                <TableRow key={r.id}>
-                  {cols.map((c) => (
-                    <TableCell key={c.key} className="text-xs whitespace-nowrap">
+              {visibleRows.map((r: any) => (
+                <TableRow
+                  key={r.id}
+                  className="cursor-pointer hover:bg-primary/5"
+                  onClick={() => openRecord(r)}
+                  title="Open record in a new tab"
+                >
+                  {cols.map((c, idx) => (
+                    <TableCell key={c.key} className={`text-xs whitespace-nowrap ${idx === 0 ? "text-primary font-medium" : ""}`}>
                       {c.type === "badge"
                         ? <Badge variant="secondary" className="text-[10px]">{r[c.key] || "—"}</Badge>
                         : fmt(c, r[c.key])}
+                      {idx === 0 && <ExternalLink className="inline h-3 w-3 ml-1 opacity-50" />}
                     </TableCell>
                   ))}
                 </TableRow>

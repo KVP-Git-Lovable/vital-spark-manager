@@ -3,7 +3,6 @@ export interface DashboardTab {
   id: string;
   name: string;
   widgets: string[];
-  custom?: boolean;
 }
 
 export const DASHBOARD_WIDGETS = [
@@ -21,6 +20,7 @@ export const DASHBOARD_WIDGETS = [
   { key: "pending_invoices", label: "Pending Invoices" },
 ];
 
+/** Dashboards are defined here (driven from the prompt), never edited in the UI. */
 export const DEFAULT_DASHBOARDS: DashboardTab[] = [
   {
     id: "dr360",
@@ -30,7 +30,6 @@ export const DEFAULT_DASHBOARDS: DashboardTab[] = [
       "appointments_confirmed",
       "appointments_completed",
       "revenue",
-      "staff_present",
       "pinned_reports",
       "charts",
       "today_appointments",
@@ -47,26 +46,59 @@ export const DEFAULT_DASHBOARDS: DashboardTab[] = [
     name: "Marketing 360 Dashboard",
     widgets: ["active_campaigns", "charts"],
   },
+  {
+    id: "team360",
+    name: "Team 360",
+    widgets: ["staff_present"],
+  },
 ];
 
-const KEY = "dashboard-tabs-v1";
-
+/** Old localStorage entries (including user-created dashboards) are discarded. */
 export function loadDashboardTabs(): DashboardTab[] {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return DEFAULT_DASHBOARDS;
-    const saved = JSON.parse(raw) as DashboardTab[];
-    if (!Array.isArray(saved) || saved.length === 0) return DEFAULT_DASHBOARDS;
-    return saved;
+    localStorage.removeItem("dashboard-tabs-v1");
   } catch {
-    return DEFAULT_DASHBOARDS;
+    /* ignore */
+  }
+  return DEFAULT_DASHBOARDS;
+}
+
+export interface PinnedDashboardFilters {
+  dashboard: string;
+  staff: string;
+  dateRange: string;
+  service: string;
+  customStart: string;
+  customEnd: string;
+}
+
+const PIN_KEY = "dashboard-pinned-filters-v1";
+
+export function loadPinnedFilters(): PinnedDashboardFilters | null {
+  try {
+    const raw = localStorage.getItem(PIN_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as PinnedDashboardFilters;
+    if (!p || typeof p !== "object") return null;
+    if (!DEFAULT_DASHBOARDS.some((d) => d.id === p.dashboard)) p.dashboard = DEFAULT_DASHBOARDS[0].id;
+    return p;
+  } catch {
+    return null;
   }
 }
 
-export function saveDashboardTabs(tabs: DashboardTab[]) {
+export function savePinnedFilters(p: PinnedDashboardFilters) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(tabs));
+    localStorage.setItem(PIN_KEY, JSON.stringify(p));
   } catch {
-    /* ignore storage failures */
+    /* ignore */
+  }
+}
+
+export function clearPinnedFilters() {
+  try {
+    localStorage.removeItem(PIN_KEY);
+  } catch {
+    /* ignore */
   }
 }

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import type { ReportColumn } from "@/lib/reportsCatalog";
 import { cn } from "@/lib/utils";
+import { formatMoneyCompact, formatNumber } from "@/lib/currency";
 import { useNavigate } from "react-router-dom";
 
 interface Props {
@@ -26,9 +27,9 @@ function renderCell(col: ReportColumn, row: any) {
   if (v === null || v === undefined || v === "") return <span className="text-muted-foreground">—</span>;
   switch (col.type) {
     case "currency":
-      return `₹${Number(v).toLocaleString()}`;
+      return formatMoneyCompact(Number(v));
     case "number":
-      return Number(v).toLocaleString();
+      return formatNumber(Number(v));
     case "date":
       try { return format(new Date(v), "dd MMM yyyy"); } catch { return String(v); }
     case "datetime":

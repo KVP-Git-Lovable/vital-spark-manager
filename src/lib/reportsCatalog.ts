@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { ALL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
+import { formatMoneyCompact } from "@/lib/currency";
 
 export type ColumnType = "text" | "number" | "currency" | "date" | "datetime" | "badge";
 
@@ -13,7 +14,7 @@ export interface ReportColumn {
   accessor?: (row: any) => any;
 }
 
-export type FilterType = "dateRange" | "select" | "text";
+export type FilterType = "dateRange" | "select" | "text" | "doctor" | "service";
 
 export interface ReportFilterDef {
   key: string;
@@ -25,6 +26,8 @@ export interface ReportFilterDef {
   field?: string;
   // For dateRange — should we apply server-side?
   serverDateField?: string;
+  /** For doctor/service filters — how a row is matched against the picked value */
+  matches?: (row: any, value: string) => boolean;
 }
 
 export interface ReportConfig {
@@ -131,6 +134,7 @@ export const REPORTS: ReportConfig[] = [
     ],
     filters: [
       { key: "dateRange", label: "Created", type: "dateRange", serverDateField: "created_at" },
+      { key: "doctor", label: "Doctor", type: "doctor", matches: (r, v) => String(r.doctor_id ?? "") === v },
       {
         key: "source", label: "Source", type: "select", field: "source",
         options: ["Walk-in", "Referral", "Instagram", "Facebook", "Google", "WhatsApp", "Other"].map(v => ({ value: v, label: v })),
@@ -172,6 +176,7 @@ export const REPORTS: ReportConfig[] = [
         if (to) q = q.lte("created_at", to);
         if (selects?.source) q = q.eq("source", selects.source);
         if (selects?.status) q = q.eq("status", selects.status);
+        if (selects?.doctor) q = q.eq("doctor_id", selects.doctor);
         const term = search?.trim();
         if (term) {
           const safe = term.replace(/[%,()]/g, " ");
@@ -194,6 +199,7 @@ export const REPORTS: ReportConfig[] = [
           if (to) q = q.lte("created_at", to);
           if (selects?.source) q = q.eq("source", selects.source);
           if (selects?.status) q = q.eq("status", selects.status);
+          if (selects?.doctor) q = q.eq("doctor_id", selects.doctor);
           const term = search?.trim();
           if (term) {
             const safe = term.replace(/[%,()]/g, " ");
@@ -221,6 +227,7 @@ export const REPORTS: ReportConfig[] = [
           if (to) q = q.lte("created_at", to);
           if (selects?.source) q = q.eq("source", selects.source);
           if (selects?.status) q = q.eq("status", selects.status);
+          if (selects?.doctor) q = q.eq("doctor_id", selects.doctor);
           const term = search?.trim();
           if (term) {
             const safe = term.replace(/[%,()]/g, " ");
@@ -257,7 +264,9 @@ export const REPORTS: ReportConfig[] = [
       { key: "status", label: "Status", sortable: true, type: "badge" },
     ],
     filters: [
-      { key: "dateRange", label: "Date", type: "dateRange", serverDateField: "start_time" },
+      { key: "dateRange", label: "Appointment Date", type: "dateRange", serverDateField: "start_time" },
+      { key: "doctor", label: "Doctor", type: "doctor", matches: (r, v) => String(r.staff_id ?? "") === v },
+      { key: "service", label: "Service", type: "service", matches: (r, v) => String(r.service ?? "") === v },
       { key: "status", label: "Status", type: "select", field: "status", options: STATUS_APPT.map(v => ({ value: v, label: v })) },
     ],
     searchFields: ["patient_name", "service"],
@@ -297,7 +306,15 @@ export const REPORTS: ReportConfig[] = [
       { key: "created_at", label: "Date", sortable: true, type: "date" },
     ],
     filters: [
-      { key: "dateRange", label: "Date", type: "dateRange", serverDateField: "created_at" },
+      { key: "dateRange", label: "Invoice Date", type: "dateRange", serverDateField: "created_at" },
+      { key: "doctor", label: "Doctor", type: "doctor", matches: (r, v) => String(r.doctor_id ?? "") === v },
+      {
+        key: "service", label: "Service", type: "service",
+        matches: (r, v) => {
+          const list = Array.isArray(r.services) ? r.services : [];
+          return list.some((s: any) => String(s?.name ?? s?.service ?? s ?? "") === v);
+        },
+      },
       { key: "status", label: "Status", type: "select", field: "status", options: STATUS_INV.map(v => ({ value: v, label: v })) },
       { key: "payment_mode", label: "Payment Mode", type: "select", field: "payment_mode", options: PAY_MODES.map(v => ({ value: v, label: v })) },
     ],
@@ -315,9 +332,9 @@ export const REPORTS: ReportConfig[] = [
       const paid = rows.reduce((a, r) => a + Number(r.paid_amount || 0), 0);
       return [
         { label: "Invoices", value: rows.length.toLocaleString() },
-        { label: "Total Billed", value: `₹${total.toLocaleString()}` },
-        { label: "Collected", value: `₹${paid.toLocaleString()}` },
-        { label: "Outstanding", value: `₹${(total - paid).toLocaleString()}` },
+        { label: "Total Billed", value: formatMoneyCompact(total) },
+        { label: "Collected", value: formatMoneyCompact(paid) },
+        { label: "Outstanding", value: formatMoneyCompact(total - paid) },
       ];
     },
     chart: {
@@ -340,7 +357,7 @@ export const REPORTS: ReportConfig[] = [
       { key: "payment_mode", label: "Mode", sortable: true },
     ],
     filters: [
-      { key: "dateRange", label: "Date", type: "dateRange", serverDateField: "expense_date" },
+      { key: "dateRange", label: "Expense Date", type: "dateRange", serverDateField: "expense_date" },
       { key: "payment_mode", label: "Payment Mode", type: "select", field: "payment_mode", options: PAY_MODES.map(v => ({ value: v, label: v })) },
     ],
     searchFields: ["title", "vendor_name", "description"],
@@ -356,7 +373,7 @@ export const REPORTS: ReportConfig[] = [
       const total = rows.reduce((a, r) => a + Number(r.amount || 0), 0);
       return [
         { label: "Entries", value: rows.length.toLocaleString() },
-        { label: "Total Spent", value: `₹${total.toLocaleString()}` },
+        { label: "Total Spent", value: formatMoneyCompact(total) },
       ];
     },
     chart: {
@@ -380,7 +397,7 @@ export const REPORTS: ReportConfig[] = [
       { key: "created_at", label: "Date", sortable: true, type: "date" },
     ],
     filters: [
-      { key: "dateRange", label: "Date", type: "dateRange", serverDateField: "created_at" },
+      { key: "dateRange", label: "Bill Date", type: "dateRange", serverDateField: "created_at" },
       { key: "payment_mode", label: "Payment Mode", type: "select", field: "payment_mode", options: PAY_MODES.map(v => ({ value: v, label: v })) },
     ],
     searchFields: ["bill_number", "patient_name"],
@@ -396,7 +413,7 @@ export const REPORTS: ReportConfig[] = [
       const total = rows.reduce((a, r) => a + Number(r.net_amount || 0), 0);
       return [
         { label: "Bills", value: rows.length.toLocaleString() },
-        { label: "Total", value: `₹${total.toLocaleString()}` },
+        { label: "Total", value: formatMoneyCompact(total) },
       ];
     },
     chart: {
@@ -424,15 +441,19 @@ export const REPORTS: ReportConfig[] = [
       { key: "end_date", label: "End", sortable: true, type: "date" },
     ],
     filters: [
+      { key: "dateRange", label: "Start Date", type: "dateRange", serverDateField: "start_date" },
       { key: "type", label: "Type", type: "select", field: "type", options: CAMPAIGN_TYPES.map(v => ({ value: v, label: v })) },
       { key: "status", label: "Status", type: "select", field: "status", options: CAMPAIGN_STATUS.map(v => ({ value: v, label: v })) },
     ],
     searchFields: ["name"],
     rowHref: (r) => `/campaigns/${r.id}`,
-    fetcher: async () => {
-      const campaigns = await fetchAll<any>((s, e) =>
-        supabase.from("campaigns").select("*").order("start_date", { ascending: false }).range(s, e),
-      );
+    fetcher: async ({ from, to }) => {
+      const campaigns = await fetchAll<any>((s, e) => {
+        let q = supabase.from("campaigns").select("*").order("start_date", { ascending: false }).range(s, e);
+        if (from) q = q.gte("start_date", from.slice(0, 10));
+        if (to) q = q.lte("start_date", to.slice(0, 10));
+        return q;
+      });
       // Junction-table-based metrics (distinct patients, no duplication)
       const links = await fetchAll<any>((s, e) =>
         (supabase.from("patient_campaigns") as any).select("campaign_id, patient_id").range(s, e),
@@ -468,9 +489,9 @@ export const REPORTS: ReportConfig[] = [
       const revenue = rows.reduce((a, r) => a + Number((r as any).revenue || 0), 0);
       return [
         { label: "Campaigns", value: rows.length.toLocaleString() },
-        { label: "Total Budget", value: `₹${budget.toLocaleString()}` },
-        { label: "Total Spent", value: `₹${spent.toLocaleString()}` },
-        { label: "Total Revenue", value: `₹${revenue.toLocaleString()}` },
+        { label: "Total Budget", value: formatMoneyCompact(budget) },
+        { label: "Total Spent", value: formatMoneyCompact(spent) },
+        { label: "Total Revenue", value: formatMoneyCompact(revenue) },
       ];
     },
     chart: {

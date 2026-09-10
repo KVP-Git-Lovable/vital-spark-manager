@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReportFilterBar, type FilterState } from "./ReportFilterBar";
 import type { ReportFilterDef } from "@/lib/reportsCatalog";
 
@@ -17,8 +18,9 @@ function Harness({ singleDay }: { singleDay: boolean }) {
     dateTo: singleDay ? DAY : undefined,
     selects: {},
   });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return (
-    <>
+    <QueryClientProvider client={client}>
       <ReportFilterBar filters={FILTERS} state={state} onChange={setState} singleDay={singleDay} />
       <output data-testid="out">
         {JSON.stringify({
@@ -27,7 +29,7 @@ function Harness({ singleDay }: { singleDay: boolean }) {
           search: state.search,
         })}
       </output>
-    </>
+    </QueryClientProvider>
   );
 }
 
@@ -41,10 +43,11 @@ describe("ReportFilterBar single-day mode", () => {
     expect(screen.queryByText("Created to")).not.toBeInTheDocument();
   });
 
-  it("still shows a from/to range for unrestricted accounts", () => {
+  it("shows a single period dropdown for unrestricted accounts", () => {
     render(<Harness singleDay={false} />);
-    expect(screen.getByText("Created from")).toBeInTheDocument();
-    expect(screen.getByText("Created to")).toBeInTheDocument();
+    expect(screen.getByText("Created")).toBeInTheDocument();
+    expect(screen.queryByText("Created from")).not.toBeInTheDocument();
+    expect(screen.getByText("Current Month")).toBeInTheDocument();
   });
 
   it("keeps the day selected when Clear is pressed, so the limit cannot be dropped", () => {
@@ -56,11 +59,14 @@ describe("ReportFilterBar single-day mode", () => {
     expect(out.to).toBe(DAY.toDateString());
   });
 
-  it("clears the range for unrestricted accounts", () => {
+  it("resets unrestricted accounts back to the pinned current month", () => {
     render(<Harness singleDay={false} />);
     fireEvent.change(screen.getByPlaceholderText("Search…"), { target: { value: "x" } });
     fireEvent.click(screen.getByRole("button", { name: /Clear/ }));
-    expect(read()).toMatchObject({ from: null, to: null, search: "" });
+    const out = read();
+    expect(out.search).toBe("");
+    expect(out.from).not.toBeNull();
+    expect(out.to).not.toBeNull();
   });
 
   it("moves both ends of the range together when a new day is picked", () => {

@@ -5,7 +5,9 @@ import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getReport } from "@/lib/reportsCatalog";
 import { useAuth } from "@/hooks/useAuth";
+import { useMoneyFormat } from "@/lib/currency";
 import { ReportFilterBar, type FilterState } from "@/components/reports/ReportFilterBar";
+import { DEFAULT_REPORT_PRESET, getReportDateRange, loadReportPin } from "@/lib/reportDateRange";
 import { SortableDataTable } from "@/components/reports/SortableDataTable";
 import { ReportChart } from "@/components/reports/ReportChart";
 import NotFound from "./NotFound";
@@ -37,20 +39,40 @@ const ReportView = () => {
   const report = key ? getReport(key) : undefined;
 
   const { reportPeriodLimit } = useAuth();
+  useMoneyFormat(); // keeps currency formatting in step with admin settings
   const dayOnly = reportPeriodLimit === "day";
 
-  const [filterState, setFilterState] = useState<FilterState>(() =>
-    reportPeriodLimit === "day"
-      ? { search: "", dateFrom: startOfToday(), dateTo: startOfToday(), selects: {} }
-      : { search: "", selects: {} },
-  );
+  const [filterState, setFilterState] = useState<FilterState>(() => {
+    if (reportPeriodLimit === "day") {
+      return { search: "", dateFrom: startOfToday(), dateTo: startOfToday(), selects: {} };
+    }
+    // Reports start on the pinned period (current month by default) so a first run
+    // never scans the whole history.
+    const pin = loadReportPin();
+    const preset = pin?.preset || DEFAULT_REPORT_PRESET;
+    const { start, end } = getReportDateRange(preset, pin?.customStart, pin?.customEnd);
+    return {
+      search: "",
+      datePreset: preset,
+      customStart: pin?.customStart,
+      customEnd: pin?.customEnd,
+      dateFrom: start,
+      dateTo: end,
+      selects: {
+        ...(pin?.doctor ? { doctor: pin.doctor } : {}),
+        ...(pin?.service ? { service: pin.service } : {}),
+      },
+    };
+  });
 
   // reportPeriodLimit arrives asynchronously with the staff profile, so the initial
   // state above can be built before it is known. Seed the day once it lands.
   useEffect(() => {
     if (!dayOnly) return;
     setFilterState((prev) =>
-      prev.dateFrom ? prev : { ...prev, dateFrom: startOfToday(), dateTo: startOfToday() },
+      prev.datePreset === undefined && prev.dateFrom
+        ? prev
+        : { ...prev, datePreset: undefined, dateFrom: startOfToday(), dateTo: startOfToday() },
     );
   }, [dayOnly]);
   const [page, setPage] = useState(1);
@@ -130,9 +152,13 @@ const ReportView = () => {
     let rows = rawRows as any[];
     // Select filters
     for (const f of report.filters) {
-      if (f.type !== "select") continue;
       const v = filterState.selects[f.key];
       if (!v) continue;
+      if (f.type === "doctor" || f.type === "service") {
+        if (f.matches) rows = rows.filter((r) => f.matches!(r, v));
+        continue;
+      }
+      if (f.type !== "select") continue;
       const field = f.field || f.key;
       rows = rows.filter((r) => String(r[field] ?? "") === v);
     }

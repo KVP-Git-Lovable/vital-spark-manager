@@ -1,21 +1,26 @@
 import { Button } from "@/components/ui/button";
-import { useState, useMemo } from "react";
-import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle, Megaphone } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useState, useMemo, useEffect } from "react";
+import { Users, Calendar, IndianRupee, UserCheck, Clock, Receipt, ClipboardList, AlertCircle, Megaphone, Plus, Check } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { DashboardFilters, DATE_RANGE_OPTIONS } from "@/components/dashboard/DashboardFilters";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { DashboardDrillDown } from "@/components/dashboard/DashboardDrillDown";
 import { PinnedReports } from "@/components/dashboard/PinnedReports";
+import { DASHBOARD_WIDGETS, DEFAULT_DASHBOARDS, loadDashboardTabs, saveDashboardTabs, type DashboardTab } from "@/lib/dashboardTabs";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek,
-  startOfMonth, endOfMonth, subMonths, startOfQuarter, eachDayOfInterval,
+  startOfMonth, endOfMonth, subMonths, startOfQuarter, endOfQuarter,
+  startOfYear, endOfYear, subYears, eachDayOfInterval,
   eachHourOfInterval, eachWeekOfInterval, differenceInDays,
 } from "date-fns";
 import { useNavigate } from "react-router-dom";
+
 
 // Data-heavy panels are capped so a large date range can never turn into a
 // full-table scan that the database cancels (statement timeout).
@@ -39,7 +44,7 @@ const invoiceStatusColors: Record<string, string> = {
   Pending: "bg-destructive/10 text-destructive",
 };
 
-function getDateRange(key: string): { start: Date; end: Date } {
+function getDateRange(key: string, customStart?: string, customEnd?: string): { start: Date; end: Date } {
   const now = new Date();
   switch (key) {
     case "yesterday": {
@@ -62,23 +67,82 @@ function getDateRange(key: string): { start: Date; end: Date } {
     }
     case "this_quarter":
       return { start: startOfQuarter(now), end: endOfDay(now) };
+    case "last_quarter": {
+      const q = subMonths(startOfQuarter(now), 1);
+      return { start: startOfQuarter(q), end: endOfQuarter(q) };
+    }
+    case "this_year":
+      return { start: startOfYear(now), end: endOfDay(now) };
+    case "last_year": {
+      const y = subYears(now, 1);
+      return { start: startOfYear(y), end: endOfYear(y) };
+    }
+    case "custom": {
+      const s = customStart ? startOfDay(new Date(customStart)) : startOfDay(now);
+      const e = customEnd ? endOfDay(new Date(customEnd)) : endOfDay(now);
+      return { start: s, end: e < s ? endOfDay(s) : e };
+    }
     default:
       return { start: startOfDay(now), end: endOfDay(now) };
   }
 }
+
 
 const Index = () => {
   const navigate = useNavigate();
   const [selectedStaff, setSelectedStaff] = useState("all");
   const [selectedDateRange, setSelectedDateRange] = useState("today");
   const [selectedService, setSelectedService] = useState("all");
+  const [customStart, setCustomStart] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [customEnd, setCustomEnd] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [dashboards, setDashboards] = useState<DashboardTab[]>(DEFAULT_DASHBOARDS);
+  const [selectedDashboard, setSelectedDashboard] = useState(DEFAULT_DASHBOARDS[0].id);
+  const [dashboardName, setDashboardName] = useState(DEFAULT_DASHBOARDS[0].name);
   const [drillDown, setDrillDown] = useState<{ open: boolean; kind: "invoices" | "appointments" | "patients"; title: string; records: any[] }>({
     open: false, kind: "appointments", title: "", records: [],
   });
 
-  const { start, end } = useMemo(() => getDateRange(selectedDateRange), [selectedDateRange]);
+  useEffect(() => {
+    const tabs = loadDashboardTabs();
+    setDashboards(tabs);
+    setSelectedDashboard(tabs[0].id);
+    setDashboardName(tabs[0].name);
+  }, []);
+
+  const activeDashboard = dashboards.find((d) => d.id === selectedDashboard) || dashboards[0];
+  const shows = (key: string) => !!activeDashboard?.widgets.includes(key);
+
+  const pickDashboard = (id: string) => {
+    setSelectedDashboard(id);
+    setDashboardName(dashboards.find((d) => d.id === id)?.name || "");
+  };
+
+  const renameDashboard = () => {
+    const name = dashboardName.trim();
+    if (!name) return toast.error("Dashboard name is required");
+    const next = dashboards.map((d) => (d.id === selectedDashboard ? { ...d, name } : d));
+    setDashboards(next);
+    saveDashboardTabs(next);
+    toast.success("Dashboard renamed");
+  };
+
+  const addDashboard = () => {
+    const name = dashboardName.trim() || "New Dashboard";
+    const id = `dash-${Date.now()}`;
+    const next = [...dashboards, { id, name, widgets: DASHBOARD_WIDGETS.map((w) => w.key), custom: true }];
+    setDashboards(next);
+    saveDashboardTabs(next);
+    setSelectedDashboard(id);
+    toast.success(`${name} created`);
+  };
+
+  const { start, end } = useMemo(
+    () => getDateRange(selectedDateRange, customStart, customEnd),
+    [selectedDateRange, customStart, customEnd]
+  );
   const startISO = start.toISOString();
   const endISO = end.toISOString();
+
 
   // Queries
   const { data: staffList = [] } = useQuery({
@@ -415,7 +479,7 @@ const Index = () => {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Dashboard</h1>
+        <h1 className="page-title">{activeDashboard?.name || "Dashboard"}</h1>
         <p className="page-subtitle hidden sm:block">Clinic overview for {format(new Date(), "EEEE, MMMM d")}</p>
       </div>
 
@@ -434,6 +498,21 @@ const Index = () => {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <Input
+          value={dashboardName}
+          onChange={(e) => setDashboardName(e.target.value)}
+          placeholder="Dashboard name"
+          className="h-8 w-[220px] text-xs"
+        />
+        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={renameDashboard}>
+          <Check className="h-3 w-3" /> Save name
+        </Button>
+        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={addDashboard}>
+          <Plus className="h-3 w-3" /> New dashboard
+        </Button>
+      </div>
+
       <DashboardFilters
         staffList={staffList}
         serviceList={serviceList}
@@ -443,48 +522,66 @@ const Index = () => {
         onStaffChange={setSelectedStaff}
         onDateRangeChange={setSelectedDateRange}
         onServiceChange={setSelectedService}
+        dashboards={dashboards}
+        selectedDashboard={selectedDashboard}
+        onDashboardChange={pickDashboard}
+        customStart={customStart}
+        customEnd={customEnd}
+        onCustomStartChange={setCustomStart}
+        onCustomEndChange={setCustomEnd}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
-        <div className="cursor-pointer" onClick={() => openDrill("appointments", `Total Appointments — ${dateLabel}`, filtered)}>
-          <StatCard title="Total Appointments" value={filtered.length} change={dateLabel} changeType="neutral" icon={Calendar} iconColor="bg-info/10 text-info" delay={0} />
-        </div>
-        <div className="cursor-pointer" onClick={() => openDrill("appointments", `Confirmed Appointments — ${dateLabel}`, confirmedAppts)}>
-          <StatCard title="Confirmed Appointments" value={confirmedAppts.length} change={`${scheduledCount} scheduled • ${dateLabel}`} changeType="neutral" icon={ClipboardList} iconColor="bg-primary/10 text-primary" delay={0.05} />
-        </div>
-        <div className="cursor-pointer" onClick={() => openDrill("appointments", `Completed Appointments — ${dateLabel}`, completedAppts)}>
-          <StatCard title="Completed Appointments" value={completedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} />
-        </div>
-        <div className="cursor-pointer" onClick={() => openDrill("patients", `New Patients — ${dateLabel}`, newPatientsRaw as any[])}>
-          <StatCard title="New Patients Added" value={newPatients.count} change={dateLabel} changeType="neutral" icon={Users} delay={0.15} />
-        </div>
+        {shows("appointments_total") && (
+          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Total Appointments — ${dateLabel}`, filtered)}>
+            <StatCard title="Total Appointments" value={filtered.length} change={dateLabel} changeType="neutral" icon={Calendar} iconColor="bg-info/10 text-info" delay={0} />
+          </div>
+        )}
+        {shows("appointments_confirmed") && (
+          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Confirmed Appointments — ${dateLabel}`, confirmedAppts)}>
+            <StatCard title="Confirmed Appointments" value={confirmedAppts.length} change={`${scheduledCount} scheduled • ${dateLabel}`} changeType="neutral" icon={ClipboardList} iconColor="bg-primary/10 text-primary" delay={0.05} />
+          </div>
+        )}
+        {shows("appointments_completed") && (
+          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Completed Appointments — ${dateLabel}`, completedAppts)}>
+            <StatCard title="Completed Appointments" value={completedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} />
+          </div>
+        )}
+        {shows("new_patients") && (
+          <div className="cursor-pointer" onClick={() => openDrill("patients", `New Patients — ${dateLabel}`, newPatientsRaw as any[])}>
+            <StatCard title="New Patients Added" value={newPatients.count} change={dateLabel} changeType="neutral" icon={Users} delay={0.15} />
+          </div>
+        )}
+        {shows("revenue") && (
+          <div className="cursor-pointer" onClick={() => openDrill("invoices", `Revenue — ${dateLabel}`, filteredInvoices)}>
+            <StatCard title="Revenue" value={`₹${paidRevenue.toLocaleString()}`} change={`of ₹${invoicedRevenue.toLocaleString()} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.2} />
+          </div>
+        )}
+        {shows("total_patients") && (
+          <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.22} />
+        )}
+        {shows("staff_present") && (
+          <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.24} />
+        )}
+        {shows("active_campaigns") && (
+          <div onClick={() => navigate("/campaigns")} className="cursor-pointer">
+            <StatCard
+              title="Active Campaigns"
+              value={activeCampaigns.length}
+              change={`₹${activeCampaigns.reduce((s, c: any) => s + Number(c.amount_spent || 0), 0).toLocaleString()} total spend`}
+              changeType="neutral"
+              icon={Megaphone}
+              iconColor="bg-primary/10 text-primary"
+              delay={0.2}
+            />
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-        <div className="cursor-pointer" onClick={() => openDrill("invoices", `Revenue — ${dateLabel}`, filteredInvoices)}>
-          <StatCard title="Revenue" value={`₹${paidRevenue.toLocaleString()}`} change={`of ₹${invoicedRevenue.toLocaleString()} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.2} />
-        </div>
-        <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.22} />
-        <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.24} />
-      </div>
+      {shows("pinned_reports") && <PinnedReports start={start} end={end} staffId={selectedStaff} />}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-        <div onClick={() => navigate("/campaigns")} className="cursor-pointer">
-          <StatCard
-            title="Active Campaigns"
-            value={activeCampaigns.length}
-            change={`₹${activeCampaigns.reduce((s, c: any) => s + Number(c.amount_spent || 0), 0).toLocaleString()} total spend`}
-            changeType="neutral"
-            icon={Megaphone}
-            iconColor="bg-primary/10 text-primary"
-            delay={0.2}
-          />
-        </div>
-      </div>
+      {shows("charts") && <DashboardCharts data={chartData} onChartClick={handleChartClick} />}
 
-      <PinnedReports start={start} end={end} staffId={selectedStaff} />
-
-      <DashboardCharts data={chartData} onChartClick={handleChartClick} />
 
       <DashboardDrillDown
         open={drillDown.open}
@@ -496,7 +593,9 @@ const Index = () => {
 
       {/* Lists section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+        {shows("today_appointments") && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="lg:col-span-2 data-table">
+
           <div className="p-4 md:p-5 border-b flex items-center justify-between">
             <h2 className="font-display font-semibold text-base md:text-lg">Today's Appointments</h2>
             <button onClick={() => navigate("/appointments")} className="text-xs text-primary hover:underline">View All</button>
@@ -525,8 +624,11 @@ const Index = () => {
             )}
           </div>
         </motion.div>
+        )}
 
+        {shows("pending_invoices") && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }} className="data-table">
+
           <div className="p-4 md:p-5 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Receipt className="h-4 w-4 text-muted-foreground" />
@@ -561,7 +663,9 @@ const Index = () => {
             </div>
           )}
         </motion.div>
+        )}
       </div>
+
     </div>
   );
 };

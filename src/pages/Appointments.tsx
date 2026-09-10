@@ -1008,6 +1008,7 @@ const Appointments = () => {
         totalSessions: wasRecurring
           ? generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate!).length
           : 1,
+        capturedStatus: appointmentStatus,
         newAppointmentId,
         assignSurveyTemplateId,
         fillNowSurveyTemplateId,
@@ -1017,8 +1018,10 @@ const Appointments = () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       toast.success("Appointment(s) created");
       if (data.phone) toast.info(`Patient phone: ${data.phone}`, { duration: 6000 });
-      // Send WhatsApp confirmation for any newly created appointment
-      if (data.phone && data.patientName && data.firstStartDT) {
+      // Only a Confirmed appointment is worth messaging a patient about. Bookings
+      // default to Reserved, which is a provisional hold - confirming it later goes
+      // through the status-change path below, which sends the same template.
+      if (data.phone && data.patientName && data.firstStartDT && data.capturedStatus === "Confirmed") {
         if (data.wasRecurring && data.recurrenceEndDate) {
           supabase.functions
             .invoke("send-recurring-appointment-whatsapp", {

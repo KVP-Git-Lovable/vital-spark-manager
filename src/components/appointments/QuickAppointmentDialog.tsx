@@ -128,11 +128,11 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
       toast.success("Appointment created");
       queryClient.invalidateQueries({ queryKey: ["patient-appointments", patient.id] });
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
-      // Send WhatsApp confirmation for any newly created appointment,
-      // matching the Appointments module's behavior (booking status here
-      // defaults to "Reserved", so gating this on status would silently
-      // skip the notification for the common case).
-      if (patient.phone && data) {
+      // Only a Confirmed appointment is worth messaging a patient about, matching
+      // the Appointments module. This dialog defaults to "Reserved", a provisional
+      // hold - confirming it later sends the same template from the status-change
+      // path there.
+      if (patient.phone && data && appointmentStatus === "Confirmed") {
         const patientName = `${patient.first_name} ${patient.last_name}`.trim();
         supabase.functions.invoke("send-appointment-whatsapp", {
           body: {

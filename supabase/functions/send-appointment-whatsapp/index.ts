@@ -136,17 +136,19 @@ Deno.serve(async (req) => {
     const result = await twilioRes.json();
 
     if (!twilioRes.ok) {
-      console.error("Twilio API error:", result);
+      // Naming the template here is what identifies a parameter-count mismatch,
+      // and tells us which version of this function is actually deployed.
+      console.error("Twilio API error:", { template: TEMPLATE_SID, result });
       return new Response(
         JSON.stringify({ error: "Failed to send WhatsApp message", details: result }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    console.log("WhatsApp sent:", { sid: result.sid, to: toFormatted, patientName });
+    console.log("WhatsApp sent:", { sid: result.sid, template: TEMPLATE_SID, to: toFormatted, patientName });
 
     return new Response(
-      JSON.stringify({ success: true, messageSid: result.sid }),
+      JSON.stringify({ success: true, messageSid: result.sid, templateSid: TEMPLATE_SID }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {

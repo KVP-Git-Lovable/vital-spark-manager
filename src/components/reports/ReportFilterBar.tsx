@@ -21,9 +21,15 @@ interface Props {
   state: FilterState;
   onChange: (s: FilterState) => void;
   showSearch?: boolean;
+  /**
+   * Collapse the from/to range into one date picker, for accounts limited to
+   * day-at-a-time reporting. The range is still what leaves this component - both
+   * ends are just set to the same day.
+   */
+  singleDay?: boolean;
 }
 
-export function ReportFilterBar({ filters, state, onChange, showSearch = true }: Props) {
+export function ReportFilterBar({ filters, state, onChange, showSearch = true, singleDay = false }: Props) {
   const dateRange = filters.find((f) => f.type === "dateRange");
   const selects = filters.filter((f) => f.type === "select");
 
@@ -33,8 +39,14 @@ export function ReportFilterBar({ filters, state, onChange, showSearch = true }:
     !!state.dateTo ||
     Object.values(state.selects).some((v) => v && v !== "all");
 
+  // A limited account always has a day selected, so clearing must not drop back to
+  // "any date" - that would be the whole restriction undone by one button.
   const clear = () =>
-    onChange({ search: "", dateFrom: undefined, dateTo: undefined, selects: {} });
+    onChange(
+      singleDay
+        ? { search: "", dateFrom: state.dateFrom, dateTo: state.dateTo, selects: {} }
+        : { search: "", dateFrom: undefined, dateTo: undefined, selects: {} },
+    );
 
   return (
     <div className="data-table p-3 mb-4">
@@ -55,18 +67,30 @@ export function ReportFilterBar({ filters, state, onChange, showSearch = true }:
         )}
 
         {dateRange && (
-          <>
+          singleDay ? (
             <DateField
-              label={`${dateRange.label} from`}
+              label={dateRange.label}
               value={state.dateFrom}
-              onChange={(d) => onChange({ ...state, dateFrom: d })}
+              clearable={false}
+              onChange={(d) => {
+                if (!d) return;
+                onChange({ ...state, dateFrom: d, dateTo: d });
+              }}
             />
-            <DateField
-              label={`${dateRange.label} to`}
-              value={state.dateTo}
-              onChange={(d) => onChange({ ...state, dateTo: d })}
-            />
-          </>
+          ) : (
+            <>
+              <DateField
+                label={`${dateRange.label} from`}
+                value={state.dateFrom}
+                onChange={(d) => onChange({ ...state, dateFrom: d })}
+              />
+              <DateField
+                label={`${dateRange.label} to`}
+                value={state.dateTo}
+                onChange={(d) => onChange({ ...state, dateTo: d })}
+              />
+            </>
+          )
         )}
 
         {selects.map((f) => (
@@ -99,7 +123,7 @@ export function ReportFilterBar({ filters, state, onChange, showSearch = true }:
   );
 }
 
-function DateField({ label, value, onChange }: { label: string; value?: Date; onChange: (d?: Date) => void }) {
+function DateField({ label, value, onChange, clearable = true }: { label: string; value?: Date; onChange: (d?: Date) => void; clearable?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="min-w-[140px]">
@@ -119,7 +143,7 @@ function DateField({ label, value, onChange }: { label: string; value?: Date; on
             initialFocus
             className={cn("p-3 pointer-events-auto")}
           />
-          {value && (
+          {value && clearable && (
             <div className="p-2 border-t">
               <Button size="sm" variant="ghost" className="w-full h-7 text-xs" onClick={() => { onChange(undefined); setOpen(false); }}>
                 Clear

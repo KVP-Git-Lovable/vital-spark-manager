@@ -21,6 +21,14 @@ interface StaffProfile {
  */
 export type DataScope = "all" | "own";
 
+/**
+ * Reporting date-range limit for this account. 'day' means reports may only cover a
+ * single day at a time. It hangs off the staff row, not the role, because the
+ * front-desk account shares the Admin role with a doctor who must keep full
+ * reporting. Only the Reports module is affected.
+ */
+export type ReportPeriodLimit = "none" | "day";
+
 type PermMap = Record<string, { can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }>;
 
 interface AuthContextType {
@@ -32,6 +40,7 @@ interface AuthContextType {
   permissions: PermMap;
   isAdmin: boolean;
   dataScope: DataScope;
+  reportPeriodLimit: ReportPeriodLimit;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -45,6 +54,7 @@ const AuthContext = createContext<AuthContextType>({
   permissions: {},
   isAdmin: false,
   dataScope: "all",
+  reportPeriodLimit: "none",
   loading: true,
   signOut: async () => {},
 });
@@ -67,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<PermMap>({});
   const [isAdmin, setIsAdmin] = useState(false);
   const [dataScope, setDataScope] = useState<DataScope>("all");
+  const [reportPeriodLimit, setReportPeriodLimit] = useState<ReportPeriodLimit>("none");
   const [loading, setLoading] = useState(true);
 
   const loadPatientProfile = async (u: User) => {
@@ -128,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPermissions({});
       setIsAdmin(false);
       setDataScope("all");
+      setReportPeriodLimit("none");
       return;
     }
 
@@ -163,6 +175,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     setDataScope(scope);
+
+    // Same tolerant treatment, and for the same reason: this column arrives with a
+    // migration, so it may not exist yet. Unknown means unrestricted.
+    let periodLimit: ReportPeriodLimit = "none";
+    const { data: limitRow, error: limitErr } = await supabase
+      .from("staff")
+      .select("report_period_limit")
+      .eq("id", staffData.id)
+      .maybeSingle();
+    if (limitErr) {
+      console.warn("report_period_limit unavailable, defaulting to unrestricted", limitErr.message);
+    } else if (limitRow?.report_period_limit === "day") {
+      periodLimit = "day";
+    }
+    setReportPeriodLimit(periodLimit);
 
     const admin = roleName?.toLowerCase() === "admin";
     setIsAdmin(admin);
@@ -254,7 +281,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, patientId, patientName, staffProfile, permissions, isAdmin, dataScope, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, patientId, patientName, staffProfile, permissions, isAdmin, dataScope, reportPeriodLimit, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

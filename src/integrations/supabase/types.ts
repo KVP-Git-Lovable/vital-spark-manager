@@ -3446,6 +3446,7 @@ export type Database = {
           phone: string | null
           photo_url: string | null
           role: string
+          report_period_limit: string
           role_id: string | null
           specialization: string | null
           theme_preference: string
@@ -3469,6 +3470,7 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           role: string
+          report_period_limit?: string
           role_id?: string | null
           specialization?: string | null
           theme_preference?: string
@@ -3492,6 +3494,7 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           role?: string
+          report_period_limit?: string
           role_id?: string | null
           specialization?: string | null
           theme_preference?: string

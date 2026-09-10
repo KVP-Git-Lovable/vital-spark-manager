@@ -4,10 +4,17 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { ArrowLeft, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getReport } from "@/lib/reportsCatalog";
+import { useAuth } from "@/hooks/useAuth";
 import { ReportFilterBar, type FilterState } from "@/components/reports/ReportFilterBar";
 import { SortableDataTable } from "@/components/reports/SortableDataTable";
 import { ReportChart } from "@/components/reports/ReportChart";
 import NotFound from "./NotFound";
+
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
 function toCSV(columns: { key: string; label: string; accessor?: (r: any) => any }[], rows: any[]) {
   const header = columns.map((c) => `"${c.label}"`).join(",");
@@ -29,7 +36,23 @@ const ReportView = () => {
   const { key } = useParams<{ key: string }>();
   const report = key ? getReport(key) : undefined;
 
-  const [filterState, setFilterState] = useState<FilterState>({ search: "", selects: {} });
+  const { reportPeriodLimit } = useAuth();
+  const dayOnly = reportPeriodLimit === "day";
+
+  const [filterState, setFilterState] = useState<FilterState>(() =>
+    reportPeriodLimit === "day"
+      ? { search: "", dateFrom: startOfToday(), dateTo: startOfToday(), selects: {} }
+      : { search: "", selects: {} },
+  );
+
+  // reportPeriodLimit arrives asynchronously with the staff profile, so the initial
+  // state above can be built before it is known. Seed the day once it lands.
+  useEffect(() => {
+    if (!dayOnly) return;
+    setFilterState((prev) =>
+      prev.dateFrom ? prev : { ...prev, dateFrom: startOfToday(), dateTo: startOfToday() },
+    );
+  }, [dayOnly]);
   const [page, setPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -48,9 +71,15 @@ const ReportView = () => {
 
   if (!report) return <NotFound />;
 
-  const fromIso = filterState.dateFrom ? filterState.dateFrom.toISOString() : undefined;
-  const toIso = filterState.dateTo
-    ? new Date(filterState.dateTo.getTime() + 86_400_000 - 1).toISOString()
+  // Clamp on the way into the query, not just in the picker: this window is what the
+  // fetchers (and the CSV export, which reuses these rows) actually receive, so a
+  // stale or hand-edited filter state cannot widen the range.
+  const rangeStart = dayOnly ? filterState.dateFrom ?? startOfToday() : filterState.dateFrom;
+  const rangeEnd = dayOnly ? rangeStart : filterState.dateTo;
+
+  const fromIso = rangeStart ? rangeStart.toISOString() : undefined;
+  const toIso = rangeEnd
+    ? new Date(rangeEnd.getTime() + 86_400_000 - 1).toISOString()
     : undefined;
 
   const isPaged = !!report.paged;
@@ -167,7 +196,12 @@ const ReportView = () => {
         </Button>
       </div>
 
-      <ReportFilterBar filters={report.filters} state={filterState} onChange={setFilterState} />
+      <ReportFilterBar
+        filters={report.filters}
+        state={filterState}
+        onChange={setFilterState}
+        singleDay={dayOnly}
+      />
 
       {summary.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">

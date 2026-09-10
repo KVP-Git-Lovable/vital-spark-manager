@@ -420,54 +420,46 @@ const Index = () => {
   const pendingAmount = pendingInvoices.reduce((s, inv: any) => s + (Number(inv.total_amount) - Number(inv.paid_amount)), 0);
   const dateLabel = DATE_RANGE_OPTIONS.find((o) => o.key === selectedDateRange)?.label || "Today";
 
-  // Drill-down
+  // Drill-down — opens the full explorer page in a new tab
   const openDrill = (
     kind: "invoices" | "appointments" | "patients",
     title: string,
-    records: any[]
-  ) => setDrillDown({ open: true, kind, title, records });
+    extra: Record<string, string> = {}
+  ) => {
+    const qs = new URLSearchParams({
+      kind,
+      title,
+      from: format(start, "yyyy-MM-dd"),
+      to: format(end, "yyyy-MM-dd"),
+      staff: selectedStaff,
+      service: selectedService,
+      ...extra,
+    });
+    window.open(`/dashboard-explore?${qs.toString()}`, "_blank", "noopener,noreferrer");
+  };
+
+  const staffIdByName = (name?: string) =>
+    (staffList as any[]).find((s) => `${s.first_name} ${s.last_name}` === name)?.id;
 
   const handleChartClick = (type: string, key?: string) => {
     const suffix = key ? ` — ${key}` : "";
     switch (type) {
       case "appointment_status":
-        return openDrill(
-          "appointments",
-          `Appointments — Status${suffix}`,
-          key ? filtered.filter((a: any) => a.status === key) : filtered
-        );
-      case "appointments_by_dr":
-        return openDrill(
-          "appointments",
-          `Appointments — By Staff${suffix}`,
-          key ? filtered.filter((a: any) => a._staffName === key) : filtered
-        );
-      case "revenue_by_dr":
-        return openDrill(
-          "invoices",
-          `Revenue by Doctor${suffix}`,
-          key ? filteredInvoices.filter((i: any) => i._doctorName === key) : filteredInvoices
-        );
+        return openDrill("appointments", `Appointments — Status${suffix}`, key ? { status: key } : {});
+      case "appointments_by_dr": {
+        const id = staffIdByName(key);
+        return openDrill("appointments", `Appointments — By Doctor${suffix}`, id ? { staff: id } : {});
+      }
+      case "revenue_by_dr": {
+        const id = staffIdByName(key);
+        return openDrill("invoices", `Revenue by Doctor${suffix}`, id ? { staff: id } : {});
+      }
       case "revenue_by_problem_area":
-        return openDrill(
-          "invoices",
-          `Revenue by Primary Concern${suffix}`,
-          key
-            ? filteredInvoices.filter((i: any) =>
-                key === "Unspecified" ? !i._areas?.length : i._areas?.includes(key)
-              )
-            : filteredInvoices
-        );
+        return openDrill("invoices", `Revenue by Primary Concern${suffix}`);
       case "revenue_by_payment_mode":
-        return openDrill(
-          "invoices",
-          `Revenue by Payment Mode${suffix}`,
-          key
-            ? filteredInvoices.filter((i: any) => (i.payment_mode || "Unspecified") === key)
-            : filteredInvoices
-        );
+        return openDrill("invoices", `Revenue by Payment Mode${suffix}`);
       default:
-        return openDrill("invoices", "Revenue — Detail", filteredInvoices);
+        return openDrill("invoices", "Revenue — Detail");
     }
   };
 

@@ -215,6 +215,7 @@ export default function DashboardExplore() {
   }, [normalized, search, status, staff, service, fields]);
 
   const chartData = useMemo(() => {
+    void sliceKey;
     const map: Record<string, number> = {};
     filtered.forEach((r: any) => {
       const key = String(r[groupBy] ?? "—") || "—";

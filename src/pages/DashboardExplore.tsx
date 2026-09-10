@@ -294,7 +294,7 @@ export default function DashboardExplore() {
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
           <h1 className="page-title">{title}</h1>
-          <p className="page-subtitle">{filtered.length} record{filtered.length === 1 ? "" : "s"}</p>
+          <p className="page-subtitle">{visibleRows.length} record{visibleRows.length === 1 ? "" : "s"}</p>
         </div>
         <div className="flex gap-2 print:hidden">
           <Popover>

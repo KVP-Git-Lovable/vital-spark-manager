@@ -479,7 +479,7 @@ const Index = () => {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Dashboard</h1>
+        <h1 className="page-title">{activeDashboard?.name || "Dashboard"}</h1>
         <p className="page-subtitle hidden sm:block">Clinic overview for {format(new Date(), "EEEE, MMMM d")}</p>
       </div>
 
@@ -498,6 +498,21 @@ const Index = () => {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <Input
+          value={dashboardName}
+          onChange={(e) => setDashboardName(e.target.value)}
+          placeholder="Dashboard name"
+          className="h-8 w-[220px] text-xs"
+        />
+        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={renameDashboard}>
+          <Check className="h-3 w-3" /> Save name
+        </Button>
+        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={addDashboard}>
+          <Plus className="h-3 w-3" /> New dashboard
+        </Button>
+      </div>
+
       <DashboardFilters
         staffList={staffList}
         serviceList={serviceList}
@@ -507,48 +522,66 @@ const Index = () => {
         onStaffChange={setSelectedStaff}
         onDateRangeChange={setSelectedDateRange}
         onServiceChange={setSelectedService}
+        dashboards={dashboards}
+        selectedDashboard={selectedDashboard}
+        onDashboardChange={pickDashboard}
+        customStart={customStart}
+        customEnd={customEnd}
+        onCustomStartChange={setCustomStart}
+        onCustomEndChange={setCustomEnd}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
-        <div className="cursor-pointer" onClick={() => openDrill("appointments", `Total Appointments — ${dateLabel}`, filtered)}>
-          <StatCard title="Total Appointments" value={filtered.length} change={dateLabel} changeType="neutral" icon={Calendar} iconColor="bg-info/10 text-info" delay={0} />
-        </div>
-        <div className="cursor-pointer" onClick={() => openDrill("appointments", `Confirmed Appointments — ${dateLabel}`, confirmedAppts)}>
-          <StatCard title="Confirmed Appointments" value={confirmedAppts.length} change={`${scheduledCount} scheduled • ${dateLabel}`} changeType="neutral" icon={ClipboardList} iconColor="bg-primary/10 text-primary" delay={0.05} />
-        </div>
-        <div className="cursor-pointer" onClick={() => openDrill("appointments", `Completed Appointments — ${dateLabel}`, completedAppts)}>
-          <StatCard title="Completed Appointments" value={completedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} />
-        </div>
-        <div className="cursor-pointer" onClick={() => openDrill("patients", `New Patients — ${dateLabel}`, newPatientsRaw as any[])}>
-          <StatCard title="New Patients Added" value={newPatients.count} change={dateLabel} changeType="neutral" icon={Users} delay={0.15} />
-        </div>
+        {shows("appointments_total") && (
+          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Total Appointments — ${dateLabel}`, filtered)}>
+            <StatCard title="Total Appointments" value={filtered.length} change={dateLabel} changeType="neutral" icon={Calendar} iconColor="bg-info/10 text-info" delay={0} />
+          </div>
+        )}
+        {shows("appointments_confirmed") && (
+          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Confirmed Appointments — ${dateLabel}`, confirmedAppts)}>
+            <StatCard title="Confirmed Appointments" value={confirmedAppts.length} change={`${scheduledCount} scheduled • ${dateLabel}`} changeType="neutral" icon={ClipboardList} iconColor="bg-primary/10 text-primary" delay={0.05} />
+          </div>
+        )}
+        {shows("appointments_completed") && (
+          <div className="cursor-pointer" onClick={() => openDrill("appointments", `Completed Appointments — ${dateLabel}`, completedAppts)}>
+            <StatCard title="Completed Appointments" value={completedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} />
+          </div>
+        )}
+        {shows("new_patients") && (
+          <div className="cursor-pointer" onClick={() => openDrill("patients", `New Patients — ${dateLabel}`, newPatientsRaw as any[])}>
+            <StatCard title="New Patients Added" value={newPatients.count} change={dateLabel} changeType="neutral" icon={Users} delay={0.15} />
+          </div>
+        )}
+        {shows("revenue") && (
+          <div className="cursor-pointer" onClick={() => openDrill("invoices", `Revenue — ${dateLabel}`, filteredInvoices)}>
+            <StatCard title="Revenue" value={`₹${paidRevenue.toLocaleString()}`} change={`of ₹${invoicedRevenue.toLocaleString()} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.2} />
+          </div>
+        )}
+        {shows("total_patients") && (
+          <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.22} />
+        )}
+        {shows("staff_present") && (
+          <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.24} />
+        )}
+        {shows("active_campaigns") && (
+          <div onClick={() => navigate("/campaigns")} className="cursor-pointer">
+            <StatCard
+              title="Active Campaigns"
+              value={activeCampaigns.length}
+              change={`₹${activeCampaigns.reduce((s, c: any) => s + Number(c.amount_spent || 0), 0).toLocaleString()} total spend`}
+              changeType="neutral"
+              icon={Megaphone}
+              iconColor="bg-primary/10 text-primary"
+              delay={0.2}
+            />
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-        <div className="cursor-pointer" onClick={() => openDrill("invoices", `Revenue — ${dateLabel}`, filteredInvoices)}>
-          <StatCard title="Revenue" value={`₹${paidRevenue.toLocaleString()}`} change={`of ₹${invoicedRevenue.toLocaleString()} invoiced • ${dateLabel}`} changeType="positive" icon={IndianRupee} iconColor="bg-success/10 text-success" delay={0.2} />
-        </div>
-        <StatCard title="Total Patients" value={totalPatients} change="All time" changeType="neutral" icon={Users} delay={0.22} />
-        <StatCard title="Staff Present" value={`${checkedInStaff}`} change="Today" changeType="neutral" icon={UserCheck} iconColor="bg-warning/10 text-warning" delay={0.24} />
-      </div>
+      {shows("pinned_reports") && <PinnedReports start={start} end={end} staffId={selectedStaff} />}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-        <div onClick={() => navigate("/campaigns")} className="cursor-pointer">
-          <StatCard
-            title="Active Campaigns"
-            value={activeCampaigns.length}
-            change={`₹${activeCampaigns.reduce((s, c: any) => s + Number(c.amount_spent || 0), 0).toLocaleString()} total spend`}
-            changeType="neutral"
-            icon={Megaphone}
-            iconColor="bg-primary/10 text-primary"
-            delay={0.2}
-          />
-        </div>
-      </div>
+      {shows("charts") && <DashboardCharts data={chartData} onChartClick={handleChartClick} />}
 
-      <PinnedReports start={start} end={end} staffId={selectedStaff} />
-
-      <DashboardCharts data={chartData} onChartClick={handleChartClick} />
 
       <DashboardDrillDown
         open={drillDown.open}

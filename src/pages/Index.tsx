@@ -93,13 +93,56 @@ const Index = () => {
   const [selectedStaff, setSelectedStaff] = useState("all");
   const [selectedDateRange, setSelectedDateRange] = useState("today");
   const [selectedService, setSelectedService] = useState("all");
+  const [customStart, setCustomStart] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [customEnd, setCustomEnd] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [dashboards, setDashboards] = useState<DashboardTab[]>(DEFAULT_DASHBOARDS);
+  const [selectedDashboard, setSelectedDashboard] = useState(DEFAULT_DASHBOARDS[0].id);
+  const [dashboardName, setDashboardName] = useState(DEFAULT_DASHBOARDS[0].name);
   const [drillDown, setDrillDown] = useState<{ open: boolean; kind: "invoices" | "appointments" | "patients"; title: string; records: any[] }>({
     open: false, kind: "appointments", title: "", records: [],
   });
 
-  const { start, end } = useMemo(() => getDateRange(selectedDateRange), [selectedDateRange]);
+  useEffect(() => {
+    const tabs = loadDashboardTabs();
+    setDashboards(tabs);
+    setSelectedDashboard(tabs[0].id);
+    setDashboardName(tabs[0].name);
+  }, []);
+
+  const activeDashboard = dashboards.find((d) => d.id === selectedDashboard) || dashboards[0];
+  const shows = (key: string) => !!activeDashboard?.widgets.includes(key);
+
+  const pickDashboard = (id: string) => {
+    setSelectedDashboard(id);
+    setDashboardName(dashboards.find((d) => d.id === id)?.name || "");
+  };
+
+  const renameDashboard = () => {
+    const name = dashboardName.trim();
+    if (!name) return toast.error("Dashboard name is required");
+    const next = dashboards.map((d) => (d.id === selectedDashboard ? { ...d, name } : d));
+    setDashboards(next);
+    saveDashboardTabs(next);
+    toast.success("Dashboard renamed");
+  };
+
+  const addDashboard = () => {
+    const name = dashboardName.trim() || "New Dashboard";
+    const id = `dash-${Date.now()}`;
+    const next = [...dashboards, { id, name, widgets: DASHBOARD_WIDGETS.map((w) => w.key), custom: true }];
+    setDashboards(next);
+    saveDashboardTabs(next);
+    setSelectedDashboard(id);
+    toast.success(`${name} created`);
+  };
+
+  const { start, end } = useMemo(
+    () => getDateRange(selectedDateRange, customStart, customEnd),
+    [selectedDateRange, customStart, customEnd]
+  );
   const startISO = start.toISOString();
   const endISO = end.toISOString();
+
 
   // Queries
   const { data: staffList = [] } = useQuery({

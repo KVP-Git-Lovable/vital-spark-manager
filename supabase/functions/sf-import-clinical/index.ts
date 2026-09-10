@@ -55,6 +55,40 @@ function normalize(s: string | null | undefined): string {
   return (s || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 }
 
+// Salesforce has no service-catalogue field on an appointment: Investigation__c
+// and Description__c are free clinical text ("3rx Face HR (LTB for fine hair was
+// done) last session 1/6/2026..."). Dropping that straight into a Service column
+// is what put clinical notes on the appointments list, so instead we look for a
+// real service name inside the text.
+//
+// Note the direction: bolna-book-appointment matches `%<service name>%` because
+// it is handed a short name. Here the input is the long string, so we ask which
+// service name appears INSIDE it. Longest match wins, so "Face HR" beats a short
+// name that merely occurs as a substring.
+async function buildServiceMatcher(): Promise<(text: string | null | undefined) => string | null> {
+  const { data } = await admin.from("services").select("name");
+  const names = (data || [])
+    .map((r: any) => ({ name: String(r.name || ""), key: normalize(r.name) }))
+    // 2 is deliberate, not lazy: the clinic has real two-letter services ("HR").
+    // The word-boundary check below is what keeps them safe - a single character
+    // would still be too eager ("Laser Toning C" ends in a standalone "c").
+    .filter((r) => r.key.length >= 2)
+    .sort((a, b) => b.key.length - a.key.length);
+
+  return (text) => {
+    const hay = normalize(text);
+    if (!hay) return null;
+    // normalize() has already reduced both sides to [a-z0-9 ], so padding with
+    // spaces makes a plain indexOf a word-boundary check - "hr" no longer
+    // matches inside "hydra".
+    const padded = ` ${hay} `;
+    for (const r of names) {
+      if (padded.includes(` ${r.key} `)) return r.name;
+    }
+    return null;
+  };
+}
+
 // Build doctor -> staff.id map by fuzzy name contains.
 async function buildDoctorMap(): Promise<(sfName: string | null) => string | null> {
   const { data } = await admin.from("staff").select("id, first_name, last_name");
@@ -225,6 +259,7 @@ async function existingSfIds(table: string, patientId: string): Promise<Set<stri
 async function syncPatient(
   p: Target,
   doctorFor: (n: string | null) => string | null,
+  serviceFor: (text: string | null | undefined) => string | null,
   reset: boolean,
   log: any,
   signal?: AbortSignal,
@@ -271,7 +306,9 @@ async function syncPatient(
   const apptServiceBySfId = new Map<string, string>();
   const apptDoctorBySfId = new Map<string, string>();
   appts.forEach((a) => {
-    const svc = a.Investigation__c || a.Description__c;
+    // Resolved to a real service name for the same reason as the appointment
+    // itself - this map feeds invoice and procedure service_name columns.
+    const svc = serviceFor(a.Investigation__c || a.Description__c);
     if (svc) apptServiceBySfId.set(a.Id, String(svc));
     if (a.Doctor_Name__c) apptDoctorBySfId.set(a.Id, String(a.Doctor_Name__c));
   });
@@ -289,7 +326,8 @@ async function syncPatient(
     };
     let status = statusMap[a.Appointment_Status__c] || (isFuture ? "Confirmed" : "Completed");
     if (isFuture && (status === "Completed" || status === "No Show")) status = "Confirmed";
-    const service = a.Investigation__c || a.Description__c || "Consultation";
+    const rawService = a.Investigation__c || a.Description__c;
+    const service = serviceFor(rawService) || "Consultation";
     return {
       patient_id: p.lovable_id,
       patient_name: p.name,
@@ -298,7 +336,7 @@ async function syncPatient(
       end_time: end,
       status,
       appointment_type: a.Visit_Type__c || a.Appointment_type__c || "Walk-in",
-      reason_for_consultation: `${a.Investigation__c || ""}${a.Doctor_Name__c ? ` (Dr. ${a.Doctor_Name__c})` : ""}`.trim() || null,
+      reason_for_consultation: `${rawService || ""}${a.Doctor_Name__c ? ` (Dr. ${a.Doctor_Name__c})` : ""}`.trim() || null,
       source: "salesforce",
       staff_id: doctorFor(a.Doctor_Name__c),
       sf_id: a.Id,
@@ -507,6 +545,7 @@ Deno.serve(async (req) => {
     }
 
     const doctorFor = await buildDoctorMap();
+    const serviceFor = await buildServiceMatcher();
 
     if (reset && only) {
       await admin.from("patients").update({ sf_clinical_synced_at: null }).in("id", targets.map((t) => t.lovable_id));
@@ -527,7 +566,7 @@ Deno.serve(async (req) => {
       const remainingMs = Math.max(1, deadline - Date.now());
       const patientTimeoutMs = Math.min(20_000, remainingMs);
       try {
-        await syncPatient(p, doctorFor, reset, log, AbortSignal.timeout(patientTimeoutMs), mode === "recent");
+        await syncPatient(p, doctorFor, serviceFor, reset, log, AbortSignal.timeout(patientTimeoutMs), mode === "recent");
         if (!only && mode !== "recent") {
           await admin.from("patients").update({ sf_clinical_synced_at: new Date().toISOString() }).eq("id", p.lovable_id);
         }

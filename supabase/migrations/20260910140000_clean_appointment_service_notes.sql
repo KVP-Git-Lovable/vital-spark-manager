@@ -55,14 +55,26 @@ WHERE a.source = 'salesforce'
      WHERE pg_temp.norm(s2.name) = pg_temp.norm(a.service)
   );
 
--- 1. Preserve the text before overwriting it. Most rows already carry it (the import
---    also wrote Investigation__c to reason_for_consultation), so this only catches
---    the ones sourced from Description__c, where service is its only home.
+-- 1. Preserve the text before overwriting it.
+--
+--    The test is whether the text is ALREADY in reason_for_consultation, not whether
+--    that column is empty. Emptiness is the wrong question: when Investigation__c was
+--    blank the import still wrote "(Dr. Whoever)" there, so a row whose service came
+--    from Description__c has a non-empty reason and would have been skipped - and its
+--    text destroyed by step 2, since service was its only home.
+--
+--    Where the reason already contains the text (the common case, Investigation__c
+--    having been written to both) this changes nothing. Where it holds something
+--    else, the text is prepended rather than replacing it.
 UPDATE public.appointments a
-   SET reason_for_consultation = f.old_service
+   SET reason_for_consultation = CASE
+         WHEN a.reason_for_consultation IS NULL OR btrim(a.reason_for_consultation) = ''
+           THEN f.old_service
+         ELSE f.old_service || ' ' || a.reason_for_consultation
+       END
   FROM svc_fix f
  WHERE a.id = f.id
-   AND (a.reason_for_consultation IS NULL OR btrim(a.reason_for_consultation) = '');
+   AND position(pg_temp.norm(f.old_service) IN pg_temp.norm(coalesce(a.reason_for_consultation, ''))) = 0;
 
 -- 2. Then replace the service.
 UPDATE public.appointments a

@@ -2428,7 +2428,15 @@ const Appointments = () => {
                                   </td>
                                 )}
                                 {shouldShowColumn("service") && (
-                                  <td className="p-3">{apt.service || "—"}</td>
+                                  <td className="p-3">
+                                    {/* Clamped so one long value can't set the height of the whole
+                                        row - imported data has put paragraphs in here. truncate
+                                        needs a bounded width, and max-w on the td itself is
+                                        unreliable under table layout, hence the inner block span. */}
+                                    <span className="block max-w-[240px] truncate" title={apt.service || ""}>
+                                      {apt.service || "—"}
+                                    </span>
+                                  </td>
                                 )}
                                 {shouldShowColumn("doctor") && (
                                   <td className="p-3 text-muted-foreground">{apt.staff_id ? (staffMap.get(apt.staff_id) || "—") : "—"}</td>

@@ -94,6 +94,8 @@ export default function DashboardExplore() {
   const [chartType, setChartType] = useState("bar");
   const [groupBy, setGroupBy] = useState(kind === "invoices" ? "doctor" : kind === "patients" ? "gender" : "status");
   const [measure, setMeasure] = useState(kind === "invoices" ? "total_amount" : "count");
+  const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
+  const [sliceKey, setSliceKey] = useState<string | null>(null);
 
   const { data: staffList = [] } = useQuery({
     queryKey: ["explore-staff"],

@@ -39,18 +39,37 @@ const ReportView = () => {
   const { reportPeriodLimit } = useAuth();
   const dayOnly = reportPeriodLimit === "day";
 
-  const [filterState, setFilterState] = useState<FilterState>(() =>
-    reportPeriodLimit === "day"
-      ? { search: "", dateFrom: startOfToday(), dateTo: startOfToday(), selects: {} }
-      : { search: "", selects: {} },
-  );
+  const [filterState, setFilterState] = useState<FilterState>(() => {
+    if (reportPeriodLimit === "day") {
+      return { search: "", dateFrom: startOfToday(), dateTo: startOfToday(), selects: {} };
+    }
+    // Reports start on the pinned period (current month by default) so a first run
+    // never scans the whole history.
+    const pin = loadReportPin();
+    const preset = pin?.preset || DEFAULT_REPORT_PRESET;
+    const { start, end } = getReportDateRange(preset, pin?.customStart, pin?.customEnd);
+    return {
+      search: "",
+      datePreset: preset,
+      customStart: pin?.customStart,
+      customEnd: pin?.customEnd,
+      dateFrom: start,
+      dateTo: end,
+      selects: {
+        ...(pin?.doctor ? { doctor: pin.doctor } : {}),
+        ...(pin?.service ? { service: pin.service } : {}),
+      },
+    };
+  });
 
   // reportPeriodLimit arrives asynchronously with the staff profile, so the initial
   // state above can be built before it is known. Seed the day once it lands.
   useEffect(() => {
     if (!dayOnly) return;
     setFilterState((prev) =>
-      prev.dateFrom ? prev : { ...prev, dateFrom: startOfToday(), dateTo: startOfToday() },
+      prev.datePreset === undefined && prev.dateFrom
+        ? prev
+        : { ...prev, datePreset: undefined, dateFrom: startOfToday(), dateTo: startOfToday() },
     );
   }, [dayOnly]);
   const [page, setPage] = useState(1);

@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/currency";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -53,8 +54,8 @@ export function DashboardDrillDown({ open, onOpenChange, title, records, kind }:
                   <TableCell className="text-xs">{r.patient_name || "Walk-in"}</TableCell>
                   <TableCell className="text-xs">{r._doctorName || "—"}</TableCell>
                   <TableCell className="text-xs">{r.payment_mode || "—"}</TableCell>
-                  <TableCell className="text-xs">₹{Number(r.total_amount).toLocaleString()}</TableCell>
-                  <TableCell className="text-xs">₹{Number(r.paid_amount).toLocaleString()}</TableCell>
+                  <TableCell className="text-xs">{formatMoney(Number(r.total_amount))}</TableCell>
+                  <TableCell className="text-xs">{formatMoney(Number(r.paid_amount))}</TableCell>
                   <TableCell><Badge variant="secondary" className="text-[10px]">{r.status}</Badge></TableCell>
                   <TableCell className="text-xs">{format(new Date(r.created_at), "dd MMM yyyy")}</TableCell>
                 </TableRow>

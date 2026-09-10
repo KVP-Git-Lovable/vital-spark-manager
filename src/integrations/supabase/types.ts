@@ -3445,6 +3445,7 @@ export type Database = {
           last_name: string
           phone: string | null
           photo_url: string | null
+          report_period_limit: string
           role: string
           role_id: string | null
           specialization: string | null
@@ -3468,6 +3469,7 @@ export type Database = {
           last_name: string
           phone?: string | null
           photo_url?: string | null
+          report_period_limit?: string
           role: string
           role_id?: string | null
           specialization?: string | null
@@ -3491,6 +3493,7 @@ export type Database = {
           last_name?: string
           phone?: string | null
           photo_url?: string | null
+          report_period_limit?: string
           role?: string
           role_id?: string | null
           specialization?: string | null

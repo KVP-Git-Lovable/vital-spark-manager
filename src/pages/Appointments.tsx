@@ -14,7 +14,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { applyFilters as applyListFilters, fieldDefIn, type ListDisplayMode, type ListView } from "@/lib/listViews/engine";
 import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/standardViews";
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
-import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, Pin, Printer, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, ClipboardList, Pin, Printer, Trash2 } from "lucide-react";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
 import { moveToTrash } from "@/lib/trash";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
@@ -2496,6 +2496,22 @@ const Appointments = () => {
                                   <div className="flex items-center gap-0.5">
                                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startInlineEdit(apt)}>
                                       <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      title="Add Prescription"
+                                      onClick={() => {
+                                        const params = new URLSearchParams();
+                                        params.set("appointment_id", apt.id);
+                                        if (apt.patient_id) params.set("patient_id", apt.patient_id);
+                                        if (apt.staff_id) params.set("staff_id", apt.staff_id);
+                                        if (apt.service) params.set("service", apt.service);
+                                        navigate(`/procedures/new?${params.toString()}`);
+                                      }}
+                                    >
+                                      <ClipboardList className="h-3.5 w-3.5" />
                                     </Button>
                                     <Button
                                       variant="ghost"

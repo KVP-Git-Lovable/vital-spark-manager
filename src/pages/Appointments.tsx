@@ -518,7 +518,20 @@ const Appointments = () => {
     }
   };
 
-  const appointmentsDateRange = getDateFilterRange(datePreset);
+  // The Day/Week/Month calendars navigate on their own (currentDate), so they
+  // must be bounded by the visible calendar window - not by the List view's
+  // Quick date preset, which previously left Week/Month empty whenever the
+  // preset (e.g. "Today") was narrower than the calendar window.
+  const calendarDateRange = useMemo(() => {
+    const dayStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+    const dayEnd = new Date(dayStart); dayEnd.setHours(23, 59, 59, 999);
+    if (view === "day") return { start: dayStart, end: dayEnd };
+    if (view === "week") return { start: startOfWeek(dayStart), end: endOfWeek(dayStart) };
+    if (view === "month") return { start: startOfWeek(startOfMonth(dayStart)), end: endOfWeek(endOfMonth(dayStart)) };
+    return null;
+  }, [view, currentDate]);
+
+  const appointmentsDateRange = view === "table" ? getDateFilterRange(datePreset) : calendarDateRange;
 
   // A saved view's filter conditions run client-side (some fields, like bill
   // amount / payment mode, only exist after joining invoices). Server-side

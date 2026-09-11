@@ -64,8 +64,8 @@ export function reportColumnHeader(col: ReportColumn): string {
 
 const isNumeric = (col: ReportColumn) => col.type === "currency" || col.type === "number";
 
-const LOGO_MAX_H = 60;
-const LOGO_MAX_W = 150;
+const LOGO_MAX_H = 84;
+const LOGO_MAX_W = 190;
 
 /**
  * Fit the logo inside a box rather than forcing a height: a square mark then fills
@@ -262,16 +262,21 @@ export async function buildReportPdf({ report, rows, summary, filterState, dayOn
     }
   }
 
+  // Centre the clinic details against the logo, so a tall mark does not leave the
+  // text hanging off the top of it.
+  const textBlockH = 17 + clinic.lines.length * 12;
+  const textTop = y + Math.max(0, (logoH - textBlockH) / 2);
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(17);
-  doc.text(sanitize(clinic.name), textX, y + 17);
+  doc.text(sanitize(clinic.name), textX, textTop + 17);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(90);
-  clinic.lines.forEach((line, i) => doc.text(sanitize(line), textX, y + 33 + i * 12));
+  clinic.lines.forEach((line, i) => doc.text(sanitize(line), textX, textTop + 33 + i * 12));
   doc.setTextColor(0);
 
-  y += Math.max(logoH, 33 + clinic.lines.length * 12, 46);
+  y += Math.max(logoH, textBlockH + 16, 46);
   doc.setDrawColor(200);
   doc.line(margin, y, pageWidth - margin, y);
   y += 20;

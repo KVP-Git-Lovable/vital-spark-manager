@@ -1181,6 +1181,20 @@ const Appointments = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Soft delete from the list row. The label is what the Trash screen shows for the
+  // entry, so pass the one the row already built rather than leaving it bare.
+  const deleteAppointmentMutation = useMutation({
+    mutationFn: async (target: { id: string; label: string }) => {
+      await moveToTrash("appointments", target.id, target.label);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success("Appointment moved to Trash");
+      setDeleteTarget(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const rescheduleAppointment = useMutation({
     mutationFn: async ({ id, newStart, newEnd }: { id: string; newStart: string; newEnd: string }) => {
       const { error } = await supabase.from("appointments").update({ start_time: newStart, end_time: newEnd }).eq("id", id);
@@ -2853,6 +2867,21 @@ const Appointments = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        entity={deleteTarget ? `the appointment for ${deleteTarget.label}` : "this appointment"}
+        // Billing and procedures are ON DELETE SET NULL, so they survive but come back
+        // unlinked; therapy notes and feedback are ON DELETE CASCADE and do not come
+        // back at all. Worth saying plainly on a clinical record.
+        note="Its bills and procedures are kept but will no longer be linked to it, and any therapy notes or feedback on it are removed for good."
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          // The mutation's onError already reports the failure.
+          try { await deleteAppointmentMutation.mutateAsync(deleteTarget); } catch { /* handled */ }
+        }}
+      />
     </div>
   );
 };

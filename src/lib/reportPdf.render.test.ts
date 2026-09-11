@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
+import zlib from "node:zlib";
+import type { ReportConfig } from "./reportsCatalog";
 
 /**
  * End-to-end check on the generated document. The unit tests cover the formatting
@@ -34,9 +36,9 @@ const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64",
 );
-global.fetch = vi.fn(async () => ({ ok: true, blob: async () => new Blob([PNG], { type: "image/png" }) })) as any;
+global.fetch = vi.fn(async () => new Response(PNG, { status: 200 })) as unknown as typeof fetch;
 
-const report: any = {
+const report = {
   key: "invoices",
   title: "Invoices & Revenue",
   description: "All invoices with paid and pending amounts.",
@@ -51,7 +53,7 @@ const report: any = {
     { key: "dateRange", label: "Created", type: "dateRange" },
     { key: "doctor", label: "Doctor", type: "doctor" },
   ],
-};
+} as unknown as ReportConfig;
 
 const rows = Array.from({ length: 120 }, (_, i) => ({
   invoice_number: `INV-${1000 + i}`,
@@ -61,9 +63,20 @@ const rows = Array.from({ length: 120 }, (_, i) => ({
   created_at: "2026-09-11T06:30:00.000Z",
 }));
 
+/** Every literal string the document draws, with the x it was drawn at. */
+function drawnRuns(bytes: Buffer): { x: number; text: string }[] {
+  const out: { x: number; text: string }[] = [];
+  for (const [, body] of bytes.toString("latin1").matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
+    let data = body;
+    try { data = zlib.inflateSync(Buffer.from(body, "latin1")).toString("latin1"); } catch { /* uncompressed */ }
+    for (const [, x, , t] of data.matchAll(/([\d.]+)\s+([\d.]+)\s+Td\s*\((.*?)\)\s*Tj/g))
+      out.push({ x: Number(x), text: t.replace(/\\([()])/g, "$1") });
+  }
+  return out;
+}
+
 /** Every literal string the document actually draws. */
 function drawnText(bytes: Buffer): string[] {
-  const zlib = require("node:zlib");
   const out: string[] = [];
   for (const [, body] of bytes.toString("latin1").matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
     let data = body;
@@ -113,6 +126,31 @@ describe("report PDF", () => {
     expect(text).toContain("INV-1119");
     expect(doc.getNumberOfPages()).toBeGreaterThan(1);
     expect(text).toContain(`Page ${doc.getNumberOfPages()}`);
+  });
+
+  it("right-aligns a money heading to the same edge as its figures", async () => {
+    // Regression: autoTable ignores columnStyles for head cells, which left the
+    // "Total (Rs)" heading left-aligned above right-aligned amounts.
+    const { buildReportPdf } = await import("./reportPdf");
+    const doc = await buildReportPdf({
+      report,
+      rows: [{ invoice_number: "INV-1", patient_name: "Suyog Hegde", total_amount: 1234, status: "Paid", created_at: "2026-09-11T06:30:00.000Z" }],
+      summary: [],
+      filterState: { search: "", dateFrom: new Date(2026, 8, 11), dateTo: new Date(2026, 8, 11), datePreset: "custom", selects: {} },
+      dayOnly: false,
+    });
+    const runs = drawnRuns(Buffer.from(doc.output("arraybuffer")));
+    const head = runs.find((r) => r.text === "Total (Rs)")!;
+    const value = runs.find((r) => r.text === "1,234")!;
+    expect(head).toBeTruthy();
+    expect(value).toBeTruthy();
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    const headRight = head.x + doc.getTextWidth("Total (Rs)");
+    doc.setFont("helvetica", "normal");
+    const valueRight = value.x + doc.getTextWidth("1,234");
+    expect(Math.abs(headRight - valueRight)).toBeLessThan(1);
   });
 
   it("puts no character in the file that the PDF font cannot draw", async () => {

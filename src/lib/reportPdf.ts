@@ -25,13 +25,14 @@ export function sanitize(value: unknown): string {
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
     .replace(/·/g, "-")
-    .replace(/[\u0000-\u001F\u007F]+/g, " ")
     .replace(/[^\x20-\x7E]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function cellValue(col: ReportColumn, row: any) {
+type ReportRow = Record<string, unknown>;
+
+function cellValue(col: ReportColumn, row: ReportRow) {
   return col.accessor ? col.accessor(row) : row[col.key];
 }
 
@@ -40,7 +41,7 @@ function cellValue(col: ReportColumn, row: any) {
  * the table on screen never disagree. col.render returns a ReactNode and cannot be
  * used here, so those columns fall through to the raw value.
  */
-export function reportCellText(col: ReportColumn, row: any): string {
+export function reportCellText(col: ReportColumn, row: ReportRow): string {
   const v = cellValue(col, row);
   if (v === null || v === undefined || v === "") return "-";
   switch (col.type) {
@@ -59,6 +60,23 @@ export function reportCellText(col: ReportColumn, row: any): string {
 /** Currency columns say which currency, since the values carry no symbol. */
 export function reportColumnHeader(col: ReportColumn): string {
   return col.type === "currency" ? `${col.label} (Rs)` : col.label;
+}
+
+const isNumeric = (col: ReportColumn) => col.type === "currency" || col.type === "number";
+
+/**
+ * Head cells, with the alignment set on the cell itself.
+ *
+ * autoTable applies `columnStyles` to body cells only - jspdf.plugin.autotable.mjs
+ * has `colStyles = sectionName === 'body' ? columnStyles : {}` - so a right-aligned
+ * money column would otherwise get a left-aligned heading sitting over
+ * right-aligned figures. Per-cell styles are merged last and do reach the head.
+ */
+export function pdfHeadCells(columns: ReportColumn[]) {
+  return columns.map((c) => ({
+    content: sanitize(reportColumnHeader(c)),
+    styles: isNumeric(c) ? { halign: "right" as const } : {},
+  }));
 }
 
 const presetLabel = (key?: string) =>
@@ -134,11 +152,22 @@ interface ClinicHeader {
   logo: string | null;
 }
 
+interface ClinicSettingsRow {
+  name?: string | null;
+  address?: string | null;
+  city?: string | null;
+  pincode?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  logo_url?: string | null;
+}
+
 async function loadClinicHeader(): Promise<ClinicHeader> {
-  let clinic: any = null;
+  let clinic: ClinicSettingsRow | null = null;
   try {
     const { data } = await supabase.from("clinic_settings").select("*").limit(1).maybeSingle();
-    clinic = data;
+    clinic = data as ClinicSettingsRow | null;
   } catch {
     // A missing or unreadable settings row must not block the export.
   }
@@ -160,7 +189,7 @@ async function loadClinicHeader(): Promise<ClinicHeader> {
 
 export interface ReportPdfArgs {
   report: ReportConfig;
-  rows: any[];
+  rows: ReportRow[];
   summary: { label: string; value: string }[];
   filterState: FilterState;
   dayOnly: boolean;
@@ -257,13 +286,13 @@ export async function buildReportPdf({ report, rows, summary, filterState, dayOn
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin, bottom: 34 },
-    head: [report.columns.map((c) => sanitize(reportColumnHeader(c)))],
+    head: [pdfHeadCells(report.columns)],
     body: rows.map((r) => report.columns.map((c) => sanitize(reportCellText(c, r)))),
     styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
     headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [247, 250, 249] },
     columnStyles: Object.fromEntries(
-      report.columns.map((c, i) => [i, c.type === "currency" || c.type === "number" ? { halign: "right" } : {}]),
+      report.columns.map((c, i) => [i, isNumeric(c) ? { halign: "right" as const } : {}]),
     ),
     didDrawPage: (data) => {
       doc.setFontSize(8);

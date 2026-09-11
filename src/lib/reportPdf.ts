@@ -64,6 +64,32 @@ export function reportColumnHeader(col: ReportColumn): string {
 
 const isNumeric = (col: ReportColumn) => col.type === "currency" || col.type === "number";
 
+const LOGO_MAX_H = 60;
+const LOGO_MAX_W = 150;
+
+/**
+ * Fit the logo inside a box rather than forcing a height: a square mark then fills
+ * the full 60pt and reads at the same weight as the clinic name beside it, while a
+ * wide letterhead-style mark is held back by the width limit instead of running
+ * into the text.
+ */
+export function fitLogo(width: number, height: number) {
+  if (!(width > 0) || !(height > 0)) return { w: 0, h: 0 };
+  const scale = Math.min(LOGO_MAX_H / height, LOGO_MAX_W / width);
+  return { w: width * scale, h: height * scale };
+}
+
+/**
+ * A right-aligned figure sits flush against the next column's left-aligned text,
+ * leaving only the two cells' padding between them - "1,000 Pending" reads as one
+ * run. Extra padding on the right of numeric columns opens that gap. It must be on
+ * the head cells too, or the heading stops lining up with the figures.
+ */
+const NUMERIC_STYLES = {
+  halign: "right" as const,
+  cellPadding: { top: 4, right: 14, bottom: 4, left: 4 },
+};
+
 /**
  * Head cells, with the alignment set on the cell itself.
  *
@@ -75,7 +101,7 @@ const isNumeric = (col: ReportColumn) => col.type === "currency" || col.type ===
 export function pdfHeadCells(columns: ReportColumn[]) {
   return columns.map((c) => ({
     content: sanitize(reportColumnHeader(c)),
-    styles: isNumeric(c) ? { halign: "right" as const } : {},
+    styles: isNumeric(c) ? NUMERIC_STYLES : {},
   }));
 }
 
@@ -210,30 +236,32 @@ export async function buildReportPdf({ report, rows, summary, filterState, dayOn
   const margin = 36;
   let y = margin;
 
-  // Header: logo left, clinic identity beside it.
+  // Header: logo left, clinic identity beside it. Scaled to fit a box rather than
+  // to a fixed height, so a wide letterhead-style mark cannot run into the text.
+  let logoH = 0;
   let textX = margin;
   if (clinic.logo) {
     try {
       const props = doc.getImageProperties(clinic.logo);
-      const h = 42;
-      const w = (props.width / props.height) * h;
-      doc.addImage(clinic.logo, margin, y, w, h);
-      textX = margin + w + 14;
+      const fit = fitLogo(props.width, props.height);
+      logoH = fit.h;
+      doc.addImage(clinic.logo, margin, y, fit.w, fit.h);
+      textX = margin + fit.w + 16;
     } catch {
       // An unreadable image degrades to the name alone, as the invoice PDF does.
     }
   }
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
-  doc.text(sanitize(clinic.name), textX, y + 15);
+  doc.setFontSize(17);
+  doc.text(sanitize(clinic.name), textX, y + 17);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
+  doc.setFontSize(9);
   doc.setTextColor(90);
-  clinic.lines.forEach((line, i) => doc.text(sanitize(line), textX, y + 29 + i * 11));
+  clinic.lines.forEach((line, i) => doc.text(sanitize(line), textX, y + 33 + i * 12));
   doc.setTextColor(0);
 
-  y += Math.max(46, 29 + clinic.lines.length * 11);
+  y += Math.max(logoH, 33 + clinic.lines.length * 12, 46);
   doc.setDrawColor(200);
   doc.line(margin, y, pageWidth - margin, y);
   y += 20;
@@ -292,7 +320,7 @@ export async function buildReportPdf({ report, rows, summary, filterState, dayOn
     headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [247, 250, 249] },
     columnStyles: Object.fromEntries(
-      report.columns.map((c, i) => [i, isNumeric(c) ? { halign: "right" as const } : {}]),
+      report.columns.map((c, i) => [i, isNumeric(c) ? NUMERIC_STYLES : {}]),
     ),
     didDrawPage: (data) => {
       doc.setFontSize(8);

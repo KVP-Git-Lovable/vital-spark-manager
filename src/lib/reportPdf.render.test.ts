@@ -63,14 +63,14 @@ const rows = Array.from({ length: 120 }, (_, i) => ({
   created_at: "2026-09-11T06:30:00.000Z",
 }));
 
-/** Every literal string the document draws, with the x it was drawn at. */
-function drawnRuns(bytes: Buffer): { x: number; text: string }[] {
-  const out: { x: number; text: string }[] = [];
+/** Every literal string the document draws, with the point it was drawn at. */
+function drawnRuns(bytes: Buffer): { x: number; y: number; text: string }[] {
+  const out: { x: number; y: number; text: string }[] = [];
   for (const [, body] of bytes.toString("latin1").matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
     let data = body;
     try { data = zlib.inflateSync(Buffer.from(body, "latin1")).toString("latin1"); } catch { /* uncompressed */ }
-    for (const [, x, , t] of data.matchAll(/([\d.]+)\s+([\d.]+)\s+Td\s*\((.*?)\)\s*Tj/g))
-      out.push({ x: Number(x), text: t.replace(/\\([()])/g, "$1") });
+    for (const [, x, y, t] of data.matchAll(/([\d.]+)\s+([\d.]+)\s+Td\s*\((.*?)\)\s*Tj/g))
+      out.push({ x: Number(x), y: Number(y), text: t.replace(/\\([()])/g, "$1") });
   }
   return out;
 }
@@ -151,6 +151,29 @@ describe("report PDF", () => {
     doc.setFont("helvetica", "normal");
     const valueRight = value.x + doc.getTextWidth("1,234");
     expect(Math.abs(headRight - valueRight)).toBeLessThan(1);
+  });
+
+  it("leaves a readable gap between a right-aligned figure and the next column", async () => {
+    // Regression: with only the default cell padding, the amount sat 8pt from
+    // "Pending" and the two read as a single run.
+    const { buildReportPdf } = await import("./reportPdf");
+    const doc = await buildReportPdf({
+      report,
+      rows: [{ invoice_number: "INV-1", patient_name: "Rakesh Shetty", total_amount: 32000, status: "Pending", created_at: "2026-09-11T06:30:00.000Z" }],
+      summary: [],
+      filterState: { search: "", dateFrom: new Date(2026, 8, 11), dateTo: new Date(2026, 8, 11), datePreset: "custom", selects: {} },
+      dayOnly: false,
+    });
+    const runs = drawnRuns(Buffer.from(doc.output("arraybuffer")));
+    const amount = runs.find((r) => r.text === "32,000")!;
+    const status = runs.find((r) => r.text === "Pending" && Math.abs(r.y - amount.y) < 0.5)!;
+    expect(amount).toBeTruthy();
+    expect(status).toBeTruthy();
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    const gap = status.x - (amount.x + doc.getTextWidth("32,000"));
+    expect(gap).toBeGreaterThan(14);
   });
 
   it("puts no character in the file that the PDF font cannot draw", async () => {

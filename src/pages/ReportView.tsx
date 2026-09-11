@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { ArrowLeft, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getReport } from "@/lib/reportsCatalog";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,8 @@ import { ReportFilterBar, type FilterState } from "@/components/reports/ReportFi
 import { DEFAULT_REPORT_PRESET, getReportDateRange, loadReportPin } from "@/lib/reportDateRange";
 import { SortableDataTable } from "@/components/reports/SortableDataTable";
 import { ReportChart } from "@/components/reports/ReportChart";
+import { downloadReportPdf } from "@/lib/reportPdf";
+import { toast } from "sonner";
 import NotFound from "./NotFound";
 
 function startOfToday(): Date {
@@ -78,6 +80,7 @@ const ReportView = () => {
   const [page, setPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -181,21 +184,28 @@ const ReportView = () => {
   const totalPages = isPaged ? Math.max(1, Math.ceil(total / pageSize)) : 1;
   const loading = isPaged ? pagedQuery.isLoading : isLoading;
 
-  const downloadCsv = async () => {
-    let rows = filteredRows;
-    if (isPaged && report.paged?.fetchAllForExport) {
-      try {
-        setExporting(true);
-        rows = await report.paged.fetchAllForExport({
-          from: fromIso,
-          to: toIso,
-          search: debouncedSearch,
-          selects: filterState.selects,
-        });
-      } finally {
-        setExporting(false);
-      }
+  const noRows = !filteredRows.length && !isPaged;
+  const busy = exporting || exportingPdf;
+
+  // Both exports cover the whole filtered set, not the page on screen. Shared so a
+  // change to one can never leave the other exporting a different set of rows.
+  const rowsForExport = async () => {
+    if (!isPaged || !report.paged?.fetchAllForExport) return filteredRows;
+    try {
+      setExporting(true);
+      return await report.paged.fetchAllForExport({
+        from: fromIso,
+        to: toIso,
+        search: debouncedSearch,
+        selects: filterState.selects,
+      });
+    } finally {
+      setExporting(false);
     }
+  };
+
+  const downloadCsv = async () => {
+    const rows = await rowsForExport();
     const csv = toCSV(report.columns, rows);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -204,6 +214,18 @@ const ReportView = () => {
     a.download = `${report.key}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadPdf = async () => {
+    try {
+      setExportingPdf(true);
+      const rows = await rowsForExport();
+      await downloadReportPdf({ report, rows, summary, filterState, dayOnly });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not create the PDF");
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   return (
@@ -216,10 +238,16 @@ const ReportView = () => {
           <h1 className="page-title">{report.title}</h1>
           <p className="page-subtitle">{report.description}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={downloadCsv} disabled={(!filteredRows.length && !isPaged) || exporting}>
-          {exporting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Download className="h-4 w-4 mr-1.5" />}
-          Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={downloadCsv} disabled={noRows || busy}>
+            {exporting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Download className="h-4 w-4 mr-1.5" />}
+            Export CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={downloadPdf} disabled={noRows || busy}>
+            {exportingPdf ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <FileText className="h-4 w-4 mr-1.5" />}
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       <ReportFilterBar

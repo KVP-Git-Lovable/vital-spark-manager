@@ -36,7 +36,11 @@ const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
   "base64",
 );
-global.fetch = vi.fn(async () => new Response(PNG, { status: 200 })) as unknown as typeof fetch;
+global.fetch = vi.fn(async () => ({
+  ok: true,
+  status: 200,
+  arrayBuffer: async () => PNG.buffer.slice(PNG.byteOffset, PNG.byteOffset + PNG.byteLength),
+})) as unknown as typeof fetch;
 
 const report = {
   key: "invoices",
@@ -84,6 +88,19 @@ function drawnText(bytes: Buffer): string[] {
     for (const [, s] of data.matchAll(/\((.*?)\)\s*Tj/g)) out.push(s.replace(/\\([()])/g, "$1"));
   }
   return out;
+}
+
+const imageCount = (bytes: Buffer) => (bytes.toString("latin1").match(/\/Subtype\s*\/Image/g) || []).length;
+
+/** Drawing operators inside the page content, after inflating it. */
+function drawOps(bytes: Buffer) {
+  let content = "";
+  for (const [, body] of bytes.toString("latin1").matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
+    let data = body;
+    try { data = zlib.inflateSync(Buffer.from(body, "latin1")).toString("latin1"); } catch { /* uncompressed */ }
+    if (data.includes("Tj")) content += data;
+  }
+  return { strokes: (content.match(/\bS\b/g) || []).length };
 }
 
 describe("report PDF", () => {
@@ -174,6 +191,33 @@ describe("report PDF", () => {
     doc.setFont("helvetica", "normal");
     const gap = status.x - (amount.x + doc.getTextWidth("32,000"));
     expect(gap).toBeGreaterThan(14);
+  });
+
+  it("actually embeds the clinic logo", async () => {
+    // The guard that was missing: the logo once vanished from the document while
+    // every other test still passed, because nothing checked the image was there.
+    const { buildReportPdf } = await import("./reportPdf");
+    const doc = await buildReportPdf({
+      report,
+      rows: [{ invoice_number: "INV-1", patient_name: "Suyog Hegde", total_amount: 500, status: "Paid", created_at: "2026-09-11T06:30:00.000Z" }],
+      summary: [],
+      filterState: { search: "", dateFrom: new Date(2026, 8, 11), dateTo: new Date(2026, 8, 11), datePreset: "custom", selects: {} },
+      dayOnly: false,
+    });
+    expect(imageCount(Buffer.from(doc.output("arraybuffer")))).toBeGreaterThanOrEqual(1);
+  });
+
+  it("rules a line between the columns so neighbours cannot read as one", async () => {
+    const { buildReportPdf } = await import("./reportPdf");
+    const doc = await buildReportPdf({
+      report,
+      rows: [{ invoice_number: "INV-1", patient_name: "Suyog Hegde", total_amount: 32000, status: "Pending", created_at: "2026-09-11T06:30:00.000Z" }],
+      summary: [],
+      filterState: { search: "", dateFrom: new Date(2026, 8, 11), dateTo: new Date(2026, 8, 11), datePreset: "custom", selects: {} },
+      dayOnly: false,
+    });
+    // One stroked border per cell: 5 columns x (1 head + 1 body) = 10.
+    expect(drawOps(Buffer.from(doc.output("arraybuffer"))).strokes).toBeGreaterThanOrEqual(10);
   });
 
   it("puts no character in the file that the PDF font cannot draw", async () => {

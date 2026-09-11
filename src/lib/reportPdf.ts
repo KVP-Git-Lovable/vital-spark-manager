@@ -155,19 +155,24 @@ export async function describeFilters(
   return parts.join("  -  ");
 }
 
-/** Fetch an image as a data URL, so a cross-origin logo cannot taint jsPDF's canvas. */
-async function toDataUrl(url: string): Promise<string | null> {
+/**
+ * Fetch an image as raw bytes.
+ *
+ * jsPDF reads a Uint8Array directly and sniffs the format from the bytes, so there
+ * is no need to go through Blob + FileReader to build a data: URL - and no
+ * dependence on the server sending a sensible content-type. (An ArrayBuffer is not
+ * accepted; it has to be a view.)
+ */
+async function fetchImageBytes(url: string): Promise<Uint8Array | null> {
   try {
     const res = await fetch(url);
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch {
+    if (!res.ok) {
+      console.warn("report pdf: logo fetch failed", url, res.status);
+      return null;
+    }
+    return new Uint8Array(await res.arrayBuffer());
+  } catch (e) {
+    console.warn("report pdf: logo could not be fetched", url, e);
     return null;
   }
 }
@@ -175,7 +180,7 @@ async function toDataUrl(url: string): Promise<string | null> {
 interface ClinicHeader {
   name: string;
   lines: string[];
-  logo: string | null;
+  logo: Uint8Array | null;
 }
 
 interface ClinicSettingsRow {
@@ -201,7 +206,8 @@ async function loadClinicHeader(): Promise<ClinicHeader> {
   // The admin-uploaded logo first, so a new upload in Settings reaches every
   // document; the bundled mark is the fallback and is always available.
   const logo =
-    (clinic?.logo_url ? await toDataUrl(clinic.logo_url) : null) ?? (await toDataUrl(bundledLogo));
+    (clinic?.logo_url ? await fetchImageBytes(clinic.logo_url) : null) ??
+    (await fetchImageBytes(bundledLogo));
 
   const address = [clinic?.address, clinic?.city, clinic?.pincode].filter(Boolean).join(", ");
   const contact = [clinic?.phone, clinic?.email].filter(Boolean).join("  |  ");
@@ -242,13 +248,17 @@ export async function buildReportPdf({ report, rows, summary, filterState, dayOn
   let textX = margin;
   if (clinic.logo) {
     try {
+      // Let jsPDF name the format from the bytes rather than guessing it from the
+      // URL or the content-type.
       const props = doc.getImageProperties(clinic.logo);
       const fit = fitLogo(props.width, props.height);
       logoH = fit.h;
-      doc.addImage(clinic.logo, margin, y, fit.w, fit.h);
+      doc.addImage(clinic.logo, props.fileType, margin, y, fit.w, fit.h);
       textX = margin + fit.w + 16;
-    } catch {
-      // An unreadable image degrades to the name alone, as the invoice PDF does.
+    } catch (e) {
+      // An unreadable image degrades to the name alone, as the invoice PDF does -
+      // but it says so, rather than leaving a silent blank.
+      console.warn("report pdf: logo could not be embedded", e);
     }
   }
 
@@ -316,7 +326,17 @@ export async function buildReportPdf({ report, rows, summary, filterState, dayOn
     margin: { left: margin, right: margin, bottom: 34 },
     head: [pdfHeadCells(report.columns)],
     body: rows.map((r) => report.columns.map((c) => sanitize(reportCellText(c, r)))),
-    styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
+    styles: {
+      fontSize: 8,
+      cellPadding: 4,
+      overflow: "linebreak",
+      // A rule down each column boundary. Without it the eye groups a right-aligned
+      // figure with the left-aligned text beside it - autoTable spreads leftover
+      // page width across the columns, so the gaps between them are uneven and a
+      // short number can sit far from its own heading.
+      lineWidth: { right: 0.5 },
+      lineColor: [219, 224, 226],
+    },
     headStyles: { fillColor: [13, 148, 136], textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [247, 250, 249] },
     columnStyles: Object.fromEntries(

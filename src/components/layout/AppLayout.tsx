@@ -33,6 +33,7 @@ import { GlobalSearch } from "@/components/layout/GlobalSearch";
 import { ThemeSelector } from "@/components/theme/ThemeSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { useModal } from "@/hooks/useModal";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface AppLayoutProps {
@@ -43,7 +44,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { staffProfile, user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const { closeModal } = useModal();
+  const { openModal, closeModal } = useModal();
   const lastPathRef = useRef(location.pathname);
 
   // Close any full-screen overlay modal when the route changes, so the
@@ -83,7 +84,12 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      {/* While a full-screen overlay is open the shell is clamped to the viewport.
+          The overlays are `absolute inset-0` against the column below, so without
+          this they stretch to the height of the still-mounted page behind them -
+          an appointments list is ~11,000px, which is the blank area you could
+          scroll through forever after opening an appointment. */}
+      <div className={cn("flex w-full", openModal ? "h-screen overflow-hidden" : "min-h-screen")}>
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0 relative">
           {/* Modals */}

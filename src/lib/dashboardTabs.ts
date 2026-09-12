@@ -19,6 +19,7 @@ export const DASHBOARD_WIDGETS = [
   { key: "today_appointments", label: "Today's Appointments" },
   { key: "pending_invoices", label: "Pending Invoices" },
   { key: "revenue_by_service", label: "Revenue by Service" },
+  { key: "appointment_trend", label: "Appointment Trend" },
 ];
 
 /** Dashboards are defined here (driven from the prompt), never edited in the UI. */
@@ -34,6 +35,7 @@ export const DEFAULT_DASHBOARDS: DashboardTab[] = [
       "pinned_reports",
       "charts",
       "revenue_by_service",
+      "appointment_trend",
     ],
   },
   {

@@ -614,11 +614,12 @@ const Index = () => {
 
       {shows("pinned_reports") && <PinnedReports start={start} end={end} staffId={selectedStaff} />}
 
-      {(shows("charts") || shows("revenue_by_service")) && (
+      {(shows("charts") || shows("revenue_by_service") || shows("appointment_trend")) && (
         <DashboardCharts
           data={shows("charts") ? chartData : ({ ...chartData, appointmentStatus: [], appointmentsByDr: [], revenueByDr: [], revenueByProblemArea: [], revenueByPaymentMode: [], revenueByDate: [] } as any)}
           onChartClick={handleChartClick}
           showRevenueByService={shows("revenue_by_service")}
+          showAppointmentTrend={shows("appointment_trend")}
         />
       )}
 

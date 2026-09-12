@@ -65,7 +65,7 @@ function ChartCard({
   );
 }
 
-export function DashboardCharts({ data, onChartClick, showRevenueByService }: Props) {
+export function DashboardCharts({ data, onChartClick, showRevenueByService, showAppointmentTrend }: Props) {
   const isMobile = useIsMobile();
   const { formatMoney, formatNumber } = useMoneyFormat();
   const money = (v: number, n: string) => [formatMoney(Number(v)), n] as [string, string];
@@ -168,6 +168,34 @@ export function DashboardCharts({ data, onChartClick, showRevenueByService }: Pr
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
+
+      {showAppointmentTrend && (
+        <ChartCard
+          title="Appointment Trend"
+          delay={0.37}
+          empty={!data.appointmentsByDate || data.appointmentsByDate.every((d) => d.completed === 0)}
+          onClick={() => onChartClick("appointment_trend")}
+        >
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={data.appointmentsByDate || []}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Line
+                type="monotone"
+                dataKey="completed"
+                name="Completed Appointments"
+                stroke="hsl(174, 62%, 38%)"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                onClick={(e: any) => onChartClick("appointment_trend", e?.activeLabel)}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      )}
 
       {showRevenueByService && (
         <ChartCard

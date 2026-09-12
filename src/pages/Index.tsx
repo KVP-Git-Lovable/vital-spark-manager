@@ -422,6 +422,19 @@ const Index = () => {
       invoiced: invByBucket[k],
     }));
 
+    // Appointment Trend — completed appointments per bucket (same buckets as revenue trend)
+    const completedByBucket: Record<string, number> = {};
+    Object.keys(paidByBucket).forEach((k) => { completedByBucket[k] = 0; });
+    filtered.forEach((a: any) => {
+      if (a.status !== "Completed") return;
+      const k = bucketKey(new Date(a.start_time));
+      if (completedByBucket[k] !== undefined) completedByBucket[k] += 1;
+    });
+    const appointmentsByDate = Object.keys(completedByBucket).map((k) => ({
+      date: labelByBucket[k],
+      completed: completedByBucket[k],
+    }));
+
     const revenueByService = Object.entries(serviceRevenue)
       .map(([name, value]) => ({ name, value: Math.round(value) }))
       .filter((d) => d.value > 0)

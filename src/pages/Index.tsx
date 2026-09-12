@@ -441,7 +441,7 @@ const Index = () => {
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
 
-    return { appointmentStatus, appointmentsByDr, revenueByDr, revenueByProblemArea, revenueByPaymentMode, revenueByDate, revenueByService };
+    return { appointmentStatus, appointmentsByDr, revenueByDr, revenueByProblemArea, revenueByPaymentMode, revenueByDate, revenueByService, appointmentsByDate };
   }, [filtered, filteredInvoices, start, end]);
 
   // Stat card values
@@ -489,6 +489,8 @@ const Index = () => {
         const id = staffIdByName(key);
         return openDrill("invoices", `Revenue by Doctor${suffix}`, id ? { staff: id } : {});
       }
+      case "appointment_trend":
+        return openDrill("appointments", `Appointment Trend — Completed${suffix}`, { status: "Completed" });
       case "revenue_by_service":
         return openDrill("invoices", `Revenue by Service${suffix}`, key && key !== "Unspecified" ? { service: key } : {});
       case "revenue_by_problem_area":

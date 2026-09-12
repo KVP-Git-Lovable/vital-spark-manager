@@ -38,12 +38,14 @@ interface ChartData {
   revenueByPaymentMode: NameValue[];
   revenueByDate: { date: string; paid: number; invoiced: number }[];
   revenueByService?: NameValue[];
+  appointmentsByDate?: { date: string; completed: number }[];
 }
 
 interface Props {
   data: ChartData;
   onChartClick: (type: string, key?: string) => void;
   showRevenueByService?: boolean;
+  showAppointmentTrend?: boolean;
 }
 
 function ChartCard({

@@ -422,13 +422,26 @@ const Index = () => {
       invoiced: invByBucket[k],
     }));
 
+    // Appointment Trend — completed appointments per bucket (same buckets as revenue trend)
+    const completedByBucket: Record<string, number> = {};
+    Object.keys(paidByBucket).forEach((k) => { completedByBucket[k] = 0; });
+    filtered.forEach((a: any) => {
+      if (a.status !== "Completed") return;
+      const k = bucketKey(new Date(a.start_time));
+      if (completedByBucket[k] !== undefined) completedByBucket[k] += 1;
+    });
+    const appointmentsByDate = Object.keys(completedByBucket).map((k) => ({
+      date: labelByBucket[k],
+      completed: completedByBucket[k],
+    }));
+
     const revenueByService = Object.entries(serviceRevenue)
       .map(([name, value]) => ({ name, value: Math.round(value) }))
       .filter((d) => d.value > 0)
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
 
-    return { appointmentStatus, appointmentsByDr, revenueByDr, revenueByProblemArea, revenueByPaymentMode, revenueByDate, revenueByService };
+    return { appointmentStatus, appointmentsByDr, revenueByDr, revenueByProblemArea, revenueByPaymentMode, revenueByDate, revenueByService, appointmentsByDate };
   }, [filtered, filteredInvoices, start, end]);
 
   // Stat card values
@@ -476,6 +489,8 @@ const Index = () => {
         const id = staffIdByName(key);
         return openDrill("invoices", `Revenue by Doctor${suffix}`, id ? { staff: id } : {});
       }
+      case "appointment_trend":
+        return openDrill("appointments", `Appointment Trend — Completed${suffix}`, { status: "Completed" });
       case "revenue_by_service":
         return openDrill("invoices", `Revenue by Service${suffix}`, key && key !== "Unspecified" ? { service: key } : {});
       case "revenue_by_problem_area":
@@ -599,11 +614,12 @@ const Index = () => {
 
       {shows("pinned_reports") && <PinnedReports start={start} end={end} staffId={selectedStaff} />}
 
-      {(shows("charts") || shows("revenue_by_service")) && (
+      {(shows("charts") || shows("revenue_by_service") || shows("appointment_trend")) && (
         <DashboardCharts
           data={shows("charts") ? chartData : ({ ...chartData, appointmentStatus: [], appointmentsByDr: [], revenueByDr: [], revenueByProblemArea: [], revenueByPaymentMode: [], revenueByDate: [] } as any)}
           onChartClick={handleChartClick}
           showRevenueByService={shows("revenue_by_service")}
+          showAppointmentTrend={shows("appointment_trend")}
         />
       )}
 

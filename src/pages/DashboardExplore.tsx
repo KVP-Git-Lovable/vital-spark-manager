@@ -114,6 +114,22 @@ export default function DashboardExplore() {
     [staffList]
   );
 
+  // Primary-concern names, needed when the drill-down came from the
+  // "Revenue by Primary Concern" chart (concerns live on the appointment).
+  const { data: problemAreas = [] } = useQuery({
+    queryKey: ["explore-problem-areas"],
+    enabled: kind === "invoices",
+    queryFn: async () => {
+      const { data, error } = await supabase.from("problem_areas").select("id, name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const areaName = useMemo(
+    () => new Map((problemAreas as any[]).map((p) => [p.id, p.name])),
+    [problemAreas]
+  );
+
   const fromISO = from ? new Date(`${from}T00:00:00`).toISOString() : undefined;
   const toISO = to ? new Date(`${to}T23:59:59`).toISOString() : undefined;
 

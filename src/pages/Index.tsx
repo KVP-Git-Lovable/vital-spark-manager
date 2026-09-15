@@ -494,9 +494,9 @@ const Index = () => {
       case "revenue_by_service":
         return openDrill("invoices", `Revenue by Service${suffix}`, key && key !== "Unspecified" ? { service: key } : {});
       case "revenue_by_problem_area":
-        return openDrill("invoices", `Revenue by Primary Concern${suffix}`);
+        return openDrill("invoices", `Revenue by Primary Concern${suffix}`, key ? { problem_area: key } : {});
       case "revenue_by_payment_mode":
-        return openDrill("invoices", `Revenue by Payment Mode${suffix}`);
+        return openDrill("invoices", `Revenue by Payment Mode${suffix}`, key ? { payment_mode: key } : {});
       default:
         return openDrill("invoices", "Revenue — Detail");
     }

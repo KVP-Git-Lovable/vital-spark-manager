@@ -2322,12 +2322,16 @@ const Appointments = () => {
                   </thead>
                   <tbody>
                     {(() => {
-                      const virtualRows = rowVirtualizer.getVirtualItems();
+                      const virtualRows = inOverlay
+                        ? visibleTableRows.map((_: any, index: number) => ({ index, key: index, start: 0, end: 0 }))
+                        : rowVirtualizer.getVirtualItems();
                       const totalSize = rowVirtualizer.getTotalSize();
-                      const paddingTop = virtualRows.length > 0 ? virtualRows[0].start - tableScrollMargin : 0;
-                      const paddingBottom = virtualRows.length > 0
-                        ? totalSize - (virtualRows[virtualRows.length - 1].end - tableScrollMargin)
-                        : 0;
+                      const paddingTop = inOverlay || virtualRows.length === 0
+                        ? 0
+                        : (virtualRows[0] as any).start - tableScrollMargin;
+                      const paddingBottom = inOverlay || virtualRows.length === 0
+                        ? 0
+                        : totalSize - ((virtualRows[virtualRows.length - 1] as any).end - tableScrollMargin);
                       const colSpan = displayColumns.length + 1;
 
                       return (

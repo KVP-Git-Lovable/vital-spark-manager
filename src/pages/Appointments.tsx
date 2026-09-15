@@ -166,7 +166,11 @@ const Appointments = () => {
   const appointmentsTableRef = useStackedTable<HTMLTableElement>();
   const queryClient = useQueryClient();
   const routerNavigate = useNavigate();
-  const { setOpenModal } = useModal();
+  const { setOpenModal, openModal } = useModal();
+  // Inside the full-screen overlay the page does not scroll with the window
+  // (the shell is clamped), so window-based virtualization would leave blank
+  // space. Render every row of the page directly in that case.
+  const inOverlay = !!openModal;
   const [searchParams, setSearchParams] = useSearchParams();
   const [showBillingPrompt, setShowBillingPrompt] = useState(false);
   const [lastCreatedPatientId, setLastCreatedPatientId] = useState("");
@@ -2318,12 +2322,16 @@ const Appointments = () => {
                   </thead>
                   <tbody>
                     {(() => {
-                      const virtualRows = rowVirtualizer.getVirtualItems();
+                      const virtualRows = inOverlay
+                        ? visibleTableRows.map((_: any, index: number) => ({ index, key: index, start: 0, end: 0 }))
+                        : rowVirtualizer.getVirtualItems();
                       const totalSize = rowVirtualizer.getTotalSize();
-                      const paddingTop = virtualRows.length > 0 ? virtualRows[0].start - tableScrollMargin : 0;
-                      const paddingBottom = virtualRows.length > 0
-                        ? totalSize - (virtualRows[virtualRows.length - 1].end - tableScrollMargin)
-                        : 0;
+                      const paddingTop = inOverlay || virtualRows.length === 0
+                        ? 0
+                        : (virtualRows[0] as any).start - tableScrollMargin;
+                      const paddingBottom = inOverlay || virtualRows.length === 0
+                        ? 0
+                        : totalSize - ((virtualRows[virtualRows.length - 1] as any).end - tableScrollMargin);
                       const colSpan = displayColumns.length + 1;
 
                       return (

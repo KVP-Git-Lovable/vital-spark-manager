@@ -13,6 +13,7 @@ import { ReportChart } from "@/components/reports/ReportChart";
 import { downloadReportPdf } from "@/lib/reportPdf";
 import { toast } from "sonner";
 import NotFound from "./NotFound";
+import { endOfDay } from "date-fns";
 
 function startOfToday(): Date {
   const d = new Date();
@@ -103,9 +104,10 @@ const ReportView = () => {
   const rangeEnd = dayOnly ? rangeStart : filterState.dateTo;
 
   const fromIso = rangeStart ? rangeStart.toISOString() : undefined;
-  const toIso = rangeEnd
-    ? new Date(rangeEnd.getTime() + 86_400_000 - 1).toISOString()
-    : undefined;
+  // Presets already hand back an end-of-day Date; a calendar pick lands at
+  // midnight. endOfDay() makes the upper bound inclusive in both cases without
+  // spilling into the next day.
+  const toIso = rangeEnd ? endOfDay(rangeEnd).toISOString() : undefined;
 
   const isPaged = !!report.paged;
 

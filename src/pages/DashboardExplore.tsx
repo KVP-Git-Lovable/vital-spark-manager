@@ -83,6 +83,9 @@ export default function DashboardExplore() {
   const urlStaff = params.get("staff") || "all";
   const urlService = params.get("service") || "all";
   const urlStatus = params.get("status") || "all";
+  // Slice drill-downs from the dashboard charts
+  const urlPaymentMode = params.get("payment_mode") || "";
+  const urlProblemArea = params.get("problem_area") || "";
 
   const fields = FIELDS[kind];
   const [from, setFrom] = useState(urlFrom ? urlFrom.slice(0, 10) : "");
@@ -111,6 +114,22 @@ export default function DashboardExplore() {
     [staffList]
   );
 
+  // Primary-concern names, needed when the drill-down came from the
+  // "Revenue by Primary Concern" chart (concerns live on the appointment).
+  const { data: problemAreas = [] } = useQuery({
+    queryKey: ["explore-problem-areas"],
+    enabled: kind === "invoices",
+    queryFn: async () => {
+      const { data, error } = await supabase.from("problem_areas").select("id, name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const areaName = useMemo(
+    () => new Map((problemAreas as any[]).map((p) => [p.id, p.name])),
+    [problemAreas]
+  );
+
   const fromISO = from ? new Date(`${from}T00:00:00`).toISOString() : undefined;
   const toISO = to ? new Date(`${to}T23:59:59`).toISOString() : undefined;
 
@@ -126,7 +145,11 @@ export default function DashboardExplore() {
         return data || [];
       }
       if (kind === "invoices") {
-        let q = supabase.from("invoices").select("*").order("created_at", { ascending: false }).limit(5000);
+        let q = supabase
+          .from("invoices")
+          .select("*, appointments(problem_area_ids)")
+          .order("created_at", { ascending: false })
+          .limit(5000);
         if (fromISO) q = q.gte("created_at", fromISO);
         if (toISO) q = q.lte("created_at", toISO);
         const { data, error } = await q;
@@ -170,6 +193,9 @@ export default function DashboardExplore() {
           patient_name: r.patient_name || "Walk-in",
           doctor: r.doctor_id ? staffName.get(r.doctor_id) || "Unassigned" : "Walk-in / Direct",
           payment_mode: r.payment_mode || "",
+          _areas: (((r.appointments?.problem_area_ids as string[]) || [])
+            .map((id) => areaName.get(id))
+            .filter(Boolean) as string[]),
           total_amount: Number(r.total_amount || 0),
           paid_amount: Number(r.paid_amount || 0),
           balance: Number(r.total_amount || 0) - Number(r.paid_amount || 0),
@@ -191,7 +217,7 @@ export default function DashboardExplore() {
         created_at: r.created_at,
       };
     });
-  }, [rows, kind, staffName]);
+  }, [rows, kind, staffName, areaName]);
 
   const statusOptions = useMemo(
     () => Array.from(new Set(normalized.map((r: any) => r.status).filter(Boolean))).sort(),
@@ -212,10 +238,18 @@ export default function DashboardExplore() {
       if (status !== "all" && r.status !== status) return false;
       if (staff !== "all" && r._staffId !== staff) return false;
       if (service !== "all" && r.service !== service) return false;
+      if (urlPaymentMode) {
+        const mode = r.payment_mode || "Unspecified";
+        if (mode !== urlPaymentMode) return false;
+      }
+      if (urlProblemArea) {
+        const areas: string[] = r._areas?.length ? r._areas : ["Unspecified"];
+        if (!areas.includes(urlProblemArea)) return false;
+      }
       if (q && !fields.some((f) => String(r[f.key] ?? "").toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [normalized, search, status, staff, service, fields]);
+  }, [normalized, search, status, staff, service, fields, urlPaymentMode, urlProblemArea]);
 
   const chartData = useMemo(() => {
     const map: Record<string, number> = {};

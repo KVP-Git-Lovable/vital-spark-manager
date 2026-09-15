@@ -166,7 +166,11 @@ const Appointments = () => {
   const appointmentsTableRef = useStackedTable<HTMLTableElement>();
   const queryClient = useQueryClient();
   const routerNavigate = useNavigate();
-  const { setOpenModal } = useModal();
+  const { setOpenModal, openModal } = useModal();
+  // Inside the full-screen overlay the page does not scroll with the window
+  // (the shell is clamped), so window-based virtualization would leave blank
+  // space. Render every row of the page directly in that case.
+  const inOverlay = !!openModal;
   const [searchParams, setSearchParams] = useSearchParams();
   const [showBillingPrompt, setShowBillingPrompt] = useState(false);
   const [lastCreatedPatientId, setLastCreatedPatientId] = useState("");

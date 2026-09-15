@@ -83,6 +83,9 @@ export default function DashboardExplore() {
   const urlStaff = params.get("staff") || "all";
   const urlService = params.get("service") || "all";
   const urlStatus = params.get("status") || "all";
+  // Slice drill-downs from the dashboard charts
+  const urlPaymentMode = params.get("payment_mode") || "";
+  const urlProblemArea = params.get("problem_area") || "";
 
   const fields = FIELDS[kind];
   const [from, setFrom] = useState(urlFrom ? urlFrom.slice(0, 10) : "");
@@ -126,7 +129,11 @@ export default function DashboardExplore() {
         return data || [];
       }
       if (kind === "invoices") {
-        let q = supabase.from("invoices").select("*").order("created_at", { ascending: false }).limit(5000);
+        let q = supabase
+          .from("invoices")
+          .select("*, appointments(problem_area_ids)")
+          .order("created_at", { ascending: false })
+          .limit(5000);
         if (fromISO) q = q.gte("created_at", fromISO);
         if (toISO) q = q.lte("created_at", toISO);
         const { data, error } = await q;

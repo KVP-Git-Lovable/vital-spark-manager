@@ -19,6 +19,7 @@
 //           synced_at marker before re-importing. Off by default.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { procedureServiceName, awaitingRealService, NO_SERVICE_RECORDED } from "./serviceName.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -275,9 +276,13 @@ async function syncPatient(
     admin.from("appointments").select("id, sf_id").eq("patient_id", p.lovable_id).not("sf_id", "is", null)
       .then(({ data }) => data || []),
     existingSfIds("invoices", p.lovable_id),
-    existingSfIds("procedures", p.lovable_id),
+    admin.from("procedures").select("sf_id, service_name").eq("patient_id", p.lovable_id).not("sf_id", "is", null)
+      .then(({ data }) => data || []),
   ]);
   const existingAppts = new Set(existingApptRows.map((r: any) => r.sf_id as string));
+  const procServiceBySfId = new Map<string, string | null>(
+    (existingProcs as any[]).map((r: any) => [r.sf_id as string, (r.service_name ?? null) as string | null]),
+  );
 
   // Independent per-patient queries - run concurrently instead of one
   // after another (this is the main driver of total sync time at scale).
@@ -452,18 +457,18 @@ async function syncPatient(
     }
   });
 
-  const newDiagnoses = diagnoses.filter((d) => !existingProcs.has(d.Id));
-  log.skipped += diagnoses.length - newDiagnoses.length;
+  const newDiagnoses = diagnoses.filter((d) => !procServiceBySfId.has(d.Id));
+  const seenDiagnoses = diagnoses.filter((d) => procServiceBySfId.has(d.Id));
+
+  const serviceNameFor = (d: any) =>
+    procedureServiceName(
+      d,
+      d.Appointment__c ? billingProcBySfApptId.get(d.Appointment__c) : null,
+      d.Appointment__c ? apptServiceBySfId.get(d.Appointment__c) : null,
+    );
+
   const procRows = newDiagnoses.map((d) => {
-    const treatment = d.Treatment__c ? String(d.Treatment__c).replace(/;/g, ", ") : null;
-    const serviceName =
-      treatment ||
-      d.Procedure_Type__c ||
-      d.Service_Type__c ||
-      (d.Appointment__c && billingProcBySfApptId.get(d.Appointment__c)) ||
-      (d.Appointment__c && apptServiceBySfId.get(d.Appointment__c)) ||
-      d.Type_Of_Appointment__c ||
-      "Consultation";
+    const serviceName = serviceNameFor(d);
     const symptoms = [d.Symptoms__c, d.Symptoms_all__c && d.Symptoms_all__c !== d.Symptoms__c ? d.Symptoms_all__c : null]
       .filter(Boolean).join("\n") || null;
     const consultationParts = [
@@ -505,6 +510,33 @@ async function syncPatient(
     if (error) throw new Error(`procedures insert: ${error.message}`);
     log.procedures += batch.length;
   }
+
+  // Already-imported procedures. Unlike appointments, these are NOT wholesale
+  // refreshed: a procedure is edited in the app (notes, prescriptions, photos)
+  // and overwriting that from Salesforce would destroy clinical work. The one
+  // column worth catching up is the service name, because a visit is often
+  // synced before its treatment has been recorded in Salesforce - that is what
+  // left "Walk-In" sitting in the Service column.
+  //
+  // Guarded by awaitingRealService(), so this only ever replaces a placeholder
+  // or a visit type. A real service name, imported or typed here, is left alone.
+  //
+  // Deliberately NOT behind refreshExisting, unlike the appointment refresh
+  // above: that flag defaults off, and the whole point here is that an ordinary
+  // daily sync should pick up a treatment recorded after the visit was synced.
+  // The guard is what makes that safe, not the flag.
+  for (const d of seenDiagnoses) {
+    const next = serviceNameFor(d);
+    if (next === NO_SERVICE_RECORDED) continue;
+    if (!awaitingRealService(procServiceBySfId.get(d.Id) ?? null, d)) continue;
+    const { error } = await admin
+      .from("procedures")
+      .update({ service_name: String(next).slice(0, 500) })
+      .eq("sf_id", d.Id);
+    if (error) throw new Error(`procedures update: ${error.message}`);
+    log.updated = (log.updated || 0) + 1;
+  }
+  log.skipped += seenDiagnoses.length;
 }
 
 Deno.serve(async (req) => {

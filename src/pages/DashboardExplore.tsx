@@ -193,6 +193,9 @@ export default function DashboardExplore() {
           patient_name: r.patient_name || "Walk-in",
           doctor: r.doctor_id ? staffName.get(r.doctor_id) || "Unassigned" : "Walk-in / Direct",
           payment_mode: r.payment_mode || "",
+          _areas: (((r.appointments?.problem_area_ids as string[]) || [])
+            .map((id) => areaName.get(id))
+            .filter(Boolean) as string[]),
           total_amount: Number(r.total_amount || 0),
           paid_amount: Number(r.paid_amount || 0),
           balance: Number(r.total_amount || 0) - Number(r.paid_amount || 0),

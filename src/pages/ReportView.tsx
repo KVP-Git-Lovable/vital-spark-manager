@@ -13,6 +13,7 @@ import { ReportChart } from "@/components/reports/ReportChart";
 import { downloadReportPdf } from "@/lib/reportPdf";
 import { toast } from "sonner";
 import NotFound from "./NotFound";
+import { endOfDay } from "date-fns";
 
 function startOfToday(): Date {
   const d = new Date();

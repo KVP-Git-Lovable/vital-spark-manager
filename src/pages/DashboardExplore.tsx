@@ -217,7 +217,7 @@ export default function DashboardExplore() {
         created_at: r.created_at,
       };
     });
-  }, [rows, kind, staffName]);
+  }, [rows, kind, staffName, areaName]);
 
   const statusOptions = useMemo(
     () => Array.from(new Set(normalized.map((r: any) => r.status).filter(Boolean))).sort(),
@@ -238,10 +238,18 @@ export default function DashboardExplore() {
       if (status !== "all" && r.status !== status) return false;
       if (staff !== "all" && r._staffId !== staff) return false;
       if (service !== "all" && r.service !== service) return false;
+      if (urlPaymentMode) {
+        const mode = r.payment_mode || "Unspecified";
+        if (mode !== urlPaymentMode) return false;
+      }
+      if (urlProblemArea) {
+        const areas: string[] = r._areas?.length ? r._areas : ["Unspecified"];
+        if (!areas.includes(urlProblemArea)) return false;
+      }
       if (q && !fields.some((f) => String(r[f.key] ?? "").toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [normalized, search, status, staff, service, fields]);
+  }, [normalized, search, status, staff, service, fields, urlPaymentMode, urlProblemArea]);
 
   const chartData = useMemo(() => {
     const map: Record<string, number> = {};

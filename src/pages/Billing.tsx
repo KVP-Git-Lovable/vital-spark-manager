@@ -75,6 +75,7 @@ import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { fetchInvoicesPage, fetchInvoicesInRange, fetchInvoicesSearch, fetchInvoiceStats, fetchInvoiceById } from "@/lib/invoicesPage";
+import { activeHsnCodes, hsnOptions as buildHsnOptions, liveHsn } from "@/lib/hsn";
 import { withDrPrefix } from "@/lib/staffName";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
@@ -613,7 +614,7 @@ const Billing = () => {
     },
   });
 
-  const { data: hsnTaxes = [] } = useQuery({
+  const { data: hsnTaxes = [], isSuccess: hsnMasterLoaded } = useQuery({
     queryKey: ["hsn-tax-active"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -761,7 +762,7 @@ const Billing = () => {
       if (prefillPatient) setPatientId(prefillPatient);
       if (prefillService) {
         const svc = (serviceMaster as any[]).find((s: any) => s?.name === prefillService);
-        setServiceInputs([{ name: prefillService, price: Number(svc?.price) || 0, hsn: svc?.hsn_code || "", gst: Number(svc?.gst_percent) || 0, service_id: svc?.id }]);
+        setServiceInputs([{ name: prefillService, price: Number(svc?.price) || 0, hsn: liveHsn(svc?.hsn_code, activeCodes), gst: Number(svc?.gst_percent) || 0, service_id: svc?.id }]);
       }
       // Payment Type stays at its "One-time" default here - a visit being
       // recurring doesn't imply the bill should be split into installments;
@@ -832,6 +833,12 @@ const Billing = () => {
     const payload = pendingPrefill;
     if (!payload) return;
     if ((serviceMaster as any[]).length === 0) return; // masters still loading
+    // Wait for the Tax Master too, not just the Service Master: liveHsn() can
+    // only tell a retired code from a current one once it has the active list,
+    // and prefilling before then would put a retired code on the line.
+    // Gated on the query having resolved rather than on row count, so a clinic
+    // with no active codes at all still gets its prefill.
+    if (!hsnMasterLoaded) return;
 
     const norm = (v: any) =>
       String(v || "")
@@ -852,7 +859,7 @@ const Billing = () => {
           return {
             name: svc?.name || n,
             price: Number(svc?.price) || 0,
-            hsn: svc?.hsn_code || "",
+            hsn: liveHsn(svc?.hsn_code, activeCodes),
             gst: Number(svc?.gst_percent) || 0,
             service_id: svc?.id,
           };
@@ -967,12 +974,17 @@ const Billing = () => {
   };
 
   // HSN-based tax (Tax Master): service → HSN code → SGST + CGST + IGST
-  /** Active HSN codes as dropdown options; keeps any legacy code already on a line. */
-  const hsnOptions = useMemo(() => {
-    const codes = (hsnTaxes as any[]).map((h) => String(h.hsn_code));
-    const extra = serviceInputs.map((s) => (s.hsn || "").trim()).filter((c) => c && !codes.includes(c));
-    return [...new Set([...codes, ...extra])].map((c) => ({ id: c, name: c }));
-  }, [hsnTaxes, serviceInputs]);
+  /**
+   * The codes the Tax Master currently allows, and only those.
+   *
+   * This used to also offer whatever code was already on the line, which put a
+   * retired code (9997) back in front of the front desk every time a service
+   * still stored it. Retiring a code in the Tax Master is now the end of it -
+   * see liveHsn(), which keeps a retired code off the line as well as out of
+   * this list.
+   */
+  const activeCodes = useMemo(() => activeHsnCodes(hsnTaxes), [hsnTaxes]);
+  const hsnOptions = useMemo(() => buildHsnOptions(hsnTaxes), [hsnTaxes]);
 
   const hsnTaxMap = useMemo(() => {
     const m = new Map<string, any>();
@@ -1995,7 +2007,7 @@ const Billing = () => {
       const feeRow = {
         name: `Consultation - ${docName}`,
         price: fee,
-        hsn: doc?.consultation_hsn ? String(doc.consultation_hsn) : "",
+        hsn: liveHsn(doc?.consultation_hsn, activeCodes),
         gst: 0,
         doctor_fee: true as const,
       };
@@ -2327,7 +2339,7 @@ const Billing = () => {
                                     updateServiceInput(i, {
                                       name: svc.name,
                                       price: Number(svc.price) || 0,
-                                      hsn: svc.hsn_code || "",
+                                      hsn: liveHsn(svc.hsn_code, activeCodes),
                                       gst: Number(svc.gst_percent) || 0,
                                       service_id: svc.id,
                                     });

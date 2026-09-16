@@ -122,6 +122,35 @@ const DATE_PRESETS = [
   { key: "all", label: "All Dates" },
 ];
 
+/**
+ * Column widths for the list table, as shares of the table width.
+ *
+ * The table must be table-fixed and carry a <colgroup> built from this, because
+ * the rows are windowed by a virtualizer that measures their real heights. Under
+ * table-layout:auto the widths are derived from whichever rows happen to be
+ * rendered, so: window renders rows A -> columns resize -> text wraps onto more
+ * or fewer lines -> measured row heights change -> the virtualizer picks window
+ * B -> columns resize again. That has no fixed point and flickers forever, which
+ * is exactly what it did once a day had enough appointments to virtualize.
+ *
+ * ORDER MATTERS: a colgroup maps to columns positionally, so this list must stay
+ * in the same order as the <th> cells in the table below.
+ */
+const APPOINTMENT_COLUMN_WIDTHS: [string, number][] = [
+  ["patient", 15],
+  ["phone", 11],
+  ["service", 14],
+  ["doctor", 12],
+  ["start_time", 7],
+  ["time", 12],
+  ["status", 10],
+  ["bill", 8],
+  ["visit_status", 8],
+  ["payment_mode", 9],
+];
+/** The Actions column is always rendered, after every optional one. */
+const ACTIONS_COLUMN_WEIGHT = 7;
+
 const DEFAULT_APPOINTMENT_FIELDS = [
   "patient",
   "phone",
@@ -835,6 +864,13 @@ const Appointments = () => {
 
   // Check if a column should be displayed
   const shouldShowColumn = (column: string) => displayColumns.includes(column);
+
+  // Width shares for the columns actually on screen, renormalised so they fill
+  // the table whichever subset is shown.
+  const visibleColumnWidths = APPOINTMENT_COLUMN_WIDTHS.filter(([key]) => shouldShowColumn(key));
+  const totalColumnWeight =
+    visibleColumnWidths.reduce((sum, [, w]) => sum + w, 0) + ACTIONS_COLUMN_WEIGHT;
+  const colWidth = (weight: number) => `${((weight / totalColumnWeight) * 100).toFixed(4)}%`;
 
   const toggleSort = (column: string) => {
     if (sortColumn === column) {
@@ -2272,7 +2308,13 @@ const Appointments = () => {
                   />
                 ) : (
                 <>
-                <table ref={appointmentsTableRef} className="w-full text-sm responsive-table">
+                <table ref={appointmentsTableRef} className="w-full text-sm responsive-table table-fixed">
+                  <colgroup>
+                    {visibleColumnWidths.map(([key, weight]) => (
+                      <col key={key} style={{ width: colWidth(weight) }} />
+                    ))}
+                    <col style={{ width: colWidth(ACTIONS_COLUMN_WEIGHT) }} />
+                  </colgroup>
                   <thead>
                     <tr className="border-b bg-muted/30">
                       {shouldShowColumn("patient") && (

@@ -70,7 +70,13 @@ export async function fetchAppointmentsPage({
       .ilike("phone", `%${term}%`)
       .limit(500);
     const phoneMatchIds = (phoneMatches || []).map((p: any) => p.id);
-    const orParts = [`service.ilike.%${term}%`, `patient_name.ilike.%${term}%`];
+    // reason_for_consultation is what the Investigation column shows, so it has to
+    // be searchable - otherwise you cannot search for the text on screen.
+    const orParts = [
+      `service.ilike.%${term}%`,
+      `reason_for_consultation.ilike.%${term}%`,
+      `patient_name.ilike.%${term}%`,
+    ];
     if (phoneMatchIds.length > 0) {
       orParts.push(`patient_id.in.(${phoneMatchIds.join(",")})`);
     }
@@ -78,9 +84,13 @@ export async function fetchAppointmentsPage({
   }
 
   switch (sortColumn) {
+    // reason_for_consultation is what the Investigation column sorts on; without
+    // it here the sort would fall through to the default and silently order by
+    // date instead.
     case "status":
     case "visit_status":
     case "service":
+    case "reason_for_consultation":
       q = q.order(sortColumn, { ascending });
       break;
     case "patient":

@@ -2315,8 +2315,10 @@ const Appointments = () => {
                         <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
                       )}
                       {shouldShowColumn("service") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("service")}>
-                          <span className="flex items-center">Service<SortIcon column="service" /></span>
+                        // Column key stays "service" so saved views keep working; what it
+                        // shows and sorts on is the Investigation text.
+                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("reason_for_consultation")}>
+                          <span className="flex items-center">Investigation<SortIcon column="reason_for_consultation" /></span>
                         </th>
                       )}
                       {shouldShowColumn("doctor") && (
@@ -2507,12 +2509,15 @@ const Appointments = () => {
                                 )}
                                 {shouldShowColumn("service") && (
                                   <td className="p-3">
-                                    {/* Clamped so one long value can't set the height of the whole
-                                        row - imported data has put paragraphs in here. truncate
-                                        needs a bounded width, and max-w on the td itself is
-                                        unreliable under table layout, hence the inner block span. */}
-                                    <span className="block max-w-[240px] truncate" title={apt.service || ""}>
-                                      {apt.service || "—"}
+                                    {/* The Investigation text as Salesforce recorded it, which is
+                                        what staff need to read - the resolved service name often
+                                        collapses to "Consultation" and hides what was done. Falls
+                                        back to the resolved name when there is no text.
+
+                                        Clamped because imported data has put paragraphs in here;
+                                        the column is table-fixed so truncate has a bounded width. */}
+                                    <span className="block truncate" title={apt.reason_for_consultation || apt.service || ""}>
+                                      {apt.reason_for_consultation || apt.service || "—"}
                                     </span>
                                   </td>
                                 )}

@@ -556,6 +556,10 @@ Deno.serve(async (req) => {
   const mode = url.searchParams.get("mode") || "";
   const offset = Math.max(0, Number(url.searchParams.get("offset") || "0"));
 
+  // Anchor every time budget to the moment the request arrived; the setup
+  // phase (Salesforce window lookup, patient creation) can itself be slow and
+  // otherwise pushes total runtime past the platform's 150s idle timeout.
+  const startedAt = Date.now();
   const results: any[] = [];
   try {
     let targets: Target[];

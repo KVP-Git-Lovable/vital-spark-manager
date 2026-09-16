@@ -75,7 +75,6 @@ import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { MicButton } from "@/components/shared/MicButton";
 import { TimePicker12h } from "@/components/shared/TimePicker12h";
-import { ConsultationReasonPicker, buildConsultationReasonsForSave, ConsultationType } from "@/components/appointments/ConsultationReasonPicker";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 
 // Lazy: pulls in recharts, kept out of the main bundle until a user actually opens Charts.
@@ -346,10 +345,9 @@ const Appointments = () => {
   const [serviceId, setServiceId] = useState("");
   const [appointmentStatus, setAppointmentStatus] = useState("Reserved");
   const [visitStatus, setVisitStatus] = useState("");
-  const [consultationType, setConsultationType] = useState<ConsultationType | "">("");
-  const [consultationReasons, setConsultationReasons] = useState<string[]>([]);
-  const [othersAestheticText, setOthersAestheticText] = useState("");
-  const [othersClinicalText, setOthersClinicalText] = useState("");
+  // Free text for this visit. Stored in reason_for_consultation, the column the
+  // Salesforce import already fills from Investigation__c.
+  const [investigation, setInvestigation] = useState("");
   const [additionalInfoOpen, setAdditionalInfoOpen] = useState(false);
   const [appointmentType, setAppointmentType] = useState<"Walk-in" | "Online">("Walk-in");
   const [startDate, setStartDate] = useState<Date>();
@@ -1011,7 +1009,6 @@ const Appointments = () => {
 
       if (wasRecurring) {
         const dates = generateRecurringDates(startDate, recurrencePattern, recurrenceEndDate!);
-        const savedReasons = buildConsultationReasonsForSave(consultationReasons, othersAestheticText, othersClinicalText);
         const rows = dates.map((d) => ({
           patient_id: patientId || null,
           patient_name: patientName,
@@ -1027,13 +1024,11 @@ const Appointments = () => {
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
           appointment_type: appointmentType,
-          consultation_type: consultationType || null,
-          consultation_reasons: savedReasons,
+          reason_for_consultation: investigation.trim() || null,
         }));
         const { error } = await supabase.from("appointments").insert(rows as any);
         if (error) throw error;
       } else {
-        const savedReasons = buildConsultationReasonsForSave(consultationReasons, othersAestheticText, othersClinicalText);
         const { data: inserted, error } = await supabase.from("appointments").insert({
           patient_id: patientId || null,
           patient_name: patientName,
@@ -1047,8 +1042,7 @@ const Appointments = () => {
           source: patientSource,
           problem_area_ids: selectedProblemAreas,
           appointment_type: appointmentType,
-          consultation_type: consultationType || null,
-          consultation_reasons: savedReasons,
+          reason_for_consultation: investigation.trim() || null,
         } as any).select("id").single();
         if (error) throw error;
         newAppointmentId = (inserted as any)?.id || null;
@@ -1253,10 +1247,7 @@ const Appointments = () => {
     setServiceId("");
     setAppointmentStatus("Reserved");
     setVisitStatus("");
-    setConsultationType("");
-    setConsultationReasons([]);
-    setOthersAestheticText("");
-    setOthersClinicalText("");
+    setInvestigation("");
     setAdditionalInfoOpen(false);
     setAppointmentType("Walk-in");
     setStartDate(undefined);
@@ -1744,17 +1735,15 @@ const Appointments = () => {
                     </div>
                 </div>
 
-                {/* Consultation Type & Reasons */}
+                {/* Investigation. Reason for Consultation now lives on the patient. */}
                 <div>
-                  <ConsultationReasonPicker
-                    consultationType={consultationType}
-                    onConsultationTypeChange={setConsultationType}
-                    consultationReasons={consultationReasons}
-                    onConsultationReasonsChange={setConsultationReasons}
-                    othersAestheticText={othersAestheticText}
-                    setOthersAestheticText={setOthersAestheticText}
-                    othersClinicalText={othersClinicalText}
-                    setOthersClinicalText={setOthersClinicalText}
+                  <Label>Investigation</Label>
+                  <Textarea
+                    value={investigation}
+                    onChange={(e) => setInvestigation(e.target.value)}
+                    placeholder="What was investigated at this visit"
+                    rows={2}
+                    className="mt-1.5"
                   />
                 </div>
 

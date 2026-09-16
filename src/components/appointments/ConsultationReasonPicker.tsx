@@ -200,6 +200,39 @@ export function ConsultationReasonPicker({
   );
 }
 
+/**
+ * Inverse of buildConsultationReasonsForSave: turn stored reasons back into the
+ * tag list plus the two free-text boxes.
+ *
+ * The appointment form never needed this - it only ever creates - but anything
+ * that EDITS a saved record does: without it, opening a record and saving again
+ * would drop whatever was typed into "Others".
+ */
+export function parseConsultationReasonsForEdit(stored: string[] | null | undefined): {
+  reasons: string[];
+  othersAestheticText: string;
+  othersClinicalText: string;
+} {
+  const reasons: string[] = [];
+  let othersAestheticText = "";
+  let othersClinicalText = "";
+
+  for (const raw of stored ?? []) {
+    const value = String(raw ?? "");
+    if (value === OTHER_AESTHETIC || value.startsWith(`${OTHER_AESTHETIC}: `)) {
+      othersAestheticText = value.slice(OTHER_AESTHETIC.length + 2);
+      reasons.push(OTHER_AESTHETIC);
+    } else if (value === OTHER_CLINICAL || value.startsWith(`${OTHER_CLINICAL}: `)) {
+      othersClinicalText = value.slice(OTHER_CLINICAL.length + 2);
+      reasons.push(OTHER_CLINICAL);
+    } else if (value) {
+      reasons.push(value);
+    }
+  }
+
+  return { reasons, othersAestheticText, othersClinicalText };
+}
+
 export function buildConsultationReasonsForSave(
   reasons: string[],
   othersAestheticText: string,

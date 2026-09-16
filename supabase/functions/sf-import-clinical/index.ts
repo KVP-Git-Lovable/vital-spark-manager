@@ -345,7 +345,11 @@ async function syncPatient(
       end_time: end,
       status,
       appointment_type: a.Visit_Type__c || a.Appointment_type__c || "Walk-in",
-      reason_for_consultation: `${rawService || ""}${a.Doctor_Name__c ? ` (Dr. ${a.Doctor_Name__c})` : ""}`.trim() || null,
+      // Investigation text only. The doctor used to be appended here as
+      // "(Dr. Name)", but this column is now the Investigation box staff type
+      // into, and the doctor already has its own column - a name glued onto the
+      // end of their text would just be noise they have to delete.
+      reason_for_consultation: String(rawService || "").trim() || null,
       source: "salesforce",
       staff_id: doctorFor(a.Doctor_Name__c),
       sf_id: a.Id,

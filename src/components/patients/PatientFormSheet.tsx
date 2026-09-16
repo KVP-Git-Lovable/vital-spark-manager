@@ -4,6 +4,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  ConsultationReasonPicker,
+  buildConsultationReasonsForSave,
+  parseConsultationReasonsForEdit,
+  type ConsultationType,
+} from "@/components/appointments/ConsultationReasonPicker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -99,6 +105,8 @@ const emptyForm: TablesInsert<"patients"> = {
   source_ad_details: null,
   source_referral_doctor: null,
   source_other_text: null,
+  consultation_type: null,
+  consultation_reasons: null,
 };
 
 export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, onSuccess }: PatientFormSheetProps) {
@@ -108,6 +116,12 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [referralPatientSearch, setReferralPatientSearch] = useState("");
   const [referralPopoverOpen, setReferralPopoverOpen] = useState(false);
   const [selectedReferralPatientName, setSelectedReferralPatientName] = useState("");
+
+  // Reason for Consultation. The tag list and the two "Others" boxes are edited
+  // separately and folded into form.consultation_reasons on save.
+  const [consultationReasons, setConsultationReasons] = useState<string[]>([]);
+  const [othersAestheticText, setOthersAestheticText] = useState("");
+  const [othersClinicalText, setOthersClinicalText] = useState("");
   const [refDocOpen, setRefDocOpen] = useState(false);
   const [refDocSearch, setRefDocSearch] = useState("");
   const [addDoctorOpen, setAddDoctorOpen] = useState(false);
@@ -216,7 +230,17 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         source_referral_doctor: (patient as any).source_referral_doctor || null,
         source_other_text: (patient as any).source_other_text || null,
         doctor_id: (patient as any).doctor_id || null,
+        consultation_type: patient.consultation_type ?? null,
+        consultation_reasons: patient.consultation_reasons ?? null,
       });
+      // Unpack the stored reasons, or editing and saving a patient would drop
+      // whatever was typed into "Others".
+      {
+        const parsed = parseConsultationReasonsForEdit(patient.consultation_reasons);
+        setConsultationReasons(parsed.reasons);
+        setOthersAestheticText(parsed.othersAestheticText);
+        setOthersClinicalText(parsed.othersClinicalText);
+      }
       // Set referral patient name if source is "Referred by Patient"
       if ((patient as any).source === "Referred by Patient" && (patient as any).source_referral_doctor) {
         const refPat = allPatients.find(p => p.id === (patient as any).source_referral_doctor);
@@ -494,7 +518,13 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     setSaving(true);
     try {
       let patientId: string | null = patient?.id || null;
-      const payload = { ...form, ...customValues } as any;
+      const payload = {
+        ...form,
+        consultation_reasons: consultationReasons.length
+          ? buildConsultationReasonsForSave(consultationReasons, othersAestheticText, othersClinicalText)
+          : null,
+        ...customValues,
+      } as any;
       if (isEditing && patient) {
         const { error } = await supabase
           .from("patients")
@@ -736,6 +766,19 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                 </div>
               </CollapsibleContent>
             </Collapsible>
+
+            <div className="border rounded-md p-3">
+              <ConsultationReasonPicker
+                consultationType={(form.consultation_type || "") as ConsultationType | ""}
+                onConsultationTypeChange={(v) => setForm((f) => ({ ...f, consultation_type: v }))}
+                consultationReasons={consultationReasons}
+                onConsultationReasonsChange={setConsultationReasons}
+                othersAestheticText={othersAestheticText}
+                setOthersAestheticText={setOthersAestheticText}
+                othersClinicalText={othersClinicalText}
+                setOthersClinicalText={setOthersClinicalText}
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>

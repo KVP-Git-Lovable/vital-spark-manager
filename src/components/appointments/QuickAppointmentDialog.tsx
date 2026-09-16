@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -15,7 +16,6 @@ import { format } from "date-fns";
 import { shortPatientId } from "@/lib/utils";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { TimePicker12h } from "@/components/shared/TimePicker12h";
-import { ConsultationReasonPicker, buildConsultationReasonsForSave, ConsultationType } from "./ConsultationReasonPicker";
 
 interface QuickAppointmentDialogProps {
   open: boolean;
@@ -40,17 +40,15 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
   const [date, setDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("10:30");
-  const [consultationType, setConsultationType] = useState<ConsultationType | "">("");
-  const [consultationReasons, setConsultationReasons] = useState<string[]>([]);
+  // Free text for this visit. Stored in reason_for_consultation, the column the
+  // Salesforce import already fills from Investigation__c.
+  const [investigation, setInvestigation] = useState("");
   const [problemAreaIds, setProblemAreaIds] = useState<string[]>([]);
-  const [othersAestheticText, setOthersAestheticText] = useState("");
-  const [othersClinicalText, setOthersClinicalText] = useState("");
 
   useEffect(() => {
     if (!open) {
       setStaffId(""); setServiceId("");
-      setConsultationType(""); setConsultationReasons([]);
-      setOthersAestheticText(""); setOthersClinicalText("");
+      setInvestigation("");
       setAppointmentStatus("Reserved"); setAppointmentType("Walk-in");
       setDate(format(new Date(), "yyyy-MM-dd"));
       setStartTime("10:00"); setEndTime("10:30");
@@ -105,7 +103,6 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
       if (end <= start) throw new Error("End time must be after start time");
       if (start < new Date()) throw new Error("Cannot book appointments in the past");
       const serviceName = services.find((s: any) => s.id === serviceId)?.name || "";
-      const savedReasons = buildConsultationReasonsForSave(consultationReasons, othersAestheticText, othersClinicalText);
       const { error } = await supabase.from("appointments").insert({
         patient_id: patient.id,
         patient_name: `${patient.first_name} ${patient.last_name}`.trim(),
@@ -117,8 +114,7 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
         is_recurring: false,
         source: "Walk-in",
         appointment_type: appointmentType,
-        consultation_type: consultationType || null,
-        consultation_reasons: savedReasons,
+        reason_for_consultation: investigation.trim() || null,
         problem_area_ids: problemAreaIds,
       } as any);
       if (error) throw error;
@@ -262,16 +258,17 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
             </Popover>
           </div>
 
-          <ConsultationReasonPicker
-            consultationType={consultationType}
-            setConsultationType={setConsultationType}
-            reasons={consultationReasons}
-            setReasons={setConsultationReasons}
-            othersAestheticText={othersAestheticText}
-            setOthersAestheticText={setOthersAestheticText}
-            othersClinicalText={othersClinicalText}
-            setOthersClinicalText={setOthersClinicalText}
-          />
+          {/* Investigation. Reason for Consultation now lives on the patient. */}
+          <div>
+            <Label>Investigation</Label>
+            <Textarea
+              value={investigation}
+              onChange={(e) => setInvestigation(e.target.value)}
+              placeholder="What was investigated at this visit"
+              rows={2}
+              className="mt-1.5"
+            />
+          </div>
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

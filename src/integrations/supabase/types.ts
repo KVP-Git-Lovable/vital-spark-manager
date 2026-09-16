@@ -1996,6 +1996,8 @@ export type Database = {
           auth_user_id: string | null
           blood_group: string | null
           city: string | null
+          consultation_type: string | null
+          consultation_reasons: string[] | null
           created_at: string
           created_by: string | null
           current_medications: string | null
@@ -2054,6 +2056,8 @@ export type Database = {
           auth_user_id?: string | null
           blood_group?: string | null
           city?: string | null
+          consultation_type?: string | null
+          consultation_reasons?: string[] | null
           created_at?: string
           created_by?: string | null
           current_medications?: string | null
@@ -2112,6 +2116,8 @@ export type Database = {
           auth_user_id?: string | null
           blood_group?: string | null
           city?: string | null
+          consultation_type?: string | null
+          consultation_reasons?: string[] | null
           created_at?: string
           created_by?: string | null
           current_medications?: string | null

@@ -606,7 +606,7 @@ Deno.serve(async (req) => {
     // because an already-running Salesforce request can remain in flight
     // until the platform's 150s idle timeout. Stop scheduling at 90s and
     // abort every individual patient's Salesforce calls after at most 20s.
-    const deadline = Date.now() + 90_000;
+    const deadline = startedAt + 90_000;
     let stoppedEarly = false;
     await mapPool(targets, 8, async (p) => {
       if (Date.now() > deadline) { stoppedEarly = true; return; }

@@ -27,6 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
 import { SkinTracker } from "@/components/shared/SkinTracker";
+import { PhotoViewer } from "@/components/patients/PhotoViewer";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { CameraDialog } from "@/components/shared/CameraDialog";
 import { FamilyMembers } from "@/components/patients/FamilyMembers";
@@ -153,6 +154,7 @@ const PatientDetail = () => {
   const photoCameraRef = useRef<HTMLInputElement>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [failedPhotoIds, setFailedPhotoIds] = useState<Set<string>>(new Set());
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [attachmentCameraOpen, setAttachmentCameraOpen] = useState(false);
   const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [otpCode, setOtpCode] = useState<string | null>(null);
@@ -1218,7 +1220,7 @@ const PatientDetail = () => {
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-                {photos.map((photo: any) => (
+                {photos.map((photo: any, photoIndex: number) => (
                   <div key={photo.id} className="stat-card p-0 overflow-hidden">
                     <div className="relative">
                       {failedPhotoIds.has(photo.id) ? (
@@ -1227,13 +1229,23 @@ const PatientDetail = () => {
                           <span className="text-[10px]">Photo unavailable</span>
                         </div>
                       ) : (
-                        <img
-                          src={photo.photo_url}
-                          alt=""
-                          className="w-full h-32 md:h-40 object-cover"
-                          loading="lazy"
-                          onError={() => setFailedPhotoIds((prev) => new Set(prev).add(photo.id))}
-                        />
+                        // A button, not a clickable div: the thumbnail is
+                        // genuinely an action, so it should be reachable and
+                        // operable from the keyboard like any other.
+                        <button
+                          type="button"
+                          onClick={() => setViewerIndex(photoIndex)}
+                          aria-label="View photo full size"
+                          className="block w-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <img
+                            src={photo.photo_url}
+                            alt=""
+                            className="w-full h-32 md:h-40 object-cover transition-transform duration-200 hover:scale-[1.03]"
+                            loading="lazy"
+                            onError={() => setFailedPhotoIds((prev) => new Set(prev).add(photo.id))}
+                          />
+                        </button>
                       )}
                       <Button
                         variant="destructive"
@@ -1779,6 +1791,13 @@ const PatientDetail = () => {
           setSelectedDocType("Prescription");
           setDocTypeDialogOpen(true);
         }}
+      />
+
+      <PhotoViewer
+        photos={photos}
+        index={viewerIndex}
+        onIndexChange={setViewerIndex}
+        patientName={`${patient.first_name} ${patient.last_name}`}
       />
 
       <SkinTracker

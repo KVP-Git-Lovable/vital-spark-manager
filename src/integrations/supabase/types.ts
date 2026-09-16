@@ -21,6 +21,7 @@ export type Database = {
           consultation_type: string | null
           created_at: string
           created_by: string | null
+          doctor_name: string | null
           end_time: string
           id: string
           is_recurring: boolean | null
@@ -49,6 +50,7 @@ export type Database = {
           consultation_type?: string | null
           created_at?: string
           created_by?: string | null
+          doctor_name?: string | null
           end_time: string
           id?: string
           is_recurring?: boolean | null
@@ -77,6 +79,7 @@ export type Database = {
           consultation_type?: string | null
           created_at?: string
           created_by?: string | null
+          doctor_name?: string | null
           end_time?: string
           id?: string
           is_recurring?: boolean | null

@@ -20,6 +20,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { procedureServiceName, awaitingRealService, NO_SERVICE_RECORDED } from "./serviceName.ts";
+import { isPureConsultation, billLineName } from "./consultation.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -314,12 +315,17 @@ async function syncPatient(
   // further down.
   const apptServiceBySfId = new Map<string, string>();
   const apptDoctorBySfId = new Map<string, string>();
+  // The raw Investigation text, which is what decides both the bill's line name
+  // and whether the visit was a plain consultation (and so GST-exempt).
+  const apptInvestigationBySfId = new Map<string, string>();
   appts.forEach((a) => {
     // Resolved to a real service name for the same reason as the appointment
     // itself - this map feeds invoice and procedure service_name columns.
     const svc = serviceFor(a.Investigation__c || a.Description__c);
     if (svc) apptServiceBySfId.set(a.Id, String(svc));
     if (a.Doctor_Name__c) apptDoctorBySfId.set(a.Id, String(a.Doctor_Name__c));
+    const investigation = a.Investigation__c || a.Description__c;
+    if (investigation) apptInvestigationBySfId.set(a.Id, String(investigation));
   });
 
   const mapAppt = (a: any) => {
@@ -408,10 +414,24 @@ async function syncPatient(
   log.skipped += billings.length - newBillings.length;
   const invRows = newBillings.map((b) => {
     const services = [b.Procedure_Type__c, b.Procedure_Type_2__c, b.Procedure_Type_3__c].filter(Boolean);
-    const fallbackName = (b.Appointment__c && apptServiceBySfId.get(b.Appointment__c)) || "Service";
+    const investigation = b.Appointment__c ? apptInvestigationBySfId.get(b.Appointment__c) : null;
+    // Name the line by what was actually done. The old fallback stored the
+    // literal "Service", which generate-invoice-pdf then swapped for the
+    // appointment's resolved service - almost always "Consultation" - so every
+    // bill read "Consultation" and the front desk could not tell procedures
+    // apart. billLineName() keeps "Consultation" only when the visit really was
+    // one.
+    const fallbackName =
+      billLineName(investigation, "") ||
+      (b.Appointment__c && apptServiceBySfId.get(b.Appointment__c)) ||
+      "Service";
     const names = services.length ? services : [fallbackName];
     const total = Number(b.Total_Amount__c || b.Total_Price__c || 0);
-    const taxRate = Number(b.GST__c || 0);
+    // A doctor's consultation carries no GST. Salesforce sends 5% on these
+    // anyway, so override it here; every other visit keeps whatever GST__c says,
+    // because the clinic's rule is that only the consultation itself is exempt.
+    const consultationOnly = !services.length && isPureConsultation(investigation);
+    const taxRate = consultationOnly ? 0 : Number(b.GST__c || 0);
     // Billing__c has no per-line item breakdown (Procedure_Type__c etc. are
     // just names, no price/HSN) and no separate CGST/SGST fields. total is
     // tax-INCLUSIVE (it's what total_amount/paid_amount store directly), so

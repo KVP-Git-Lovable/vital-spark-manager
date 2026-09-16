@@ -7,6 +7,7 @@ import { Cloud, Loader2, CircleCheck, CircleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useSalesforceSync } from "@/hooks/useSalesforceSync";
+import { recentSyncWindow } from "@/lib/salesforceSyncWindow";
 
 const STAGE_LABEL: Record<string, string> = {
   linking: "Linking patients",
@@ -42,14 +43,8 @@ export function SalesforceSyncButton() {
   const queryClient = useQueryClient();
   const wasRunning = useRef(false);
 
-  // Day boundaries in clinic time (IST) so "today" matches what staff see.
-  const runRecent = (daysBack: number) => {
-    const now = new Date();
-    const end = new Date(now);
-    end.setHours(23, 59, 59, 999);
-    const start = new Date(now);
-    start.setDate(start.getDate() - daysBack);
-    start.setHours(0, 0, 0, 0);
+  const runRecent = (daysBack: number, daysForward = 0) => {
+    const { start, end } = recentSyncWindow(daysBack, daysForward);
     sync.startRecentSync(start, end);
   };
 
@@ -158,15 +153,19 @@ export function SalesforceSyncButton() {
         )}
 
         <div className="space-y-2 border-t pt-3">
-          <p className="text-xs font-medium">Bring in recent appointments</p>
+          <p className="text-xs font-medium">Bring in appointments by date</p>
           <p className="text-[11px] text-muted-foreground">
-            Checks Salesforce for appointments booked on these dates — including patients who
-            were only ever registered in Salesforce.
+            Matches on the appointment's own date, not when it was booked — so pick a range that
+            covers the days you want, including days still to come. Patients who exist only in
+            Salesforce are created as they are found.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" disabled={sync.running} onClick={() => runRecent(0)}>Today</Button>
             <Button size="sm" variant="secondary" disabled={sync.running} onClick={() => runRecent(7)}>Last 7 days</Button>
             <Button size="sm" variant="secondary" disabled={sync.running} onClick={() => runRecent(30)}>Last 30 days</Button>
+            <Button size="sm" variant="secondary" disabled={sync.running} onClick={() => runRecent(0, 7)}>Next 7 days</Button>
+            <Button size="sm" variant="secondary" disabled={sync.running} onClick={() => runRecent(0, 30)}>Next 30 days</Button>
+            <Button size="sm" variant="secondary" disabled={sync.running} onClick={() => runRecent(30, 60)}>Last 30 + next 60</Button>
           </div>
         </div>
 

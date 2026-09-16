@@ -1072,18 +1072,6 @@ export function ProcedureFormDialog({
             </div>
           </div>
 
-          {/* Notes — inline rather than a tab of its own: staff jot an observation
-              while filling the form, and a whole tab for one card meant leaving
-              the form to do it. ProcedureStickyNotes still buffers into
-              draftNotes here, because procedure_sticky_notes.procedure_id is NOT
-              NULL and the procedure does not exist yet. */}
-          <div className="space-y-2">
-            <Label className="text-base font-display font-semibold text-primary flex items-center gap-1.5">
-              <StickyNote className="h-4 w-4" /> Notes
-            </Label>
-            <ProcedureStickyNotes notes={draftNotes} onNotesChange={setDraftNotes} />
-          </div>
-
           {/* Services / Procedures — multiple */}
           <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -1318,6 +1306,18 @@ export function ProcedureFormDialog({
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Notes — inline rather than a tab of its own: staff jot an observation
+              while filling the form, and a whole tab for one card meant leaving
+              the form to do it. ProcedureStickyNotes still buffers into
+              draftNotes here, because procedure_sticky_notes.procedure_id is NOT
+              NULL and the procedure does not exist yet. */}
+          <div className="space-y-2">
+            <Label className="text-base font-display font-semibold text-primary flex items-center gap-1.5">
+              <StickyNote className="h-4 w-4" /> Notes
+            </Label>
+            <ProcedureStickyNotes notes={draftNotes} onNotesChange={setDraftNotes} />
           </div>
 
           {/* Visit plan */}

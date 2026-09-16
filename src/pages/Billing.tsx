@@ -74,7 +74,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { fetchAll } from "@/lib/supabasePaginate";
-import { fetchInvoicesPage, fetchInvoicesBounded, fetchInvoicesSearch, fetchInvoiceStats, fetchInvoiceById } from "@/lib/invoicesPage";
+import { fetchInvoicesPage, fetchInvoicesInRange, fetchInvoicesSearch, fetchInvoiceStats, fetchInvoiceById } from "@/lib/invoicesPage";
 import { withDrPrefix } from "@/lib/staffName";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
@@ -542,7 +542,7 @@ const Billing = () => {
     error: boundedError,
   } = useQuery({
     queryKey: ["invoices-bounded", filterDateFrom, filterDateTo],
-    queryFn: () => fetchInvoicesBounded({ dateFrom: filterDateFrom, dateTo: filterDateTo, limit: 3000 }),
+    queryFn: () => fetchInvoicesInRange({ dateFrom: filterDateFrom, dateTo: filterDateTo }),
     enabled: needsClientRows && !needsServerSearch,
   });
 
@@ -2108,7 +2108,7 @@ const Billing = () => {
     } else {
       toast.loading("Preparing export…", { id: "export-csv" });
       try {
-        const all = await fetchInvoicesBounded({ dateFrom: filterDateFrom, dateTo: filterDateTo, limit: 100000 });
+        const all = await fetchInvoicesInRange({ dateFrom: filterDateFrom, dateTo: filterDateTo });
         exportSet = applyViewFilters(all.filter(matchesQuickFilters));
       } catch (err: any) {
         toast.error(`Export failed: ${err.message}`, { id: "export-csv" });

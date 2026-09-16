@@ -940,9 +940,6 @@ export function ProcedureFormDialog({
               <TabsTrigger value="medical" className="gap-1.5">
                 <HeartPulse className="h-3.5 w-3.5" /> Medical Information
               </TabsTrigger>
-              <TabsTrigger value="notes" className="gap-1.5">
-                <StickyNote className="h-3.5 w-3.5" /> Notes
-              </TabsTrigger>
             </TabsList>
             <TabsContent value="procedure" className="space-y-4 mt-4">
           {/* Unified AI bar */}
@@ -1073,6 +1070,18 @@ export function ProcedureFormDialog({
                 <p className="text-xs text-amber-600 mt-1">Couldn't match: {unmatchedHints.problemAreas.map((q) => `"${q}"`).join(", ")} — please select manually.</p>
               )}
             </div>
+          </div>
+
+          {/* Notes — inline rather than a tab of its own: staff jot an observation
+              while filling the form, and a whole tab for one card meant leaving
+              the form to do it. ProcedureStickyNotes still buffers into
+              draftNotes here, because procedure_sticky_notes.procedure_id is NOT
+              NULL and the procedure does not exist yet. */}
+          <div className="space-y-2">
+            <Label className="text-base font-display font-semibold text-primary flex items-center gap-1.5">
+              <StickyNote className="h-4 w-4" /> Notes
+            </Label>
+            <ProcedureStickyNotes notes={draftNotes} onNotesChange={setDraftNotes} />
           </div>
 
           {/* Services / Procedures — multiple */}
@@ -1408,9 +1417,6 @@ export function ProcedureFormDialog({
               )}
             </TabsContent>
 
-            <TabsContent value="notes" className="space-y-3 mt-4">
-              <ProcedureStickyNotes notes={draftNotes} onNotesChange={setDraftNotes} />
-            </TabsContent>
           </Tabs>
 
           <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!patientId || createMutation.isPending}>

@@ -178,9 +178,11 @@ async function fetchTargets(only: string, limit: number): Promise<Target[]> {
 async function fetchRecentTargets(
   fromIso: string,
   toIso: string,
+  signal?: AbortSignal,
 ): Promise<{ targets: Target[]; unmatched: number; sfPatients: number; createdPatients: number }> {
   const rows = await sfQuery(
     `SELECT Patient__c FROM Appointment__c WHERE Start_Time__c >= ${fromIso} AND Start_Time__c <= ${toIso} AND Patient__c != null`,
+    signal,
   );
   const sfIds = Array.from(new Set(rows.map((r: any) => String(r.Patient__c))));
   const targets: Target[] = [];

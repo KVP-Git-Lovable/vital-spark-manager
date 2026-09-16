@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { syncErrorMessage, summariseSyncErrors } from "@/lib/syncErrorMessage";
 
 export type SyncStage = "linking" | "clinical" | "pictures" | "attachments";
 
@@ -104,7 +105,7 @@ async function invokeWithRetry(nameWithQuery: string, attempts = 4): Promise<any
     } catch (e) {
       lastErr = e as Error;
       if (i < attempts - 1) {
-        pushLog(`Retrying after error: ${lastErr.message}`);
+        pushLog(`Retrying after error: ${syncErrorMessage(lastErr.message)}`);
         await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, i)));
       }
     }
@@ -149,11 +150,10 @@ function countSucceeded(results: any[]) {
 }
 
 function stalledError(stage: string, results: any[]) {
-  const sample = results
-    .map((r) => r?.error || r?.errors?.[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("; ");
+  // When Salesforce is down every patient fails identically, so the messages
+  // are summarised and de-duplicated rather than concatenated - the old version
+  // pasted two full HTML maintenance pages into the panel.
+  const sample = summariseSyncErrors(results.map((r) => r?.error || r?.errors?.[0]));
   return new Error(
     `${stage} stopped making progress - the same patient(s) keep failing after ${MAX_STALLED_ROUNDS} attempts${sample ? `: ${sample}` : ""}`,
   );
@@ -258,8 +258,9 @@ export async function startRecentSync(from: Date, to: Date) {
 
     setState({ running: false, stage: null, message: "Sync complete." });
   } catch (e: any) {
-    setState({ running: false, stage: null, error: e.message, message: `Failed: ${e.message}` });
-    pushLog(`Error: ${e.message}`);
+    const message = syncErrorMessage(e.message);
+    setState({ running: false, stage: null, error: message, message: `Failed: ${message}` });
+    pushLog(`Error: ${message}`);
   }
 }
 
@@ -287,7 +288,8 @@ export async function startSync() {
     setState({ running: false, stage: null, message: "Sync complete." });
     pushLog("All stages complete.");
   } catch (e: any) {
-    setState({ running: false, stage: null, error: e.message, message: `Failed: ${e.message}` });
-    pushLog(`Error: ${e.message}`);
+    const message = syncErrorMessage(e.message);
+    setState({ running: false, stage: null, error: message, message: `Failed: ${message}` });
+    pushLog(`Error: ${message}`);
   }
 }

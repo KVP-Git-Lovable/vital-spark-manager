@@ -22,6 +22,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { procedureServiceName, awaitingRealService, NO_SERVICE_RECORDED } from "./serviceName.ts";
 import { isPureConsultation, billLineName } from "./consultation.ts";
 import { recentTargetQueries, mergePatientIds } from "./recentTargets.ts";
+import { describeSfFailure } from "./sfError.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -45,7 +46,7 @@ async function sfQuery(soql: string, signal?: AbortSignal): Promise<any[]> {
         "X-Connection-Api-Key": SALESFORCE_API_KEY,
       },
     });
-    if (!response.ok) throw new Error(`SF query failed [${response.status}]: ${await response.text()}`);
+    if (!response.ok) throw new Error(describeSfFailure(response.status, await response.text()));
     const payload: { records?: any[]; done?: boolean; nextRecordsUrl?: string } = await response.json();
     out.push(...(payload.records || []));
     if (payload.done || !payload.nextRecordsUrl) break;

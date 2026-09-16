@@ -260,6 +260,10 @@ export const REPORTS: ReportConfig[] = [
     columns: [
       { key: "patient_name", label: "Patient", sortable: true },
       { key: "service", label: "Service", sortable: true },
+      // appointments.doctor_name, not a staff lookup: doctors who left before
+      // they ever had a staff record still saw patients, and a report on 2021
+      // that shows a blank doctor column is not a report on 2021.
+      { key: "doctor_name", label: "Doctor", sortable: true },
       { key: "start_time", label: "Start", sortable: true, type: "datetime" },
       { key: "status", label: "Status", sortable: true, type: "badge" },
     ],
@@ -269,7 +273,7 @@ export const REPORTS: ReportConfig[] = [
       { key: "service", label: "Service", type: "service", matches: (r, v) => String(r.service ?? "") === v },
       { key: "status", label: "Status", type: "select", field: "status", options: STATUS_APPT.map(v => ({ value: v, label: v })) },
     ],
-    searchFields: ["patient_name", "service"],
+    searchFields: ["patient_name", "service", "doctor_name"],
     rowHref: () => `/appointments`,
     fetcher: async ({ from, to }) =>
       fetchAll((s, e) => {

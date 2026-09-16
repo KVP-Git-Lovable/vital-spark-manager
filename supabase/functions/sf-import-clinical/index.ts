@@ -363,6 +363,11 @@ async function syncPatient(
       reason_for_consultation: String(rawService || "").trim() || null,
       source: "salesforce",
       staff_id: doctorFor(a.Doctor_Name__c),
+      // The name as well as the link. Nine doctors who worked here between 2020
+      // and 2026 have no staff record and are not going to get one, so staff_id
+      // is null for them - without this their appointments show no doctor at
+      // all, even though Salesforce says exactly who saw the patient.
+      doctor_name: String(a.Doctor_Name__c || "").trim() || null,
       sf_id: a.Id,
       created_at: a.CreatedDate,
       updated_at: a.CreatedDate,
@@ -404,6 +409,7 @@ async function syncPatient(
           service: row.service,
           reason_for_consultation: row.reason_for_consultation,
           staff_id: row.staff_id,
+          doctor_name: row.doctor_name,
           appointment_type: row.appointment_type,
         })
         .eq("sf_id", a.Id);

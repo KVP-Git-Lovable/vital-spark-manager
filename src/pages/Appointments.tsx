@@ -445,7 +445,7 @@ const Appointments = () => {
         prevStatus: apt.status,
         newStatus: value,
         startTime: apt.start_time,
-        doctorName: apt.staff_id ? (staffMap.get(apt.staff_id) || "") : "",
+        doctorName: getDoctorName(apt),
         serviceName: apt.service || "",
         patientGender: apt.patients?.gender || null,
       };
@@ -1328,8 +1328,13 @@ const Appointments = () => {
     return STATUS_CARD_CLASSES[apt.status] || STATUS_CARD_CLASSES.Proposed;
   };
 
+  // Who saw the patient. Falls back to the recorded name because nine doctors
+  // who worked here between 2020 and 2026 were never staff members and are not
+  // going to be - without the fallback their 3,640 appointments show no doctor
+  // at all.
   const getDoctorName = (apt: any) => {
-    return apt.staff_id ? (staffMap.get(apt.staff_id) || "") : "";
+    const fromStaff = apt.staff_id ? staffMap.get(apt.staff_id) : "";
+    return fromStaff || apt.doctor_name || "";
   };
 
   const statusColor = (status: string) => {
@@ -2522,7 +2527,7 @@ const Appointments = () => {
                                   </td>
                                 )}
                                 {shouldShowColumn("doctor") && (
-                                  <td className="p-3 text-muted-foreground">{apt.staff_id ? (staffMap.get(apt.staff_id) || "—") : "—"}</td>
+                                  <td className="p-3 text-muted-foreground">{getDoctorName(apt) || "—"}</td>
                                 )}
                                 {shouldShowColumn("start_time") && (
                                   <td className="p-3">
@@ -2545,7 +2550,7 @@ const Appointments = () => {
                                         prevStatus: apt.status,
                                         newStatus: val,
                                         startTime: apt.start_time,
-                                        doctorName: apt.staff_id ? (staffMap.get(apt.staff_id) || "") : "",
+                                        doctorName: getDoctorName(apt),
                                         serviceName: apt.service || "",
                                         patientGender: apt.patients?.gender || null,
                                       },

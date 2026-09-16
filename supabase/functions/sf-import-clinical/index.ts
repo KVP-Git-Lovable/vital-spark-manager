@@ -206,8 +206,10 @@ async function fetchRecentTargets(
   const missing = sfIds.filter((id) => !found.has(id));
   let createdPatients = 0;
   for (const batch of chunk(missing, 200)) {
+    if (signal?.aborted) break;
     const sfPatients = await sfQuery(
       `SELECT Id, Patient_Name__c, Mobile_Number__c FROM Patient__c WHERE Id IN (${batch.map((id) => `'${id}'`).join(",")})`,
+      signal,
     );
     for (const sp of sfPatients) {
       const fullName = String(sp.Patient_Name__c || "Unknown").trim();

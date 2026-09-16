@@ -34,11 +34,28 @@
 -- whether a visit was a consultation but would destroy "(Only IPL was done)"
 -- and "(V Pai has to be there always)". Two different jobs, two rules.
 --
+-- A ROW WHOSE DOCTOR ISN'T RECORDED ANYWHERE ELSE IS LEFT ALONE.
+--
+-- The suffix is only safe to remove because the doctor already has their own
+-- column. On 1,582 appointments in this clinic's data it does not: staff_id is
+-- null because buildDoctorMap() in the importer could not match the Salesforce
+-- name to any staff row (a doctor who has since left, or a name spelt
+-- differently). For those the text is the ONLY record of who saw the patient,
+-- so the ugly suffix stays - a duplicated name is worth far less than a lost
+-- one, and this is a clinical record.
+--
+-- The guard is deliberately the blunt "staff_id IS NOT NULL" rather than
+-- "only when the cell would end up empty": "Review (Dr. Dr X)" on a row with no
+-- staff_id loses the doctor just as surely as "(Dr. Dr X)" does.
+--
 -- Re-running this changes nothing: once the suffix is gone the WHERE no longer
--- matches.
+-- matches. That also makes it the right thing to run AGAIN after those doctors
+-- are matched to staff records - the rows skipped today clean themselves up
+-- then, with no edit to this file.
 
 UPDATE public.appointments
    SET reason_for_consultation =
          nullif(btrim(regexp_replace(reason_for_consultation, '\s*\(Dr\.\s[^()]*\)\s*$', '')), '')
  WHERE source = 'salesforce'
+   AND staff_id IS NOT NULL
    AND reason_for_consultation ~ '\(Dr\.\s[^()]*\)\s*$';

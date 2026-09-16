@@ -633,7 +633,8 @@ Deno.serve(async (req) => {
     // look "missing"). Anything still sitting in the window here that no
     // longer exists in Salesforce is marked Cancelled rather than deleted.
     let cancelledMissing = 0;
-    if (mode === "recent" && recentInfo && recentInfo.nextOffset === null && !stoppedEarly && windowFrom && windowTo) {
+    const timeForReconcile = Date.now() < startedAt + 110_000;
+    if (timeForReconcile && mode === "recent" && recentInfo && recentInfo.nextOffset === null && !stoppedEarly && windowFrom && windowTo) {
       const sfRows = await sfQuery(`SELECT Id FROM Appointment__c WHERE Start_Time__c >= ${windowFrom} AND Start_Time__c <= ${windowTo}`);
       const sfSet = new Set(sfRows.map((r: any) => String(r.Id)));
       const { data: localRows } = await admin

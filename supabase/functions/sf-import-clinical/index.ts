@@ -178,9 +178,11 @@ async function fetchTargets(only: string, limit: number): Promise<Target[]> {
 async function fetchRecentTargets(
   fromIso: string,
   toIso: string,
+  signal?: AbortSignal,
 ): Promise<{ targets: Target[]; unmatched: number; sfPatients: number; createdPatients: number }> {
   const rows = await sfQuery(
     `SELECT Patient__c FROM Appointment__c WHERE Start_Time__c >= ${fromIso} AND Start_Time__c <= ${toIso} AND Patient__c != null`,
+    signal,
   );
   const sfIds = Array.from(new Set(rows.map((r: any) => String(r.Patient__c))));
   const targets: Target[] = [];
@@ -204,8 +206,10 @@ async function fetchRecentTargets(
   const missing = sfIds.filter((id) => !found.has(id));
   let createdPatients = 0;
   for (const batch of chunk(missing, 200)) {
+    if (signal?.aborted) break;
     const sfPatients = await sfQuery(
       `SELECT Id, Patient_Name__c, Mobile_Number__c FROM Patient__c WHERE Id IN (${batch.map((id) => `'${id}'`).join(",")})`,
+      signal,
     );
     for (const sp of sfPatients) {
       const fullName = String(sp.Patient_Name__c || "Unknown").trim();
@@ -552,6 +556,10 @@ Deno.serve(async (req) => {
   const mode = url.searchParams.get("mode") || "";
   const offset = Math.max(0, Number(url.searchParams.get("offset") || "0"));
 
+  // Anchor every time budget to the moment the request arrived; the setup
+  // phase (Salesforce window lookup, patient creation) can itself be slow and
+  // otherwise pushes total runtime past the platform's 150s idle timeout.
+  const startedAt = Date.now();
   const results: any[] = [];
   try {
     let targets: Target[];
@@ -569,7 +577,7 @@ Deno.serve(async (req) => {
       const toIso = sfTime(to);
       windowFrom = fromIso;
       windowTo = toIso;
-      const found = await fetchRecentTargets(fromIso, toIso);
+      const found = await fetchRecentTargets(fromIso, toIso, AbortSignal.timeout(45_000));
       const slice = found.targets.slice(offset, offset + limit);
       const next = offset + slice.length;
       recentInfo = {
@@ -598,7 +606,7 @@ Deno.serve(async (req) => {
     // because an already-running Salesforce request can remain in flight
     // until the platform's 150s idle timeout. Stop scheduling at 90s and
     // abort every individual patient's Salesforce calls after at most 20s.
-    const deadline = Date.now() + 90_000;
+    const deadline = startedAt + 90_000;
     let stoppedEarly = false;
     await mapPool(targets, 8, async (p) => {
       if (Date.now() > deadline) { stoppedEarly = true; return; }
@@ -625,8 +633,9 @@ Deno.serve(async (req) => {
     // look "missing"). Anything still sitting in the window here that no
     // longer exists in Salesforce is marked Cancelled rather than deleted.
     let cancelledMissing = 0;
-    if (mode === "recent" && recentInfo && recentInfo.nextOffset === null && !stoppedEarly && windowFrom && windowTo) {
-      const sfRows = await sfQuery(`SELECT Id FROM Appointment__c WHERE Start_Time__c >= ${windowFrom} AND Start_Time__c <= ${windowTo}`);
+    const timeForReconcile = Date.now() < startedAt + 110_000;
+    if (timeForReconcile && mode === "recent" && recentInfo && recentInfo.nextOffset === null && !stoppedEarly && windowFrom && windowTo) {
+      const sfRows = await sfQuery(`SELECT Id FROM Appointment__c WHERE Start_Time__c >= ${windowFrom} AND Start_Time__c <= ${windowTo}`, AbortSignal.timeout(20_000));
       const sfSet = new Set(sfRows.map((r: any) => String(r.Id)));
       const { data: localRows } = await admin
         .from("appointments")

@@ -635,7 +635,7 @@ Deno.serve(async (req) => {
     let cancelledMissing = 0;
     const timeForReconcile = Date.now() < startedAt + 110_000;
     if (timeForReconcile && mode === "recent" && recentInfo && recentInfo.nextOffset === null && !stoppedEarly && windowFrom && windowTo) {
-      const sfRows = await sfQuery(`SELECT Id FROM Appointment__c WHERE Start_Time__c >= ${windowFrom} AND Start_Time__c <= ${windowTo}`);
+      const sfRows = await sfQuery(`SELECT Id FROM Appointment__c WHERE Start_Time__c >= ${windowFrom} AND Start_Time__c <= ${windowTo}`, AbortSignal.timeout(20_000));
       const sfSet = new Set(sfRows.map((r: any) => String(r.Id)));
       const { data: localRows } = await admin
         .from("appointments")

@@ -2,6 +2,12 @@
 -- the import faithfully reproduced it. Remove the tax from consultation-only
 -- invoices already imported.
 --
+-- SCOPE: FINANCIAL YEAR 2026-2027 ONLY - bills raised on or after 1 April 2026.
+-- The mis-charged tax goes back to August 2021 (589 bills, Rs 1,32,712 of GST),
+-- but the four earlier financial years are already filed with the tax
+-- authorities and the clinic's decision is to leave them exactly as filed.
+-- Only the current, unfiled year is corrected here.
+--
 -- AMOUNTS DO NOT CHANGE. total_amount and paid_amount are never written: the tax
 -- was extracted from a tax-inclusive total (809.52 + 40.48 = 850), so the patient
 -- paid ₹850 and still paid ₹850. Only the split disappears, and the line's price
@@ -17,9 +23,12 @@
 -- wrong. The Investigation text is the only reliable signal.
 --
 -- is_pure_consultation() below mirrors isPureConsultation() in
--- supabase/functions/sf-import-clinical/consultation.ts. The two are checked
--- against each other over all 60 exported invoices in src/test/sfConsultation.sql.test.ts;
--- if you change one, change the other and re-run that test.
+-- supabase/functions/sf-import-clinical/consultation.ts - two copies of one
+-- rule, which is the real hazard here. The TypeScript side is covered by
+-- src/test/sfConsultation.test.ts against the clinic's 60 exported invoices in
+-- src/test/fixtures/clinic-consultation-invoices.csv; this SQL was run over the
+-- same 60 rows on Postgres 16 and agreed on every one (32 consultation-only,
+-- 28 not). If you change one, change the other and re-check against that CSV.
 
 CREATE OR REPLACE FUNCTION public.clean_investigation_text(_text text)
 RETURNS text
@@ -95,6 +104,14 @@ UPDATE public.invoices i
   FROM public.appointments a
  WHERE a.id = i.appointment_id
    AND i.sf_id IS NOT NULL
+   -- Current financial year only. invoices.created_at is the Salesforce
+   -- CreatedDate (sf-import-clinical writes created_at: b.CreatedDate), so this
+   -- is the date the bill was actually raised, not the date it was imported.
+   -- Read in IST, so a bill raised on the morning of 1 April in Mangalore is not
+   -- dragged back into the previous financial year by UTC. No upper bound: one
+   -- would silently skip bills imported after 31 March 2027 while the old
+   -- importer was still deployed.
+   AND (i.created_at AT TIME ZONE 'Asia/Kolkata') >= DATE '2026-04-01'
    AND COALESCE(i.tax_amount, 0) > 0
    AND public.is_pure_consultation(a.reason_for_consultation);
 
@@ -111,6 +128,11 @@ UPDATE public.invoices i
 --
 -- Only the "Service" placeholder is replaced: a line Salesforce actually named
 -- is left exactly as it is.
+--
+-- This one covers ALL history, unlike the tax fix above. It changes no amount
+-- and no tax - it only names what was done - so there is nothing here that a
+-- filed return could disagree with, and restricting it would leave older bills
+-- unreadable at the front desk for no reason.
 
 UPDATE public.invoices i
    SET line_items = (

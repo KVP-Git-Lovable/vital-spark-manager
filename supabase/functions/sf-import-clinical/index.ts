@@ -21,6 +21,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { procedureServiceName, awaitingRealService, NO_SERVICE_RECORDED } from "./serviceName.ts";
 import { isPureConsultation, billLineName } from "./consultation.ts";
+import { recentTargetQueries, mergePatientIds } from "./recentTargets.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -176,16 +177,20 @@ async function fetchTargets(only: string, limit: number): Promise<Target[]> {
 // inside a date window and re-run the normal per-patient import for exactly
 // those. Everything already imported is skipped by sf_id, so repeated runs
 // are safe and only bring in newly-created Salesforce records.
+//
+// "Activity" deliberately means billing as well as appointments - see
+// recentTargets.ts. An invoice is only ever imported as a side effect of syncing
+// its patient, so a patient this misses is a patient whose bills can never
+// arrive, however many times the sync runs.
 async function fetchRecentTargets(
   fromIso: string,
   toIso: string,
   signal?: AbortSignal,
 ): Promise<{ targets: Target[]; unmatched: number; sfPatients: number; createdPatients: number }> {
-  const rows = await sfQuery(
-    `SELECT Patient__c FROM Appointment__c WHERE Start_Time__c >= ${fromIso} AND Start_Time__c <= ${toIso} AND Patient__c != null`,
-    signal,
+  const resultSets = await Promise.all(
+    recentTargetQueries(fromIso, toIso).map((soql) => sfQuery(soql, signal)),
   );
-  const sfIds = Array.from(new Set(rows.map((r: any) => String(r.Patient__c))));
+  const sfIds = mergePatientIds(resultSets);
   const targets: Target[] = [];
   const found = new Set<string>();
   for (const batch of chunk(sfIds, 200)) {
@@ -679,6 +684,31 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Did every bill Salesforce raised in this window actually land? The clinic
+    // reconciles its takings against Salesforce, so "probably" is not good
+    // enough - this counts what should be here and names what is not, instead
+    // of leaving a shortfall to be discovered in a report weeks later.
+    //
+    // CreatedDate is the field to compare on because the import stores it as
+    // invoices.created_at, which is the column Billing and Reports filter by.
+    let missingInvoices: string[] = [];
+    if (timeForReconcile && mode === "recent" && recentInfo && recentInfo.nextOffset === null && !stoppedEarly && windowFrom && windowTo) {
+      const sfBills = await sfQuery(
+        `SELECT Id, Name FROM Billing__c WHERE CreatedDate >= ${windowFrom} AND CreatedDate <= ${windowTo}`,
+        AbortSignal.timeout(20_000),
+      );
+      if (sfBills.length) {
+        const here = new Set<string>();
+        for (const batch of chunk(sfBills.map((b: any) => String(b.Id)), 200)) {
+          const { data } = await admin.from("invoices").select("sf_id").in("sf_id", batch);
+          (data || []).forEach((r: any) => here.add(r.sf_id));
+        }
+        missingInvoices = sfBills
+          .filter((b: any) => !here.has(String(b.Id)))
+          .map((b: any) => String(b.Name || b.Id));
+      }
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,
@@ -692,6 +722,11 @@ Deno.serve(async (req) => {
         recent_unmatched_patients: recentInfo?.unmatched ?? null,
         recent_created_patients: recentInfo?.created ?? null,
         recent_cancelled_missing: mode === "recent" ? cancelledMissing : null,
+        recent_missing_invoices: mode === "recent" ? missingInvoices.length : null,
+        // Named, not just counted - a shortfall is only actionable if you know
+        // which bills to go and look at. Capped so a badly wrong window cannot
+        // return a response of thousands of invoice numbers.
+        recent_missing_invoice_numbers: mode === "recent" ? missingInvoices.slice(0, 50) : null,
         next_offset: mode === "recent" ? (stoppedEarly ? offset + results.length : recentInfo?.nextOffset ?? null) : null,
         results,
       }, null, 2),

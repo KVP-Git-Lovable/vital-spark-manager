@@ -237,6 +237,16 @@ export async function startRecentSync(from: Date, to: Date) {
       created += data.recent_created_patients || 0;
       updatedTotal += updated;
       cancelledTotal += data.recent_cancelled_missing || 0;
+      // Reported per page rather than summed: the reconciliation only runs on
+      // the final page, so this fires once, and it is the one line in the log
+      // that means "go and look at something".
+      if (data.recent_missing_invoices) {
+        const names: string[] = data.recent_missing_invoice_numbers || [];
+        pushLog(
+          `${data.recent_missing_invoices} Salesforce bill(s) still missing after this run` +
+            (names.length ? `: ${names.join(", ")}` : ""),
+        );
+      }
       addTotals("clinical", { processed: data.processed ?? 0, imported, skipped, errors });
       pushLog(`Date range: ${data.processed ?? 0} patient(s) of ${data.recent_total_patients ?? 0}, ${imported} imported, ${updated} updated`);
       if (data.next_offset === null || data.next_offset === undefined) break;

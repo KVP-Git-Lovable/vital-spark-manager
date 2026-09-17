@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { passwordProblem } from "@/lib/passwordRules";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -204,8 +205,8 @@ export default function UserManagement() {
     mutationFn: async () => {
       if (!resetPwStaff) throw new Error("No user selected");
       if (resetPwMode === "manual") {
-        if (resetPwValue !== resetPwConfirm) throw new Error("Passwords don't match");
-        if (resetPwValue.length < 6) throw new Error("Password must be at least 6 characters");
+        const problem = passwordProblem(resetPwValue, resetPwConfirm);
+        if (problem) throw new Error(problem);
       }
 
       // Staff with no login yet (e.g. doctors added to the roster who were

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { EDGE_FUNCTION_UNREACHABLE, edgeFunctionErrorMessage } from "./edgeFunctionError";
+import { EDGE_FUNCTION_UNREACHABLE, WEAK_PASSWORD_MESSAGE, edgeFunctionErrorMessage } from "./edgeFunctionError";
 
 const httpError = (body: unknown, message = "Edge Function returned a non-2xx status code") => ({
   message,
@@ -46,5 +46,33 @@ describe("edgeFunctionErrorMessage", () => {
   it("lets the caller name a better fallback", async () => {
     await expect(edgeFunctionErrorMessage(httpError(undefined), "Could not send the invoice."))
       .resolves.toBe("Could not send the invoice.");
+  });
+});
+
+describe("weak-password rejections", () => {
+  it("translates what Supabase says into what the operator should do", async () => {
+    // Supabase refuses passwords found in a breach corpus; the raw wording is
+    // not something to put in front of a clinic manager.
+    for (const raw of [
+      "Password is known to be weak and easy to guess, please choose a different one",
+      "This password has been pwned",
+      "found in a data breach",
+    ]) {
+      await expect(edgeFunctionErrorMessage({ message: raw })).resolves.toBe(WEAK_PASSWORD_MESSAGE);
+    }
+  });
+
+  it("translates it from the function's own body too", async () => {
+    await expect(
+      edgeFunctionErrorMessage({
+        message: "Edge Function returned a non-2xx status code",
+        context: { json: async () => ({ error: "Password is too weak" }) },
+      }),
+    ).resolves.toBe(WEAK_PASSWORD_MESSAGE);
+  });
+
+  it("leaves an unrelated message alone", async () => {
+    await expect(edgeFunctionErrorMessage({ message: "Email rate limit exceeded" }))
+      .resolves.toBe("Email rate limit exceeded");
   });
 });

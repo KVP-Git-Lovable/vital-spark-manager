@@ -2,14 +2,12 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { assertWrote } from "@/lib/rowAccess";
+import { PASSWORD_RULE_TEXT, passwordProblem } from "@/lib/passwordRules";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { KeyRound, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-
-/** Matches the minimum User Management enforces when an admin types one. */
-const MIN_LENGTH = 6;
 
 /**
  * Shown instead of the app when staff.force_password_change is set.
@@ -29,12 +27,11 @@ export function ChangePasswordRequired() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < MIN_LENGTH) {
-      toast.error(`Password must be at least ${MIN_LENGTH} characters`);
-      return;
-    }
-    if (password !== confirm) {
-      toast.error("Passwords do not match");
+    // The same rule User Management enforces. A looser one here would accept a
+    // password the API then refuses, which is the confusing error it replaces.
+    const problem = passwordProblem(password, confirm);
+    if (problem) {
+      toast.error(problem);
       return;
     }
 
@@ -75,6 +72,7 @@ export function ChangePasswordRequired() {
           <p className="text-sm text-muted-foreground mt-1">
             Your password was set for you. Pick one only you know before carrying on.
           </p>
+          <p className="text-xs text-muted-foreground mt-2">{PASSWORD_RULE_TEXT}</p>
         </div>
 
         <div className="space-y-3">

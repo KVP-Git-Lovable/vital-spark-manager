@@ -24,6 +24,12 @@ interface WithResponseContext {
 
 const GENERIC = /non-2xx status code/i;
 
+/** Supabase rejects passwords it considers weak or found in a breach corpus. */
+const WEAK_PASSWORD = /weak|easy to guess|pwned|breach/i;
+
+export const WEAK_PASSWORD_MESSAGE =
+  "That password is too common and has appeared in known data breaches. Please choose a different one.";
+
 export const EDGE_FUNCTION_UNREACHABLE =
   "The server could not run this action. The create-user-account function may not be deployed, or its service key is missing. Ask your administrator to redeploy it.";
 
@@ -45,7 +51,7 @@ export async function edgeFunctionErrorMessage(
   try {
     const body = (await err.context?.json?.()) as { error?: string; message?: string } | undefined;
     const fromBody = body?.error || body?.message;
-    if (fromBody) return String(fromBody);
+    if (fromBody) return explain(String(fromBody));
   } catch {
     // Not JSON, or already read. Fall through to the message.
   }
@@ -53,5 +59,10 @@ export async function edgeFunctionErrorMessage(
   const message = err.message;
   if (!message) return fallback;
   // The wrapper message tells the operator nothing; anything else is real.
-  return GENERIC.test(message) ? fallback : message;
+  return GENERIC.test(message) ? fallback : explain(message);
+}
+
+/** Turn a message only a developer could love into one the operator can act on. */
+function explain(message: string): string {
+  return WEAK_PASSWORD.test(message) ? WEAK_PASSWORD_MESSAGE : message;
 }

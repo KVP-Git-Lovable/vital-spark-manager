@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { passwordProblem } from "@/lib/passwordRules";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -61,8 +62,12 @@ export default function CreateUserDialog({ open, onOpenChange, staffList, roles 
   const createUser = useMutation({
     mutationFn: async () => {
       if (!fullName.trim() || !email.trim()) throw new Error("Name and email are required");
-      if (!autoGenPassword && password !== confirmPassword) throw new Error("Passwords do not match");
-      if (!autoGenPassword && password.length < 6) throw new Error("Password must be at least 6 characters");
+      // Strength rules came from main. Shared, so the reset dialog and the
+      // first-login screen cannot accept less than the API will.
+      if (!autoGenPassword) {
+        const problem = passwordProblem(password, confirmPassword);
+        if (problem) throw new Error(problem);
+      }
 
       const staffId = linkedStaffId && linkedStaffId !== "manual" ? linkedStaffId : null;
 
@@ -97,7 +102,10 @@ export default function CreateUserDialog({ open, onOpenChange, staffList, roles 
 
       // supabase-js flattens any non-2xx into a generic "non-2xx status code"
       // and nulls out `data`, so the function's own message never reached the
-      // toast below. Recover it before throwing.
+      // toast below. edgeFunctionErrorMessage recovers it and translates a
+      // weak-password rejection - main added that translation here; the shared
+      // helper gives it to the three User Management call sites too, which can
+      // hit exactly the same rejection.
       if (error) throw new Error(await edgeFunctionErrorMessage(error));
       if (data?.error) throw new Error(data.error);
 

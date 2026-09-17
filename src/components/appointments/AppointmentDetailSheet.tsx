@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
-import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon, ClipboardCheck } from "lucide-react";
+import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon, ClipboardCheck, StickyNote } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { MicButton } from "@/components/shared/MicButton";
@@ -38,6 +38,7 @@ import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { StickyNotes } from "@/components/shared/StickyNotes";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
@@ -973,6 +974,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   <TabsTrigger value="photos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Photos</TabsTrigger>
                   <TabsTrigger value="feedback" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Feedback</TabsTrigger>
                   <TabsTrigger value="survey" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Survey</TabsTrigger>
+                  <TabsTrigger value="notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Notes</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="details" className={isPage ? "p-6 grid gap-4 md:grid-cols-2 md:items-start mt-0" : "p-6 space-y-4 mt-0"}>
@@ -1635,6 +1637,16 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       <SurveyRecommendations appointmentId={appointmentId!} patientId={appointment.patient_id} />
                     </>
                   )}
+                </TabsContent>
+
+                <TabsContent value="notes" className="p-6 space-y-4 mt-0">
+                  <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+                    <StickyNote className="h-4 w-4" /> Notes
+                  </h3>
+                  {/* No draft mode here, unlike the New Procedure form: the
+                      appointment always exists by the time this sheet is open,
+                      so notes save straight away. */}
+                  <StickyNotes appointmentId={appointmentId} />
                 </TabsContent>
               </Tabs>
             </>

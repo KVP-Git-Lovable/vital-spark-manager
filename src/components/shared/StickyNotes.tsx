@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useUserNames } from "@/lib/history";
+import { stickyNoteOwner, type StickyNoteOwner } from "@/lib/stickyNoteOwner";
 
 /**
  * A note being composed before its procedure exists. `key` is a stable local id -
@@ -28,13 +29,15 @@ const newDraftNoteKey = () =>
 interface Props {
   /** Saved mode: notes are read from and written to this procedure directly. */
   procedureId?: string | null;
-  /** Draft mode (no procedureId): the caller owns the buffer and flushes it after the insert. */
+  /** Saved mode: the same, for notes written against an appointment. */
+  appointmentId?: string | null;
+  /** Draft mode (neither id): the caller owns the buffer and flushes it after the insert. */
   notes?: DraftNote[];
   onNotesChange?: (next: DraftNote[]) => void;
   className?: string;
 }
 
-/** A persisted row of procedure_sticky_notes. */
+/** A persisted row of procedure_sticky_notes or appointment_sticky_notes. */
 interface StickyNoteRow {
   id: string;
   title: string | null;
@@ -66,8 +69,42 @@ const noteColor = (id: string) => {
   return NOTE_PALETTE[sum % NOTE_PALETTE.length];
 };
 
-export function ProcedureStickyNotes({ procedureId, notes, onNotesChange, className }: Props) {
-  const draftMode = !procedureId;
+/**
+ * The notes table, typed.
+ *
+ * appointment_sticky_notes post-dates the generated Supabase types, and a union
+ * of two table names defeats their inference in any case. The two tables have
+ * identical columns, so the client is typed against one of them while the table
+ * actually queried is the one in `owner` at runtime. A narrow cast here beats
+ * either branching at all five call sites or `as any` over whole queries.
+ */
+const notesTable = (table: StickyNoteOwner["table"]) =>
+  supabase.from(table as "procedure_sticky_notes");
+
+/** The owner column, narrowed for the same reason as notesTable. */
+const notesColumn = (column: StickyNoteOwner["column"]) => column as "procedure_id";
+
+/**
+ * A new note's row, for either table.
+ *
+ * created_by and updated_by are omitted on purpose, so the stamp_audit_user
+ * trigger fills them from auth.uid(). It COALESCEs rather than overrides, so
+ * sending them from here would silently take precedence over the real author.
+ *
+ * All three casts here disappear once appointment_sticky_notes reaches the
+ * generated types - they are about types lagging a migration, not about the
+ * query being unsound.
+ */
+const notesInsert = (owner: StickyNoteOwner, title: string | null, content: string) =>
+  ({ [owner.column]: owner.id, title, content }) as {
+    procedure_id: string;
+    title: string | null;
+    content: string;
+  };
+
+export function StickyNotes({ procedureId, appointmentId, notes, onNotesChange, className }: Props) {
+  const owner = stickyNoteOwner({ procedureId, appointmentId });
+  const draftMode = !owner;
   const draftNotes = notes ?? [];
 
   const [newNoteOpen, setNewNoteOpen] = useState(false);
@@ -82,18 +119,19 @@ export function ProcedureStickyNotes({ procedureId, notes, onNotesChange, classN
   const [editingContent, setEditingContent] = useState("");
 
   const { data: stickyNotes = [], refetch: refetchStickyNotes } = useQuery({
-    queryKey: ["procedure-sticky-notes", procedureId],
+    // Keyed by table as well as id: a procedure and an appointment could
+    // otherwise share a cache entry on equal uuids.
+    queryKey: ["sticky-notes", owner?.table, owner?.id],
     queryFn: async () => {
-      if (!procedureId) return [];
-      const { data, error } = await supabase
-        .from("procedure_sticky_notes")
+      if (!owner) return [];
+      const { data, error } = await notesTable(owner.table)
         .select("*")
-        .eq("procedure_id", procedureId)
+        .eq(notesColumn(owner.column), owner.id)
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return data;
     },
-    enabled: !!procedureId,
+    enabled: !!owner,
   });
 
   const noteUserIds = (stickyNotes as StickyNoteRow[]).flatMap((n) => [n.created_by, n.updated_by]);
@@ -166,11 +204,9 @@ export function ProcedureStickyNotes({ procedureId, notes, onNotesChange, classN
       closeComposer();
       return;
     }
-    const { error } = await supabase.from("procedure_sticky_notes").insert({
-      procedure_id: procedureId,
-      title: newNoteTitle.trim() || null,
-      content: newNoteContent.trim(),
-    });
+    const { error } = await notesTable(owner.table).insert(
+      notesInsert(owner, newNoteTitle.trim() || null, newNoteContent.trim()),
+    );
     if (error) { toast.error(error.message); return; }
     closeComposer();
     refetchStickyNotes();
@@ -195,8 +231,7 @@ export function ProcedureStickyNotes({ procedureId, notes, onNotesChange, classN
       );
       return;
     }
-    const { error } = await supabase
-      .from("procedure_sticky_notes")
+    const { error } = await notesTable(owner.table)
       .update({ title: editingTitle.trim() || null, content: editingContent.trim() })
       .eq("id", key);
     if (error) { toast.error(error.message); return; }
@@ -210,7 +245,7 @@ export function ProcedureStickyNotes({ procedureId, notes, onNotesChange, classN
       toast.success("Note deleted");
       return;
     }
-    await supabase.from("procedure_sticky_notes").delete().eq("id", key);
+    await notesTable(owner.table).delete().eq("id", key);
     refetchStickyNotes();
     toast.success("Note deleted");
   };

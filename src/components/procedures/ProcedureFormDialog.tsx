@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/command";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
-import { ProcedureStickyNotes, type DraftNote } from "@/components/procedures/ProcedureStickyNotes";
+import { StickyNotes, type DraftNote } from "@/components/shared/StickyNotes";
 import { ClipboardList } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
@@ -1310,14 +1310,14 @@ export function ProcedureFormDialog({
 
           {/* Notes — inline rather than a tab of its own: staff jot an observation
               while filling the form, and a whole tab for one card meant leaving
-              the form to do it. ProcedureStickyNotes still buffers into
+              the form to do it. StickyNotes still buffers into
               draftNotes here, because procedure_sticky_notes.procedure_id is NOT
               NULL and the procedure does not exist yet. */}
           <div className="space-y-2">
             <Label className="text-base font-display font-semibold text-primary flex items-center gap-1.5">
               <StickyNote className="h-4 w-4" /> Notes
             </Label>
-            <ProcedureStickyNotes notes={draftNotes} onNotesChange={setDraftNotes} />
+            <StickyNotes notes={draftNotes} onNotesChange={setDraftNotes} />
           </div>
 
           {/* Visit plan */}

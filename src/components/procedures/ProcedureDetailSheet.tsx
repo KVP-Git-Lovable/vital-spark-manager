@@ -34,7 +34,7 @@ import { PatientToolsBar } from "@/components/shared/PatientToolsBar";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
 import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
-import { ProcedureStickyNotes } from "@/components/procedures/ProcedureStickyNotes";
+import { StickyNotes } from "@/components/shared/StickyNotes";
 import { OTHERS_VALUE } from "@/lib/othersOption";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -1151,7 +1151,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   </TabsContent>
 
                   <TabsContent value="notes" className="space-y-3 mt-4">
-                    {procedure?.id && <ProcedureStickyNotes key={procedure.id} procedureId={procedure.id} />}
+                    {procedure?.id && <StickyNotes key={procedure.id} procedureId={procedure.id} />}
                   </TabsContent>
                 </Tabs>
               </div>

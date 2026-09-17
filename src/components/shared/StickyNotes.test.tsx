@@ -9,14 +9,14 @@ vi.mock("@/components/shared/MicButton", () => ({ MicButton: () => null }));
 // module is imported at load time and would need env vars to construct a client.
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
-import { ProcedureStickyNotes, type DraftNote } from "./ProcedureStickyNotes";
+import { StickyNotes, type DraftNote } from "./StickyNotes";
 
 /** Mirrors how ProcedureFormDialog holds the buffer. */
 function Harness({ onChange }: { onChange?: (n: DraftNote[]) => void }) {
   const [notes, setNotes] = useState<DraftNote[]>([]);
   return (
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ProcedureStickyNotes
+      <StickyNotes
         notes={notes}
         onNotesChange={(next) => { setNotes(next); onChange?.(next); }}
       />
@@ -32,7 +32,7 @@ const openComposer = () => fireEvent.click(screen.getByText("Add a note..."));
 const type = (placeholder: string, value: string) =>
   fireEvent.change(screen.getByPlaceholderText(placeholder), { target: { value } });
 
-describe("ProcedureStickyNotes - draft mode", () => {
+describe("StickyNotes - draft mode", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("tells the user the notes aren't stored yet", () => {

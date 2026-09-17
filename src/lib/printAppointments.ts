@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { fetchAppointmentsPage, type FetchAppointmentsPageParams } from "@/lib/appointmentsPage";
+import { investigationText } from "@/lib/investigationText";
 
 const esc = (v: any) =>
   String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
@@ -29,7 +30,7 @@ export async function printAppointments(
       return `<tr>
         <td>${esc(name)}</td>
         <td>${esc(p?.phone || "")}</td>
-        <td>${esc(a.service || "")}</td>
+        <td class="inv">${esc(investigationText(a, "—"))}</td>
         <td>${esc(opts.staffName(a.staff_id))}</td>
         <td>${a.start_time ? esc(format(new Date(a.start_time), "dd MMM yyyy")) : ""}</td>
         <td>${a.start_time ? esc(format(new Date(a.start_time), "hh:mm a")) : ""}</td>
@@ -50,12 +51,16 @@ export async function printAppointments(
   th, td { border: 1px solid #d4d4d4; padding: 4px 6px; text-align: left; }
   th { background: #f1f5f4; font-weight: 600; }
   tr { page-break-inside: avoid; }
+  /* Imported Investigation text runs to paragraphs. Bounded and wrapped so
+     one long entry cannot starve the Patient/Doctor/Date columns - wrapped
+     rather than clipped, because paper has no hover title to recover from. */
+  .inv { max-width: 70mm; overflow-wrap: break-word; }
   .empty { font-size: 12px; color: #666; }
 </style></head><body>
 <h1>${esc(opts.clinicName || "Appointments")}</h1>
 <div class="meta">${esc(opts.rangeLabel)} · ${rows.length} appointment(s) · printed ${esc(format(new Date(), "dd MMM yyyy, hh:mm a"))}</div>
 ${rows.length === 0 ? '<p class="empty">No appointments match the current filters.</p>' : `<table>
-<thead><tr><th>Patient</th><th>Phone</th><th>Service</th><th>Doctor</th><th>Date</th><th>Time</th><th>Status</th></tr></thead>
+<thead><tr><th>Patient</th><th>Phone</th><th>Investigation</th><th>Doctor</th><th>Date</th><th>Time</th><th>Status</th></tr></thead>
 <tbody>${body}</tbody></table>`}
 </body></html>`;
 

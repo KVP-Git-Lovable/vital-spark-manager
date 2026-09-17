@@ -74,6 +74,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { toast } from "sonner";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { fetchAppointmentsPage } from "@/lib/appointmentsPage";
+import { investigationText } from "@/lib/investigationText";
 import { printAppointments } from "@/lib/printAppointments";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
@@ -2576,8 +2577,8 @@ const Appointments = () => {
 
                                         Clamped because imported data has put paragraphs in here;
                                         the column is table-fixed so truncate has a bounded width. */}
-                                    <span className="block truncate" title={apt.reason_for_consultation || apt.service || ""}>
-                                      {apt.reason_for_consultation || apt.service || "—"}
+                                    <span className="block truncate" title={investigationText(apt)}>
+                                      {investigationText(apt, "—")}
                                     </span>
                                   </td>
                                 )}

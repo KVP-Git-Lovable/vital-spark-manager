@@ -61,7 +61,11 @@ export default function CreateUserDialog({ open, onOpenChange, staffList, roles 
     mutationFn: async () => {
       if (!fullName.trim() || !email.trim()) throw new Error("Name and email are required");
       if (!autoGenPassword && password !== confirmPassword) throw new Error("Passwords do not match");
-      if (!autoGenPassword && password.length < 6) throw new Error("Password must be at least 6 characters");
+      if (!autoGenPassword) {
+        if (password.length < 8) throw new Error("Password must be at least 8 characters");
+        const strong = /[a-z]/.test(password) && /[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
+        if (!strong) throw new Error("Password must include uppercase, lowercase, a number and a symbol");
+      }
 
       const staffId = linkedStaffId && linkedStaffId !== "manual" ? linkedStaffId : null;
 

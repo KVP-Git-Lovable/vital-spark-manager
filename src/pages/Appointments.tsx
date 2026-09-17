@@ -15,6 +15,7 @@ import { applyFilters as applyListFilters, fieldDefIn, type ListDisplayMode, typ
 import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/standardViews";
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
 import { viewDatePreset } from "@/lib/viewDatePreset";
+import { appointmentInvoiceMap } from "@/lib/appointmentInvoiceMap";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, ClipboardList, Pin, Printer, Trash2 } from "lucide-react";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
 import { moveToTrash } from "@/lib/trash";
@@ -461,7 +462,7 @@ const Appointments = () => {
   // still triggers the same WhatsApp-notify status-change path the inline
   // table Select uses) - this resolves the denormalized field keys
   // (doctor/bill/payment_mode/etc.) from them without remapping the rows.
-  const kanbanRawValue = (row: any, key: string) => (toViewRow(row, pageInvoiceByAppointmentId) as any)[key];
+  const kanbanRawValue = (row: any, key: string) => (toViewRow(row, billInvoiceByAppointmentId) as any)[key];
 
   const moveKanbanCard = (apt: any, field: string, value: string) => {
     const updates: any = { id: apt.id, [field]: value || null };
@@ -755,6 +756,17 @@ const Appointments = () => {
     });
     return map;
   }, [pageInvoices]);
+
+  // Whichever of the two is actually populated for this mode. Only one of the
+  // fetches above ever runs: a filtered saved view pulls the whole invoices
+  // table (the matching appointments are already in memory, so there is no
+  // server page to scope to), and otherwise only the current page's ids are
+  // fetched. Reading the page map unconditionally left every Bill Amount and
+  // Payment Mode blank under any custom view.
+  const billInvoiceByAppointmentId = useMemo(
+    () => appointmentInvoiceMap(viewHasFilters, invoiceByAppointmentId, pageInvoiceByAppointmentId),
+    [viewHasFilters, invoiceByAppointmentId, pageInvoiceByAppointmentId],
+  );
 
   const dateFilterLabel = (() => {
     if (datePreset === "specific") return specificDate ? format(specificDate, "MMM d, yyyy") : "Specific Date";
@@ -2050,7 +2062,7 @@ const Appointments = () => {
               <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading charts…</div>}>
                 <ViewChartsPanel
                   charts={activeView.charts ?? []}
-                  rows={visibleTableRows.map((apt) => toViewRow(apt, pageInvoiceByAppointmentId))}
+                  rows={visibleTableRows.map((apt) => toViewRow(apt, billInvoiceByAppointmentId))}
                   canManage={activeView.owner_id === viewsUserId}
                   onChange={(charts) => saveCharts(activeView.id, charts)}
                   onClose={() => setViewChartsOpen(false)}
@@ -2408,7 +2420,7 @@ const Appointments = () => {
                             const apt = visibleTableRows[virtualRow.index];
                             if (!apt) return null;
                             const patientPhone = apt.patients?.phone || "";
-                            const invoice = pageInvoiceByAppointmentId.get(apt.id);
+                            const invoice = billInvoiceByAppointmentId.get(apt.id);
                             const isEditing = editingRow === apt.id;
 
                             if (isEditing) {

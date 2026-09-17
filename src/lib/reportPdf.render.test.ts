@@ -117,6 +117,57 @@ function drawOps(bytes: Buffer) {
 }
 
 describe("report PDF", () => {
+  it("draws the hint under the figure, inside its box", async () => {
+    const { buildReportPdf, SUMMARY_BOX_HEIGHT, SUMMARY_BOX_HEIGHT_WITH_HINT } = await import("./reportPdf");
+    const doc = await buildReportPdf({
+      report,
+      rows: rows.slice(0, 3),
+      summary: [
+        { label: "Invoices", value: "35" },
+        { label: "Total Billed", value: "Rs 1,94,800" },
+        { label: "UPI", value: "Rs 1,44,000" },
+        { label: "Other", value: "Rs 15,650", hint: "Part-Payment" },
+      ],
+      filterState: { search: "", dateFrom: null, dateTo: null, datePreset: "all", selects: {} },
+      dayOnly: false,
+    });
+
+    const at = drawnTextAt(Buffer.from(doc.output("arraybuffer")));
+    const yOf = (label: string) => at.find((t) => t.text === label)?.y;
+
+    // The hint is drawn, below its own figure, and still above the box floor.
+    expect(yOf("Part-Payment")).toBeDefined();
+    expect(yOf("Part-Payment")!).toBeLessThan(yOf("Rs 15,650")!);
+    expect(yOf("OTHER")! - yOf("Part-Payment")!).toBeLessThan(SUMMARY_BOX_HEIGHT_WITH_HINT);
+    // A hint makes the boxes taller, so the table has to start lower than it
+    // would without one.
+    expect(yOf("Invoice #")!).toBeLessThan(yOf("Part-Payment")!);
+    expect(SUMMARY_BOX_HEIGHT_WITH_HINT).toBeGreaterThan(SUMMARY_BOX_HEIGHT);
+  });
+
+  it("keeps the old box geometry for a summary with no hint", async () => {
+    const { buildReportPdf, SUMMARY_BOX_HEIGHT } = await import("./reportPdf");
+    const summary = [
+      { label: "Invoices", value: "35" },
+      { label: "Total Billed", value: "Rs 1,94,800" },
+      { label: "UPI", value: "Rs 1,44,000" },
+      { label: "Cash", value: "Rs 10,900" },
+      { label: "Card", value: "Rs 24,250" },
+    ];
+    const doc = await buildReportPdf({
+      report,
+      rows: rows.slice(0, 3),
+      summary,
+      filterState: { search: "", dateFrom: null, dateTo: null, datePreset: "all", selects: {} },
+      dayOnly: false,
+    });
+    const at = drawnTextAt(Buffer.from(doc.output("arraybuffer")));
+    const yOf = (label: string) => at.find((t) => t.text === label)?.y;
+    // Two rows of boxes, one gap between them - the untaller layout.
+    expect(yOf("INVOICES")! - yOf("CARD")!).toBe(SUMMARY_BOX_HEIGHT + 10);
+  });
+
+
   it("wraps a long summary onto a second row instead of squeezing it", async () => {
     // The Invoices report shows one box per payment instrument, so seven boxes
     // is now an ordinary day. On one row each would be ~55pt wide - narrower

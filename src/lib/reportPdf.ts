@@ -2,7 +2,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { formatNumber } from "@/lib/currency";
 import { REPORT_DATE_RANGE_OPTIONS } from "@/lib/reportDateRange";
-import type { ReportColumn, ReportConfig } from "@/lib/reportsCatalog";
+import type { ReportColumn, ReportConfig, ReportSummaryCard } from "@/lib/reportsCatalog";
 import type { FilterState } from "@/components/reports/ReportFilterBar";
 import bundledLogo from "@/assets/skin-clinic-logo.png";
 
@@ -222,7 +222,7 @@ async function loadClinicHeader(): Promise<ClinicHeader> {
 export interface ReportPdfArgs {
   report: ReportConfig;
   rows: ReportRow[];
-  summary: { label: string; value: string }[];
+  summary: ReportSummaryCard[];
   filterState: FilterState;
   dayOnly: boolean;
 }
@@ -230,6 +230,8 @@ export interface ReportPdfArgs {
 /** Summary boxes per row before wrapping, so each stays wide enough to read. */
 export const SUMMARY_BOXES_PER_ROW = 4;
 export const SUMMARY_BOX_HEIGHT = 40;
+/** Room for the hint line under the figure. */
+export const SUMMARY_BOX_HEIGHT_WITH_HINT = 52;
 const SUMMARY_BOX_GAP = 10;
 
 /**
@@ -336,14 +338,16 @@ export async function buildReportPdf({ report, rows, summary, filterState, dayOn
   doc.setTextColor(0);
   y += 16;
 
-  // Summary boxes.
+  // Summary boxes. Taller only when something needs a hint line, so every other
+  // report keeps the geometry it had.
   if (summary.length) {
-    const layout = summaryBoxLayout(summary.length, pageWidth - margin * 2);
+    const boxH = summary.some((s) => s.hint) ? SUMMARY_BOX_HEIGHT_WITH_HINT : SUMMARY_BOX_HEIGHT;
+    const layout = summaryBoxLayout(summary.length, pageWidth - margin * 2, SUMMARY_BOXES_PER_ROW, undefined, boxH);
     summary.forEach((s, i) => {
       const x = margin + layout.boxes[i].x;
       const boxY = y + layout.boxes[i].y;
       doc.setDrawColor(215);
-      doc.roundedRect(x, boxY, layout.boxW, SUMMARY_BOX_HEIGHT, 3, 3);
+      doc.roundedRect(x, boxY, layout.boxW, boxH, 3, 3);
       doc.setFontSize(7.5);
       doc.setTextColor(110);
       doc.text(sanitize(s.label).toUpperCase(), x + 8, boxY + 14);
@@ -352,6 +356,16 @@ export async function buildReportPdf({ report, rows, summary, filterState, dayOn
       doc.setTextColor(0);
       doc.text(sanitize(s.value), x + 8, boxY + 31);
       doc.setFont("helvetica", "normal");
+      if (s.hint) {
+        doc.setFontSize(6.5);
+        doc.setTextColor(120);
+        // A hint is the stored payment mode, so its length is the clinic's data,
+        // not ours. Measure rather than guess a character count: splitTextToSize
+        // gives the part that fits the box, and only that part is drawn.
+        const [fitted] = doc.splitTextToSize(sanitize(s.hint), layout.boxW - 16);
+        doc.text(fitted ?? "", x + 8, boxY + 44);
+        doc.setTextColor(0);
+      }
     });
     y += layout.height + 16;
   }

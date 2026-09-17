@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { collectionCards, collectionsByBucket, paymentBucket } from "./paymentModes";
+import {
+  collectionCards,
+  collectionsByBucket,
+  paymentBucket,
+  unrecognisedModeTotals,
+} from "./paymentModes";
 
 const money = (n: number) => `Rs ${n}`;
 
@@ -115,5 +120,119 @@ describe("collectionCards", () => {
   it("shows nothing at all when nothing was collected", () => {
     expect(collectionCards([{ paid_amount: 0, payment_mode: "Cash" }], money)).toEqual([]);
     expect(collectionCards([], money)).toEqual([]);
+  });
+});
+
+describe("what is inside the Other card", () => {
+  const cards = (rows: Parameters<typeof collectionCards>[0]) => collectionCards(rows, money);
+  const other = (rows: Parameters<typeof collectionCards>[0]) =>
+    cards(rows).find((c) => c.label === "Other");
+
+  it("names the stored mode, so nobody has to ask what the money is", () => {
+    expect(other([{ paid_amount: 15650, payment_mode: "Part-Payment" }])?.hint).toBe("Part-Payment");
+  });
+
+  it("keeps the card called Other, because the filter below it offers buckets", () => {
+    // A card labelled "Part-Payment" would leave the reader's next click with
+    // nowhere to land - the Payment Mode filter has no such option.
+    expect(other([{ paid_amount: 15650, payment_mode: "Part-Payment" }])?.label).toBe("Other");
+  });
+
+  it("collapses spellings of one mode and shows the commonest", () => {
+    const hint = other([
+      { paid_amount: 100, payment_mode: "part-payment" },
+      { paid_amount: 100, payment_mode: "Part-Payment" },
+      { paid_amount: 100, payment_mode: "Part-Payment" },
+    ])?.hint;
+    expect(hint).toBe("Part-Payment");
+  });
+
+  it("says so when no mode was recorded at all", () => {
+    expect(other([{ paid_amount: 500, payment_mode: null }])?.hint).toBe("Not recorded");
+    expect(other([{ paid_amount: 500, payment_mode: "   " }])?.hint).toBe("Not recorded");
+  });
+
+  it("lists several modes biggest first", () => {
+    expect(
+      other([
+        { paid_amount: 100, payment_mode: "Insurance" },
+        { paid_amount: 900, payment_mode: "Part-Payment" },
+      ])?.hint,
+    ).toBe("Part-Payment, Insurance");
+  });
+
+  it("counts the tail rather than running off the card", () => {
+    const hint = other([
+      { paid_amount: 500, payment_mode: "A-mode" },
+      { paid_amount: 400, payment_mode: "B-mode" },
+      { paid_amount: 300, payment_mode: "C-mode" },
+      { paid_amount: 200, payment_mode: "D-mode" },
+      { paid_amount: 100, payment_mode: "E-mode" },
+    ])?.hint;
+    expect(hint).toBe("A-mode, B-mode, C-mode +2 more");
+  });
+
+  it("puts no hint on the instrument cards", () => {
+    const list = cards([
+      { paid_amount: 100, payment_mode: "Cash" },
+      { paid_amount: 200, payment_mode: "Google Pay" },
+      { paid_amount: 300, payment_mode: "Part-Payment" },
+    ]);
+    expect(list.find((c) => c.label === "Cash")?.hint).toBeUndefined();
+    expect(list.find((c) => c.label === "UPI")?.hint).toBeUndefined();
+    expect(list.find((c) => c.label === "Other")?.hint).toBe("Part-Payment");
+  });
+
+  it("shows no Other card at all on a day where every mode was recognised", () => {
+    expect(other([{ paid_amount: 850, payment_mode: "Cash" }])).toBeUndefined();
+  });
+
+  it("names the mode behind an unrecognised half of a split", () => {
+    expect(
+      other([
+        {
+          paid_amount: 1000,
+          payment_mode: "Split",
+          payment_splits: [{ mode: "Cash", amount: 600 }, { mode: "Insurance", amount: 400 }],
+        },
+      ])?.hint,
+    ).toBe("Insurance");
+  });
+
+  it("does not name a mode that contributed nothing", () => {
+    // A zero-amount row must not put a label on the card for money that is not there.
+    expect(
+      other([
+        { paid_amount: 0, payment_mode: "Insurance" },
+        { paid_amount: 700, payment_mode: "Part-Payment" },
+      ])?.hint,
+    ).toBe("Part-Payment");
+  });
+
+  it("still shows the mode when the splits overshoot and leave a negative", () => {
+    // paymentModes keeps a negative remainder on purpose - dropping it would
+    // overstate the collection - so the hint has to survive one too.
+    const rows = [
+      { paid_amount: 1000, payment_mode: "Part-Payment", payment_splits: [{ mode: "Cash", amount: 1500 }] },
+    ];
+    expect(other(rows)?.hint).toBe("Part-Payment");
+    const bucketed = Array.from(collectionsByBucket(rows).values()).reduce((a, n) => a + n, 0);
+    expect(bucketed).toBe(1000);
+  });
+
+  it("the cards still add up to everything collected", () => {
+    const rows = [
+      { paid_amount: 13045, payment_mode: "Part-Payment" },
+      { paid_amount: 4500, payment_mode: "Google Pay" },
+      { paid_amount: 850, payment_mode: "Cash" },
+      { paid_amount: 900, payment_mode: "Insurance" },
+      { paid_amount: 1800, payment_mode: "Split", payment_splits: [{ mode: "Cheque", amount: 1000 }, { mode: "NEFT", amount: 800 }] },
+    ];
+    const collected = rows.reduce((a, r) => a + Number(r.paid_amount), 0);
+    const bucketed = Array.from(collectionsByBucket(rows).values()).reduce((a, n) => a + n, 0);
+    expect(bucketed).toBe(collected);
+    // and the Other card is the sum of the modes its hint names
+    const unrecognised = Array.from(unrecognisedModeTotals(rows).values()).reduce((a, n) => a + n, 0);
+    expect(unrecognised).toBe(13045 + 900);
   });
 });

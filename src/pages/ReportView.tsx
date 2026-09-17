@@ -266,9 +266,16 @@ const ReportView = () => {
       {summary.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           {summary.map((s) => (
-            <div key={s.label} className="data-table p-3">
+            <div key={s.label} className="data-table p-3 min-w-0">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{s.label}</div>
               <div className="text-lg font-semibold mt-0.5">{s.value}</div>
+              {/* A label that cannot say enough on its own - "Other" naming the
+                  payment modes inside it. Truncated, with the full list on hover. */}
+              {s.hint && (
+                <div className="text-[10px] text-muted-foreground truncate" title={s.hint}>
+                  {s.hint}
+                </div>
+              )}
             </div>
           ))}
         </div>

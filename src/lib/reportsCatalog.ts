@@ -17,6 +17,14 @@ export interface ReportColumn {
 
 export type FilterType = "dateRange" | "select" | "text" | "doctor" | "service";
 
+/** One KPI card above a report. `hint` is a small line under the figure, for a
+ *  card whose label cannot say enough on its own - see the Other payment card. */
+export interface ReportSummaryCard {
+  label: string;
+  value: string;
+  hint?: string;
+}
+
 export interface ReportFilterDef {
   key: string;
   label: string;
@@ -41,7 +49,7 @@ export interface ReportConfig {
   searchFields?: string[];
   rowHref?: (row: any) => string | null;
   fetcher: (params: { from?: string; to?: string }) => Promise<any[]>;
-  summary?: (rows: any[]) => { label: string; value: string }[];
+  summary?: (rows: any[]) => ReportSummaryCard[];
   defaultSort?: { key: string; dir: "asc" | "desc" };
   chart?: {
     title: string;
@@ -70,7 +78,7 @@ export interface ReportConfig {
       to?: string;
       search?: string;
       selects?: Record<string, string>;
-    }) => Promise<{ label: string; value: string }[]>;
+    }) => Promise<ReportSummaryCard[]>;
   };
 }
 

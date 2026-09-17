@@ -108,14 +108,77 @@ export function collectionsByBucket(rows: PaidRow[]): Map<PaymentBucket, number>
   return totals;
 }
 
-/** The buckets with money in them, in a fixed order, for the KPI cards. */
+/** Shown for a payment whose mode was never recorded at all. */
+export const UNRECORDED_MODE = "Not recorded";
+
+/** At most this many modes are named on the Other card before "+N more". */
+export const HINT_MODE_LIMIT = 3;
+
+/**
+ * What is actually inside the "Other" bucket, by the mode as it is stored.
+ *
+ * "Other" is not a payment method - it is where an unrecognised mode lands,
+ * which on imported history is overwhelmingly Salesforce's "Part-Payment". The
+ * front desk asks what that money is every time the report is shown, and the
+ * card cannot answer without this.
+ *
+ * Spellings are grouped case-insensitively. The label is the spelling that
+ * appears most often, ties broken lexicographically - picking whichever came
+ * first would flip the label when the date range changes.
+ */
+export function unrecognisedModeTotals(rows: PaidRow[]): Map<string, number> {
+  const groups = new Map<string, { total: number; spellings: Map<string, number> }>();
+
+  for (const { bucket, mode, amount } of attributions(rows)) {
+    if (bucket !== "Other" || !amount) continue;
+    const key = mode.toLowerCase();
+    const group = groups.get(key) ?? { total: 0, spellings: new Map<string, number>() };
+    group.total += amount;
+    group.spellings.set(mode, (group.spellings.get(mode) ?? 0) + 1);
+    groups.set(key, group);
+  }
+
+  const totals = new Map<string, number>();
+  for (const [key, group] of groups) {
+    if (!key) {
+      totals.set(UNRECORDED_MODE, (totals.get(UNRECORDED_MODE) ?? 0) + group.total);
+      continue;
+    }
+    const [label] = Array.from(group.spellings).sort(
+      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+    )[0];
+    totals.set(label, group.total);
+  }
+  return totals;
+}
+
+/** The modes behind the Other card, biggest first, as one short line. */
+export function unrecognisedModeHint(rows: PaidRow[], limit = HINT_MODE_LIMIT): string | undefined {
+  const named = Array.from(unrecognisedModeTotals(rows)).sort(
+    (a, b) => Math.abs(b[1]) - Math.abs(a[1]) || a[0].localeCompare(b[0]),
+  );
+  if (named.length === 0) return undefined;
+  const shown = named.slice(0, limit).map(([label]) => label);
+  const hidden = named.length - shown.length;
+  return hidden > 0 ? `${shown.join(", ")} +${hidden} more` : shown.join(", ");
+}
+
+/**
+ * The buckets with money in them, in a fixed order, for the KPI cards.
+ *
+ * "Other" keeps its name rather than being replaced by the mode inside it: the
+ * Payment Mode filter underneath these cards offers the buckets, so a card
+ * labelled "Part-Payment" would leave the reader's next click with nowhere to
+ * land. It carries a hint line instead.
+ */
 export function collectionCards(
   rows: PaidRow[],
   formatValue: (amount: number) => string,
-): { label: string; value: string }[] {
+): { label: string; value: string; hint?: string }[] {
   const totals = collectionsByBucket(rows);
   return PAYMENT_BUCKETS.filter((bucket) => (totals.get(bucket) ?? 0) !== 0).map((bucket) => ({
     label: bucket,
     value: formatValue(totals.get(bucket) ?? 0),
+    ...(bucket === "Other" ? { hint: unrecognisedModeHint(rows) } : {}),
   }));
 }

@@ -49,39 +49,62 @@ interface Split {
 const splitsOf = (row: PaidRow): Split[] =>
   Array.isArray(row?.payment_splits) ? (row.payment_splits as Split[]) : [];
 
+interface Attribution {
+  bucket: PaymentBucket;
+  /** The mode exactly as it is stored, trimmed. "" when nothing was recorded. */
+  mode: string;
+  amount: number;
+}
+
 /**
- * What was collected, per instrument.
+ * Every rupee of `paid_amount`, attributed to the mode it was paid with.
  *
- * Every rupee in `paid_amount` lands in exactly one bucket, so the buckets add
- * up to the old "Collected" total - an invoice whose mode nobody recognises
- * shows up under "Other" rather than quietly going missing. A split payment is
- * broken up across its parts; anything left over between the splits and
- * `paid_amount` is attributed to the invoice's own mode, so a half-entered
- * split cannot lose money either.
+ * One walk over the rows, so the bucket totals and the breakdown of what is
+ * inside a bucket can never disagree about where a payment went.
+ *
+ * A split payment is broken up across its parts; anything left over between the
+ * splits and `paid_amount` is attributed to the invoice's own mode, so a
+ * half-entered split cannot lose money. That remainder is deliberately allowed
+ * to be negative when the splits overshoot - dropping it would silently
+ * overstate the collection.
  */
-export function collectionsByBucket(rows: PaidRow[]): Map<PaymentBucket, number> {
-  const totals = new Map<PaymentBucket, number>();
-  const add = (bucket: PaymentBucket, amount: number) => {
-    if (!amount) return;
-    totals.set(bucket, (totals.get(bucket) ?? 0) + amount);
-  };
+function* attributions(rows: PaidRow[]): Generator<Attribution> {
+  const at = (mode: string | null | undefined, amount: number): Attribution => ({
+    bucket: paymentBucket(mode),
+    mode: String(mode ?? "").trim(),
+    amount,
+  });
 
   for (const row of rows) {
     const paid = Number(row?.paid_amount ?? 0) || 0;
     const splits = splitsOf(row);
     if (splits.length === 0) {
-      add(paymentBucket(row?.payment_mode), paid);
+      yield at(row?.payment_mode, paid);
       continue;
     }
     let attributed = 0;
     for (const split of splits) {
       const amount = Number(split?.amount ?? 0) || 0;
       attributed += amount;
-      add(paymentBucket(split?.mode), amount);
+      yield at(split?.mode, amount);
     }
-    add(paymentBucket(row?.payment_mode), paid - attributed);
+    yield at(row?.payment_mode, paid - attributed);
   }
+}
 
+/**
+ * What was collected, per instrument.
+ *
+ * Every rupee in `paid_amount` lands in exactly one bucket, so the buckets add
+ * up to the old "Collected" total - an invoice whose mode nobody recognises
+ * shows up under "Other" rather than quietly going missing.
+ */
+export function collectionsByBucket(rows: PaidRow[]): Map<PaymentBucket, number> {
+  const totals = new Map<PaymentBucket, number>();
+  for (const { bucket, amount } of attributions(rows)) {
+    if (!amount) continue;
+    totals.set(bucket, (totals.get(bucket) ?? 0) + amount);
+  }
   return totals;
 }
 

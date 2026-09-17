@@ -14,6 +14,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { applyFilters as applyListFilters, fieldDefIn, type ListDisplayMode, type ListView } from "@/lib/listViews/engine";
 import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/standardViews";
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
+import { viewDatePreset } from "@/lib/viewDatePreset";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, ClipboardList, Pin, Printer, Trash2 } from "lucide-react";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
 import { moveToTrash } from "@/lib/trash";
@@ -325,6 +326,32 @@ const Appointments = () => {
       setSortDirection(activeView.sort_dir || "asc");
     }
   }, [activeView?.id]);
+
+  // Picking a view also moves the quick-date chips to whatever date that view
+  // filters on, so the two date filters stop disagreeing. The chips decide what
+  // is FETCHED; a view's conditions only narrow what came back, so a view with a
+  // wider date than the chip was quietly losing rows the server never asked for.
+  //
+  // Done on the selection itself rather than in an effect on activeView.id: the
+  // active view arrives asynchronously on page load, which an effect cannot tell
+  // apart from the user switching views - and the date filter can be pinned (see
+  // PinButton below), so a false positive there would overwrite a preference set
+  // on purpose. viewDatePreset() returns null for a view with no date condition,
+  // leaving the chips untouched.
+  const selectViewAndDate = useCallback(
+    (id: string | null) => {
+      selectView(id);
+      const fromView = viewDatePreset(allViews.find((v) => v.id === id)?.filters);
+      if (!fromView) return;
+      setDatePreset(fromView.preset);
+      if (fromView.preset === "specific") setSpecificDate(fromView.specificDate);
+      if (fromView.preset === "range") {
+        setRangeFrom(fromView.rangeFrom);
+        setRangeTo(fromView.rangeTo);
+      }
+    },
+    [selectView, allViews],
+  );
 
   // Inline edit state
   const [editingRow, setEditingRow] = useState<string | null>(null);
@@ -1982,7 +2009,7 @@ const Appointments = () => {
             views={allViews}
             activeView={activeView}
             currentUserId={viewsUserId}
-            onSelect={selectView}
+            onSelect={selectViewAndDate}
             onNew={() => { setEditingView(null); setViewEditorOpen(true); }}
             onEdit={(v) => { setEditingView(v); setViewEditorOpen(true); }}
             onDelete={(v) => setDeleteViewTarget(v)}

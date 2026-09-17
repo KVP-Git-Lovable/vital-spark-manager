@@ -16,6 +16,7 @@ import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/s
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
 import { viewDatePreset } from "@/lib/viewDatePreset";
 import { appointmentInvoiceMap } from "@/lib/appointmentInvoiceMap";
+import { fetchInvoicesByAppointmentIds, invoiceMapByAppointment } from "@/lib/invoicesForAppointments";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, ClipboardList, Pin, Printer, Trash2 } from "lucide-react";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
 import { moveToTrash } from "@/lib/trash";
@@ -704,69 +705,75 @@ const Appointments = () => {
     return map;
   }, [staffList]);
 
-  // Fetch invoices for bill amount - used by the Day/Week/Month calendar
-  // views (via filteredAppointments/applyViewFilters/toViewRow), which still
-  // work off the full date-bounded appointments set, so this stays a full
-  // fetch too, just skipped while on the List/table view (see
-  // pageInvoiceByAppointmentId).
-  const { data: invoices = [] } = useQuery({
-    queryKey: ["invoices-for-appointments"],
-    queryFn: async () => {
-      return await fetchAll<any>((from, to) =>
-        supabase
-          .from("invoices")
-          .select("id, appointment_id, total_amount, paid_amount, payment_mode, status")
-          .range(from, to)
-      );
-    },
-    enabled: view !== "table" || viewHasFilters,
+  // Invoices for the Bill Amount / Payment Mode columns.
+  //
+  // Both fetches below look invoices up BY APPOINTMENT ID. The calendar/
+  // filtered-view one used to pull the entire invoices table instead, which
+  // grew with the clinic's whole billing history rather than with the rows on
+  // screen; a later page could time out, and a throwing query leaves data at
+  // [], so every bill cell silently rendered as a dash. See
+  // fetchInvoicesByAppointmentIds for the rest of the reasoning.
+  const INVOICE_COLUMNS = "id, appointment_id, total_amount, paid_amount, payment_mode, status";
+  const fetchInvoiceChunk = async (ids: string[]) => {
+    const { data, error } = await supabase
+      .from("invoices")
+      .select(INVOICE_COLUMNS)
+      .in("appointment_id", ids);
+    if (error) throw error;
+    return data || [];
+  };
+
+  // The full date-bounded set: the Day/Week/Month calendars and any filtered
+  // saved view read from it (via filteredAppointments/applyViewFilters/
+  // toViewRow), so it is keyed on the same date range the appointments query
+  // uses rather than on the id list itself.
+  const fullApptIds = useMemo(() => appointments.map((a: any) => a.id), [appointments]);
+  const { data: invoices = [], isError: fullInvoicesFailed } = useQuery({
+    queryKey: [
+      "invoices-for-appointments",
+      "full",
+      datePreset,
+      appointmentsDateRange?.start?.toISOString(),
+      appointmentsDateRange?.end?.toISOString(),
+      fullApptIds.length,
+    ],
+    queryFn: () => fetchInvoicesByAppointmentIds(fetchInvoiceChunk, fullApptIds),
+    enabled: (view !== "table" || viewHasFilters) && fullApptIds.length > 0,
   });
 
-  const invoiceByAppointmentId = useMemo(() => {
-    const map = new Map<string, any>();
-    invoices.forEach((inv: any) => {
-      if (inv.appointment_id) map.set(inv.appointment_id, inv);
-    });
-    return map;
-  }, [invoices]);
+  const invoiceByAppointmentId = useMemo(() => invoiceMapByAppointment(invoices as any[]), [invoices]);
 
-  // Invoices for the List/table view - scoped to just the current page's
-  // appointment ids instead of the whole invoices table.
+  // The List/table view's current server page.
   const pageApptIds = useMemo(
     () => (apptPageData?.rows ?? []).map((a: any) => a.id),
     [apptPageData]
   );
-  const { data: pageInvoices = [] } = useQuery({
+  const { data: pageInvoices = [], isError: pageInvoicesFailed } = useQuery({
     queryKey: ["invoices-for-appointments", "page", pageApptIds],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("id, appointment_id, total_amount, paid_amount, payment_mode, status")
-        .in("appointment_id", pageApptIds);
-      if (error) throw error;
-      return data || [];
-    },
+    queryFn: () => fetchInvoicesByAppointmentIds(fetchInvoiceChunk, pageApptIds),
     enabled: view === "table" && !viewHasFilters && pageApptIds.length > 0,
   });
 
-  const pageInvoiceByAppointmentId = useMemo(() => {
-    const map = new Map<string, any>();
-    pageInvoices.forEach((inv: any) => {
-      if (inv.appointment_id) map.set(inv.appointment_id, inv);
-    });
-    return map;
-  }, [pageInvoices]);
+  const pageInvoiceByAppointmentId = useMemo(
+    () => invoiceMapByAppointment(pageInvoices as any[]),
+    [pageInvoices]
+  );
 
   // Whichever of the two is actually populated for this mode. Only one of the
-  // fetches above ever runs: a filtered saved view pulls the whole invoices
-  // table (the matching appointments are already in memory, so there is no
-  // server page to scope to), and otherwise only the current page's ids are
-  // fetched. Reading the page map unconditionally left every Bill Amount and
-  // Payment Mode blank under any custom view.
+  // fetches above ever runs: a filtered saved view works off the in-memory
+  // appointment set (there is no server page to scope to), and otherwise only
+  // the current page's ids are fetched. Reading the page map unconditionally
+  // left every Bill Amount and Payment Mode blank under any custom view.
   const billInvoiceByAppointmentId = useMemo(
     () => appointmentInvoiceMap(viewHasFilters, invoiceByAppointmentId, pageInvoiceByAppointmentId),
     [viewHasFilters, invoiceByAppointmentId, pageInvoiceByAppointmentId],
   );
+
+  // Say so instead of showing a column of dashes that looks like "no bills".
+  const billLookupFailed = fullInvoicesFailed || pageInvoicesFailed;
+  useEffect(() => {
+    if (billLookupFailed) toast.error("Could not load bill amounts - the Bill and Payment Mode columns may be blank.");
+  }, [billLookupFailed]);
 
   const dateFilterLabel = (() => {
     if (datePreset === "specific") return specificDate ? format(specificDate, "MMM d, yyyy") : "Specific Date";

@@ -39,6 +39,8 @@ interface AuthContextType {
   staffProfile: StaffProfile | null;
   permissions: PermMap;
   isAdmin: boolean;
+  /** Signed in, and a staff record exists, but it has been deactivated. */
+  staffDeactivated: boolean;
   dataScope: DataScope;
   reportPeriodLimit: ReportPeriodLimit;
   loading: boolean;
@@ -53,6 +55,7 @@ const AuthContext = createContext<AuthContextType>({
   staffProfile: null,
   permissions: {},
   isAdmin: false,
+  staffDeactivated: false,
   dataScope: "all",
   reportPeriodLimit: "none",
   loading: true,
@@ -76,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
   const [permissions, setPermissions] = useState<PermMap>({});
   const [isAdmin, setIsAdmin] = useState(false);
+  const [staffDeactivated, setStaffDeactivated] = useState(false);
   const [dataScope, setDataScope] = useState<DataScope>("all");
   const [reportPeriodLimit, setReportPeriodLimit] = useState<ReportPeriodLimit>("none");
   const [loading, setLoading] = useState(true);
@@ -126,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // permission they have.
     const { data: staffData, error: staffErr } = await supabase
       .from("staff")
-      .select("id, first_name, last_name, email, phone, role_id, user_roles_config(id, name)")
+      .select("id, first_name, last_name, email, phone, role_id, is_active, user_roles_config(id, name)")
       .eq("auth_user_id", u.id)
       .maybeSingle();
 
@@ -138,10 +142,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStaffProfile(null);
       setPermissions({});
       setIsAdmin(false);
+      setStaffDeactivated(false);
       setDataScope("all");
       setReportPeriodLimit("none");
       return;
     }
+
+    // Deactivated has to be its own state, not "no staff row". Filtering the
+    // query on is_active would be worse than the bug: an empty permissions map
+    // is treated as "allow every module" (see ProtectedRoute), so a deactivated
+    // admin would have kept full access by a different route.
+    if (staffData.is_active === false) {
+      setStaffProfile(null);
+      setPermissions({});
+      setIsAdmin(false);
+      setStaffDeactivated(true);
+      setDataScope("all");
+      setReportPeriodLimit("none");
+      return;
+    }
+    setStaffDeactivated(false);
 
     const role = staffData.user_roles_config as any;
     const roleName = role?.name || null;
@@ -281,7 +301,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, patientId, patientName, staffProfile, permissions, isAdmin, dataScope, reportPeriodLimit, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, patientId, patientName, staffProfile, permissions, isAdmin, staffDeactivated, dataScope, reportPeriodLimit, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -129,18 +129,40 @@ function PageLoader() {
 }
 
 /** Admin-only routes (user & profile management). */
+/** Signed in, but the staff record has been switched off. */
+function DeactivatedNotice() {
+  const { signOut } = useAuth();
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="max-w-sm text-center">
+        <h1 className="text-lg font-semibold">This account has been deactivated</h1>
+        <p className="text-sm text-muted-foreground mt-2">
+          Ask an administrator to reactivate it if you still need access.
+        </p>
+        <button className="mt-4 text-sm text-primary hover:underline" onClick={() => signOut()}>
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AdminRoute({ children }: { children: ReactNode }) {
-  const { isAdmin, loading } = useAuth();
+  const { isAdmin, staffDeactivated, loading } = useAuth();
   if (loading) return null;
+  if (staffDeactivated) return <DeactivatedNotice />;
   return isAdmin ? <>{children}</> : <AccessDenied />;
 }
 
 function ProtectedRoute({ moduleKey, children }: { moduleKey: string; children: ReactNode }) {
-  const { isAdmin, permissions, loading, session } = useAuth();
+  const { isAdmin, permissions, staffDeactivated, loading, session } = useAuth();
   if (loading) return null;
   // Without a session every query reaches the database as "anon", which the
   // grants deny - send the user to sign in instead of rendering empty panels.
   if (!session) return <Navigate to="/login" replace />;
+  // Before the checks below, because the last of them treats an empty
+  // permissions map as "allow everything" - which a deactivated account has.
+  if (staffDeactivated) return <DeactivatedNotice />;
   if (isAdmin) return <>{children}</>;
   if (permissions[moduleKey]?.can_view) return <>{children}</>;
   // If no permissions loaded at all (no staff profile / not logged in as staff), allow access

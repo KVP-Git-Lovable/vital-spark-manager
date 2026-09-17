@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -224,7 +225,7 @@ export default function UserManagement() {
             force_password_change: true,
           },
         });
-        if (error) throw error;
+        if (error) throw new Error(await edgeFunctionErrorMessage(error));
         if (data?.error) throw new Error(data.error);
         return;
       }
@@ -236,7 +237,7 @@ export default function UserManagement() {
           password: resetPwMode === "manual" ? resetPwValue : undefined,
         },
       });
-      if (error) throw error;
+      if (error) throw new Error(await edgeFunctionErrorMessage(error));
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
@@ -263,7 +264,7 @@ export default function UserManagement() {
           auth_user_id: deleteStaff.auth_user_id || null,
         },
       });
-      if (error) throw error;
+      if (error) throw new Error(await edgeFunctionErrorMessage(error));
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {

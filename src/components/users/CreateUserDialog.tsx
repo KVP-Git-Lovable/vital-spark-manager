@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -94,7 +95,10 @@ export default function CreateUserDialog({ open, onOpenChange, staffList, roles 
         },
       });
 
-      if (error) throw error;
+      // supabase-js flattens any non-2xx into a generic "non-2xx status code"
+      // and nulls out `data`, so the function's own message never reached the
+      // toast below. Recover it before throwing.
+      if (error) throw new Error(await edgeFunctionErrorMessage(error));
       if (data?.error) throw new Error(data.error);
 
       // Update role on existing staff if linked

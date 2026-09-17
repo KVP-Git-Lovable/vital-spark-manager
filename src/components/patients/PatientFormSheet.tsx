@@ -257,6 +257,14 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     } else {
       setForm(emptyForm);
     }
+    // Reset the consultation-reason state whenever the sheet is not loading an
+    // existing patient, so tags from a previously edited patient don't bleed
+    // into a new (or default-values) patient and get saved onto their record.
+    if (!patient) {
+      setConsultationReasons([]);
+      setOthersAestheticText("");
+      setOthersClinicalText("");
+    }
     // NOTE: `allPatients` is intentionally excluded — it is a new array reference on
     // every render and would reset the form on each keystroke while editing.
     // eslint-disable-next-line react-hooks/exhaustive-deps

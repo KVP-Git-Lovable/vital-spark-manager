@@ -4649,7 +4649,12 @@ export type Database = {
         Args: { _column: string; _sql_type: string; _table: string }
         Returns: undefined
       }
+      can_restore_trash_item: { Args: { _trash_id: string }; Returns: boolean }
       can_see_procedure: { Args: { _procedure_id: string }; Returns: boolean }
+      can_trash_record: {
+        Args: { _object_type: string; _record_id: string }
+        Returns: boolean
+      }
       clean_investigation_text: { Args: { _text: string }; Returns: string }
       create_patient_portal_token: {
         Args: {
@@ -4674,6 +4679,7 @@ export type Database = {
         }[]
       }
       has_full_data_scope: { Args: never; Returns: boolean }
+      is_my_patient: { Args: { _patient_id: string }; Returns: boolean }
       is_pure_consultation: { Args: { _text: string }; Returns: boolean }
       move_to_trash: {
         Args: { _label?: string; _object_type: string; _record_id: string }

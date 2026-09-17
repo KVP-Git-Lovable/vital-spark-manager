@@ -98,7 +98,17 @@ export default function CreateUserDialog({ open, onOpenChange, staffList, roles 
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        let message = error.message;
+        try {
+          const body = await (error as any).context?.json?.();
+          if (body?.error) message = body.error;
+        } catch { /* keep original message */ }
+        if (/weak|easy to guess|pwned|breach/i.test(message)) {
+          message = "That password is too common and has appeared in known data breaches. Please choose a different one.";
+        }
+        throw new Error(message);
+      }
       if (data?.error) throw new Error(data.error);
 
       // Update role on existing staff if linked

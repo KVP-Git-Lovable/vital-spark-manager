@@ -311,6 +311,11 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [selectedSurveyTemplateId, setSelectedSurveyTemplateId] = useState<string | null>(null);
 
   // Fetch appointment
+  // maybeSingle, not single: a doctor on data_scope = "own" cannot read a
+  // colleague's appointment, and single() throws for that. The sheet renders
+  // `isLoading || !appointment` as "Loading...", so the throw left a spinner
+  // turning forever with nothing to say why. Now it resolves to null and the
+  // sheet says so.
   const { data: appointment, isLoading } = useQuery({
     queryKey: ["appointment-detail", appointmentId],
     queryFn: async () => {
@@ -319,7 +324,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         .from("appointments")
         .select("*, patients(id, first_name, last_name, phone, gender), staff(first_name, last_name)")
         .eq("id", appointmentId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -913,8 +918,13 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
 
   const TitleTag: any = isPage ? "h1" : SheetTitle;
 
-  const inner = (isLoading || !appointment ? (
+  const inner = (isLoading ? (
             <div className="p-6 text-center text-muted-foreground">Loading...</div>
+          ) : !appointment ? (
+            <div className="p-8 text-center text-muted-foreground">
+              <p className="font-medium text-foreground">This appointment is not available</p>
+              <p className="text-sm mt-1">It may have been deleted, or it belongs to another doctor.</p>
+            </div>
           ) : (
             <>
               <SheetHeader className="p-6 pb-4 border-b bg-muted/30">

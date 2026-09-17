@@ -217,7 +217,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         .from("procedures")
         .select("*, patients(first_name, last_name), staff:staff!procedures_staff_id_fkey(first_name, last_name)")
         .eq("id", procedureId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -660,8 +660,13 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     <>
       <Sheet open={!!procedureId} onOpenChange={(open) => { if (!open) handleClose(); }}>
         <SheetContent className="w-screen max-w-none sm:max-w-none overflow-y-auto p-0">
-          {isLoading || !procedure ? (
+          {isLoading ? (
             <div className="p-6 text-center text-muted-foreground">Loading...</div>
+          ) : !procedure ? (
+            <div className="p-8 text-center text-muted-foreground">
+              <p className="font-medium text-foreground">This procedure is not available</p>
+              <p className="text-sm mt-1">It may have been deleted, or it belongs to another doctor.</p>
+            </div>
           ) : (
             <>
               <SheetHeader className="p-6 pb-4 border-b bg-muted/30 shadow-sm sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-muted/60">

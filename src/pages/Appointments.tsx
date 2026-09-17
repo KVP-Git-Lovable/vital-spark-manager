@@ -17,6 +17,7 @@ import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib
 import { viewDatePreset } from "@/lib/viewDatePreset";
 import { appointmentInvoiceMap } from "@/lib/appointmentInvoiceMap";
 import { fetchInvoicesByAppointmentIds, invoiceMapByAppointment } from "@/lib/invoicesForAppointments";
+import { assertWrote } from "@/lib/rowAccess";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, ClipboardList, Pin, Printer, Trash2 } from "lucide-react";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
 import { moveToTrash } from "@/lib/trash";
@@ -1220,8 +1221,14 @@ const Appointments = () => {
   const inlineUpdateMutation = useMutation({
     mutationFn: async (data: Record<string, any>) => {
       const { id, __notify, ...updates } = data;
-      const { error } = await supabase.from("appointments").update(updates as any).eq("id", id);
+      // Ask for the row back. An UPDATE that RLS filters out is not an error -
+      // it reports zero rows and no error - so without this the toast said
+      // "Updated" and the WhatsApp below went to the patient for a change that
+      // never saved.
+      const { data: written, error } = await supabase
+        .from("appointments").update(updates as any).eq("id", id).select("id");
       if (error) throw error;
+      assertWrote(written);
       // WhatsApp notification on inline status change
       try {
         if (__notify) {
@@ -1277,8 +1284,10 @@ const Appointments = () => {
 
   const rescheduleAppointment = useMutation({
     mutationFn: async ({ id, newStart, newEnd }: { id: string; newStart: string; newEnd: string }) => {
-      const { error } = await supabase.from("appointments").update({ start_time: newStart, end_time: newEnd }).eq("id", id);
+      const { data: written, error } = await supabase
+        .from("appointments").update({ start_time: newStart, end_time: newEnd }).eq("id", id).select("id");
       if (error) throw error;
+      assertWrote(written);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });

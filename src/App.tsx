@@ -92,7 +92,12 @@ const queryClient = new QueryClient({
       networkMode: "always",
     },
     mutations: {
-      retry: 1,
+      // No retry. A mutation is not idempotent: retrying a failed INSERT is how
+      // you get two invoices for one bill. It bit here because creating a
+      // record for another doctor writes the row and THEN fails, when
+      // PostgREST runs the row-scope SELECT policy over the RETURNING clause -
+      // so the retry created a second row every time.
+      retry: 0,
       networkMode: "always",
     },
   },

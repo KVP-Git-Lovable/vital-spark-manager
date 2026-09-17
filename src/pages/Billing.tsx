@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/currency";
+import { assertWrote, NOT_YOURS_MESSAGE } from "@/lib/rowAccess";
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { useState, useMemo, useRef, useEffect, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -721,8 +722,12 @@ const Billing = () => {
   const kanbanOptions = viewOptionsFor(fieldDefIn(BILLING_VIEW_FIELDS, kanban.group_field)?.optionsSource);
 
   const moveKanbanCard = async (inv: any, field: string, value: string) => {
-    const { error } = await supabase.from("invoices").update({ [field]: value || null } as any).eq("id", inv.id);
+    const { data: written, error } = await supabase
+      .from("invoices").update({ [field]: value || null } as any).eq("id", inv.id).select("id");
     if (error) { toast.error(error.message); return; }
+    // Zero rows back means RLS filtered the write - no error is raised for that,
+    // so without this the card moved on screen and nothing was saved.
+    if (!written || written.length === 0) { toast.error(NOT_YOURS_MESSAGE); invalidateInvoices(); return; }
     toast.success("Invoice updated");
     invalidateInvoices();
   };
@@ -1838,12 +1843,13 @@ const Billing = () => {
       if (newPaid >= total) status = "Paid";
       else if (newPaid <= 0) status = "Pending";
 
-      const { error } = await supabase.from("invoices").update({
+      const { data: written, error } = await supabase.from("invoices").update({
         paid_amount: Math.min(newPaid, total),
         status,
         payment_mode: addPaymentMode,
-      }).eq("id", paymentInv.id);
+      }).eq("id", paymentInv.id).select("id");
       if (error) throw error;
+      assertWrote(written);
       return { invoiceId: paymentInv.id, becamePaid: status === "Paid" && paymentInv.status !== "Paid" };
     },
     onSuccess: async (res: any) => {
@@ -1860,11 +1866,12 @@ const Billing = () => {
 
   const markAsPaid = useMutation({
     mutationFn: async (inv: any) => {
-      const { error } = await supabase.from("invoices").update({
+      const { data: written, error } = await supabase.from("invoices").update({
         paid_amount: inv.total_amount,
         status: "Paid",
-      }).eq("id", inv.id);
+      }).eq("id", inv.id).select("id");
       if (error) throw error;
+      assertWrote(written);
       return { invoiceId: inv.id, becamePaid: inv.status !== "Paid" };
     },
     onSuccess: async (res: any) => {
@@ -1885,8 +1892,9 @@ const Billing = () => {
         const { data: invRow } = await supabase.from("invoices").select("total_amount").eq("id", id).maybeSingle();
         if (invRow) updates.paid_amount = Number((invRow as any).total_amount) || 0;
       }
-      const { error } = await supabase.from("invoices").update(updates).eq("id", id);
+      const { data: written, error } = await supabase.from("invoices").update(updates).eq("id", id).select("id");
       if (error) throw error;
+      assertWrote(written);
       return { invoiceId: id, becamePaid: status === "Paid" && prevStatus !== "Paid" };
     },
     onSuccess: async (res: any) => {
@@ -1905,13 +1913,14 @@ const Billing = () => {
   const cancelInvoice = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
       const { data: userData } = await supabase.auth.getUser();
-      const { error } = await supabase.from("invoices").update({
+      const { data: written, error } = await supabase.from("invoices").update({
         status: "Cancelled",
         cancellation_reason: reason,
         cancelled_at: new Date().toISOString(),
         cancelled_by_name: userData?.user?.email || null,
-      } as any).eq("id", id);
+      } as any).eq("id", id).select("id");
       if (error) throw error;
+      assertWrote(written);
     },
     onSuccess: () => {
       invalidateInvoices();
@@ -1931,7 +1940,7 @@ const Billing = () => {
       if (newPaid >= newTotal && newTotal > 0) status = "Paid";
       else if (newPaid > 0) status = "Partial";
 
-      const { error } = await supabase.from("invoices").update({
+      const { data: written, error } = await supabase.from("invoices").update({
         patient_name: editData.patient_name,
         total_amount: newTotal,
         paid_amount: newPaid,
@@ -1940,8 +1949,9 @@ const Billing = () => {
         notes: editData.notes || null,
         appointment_id: editData.appointment_id || null,
         status,
-      }).eq("id", viewInvoice.id);
+      }).eq("id", viewInvoice.id).select("id");
       if (error) throw error;
+      assertWrote(written);
       return {
         invoiceId: viewInvoice.id,
         becamePaid: status === "Paid" && viewInvoice.status !== "Paid",

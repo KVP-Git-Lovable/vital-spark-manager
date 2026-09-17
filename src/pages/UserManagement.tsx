@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
-import { passwordProblem } from "@/lib/passwordRules";
+import { PASSWORD_RULE_TEXT, passwordProblem } from "@/lib/passwordRules";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -613,6 +613,18 @@ export default function UserManagement() {
                 {resetPwStaff?.name} doesn't have an app login yet{resetPwStaff?.email ? ` - one will be created using ${resetPwStaff.email}.` : "."}
               </p>
             )}
+            {/* Always on for both paths - force_password_change is set whether a
+                login is being created or a password reset. There is no toggle,
+                so say so rather than leaving the operator looking for one. */}
+            <p className="text-sm flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+              <KeyRound className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+              {/* The whole name, not the first word: "Dr Ashwini Ashokan"
+                  splits to "Dr", which reads as nonsense. */}
+              <span>
+                {resetPwStaff?.name || "This user"} will be asked to choose their own password the
+                next time they sign in, so the one you set here is temporary.
+              </span>
+            </p>
             <RadioGroup value={resetPwMode} onValueChange={(v) => setResetPwMode(v as "auto" | "manual")}>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="auto" id="reset-auto" />
@@ -634,6 +646,7 @@ export default function UserManagement() {
                   <Label>Confirm Password</Label>
                   <Input type="password" value={resetPwConfirm} onChange={(e) => setResetPwConfirm(e.target.value)} />
                 </div>
+                <p className="text-xs text-muted-foreground">{PASSWORD_RULE_TEXT}</p>
               </div>
             )}
 

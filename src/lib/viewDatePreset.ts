@@ -55,7 +55,16 @@ export function viewDatePreset(
   filters: ViewFilters | null | undefined,
   dateField = "start_time",
 ): ViewDatePreset | null {
+  // A view with no filters at all - the standard "All …" and "Recently Viewed",
+  // or a custom view nobody has given conditions yet - means everything, so the
+  // chips must say so. Without this, picking "All Appointments" left yesterday's
+  // Today chip in place and showed one day under a view named for all of them.
+  if ((filters?.conditions ?? []).length === 0) return { preset: "all" };
+
   const conditions = (filters?.conditions ?? []).filter((c) => c?.field === dateField && c?.operator);
+  // Conditions, but none about dates: the view says nothing about the date, so
+  // leave whatever the user picked. Throwing away their date filter because they
+  // switched to a status-based view would be its own bug.
   if (conditions.length === 0) return null;
   if (conditions.length > 1) return { preset: "all" };
   if (filters?.match === "any") return { preset: "all" };

@@ -8,13 +8,21 @@ const withDate = (operator: string, value?: string, value2?: string): ViewFilter
 });
 
 describe("viewDatePreset", () => {
-  it("leaves the chips alone when a view has no date condition", () => {
-    expect(viewDatePreset({ match: "all", conditions: [] })).toBeNull();
+  it("means All Dates when a view has no filters at all", () => {
+    // The standard "All Appointments" and "Recently Viewed" are built with an
+    // empty conditions array. A view named for all of them must not show one
+    // day because that is where the chip happened to be.
+    expect(viewDatePreset({ match: "all", conditions: [] })).toEqual({ preset: "all" });
+    expect(viewDatePreset({ match: "any", conditions: [] })).toEqual({ preset: "all" });
+    expect(viewDatePreset(null)).toEqual({ preset: "all" });
+    expect(viewDatePreset(undefined)).toEqual({ preset: "all" });
+  });
+
+  it("leaves the chips alone for a view that filters on something other than the date", () => {
+    // Switching to a status view should not discard the date the user picked.
     expect(
       viewDatePreset({ match: "all", conditions: [{ field: "status", operator: "equals", value: "Confirmed" }] }),
     ).toBeNull();
-    expect(viewDatePreset(null)).toBeNull();
-    expect(viewDatePreset(undefined)).toBeNull();
   });
 
   it("maps the operators a chip can express exactly", () => {

@@ -7,6 +7,12 @@ import {
 } from "recharts";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMoneyFormat } from "@/lib/currency";
+import {
+  BAR_LABEL_CHARS,
+  BAR_LABEL_GUTTER,
+  horizontalBarHeight,
+  truncateLabel,
+} from "@/lib/barChartLayout";
 
 const STATUS_COLORS: Record<string, string> = {
   Completed: "hsl(152, 60%, 40%)",
@@ -62,6 +68,87 @@ function ChartCard({
         </CardContent>
       </Card>
     </motion.div>
+  );
+}
+
+/**
+ * A horizontal bar chart of free-text categories.
+ *
+ * Both revenue breakdowns plot names that come from Salesforce verbatim, so the
+ * axis has to cope with anything up to about sixty characters. They were two
+ * copies of the same markup and drifted (one formatted its x-axis ticks, the
+ * other did not); one component means a layout fix cannot land on only one of
+ * them. See barChartLayout.ts for why the height and the truncation are what
+ * they are.
+ */
+function HorizontalBarCard({
+  title, delay, data, barName, chartKey, onChartClick, isMobile, formatTick, tooltipFormatter,
+}: {
+  title: string;
+  delay: number;
+  data: NameValue[];
+  barName: string;
+  chartKey: string;
+  onChartClick: (type: string, key?: string) => void;
+  isMobile: boolean;
+  formatTick: (value: number) => string;
+  tooltipFormatter: (value: number, name: string) => [string, string];
+}) {
+  const gutter = isMobile ? BAR_LABEL_GUTTER.mobile : BAR_LABEL_GUTTER.desktop;
+  const labelChars = isMobile ? BAR_LABEL_CHARS.mobile : BAR_LABEL_CHARS.desktop;
+  return (
+    <ChartCard title={title} delay={delay} empty={data.length === 0} onClick={() => onChartClick(chartKey)}>
+      <ResponsiveContainer width="100%" height={horizontalBarHeight(data.length)}>
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 4 }}>
+          {/* Solid hairline, not dashes: dashing reads as a threshold and is half
+              of what made these cards look busy. */}
+          <CartesianGrid horizontal={false} className="stroke-muted" />
+          <XAxis
+            type="number"
+            tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+            tickFormatter={(v) => formatTick(Number(v))}
+          />
+          {/* A plain <text> rather than recharts' own tick. Recharts wraps a tick
+              label at word boundaries whenever it is given a width, so a name a
+              few pixels too wide silently becomes two lines - which is the
+              collision this card had. Drawing the text ourselves, with no width,
+              makes one line structural instead of a character count tuned
+              against the font. */}
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={gutter}
+            tick={(props: any) => (
+              <text
+                x={props.x}
+                y={props.y}
+                dx={-6}
+                dy={4}
+                textAnchor="end"
+                fontSize={11}
+                fill="hsl(var(--muted-foreground))"
+              >
+                {truncateLabel(props.payload?.value, labelChars)}
+              </text>
+            )}
+          />
+          {/* The tooltip gets the untruncated name: a tickFormatter only changes
+              what is drawn on the axis. */}
+          <Tooltip formatter={tooltipFormatter} />
+          <Bar
+            dataKey="value"
+            name={barName}
+            radius={[0, 4, 4, 0]}
+            maxBarSize={22}
+            onClick={(e: any) => onChartClick(chartKey, e?.name)}
+          >
+            {data.map((_, i) => (
+              <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartCard>
   );
 }
 
@@ -208,47 +295,35 @@ export function DashboardCharts({ data, onChartClick, showRevenueByService, show
 
   // Row 4 — Revenue by Primary Concern
   cards.push(
-    <ChartCard key="revenue_by_problem_area" title="Revenue by Primary Concern (₹)" delay={0.32} empty={data.revenueByProblemArea.length === 0} onClick={() => onChartClick("revenue_by_problem_area")}>
-      <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={data.revenueByProblemArea} layout="vertical">
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis type="number" tick={{ fontSize: 11 }} />
-          <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10 }} />
-          <Tooltip formatter={money} />
-          <Bar dataKey="value" name="Paid" radius={[0, 4, 4, 0]} onClick={(e: any) => onChartClick("revenue_by_problem_area", e?.name)}>
-            {data.revenueByProblemArea.map((_, i) => (
-              <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </ChartCard>
+    <HorizontalBarCard
+      key="revenue_by_problem_area"
+      title="Revenue by Primary Concern (₹)"
+      delay={0.32}
+      data={data.revenueByProblemArea}
+      barName="Paid"
+      chartKey="revenue_by_problem_area"
+      onChartClick={onChartClick}
+      isMobile={isMobile}
+      formatTick={formatNumber}
+      tooltipFormatter={money}
+    />
   );
 
   // Row 4 — Revenue by Service (conditional)
   if (showRevenueByService) {
     cards.push(
-      <ChartCard
+      <HorizontalBarCard
         key="revenue_by_service"
-        title="Revenue by Service"
+        title="Revenue by Service (₹)"
         delay={0.34}
-        empty={!data.revenueByService || data.revenueByService.length === 0}
-        onClick={() => onChartClick("revenue_by_service")}
-      >
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={data.revenueByService || []} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => formatNumber(Number(v))} />
-            <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10 }} />
-            <Tooltip formatter={money} />
-            <Bar dataKey="value" name="Revenue" radius={[0, 4, 4, 0]} onClick={(e: any) => onChartClick("revenue_by_service", e?.name)}>
-              {(data.revenueByService || []).map((_, i) => (
-                <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
+        data={data.revenueByService || []}
+        barName="Revenue"
+        chartKey="revenue_by_service"
+        onChartClick={onChartClick}
+        isMobile={isMobile}
+        formatTick={formatNumber}
+        tooltipFormatter={money}
+      />
     );
   }
 

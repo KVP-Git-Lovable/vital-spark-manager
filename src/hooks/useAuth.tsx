@@ -41,6 +41,10 @@ interface AuthContextType {
   isAdmin: boolean;
   /** Signed in, and a staff record exists, but it has been deactivated. */
   staffDeactivated: boolean;
+  /** Issued a password by an administrator; must set their own before using the app. */
+  mustChangePassword: boolean;
+  /** Re-reads the staff row, so a gate can lift without a full reload. */
+  refreshStaffProfile: () => Promise<void>;
   dataScope: DataScope;
   reportPeriodLimit: ReportPeriodLimit;
   loading: boolean;
@@ -56,6 +60,8 @@ const AuthContext = createContext<AuthContextType>({
   permissions: {},
   isAdmin: false,
   staffDeactivated: false,
+  mustChangePassword: false,
+  refreshStaffProfile: async () => {},
   dataScope: "all",
   reportPeriodLimit: "none",
   loading: true,
@@ -80,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<PermMap>({});
   const [isAdmin, setIsAdmin] = useState(false);
   const [staffDeactivated, setStaffDeactivated] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [dataScope, setDataScope] = useState<DataScope>("all");
   const [reportPeriodLimit, setReportPeriodLimit] = useState<ReportPeriodLimit>("none");
   const [loading, setLoading] = useState(true);
@@ -130,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // permission they have.
     const { data: staffData, error: staffErr } = await supabase
       .from("staff")
-      .select("id, first_name, last_name, email, phone, role_id, is_active, user_roles_config(id, name)")
+      .select("id, first_name, last_name, email, phone, role_id, is_active, force_password_change, user_roles_config(id, name)")
       .eq("auth_user_id", u.id)
       .maybeSingle();
 
@@ -143,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPermissions({});
       setIsAdmin(false);
       setStaffDeactivated(false);
+      setMustChangePassword(false);
       setDataScope("all");
       setReportPeriodLimit("none");
       return;
@@ -157,11 +165,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPermissions({});
       setIsAdmin(false);
       setStaffDeactivated(true);
+      setMustChangePassword(false);
       setDataScope("all");
       setReportPeriodLimit("none");
       return;
     }
     setStaffDeactivated(false);
+    // Written by User Management when a login is created or a password reset,
+    // and until now read by nothing - the flag reached the database and the
+    // user was never asked for anything.
+    setMustChangePassword(staffData.force_password_change === true);
 
     const role = staffData.user_roles_config as any;
     const roleName = role?.name || null;
@@ -289,6 +302,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Re-read the staff row on demand, so a gate driven by it can lift without a
+  // full page reload - the must-change-password screen uses this once the new
+  // password is saved.
+  const refreshStaffProfile = async () => {
+    if (!user) return;
+    await loadStaffProfile(user);
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setSession(null);
@@ -301,7 +322,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, patientId, patientName, staffProfile, permissions, isAdmin, staffDeactivated, dataScope, reportPeriodLimit, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, patientId, patientName, staffProfile, permissions, isAdmin, staffDeactivated, mustChangePassword, refreshStaffProfile, dataScope, reportPeriodLimit, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

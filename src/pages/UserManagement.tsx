@@ -239,6 +239,14 @@ export default function UserManagement() {
       });
       if (error) throw new Error(await edgeFunctionErrorMessage(error));
       if (data?.error) throw new Error(data.error);
+
+      // The password an admin just typed is known to two people, so it is
+      // one-time: the user is asked for their own on next sign-in. Done here
+      // rather than in the edge function so this needs no redeploy - the
+      // function's reset branch only ever touched the auth user.
+      const { error: flagError } = await supabase
+        .from("staff").update({ force_password_change: true } as never).eq("id", resetPwStaff.id);
+      if (flagError) throw flagError;
     },
     onSuccess: () => {
       toast({ title: resetPwStaff?.auth_user_id ? "Password reset successfully" : "Login account created" });

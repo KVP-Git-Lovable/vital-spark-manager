@@ -5,6 +5,7 @@ import { NotificationsBell } from "@/components/layout/NotificationsBell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
+import { ChangePasswordRequired } from "@/components/auth/ChangePasswordRequired";
 import { useNavigate, Navigate, useLocation } from "react-router-dom";
 import { AppointmentsModal } from "@/components/modals/AppointmentsModal";
 import { AppointmentDetailModal } from "@/components/modals/AppointmentDetailModal";
@@ -41,7 +42,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { staffProfile, user, loading, signOut } = useAuth();
+  const { staffProfile, user, loading, signOut, mustChangePassword } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { openModal, closeModal } = useModal();
@@ -81,6 +82,13 @@ export function AppLayout({ children }: AppLayoutProps) {
     await signOut();
     navigate("/login");
   };
+
+
+  // An admin-issued password is one-time. The gate lives here rather than in
+  // ProtectedRoute because /trash and /profile have no route guard at all, but
+  // they are inside this layout - and /login and /signup are outside it, so
+  // signing out still works.
+  if (mustChangePassword) return <ChangePasswordRequired />;
 
   return (
     <SidebarProvider>

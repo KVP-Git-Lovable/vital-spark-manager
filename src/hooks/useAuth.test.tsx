@@ -28,6 +28,8 @@ const PERMISSION_ROWS = [
 let dataScopeColumnMissing = true;
 /** false => the staff record has been switched off in User Management. */
 let staffIsActive = true;
+/** true => an administrator issued this password; the user must pick their own. */
+let forcePasswordChange = false;
 
 function makeThenable(result: unknown) {
   // Every builder method returns the same object, so any chain length resolves.
@@ -49,7 +51,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       signOut: () => Promise.resolve({ error: null }),
     },
     from: (table: string) => {
-      if (table === "staff") return makeThenable({ data: { ...STAFF_ROW, is_active: staffIsActive }, error: null });
+      if (table === "staff") return makeThenable({ data: { ...STAFF_ROW, is_active: staffIsActive, force_password_change: forcePasswordChange }, error: null });
       if (table === "user_roles_config") {
         return dataScopeColumnMissing
           ? makeThenable({ data: null, error: { message: 'column user_roles_config.data_scope does not exist' } })
@@ -64,13 +66,14 @@ vi.mock("@/integrations/supabase/client", () => ({
 import { AuthProvider, useAuth } from "./useAuth";
 
 function Probe() {
-  const { isAdmin, dataScope, staffProfile, permissions, staffDeactivated } = useAuth();
+  const { isAdmin, dataScope, staffProfile, permissions, staffDeactivated, mustChangePassword } = useAuth();
   return (
     <output data-testid="out">
       {JSON.stringify({
         isAdmin,
         dataScope,
         staffDeactivated,
+        mustChangePassword,
         role: staffProfile?.roleName ?? null,
         canOpenUserManagement: isAdmin || !!permissions.user_management?.can_view,
         // What ProtectedRoute does with an empty permissions map.
@@ -86,6 +89,7 @@ describe("useAuth staff profile", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     staffIsActive = true;
+    forcePasswordChange = false;
   });
 
   it("keeps admin access when the data_scope column does not exist yet", async () => {
@@ -134,5 +138,40 @@ describe("useAuth staff profile", () => {
     await waitFor(() => expect(read().role).toBe("Admin"));
     expect(read().staffDeactivated).toBe(false);
     expect(read().isAdmin).toBe(true);
+  });
+
+  it("asks for a new password when an administrator issued the current one", async () => {
+    // force_password_change has been written since April and read by nothing,
+    // so an admin-set password stayed in place indefinitely.
+    dataScopeColumnMissing = false;
+    forcePasswordChange = true;
+    render(<AuthProvider><Probe /></AuthProvider>);
+
+    await waitFor(() => expect(read().mustChangePassword).toBe(true));
+    // Still a normal signed-in admin otherwise - the gate is a screen, not a
+    // loss of permissions.
+    expect(read().isAdmin).toBe(true);
+    expect(read().staffDeactivated).toBe(false);
+  });
+
+  it("does not ask a user who already chose their own password", async () => {
+    dataScopeColumnMissing = false;
+    forcePasswordChange = false;
+    render(<AuthProvider><Probe /></AuthProvider>);
+
+    await waitFor(() => expect(read().role).toBe("Admin"));
+    expect(read().mustChangePassword).toBe(false);
+  });
+
+  it("does not ask a deactivated account to set a password", async () => {
+    // Deactivation wins: there is nothing for them to come back to, and the
+    // password screen would be a dead end.
+    dataScopeColumnMissing = false;
+    staffIsActive = false;
+    forcePasswordChange = true;
+    render(<AuthProvider><Probe /></AuthProvider>);
+
+    await waitFor(() => expect(read().staffDeactivated).toBe(true));
+    expect(read().mustChangePassword).toBe(false);
   });
 });

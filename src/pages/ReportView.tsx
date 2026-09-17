@@ -159,10 +159,14 @@ const ReportView = () => {
     for (const f of report.filters) {
       const v = filterState.selects[f.key];
       if (!v) continue;
-      if (f.type === "doctor" || f.type === "service") {
-        if (f.matches) rows = rows.filter((r) => f.matches!(r, v));
+      // A filter that brings its own matcher always wins - a select whose
+      // stored values need normalising (payment modes) needs one just as much
+      // as a doctor or service picker does.
+      if (f.matches) {
+        rows = rows.filter((r) => f.matches!(r, v));
         continue;
       }
+      if (f.type === "doctor" || f.type === "service") continue;
       if (f.type !== "select") continue;
       const field = f.field || f.key;
       rows = rows.filter((r) => String(r[field] ?? "") === v);

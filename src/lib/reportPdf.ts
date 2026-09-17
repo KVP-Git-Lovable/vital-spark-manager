@@ -227,6 +227,37 @@ export interface ReportPdfArgs {
   dayOnly: boolean;
 }
 
+/** Summary boxes per row before wrapping, so each stays wide enough to read. */
+export const SUMMARY_BOXES_PER_ROW = 4;
+export const SUMMARY_BOX_HEIGHT = 40;
+const SUMMARY_BOX_GAP = 10;
+
+/**
+ * Where each summary box goes, relative to the block's top-left corner.
+ *
+ * The boxes used to share one row however many there were, which was fine for
+ * the three or four every report had. The Invoices report now shows one box
+ * per payment instrument, and dividing the page width by eight leaves each too
+ * narrow for the figure inside it - so they wrap instead, keeping the width a
+ * full row of four would have.
+ */
+export function summaryBoxLayout(
+  count: number,
+  availableWidth: number,
+  perRowLimit = SUMMARY_BOXES_PER_ROW,
+  gap = SUMMARY_BOX_GAP,
+  boxH = SUMMARY_BOX_HEIGHT,
+) {
+  const perRow = Math.max(1, Math.min(perRowLimit, count));
+  const boxW = (availableWidth - gap * (perRow - 1)) / perRow;
+  const boxes = Array.from({ length: Math.max(0, count) }, (_, i) => ({
+    x: (i % perRow) * (boxW + gap),
+    y: Math.floor(i / perRow) * (boxH + gap),
+  }));
+  const rows = Math.ceil(Math.max(0, count) / perRow);
+  return { perRow, boxW, boxes, height: rows === 0 ? 0 : rows * (boxH + gap) - gap };
+}
+
 /** Assemble the document. Split from the save so the output can be inspected in tests. */
 export async function buildReportPdf({ report, rows, summary, filterState, dayOnly }: ReportPdfArgs) {
   const [{ jsPDF }, { autoTable }, clinic, filterLine] = await Promise.all([
@@ -307,23 +338,22 @@ export async function buildReportPdf({ report, rows, summary, filterState, dayOn
 
   // Summary boxes.
   if (summary.length) {
-    const gap = 10;
-    const boxW = (pageWidth - margin * 2 - gap * (summary.length - 1)) / summary.length;
-    const boxH = 40;
+    const layout = summaryBoxLayout(summary.length, pageWidth - margin * 2);
     summary.forEach((s, i) => {
-      const x = margin + i * (boxW + gap);
+      const x = margin + layout.boxes[i].x;
+      const boxY = y + layout.boxes[i].y;
       doc.setDrawColor(215);
-      doc.roundedRect(x, y, boxW, boxH, 3, 3);
+      doc.roundedRect(x, boxY, layout.boxW, SUMMARY_BOX_HEIGHT, 3, 3);
       doc.setFontSize(7.5);
       doc.setTextColor(110);
-      doc.text(sanitize(s.label).toUpperCase(), x + 8, y + 14);
+      doc.text(sanitize(s.label).toUpperCase(), x + 8, boxY + 14);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
       doc.setTextColor(0);
-      doc.text(sanitize(s.value), x + 8, y + 31);
+      doc.text(sanitize(s.value), x + 8, boxY + 31);
       doc.setFont("helvetica", "normal");
     });
-    y += boxH + 16;
+    y += layout.height + 16;
   }
 
   autoTable(doc, {

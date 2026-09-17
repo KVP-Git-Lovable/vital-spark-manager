@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { ALL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { formatMoneyCompact } from "@/lib/currency";
+import { collectionCards, paymentBucket, PAYMENT_BUCKETS } from "@/lib/paymentModes";
 
 export type ColumnType = "text" | "number" | "currency" | "date" | "datetime" | "badge";
 
@@ -109,6 +110,26 @@ function groupSumByMonth(rows: any[], dateField: string, valueField: string) {
     m.set(k, (m.get(k) ?? 0) + Number(r?.[valueField] ?? 0));
   });
   return Array.from(m, ([label, value]) => ({ label, value })).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/**
+ * The doctor to show against an invoice.
+ *
+ * Prefer the invoice's own doctor_id -> staff, which is what the Doctor filter
+ * matches on. Fall back to the doctor_name recorded on the appointment it was
+ * raised from: most of the Salesforce-imported history has no staff record to
+ * point at, and those invoices would otherwise show a blank column.
+ */
+interface InvoiceDoctorSource {
+  doctor?: { first_name?: string | null; last_name?: string | null } | null;
+  appointment?: { doctor_name?: string | null } | null;
+}
+
+function invoiceDoctorName(row: InvoiceDoctorSource): string {
+  const staff = row?.doctor;
+  const fromStaff = `${staff?.first_name ?? ""} ${staff?.last_name ?? ""}`.trim();
+  if (fromStaff) return fromStaff;
+  return String(row?.appointment?.doctor_name ?? "").trim();
 }
 
 const STATUS_APPT = [...ALL_APPOINTMENT_STATUSES];
@@ -305,7 +326,15 @@ export const REPORTS: ReportConfig[] = [
       { key: "total_amount", label: "Total", sortable: true, type: "currency" },
       { key: "paid_amount", label: "Paid", sortable: true, type: "currency" },
       { key: "status", label: "Status", sortable: true, type: "badge" },
-      { key: "cancellation_reason", label: "Cancellation Reason", sortable: false },
+      // The invoice's own doctor where it has one, otherwise the doctor recorded
+      // on the appointment it was raised from - Salesforce history carries the
+      // name but no staff record, and a blank column is not a report.
+      {
+        key: "doctor_name",
+        label: "Doctor",
+        sortable: true,
+        accessor: (r) => invoiceDoctorName(r),
+      },
       { key: "payment_mode", label: "Mode", sortable: true },
       { key: "created_at", label: "Date", sortable: true, type: "date" },
     ],
@@ -320,25 +349,43 @@ export const REPORTS: ReportConfig[] = [
         },
       },
       { key: "status", label: "Status", type: "select", field: "status", options: STATUS_INV.map(v => ({ value: v, label: v })) },
-      { key: "payment_mode", label: "Payment Mode", type: "select", field: "payment_mode", options: PAY_MODES.map(v => ({ value: v, label: v })) },
+      // Matched by bucket, not by the literal stored string, so picking UPI
+      // finds the Salesforce-era "Google Pay" rows the UPI card counted. An
+      // exact-string filter here would contradict the card right above it.
+      {
+        key: "payment_mode",
+        label: "Payment Mode",
+        type: "select",
+        field: "payment_mode",
+        options: PAYMENT_BUCKETS.map((v) => ({ value: v, label: v })),
+        matches: (r, v) => paymentBucket(r.payment_mode) === v,
+      },
     ],
     searchFields: ["invoice_number", "patient_name"],
     rowHref: () => `/billing`,
     fetcher: async ({ from, to }) =>
       fetchAll((s, e) => {
-        let q = supabase.from("invoices").select("*").order("created_at", { ascending: false }).range(s, e);
+        let q = supabase
+          .from("invoices")
+          .select("*, doctor:doctor_id(first_name, last_name), appointment:appointment_id(doctor_name)")
+          .order("created_at", { ascending: false })
+          .range(s, e);
         if (from) q = q.gte("created_at", from);
         if (to) q = q.lte("created_at", to);
         return q;
       }),
+    // Collections split by instrument rather than one "Collected" lump: the
+    // front desk reconciles the UPI takings against the bank, the cash against
+    // the drawer, and could do neither from a single figure. Only the
+    // instruments actually used in the period get a card, so a clinic that
+    // never takes cheques never sees a cheque card. The buckets add up to what
+    // "Collected" used to say, so Outstanding is still Total Billed less them.
     summary: (rows) => {
       const total = rows.reduce((a, r) => a + Number(r.total_amount || 0), 0);
-      const paid = rows.reduce((a, r) => a + Number(r.paid_amount || 0), 0);
       return [
         { label: "Invoices", value: rows.length.toLocaleString() },
         { label: "Total Billed", value: formatMoneyCompact(total) },
-        { label: "Collected", value: formatMoneyCompact(paid) },
-        { label: "Outstanding", value: formatMoneyCompact(total - paid) },
+        ...collectionCards(rows, formatMoneyCompact),
       ];
     },
     chart: {

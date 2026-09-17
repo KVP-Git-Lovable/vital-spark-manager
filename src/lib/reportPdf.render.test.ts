@@ -90,6 +90,19 @@ function drawnText(bytes: Buffer): string[] {
   return out;
 }
 
+/** Every drawn string with the y it was drawn at (PDF y grows upwards). */
+function drawnTextAt(bytes: Buffer): { text: string; y: number }[] {
+  const out: { text: string; y: number }[] = [];
+  for (const [, body] of bytes.toString("latin1").matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
+    let data = body;
+    try { data = zlib.inflateSync(Buffer.from(body, "latin1")).toString("latin1"); } catch { /* uncompressed */ }
+    for (const [, y, text] of data.matchAll(/[\d.-]+\s+([\d.-]+)\s+Td\s*\((.*?)\)\s*Tj/g)) {
+      out.push({ text: text.replace(/\\([()])/g, "$1"), y: Number(y) });
+    }
+  }
+  return out;
+}
+
 const imageCount = (bytes: Buffer) => (bytes.toString("latin1").match(/\/Subtype\s*\/Image/g) || []).length;
 
 /** Drawing operators inside the page content, after inflating it. */
@@ -104,6 +117,43 @@ function drawOps(bytes: Buffer) {
 }
 
 describe("report PDF", () => {
+  it("wraps a long summary onto a second row instead of squeezing it", async () => {
+    // The Invoices report shows one box per payment instrument, so seven boxes
+    // is now an ordinary day. On one row each would be ~55pt wide - narrower
+    // than the figure printed inside it.
+    const { buildReportPdf } = await import("./reportPdf");
+    const doc = await buildReportPdf({
+      report,
+      rows: rows.slice(0, 3),
+      summary: [
+        { label: "Invoices", value: "35" },
+        { label: "Total Billed", value: "Rs 1.95 L" },
+        { label: "UPI", value: "Rs 1.1 L" },
+        { label: "Cash", value: "Rs 32K" },
+        { label: "Card", value: "Rs 28K" },
+        { label: "Bank Transfer", value: "Rs 15K" },
+        { label: "Cheque", value: "Rs 9K" },
+      ],
+      filterState: { search: "", dateFrom: null, dateTo: null, datePreset: "all", selects: {} },
+      dayOnly: false,
+    });
+
+    const at = drawnTextAt(Buffer.from(doc.output("arraybuffer")));
+    const yOf = (label: string) => at.find((t) => t.text === label)?.y;
+
+    // All seven labels made it in - nothing was dropped off the edge.
+    for (const label of ["INVOICES", "TOTAL BILLED", "UPI", "CASH", "CARD", "BANK TRANSFER", "CHEQUE"]) {
+      expect(yOf(label), label).toBeDefined();
+    }
+    // Four across, then the rest on a row below it.
+    expect(yOf("INVOICES")).toBe(yOf("CASH"));
+    expect(yOf("CARD")).toBe(yOf("CHEQUE"));
+    expect(yOf("CARD")!).toBeLessThan(yOf("INVOICES")!);
+    // And the table starts below the boxes rather than on top of them.
+    expect(yOf("Invoice #")!).toBeLessThan(yOf("CARD")!);
+  });
+
+
   it("draws the clinic header, filters, summary and every row", async () => {
     const { buildReportPdf } = await import("./reportPdf");
     const doc = await buildReportPdf({

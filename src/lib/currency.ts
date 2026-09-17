@@ -32,13 +32,19 @@ export function setCurrencySettingsCache(next: Partial<CurrencySettings> | null)
 
 const digits = (s: CurrencySettings) => (s.show_decimals ? Math.min(Math.max(s.decimal_digits, 0), 6) : 0);
 
+/** Every digit, grouped the configured way. The one place the locale and the
+ *  decimal clamp are decided, so the three formatters below cannot drift. */
+const grouped = (n: number, s: CurrencySettings) =>
+  n.toLocaleString(s.number_style === "indian" ? "en-IN" : "en-US", {
+    minimumFractionDigits: digits(s),
+    maximumFractionDigits: digits(s),
+  });
+
 /** Plain grouped number, honouring Indian vs US grouping and decimal settings. */
 export function formatNumber(value: number | string | null | undefined): string {
   const n = typeof value === "string" ? Number(value) : value;
   if (n == null || Number.isNaN(n)) return "—";
   const s = cache;
-  const d = digits(s);
-  const locale = s.number_style === "indian" ? "en-IN" : "en-US";
   if (s.abbreviate) {
     const abs = Math.abs(n);
     const sign = n < 0 ? "-" : "";
@@ -52,7 +58,7 @@ export function formatNumber(value: number | string | null | undefined): string 
       if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(1)}K`;
     }
   }
-  return n.toLocaleString(locale, { minimumFractionDigits: d, maximumFractionDigits: d });
+  return grouped(n, s);
 }
 
 /** Currency string using the admin-configured symbol, decimals and grouping style. */
@@ -60,6 +66,24 @@ export function formatMoney(value: number | string | null | undefined): string {
   const n = typeof value === "string" ? Number(value) : value;
   if (n == null || Number.isNaN(n)) return `${cache.symbol}0`;
   return `${cache.symbol}${formatNumber(n)}`;
+}
+
+/**
+ * Currency with every digit shown - never Lakh/Crore/K, whatever `abbreviate`
+ * says.
+ *
+ * The report KPI cards use this. A total on one of those cards is read off and
+ * reconciled against a bank statement or the cash drawer, and "Rs 1.95 L"
+ * cannot be reconciled against anything. formatMoney is not enough on its own
+ * because it inherits the abbreviate setting through formatNumber.
+ */
+export function formatMoneyExact(value: number | string | null | undefined): string {
+  const n = typeof value === "string" ? Number(value) : value;
+  if (n == null || Number.isNaN(n)) return `${cache.symbol}0`;
+  // Sign outside the symbol - "-₹2,000", the way formatMoneyCompact writes the
+  // negatives it shortens, rather than formatMoney's "₹-2,000".
+  const sign = n < 0 ? "-" : "";
+  return `${sign}${cache.symbol}${grouped(Math.abs(n), cache)}`;
 }
 
 /** Currency string that always shortens large amounts (Lakh/Crore or K/M),

@@ -44,6 +44,17 @@ describe("Invoices & Revenue summary", () => {
     expect(labels).toContain("Cheque");
   });
 
+  it("never abbreviates a figure to lakhs or crores", async () => {
+    // "Rs 1.95 L" cannot be reconciled against a bank statement or the cash
+    // drawer, which is the only reason these cards exist.
+    const report = await invoicesReport();
+    const big = report.summary!(rows.map((r) => ({ ...r, total_amount: 194800, paid_amount: 194800 })));
+    for (const card of big) {
+      expect(card.value, card.label).not.toMatch(/\d\s?(L|Cr|K|M|B)$/);
+    }
+    expect(big.find((s) => s.label === "Total Billed")?.value).toBe("₹9,74,000");
+  });
+
   it("still counts every invoice and the full billed amount", async () => {
     const report = await invoicesReport();
     const summary = report.summary!(rows);

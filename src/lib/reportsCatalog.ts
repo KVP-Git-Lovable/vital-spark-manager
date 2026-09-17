@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { ALL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
-import { formatMoneyCompact } from "@/lib/currency";
+import { formatMoneyExact } from "@/lib/currency";
 import { collectionCards, paymentBucket, PAYMENT_BUCKETS } from "@/lib/paymentModes";
 
 export type ColumnType = "text" | "number" | "currency" | "date" | "datetime" | "badge";
@@ -384,8 +384,8 @@ export const REPORTS: ReportConfig[] = [
       const total = rows.reduce((a, r) => a + Number(r.total_amount || 0), 0);
       return [
         { label: "Invoices", value: rows.length.toLocaleString() },
-        { label: "Total Billed", value: formatMoneyCompact(total) },
-        ...collectionCards(rows, formatMoneyCompact),
+        { label: "Total Billed", value: formatMoneyExact(total) },
+        ...collectionCards(rows, formatMoneyExact),
       ];
     },
     chart: {
@@ -424,7 +424,7 @@ export const REPORTS: ReportConfig[] = [
       const total = rows.reduce((a, r) => a + Number(r.amount || 0), 0);
       return [
         { label: "Entries", value: rows.length.toLocaleString() },
-        { label: "Total Spent", value: formatMoneyCompact(total) },
+        { label: "Total Spent", value: formatMoneyExact(total) },
       ];
     },
     chart: {
@@ -464,7 +464,7 @@ export const REPORTS: ReportConfig[] = [
       const total = rows.reduce((a, r) => a + Number(r.net_amount || 0), 0);
       return [
         { label: "Bills", value: rows.length.toLocaleString() },
-        { label: "Total", value: formatMoneyCompact(total) },
+        { label: "Total", value: formatMoneyExact(total) },
       ];
     },
     chart: {
@@ -540,9 +540,9 @@ export const REPORTS: ReportConfig[] = [
       const revenue = rows.reduce((a, r) => a + Number((r as any).revenue || 0), 0);
       return [
         { label: "Campaigns", value: rows.length.toLocaleString() },
-        { label: "Total Budget", value: formatMoneyCompact(budget) },
-        { label: "Total Spent", value: formatMoneyCompact(spent) },
-        { label: "Total Revenue", value: formatMoneyCompact(revenue) },
+        { label: "Total Budget", value: formatMoneyExact(budget) },
+        { label: "Total Spent", value: formatMoneyExact(spent) },
+        { label: "Total Revenue", value: formatMoneyExact(revenue) },
       ];
     },
     chart: {

@@ -924,6 +924,9 @@ const Appointments = () => {
   const startInlineEdit = (apt: any) => {
     setEditingRow(apt.id);
     setEditValues({
+      // The column is Investigation, so that is what the row edits. `service`
+      // is still carried so saving a row cannot blank it - it drives billing.
+      reason_for_consultation: apt.reason_for_consultation || "",
       service: apt.service || "",
       staff_id: apt.staff_id || "",
       status: apt.status,
@@ -935,6 +938,8 @@ const Appointments = () => {
   const saveInlineEdit = async () => {
     if (!editingRow) return;
     const updates: any = {};
+    if (editValues.reason_for_consultation !== undefined)
+      updates.reason_for_consultation = editValues.reason_for_consultation.trim() || null;
     if (editValues.service) updates.service = editValues.service;
     if (editValues.staff_id) updates.staff_id = editValues.staff_id;
     if (editValues.status) updates.status = editValues.status;
@@ -2376,12 +2381,12 @@ const Appointments = () => {
                                   )}
                                   {shouldShowColumn("service") && (
                                     <td className="p-2">
-                                      <Select value={editValues.service} onValueChange={(val) => setEditValues({ ...editValues, service: val })}>
-                                        <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                          {services.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
-                                        </SelectContent>
-                                      </Select>
+                                      <Input
+                                        className="h-8 text-xs w-44"
+                                        placeholder="Investigation"
+                                        value={editValues.reason_for_consultation ?? ""}
+                                        onChange={(e) => setEditValues({ ...editValues, reason_for_consultation: e.target.value })}
+                                      />
                                     </td>
                                   )}
                                   {shouldShowColumn("doctor") && (

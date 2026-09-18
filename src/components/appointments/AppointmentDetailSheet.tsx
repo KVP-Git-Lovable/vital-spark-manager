@@ -344,6 +344,10 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
 
   // Editable fields
   const [editService, setEditService] = useState("");
+  // What the list calls Investigation: the free text for this visit, stored in
+  // reason_for_consultation (the column the Salesforce import fills from
+  // Investigation__c). Service stays beside it because it drives billing.
+  const [editInvestigation, setEditInvestigation] = useState("");
   const [editStatus, setEditStatus] = useState("");
   const [editVisitStatus, setEditVisitStatus] = useState("");
   const [editStartTime, setEditStartTime] = useState("");
@@ -402,6 +406,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
 
   if (appointment && !initialized) {
     setEditService(appointment.service || "");
+    setEditInvestigation(appointment.reason_for_consultation || "");
     setEditStatus(appointment.status || "Reserved");
     setEditVisitStatus((appointment as any).visit_status || "");
     setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : "");
@@ -735,6 +740,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         .from("appointments")
         .update({
           service: editService,
+          reason_for_consultation: editInvestigation.trim() || null,
           status: newStatus,
           visit_status: editVisitStatus || null,
           start_time: new Date(editStartTime).toISOString(),
@@ -1010,6 +1016,15 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         <Phone className="h-3 w-3" /> {patientPhone}
                       </p>
                     )}
+                  </div>
+                  <div>
+                    <Label>Investigation</Label>
+                    <Textarea
+                      className="mt-1.5 min-h-[72px]"
+                      placeholder="What was done or planned this visit"
+                      value={editInvestigation}
+                      onChange={(e) => setEditInvestigation(e.target.value)}
+                    />
                   </div>
                   <div>
                     <Label>Service</Label>

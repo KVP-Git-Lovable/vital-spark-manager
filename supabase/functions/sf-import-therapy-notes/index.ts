@@ -17,7 +17,7 @@
 //   limit  - max records to process in this call, default 4000
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
-import { describeSfFailure } from "../sf-import-clinical/sfError.ts";
+import { describeSfFailure } from "./sfError.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;

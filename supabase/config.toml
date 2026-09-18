@@ -43,3 +43,10 @@ verify_jwt = false
 
 [functions.purge-appt-dupes]
 verify_jwt = false
+
+# Deliberately NOT verify_jwt = false, unlike the sf-* functions above. This one
+# walks every patient record in Salesforce, so it is left behind the platform's
+# JWT check rather than being publicly callable. A service-role key is a valid
+# JWT, so running it from the dashboard or a server still works.
+[functions.sf-import-all-patients]
+verify_jwt = true

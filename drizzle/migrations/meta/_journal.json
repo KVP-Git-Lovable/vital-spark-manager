@@ -15,6 +15,20 @@
       "when": 1789711895416,
       "tag": "0001_appointment_sticky_notes_sf_id_unique_full",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789714944545,
+      "tag": "0002_sf_link_patients_bulk",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789715014856,
+      "tag": "0003_fix_sf_link_patients_bulk_uuid",
+      "breakpoints": true
     }
   ]
 }

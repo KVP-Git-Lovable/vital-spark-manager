@@ -946,7 +946,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 <div className="rounded-xl border-2 border-primary/25 bg-primary/5 p-4 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <Label className="text-base font-display font-semibold flex items-center gap-2">
-                      <Pill className="h-4 w-4" /> Prescriptions
+                      <Pill className="h-4 w-4" /> Products/Medications
                     </Label>
                     <Button type="button" variant="outline" size="sm" className="gap-1" onClick={addPrescription}>
                       <Plus className="h-3 w-3" /> Add Medicine
@@ -1007,7 +1007,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                       </div>
                     );
                   }) : (
-                    <p className="text-sm text-muted-foreground text-center py-2">No prescriptions. Click "Add Medicine" to add.</p>
+                    <p className="text-sm text-muted-foreground text-center py-2">Nothing added yet. Click "Add Medicine" to add a product or medication.</p>
                   )}
                 </div>
 

@@ -1195,7 +1195,7 @@ export function ProcedureFormDialog({
           <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4">
             <div className="flex items-center justify-between mb-3">
               <Label className="text-base font-display font-semibold flex items-center gap-2 text-primary">
-                <Pill className="h-4 w-4" /> Pharmacy — Prescriptions
+                <Pill className="h-4 w-4" /> Products/Medications
               </Label>
               <Button type="button" variant="outline" size="sm" onClick={addPrescription}>
                 <Plus className="h-3 w-3 mr-1" /> Add Medicine

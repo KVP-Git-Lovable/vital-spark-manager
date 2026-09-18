@@ -333,18 +333,21 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     y -= 10;
   };
 
-  drawSection("Symptoms", procedure.symptoms || procedure.consultation_notes);
-  drawSection("Diagnosis", procedure.diagnosis);
-
   const serviceRows = (serviceLineRows && serviceLineRows.length
     ? serviceLineRows.map((s: Record<string, unknown>) => ({ service: s.service_name, notes: s.procedure_notes, recommendations: s.recommendations }))
     : [{ service: procedure.service_name, notes: procedure.procedure_notes, recommendations: procedure.recommendations }]
   )
     .map((r) => ({ service: sanitize(r.service), notes: sanitize(r.notes) || "-", recommendations: sanitize(r.recommendations) || "-" }))
     .filter((r) => r.service);
-  drawServicesTable(serviceRows);
 
+  // This visit's own findings first, then the patient's standing history.
+  // Diagnosis and Symptoms used to be loose sections above Procedure Details,
+  // and Lab Tests was not on the document at all. Empty rows stay hidden, as
+  // every row here always has.
   const medicalFields: [string, unknown][] = [
+    ["Diagnosis", procedure.diagnosis],
+    ["Symptoms", procedure.symptoms || procedure.consultation_notes],
+    ["Lab Tests", procedure.lab_tests],
     ["Medical History", patient.medical_history],
     ["Current Medications", patient.current_medications],
     ["Allergies", patient.allergies],
@@ -355,11 +358,11 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
   const medicalRows = medicalFields
     .map(([label, value]) => ({ label, value: sanitize(value) }))
     .filter((row) => row.value);
-  drawKeyValueTable("Medical Information", medicalRows);
 
   const noteRows = (stickyNoteRows || [])
     .map((note: Record<string, unknown>) => ({ title: sanitize(note.title), content: sanitize(note.content) }))
     .filter((note) => note.content);
+  const drawNotes = () => {
   if (noteRows.length) {
     ensureSpace(30);
     page.drawText("Notes", { x: MARGIN, y, size: 11, font: bold, color: blue });
@@ -379,7 +382,9 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     }
     y -= 4;
   }
+  };
 
+  const drawMedications = () => {
   const rows = (prescriptions || []).map((prescription: Record<string, unknown>, index: number) => {
     const details = [prescription.dosage, prescription.frequency, prescription.duration ? `for ${prescription.duration}` : "", prescription.instructions]
       .map(sanitize)
@@ -406,7 +411,7 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     };
 
     ensureSpace(42);
-    page.drawText("Prescription", { x: MARGIN, y, size: 11, font: bold, color: blue });
+    page.drawText("Products/Medications", { x: MARGIN, y, size: 11, font: bold, color: blue });
     y -= 18;
     drawTableHeader();
 
@@ -416,7 +421,7 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
       const rowHeight = Math.max(25, Math.max(productLines.length, instructionLines.length) * 12 + 9);
       if (y - rowHeight < CONTENT_BOTTOM) {
         y = addContinuationPage();
-        page.drawText("Prescription (continued)", { x: MARGIN, y, size: 11, font: bold, color: blue });
+        page.drawText("Products/Medications (continued)", { x: MARGIN, y, size: 11, font: bold, color: blue });
         y -= 18;
         drawTableHeader();
       }
@@ -429,6 +434,14 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
       y -= rowHeight;
     }
   }
+  };
+
+  // The order the document reads in: what was found, what was given, what was
+  // done, then anything written alongside it.
+  drawKeyValueTable("Medical Information", medicalRows);
+  drawMedications();
+  drawServicesTable(serviceRows);
+  drawNotes();
 
   pages.forEach((pdfPage) => drawFooter(pdfPage, font, bold, clinic));
   const bytes = await pdfDoc.save();

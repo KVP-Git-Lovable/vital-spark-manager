@@ -686,8 +686,8 @@ const Appointments = () => {
           status: filterStatus,
           visitStatus: filterVisitStatus,
           search: debouncedSearchQuery,
-          sortColumn,
-          sortDirection,
+          // No sort passed: the printout is always in clock order, whatever the
+          // list is sorted by on screen. printAppointments owns that.
         },
         { rangeLabel, staffName: (id) => (id ? staffMap.get(id) || "" : ""), clinicName: "Appointments" },
       );

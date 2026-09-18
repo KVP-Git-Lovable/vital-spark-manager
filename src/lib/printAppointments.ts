@@ -6,19 +6,32 @@ const esc = (v: any) =>
   String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
 
 /**
+ * A printed list is a day sheet: staff work down it as the day runs, so it is
+ * always in clock order, earliest first.
+ *
+ * Deliberately not the list's sort. The screen legitimately sorts newest-first,
+ * or by patient, or by status - inheriting that printed the evening before the
+ * morning. The sort keys are left out of this function's parameters entirely so
+ * a caller cannot reintroduce the problem by passing its own.
+ */
+const PRINT_SORT = { sortColumn: "start_time", sortDirection: "asc" } as const;
+
+/**
  * Prints the appointment list exactly as filtered on screen - the whole
  * result set, not just the page currently visible. Rows are fetched in
  * large server-side pages, then rendered into a clean landscape print
  * document (no app chrome, repeated table header on every page).
+ *
+ * Filters follow the screen; the order does not (see PRINT_SORT).
  */
 export async function printAppointments(
-  params: Omit<FetchAppointmentsPageParams, "page" | "pageSize">,
+  params: Omit<FetchAppointmentsPageParams, "page" | "pageSize" | "sortColumn" | "sortDirection">,
   opts: { clinicName?: string; rangeLabel: string; staffName: (id: string | null) => string },
 ) {
   const PAGE = 500;
   const rows: any[] = [];
   for (let page = 1; page <= 40; page++) {
-    const res = await fetchAppointmentsPage({ ...params, page, pageSize: PAGE });
+    const res = await fetchAppointmentsPage({ ...params, ...PRINT_SORT, page, pageSize: PAGE });
     rows.push(...res.rows);
     if (rows.length >= res.total || res.rows.length === 0) break;
   }

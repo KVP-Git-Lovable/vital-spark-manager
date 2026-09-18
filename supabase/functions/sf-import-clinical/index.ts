@@ -253,6 +253,7 @@ async function fetchRecentTargets(
         createdPatients++;
       }
 
+      if (!lovableId) continue;
       targets.push({ lovable_id: lovableId, sf_id: sp.Id, name: fullName });
       found.add(sp.Id);
     }

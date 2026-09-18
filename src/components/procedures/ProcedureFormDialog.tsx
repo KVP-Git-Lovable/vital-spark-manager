@@ -1433,7 +1433,7 @@ export function ProcedureFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-none w-screen h-screen sm:rounded-none overflow-y-auto p-6">
         <DialogHeader>
-          <DialogTitle className="font-display">New Procedure / Prescription</DialogTitle>
+          <DialogTitle className="font-display">New Prescription</DialogTitle>
         </DialogHeader>
         <div className="mx-auto w-full max-w-5xl">{body}</div>
       </DialogContent>

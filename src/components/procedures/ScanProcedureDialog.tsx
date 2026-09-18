@@ -166,7 +166,7 @@ export function ScanProcedureDialog({ open, onOpenChange, appointmentId, patient
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display flex items-center gap-2">
-            <ScanLine className="h-5 w-5 text-primary" /> Scan Procedure Notes
+            <ScanLine className="h-5 w-5 text-primary" /> Scan Prescription Notes
           </DialogTitle>
         </DialogHeader>
 

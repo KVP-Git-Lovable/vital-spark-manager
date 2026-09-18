@@ -983,9 +983,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="w-full justify-start rounded-none border-b px-6 bg-transparent h-auto p-0">
                   <TabsTrigger value="details" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Details</TabsTrigger>
-                  <TabsTrigger value="procedures" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Procedures</TabsTrigger>
+                  <TabsTrigger value="procedures" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Prescriptions</TabsTrigger>
                   <TabsTrigger value="prev-appointments" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Previous Appointments</TabsTrigger>
-                  <TabsTrigger value="prev-procedures" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Previous Procedures</TabsTrigger>
+                  <TabsTrigger value="prev-procedures" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Previous Prescriptions</TabsTrigger>
                   <TabsTrigger value="billing" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Billing</TabsTrigger>
                   <TabsTrigger value="photos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Photos</TabsTrigger>
                   <TabsTrigger value="feedback" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Feedback</TabsTrigger>
@@ -1209,20 +1209,20 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                     <>
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold font-display flex items-center gap-2">
-                          <Pill className="h-4 w-4" /> Linked Procedures
+                          <Pill className="h-4 w-4" /> Linked Prescriptions
                         </h3>
                         <div className="flex gap-2">
                           <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
                           <Button size="sm" variant="outline" className="gap-1" onClick={() => setScanProcOpen(true)}>
-                            <ScanEye className="h-3 w-3" /> Scan Procedure
+                            <ScanEye className="h-3 w-3" /> Scan Prescription
                           </Button>
                           <Button size="sm" variant="outline" className="gap-1" onClick={() => setProcFormOpen(true)}>
-                            <Plus className="h-3 w-3" /> Add Procedure
+                            <Plus className="h-3 w-3" /> Add Prescription
                           </Button>
                         </div>
                       </div>
                       {procedures.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-8">No procedures linked. Click "Add Procedure" to create one.</p>
+                        <p className="text-sm text-muted-foreground text-center py-8">No prescriptions linked. Click "Add Prescription" to create one.</p>
                       ) : (
                         <div className="space-y-2">
                           {procedures.map((proc: any) => (
@@ -1288,7 +1288,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   {appointment.patient_id ? (
                     <>
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold font-display">Previous Procedures</h3>
+                        <h3 className="text-sm font-semibold font-display">Previous Prescriptions</h3>
                         <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
                       </div>
                       {previousProcedures.length === 0 ? (

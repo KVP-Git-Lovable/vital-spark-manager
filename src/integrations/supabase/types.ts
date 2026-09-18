@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      _appt_dupes: {
+        Row: {
+          dup_id: string | null
+          keeper: string | null
+        }
+        Insert: {
+          dup_id?: string | null
+          keeper?: string | null
+        }
+        Update: {
+          dup_id?: string | null
+          keeper?: string | null
+        }
+        Relationships: []
+      }
+      _inv_dupes: {
+        Row: {
+          dup_id: string | null
+        }
+        Insert: {
+          dup_id?: string | null
+        }
+        Update: {
+          dup_id?: string | null
+        }
+        Relationships: []
+      }
+      _proc_dupes: {
+        Row: {
+          dup_id: string | null
+          keeper: string | null
+        }
+        Insert: {
+          dup_id?: string | null
+          keeper?: string | null
+        }
+        Update: {
+          dup_id?: string | null
+          keeper?: string | null
+        }
+        Relationships: []
+      }
       appointment_sticky_notes: {
         Row: {
           appointment_id: string
@@ -21,6 +63,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          sf_id: string | null
           title: string | null
           updated_at: string
           updated_by: string | null
@@ -31,6 +74,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          sf_id?: string | null
           title?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -41,6 +85,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          sf_id?: string | null
           title?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -4250,7 +4295,7 @@ export type Database = {
           },
         ]
       }
-      therapy_notes: {
+      therapy_notes_retired_20260918: {
         Row: {
           appointment_id: string
           created_at: string
@@ -4696,6 +4741,13 @@ export type Database = {
         Returns: undefined
       }
       restore_from_trash: { Args: { _trash_id: string }; Returns: undefined }
+      sf_link_patients_bulk: {
+        Args: { payload: Json }
+        Returns: {
+          created: number
+          linked: number
+        }[]
+      }
       trash_allowed_object: { Args: { _object_type: string }; Returns: boolean }
     }
     Enums: {

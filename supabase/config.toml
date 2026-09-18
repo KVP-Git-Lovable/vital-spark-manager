@@ -38,3 +38,8 @@ verify_jwt = false
 
 [functions.fix-photo-content-types]
 verify_jwt = false
+[functions.sf-link-missing-patients]
+verify_jwt = false
+
+[functions.purge-appt-dupes]
+verify_jwt = false

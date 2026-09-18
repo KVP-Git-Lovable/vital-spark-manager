@@ -54,6 +54,7 @@ const PortalLogin = lazyWithReload(() => import("./pages/portal/PortalLogin"));
 const Portal = lazyWithReload(() => import("./pages/portal/Portal"));
 const Login = lazyWithReload(() => import("./pages/auth/Login"));
 const Signup = lazyWithReload(() => import("./pages/auth/Signup"));
+const OAuthConsent = lazyWithReload(() => import("./pages/auth/OAuthConsent"));
 const ShopHome = lazyWithReload(() => import("./pages/shop/ShopHome"));
 const ShopProduct = lazyWithReload(() => import("./pages/shop/ShopProduct"));
 const ShopCart = lazyWithReload(() => import("./pages/shop/ShopCart"));
@@ -189,6 +190,7 @@ const App = () => (
 
             {/* Auth pages */}
             <Route path="/login" element={<Login />} />
+            <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
             <Route path="/signup" element={<Signup />} />
 
             {/* Public Shop — own layout */}

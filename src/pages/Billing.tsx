@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/currency";
+import { numVal } from "@/lib/numberInput";
 import { assertWrote, NOT_YOURS_MESSAGE } from "@/lib/rowAccess";
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { useState, useMemo, useRef, useEffect, lazy, Suspense } from "react";
@@ -100,7 +101,6 @@ const money = (n: number) =>
 const rateLabel = (n: number) =>
   `${Math.round((Number(n) || 0) * 100) / 100}`;
 /** Number input helper: 0 shows as an empty field with a "0" watermark. */
-const numVal = (n: number | undefined | null) => (n ? String(n) : "");
 
 // ─── PDF Generation ───────────────────────────────
 const generateInvoicePDF = (inv: any) => {
@@ -2970,11 +2970,11 @@ const Billing = () => {
               </div>
               <div>
                 <Label>Payment Amount (₹) *</Label>
-                <Input type="number" className="mt-1.5" placeholder={`Max: ₹${(Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)).toLocaleString()}`} value={addPaymentAmount} onChange={(e) => setAddPaymentAmount(parseFloat(e.target.value) || 0)} max={Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)} />
+                <Input type="number" className="mt-1.5" placeholder={`Max: ₹${(Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)).toLocaleString()}`} value={numVal(addPaymentAmount)} onChange={(e) => setAddPaymentAmount(parseFloat(e.target.value) || 0)} max={Number(paymentInv.total_amount) - Number(paymentInv.paid_amount)} />
               </div>
               <div>
                 <Label>Payment Mode</Label>
-                <Select value={addPaymentMode} onValueChange={setAddPaymentMode}>
+                <Select value={numVal(addPaymentMode)} onValueChange={setAddPaymentMode}>
                   <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {["Cash", "Card", "UPI", "Cheque", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
@@ -3472,11 +3472,11 @@ const Billing = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Total Amount (₹)</Label>
-                  <Input type="number" className="mt-1.5" value={editData.total_amount} onChange={(e) => setEditData({ ...editData, total_amount: parseFloat(e.target.value) || 0 })} />
+                  <Input type="number" className="mt-1.5" value={numVal(editData.total_amount)} onChange={(e) => setEditData({ ...editData, total_amount: parseFloat(e.target.value) || 0 })} />
                 </div>
                 <div>
                   <Label>Paid Amount (₹)</Label>
-                  <Input type="number" className="mt-1.5" value={editData.paid_amount} onChange={(e) => setEditData({ ...editData, paid_amount: parseFloat(e.target.value) || 0 })} />
+                  <Input type="number" className="mt-1.5" value={numVal(editData.paid_amount)} onChange={(e) => setEditData({ ...editData, paid_amount: parseFloat(e.target.value) || 0 })} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, createContext, useContext } from "react";
+import { numVal } from "@/lib/numberInput";
 import { useParams, useNavigate } from "react-router-dom";
 import { shortPatientId } from "@/lib/utils";
 import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound, Megaphone, Search, Sparkles, ImageOff } from "lucide-react";
@@ -1375,11 +1376,11 @@ const PatientDetail = () => {
                   </div>
                   <div>
                     <Label className="text-xs">Quantity</Label>
-                    <Input type="number" value={rxForm.quantity} onChange={(e) => setRxForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className="mt-1 h-8 text-sm" />
+                    <Input type="number" value={numVal(rxForm.quantity)} onChange={(e) => setRxForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className="mt-1 h-8 text-sm" />
                   </div>
                   <div className="col-span-2 md:col-span-3">
-                    <Label className="text-xs flex items-center justify-between">Instructions <MicButton value={rxForm.instructions} onChange={(v) => setRxForm(p => ({ ...p, instructions: v }))} /></Label>
-                    <Input value={rxForm.instructions} onChange={(e) => setRxForm(p => ({ ...p, instructions: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="e.g. After meals" />
+                    <Label className="text-xs flex items-center justify-between">Instructions <MicButton value={numVal(rxForm.instructions)} onChange={(v) => setRxForm(p => ({ ...p, instructions: v }))} /></Label>
+                    <Input value={numVal(rxForm.instructions)} onChange={(e) => setRxForm(p => ({ ...p, instructions: e.target.value }))} className="mt-1 h-8 text-sm" placeholder="e.g. After meals" />
                   </div>
                 </div>
                 <div className="flex gap-2 justify-end">

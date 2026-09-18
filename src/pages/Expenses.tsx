@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/currency";
+import { numVal } from "@/lib/numberInput";
 import { useState, useEffect, useCallback } from "react";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -584,11 +585,11 @@ const Expenses = () => {
               </div>
               <div>
                 <Label>Amount (₹) *</Label>
-                <Input type="number" value={editingExpense.amount} onChange={e => setEditingExpense((p: any) => ({ ...p, amount: e.target.value }))} />
+                <Input type="number" value={numVal(editingExpense.amount)} onChange={e => setEditingExpense((p: any) => ({ ...p, amount: e.target.value }))} />
               </div>
               <div>
                 <Label>Date *</Label>
-                <Input type="date" value={editingExpense.expense_date} onChange={e => setEditingExpense((p: any) => ({ ...p, expense_date: e.target.value }))} />
+                <Input type="date" value={numVal(editingExpense.expense_date)} onChange={e => setEditingExpense((p: any) => ({ ...p, expense_date: e.target.value }))} />
               </div>
               <div>
                 <Label>Category</Label>

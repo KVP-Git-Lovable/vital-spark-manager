@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { numVal } from "@/lib/numberInput";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -248,7 +249,7 @@ export default function CampaignDetail() {
           <Card><CardContent className="p-6 space-y-3">
             <Label>Update Amount Spent (₹)</Label>
             <div className="flex gap-2 max-w-md">
-              <Input type="number" placeholder={String(spent)} value={spentEdit} onChange={(e) => setSpentEdit(e.target.value)} />
+              <Input type="number" placeholder={String(spent)} value={numVal(spentEdit)} onChange={(e) => setSpentEdit(e.target.value)} />
               <Button onClick={async () => {
                 await updateMutation.mutateAsync({ amount_spent: Number(spentEdit) || 0 });
                 setSpentEdit("");
@@ -359,7 +360,7 @@ export default function CampaignDetail() {
             </div>
             <div>
               <Label>Budget (₹)</Label>
-              <Input type="number" value={editForm.budget ?? 0} onChange={(e) => setEditForm({ ...editForm, budget: e.target.value })} className="mt-1.5" />
+              <Input type="number" value={numVal(editForm.budget ?? 0)} onChange={(e) => setEditForm({ ...editForm, budget: e.target.value })} className="mt-1.5" />
             </div>
             <div>
               <Label>Target Audience</Label>

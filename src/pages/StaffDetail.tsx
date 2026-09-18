@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { numVal } from "@/lib/numberInput";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -318,10 +319,10 @@ const EducationTab = ({ staffId }: { staffId: string }) => {
               <div><Label>Field of Study</Label><Input className="mt-1" placeholder="e.g. Medicine" value={form.field_of_study} onChange={(e) => setForm({ ...form, field_of_study: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Start Year</Label><Input type="number" className="mt-1" value={form.start_year} onChange={(e) => setForm({ ...form, start_year: e.target.value })} /></div>
-              <div><Label>End Year</Label><Input type="number" className="mt-1" value={form.end_year} onChange={(e) => setForm({ ...form, end_year: e.target.value })} /></div>
+              <div><Label>Start Year</Label><Input type="number" className="mt-1" value={numVal(form.start_year)} onChange={(e) => setForm({ ...form, start_year: e.target.value })} /></div>
+              <div><Label>End Year</Label><Input type="number" className="mt-1" value={numVal(form.end_year)} onChange={(e) => setForm({ ...form, end_year: e.target.value })} /></div>
             </div>
-            <div><Label>Notes</Label><Textarea className="mt-1" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+            <div><Label>Notes</Label><Textarea className="mt-1" value={numVal(form.notes)} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeForm}>Cancel</Button>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { numVal } from "@/lib/numberInput";
 import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -1302,7 +1303,7 @@ export function ProcedureFormDialog({
                 </Select>
                 <div className="grid grid-cols-2 gap-2">
                   <Input placeholder="Usage guideline" value={asset.usage_guideline} onChange={(e) => updateAsset(i, "usage_guideline", e.target.value)} />
-                  <Input type="number" placeholder="Time taken (mins)" value={asset.time_taken} onChange={(e) => updateAsset(i, "time_taken", e.target.value)} />
+                  <Input type="number" placeholder="Time taken (mins)" value={numVal(asset.time_taken)} onChange={(e) => updateAsset(i, "time_taken", e.target.value)} />
                 </div>
               </div>
             ))}
@@ -1368,7 +1369,7 @@ export function ProcedureFormDialog({
                     type="number"
                     min={1}
                     max={24}
-                    value={recurringCount}
+                    value={numVal(recurringCount)}
                     onChange={(e) => setRecurringCountSafe(parseInt(e.target.value, 10))}
                     className="mt-1.5 bg-background"
                   />

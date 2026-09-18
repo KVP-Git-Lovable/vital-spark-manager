@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { numVal } from "@/lib/numberInput";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Home, Calendar, ClipboardList, Camera, Receipt, Pill,
@@ -890,11 +891,11 @@ const Portal = () => {
             </div>
             <div>
               <Label>Quantity</Label>
-              <Input type="number" className="mt-1.5" min={1} value={pharmaQty} onChange={(e) => setPharmaQty(parseInt(e.target.value) || 1)} />
+              <Input type="number" className="mt-1.5" min={1} value={numVal(pharmaQty)} onChange={(e) => setPharmaQty(parseInt(e.target.value) || 1)} />
             </div>
             <div>
               <Label>Notes</Label>
-              <Textarea className="mt-1.5" placeholder="Any special instructions..." rows={2} value={pharmaNotes} onChange={(e) => setPharmaNotes(e.target.value)} />
+              <Textarea className="mt-1.5" placeholder="Any special instructions..." rows={2} value={numVal(pharmaNotes)} onChange={(e) => setPharmaNotes(e.target.value)} />
             </div>
             <Button className="w-full gap-2" onClick={() => requestPharma.mutate()} disabled={!pharmaProductId || requestPharma.isPending}>
               {requestPharma.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

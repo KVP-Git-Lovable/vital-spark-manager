@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { numVal } from "@/lib/numberInput";
 import { Save, Trash2, Plus, Pill, Sparkles, Loader2, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -303,17 +304,17 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
               </div>
               <div>
                 <Label>Duration (mins)</Label>
-                <Input type="number" className="mt-1.5" value={duration} onChange={(e) => setDuration(e.target.value)} />
+                <Input type="number" className="mt-1.5" value={numVal(duration)} onChange={(e) => setDuration(e.target.value)} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Price (₹)</Label>
-                <Input type="number" className="mt-1.5" value={price} onChange={(e) => setPrice(e.target.value)} />
+                <Input type="number" className="mt-1.5" value={numVal(price)} onChange={(e) => setPrice(e.target.value)} />
               </div>
               <div>
                 <Label>HSN Code</Label>
-                <Select value={hsnCode} onValueChange={setHsnCode}>
+                <Select value={numVal(hsnCode)} onValueChange={setHsnCode}>
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select HSN code" /></SelectTrigger>
                   <SelectContent>
                     {hsnTaxes.map((h: any) => (
@@ -423,7 +424,7 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
                   </Select>
                   <div className="grid grid-cols-2 gap-2">
                     <Input placeholder="Usage guideline" value={al.usage_guideline} onChange={(e) => updateAssetLink(i, "usage_guideline", e.target.value)} />
-                    <Input type="number" placeholder="Time taken (mins)" value={al.time_taken} onChange={(e) => updateAssetLink(i, "time_taken", e.target.value)} />
+                    <Input type="number" placeholder="Time taken (mins)" value={numVal(al.time_taken)} onChange={(e) => updateAssetLink(i, "time_taken", e.target.value)} />
                   </div>
                 </div>
               ))}

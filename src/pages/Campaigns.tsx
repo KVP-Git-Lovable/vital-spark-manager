@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { numVal } from "@/lib/numberInput";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -208,11 +209,11 @@ export default function Campaigns() {
             </div>
             <div>
               <Label>Budget (₹)</Label>
-              <Input type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} className="mt-1.5" />
+              <Input type="number" value={numVal(form.budget)} onChange={(e) => setForm({ ...form, budget: e.target.value })} className="mt-1.5" />
             </div>
             <div>
               <Label>Target Audience</Label>
-              <Input value={form.target_audience} onChange={(e) => setForm({ ...form, target_audience: e.target.value })} placeholder="e.g. Women 25-40, Bangalore" className="mt-1.5" />
+              <Input value={numVal(form.target_audience)} onChange={(e) => setForm({ ...form, target_audience: e.target.value })} placeholder="e.g. Women 25-40, Bangalore" className="mt-1.5" />
             </div>
             <div>
               <Label>Goals / Description</Label>

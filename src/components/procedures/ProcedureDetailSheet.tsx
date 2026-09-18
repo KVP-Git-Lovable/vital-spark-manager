@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { numVal } from "@/lib/numberInput";
 
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -996,11 +997,11 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Quantity</Label>
-                            <Input className="mt-1" type="number" placeholder="1" value={rx.quantity} onChange={(e) => updateRx(realIdx, "quantity", parseInt(e.target.value) || 1)} />
+                            <Input className="mt-1" type="number" placeholder="1" value={numVal(rx.quantity)} onChange={(e) => updateRx(realIdx, "quantity", parseInt(e.target.value) || 1)} />
                           </div>
                         </div>
                         <div>
-                          <Label className="text-xs text-muted-foreground flex items-center justify-between">Special Instructions <MicButton value={rx.instructions} onChange={(v) => updateRx(realIdx, "instructions", v)} /></Label>
+                          <Label className="text-xs text-muted-foreground flex items-center justify-between">Special Instructions <MicButton value={numVal(rx.instructions)} onChange={(v) => updateRx(realIdx, "instructions", v)} /></Label>
                           <Input className="mt-1" placeholder="e.g. After meals" value={rx.instructions} onChange={(e) => updateRx(realIdx, "instructions", e.target.value)} />
                         </div>
                       </div>

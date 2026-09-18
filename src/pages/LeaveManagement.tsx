@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { numVal } from "@/lib/numberInput";
 import { Plus, Search, Calendar, Loader2, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -357,11 +358,11 @@ const LeaveManagement = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Year</Label>
-                      <Input type="number" className="mt-1.5" value={balYear} onChange={(e) => setBalYear(parseInt(e.target.value))} />
+                      <Input type="number" className="mt-1.5" value={numVal(balYear)} onChange={(e) => setBalYear(parseInt(e.target.value))} />
                     </div>
                     <div>
                       <Label>Opening Days *</Label>
-                      <Input type="number" className="mt-1.5" value={balOpening} onChange={(e) => setBalOpening(parseFloat(e.target.value) || 0)} />
+                      <Input type="number" className="mt-1.5" value={numVal(balOpening)} onChange={(e) => setBalOpening(parseFloat(e.target.value) || 0)} />
                     </div>
                   </div>
                   <Button className="w-full" onClick={() => createBalance.mutate()} disabled={!balStaffId || !balLeaveTypeId || balOpening <= 0 || createBalance.isPending}>
@@ -421,7 +422,7 @@ const LeaveManagement = () => {
                   </div>
                   <div>
                     <Label>Default Days/Year</Label>
-                    <Input type="number" className="mt-1.5" value={ltDays} onChange={(e) => setLtDays(parseFloat(e.target.value) || 0)} />
+                    <Input type="number" className="mt-1.5" value={numVal(ltDays)} onChange={(e) => setLtDays(parseFloat(e.target.value) || 0)} />
                   </div>
                   <Button className="w-full" onClick={() => createLeaveType.mutate()} disabled={!ltName || createLeaveType.isPending}>
                     {createLeaveType.isPending ? "Creating..." : "Create Leave Type"}

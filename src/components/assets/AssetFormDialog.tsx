@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { numVal } from "@/lib/numberInput";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -123,8 +124,8 @@ export function AssetFormDialog({ open, onOpenChange, vendors }: AssetFormDialog
                 </Select>
               </div>
               <div><Label>Purchase Date</Label><Input type="date" value={form.purchase_date} onChange={(e) => update("purchase_date", e.target.value)} className="mt-1.5" /></div>
-              <div><Label>Purchase Price (₹)</Label><Input type="number" value={form.purchase_price} onChange={(e) => update("purchase_price", e.target.value)} className="mt-1.5" /></div>
-              <div><Label>Invoice Number</Label><Input value={form.invoice_number} onChange={(e) => update("invoice_number", e.target.value)} className="mt-1.5" /></div>
+              <div><Label>Purchase Price (₹)</Label><Input type="number" value={numVal(form.purchase_price)} onChange={(e) => update("purchase_price", e.target.value)} className="mt-1.5" /></div>
+              <div><Label>Invoice Number</Label><Input value={numVal(form.invoice_number)} onChange={(e) => update("invoice_number", e.target.value)} className="mt-1.5" /></div>
             </div>
           </div>
 
@@ -151,9 +152,9 @@ export function AssetFormDialog({ open, onOpenChange, vendors }: AssetFormDialog
                   <SelectContent>{vendors.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>AMC Cost (₹)</Label><Input type="number" value={form.amc_cost} onChange={(e) => update("amc_cost", e.target.value)} className="mt-1.5" /></div>
+              <div><Label>AMC Cost (₹)</Label><Input type="number" value={numVal(form.amc_cost)} onChange={(e) => update("amc_cost", e.target.value)} className="mt-1.5" /></div>
             </div>
-            <div className="mt-3"><Label>AMC Terms</Label><Textarea value={form.amc_terms} onChange={(e) => update("amc_terms", e.target.value)} className="mt-1.5" rows={2} /></div>
+            <div className="mt-3"><Label>AMC Terms</Label><Textarea value={numVal(form.amc_terms)} onChange={(e) => update("amc_terms", e.target.value)} className="mt-1.5" rows={2} /></div>
           </div>
 
           <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => update("notes", e.target.value)} className="mt-1.5" rows={2} /></div>

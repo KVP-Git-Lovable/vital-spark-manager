@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { numVal } from "@/lib/numberInput";
 import { format } from "date-fns";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
 import SearchableSelect from "@/components/shared/SearchableSelect";
@@ -716,7 +717,7 @@ const Pharma = () => {
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
-                  <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={productForm.reorder_level} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
+                  <div><Label>Reorder Level</Label><Input type="number" className="mt-1" value={numVal(productForm.reorder_level)} onChange={(e) => setProductForm({ ...productForm, reorder_level: parseInt(e.target.value) || 10 })} /></div>
                 </div>
                 <UnitConversionsEditor
                   value={productUnitRows}
@@ -769,11 +770,11 @@ const Pharma = () => {
                       options={hsnOptionsFor(productForm.hsn_code)}
                     />
                   </div>
-                  <div><Label>GST % (total)</Label><Input type="number" readOnly className="mt-1 bg-muted/50" value={(Number(productForm.igst_percent) || 0) + (Number(productForm.cgst_percent) || 0)} /></div>
+                  <div><Label>GST % (total)</Label><Input type="number" readOnly className="mt-1 bg-muted/50" value={numVal((Number(productForm.igst_percent) || 0) + (Number(productForm.cgst_percent) || 0))} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>IGST %</Label><Input type="number" className="mt-1" value={productForm.igst_percent} onChange={(e) => setProductForm({ ...productForm, igst_percent: parseFloat(e.target.value) || 0 })} /></div>
-                  <div><Label>CGST %</Label><Input type="number" className="mt-1" value={productForm.cgst_percent} onChange={(e) => setProductForm({ ...productForm, cgst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>IGST %</Label><Input type="number" className="mt-1" value={numVal(productForm.igst_percent)} onChange={(e) => setProductForm({ ...productForm, igst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>CGST %</Label><Input type="number" className="mt-1" value={numVal(productForm.cgst_percent)} onChange={(e) => setProductForm({ ...productForm, cgst_percent: parseFloat(e.target.value) || 0 })} /></div>
                 </div>
                 <p className="text-[11px] text-muted-foreground -mt-1">GST % is the total of IGST % + CGST %.</p>
                 <div className="rounded-md border bg-muted/30 p-3 space-y-3">
@@ -855,12 +856,12 @@ const Pharma = () => {
                   </div>
                   <div>
                     <Label>GST % (total)</Label>
-                    <Input type="number" readOnly className="mt-1 bg-muted/50" value={(Number(stockForm.igst_percent) || 0) + (Number(stockForm.cgst_percent) || 0)} />
+                    <Input type="number" readOnly className="mt-1 bg-muted/50" value={numVal((Number(stockForm.igst_percent) || 0) + (Number(stockForm.cgst_percent) || 0))} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>IGST %</Label><Input type="number" className="mt-1" value={stockForm.igst_percent} onChange={(e) => setStockForm({ ...stockForm, igst_percent: parseFloat(e.target.value) || 0 })} /></div>
-                  <div><Label>CGST %</Label><Input type="number" className="mt-1" value={stockForm.cgst_percent} onChange={(e) => setStockForm({ ...stockForm, cgst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>IGST %</Label><Input type="number" className="mt-1" value={numVal(stockForm.igst_percent)} onChange={(e) => setStockForm({ ...stockForm, igst_percent: parseFloat(e.target.value) || 0 })} /></div>
+                  <div><Label>CGST %</Label><Input type="number" className="mt-1" value={numVal(stockForm.cgst_percent)} onChange={(e) => setStockForm({ ...stockForm, cgst_percent: parseFloat(e.target.value) || 0 })} /></div>
                 </div>
                 <p className="text-[11px] text-muted-foreground -mt-1">HSN, IGST & CGST default from the product master; edit here to apply batch-specific tax at billing. GST % = IGST + CGST.</p>
                 {(() => {
@@ -907,22 +908,22 @@ const Pharma = () => {
                         </div>
                       )}
                       <div className="grid grid-cols-3 gap-3">
-                        <div><Label>Quantity{buyName ? ` (${buyName})` : ""} *</Label><Input type="number" className="mt-1" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: parseFloat(e.target.value) || 0 })} /></div>
+                        <div><Label>Quantity{buyName ? ` (${buyName})` : ""} *</Label><Input type="number" className="mt-1" value={numVal(stockForm.quantity)} onChange={(e) => setStockForm({ ...stockForm, quantity: parseFloat(e.target.value) || 0 })} /></div>
                         <div>
                           <Label>Purchase Price{perUom}</Label>
-                          <Input type="number" className="mt-1" value={stockForm.purchase_price} onChange={(e) => setStockForm({ ...stockForm, purchase_price: parseFloat(e.target.value) || 0 })} />
+                          <Input type="number" className="mt-1" value={numVal(stockForm.purchase_price)} onChange={(e) => setStockForm({ ...stockForm, purchase_price: parseFloat(e.target.value) || 0 })} />
                           {saleHint(stockForm.purchase_price) && <p className="text-[11px] text-muted-foreground mt-1">{saleHint(stockForm.purchase_price)}</p>}
                           {stockForm.mrp > 0 && stockForm.purchase_price > stockForm.mrp && <p className="text-[11px] text-destructive mt-1">Cannot exceed MRP</p>}
                         </div>
                         <div>
                           <Label>MRP{perUom} *</Label>
-                          <Input type="number" className="mt-1" value={stockForm.mrp} onChange={(e) => setStockForm({ ...stockForm, mrp: parseFloat(e.target.value) || 0 })} />
+                          <Input type="number" className="mt-1" value={numVal(stockForm.mrp)} onChange={(e) => setStockForm({ ...stockForm, mrp: parseFloat(e.target.value) || 0 })} />
                           {saleHint(stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{saleHint(stockForm.mrp)}</p>}
                         </div>
                       </div>
                       <div>
                         <Label>Selling Price{perUom} <span className="text-muted-foreground text-xs">(optional, defaults to MRP)</span></Label>
-                        <Input type="number" className="mt-1" value={stockForm.selling_price} onChange={(e) => setStockForm({ ...stockForm, selling_price: parseFloat(e.target.value) || 0 })} placeholder={stockForm.mrp ? `${stockForm.mrp}` : ""} />
+                        <Input type="number" className="mt-1" value={numVal(stockForm.selling_price)} onChange={(e) => setStockForm({ ...stockForm, selling_price: parseFloat(e.target.value) || 0 })} placeholder={stockForm.mrp ? `${stockForm.mrp}` : ""} />
                         {saleHint(stockForm.selling_price || stockForm.mrp) && <p className="text-[11px] text-muted-foreground mt-1">{saleHint(stockForm.selling_price || stockForm.mrp)}</p>}
                         {stockForm.mrp > 0 && stockForm.selling_price > stockForm.mrp && <p className="text-[11px] text-destructive mt-1">Cannot exceed MRP</p>}
                       </div>
@@ -1014,8 +1015,8 @@ const Pharma = () => {
                               );
                             })()}
                           </div>
-                          <div><Label className="text-xs">Qty</Label><Input type="number" className="mt-1" value={item.quantity} onChange={(e) => updateBillItem(idx, "quantity", parseFloat(e.target.value) || 0)} max={item.available} /></div>
-                          <div><Label className="text-xs">Price (₹)</Label><Input type="number" className="mt-1" value={item.unit_price} onChange={(e) => updateBillItem(idx, "unit_price", parseFloat(e.target.value) || 0)} /></div>
+                          <div><Label className="text-xs">Qty</Label><Input type="number" className="mt-1" value={numVal(item.quantity)} onChange={(e) => updateBillItem(idx, "quantity", parseFloat(e.target.value) || 0)} max={item.available} /></div>
+                          <div><Label className="text-xs">Price (₹)</Label><Input type="number" className="mt-1" value={numVal(item.unit_price)} onChange={(e) => updateBillItem(idx, "unit_price", parseFloat(e.target.value) || 0)} /></div>
                         </div>
                       </div>
                       <div className="flex justify-between text-xs">
@@ -1046,7 +1047,7 @@ const Pharma = () => {
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span>Discount (₹)</span>
-                    <Input type="number" className="w-24 h-8 text-right" value={billDiscount} onChange={(e) => setBillDiscount(parseFloat(e.target.value) || 0)} />
+                    <Input type="number" className="w-24 h-8 text-right" value={numVal(billDiscount)} onChange={(e) => setBillDiscount(parseFloat(e.target.value) || 0)} />
                   </div>
                   {(() => {
                     const subtotal = billItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
@@ -1423,7 +1424,7 @@ const Pharma = () => {
                   {settingsForm.hide_expiring_products && (
                     <div className="mt-3">
                       <Label className="text-xs">Expiry threshold (days)</Label>
-                      <Input type="number" className="mt-1 w-32" value={settingsForm.expiring_threshold_days} onChange={(e) => setSettingsForm({ ...settingsForm, expiring_threshold_days: parseInt(e.target.value) || 90 })} />
+                      <Input type="number" className="mt-1 w-32" value={numVal(settingsForm.expiring_threshold_days)} onChange={(e) => setSettingsForm({ ...settingsForm, expiring_threshold_days: parseInt(e.target.value) || 90 })} />
                     </div>
                   )}
                 </div>

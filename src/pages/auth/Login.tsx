@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Mail, Lock, Loader2, ArrowRight } from "lucide-react";
 import skinClinicLogo from "@/assets/skin-clinic-logo.png";
 import { Input } from "@/components/ui/input";
@@ -11,9 +11,16 @@ import { motion } from "framer-motion";
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // After sign-in, continue to the page that sent the user here (e.g. the
+  // OAuth consent screen). Only allow in-app paths so the parameter can't be
+  // used to bounce people off-site.
+  const redirectParam = searchParams.get("redirect") || "";
+  const safeRedirect = redirectParam.startsWith("/") && !redirectParam.startsWith("//") ? redirectParam : "/";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +35,7 @@ const Login = () => {
       toast.error(error.message);
     } else {
       toast.success("Welcome back!");
-      navigate("/");
+      navigate(safeRedirect);
     }
   };
 

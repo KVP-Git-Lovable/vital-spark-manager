@@ -4250,7 +4250,7 @@ export type Database = {
           },
         ]
       }
-      therapy_notes: {
+      therapy_notes_retired_20260918: {
         Row: {
           appointment_id: string
           created_at: string

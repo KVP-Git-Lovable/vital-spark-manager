@@ -776,7 +776,7 @@ const PatientDetail = () => {
             <TabsTrigger value="appointments" title="Appointments" aria-label="Appointments" className="gap-1 text-xs md:text-sm"><Calendar className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Appts</span> ({appointments.length})</TabsTrigger>
             <TabsTrigger value="invoices" title="Invoices" aria-label="Invoices" className="gap-1 text-xs md:text-sm"><Receipt className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Invoices</span> ({invoices.length})</TabsTrigger>
             <TabsTrigger value="photos" title="Photos" aria-label="Photos" className="gap-1 text-xs md:text-sm"><Camera className="h-3.5 w-3.5" /> ({photos.length})</TabsTrigger>
-            <TabsTrigger value="procedures" title="Procedures" aria-label="Procedures" className="gap-1 text-xs md:text-sm"><ClipboardList className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Procedures</span> ({procedures.length})</TabsTrigger>
+            <TabsTrigger value="procedures" title="Prescription" aria-label="Prescription" className="gap-1 text-xs md:text-sm"><ClipboardList className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Prescription</span> ({procedures.length})</TabsTrigger>
             <TabsTrigger value="prescriptions" title="Prescriptions" aria-label="Prescriptions" className="gap-1 text-xs md:text-sm"><Pill className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Rx</span> ({prescriptions.length})</TabsTrigger>
             <TabsTrigger value="family" title="Family" aria-label="Family" className="gap-1 text-xs md:text-sm"><Users className="h-3.5 w-3.5" /> Family</TabsTrigger>
             <TabsTrigger value="surveys" title="Surveys" aria-label="Surveys" className="gap-1 text-xs md:text-sm"><ClipboardCheck className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Surveys</span> ({surveyResponses.length + surveyAssignments.length})</TabsTrigger>
@@ -1272,12 +1272,12 @@ const PatientDetail = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 space-y-3 md:space-y-0">
             <div className="flex justify-end mb-3">
               <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setProcedureFormOpen(true)}>
-                <Plus className="h-3.5 w-3.5" /> Add Procedure
+                <Plus className="h-3.5 w-3.5" /> Add Prescription
               </Button>
             </div>
             <div className="md:hidden space-y-3">
               {procedures.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">No procedures recorded</div>
+                <div className="text-center py-8 text-muted-foreground text-sm">No prescriptions recorded</div>
               ) : procedures.map((proc: any) => (
                 <div key={proc.id} className="stat-card p-3 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setSelectedProcedureId(proc.id)}>
                   <div className="flex items-start justify-between gap-2">
@@ -1309,7 +1309,7 @@ const PatientDetail = () => {
                 </thead>
                 <tbody className="divide-y">
                   {procedures.length === 0 ? (
-                    <tr><td colSpan={5} className="text-center py-8 text-muted-foreground text-sm">No procedures recorded</td></tr>
+                    <tr><td colSpan={5} className="text-center py-8 text-muted-foreground text-sm">No prescriptions recorded</td></tr>
                   ) : procedures.map((proc: any) => (
                     <tr key={proc.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setSelectedProcedureId(proc.id)}>
                       <td className="p-4 text-sm">{new Date(proc.procedure_date).toLocaleDateString()}</td>

@@ -176,7 +176,7 @@ export function GlobalSearch({ className }: { className?: string }) {
           id: p.id,
           kind: "procedure" as const,
           title: `${p.patients?.first_name || ""} ${p.patients?.last_name || ""}`.trim() || "Prescription",
-          subtitle: `${p.service_name || ""} · ${p.procedure_date ? format(new Date(p.procedure_date), "dd MMM yyyy") : ""}`,
+          subtitle: `${p.service_name || ""} · ${p.procedure_date ? format(new Date(p.procedure_date), "dd/MM/yyyy") : ""}`,
           route: `/procedures?id=${p.id}`,
         })),
         ...(((invs as any).data || []) as any[]).slice(0, 5).map((i: any) => ({

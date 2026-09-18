@@ -1232,7 +1232,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                                 <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">
-                                {format(new Date(proc.procedure_date), "MMM d, yyyy")}
+                                {format(new Date(proc.procedure_date), "dd/MM/yyyy")}
                                 {proc.staff && ` · Dr. ${proc.staff.first_name}`}
                               </p>
                               {proc.diagnosis && <p className="text-xs mt-2 text-muted-foreground">{proc.diagnosis}</p>}

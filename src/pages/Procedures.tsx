@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Plus, Camera, Upload } from "lucide-react";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
@@ -309,7 +310,7 @@ const Procedures = () => {
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
-                  <span className="text-xs text-muted-foreground">{new Date(proc.procedure_date).toLocaleDateString()}</span>
+                  <span className="text-xs text-muted-foreground">{format(new Date(proc.procedure_date), "dd/MM/yyyy")}</span>
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setCameraProc(proc); }}>
                     <Camera className="h-3.5 w-3.5" />
                   </Button>
@@ -341,7 +342,7 @@ const Procedures = () => {
             ) : (
               filtered.map((proc: any) => (
                 <TableRow key={proc.id} ref={(el) => { rowRefs.current[proc.id] = el; }} className={`cursor-pointer hover:bg-muted/50 transition-all duration-500 ${highlightedId === proc.id ? "ring-2 ring-primary bg-primary/5" : ""}`} onClick={() => setSelectedId(proc.id)}>
-                  {shouldShowColumn("procedure_date") && <TableCell className="text-sm">{new Date(proc.procedure_date).toLocaleDateString()}</TableCell>}
+                  {shouldShowColumn("procedure_date") && <TableCell className="text-sm">{format(new Date(proc.procedure_date), "dd/MM/yyyy")}</TableCell>}
                   {shouldShowColumn("patient") && <TableCell className="font-medium">{proc.patients?.first_name} {proc.patients?.last_name}</TableCell>}
                   {shouldShowColumn("service_name") && <TableCell>{proc.service_name}</TableCell>}
                   {shouldShowColumn("doctor") && (

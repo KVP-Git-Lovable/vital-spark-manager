@@ -29,6 +29,33 @@ export type Database = {
         }
         Relationships: []
       }
+      _inv_dupes: {
+        Row: {
+          dup_id: string | null
+        }
+        Insert: {
+          dup_id?: string | null
+        }
+        Update: {
+          dup_id?: string | null
+        }
+        Relationships: []
+      }
+      _proc_dupes: {
+        Row: {
+          dup_id: string | null
+          keeper: string | null
+        }
+        Insert: {
+          dup_id?: string | null
+          keeper?: string | null
+        }
+        Update: {
+          dup_id?: string | null
+          keeper?: string | null
+        }
+        Relationships: []
+      }
       appointment_sticky_notes: {
         Row: {
           appointment_id: string

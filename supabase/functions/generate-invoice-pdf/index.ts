@@ -277,15 +277,26 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       const master = hsnMap.get(String(hsn ?? "").trim());
       const gstRate = snapshotRate || hsnRate(hsn);
       let sgst: number, cgst: number, igst: number;
-      if (master && master.total > 0 && !snapshotRate) {
+      // The Tax Master wins whenever it has this HSN, even if the line carries
+      // a snapshot rate. It is what the invoice was actually charged from, and
+      // the two can disagree: 999722 is CGST 2.5 + SGST 2.5 = 5%, while the
+      // snapshot (taken from services.gst_percent) still said 2.5. Letting the
+      // snapshot win sent that 2.5 down the halving branch below and printed
+      // SGST 1.25 / CGST 1.25 on an invoice charged 2.5 + 2.5.
+      if (master && master.total > 0) {
         sgst = master.sgst; cgst = master.cgst; igst = master.igst;
       } else if (sameState) {
+        // Only for an HSN the master does not carry: assume an even split.
         sgst = gstRate / 2; cgst = gstRate / 2; igst = 0;
       } else {
         sgst = 0; cgst = 0; igst = gstRate;
       }
       const rate = sgst + cgst + igst;
-      return { name: String(name || ""), qty, charges, hsn: hsn || "", sgst, cgst, igst, taxAmount: gross * rate / 100, amount: gross };
+      const taxAmount = gross * rate / 100;
+      // Tax-inclusive, so the Amount column adds up to Total Billed. Printed
+      // pre-tax it never reconciled: three lines totalling 10,100 under a
+      // Total Billed of 10,250.
+      return { name: String(name || ""), qty, charges, hsn: hsn || "", sgst, cgst, igst, taxAmount, amount: gross + taxAmount };
     };
 
     if (Array.isArray(inv.line_items) && inv.line_items.length > 0) {

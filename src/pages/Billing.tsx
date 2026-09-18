@@ -67,6 +67,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
+import { hsnRateCache, invoiceLineRows, displayServices } from "@/lib/invoiceLines";
 import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
 import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
 import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
@@ -100,62 +101,6 @@ const rateLabel = (n: number) =>
   `${Math.round((Number(n) || 0) * 100) / 100}`;
 /** Number input helper: 0 shows as an empty field with a "0" watermark. */
 const numVal = (n: number | undefined | null) => (n ? String(n) : "");
-
-/** Active HSN GST rates (total %), cached so the shared helpers below can resolve
- *  a line's GST when the stored snapshot carries none. */
-const hsnRateCache: Record<string, number> = {};
-
-/** Normalised line-item rows (rate, tax, total) shared by the invoice view and the PDF. */
-export interface InvoiceLineRow {
-  name: string; hsn: string; qty: number; price: number; amount: number; gst: number; tax: number; total: number;
-}
-const invoiceLineRows = (inv: any): InvoiceLineRow[] => {
-  const invoiceTax = Number(inv?.cgst_amount || 0) + Number(inv?.sgst_amount || 0) + Number(inv?.igst_amount || 0)
-    || Number(inv?.tax_amount || 0);
-  // Salesforce-imported invoices (and any other invoice saved without a
-  // line_items snapshot) only carry an invoice-level total/tax, not a
-  // per-service price - synthesize one row per named service so Rate/Amount/
-  // Tax don't render as a hollow 0. total_amount is tax-INCLUSIVE (it's what
-  // "Grand Total"/paid_amount already read directly), so the pre-tax base
-  // must be derived algebraically from the GST rate (base * (1+rate/100) =
-  // total_amount) rather than by subtracting a separately-tracked tax
-  // figure - otherwise Amount+Tax ends up adding a fresh tax on top of a
-  // base that was never reduced by it, inflating the line-item Total past
-  // the invoice's actual Grand Total.
-  const raw: any[] = Array.isArray(inv?.line_items) && inv.line_items.length > 0
-    ? inv.line_items
-    : (() => {
-        const names: string[] = displayServices(inv);
-        const gstRate = Number(inv?.tax_rate) || 0;
-        const totalAmt = Number(inv?.total_amount || 0);
-        const base = gstRate > 0 ? totalAmt / (1 + gstRate / 100) : Math.max(totalAmt - invoiceTax, 0);
-        return names.map((s: string) => ({ name: s, qty: 1, price: base / names.length, hsn: "", gst: gstRate }));
-      })();
-  const rows = raw.map((it: any) => {
-    const qty = Number(it.qty) || 1;
-    const price = Number(it.price) || 0;
-    const amount = qty * price;
-    const hsn = it.hsn || "";
-    // Fall back to the Tax Master rate for this HSN when the line has no GST snapshot.
-    const gst = Number(it.gst) || hsnRateCache[String(hsn).trim()] || 0;
-    // A saved line_items snapshot can itself carry the same literal
-    // "Service" placeholder displayServices() guards against (e.g. a
-    // Salesforce import saved before that fix existed) - resolve it here
-    // too, not just when synthesizing fallback rows from scratch.
-    const rawName = it.name || "";
-    const name = rawName && rawName !== "Service" ? rawName : cleanApptService(inv?.appointments?.service) || "Service";
-    return { name, hsn, qty, price, amount, gst, tax: (amount * gst) / 100, total: 0 };
-  });
-
-  const taxSum = rows.reduce((s, r) => s + r.tax, 0);
-  const amountSum = rows.reduce((s, r) => s + r.amount, 0);
-  // Fall back to the invoice-level tax when the lines carry no GST snapshot.
-  if (taxSum === 0 && invoiceTax > 0 && amountSum > 0) {
-    rows.forEach((r) => { r.tax = (r.amount / amountSum) * invoiceTax; });
-  }
-  rows.forEach((r) => { r.total = r.amount + r.tax; });
-  return rows;
-};
 
 // ─── PDF Generation ───────────────────────────────
 const generateInvoicePDF = (inv: any) => {
@@ -309,23 +254,6 @@ const getPatientName = (inv: any, patientById?: Map<string, any>) => {
   }
   return "";
 };
-
-// Salesforce's appointment "service" field is really a free-text clinical
-// note, not a clean procedure name, and often carries a trailing "last
-// session on <date>" annotation - strip that when the field is used as a
-// display fallback (never touches the stored data itself).
-const cleanApptService = (raw: string | null | undefined): string =>
-  String(raw || "").replace(/\s*last\s+session\s+on\s+\d{1,2}\/\d{1,2}\/\d{2,4}\s*$/i, "").trim();
-
-/** Older Salesforce imports stored a literal ["Service"] placeholder (not an
- *  empty array) when there was no real per-procedure name - prefer the
- *  linked appointment's actual service name over that placeholder. */
-const displayServices = (inv: any): string[] => {
-  const services: string[] = inv?.services || [];
-  const isPlaceholder = services.length === 1 && services[0] === "Service";
-  return services.length && !isPlaceholder ? services : [cleanApptService(inv?.appointments?.service) || "Service"];
-};
-
 
 const BILLING_FIELDS = [
   { value: "invoice_number", label: "Invoice #" },

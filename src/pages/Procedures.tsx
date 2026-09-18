@@ -91,7 +91,7 @@ const Procedures = () => {
     setTimeout(() => {
       rowRefs.current[savedId]?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 300);
-    toast.success("Procedure saved", {
+    toast.success("Prescription saved", {
       description: "View Record",
       action: {
         label: "View Record",
@@ -139,7 +139,7 @@ const Procedures = () => {
   const moveKanbanCard = async (proc: any, field: string, value: string) => {
     const { error } = await supabase.from("procedures").update({ [field]: value || null } as any).eq("id", proc.id);
     if (error) { toast.error(error.message); return; }
-    toast.success("Procedure updated");
+    toast.success("Prescription updated");
     queryClient.invalidateQueries({ queryKey: ["procedures"] });
   };
 
@@ -288,7 +288,7 @@ const Procedures = () => {
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground text-sm">Loading...</div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">No procedures found</div>
+          <div className="text-center py-8 text-muted-foreground text-sm">No prescriptions found</div>
         ) : (
           filtered.map((proc: any) => (
             <motion.div
@@ -337,7 +337,7 @@ const Procedures = () => {
             {isLoading ? (
               <TableRow><TableCell colSpan={displayColumns.length + 1} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={displayColumns.length + 1} className="text-center py-8 text-muted-foreground">No procedures found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={displayColumns.length + 1} className="text-center py-8 text-muted-foreground">No prescriptions found</TableCell></TableRow>
             ) : (
               filtered.map((proc: any) => (
                 <TableRow key={proc.id} ref={(el) => { rowRefs.current[proc.id] = el; }} className={`cursor-pointer hover:bg-muted/50 transition-all duration-500 ${highlightedId === proc.id ? "ring-2 ring-primary bg-primary/5" : ""}`} onClick={() => setSelectedId(proc.id)}>

@@ -4699,6 +4699,13 @@ export type Database = {
         Returns: undefined
       }
       restore_from_trash: { Args: { _trash_id: string }; Returns: undefined }
+      sf_link_patients_bulk: {
+        Args: { payload: Json }
+        Returns: {
+          created: number
+          linked: number
+        }[]
+      }
       trash_allowed_object: { Args: { _object_type: string }; Returns: boolean }
     }
     Enums: {

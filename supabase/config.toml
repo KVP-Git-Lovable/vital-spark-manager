@@ -40,3 +40,6 @@ verify_jwt = false
 verify_jwt = false
 [functions.sf-link-missing-patients]
 verify_jwt = false
+
+[functions.purge-appt-dupes]
+verify_jwt = false

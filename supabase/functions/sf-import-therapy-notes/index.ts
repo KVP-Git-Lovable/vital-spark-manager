@@ -44,6 +44,10 @@ async function sfQuery(soql: string, signal?: AbortSignal): Promise<any[]> {
 /** Salesforce 18-char ids are the 15-char id plus a checksum suffix. */
 const id15 = (id: string) => (id || "").slice(0, 15);
 
+/** The clinic works in IST, so a visit's calendar date is its IST date. */
+const istDate = (iso: string) =>
+  new Date(new Date(iso).getTime() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
 function noteTitle(doctor: string | null | undefined): string {
   const name = (doctor || "").trim();
   return name ? `Therapy note - ${name}` : "Therapy note";
@@ -122,11 +126,16 @@ Deno.serve(async (req) => {
           const patientIds = Array.from(new Set(Array.from(patientByKey.values())));
           const dates = Array.from(new Set(needFallback.map((r: any) => r.Date__c).filter(Boolean)));
           if (patientIds.length && dates.length) {
+            const sorted = [...dates].sort();
+            const from = `${sorted[0]}T00:00:00+05:30`;
+            const toDate = new Date(`${sorted[sorted.length - 1]}T00:00:00+05:30`);
+            toDate.setDate(toDate.getDate() + 1);
             const { data: appts } = await admin
-              .from("appointments").select("id, patient_id, appointment_date")
-              .in("patient_id", patientIds).in("appointment_date", dates);
+              .from("appointments").select("id, patient_id, start_time")
+              .in("patient_id", patientIds)
+              .gte("start_time", from).lt("start_time", toDate.toISOString());
             for (const a of appts || []) {
-              const key = `${a.patient_id}|${a.appointment_date}`;
+              const key = `${a.patient_id}|${istDate(a.start_time as string)}`;
               if (!fallbackAppt.has(key)) fallbackAppt.set(key, a.id);
             }
           }

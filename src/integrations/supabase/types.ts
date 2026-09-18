@@ -14,6 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      _appt_dupes: {
+        Row: {
+          dup_id: string | null
+          keeper: string | null
+        }
+        Insert: {
+          dup_id?: string | null
+          keeper?: string | null
+        }
+        Update: {
+          dup_id?: string | null
+          keeper?: string | null
+        }
+        Relationships: []
+      }
       appointment_sticky_notes: {
         Row: {
           appointment_id: string

@@ -680,7 +680,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     <Badge variant="outline" className="text-[10px] text-muted-foreground mb-1.5 font-normal">Procedure</Badge>
                     <SheetTitle className="font-display text-lg">{patientName}</SheetTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {format(new Date(procedure.procedure_date), "EEE, MMM d, yyyy · h:mm a")}
+                      {format(new Date(procedure.procedure_date), "EEE, dd/MM/yyyy · h:mm a")}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-2">

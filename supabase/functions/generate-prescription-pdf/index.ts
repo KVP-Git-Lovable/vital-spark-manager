@@ -433,9 +433,6 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
       instructionLines.forEach((line, index) => page.drawText(line, { x: tableX + serialWidth + productWidth + 6, y: y - 9 - index * 12, size: 9, font, color: dark }));
       y -= rowHeight;
     }
-    // Clear the table before whatever follows. Without this the next section's
-    // heading is drawn 6px under this table's bottom border and its ascenders
-    // run back into it. Matches drawServicesTable and drawKeyValueTable.
     y -= 10;
   }
   };

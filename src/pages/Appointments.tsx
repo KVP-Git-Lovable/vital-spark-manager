@@ -2978,9 +2978,12 @@ const Appointments = () => {
         onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
         entity={deleteTarget ? `the appointment for ${deleteTarget.label}` : "this appointment"}
         // Billing and procedures are ON DELETE SET NULL, so they survive but come back
-        // unlinked; therapy notes and feedback are ON DELETE CASCADE and do not come
-        // back at all. Worth saying plainly on a clinical record.
-        note="Its bills and procedures are kept but will no longer be linked to it, and any therapy notes or feedback on it are removed for good."
+        // unlinked; notes and feedback are ON DELETE CASCADE and do not come back at
+        // all. Worth saying plainly on a clinical record.
+        //
+        // "Notes" here means appointment_sticky_notes, what the Notes tab writes.
+        // This used to say "therapy notes", naming a table no screen could write to.
+        note="Its bills and procedures are kept but will no longer be linked to it, and any notes or feedback on it are removed for good."
         onConfirm={async () => {
           if (!deleteTarget) return;
           // The mutation's onError already reports the failure.

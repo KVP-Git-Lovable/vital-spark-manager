@@ -253,8 +253,6 @@ const Appointments = () => {
   const [filterVisitStatus, setFilterVisitStatus] = useState<string>(pinnedInit.visit || "all");
   // Date filter: preset key + optional specific date / range
   const [datePreset, setDatePreset] = useState<string>(pinnedInit.date || "this_week");
-  const [rangePopoverOpen, setRangePopoverOpen] = useState(false);
-  const [rangeCalendarMode, setRangeCalendarMode] = useState<"from" | "to">("from");
   const [specificDate, setSpecificDate] = useState<Date | undefined>(
     pinnedInit.specificDate ? new Date(pinnedInit.specificDate) : undefined
   );
@@ -644,7 +642,7 @@ const Appointments = () => {
     sortDirection,
   ];
 
-  const { data: apptPageData, isFetching: isApptPageFetching } = useQuery({
+  const { data: apptPageData } = useQuery({
     queryKey: apptPageQueryKey,
     queryFn: () =>
       fetchAppointmentsPage({
@@ -776,15 +774,6 @@ const Appointments = () => {
   useEffect(() => {
     if (billLookupFailed) toast.error("Could not load bill amounts - the Bill and Payment Mode columns may be blank.");
   }, [billLookupFailed]);
-
-  const dateFilterLabel = (() => {
-    if (datePreset === "specific") return specificDate ? format(specificDate, "MMM d, yyyy") : "Specific Date";
-    if (datePreset === "range")
-      return rangeFrom || rangeTo
-        ? `${rangeFrom ? format(rangeFrom, "MMM d") : "…"} – ${rangeTo ? format(rangeTo, "MMM d") : "…"}`
-        : "Date Range";
-    return DATE_PRESETS.find((p) => p.key === datePreset)?.label || "All Dates";
-  })();
 
   // Denormalize an appointment (+ its invoice) into the flat shape
   // APPOINTMENT_VIEW_FIELDS' filter/sort engine reads. `invMap` lets callers
@@ -2275,75 +2264,6 @@ const Appointments = () => {
             {view === "table" ? (
               /* TABLE VIEW */
               <div>
-                {/* Quick date filters */}
-                <div className="p-3 border-b flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground font-medium mr-1">Quick:</span>
-                  {DATE_PRESETS.filter((p) => p.key !== "specific").map((f) => (
-                    f.key === "range" ? (
-                      <Popover key={f.key} open={rangePopoverOpen} onOpenChange={setRangePopoverOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant={datePreset === f.key ? "default" : "outline"}
-                            size="sm"
-                            className="h-7 text-xs px-3"
-                            onClick={() => {
-                              setDatePreset(f.key);
-                              setRangePopoverOpen(true);
-                            }}
-                          >
-                            {f.label}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-4" align="start">
-                          <div className="space-y-3">
-                            <div>
-                              <Label className="text-xs font-medium mb-2 block">
-                                {rangeCalendarMode === "from" ? "From Date" : "To Date"}
-                              </Label>
-                              <Calendar
-                                mode="single"
-                                selected={rangeCalendarMode === "from" ? rangeFrom : rangeTo}
-                                onSelect={(date) => {
-                                  if (rangeCalendarMode === "from") {
-                                    setRangeFrom(date);
-                                    setRangeCalendarMode("to");
-                                  } else {
-                                    setRangeTo(date);
-                                    setRangePopoverOpen(false);
-                                    setRangeCalendarMode("from");
-                                  }
-                                }}
-                                className="rounded-md border"
-                              />
-                            </div>
-                            {rangeCalendarMode === "to" && (
-                              <div className="text-xs text-muted-foreground text-center pt-2 border-t">
-                                <p>From: {rangeFrom ? format(rangeFrom, "MMM d, yyyy") : "Not set"}</p>
-                              </div>
-                            )}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    ) : (
-                      <Button
-                        key={f.key}
-                        variant={datePreset === f.key ? "default" : "outline"}
-                        size="sm"
-                        className="h-7 text-xs px-3"
-                        onClick={() => setDatePreset(f.key)}
-                      >
-                        {f.label}
-                      </Button>
-                    )
-                  ))}
-                  {datePreset === "range" && (rangeFrom || rangeTo) && (
-                    <span className="text-xs text-muted-foreground">· {dateFilterLabel}</span>
-                  )}
-                  <span className="text-xs text-muted-foreground ml-auto">
-                    {apptTotal.toLocaleString()} result{apptTotal !== 1 ? "s" : ""}
-                    {isApptPageFetching ? " · loading…" : ""}
-                  </span>
-                </div>
                 {tableDisplay === "kanban" ? (
                   <ListKanban
                     rows={visibleTableRows}

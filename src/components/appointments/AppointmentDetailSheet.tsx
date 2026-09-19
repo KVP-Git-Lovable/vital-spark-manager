@@ -470,6 +470,12 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     },
   });
 
+  // Prescriptions brought in by the April 2026 bulk load carry no appointment_id,
+  // so they can never show up in the per-visit tab however much history the
+  // patient has. Counted here so that tab can point at them instead of reading
+  // as a bare "none", which looks like the records were lost.
+  const unlinkedProcedureCount = previousProcedures.filter((p) => !p.appointment_id).length;
+
   const { data: invoices = [] } = useQuery({
     queryKey: ["appointment-invoices", appointment?.patient_id],
     queryFn: async () => {
@@ -1222,7 +1228,21 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         </div>
                       </div>
                       {procedures.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-8">No prescriptions linked. Click "Add Prescription" to create one.</p>
+                        <div className="text-center py-8 space-y-2">
+                          <p className="text-sm text-muted-foreground">No prescriptions linked to this visit. Click "Add Prescription" to create one.</p>
+                          {unlinkedProcedureCount > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              This patient has {unlinkedProcedureCount.toLocaleString()} imported prescription record{unlinkedProcedureCount === 1 ? "" : "s"} not tied to any appointment.{" "}
+                              <button
+                                type="button"
+                                className="underline underline-offset-2 hover:text-foreground"
+                                onClick={() => setActiveTab("prev-procedures")}
+                              >
+                                View in Previous Prescriptions
+                              </button>
+                            </p>
+                          )}
+                        </div>
                       ) : (
                         <div className="space-y-2">
                           {procedures.map((proc: any) => (

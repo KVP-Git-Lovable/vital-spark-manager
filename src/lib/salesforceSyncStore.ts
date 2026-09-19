@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { syncErrorMessage, summariseSyncErrors } from "@/lib/syncErrorMessage";
 
-export type SyncStage = "linking" | "clinical" | "pictures" | "attachments";
+export type SyncStage = "patients" | "linking" | "clinical" | "pictures" | "attachments";
 
 export interface StageTotals {
   processed: number;
@@ -21,6 +21,7 @@ interface SyncState {
 
 function initialTotals(): Record<SyncStage, StageTotals> {
   return {
+    patients: { processed: 0, imported: 0, skipped: 0, errors: 0 },
     linking: { processed: 0, imported: 0, skipped: 0, errors: 0 },
     clinical: { processed: 0, imported: 0, skipped: 0, errors: 0 },
     pictures: { processed: 0, imported: 0, skipped: 0, errors: 0 },
@@ -57,6 +58,30 @@ function setState(patch: Partial<SyncState>) {
 function pushLog(msg: string) {
   state = { ...state, log: [...state.log.slice(-49), msg] };
   emit();
+}
+
+// How many patients Salesforce holds, learned from the last complete walk of
+// Patient__c. Kept in localStorage, not in `state`: state is wiped at the start
+// of every run, and the badge needs this number before a run has happened.
+const SF_PATIENT_TOTAL_KEY = "sf_patient_total";
+
+export function getSalesforcePatientTotal(): number | null {
+  try {
+    const n = Number(localStorage.getItem(SF_PATIENT_TOTAL_KEY));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberSalesforcePatientTotal(n: number) {
+  if (n <= 0) return;
+  try {
+    localStorage.setItem(SF_PATIENT_TOTAL_KEY, String(n));
+  } catch {
+    // Private browsing / blocked storage: the badge just falls back to hiding
+    // the shortfall, which is what it did before this existed.
+  }
 }
 
 function addTotals(stage: SyncStage, delta: Partial<StageTotals>) {
@@ -124,6 +149,39 @@ function assertProcessedShape(fnName: string, data: any) {
       `${fnName} returned an unexpected response shape (no "processed" field) - the deployed function is likely out of date and needs to be redeployed from the current repo code.`,
     );
   }
+}
+
+// Walks Patient__c itself rather than reaching patients through Appointment__c,
+// so a patient who has never had a visit still gets created. Without this stage
+// those patients are invisible to every other loop, because each of the others
+// is keyed on an sf_id that a patient with no appointment never receives - which
+// is how ~3,669 Salesforce patients stayed missing while the sync reported clean.
+//
+// Insert-only: the underlying sf_link_patients_bulk RPC drops any sf_id already
+// present, so re-running creates nothing twice and never edits an existing row.
+async function loopAllPatients() {
+  let cursor = "";
+  let scanned = 0;
+  let completed = false;
+  for (;;) {
+    if (stopRequested) return;
+    const data = await invokeWithRetry(`sf-import-all-patients?pages=6${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+    scanned += data.scanned ?? 0;
+    addTotals("patients", {
+      processed: data.scanned ?? 0,
+      imported: (data.created ?? 0) + (data.linked ?? 0),
+      skipped: data.existing ?? 0,
+    });
+    pushLog(`Patients: scanned ${data.scanned ?? 0}, ${data.created ?? 0} created, ${data.linked ?? 0} linked`);
+    if (data.done) { completed = true; break; }
+    // A cursor that does not advance means the keyset walk is stuck; carrying on
+    // would re-read the same page forever.
+    if (!data.cursor || data.cursor === cursor) break;
+    cursor = data.cursor;
+  }
+  // Only a walk that ran to done has seen every Patient__c row, so only then is
+  // the scan count the Salesforce patient total.
+  if (completed) rememberSalesforcePatientTotal(scanned);
 }
 
 async function loopLinking() {
@@ -270,6 +328,10 @@ export async function startSync() {
   stopRequested = false;
   setState({ running: true, error: null, log: [], totals: initialTotals(), message: "Starting…" });
   try {
+    setState({ stage: "patients", message: "Importing patients from Salesforce…" });
+    await loopAllPatients();
+    if (stopRequested) { setState({ running: false, stage: null, message: "Stopped." }); return; }
+
     setState({ stage: "linking", message: "Linking patients to Salesforce by phone number…" });
     await loopLinking();
     if (stopRequested) { setState({ running: false, stage: null, message: "Stopped." }); return; }

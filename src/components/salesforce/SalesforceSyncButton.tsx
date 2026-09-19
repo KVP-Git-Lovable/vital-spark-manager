@@ -8,8 +8,10 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useSalesforceSync } from "@/hooks/useSalesforceSync";
 import { recentSyncWindow } from "@/lib/salesforceSyncWindow";
+import { getSalesforcePatientTotal } from "@/lib/salesforceSyncStore";
 
 const STAGE_LABEL: Record<string, string> = {
+  patients: "Importing patients",
   linking: "Linking patients",
   clinical: "Appointments, procedures & billing",
   pictures: "Photos",
@@ -30,7 +32,19 @@ async function fetchPendingCounts() {
     count((q) => q.not("sf_id", "is", null).is("sf_pictures_synced_at", null)),
     count((q) => q.not("sf_id", "is", null).is("sf_attachments_synced_at", null)),
   ]);
-  return { totalPatients, linked, clinicalPending, picturesPending, attachmentsPending };
+  // Salesforce's own patient count, from the last completed all-patients walk.
+  // Null until one has run, in which case the shortfall is simply not claimed
+  // rather than guessed at.
+  const sfTotal = getSalesforcePatientTotal();
+  return {
+    totalPatients,
+    linked,
+    clinicalPending,
+    picturesPending,
+    attachmentsPending,
+    sfTotal,
+    notYetImported: sfTotal ? Math.max(0, sfTotal - linked) : 0,
+  };
 }
 
 // Shared "Sync from Salesforce" trigger + progress panel. Safe to mount on
@@ -69,20 +83,23 @@ export function SalesforceSyncButton() {
         toast.error(`Salesforce sync stopped: ${sync.error}`);
       } else if (sync.message === "Sync complete.") {
         const t = sync.totals;
-        const total = t.clinical.imported + t.pictures.imported + t.attachments.imported;
+        const total = t.patients.imported + t.clinical.imported + t.pictures.imported + t.attachments.imported;
         toast.success(`Salesforce sync complete — ${total} record(s) imported`);
       }
     }
     wasRunning.current = sync.running;
   }, [sync.running]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Only real incomplete-import backlog for already-linked patients counts
-  // as "pending" here - patients with no sf_id (totalPatients - linked)
-  // aren't necessarily unsynced Salesforce records; many are app-only
-  // patients (walk-ins/manual entries) that will never have a Salesforce
-  // match, so folding that gap into this badge overstated outstanding work.
+  // Two different gaps here, and only one of them is outstanding work.
+  // (totalPatients - linked) is mostly app-only patients - walk-ins and manual
+  // entries that will never have a Salesforce match - so it stays out of the
+  // badge, as it always has. What does belong is the shortfall against
+  // Salesforce's own patient count: patients that exist there and have never
+  // been imported here at all. Those carry no sf_id, so every other count below
+  // is structurally blind to them, which is how ~3,669 of them sat missing
+  // while this badge read as if only documents were outstanding.
   const totalPending = pending
-    ? pending.clinicalPending + pending.picturesPending + pending.attachmentsPending
+    ? pending.clinicalPending + pending.picturesPending + pending.attachmentsPending + pending.notYetImported
     : undefined;
   const unmatchedPatients = pending ? pending.totalPatients - pending.linked : 0;
 
@@ -115,6 +132,12 @@ export function SalesforceSyncButton() {
               <span className="col-span-2 text-[11px] text-muted-foreground/80">
                 {unmatchedPatients.toLocaleString()} have no Salesforce match by phone — likely app-only patients, not outstanding sync work.
               </span>
+            )}
+            {pending.sfTotal !== null && (
+              <>
+                <span>Patients not yet imported</span>
+                <span className="text-right font-medium text-foreground">{pending.notYetImported.toLocaleString()}</span>
+              </>
             )}
             <span>Appointments/billing/procedures pending</span>
             <span className="text-right font-medium text-foreground">{pending.clinicalPending.toLocaleString()}</span>

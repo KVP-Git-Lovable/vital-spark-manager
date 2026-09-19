@@ -3,6 +3,7 @@ import { X, Search, Check, ChevronsUpDown, Plus, Trash2, Users } from "lucide-re
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/shared/DateInput";
 import { Label } from "@/components/ui/label";
 import {
   ConsultationReasonPicker,
@@ -672,10 +673,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Date of Birth</Label>
-                <Input
-                  type="date"
+                <DateInput
                   value={form.date_of_birth || ""}
-                  onChange={(e) => updateField("date_of_birth", e.target.value)}
+                  onChange={(iso) => updateField("date_of_birth", iso)}
                   className="mt-1.5"
                 />
               </div>

@@ -32,8 +32,13 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
 
+  // The dropdown is portalled to the body, so when it opens inside a Dialog or
+  // Sheet that container's scroll lock swallows wheel events over the list -
+  // clicks work, the mouse wheel does nothing. `modal` gives the popover its own
+  // lock, which restores scrolling. Verified in a browser; dropping it silently
+  // breaks scrolling on long lists.
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           type="button"

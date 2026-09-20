@@ -110,13 +110,19 @@ async function embedLogo(pdfDoc: PDFDocument, logoUrl?: string | null): Promise<
   }
 }
 
+class NotFoundError extends Error {}
+
 async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, procedureId: string) {
+
   const { data: procedure, error: procedureError } = await client
     .from("procedures")
     .select("*, patients(*), staff!procedures_staff_id_fkey(*), appointments(*, staff!appointments_staff_id_fkey(*))")
     .eq("id", procedureId)
-    .single();
-  if (procedureError || !procedure) throw new Error(procedureError?.message || "Procedure not found");
+    .limit(1)
+    .maybeSingle();
+  if (procedureError) throw new Error(procedureError.message);
+  if (!procedure) throw new NotFoundError("This prescription record could not be found.");
+
 
   const [
     { data: prescriptions, error: prescriptionError },
@@ -453,7 +459,15 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const parsed = BodySchema.safeParse(await req.json());
+    // An empty or malformed body must read as a validation error, not crash the function.
+    let rawBody: unknown = null;
+    try {
+      rawBody = await req.json();
+    } catch {
+      rawBody = null;
+    }
+    const parsed = BodySchema.safeParse(rawBody);
+
     if (!parsed.success) {
       return new Response(JSON.stringify({ error: parsed.error.flatten().fieldErrors }), {
         status: 400,
@@ -490,7 +504,14 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    if (error instanceof NotFoundError) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     console.error("generate-prescription-pdf error:", error);
+
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

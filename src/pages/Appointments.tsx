@@ -642,7 +642,7 @@ const Appointments = () => {
     sortDirection,
   ];
 
-  const { data: apptPageData } = useQuery({
+  const { data: apptPageData, error: apptPageError, refetch: refetchApptPage } = useQuery({
     queryKey: apptPageQueryKey,
     queryFn: () =>
       fetchAppointmentsPage({

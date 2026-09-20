@@ -110,13 +110,19 @@ async function embedLogo(pdfDoc: PDFDocument, logoUrl?: string | null): Promise<
   }
 }
 
+class NotFoundError extends Error {}
+
 async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, procedureId: string) {
+
   const { data: procedure, error: procedureError } = await client
     .from("procedures")
     .select("*, patients(*), staff!procedures_staff_id_fkey(*), appointments(*, staff!appointments_staff_id_fkey(*))")
     .eq("id", procedureId)
-    .single();
-  if (procedureError || !procedure) throw new Error(procedureError?.message || "Procedure not found");
+    .limit(1)
+    .maybeSingle();
+  if (procedureError) throw new Error(procedureError.message);
+  if (!procedure) throw new NotFoundError("This prescription record could not be found.");
+
 
   const [
     { data: prescriptions, error: prescriptionError },

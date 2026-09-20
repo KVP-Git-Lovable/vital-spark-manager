@@ -4706,6 +4706,8 @@ export type Database = {
           linked: number
         }[]
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       trash_allowed_object: { Args: { _object_type: string }; Returns: boolean }
     }
     Enums: {

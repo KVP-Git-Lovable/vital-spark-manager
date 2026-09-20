@@ -29,6 +29,13 @@
       "when": 1789715014856,
       "tag": "0003_fix_sf_link_patients_bulk_uuid",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789920562199,
+      "tag": "0004_patient_search_trgm_indexes",
+      "breakpoints": true
     }
   ]
 }

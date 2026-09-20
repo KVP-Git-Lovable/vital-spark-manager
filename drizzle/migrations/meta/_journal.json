@@ -36,6 +36,13 @@
       "when": 1789920562199,
       "tag": "0004_patient_search_trgm_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789920743807,
+      "tag": "0005_patient_search_trgm_ilike_indexes",
+      "breakpoints": true
     }
   ]
 }

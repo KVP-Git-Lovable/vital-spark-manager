@@ -3483,6 +3483,24 @@ export type Database = {
         }
         Relationships: []
       }
+      sf_backfill_staging: {
+        Row: {
+          key: string
+          kind: string
+          value: string | null
+        }
+        Insert: {
+          key: string
+          kind: string
+          value?: string | null
+        }
+        Update: {
+          key?: string
+          kind?: string
+          value?: string | null
+        }
+        Relationships: []
+      }
       staff: {
         Row: {
           auth_user_id: string | null

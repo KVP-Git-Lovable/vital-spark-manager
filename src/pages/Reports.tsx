@@ -1,12 +1,13 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronRight, Users, CalendarCheck, IndianRupee, Receipt, Pill, Megaphone } from "lucide-react";
+import { ChevronRight, Users, CalendarCheck, IndianRupee, Receipt, Pill, Megaphone, FileX } from "lucide-react";
 import { REPORTS } from "@/lib/reportsCatalog";
 
 const ICONS: Record<string, any> = {
   patients: Users,
   appointments: CalendarCheck,
   invoices: IndianRupee,
+  cancelled_invoices: FileX,
   expenses: Receipt,
   pharma_bills: Pill,
   campaigns: Megaphone,

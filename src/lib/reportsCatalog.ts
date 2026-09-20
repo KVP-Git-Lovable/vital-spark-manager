@@ -141,7 +141,10 @@ function invoiceDoctorName(row: InvoiceDoctorSource): string {
 }
 
 const STATUS_APPT = [...ALL_APPOINTMENT_STATUSES];
-const STATUS_INV = ["Pending", "Partial", "Paid", "Cancelled"];
+// No "Cancelled" here: cancelled bills are excluded from this report entirely
+// and live in their own (see the cancelled_invoices report below), so offering
+// it as a status would only ever return nothing.
+const STATUS_INV = ["Pending", "Partial", "Paid"];
 const PAY_MODES = ["Cash", "Card", "UPI", "Bank Transfer", "Cheque"];
 const CAMPAIGN_TYPES = ["Google Ads", "Meta Ads", "WhatsApp", "Email", "Other"];
 const CAMPAIGN_STATUS = ["Planning", "Active", "Completed"];
@@ -382,6 +385,10 @@ export const REPORTS: ReportConfig[] = [
         let q = supabase
           .from("invoices")
           .select("*, doctor:doctor_id(first_name, last_name), appointment:appointment_id(doctor_name)")
+          // A cancelled bill is money the clinic never took, so it must not reach
+          // this report at all - not the rows, and so not Total Billed, the
+          // collection cards or the revenue chart, which are all derived from them.
+          .neq("status", "Cancelled")
           .order("created_at", { ascending: false })
           .range(s, e);
         if (from) q = q.gte("created_at", from);
@@ -406,6 +413,74 @@ export const REPORTS: ReportConfig[] = [
       title: "Revenue by Month",
       valueLabel: "₹ Total",
       build: (rows) => groupSumByMonth(rows, "created_at", "total_amount"),
+    },
+  },
+  // Cancelled bills, kept deliberately apart from Invoices & Revenue. A bill is
+  // cancelled when the front desk raises it wrongly, so its value was never
+  // earned and must not sit in revenue - but the clinic still needs to see what
+  // was cancelled, by whom and why, which is what this report is for.
+  {
+    key: "cancelled_invoices",
+    title: "Cancelled Invoices",
+    description: "Bills cancelled by the clinic, with who cancelled them and the reason.",
+    category: "Finance",
+    defaultSort: { key: "cancelled_at", dir: "desc" },
+    columns: [
+      { key: "invoice_number", label: "Billing ID", sortable: true },
+      { key: "patient_name", label: "Patient", sortable: true },
+      { key: "total_amount", label: "Amount", sortable: true, type: "currency" },
+      { key: "cancellation_reason", label: "Reason", sortable: true },
+      { key: "cancelled_by_name", label: "Cancelled By", sortable: true },
+      { key: "cancelled_at", label: "Cancelled On", sortable: true, type: "datetime" },
+      { key: "doctor_name", label: "Doctor", sortable: true, accessor: (r) => invoiceDoctorName(r) },
+      { key: "created_at", label: "Billed On", sortable: true, type: "date" },
+    ],
+    filters: [
+      { key: "dateRange", label: "Cancelled Date", type: "dateRange", serverDateField: "cancelled_at" },
+      { key: "doctor", label: "Doctor", type: "doctor", matches: (r, v) => String(r.doctor_id ?? "") === v },
+      {
+        key: "payment_mode",
+        label: "Payment Mode",
+        type: "select",
+        field: "payment_mode",
+        options: PAYMENT_BUCKETS.map((v) => ({ value: v, label: v })),
+        matches: (r, v) => paymentBucket(r.payment_mode) === v,
+      },
+    ],
+    searchFields: ["invoice_number", "patient_name", "cancellation_reason", "cancelled_by_name"],
+    rowHref: () => `/billing`,
+    fetcher: async ({ from, to }) =>
+      fetchAll((s, e) => {
+        let q = supabase
+          .from("invoices")
+          .select("*, doctor:doctor_id(first_name, last_name), appointment:appointment_id(doctor_name)")
+          .eq("status", "Cancelled")
+          .order("cancelled_at", { ascending: false, nullsFirst: false })
+          .range(s, e);
+        // The date bounds read cancelled_at, but a cancelled bill that carries no
+        // timestamp - imported history, or one cancelled before the field existed -
+        // is still a cancelled bill the clinic has to be able to find. Including
+        // nulls on both bounds means a date range narrows the list without ever
+        // making a row disappear from every range at once.
+        if (from) q = q.or(`cancelled_at.gte.${from},cancelled_at.is.null`);
+        if (to) q = q.or(`cancelled_at.lte.${to},cancelled_at.is.null`);
+        return q;
+      }),
+    summary: (rows) => {
+      const total = rows.reduce((a, r) => a + Number(r.total_amount || 0), 0);
+      return [
+        { label: "Cancelled Invoices", value: rows.length.toLocaleString() },
+        {
+          label: "Value Cancelled",
+          value: formatMoneyExact(total),
+          hint: "Not counted in Invoices & Revenue",
+        },
+      ];
+    },
+    chart: {
+      title: "Cancellations by Month",
+      valueLabel: "₹ Cancelled",
+      build: (rows) => groupSumByMonth(rows, "cancelled_at", "total_amount"),
     },
   },
   {

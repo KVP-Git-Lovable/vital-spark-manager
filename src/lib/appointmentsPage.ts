@@ -41,9 +41,16 @@ export async function fetchAppointmentsPage({
   sortDirection,
 }: FetchAppointmentsPageParams): Promise<AppointmentsPageResult> {
   const ascending = sortDirection === "asc";
+  // An exact count re-scans every matching appointment on each page turn, which is
+  // what the database was cancelling on 56k+ rows. "planned"/"estimated" answers
+  // from statistics instead; the page of rows itself is unaffected.
+  const countMode = dateRange || doctorIds.length > 0 || status !== "all" || visitStatus !== "all" || search.trim()
+    ? "estimated"
+    : "planned";
   let q = supabase
     .from("appointments")
-    .select("*, patients(first_name, last_name, phone, gender), staff(first_name, last_name)", { count: "exact" });
+    .select("*, patients(first_name, last_name, phone, gender), staff(first_name, last_name)", { count: countMode });
+
 
   if (dateRange) {
     q = q.gte("start_time", dateRange.start.toISOString()).lte("start_time", dateRange.end.toISOString());

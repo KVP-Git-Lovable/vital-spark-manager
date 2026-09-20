@@ -459,7 +459,15 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const parsed = BodySchema.safeParse(await req.json());
+    // An empty or malformed body must read as a validation error, not crash the function.
+    let rawBody: unknown = null;
+    try {
+      rawBody = await req.json();
+    } catch {
+      rawBody = null;
+    }
+    const parsed = BodySchema.safeParse(rawBody);
+
     if (!parsed.success) {
       return new Response(JSON.stringify({ error: parsed.error.flatten().fieldErrors }), {
         status: 400,

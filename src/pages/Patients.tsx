@@ -88,9 +88,12 @@ const fetchPatientsPage = async (
   const term = search.trim();
   const cols = ["first_name", "last_name", "email", "phone"];
 
+  // Exact counts over 23k+ patients combined with leading-wildcard ILIKE are what
+  // was getting cancelled by the database. Unfiltered pages use a planned count
+  // (fast, from statistics); searches count only the bounded result set.
   let q = supabase
     .from("patients")
-    .select("*", { count: "exact" })
+    .select("*", { count: term ? "estimated" : "planned" })
     .order("created_at", { ascending: false })
     .range(fromIdx, toIdx);
 
@@ -105,25 +108,27 @@ const fetchPatientsPage = async (
       // Step 1: Exact match (case-insensitive but whole word)
       const { data: exactMatch } = await supabase
         .from("patients")
-        .select("*", { count: "exact" })
+        .select("*")
         .ilike("first_name", firstName)
         .ilike("last_name", lastName)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(fromIdx, toIdx);
 
       if (exactMatch && exactMatch.length > 0) {
-        return { rows: (exactMatch as Patient[]), total: exactMatch.length };
+        return { rows: (exactMatch as Patient[]), total: fromIdx + exactMatch.length };
       }
 
       // Step 2: Prefix match (first_name starts with token AND last_name starts with lastName)
       const { data: prefixMatch } = await supabase
         .from("patients")
-        .select("*", { count: "exact" })
+        .select("*")
         .ilike("first_name", `${firstName}%`)
         .ilike("last_name", `${lastName}%`)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(fromIdx, toIdx);
 
       if (prefixMatch && prefixMatch.length > 0) {
-        return { rows: (prefixMatch as Patient[]), total: prefixMatch.length };
+        return { rows: (prefixMatch as Patient[]), total: fromIdx + prefixMatch.length };
       }
     } else if (tokens.length === 1) {
       // Single word: try exact match first
@@ -132,12 +137,13 @@ const fetchPatientsPage = async (
       // Step 1: Exact match
       const { data: exactMatch } = await supabase
         .from("patients")
-        .select("*", { count: "exact" })
+        .select("*")
         .or(`first_name.ilike.${token},last_name.ilike.${token}`)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(fromIdx, toIdx);
 
       if (exactMatch && exactMatch.length > 0) {
-        return { rows: (exactMatch as Patient[]), total: exactMatch.length };
+        return { rows: (exactMatch as Patient[]), total: fromIdx + exactMatch.length };
       }
 
       // Step 2: Prefix match (starts with the term)
@@ -163,7 +169,7 @@ const fetchPatientsPage = async (
 
   // Typo-tolerant fallback: nothing matched literally, so pull a loose candidate
   // set (matching the first few letters) and rank it by fuzzy similarity.
-  if (term && (count ?? 0) === 0) {
+  if (term && (data?.length ?? 0) === 0) {
     const looseOr = buildFuzzyOrFilter(term, ["first_name", "last_name"]);
     if (looseOr) {
       const { data: loose } = await supabase
@@ -180,8 +186,9 @@ const fetchPatientsPage = async (
       return { rows: ranked.slice(0, PAGE_SIZE), total: ranked.length };
     }
   }
-  return { rows: (data as Patient[]) || [], total: count ?? 0 };
+  return { rows: (data as Patient[]) || [], total: count ?? (data?.length ?? 0) };
 };
+
 
 const fetchAllPatients = async (search: string): Promise<Patient[]> => {
   const term = search.trim();

@@ -310,6 +310,8 @@ const Patients = () => {
   const loading = needsClientRows ? viewLoading : isLoading;
   const fetching = needsClientRows ? viewFetching : isFetching;
   const reloadPatients = () => (needsClientRows ? refetchAll() : refetch());
+  const listError = needsClientRows ? allError : pageError;
+
 
   const patientIds = paged.map((p) => p.id);
   const { data: engagementScores = {} } = useEngagementScores(patientIds);
@@ -517,6 +519,12 @@ const Patients = () => {
           onToggleFilters={() => { setFiltersOpen((o) => !o); setChartsOpen(false); }}
         />
       </div>
+
+      {listError && (
+        <QueryTimeoutNotice error={listError} onRetry={() => reloadPatients()} className="mb-4" />
+      )}
+
+
 
       <div className="flex flex-col items-start gap-4 lg:flex-row">
       <motion.div

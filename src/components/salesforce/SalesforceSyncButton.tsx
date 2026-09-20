@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -56,6 +56,7 @@ export function SalesforceSyncButton() {
   const sync = useSalesforceSync();
   const queryClient = useQueryClient();
   const wasRunning = useRef(false);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   const runRecent = (daysBack: number, daysForward = 0) => {
     const { start, end } = recentSyncWindow(daysBack, daysForward);
@@ -67,6 +68,15 @@ export function SalesforceSyncButton() {
     queryKey: ["salesforce-sync-pending"],
     queryFn: fetchPendingCounts,
     staleTime: 30_000,
+    // These figures used to be refetched only once the whole run finished, so
+    // for the length of a sync they sat frozen on whatever they were when the
+    // panel mounted - a sync that was working perfectly read as hung.
+    //
+    // Only while the panel is actually on screen, though: fetchPendingCounts is
+    // five exact counts over 27k rows, and PopoverContent is unmounted when
+    // closed, so polling a closed panel would burn thousands of queries
+    // updating nothing (the trigger badge is hidden mid-run anyway).
+    refetchInterval: sync.running && panelOpen ? 10_000 : false,
   });
 
   useEffect(() => {
@@ -103,8 +113,15 @@ export function SalesforceSyncButton() {
     : undefined;
   const unmatchedPatients = pending ? pending.totalPatients - pending.linked : 0;
 
+  // Counted in memory and pushed on every batch, so this ticks over without
+  // costing a query - and it keeps moving through the patients stage, where
+  // the imported count legitimately stays at zero because those patients have
+  // no visits to bring across.
+  const stage = sync.stage;
+  const stageTotals = stage ? sync.totals[stage] : null;
+
   return (
-    <Popover>
+    <Popover open={panelOpen} onOpenChange={setPanelOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" className="gap-2">
           {sync.running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
@@ -148,13 +165,18 @@ export function SalesforceSyncButton() {
           </div>
         )}
 
-        {sync.stage && (
+        {stage && stageTotals && (
           <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-1">
             <div className="flex items-center gap-1.5 font-medium">
               <Loader2 className="h-3 w-3 animate-spin" />
-              {STAGE_LABEL[sync.stage]}
+              {STAGE_LABEL[stage]}
             </div>
             <p className="text-muted-foreground">{sync.message}</p>
+            <p className="text-muted-foreground tabular-nums">
+              {stageTotals.processed.toLocaleString()} processed
+              {stageTotals.imported > 0 && ` · ${stageTotals.imported.toLocaleString()} imported`}
+              {stageTotals.errors > 0 && ` · ${stageTotals.errors.toLocaleString()} error(s)`}
+            </p>
           </div>
         )}
 

@@ -36,6 +36,10 @@ verify_jwt = false
 [functions.sf-import-attachments]
 verify_jwt = false
 
+[functions.sf-import-orphan-files]
+verify_jwt = false
+
+
 [functions.fix-photo-content-types]
 verify_jwt = false
 [functions.sf-link-missing-patients]

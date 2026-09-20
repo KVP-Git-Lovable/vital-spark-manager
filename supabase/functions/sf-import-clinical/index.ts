@@ -516,7 +516,8 @@ async function syncPatient(
       d.Advice__c && `Advice: ${d.Advice__c}`,
       d.Dietary_Advice__c && `Dietary Advice: ${d.Dietary_Advice__c}`,
       d.History__c && `History: ${d.History__c}`,
-      d.Required_Lab_Test_s__c && `Lab Tests: ${d.Required_Lab_Test_s__c}`,
+      // Lab tests now have their own column (and print on the prescription),
+      // so they are no longer folded into the consultation notes blob.
       d.Payment_Instruction__c && `Payment Instruction: ${d.Payment_Instruction__c}`,
       d.Consultation_Fee__c ? `Consultation Fee: ₹${d.Consultation_Fee__c}` : null,
     ].filter(Boolean);
@@ -537,6 +538,7 @@ async function syncPatient(
       staff_id: d.Appointment__c ? doctorFor(apptDoctorBySfId.get(d.Appointment__c) || null) : null,
       diagnosis: [d.Diagnosis__c, d.Diagnoses__c].filter(Boolean).join("\n") || null,
       symptoms,
+      lab_tests: d.Required_Lab_Test_s__c || null,
       procedure_notes: d.Prescription__c || null,
       consultation_notes: consultationParts.length ? consultationParts.join("\n") : null,
       recommendations: d.Special_Instructions__c || null,

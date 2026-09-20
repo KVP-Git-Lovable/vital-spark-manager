@@ -1034,7 +1034,7 @@ export function ProcedureFormDialog({
             </div>
             <div>
               <Label>Primary Concern</Label>
-              <Popover>
+              <Popover modal>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full mt-1.5 justify-start font-normal h-10">
                     {selectedProblemAreas.length === 0
@@ -1091,7 +1091,7 @@ export function ProcedureFormDialog({
                     </Button>
                   )}
                 </div>
-                <Popover>
+                <Popover modal>
                   <PopoverTrigger asChild>
                     <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
                       <span className="truncate">{line.name || "Select service"}</span>

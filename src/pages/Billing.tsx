@@ -2256,7 +2256,7 @@ const Billing = () => {
                 {serviceInputs.map((s, i) => (
                   <div key={i} className="mb-2">
                     <div className="flex gap-2 items-center">
-                      <Popover open={serviceSearchOpen === i} onOpenChange={(open) => setServiceSearchOpen(open ? i : null)}>
+                      <Popover modal open={serviceSearchOpen === i} onOpenChange={(open) => setServiceSearchOpen(open ? i : null)}>
                         <PopoverTrigger asChild>
                           <Button variant="outline" role="combobox" className="w-full justify-between font-normal h-10">
                             {s.service_id === OTHERS_VALUE

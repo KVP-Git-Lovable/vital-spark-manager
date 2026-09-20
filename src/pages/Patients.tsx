@@ -258,7 +258,7 @@ const Patients = () => {
   const isRecentView = activeView?.id === RECENT_VIEW_ID;
   const needsClientRows = !isAllView || display === "kanban" || display === "split";
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, isFetching, refetch, error: pageError } = useQuery({
     queryKey: ["patients", page, debouncedSearch],
     queryFn: () => fetchPatientsPage(page, debouncedSearch),
     placeholderData: keepPreviousData,
@@ -270,12 +270,14 @@ const Patients = () => {
     isLoading: viewLoading,
     isFetching: viewFetching,
     refetch: refetchAll,
+    error: allError,
   } = useQuery({
     queryKey: ["patients-all", debouncedSearch],
     queryFn: () => fetchAllPatients(debouncedSearch),
     placeholderData: keepPreviousData,
     enabled: needsClientRows,
   });
+
 
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff-active-list"],

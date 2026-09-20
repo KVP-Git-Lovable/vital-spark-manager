@@ -52,6 +52,8 @@ import { usePatientAvatars } from "@/hooks/usePatientAvatars";
 import { useEngagementScores } from "@/hooks/useEngagementScores";
 import { buildOrFilter, buildFuzzyOrFilter, fuzzyRank } from "@/lib/fuzzySearch";
 import type { Tables } from "@/integrations/supabase/types";
+import { QueryTimeoutNotice } from "@/components/shared/QueryTimeoutNotice";
+
 
 type Patient = Tables<"patients">;
 

@@ -196,11 +196,17 @@ export const REPORTS: ReportConfig[] = [
       fetchPage: async ({ page, from, to, search, selects }) => {
         const fromIdx = (page - 1) * 50;
         const toIdx = fromIdx + 49;
+        // Exact counts scan every matching patient row and were timing out; an
+        // estimate is enough to drive the pager.
+        const counting = search?.trim() || from || to || selects?.source || selects?.status || selects?.doctor
+          ? "estimated"
+          : "planned";
         let q = supabase
           .from("patients")
-          .select("*", { count: "exact" })
+          .select("*", { count: counting })
           .order("created_at", { ascending: false })
           .range(fromIdx, toIdx);
+
         if (from) q = q.gte("created_at", from);
         if (to) q = q.lte("created_at", to);
         if (selects?.source) q = q.eq("source", selects.source);

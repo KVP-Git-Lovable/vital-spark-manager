@@ -81,6 +81,8 @@ import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { MicButton } from "@/components/shared/MicButton";
 import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
+import { QueryTimeoutNotice } from "@/components/shared/QueryTimeoutNotice";
+
 
 // Lazy: pulls in recharts, kept out of the main bundle until a user actually opens Charts.
 const ViewChartsPanel = lazy(() => import("@/components/listViews/ViewChartsPanel"));
@@ -642,7 +644,7 @@ const Appointments = () => {
     sortDirection,
   ];
 
-  const { data: apptPageData } = useQuery({
+  const { data: apptPageData, error: apptPageError, refetch: refetchApptPage } = useQuery({
     queryKey: apptPageQueryKey,
     queryFn: () =>
       fetchAppointmentsPage({
@@ -2026,7 +2028,12 @@ const Appointments = () => {
         </div>
       </div>
 
+      {view === "table" && apptPageError && (
+        <QueryTimeoutNotice error={apptPageError} onRetry={() => refetchApptPage()} className="mb-4" />
+      )}
+
       {view === "table" && (
+
         <div className="mb-4">
           <ViewBar
             views={allViews}

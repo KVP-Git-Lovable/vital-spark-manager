@@ -52,6 +52,8 @@ import { usePatientAvatars } from "@/hooks/usePatientAvatars";
 import { useEngagementScores } from "@/hooks/useEngagementScores";
 import { buildOrFilter, buildFuzzyOrFilter, fuzzyRank } from "@/lib/fuzzySearch";
 import type { Tables } from "@/integrations/supabase/types";
+import { QueryTimeoutNotice } from "@/components/shared/QueryTimeoutNotice";
+
 
 type Patient = Tables<"patients">;
 
@@ -88,9 +90,12 @@ const fetchPatientsPage = async (
   const term = search.trim();
   const cols = ["first_name", "last_name", "email", "phone"];
 
+  // Exact counts over 23k+ patients combined with leading-wildcard ILIKE are what
+  // was getting cancelled by the database. Unfiltered pages use a planned count
+  // (fast, from statistics); searches count only the bounded result set.
   let q = supabase
     .from("patients")
-    .select("*", { count: "exact" })
+    .select("*", { count: term ? "estimated" : "planned" })
     .order("created_at", { ascending: false })
     .range(fromIdx, toIdx);
 
@@ -105,25 +110,27 @@ const fetchPatientsPage = async (
       // Step 1: Exact match (case-insensitive but whole word)
       const { data: exactMatch } = await supabase
         .from("patients")
-        .select("*", { count: "exact" })
+        .select("*")
         .ilike("first_name", firstName)
         .ilike("last_name", lastName)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(fromIdx, toIdx);
 
       if (exactMatch && exactMatch.length > 0) {
-        return { rows: (exactMatch as Patient[]), total: exactMatch.length };
+        return { rows: (exactMatch as Patient[]), total: fromIdx + exactMatch.length };
       }
 
       // Step 2: Prefix match (first_name starts with token AND last_name starts with lastName)
       const { data: prefixMatch } = await supabase
         .from("patients")
-        .select("*", { count: "exact" })
+        .select("*")
         .ilike("first_name", `${firstName}%`)
         .ilike("last_name", `${lastName}%`)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(fromIdx, toIdx);
 
       if (prefixMatch && prefixMatch.length > 0) {
-        return { rows: (prefixMatch as Patient[]), total: prefixMatch.length };
+        return { rows: (prefixMatch as Patient[]), total: fromIdx + prefixMatch.length };
       }
     } else if (tokens.length === 1) {
       // Single word: try exact match first
@@ -132,12 +139,13 @@ const fetchPatientsPage = async (
       // Step 1: Exact match
       const { data: exactMatch } = await supabase
         .from("patients")
-        .select("*", { count: "exact" })
+        .select("*")
         .or(`first_name.ilike.${token},last_name.ilike.${token}`)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(fromIdx, toIdx);
 
       if (exactMatch && exactMatch.length > 0) {
-        return { rows: (exactMatch as Patient[]), total: exactMatch.length };
+        return { rows: (exactMatch as Patient[]), total: fromIdx + exactMatch.length };
       }
 
       // Step 2: Prefix match (starts with the term)
@@ -163,7 +171,7 @@ const fetchPatientsPage = async (
 
   // Typo-tolerant fallback: nothing matched literally, so pull a loose candidate
   // set (matching the first few letters) and rank it by fuzzy similarity.
-  if (term && (count ?? 0) === 0) {
+  if (term && (data?.length ?? 0) === 0) {
     const looseOr = buildFuzzyOrFilter(term, ["first_name", "last_name"]);
     if (looseOr) {
       const { data: loose } = await supabase
@@ -180,8 +188,9 @@ const fetchPatientsPage = async (
       return { rows: ranked.slice(0, PAGE_SIZE), total: ranked.length };
     }
   }
-  return { rows: (data as Patient[]) || [], total: count ?? 0 };
+  return { rows: (data as Patient[]) || [], total: count ?? (data?.length ?? 0) };
 };
+
 
 const fetchAllPatients = async (search: string): Promise<Patient[]> => {
   const term = search.trim();
@@ -251,7 +260,7 @@ const Patients = () => {
   const isRecentView = activeView?.id === RECENT_VIEW_ID;
   const needsClientRows = !isAllView || display === "kanban" || display === "split";
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, isFetching, refetch, error: pageError } = useQuery({
     queryKey: ["patients", page, debouncedSearch],
     queryFn: () => fetchPatientsPage(page, debouncedSearch),
     placeholderData: keepPreviousData,
@@ -263,12 +272,14 @@ const Patients = () => {
     isLoading: viewLoading,
     isFetching: viewFetching,
     refetch: refetchAll,
+    error: allError,
   } = useQuery({
     queryKey: ["patients-all", debouncedSearch],
     queryFn: () => fetchAllPatients(debouncedSearch),
     placeholderData: keepPreviousData,
     enabled: needsClientRows,
   });
+
 
   const { data: staffList = [] } = useQuery({
     queryKey: ["staff-active-list"],
@@ -301,6 +312,8 @@ const Patients = () => {
   const loading = needsClientRows ? viewLoading : isLoading;
   const fetching = needsClientRows ? viewFetching : isFetching;
   const reloadPatients = () => (needsClientRows ? refetchAll() : refetch());
+  const listError = needsClientRows ? allError : pageError;
+
 
   const patientIds = paged.map((p) => p.id);
   const { data: engagementScores = {} } = useEngagementScores(patientIds);
@@ -508,6 +521,12 @@ const Patients = () => {
           onToggleFilters={() => { setFiltersOpen((o) => !o); setChartsOpen(false); }}
         />
       </div>
+
+      {listError && (
+        <QueryTimeoutNotice error={listError} onRetry={() => reloadPatients()} className="mb-4" />
+      )}
+
+
 
       <div className="flex flex-col items-start gap-4 lg:flex-row">
       <motion.div

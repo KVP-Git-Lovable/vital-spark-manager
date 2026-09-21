@@ -69,6 +69,10 @@ export const PATIENT_FIELDS: FieldDef[] = [
   { key: "engagement_retention_signal", label: "Engagement - Retention Signal", type: "number" },
   { key: "engagement_compliance", label: "Engagement - Compliance", type: "number" },
   { key: "engagement_updated_at", label: "Engagement Updated", type: "date" },
+  // What the clinic means by "when did this person become a patient". created_at
+  // answers a different question - when the row was loaded here - and for 98% of
+  // patients that is one of three bulk-import dates.
+  { key: "registered_at", label: "Registered", type: "date" },
   { key: "created_at", label: "Created Date", type: "date" },
   { key: "updated_at", label: "Last Modified", type: "date" },
 ];
@@ -78,7 +82,7 @@ export const PATIENT_FIELDS: FieldDef[] = [
 // the best-filled remaining field at ~61%, and next to Phone it makes the row a
 // complete contact card. Skin Type stays in PATIENT_FIELDS above, so a saved
 // view can still add it back.
-export const DEFAULT_VIEW_COLUMNS = ["full_name", "phone", "email", "status", "created_at"];
+export const DEFAULT_VIEW_COLUMNS = ["full_name", "phone", "email", "status", "registered_at"];
 
 export function fieldDef(key: string): FieldDef | undefined {
   return fieldDefIn(PATIENT_FIELDS, key);

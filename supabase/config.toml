@@ -54,3 +54,6 @@ verify_jwt = false
 # JWT, so running it from the dashboard or a server still works.
 [functions.sf-import-all-patients]
 verify_jwt = true
+
+[functions.sf-backfill-registered-at]
+verify_jwt = true

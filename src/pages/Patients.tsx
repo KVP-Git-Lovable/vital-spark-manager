@@ -98,7 +98,7 @@ const fetchPatientsPage = async (
   let q = supabase
     .from("patients")
     .select("*", { count: term ? "estimated" : "planned" })
-    .order("created_at", { ascending: false })
+    .order("registered_at", { ascending: false })
     .range(fromIdx, toIdx);
 
   if (term) {
@@ -115,7 +115,7 @@ const fetchPatientsPage = async (
         .select("*")
         .ilike("first_name", firstName)
         .ilike("last_name", lastName)
-        .order("created_at", { ascending: false })
+        .order("registered_at", { ascending: false })
         .range(fromIdx, toIdx);
 
       if (exactMatch && exactMatch.length > 0) {
@@ -128,7 +128,7 @@ const fetchPatientsPage = async (
         .select("*")
         .ilike("first_name", `${firstName}%`)
         .ilike("last_name", `${lastName}%`)
-        .order("created_at", { ascending: false })
+        .order("registered_at", { ascending: false })
         .range(fromIdx, toIdx);
 
       if (prefixMatch && prefixMatch.length > 0) {
@@ -143,7 +143,7 @@ const fetchPatientsPage = async (
         .from("patients")
         .select("*")
         .or(`first_name.ilike.${token},last_name.ilike.${token}`)
-        .order("created_at", { ascending: false })
+        .order("registered_at", { ascending: false })
         .range(fromIdx, toIdx);
 
       if (exactMatch && exactMatch.length > 0) {
@@ -155,7 +155,7 @@ const fetchPatientsPage = async (
         .from("patients")
         .select("*")
         .or(`first_name.ilike.${token}%,last_name.ilike.${token}%`)
-        .order("created_at", { ascending: false })
+        .order("registered_at", { ascending: false })
         .limit(PAGE_SIZE);
 
       if (prefixMatch && prefixMatch.length > 0) {
@@ -199,7 +199,7 @@ const fetchAllPatients = async (search: string): Promise<Patient[]> => {
   let q = supabase
     .from("patients")
     .select("*")
-    .order("created_at", { ascending: false })
+    .order("registered_at", { ascending: false })
     .limit(2000);
   if (term) {
     const or = buildOrFilter(term, ["first_name", "last_name", "email", "phone"]);

@@ -15,6 +15,17 @@ describe("Patients list default columns", () => {
     expect(cols.indexOf("email")).toBe(cols.indexOf("phone") + 1);
   });
 
+  it("dates the row by when the patient registered, not when we imported them", () => {
+    // created_at is an import date for 98% of patients - 17,242 of them share
+    // one - so as a column it says nothing true about the patient.
+    expect(DEFAULT_VIEW_COLUMNS).toContain("registered_at");
+    expect(DEFAULT_VIEW_COLUMNS).not.toContain("created_at");
+  });
+
+  it("keeps Created Date available, since it is still the truth about the row", () => {
+    expect(PATIENT_FIELDS.map((f) => f.key)).toContain("created_at");
+  });
+
   it("keeps Skin Type available, so a saved view can still add it back", () => {
     expect(PATIENT_FIELDS.map((f) => f.key)).toContain("skin_type");
   });

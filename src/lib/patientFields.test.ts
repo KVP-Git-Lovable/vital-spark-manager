@@ -15,15 +15,18 @@ describe("Patients list default columns", () => {
     expect(cols.indexOf("email")).toBe(cols.indexOf("phone") + 1);
   });
 
-  it("dates the row by when the patient registered, not when we imported them", () => {
-    // created_at is an import date for 98% of patients - 17,242 of them share
-    // one - so as a column it says nothing true about the patient.
-    expect(DEFAULT_VIEW_COLUMNS).toContain("registered_at");
+  it("dates the row by when the patient was last seen", () => {
+    // Leading with the most recently seen patients is what stops the top of the
+    // list reading blank: a newest-registered sort shows the least-complete
+    // records first, whatever column sits beside them.
+    expect(DEFAULT_VIEW_COLUMNS).toContain("last_visit_date");
     expect(DEFAULT_VIEW_COLUMNS).not.toContain("created_at");
   });
 
-  it("keeps Created Date available, since it is still the truth about the row", () => {
-    expect(PATIENT_FIELDS.map((f) => f.key)).toContain("created_at");
+  it("keeps Created Date and Registered available, both still true about the row", () => {
+    const keys = PATIENT_FIELDS.map((f) => f.key);
+    expect(keys).toContain("created_at");
+    expect(keys).toContain("registered_at");
   });
 
   it("keeps Skin Type available, so a saved view can still add it back", () => {

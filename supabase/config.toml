@@ -60,3 +60,6 @@ verify_jwt = true
 
 [functions.sf-refresh-patient-names]
 verify_jwt = true
+
+[functions.sf-describe-patient-fields]
+verify_jwt = true

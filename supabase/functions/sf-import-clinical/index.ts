@@ -20,6 +20,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { procedureServiceName, awaitingRealService, NO_SERVICE_RECORDED } from "./serviceName.ts";
+import { procedureDate } from "./procedureDate.ts";
 import { isPureConsultation, billLineName } from "./consultation.ts";
 import { recentTargetQueries, mergePatientIds } from "./recentTargets.ts";
 import { describeSfFailure } from "./sfError.ts";
@@ -316,12 +317,22 @@ async function syncPatient(
   const apptIdMap = new Map<string, string>();
   existingApptRows.forEach((r: any) => apptIdMap.set(r.sf_id, r.id));
 
+  // Salesforce leaves Start_Time__c blank on a scattering of old appointments;
+  // CreatedDate is the only date those carry. One definition, because the
+  // appointment row and the prescription date below must agree on it.
+  const apptStartOf = (a: { Start_Time__c?: string | null; CreatedDate?: string | null }) =>
+    a.Start_Time__c || a.CreatedDate;
+
   // Looked up by billing rows below (Billing__c's Procedure_Type__c fields
   // are frequently blank - falling back to bare "Service" loses real
   // information the linked appointment already has) and by procedure rows
   // further down.
   const apptServiceBySfId = new Map<string, string>();
   const apptDoctorBySfId = new Map<string, string>();
+  // When the visit actually happened, which is the date a prescription linked
+  // to it belongs on - see procedureDate.ts. Salesforce leaves Start_Time__c
+  // empty on some old records, so it falls back the same way mapAppt does.
+  const apptStartBySfId = new Map<string, string>();
   // The raw Investigation text, which is what decides both the bill's line name
   // and whether the visit was a plain consultation (and so GST-exempt).
   const apptInvestigationBySfId = new Map<string, string>();
@@ -333,10 +344,12 @@ async function syncPatient(
     if (a.Doctor_Name__c) apptDoctorBySfId.set(a.Id, String(a.Doctor_Name__c));
     const investigation = a.Investigation__c || a.Description__c;
     if (investigation) apptInvestigationBySfId.set(a.Id, String(investigation));
+    const start = apptStartOf(a);
+    if (start) apptStartBySfId.set(a.Id, String(start));
   });
 
   const mapAppt = (a: any) => {
-    const start = a.Start_Time__c || a.CreatedDate;
+    const start = apptStartOf(a);
     const end = a.End_Time__c || (start ? new Date(new Date(start).getTime() + 5 * 60000).toISOString() : new Date().toISOString());
     // Completed/No Show mean the visit actually happened (or was missed) -
     // never stamp either on an appointment whose start_time hasn't arrived
@@ -530,7 +543,12 @@ async function syncPatient(
     return {
       patient_id: p.lovable_id,
       service_name: String(serviceName).slice(0, 500),
-      procedure_date: d.CreatedDate,
+      // The visit date, not the day the record was typed up. Falls back to
+      // CreatedDate for a prescription with no appointment behind it.
+      procedure_date: procedureDate(
+        d.CreatedDate,
+        d.Appointment__c ? apptStartBySfId.get(d.Appointment__c) : null,
+      ),
       status: "Completed",
       appointment_id: d.Appointment__c ? apptIdMap.get(d.Appointment__c) || null : null,
       // Diagnosis__c carries no doctor field of its own - borrow it from the

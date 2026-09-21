@@ -2233,6 +2233,30 @@ export type Database = {
           },
         ]
       }
+      patients_name_backup_20260921: {
+        Row: {
+          captured_at: string | null
+          first_name: string | null
+          id: string | null
+          last_name: string | null
+          sf_id: string | null
+        }
+        Insert: {
+          captured_at?: string | null
+          first_name?: string | null
+          id?: string | null
+          last_name?: string | null
+          sf_id?: string | null
+        }
+        Update: {
+          captured_at?: string | null
+          first_name?: string | null
+          id?: string | null
+          last_name?: string | null
+          sf_id?: string | null
+        }
+        Relationships: []
+      }
       pharma_bill_items: {
         Row: {
           batch_number: string | null
@@ -3206,6 +3230,96 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      procedures_date_backup_20260921: {
+        Row: {
+          appointment_id: string | null
+          assisted_by: string | null
+          assisted_by_ids: string[] | null
+          cf_test: string | null
+          consultation_notes: string | null
+          created_at: string | null
+          created_by: string | null
+          diagnosis: string | null
+          id: string | null
+          lab_tests: string | null
+          owner_id: string | null
+          patient_id: string | null
+          procedure_date: string | null
+          procedure_notes: string | null
+          recommendations: string | null
+          recurring_count: number | null
+          recurring_dates: string[] | null
+          review_notes: string | null
+          service_name: string | null
+          sf_id: string | null
+          staff_id: string | null
+          status: string | null
+          survey_response_id: string | null
+          symptoms: string | null
+          updated_at: string | null
+          updated_by: string | null
+          visit_type: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          assisted_by?: string | null
+          assisted_by_ids?: string[] | null
+          cf_test?: string | null
+          consultation_notes?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          diagnosis?: string | null
+          id?: string | null
+          lab_tests?: string | null
+          owner_id?: string | null
+          patient_id?: string | null
+          procedure_date?: string | null
+          procedure_notes?: string | null
+          recommendations?: string | null
+          recurring_count?: number | null
+          recurring_dates?: string[] | null
+          review_notes?: string | null
+          service_name?: string | null
+          sf_id?: string | null
+          staff_id?: string | null
+          status?: string | null
+          survey_response_id?: string | null
+          symptoms?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          visit_type?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          assisted_by?: string | null
+          assisted_by_ids?: string[] | null
+          cf_test?: string | null
+          consultation_notes?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          diagnosis?: string | null
+          id?: string | null
+          lab_tests?: string | null
+          owner_id?: string | null
+          patient_id?: string | null
+          procedure_date?: string | null
+          procedure_notes?: string | null
+          recommendations?: string | null
+          recurring_count?: number | null
+          recurring_dates?: string[] | null
+          review_notes?: string | null
+          service_name?: string | null
+          sf_id?: string | null
+          staff_id?: string | null
+          status?: string | null
+          survey_response_id?: string | null
+          symptoms?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          visit_type?: string | null
+        }
+        Relationships: []
       }
       product_prices: {
         Row: {
@@ -4730,6 +4844,7 @@ export type Database = {
           linked: number
         }[]
       }
+      sf_set_patient_name_bulk: { Args: { payload: Json }; Returns: number }
       sf_set_patient_registered_bulk: {
         Args: { payload: Json }
         Returns: number

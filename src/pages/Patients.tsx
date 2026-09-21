@@ -83,18 +83,41 @@ const PICKLIST_OPTIONS: Record<string, { value: string; label: string }[]> = {
   engagement_tier: ENGAGEMENT_TIER_OPTIONS,
 };
 
+interface PatientsPage {
+  rows: Patient[];
+  total: number;
+  /** True when a further page of matches exists. */
+  hasMore: boolean;
+  /** False when `total` is a planner estimate rather than a real count. */
+  exactTotal: boolean;
+}
+
 const fetchPatientsPage = async (
   page: number,
   search: string
-): Promise<{ rows: Patient[]; total: number }> => {
+): Promise<PatientsPage> => {
   const fromIdx = (page - 1) * PAGE_SIZE;
-  const toIdx = fromIdx + PAGE_SIZE - 1;
+  // One row past the page: its presence is how we know a next page exists,
+  // without paying for an exact count.
+  const toIdx = fromIdx + PAGE_SIZE;
   const term = search.trim();
   const cols = ["first_name", "last_name", "email", "phone"];
 
   // Exact counts over 23k+ patients combined with leading-wildcard ILIKE are what
-  // was getting cancelled by the database. Unfiltered pages use a planned count
-  // (fast, from statistics); searches count only the bounded result set.
+  // was getting cancelled by the database, so counts stay approximate and the
+  // pager is driven by the probe row instead.
+  const pageOf = (rows: Patient[] | null | undefined): PatientsPage => {
+    const all = (rows as Patient[]) || [];
+    const hasMore = all.length > PAGE_SIZE;
+    const visible = all.slice(0, PAGE_SIZE);
+    return {
+      rows: visible,
+      total: fromIdx + visible.length,
+      hasMore,
+      exactTotal: !hasMore,
+    };
+  };
+
   let q = supabase
     .from("patients")
     .select("*", { count: term ? "estimated" : "planned" })
@@ -119,7 +142,7 @@ const fetchPatientsPage = async (
         .range(fromIdx, toIdx);
 
       if (exactMatch && exactMatch.length > 0) {
-        return { rows: (exactMatch as Patient[]), total: fromIdx + exactMatch.length };
+        return pageOf(exactMatch as Patient[]);
       }
 
       // Step 2: Prefix match (first_name starts with token AND last_name starts with lastName)
@@ -132,7 +155,7 @@ const fetchPatientsPage = async (
         .range(fromIdx, toIdx);
 
       if (prefixMatch && prefixMatch.length > 0) {
-        return { rows: (prefixMatch as Patient[]), total: fromIdx + prefixMatch.length };
+        return pageOf(prefixMatch as Patient[]);
       }
     } else if (tokens.length === 1) {
       // Single word: try exact match first
@@ -147,19 +170,20 @@ const fetchPatientsPage = async (
         .range(fromIdx, toIdx);
 
       if (exactMatch && exactMatch.length > 0) {
-        return { rows: (exactMatch as Patient[]), total: fromIdx + exactMatch.length };
+        return pageOf(exactMatch as Patient[]);
       }
 
-      // Step 2: Prefix match (starts with the term)
+      // Step 2: Prefix match (starts with the term). Paged like the others, so
+      // a common first name is not capped at a single page of results.
       const { data: prefixMatch } = await supabase
         .from("patients")
         .select("*")
         .or(`first_name.ilike.${token}%,last_name.ilike.${token}%`)
         .order("registered_at", { ascending: false })
-        .limit(PAGE_SIZE);
+        .range(fromIdx, toIdx);
 
       if (prefixMatch && prefixMatch.length > 0) {
-        return { rows: (prefixMatch as Patient[]), total: prefixMatch.length };
+        return pageOf(prefixMatch as Patient[]);
       }
     }
 
@@ -187,10 +211,25 @@ const fetchPatientsPage = async (
         (p) => `${p.first_name || ""} ${p.last_name || ""} ${p.phone || ""} ${p.email || ""}`,
         0.55
       );
-      return { rows: ranked.slice(0, PAGE_SIZE), total: ranked.length };
+      return {
+        rows: ranked.slice(fromIdx, fromIdx + PAGE_SIZE),
+        total: ranked.length,
+        hasMore: ranked.length > fromIdx + PAGE_SIZE,
+        exactTotal: true,
+      };
     }
   }
-  return { rows: (data as Patient[]) || [], total: count ?? (data?.length ?? 0) };
+  const fetched = (data as Patient[]) || [];
+  const hasMore = fetched.length > PAGE_SIZE;
+  const visible = fetched.slice(0, PAGE_SIZE);
+  return {
+    rows: visible,
+    // A search count is a planner estimate; an unfiltered list keeps the
+    // planned table total, which is accurate enough for "of N".
+    total: term ? Math.max(count ?? 0, fromIdx + visible.length) : count ?? visible.length,
+    hasMore,
+    exactTotal: !term || !hasMore,
+  };
 };
 
 
@@ -310,7 +349,13 @@ const Patients = () => {
     : data?.rows ?? [];
   const total = needsClientRows ? viewRows.length : data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
+  // Server-paged results carry an approximate total, so the page number must
+  // not be clamped against it and "Next" follows the probe row instead.
+  const currentPage = needsClientRows ? Math.min(page, totalPages) : page;
+  const exactTotal = needsClientRows ? true : data?.exactTotal ?? true;
+  const hasMore = needsClientRows
+    ? currentPage * PAGE_SIZE < total
+    : data?.hasMore ?? false;
   const loading = needsClientRows ? viewLoading : isLoading;
   const fetching = needsClientRows ? viewFetching : isFetching;
   const reloadPatients = () => (needsClientRows ? refetchAll() : refetch());
@@ -700,10 +745,12 @@ const Patients = () => {
           <span>
             {isBoard
               ? `Showing ${total.toLocaleString()} records`
-              : `Showing ${total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, total)} of ${total.toLocaleString()}`}
+              : exactTotal
+                ? `Showing ${paged.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–${(currentPage - 1) * PAGE_SIZE + paged.length} of ${total.toLocaleString()}`
+                : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${(currentPage - 1) * PAGE_SIZE + paged.length}`}
             {fetching && !loading ? " · loading…" : ""}
           </span>
-          {!isBoard && totalPages > 1 && (
+          {!isBoard && (hasMore || currentPage > 1) && (
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -714,13 +761,13 @@ const Patients = () => {
                 Previous
               </Button>
               <span className="text-xs">
-                Page {currentPage} of {totalPages}
+                {exactTotal ? `Page ${currentPage} of ${totalPages}` : `Page ${currentPage}`}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                disabled={currentPage >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={!hasMore}
+                onClick={() => setPage((p) => p + 1)}
               >
                 Next
               </Button>

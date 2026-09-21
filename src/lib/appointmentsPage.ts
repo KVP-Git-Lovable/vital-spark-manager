@@ -20,6 +20,12 @@ export interface FetchAppointmentsPageParams {
 export interface AppointmentsPageResult {
   rows: any[];
   total: number;
+  /**
+   * True when at least one more row exists after this page. Derived by asking
+   * for one row beyond the page, so paging stays correct even though `total`
+   * is a planner estimate rather than an exact count.
+   */
+  hasMore: boolean;
 }
 
 /**
@@ -114,8 +120,12 @@ export async function fetchAppointmentsPage({
   }
 
   const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  // One row past the page: its presence is what tells the caller a next page
+  // exists. The estimated count cannot be trusted for that.
+  const to = from + pageSize;
   const { data, error, count } = await q.range(from, to);
   if (error) throw error;
-  return { rows: data || [], total: count || 0 };
+  const fetched = data || [];
+  const hasMore = fetched.length > pageSize;
+  return { rows: fetched.slice(0, pageSize), total: count || 0, hasMore };
 }

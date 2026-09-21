@@ -349,7 +349,13 @@ const Patients = () => {
     : data?.rows ?? [];
   const total = needsClientRows ? viewRows.length : data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
+  // Server-paged results carry an approximate total, so the page number must
+  // not be clamped against it and "Next" follows the probe row instead.
+  const currentPage = needsClientRows ? Math.min(page, totalPages) : page;
+  const exactTotal = needsClientRows ? true : data?.exactTotal ?? true;
+  const hasMore = needsClientRows
+    ? currentPage * PAGE_SIZE < total
+    : data?.hasMore ?? false;
   const loading = needsClientRows ? viewLoading : isLoading;
   const fetching = needsClientRows ? viewFetching : isFetching;
   const reloadPatients = () => (needsClientRows ? refetchAll() : refetch());

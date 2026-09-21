@@ -37,8 +37,16 @@ import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { OTHERS_VALUE } from "@/lib/othersOption";
+import { partitionVisitMedia } from "@/lib/visitMedia";
+import type { Tables } from "@/integrations/supabase/types";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+// The busiest patient has 310 photos; this is a guard, not a limit anyone
+// is expected to hit.
+const MAX_PATIENT_MEDIA = 500;
+
+type PatientPhoto = Tables<"patient_photos">;
+type ProcedureAttachment = Tables<"procedure_attachments">;
 const statusOptions = ["Completed", "In Progress", "Cancelled"];
 // patients.skin_type has a DB check constraint restricting it to these
 // exact values - must stay a dropdown, not free text, or saving fails.
@@ -97,6 +105,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   }, [procedureId]);
 
   const [cameraOpen, setCameraOpen] = useState(false);
+  // A patient's images from their other visits stay one click away rather than
+  // on screen by default - the busiest patient has 310 of them.
+  const [showOtherPhotos, setShowOtherPhotos] = useState(false);
+  const [showOtherAttachments, setShowOtherAttachments] = useState(false);
 
   const [initialized, setInitialized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -262,27 +274,52 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
 
 
-  const { data: photos = [] } = useQuery({
-    queryKey: ["procedure-photos", procedureId],
+  // By patient, then split - see src/lib/visitMedia.ts. Asking for
+  // procedure_id alone returned nothing for every imported patient, because the
+  // Salesforce import kept only the patient link.
+  const { data: allPhotos = [] } = useQuery({
+    queryKey: ["patient-photos", "procedure", procedure?.patient_id],
     queryFn: async () => {
-      if (!procedureId) return [];
-      const { data, error } = await supabase.from("patient_photos").select("*").eq("procedure_id", procedureId).order("taken_at", { ascending: false });
+      if (!procedure?.patient_id) return [];
+      const { data, error } = await supabase
+        .from("patient_photos")
+        .select("*")
+        .eq("patient_id", procedure.patient_id)
+        .order("taken_at", { ascending: false })
+        .limit(MAX_PATIENT_MEDIA);
       if (error) throw error;
       return data;
     },
-    enabled: !!procedureId,
+    enabled: !!procedure?.patient_id,
   });
 
-  const { data: attachments = [], refetch: refetchAttachments } = useQuery({
-    queryKey: ["procedure-attachments", procedureId],
+  const { data: allAttachments = [], refetch: refetchAttachments } = useQuery({
+    queryKey: ["patient-attachments-for-procedure", procedure?.patient_id],
     queryFn: async () => {
-      if (!procedureId) return [];
-      const { data, error } = await supabase.from("procedure_attachments").select("*").eq("procedure_id", procedureId).order("created_at", { ascending: false });
+      if (!procedure?.patient_id) return [];
+      const { data, error } = await supabase
+        .from("procedure_attachments")
+        .select("*")
+        .eq("patient_id", procedure.patient_id)
+        .order("created_at", { ascending: false })
+        .limit(MAX_PATIENT_MEDIA);
       if (error) throw error;
       return data;
     },
-    enabled: !!procedureId,
+    enabled: !!procedure?.patient_id,
   });
+
+  // What this visit is, for deciding which images are its own.
+  const visitRef = {
+    procedureId: procedureId || null,
+    appointmentId: (procedure as any)?.appointment_id || null,
+    date: (procedure as any)?.procedure_date || null,
+  };
+  const { thisVisit: photos, otherVisits: otherPhotos } = partitionVisitMedia<PatientPhoto>(allPhotos, visitRef);
+  const { thisVisit: attachments, otherVisits: otherAttachments } = partitionVisitMedia<ProcedureAttachment>(
+    allAttachments,
+    visitRef,
+  );
 
   const { data: products = [] } = useQuery({
     queryKey: ["pharma-products-lookup"],
@@ -1023,14 +1060,39 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   </div>
                   {photos.length > 0 ? (
                     <div className="grid grid-cols-3 gap-2">
-                      {photos.map((photo: any) => (
-                        <div key={photo.id} className="relative group">
-                          <img src={photo.photo_url} alt="" className="w-full h-24 object-cover rounded-lg border" />
-                        </div>
+                      {photos.map((photo) => (
+                        <a key={photo.id} href={photo.photo_url} target="_blank" rel="noopener noreferrer" className="relative group">
+                          <img src={photo.photo_url} alt="" loading="lazy" className="w-full h-24 object-cover rounded-lg border" />
+                        </a>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">No photos yet.</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      {otherPhotos.length > 0 ? "No photos from this visit." : "No photos yet."}
+                    </p>
+                  )}
+                  {otherPhotos.length > 0 && (
+                    <div className="mt-4 border-t pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowOtherPhotos((v) => !v)}
+                        className="text-sm text-primary hover:underline"
+                      >
+                        {showOtherPhotos ? "Hide" : "Show"} {otherPhotos.length} photo{otherPhotos.length === 1 ? "" : "s"} from this patient&apos;s other visits
+                      </button>
+                      {showOtherPhotos && (
+                        <div className="grid grid-cols-3 gap-2 mt-3">
+                          {otherPhotos.map((photo) => (
+                            <a key={photo.id} href={photo.photo_url} target="_blank" rel="noopener noreferrer" className="relative group">
+                              <img src={photo.photo_url} alt="" loading="lazy" className="w-full h-24 object-cover rounded-lg border" />
+                              <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] text-center py-0.5 rounded-b-lg">
+                                {photo.taken_at ? format(new Date(photo.taken_at), "dd/MM/yyyy") : "No date"}
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -1059,7 +1121,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   />
                   {attachments.length > 0 ? (
                     <div className="space-y-2">
-                      {attachments.map((att: any) => (
+                      {attachments.map((att) => (
                         <div key={att.id} className="flex items-center gap-2 bg-muted/50 rounded-md p-2">
                           <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <div className="flex-1 min-w-0">
@@ -1068,7 +1130,13 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                             </a>
                             {att.notes && <p className="text-xs text-muted-foreground">{att.notes}</p>}
                             <p className="text-[10px] text-muted-foreground">
-                              Linked to patient &amp; {att.appointment_id ? "appointment" : "procedure"}
+                              {att.procedure_id
+                                ? "Linked to this prescription"
+                                : att.appointment_id
+                                  ? "Linked to the appointment"
+                                  : att.created_at
+                                    ? `Imported \u2014 ${format(new Date(att.created_at), "dd/MM/yyyy")}`
+                                    : "Imported"}
                             </p>
                           </div>
                           <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => deleteAttachment(att.id)}>
@@ -1078,7 +1146,37 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground text-center py-2">No attachments yet.</p>
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      {otherAttachments.length > 0 ? "No attachments from this visit." : "No attachments yet."}
+                    </p>
+                  )}
+                  {otherAttachments.length > 0 && (
+                    <div className="mt-3 border-t pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowOtherAttachments((v) => !v)}
+                        className="text-sm text-primary hover:underline"
+                      >
+                        {showOtherAttachments ? "Hide" : "Show"} {otherAttachments.length} document{otherAttachments.length === 1 ? "" : "s"} from this patient&apos;s other visits
+                      </button>
+                      {showOtherAttachments && (
+                        <div className="space-y-2 mt-3">
+                          {otherAttachments.map((att) => (
+                            <div key={att.id} className="flex items-center gap-2 bg-muted/30 rounded-md p-2">
+                              <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline truncate block">
+                                  {att.file_name}
+                                </a>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {att.created_at ? format(new Date(att.created_at), "dd/MM/yyyy") : "No date"}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 

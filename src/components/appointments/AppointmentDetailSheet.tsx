@@ -501,7 +501,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       const { error } = await supabase.from("patient_photos").delete().eq("id", photo.id);
       if (error) throw error;
       toast.success("Photo deleted");
-      queryClient.invalidateQueries({ queryKey: ["appointment-photos"] });
+      queryClient.invalidateQueries({ queryKey: ["patient-photos"] });
     } catch (err: any) {
       toast.error(err.message || "Failed to delete photo");
     }
@@ -721,7 +721,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   };
 
   const { data: photos = [] } = useQuery({
-    queryKey: ["appointment-photos", appointmentId, appointment?.patient_id],
+    queryKey: ["patient-photos", "appointment", appointmentId, appointment?.patient_id],
     queryFn: async () => {
       if (!appointment?.patient_id) return [];
       const { data, error } = await supabase

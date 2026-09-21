@@ -77,12 +77,15 @@ export const PATIENT_FIELDS: FieldDef[] = [
   { key: "updated_at", label: "Last Modified", type: "date" },
 ];
 
-// Skin Type used to sit here, but it is an app-only field that nothing fills:
-// all 27,081 patients have it blank, so it rendered a column of dashes. Email is
-// the best-filled remaining field at ~61%, and next to Phone it makes the row a
-// complete contact card. Skin Type stays in PATIENT_FIELDS above, so a saved
-// view can still add it back.
-export const DEFAULT_VIEW_COLUMNS = ["full_name", "phone", "email", "status", "registered_at"];
+// Ordered and dated by last visit, not by when the record was created. A
+// newest-first list shows the least-complete records first - a patient who
+// registered today has nothing filled in yet - which is why Skin Type, then the
+// visit count, then Email each looked blank at the top in turn. Leading with the
+// most recently seen patients puts established records first instead: across the
+// top 100 rows that moves Email from 3% filled to 39%, and every row has a real
+// visit history. Skin Type and Created Date both stay in PATIENT_FIELDS above,
+// so a saved view can add either back.
+export const DEFAULT_VIEW_COLUMNS = ["full_name", "phone", "email", "status", "last_visit_date"];
 
 export function fieldDef(key: string): FieldDef | undefined {
   return fieldDefIn(PATIENT_FIELDS, key);

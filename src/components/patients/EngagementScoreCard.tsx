@@ -180,7 +180,10 @@ export const EngagementScoreCard = ({ patientId }: { patientId: string }) => {
         {/* Always-visible stats row */}
         <div className="flex items-center gap-3 mt-3 pt-2.5 border-t text-xs">
           <div className="text-center flex-1">
-            <p className="text-base font-bold">{data.stats.totalAppointments}</p>
+            {/* Attended, not booked. This counted every appointment, so a patient
+                with nine forward bookings read "10 visits" here against "1" in the
+                engagement card below. The Appts tab still shows the booking count. */}
+            <p className="text-base font-bold">{data.stats.completedAppointments}</p>
             <p className="text-[10px] text-muted-foreground">Visits</p>
           </div>
           <div className="text-center flex-1">

@@ -23,6 +23,7 @@ import {
   formatCell as formatCellGeneric,
   computeChartData as computeChartDataGeneric,
 } from "@/lib/listViews/engine";
+import { daysSinceVisit } from "@/lib/visitStats";
 
 export type {
   FieldType, FieldDef, FilterCondition, ViewFilters, ChartType, AggregateType,
@@ -125,6 +126,9 @@ export function rawValue(row: any, key: string): unknown {
   if (!row) return null;
   if (key === "full_name") return `${row.first_name || ""} ${row.last_name || ""}`.trim();
   if (key === "age") return patientAge(row.date_of_birth);
+  // Worked out on read, like age: the stored column is a snapshot of a figure
+  // that changes daily, so it is wrong for all but a handful of patients.
+  if (key === "days_since_last_visit") return daysSinceVisit(row.last_visit_date);
   return row[key];
 }
 

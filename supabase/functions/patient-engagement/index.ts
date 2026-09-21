@@ -1,5 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// What counts as a visit: an appointment the patient turned up to. Mirrors
+// VISIT_STATUSES in src/lib/visitStats.ts - Deno cannot import from the browser
+// bundle, so the list is repeated here on purpose. Keep the two in step.
+const VISIT_STATUSES = ["Completed", "Checked-in", "In Progress"];
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -46,10 +51,19 @@ Deno.serve(async (req) => {
 
       // --- Visit Frequency (30%) ---
       const totalApts = patientApts.length;
-      const completedApts = patientApts.filter((a) => a.status === "Completed" || a.status === "Checked-in").length;
-      const aptDates = patientApts.map((a) => new Date(a.start_time).getTime()).sort((a, b) => b - a);
+      const completedApts = patientApts.filter((a) => VISIT_STATUSES.includes(a.status)).length;
+      // Attended appointments only. This took the newest of ALL of them, so a
+      // booking still in the future became the patient's "last visit" and
+      // days-since came out negative - one patient page read "-32". lastVisitDate
+      // below already filtered; these two disagreed on the same record.
+      const aptDates = patientApts
+        .filter((a) => VISIT_STATUSES.includes(a.status))
+        .map((a) => new Date(a.start_time).getTime())
+        .sort((a, b) => b - a);
       const lastVisitMs = aptDates.length > 0 ? aptDates[0] : 0;
-      const daysSinceLastVisit = lastVisitMs > 0 ? (now - lastVisitMs) / (1000 * 60 * 60 * 24) : 999;
+      // Floored at 0: an appointment marked attended ahead of time means nobody
+      // has been in since, which is 0 days, not a negative count.
+      const daysSinceLastVisit = lastVisitMs > 0 ? Math.max(0, (now - lastVisitMs) / (1000 * 60 * 60 * 24)) : 999;
 
       let visitScore = 0;
       // Frequency component (up to 40 pts of 100 sub-score)
@@ -170,7 +184,7 @@ Deno.serve(async (req) => {
           daysSinceLastVisit: Math.round(daysSinceLastVisit),
           lastVisitDate: (() => {
             const completedDates = patientApts
-              .filter((a) => a.status === "Completed")
+              .filter((a) => VISIT_STATUSES.includes(a.status))
               .map((a) => a.start_time)
               .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
             return completedDates.length > 0 ? completedDates[0] : null;

@@ -8,8 +8,11 @@ describe("Patients list default columns", () => {
     expect(DEFAULT_VIEW_COLUMNS).not.toContain("skin_type");
   });
 
-  it("shows the visit count instead", () => {
-    expect(DEFAULT_VIEW_COLUMNS).toContain("total_visits");
+  it("shows email, the best-filled field left, beside the phone number", () => {
+    expect(DEFAULT_VIEW_COLUMNS).toContain("email");
+    // Next to each other, the two make the row a complete contact card.
+    const cols = DEFAULT_VIEW_COLUMNS;
+    expect(cols.indexOf("email")).toBe(cols.indexOf("phone") + 1);
   });
 
   it("keeps Skin Type available, so a saved view can still add it back", () => {
@@ -22,20 +25,15 @@ describe("Patients list default columns", () => {
   });
 });
 
-describe("Visit count cell", () => {
-  it("prints a zero rather than a dash", () => {
-    // 8,083 patients are registered but have never been in. That is a real
-    // answer and reads differently from "we don't know", so a falsy check here
-    // would misreport a third of the list.
-    expect(formatCell({ total_visits: 0 }, "total_visits")).toBe("0");
+describe("Email cell", () => {
+  it("shows the address when there is one", () => {
+    expect(formatCell({ email: "a@b.com" }, "email")).toBe("a@b.com");
   });
 
-  it("prints the count when there is one", () => {
-    expect(formatCell({ total_visits: 91 }, "total_visits")).toBe("91");
-  });
-
-  it("dashes only when the count is genuinely unknown", () => {
-    expect(formatCell({ total_visits: null }, "total_visits")).toBe("—");
-    expect(formatCell({}, "total_visits")).toBe("—");
+  it("dashes when there is none, rather than printing an empty cell", () => {
+    // ~39% of patients have no email, so this is the common case, not an edge one.
+    expect(formatCell({ email: null }, "email")).toBe("—");
+    expect(formatCell({ email: "" }, "email")).toBe("—");
+    expect(formatCell({}, "email")).toBe("—");
   });
 });

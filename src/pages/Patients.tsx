@@ -63,7 +63,6 @@ const PATIENT_FIELDS = [
   { value: "name", label: "Patient Name" },
   { value: "contact", label: "Contact" },
   { value: "skin_type", label: "Skin Type" },
-  { value: "total_visits", label: "# of Visits" },
   { value: "engagement", label: "Engagement" },
   { value: "status", label: "Status" },
   { value: "gender", label: "Gender" },
@@ -71,7 +70,9 @@ const PATIENT_FIELDS = [
   { value: "date_of_birth", label: "Date of Birth" },
 ];
 
-const DEFAULT_PATIENT_FIELDS = ["name", "contact", "total_visits", "engagement", "status"];
+// No Skin Type: nothing populates it, so it only ever rendered dashes. Nothing
+// replaces it either - the Contact column here already carries phone and email.
+const DEFAULT_PATIENT_FIELDS = ["name", "contact", "engagement", "status"];
 
 const PICKLIST_OPTIONS: Record<string, { value: string; label: string }[]> = {
   gender: GENDER_OPTIONS,
@@ -590,7 +591,6 @@ const Patients = () => {
                   {shouldShowColumn("name") && <th className="text-left text-xs font-medium text-muted-foreground p-4">Patient</th>}
                   {shouldShowColumn("contact") && <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden md:table-cell">Contact</th>}
                   {shouldShowColumn("skin_type") && <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden lg:table-cell">Skin Type</th>}
-                  {shouldShowColumn("total_visits") && <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden lg:table-cell"># of Visits</th>}
                   {shouldShowColumn("engagement") && <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden sm:table-cell">Engagement</th>}
                   {shouldShowColumn("status") && <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>}
                   <th className="text-right text-xs font-medium text-muted-foreground p-4"></th>
@@ -645,13 +645,6 @@ const Patients = () => {
                     {shouldShowColumn("skin_type") && (
                       <td className="p-4 hidden lg:table-cell">
                         <span className="text-sm">{patient.skin_type || "—"}</span>
-                      </td>
-                    )}
-                    {shouldShowColumn("total_visits") && (
-                      <td className="p-4 hidden lg:table-cell">
-                        <span className="text-sm tabular-nums">
-                          {patient.total_visits ?? "—"}
-                        </span>
                       </td>
                     )}
                     {shouldShowColumn("engagement") && (

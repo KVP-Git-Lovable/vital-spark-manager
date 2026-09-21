@@ -745,10 +745,12 @@ const Patients = () => {
           <span>
             {isBoard
               ? `Showing ${total.toLocaleString()} records`
-              : `Showing ${total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, total)} of ${total.toLocaleString()}`}
+              : exactTotal
+                ? `Showing ${paged.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–${(currentPage - 1) * PAGE_SIZE + paged.length} of ${total.toLocaleString()}`
+                : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${(currentPage - 1) * PAGE_SIZE + paged.length}`}
             {fetching && !loading ? " · loading…" : ""}
           </span>
-          {!isBoard && totalPages > 1 && (
+          {!isBoard && (hasMore || currentPage > 1) && (
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -759,13 +761,13 @@ const Patients = () => {
                 Previous
               </Button>
               <span className="text-xs">
-                Page {currentPage} of {totalPages}
+                {exactTotal ? `Page ${currentPage} of ${totalPages}` : `Page ${currentPage}`}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                disabled={currentPage >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={!hasMore}
+                onClick={() => setPage((p) => p + 1)}
               >
                 Next
               </Button>

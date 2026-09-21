@@ -57,3 +57,6 @@ verify_jwt = true
 
 [functions.sf-backfill-registered-at]
 verify_jwt = true
+
+[functions.sf-refresh-patient-names]
+verify_jwt = true

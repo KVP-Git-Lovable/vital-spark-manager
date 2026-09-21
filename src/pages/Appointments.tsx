@@ -848,6 +848,11 @@ const Appointments = () => {
   // With saved-view filters active the full filtered set is already in memory,
   // so slice it locally and report its true size.
   const apptTotal = viewHasFilters ? filteredAppointments.length : (apptPageData?.total ?? 0);
+  // Server-side totals are planner estimates, so "is there a next page" comes
+  // from the probe row the fetcher reports, never from apptTotal.
+  const apptHasMore = viewHasFilters
+    ? apptPage * APPT_PAGE_SIZE < filteredAppointments.length
+    : (apptPageData?.hasMore ?? false);
   const visibleTableRows = viewHasFilters
     ? filteredAppointments.slice((apptPage - 1) * APPT_PAGE_SIZE, apptPage * APPT_PAGE_SIZE)
     : serverPageRows;
@@ -2612,7 +2617,9 @@ const Appointments = () => {
                 </table>
                 <div className="p-3 border-t flex items-center justify-between gap-3 text-xs text-muted-foreground">
                   <span>
-                    Page {apptPage} of {Math.max(1, Math.ceil(apptTotal / APPT_PAGE_SIZE))}
+                    {viewHasFilters
+                      ? `Page ${apptPage} of ${Math.max(1, Math.ceil(apptTotal / APPT_PAGE_SIZE))}`
+                      : `Page ${apptPage}`}
                   </span>
                   <div className="flex items-center gap-2">
                     <Button
@@ -2628,7 +2635,7 @@ const Appointments = () => {
                       variant="outline"
                       size="sm"
                       className="h-7 text-xs px-3"
-                      disabled={apptPage >= Math.ceil(apptTotal / APPT_PAGE_SIZE)}
+                      disabled={!apptHasMore}
                       onClick={() => setApptPage((p) => p + 1)}
                     >
                       Next

@@ -7,3 +7,21 @@ produced the pre-cd09317 message (bare time in {{2}}, "call us on" footer, no
 buttons), which means Lovable deployed its own older copy of that file rather
 than the one on main. Precedent: 998515d, where a Lovable editor edit silently
 reverted TEMPLATE_SID in this same file.
+
+---
+
+Touched 2026-09-21 to force a pull of the current GitHub main.
+
+Two edge functions are on main but return 404 from the functions gateway,
+so the GitHub sync has not deployed them:
+
+  sf-describe-patient-fields   (21f76a1) - read-only; reports which fields
+                               Patient__c actually holds, needed before DOB /
+                               gender / email can be imported at all
+  sf-refresh-patient-names     (efda708) - corrects the 17,194 patients who
+                               kept the April spreadsheet's spelling of their
+                               name after being matched to Salesforce by phone
+
+Confirmed deployed and answering: sf-import-clinical, patient-engagement.
+sf-import-clinical also changed in 55e438d (prescriptions now take the date
+of the visit they are linked to) and needs that version deployed.

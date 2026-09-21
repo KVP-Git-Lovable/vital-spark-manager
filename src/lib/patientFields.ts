@@ -73,7 +73,11 @@ export const PATIENT_FIELDS: FieldDef[] = [
   { key: "updated_at", label: "Last Modified", type: "date" },
 ];
 
-export const DEFAULT_VIEW_COLUMNS = ["full_name", "phone", "skin_type", "status", "created_at"];
+// Skin Type is an app-only field that nothing populates - every one of the
+// 27,081 patients has it blank, so it rendered a column of dashes. Visit count
+// is filled for around 70% and answers something at a glance. Skin Type stays
+// in PATIENT_FIELDS above, so a saved view can still add it back.
+export const DEFAULT_VIEW_COLUMNS = ["full_name", "phone", "total_visits", "status", "created_at"];
 
 export function fieldDef(key: string): FieldDef | undefined {
   return fieldDefIn(PATIENT_FIELDS, key);

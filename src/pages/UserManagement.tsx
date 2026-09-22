@@ -55,7 +55,7 @@ type PermMap = Record<string, { can_view: boolean; can_create: boolean; can_edit
 
 export default function UserManagement() {
   const queryClient = useQueryClient();
-  const { isAdmin } = useAuth();
+  const { isAdmin, staffProfile, user } = useAuth();
   const [search, setSearch] = useState("");
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
   const [dirtyPerms, setDirtyPerms] = useState<PermMap | null>(null);
@@ -754,6 +754,44 @@ export default function UserManagement() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteUser.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Log in as another staff member */}
+      <AlertDialog open={!!impersonateStaff} onOpenChange={(o) => !o && setImpersonateStaff(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Log in as {impersonateStaff?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will see and use the app exactly as <strong>{impersonateStaff?.name}</strong>. Everything
+              you do will be recorded as that person, and this switch is logged. You can return to your own
+              account at any time using the banner at the top.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={impersonating}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={impersonating}
+              onClick={async (e) => {
+                e.preventDefault();
+                const target = impersonateStaff;
+                if (!target) return;
+                setImpersonating(true);
+                try {
+                  const actorName = staffProfile
+                    ? `${staffProfile.firstName} ${staffProfile.lastName}`.trim()
+                    : user?.email || "Admin";
+                  await startImpersonation(target.auth_user_id, actorName);
+                  window.location.href = "/";
+                } catch (err: any) {
+                  setImpersonating(false);
+                  toast({ title: err?.message || "Could not log in as that user", variant: "destructive" });
+                }
+              }}
+            >
+              {impersonating ? "Switching..." : "Log in as user"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

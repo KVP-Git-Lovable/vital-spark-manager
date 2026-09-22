@@ -66,3 +66,6 @@ verify_jwt = true
 
 [functions.sf-import-demographics]
 verify_jwt = true
+
+[functions.impersonate]
+verify_jwt = true

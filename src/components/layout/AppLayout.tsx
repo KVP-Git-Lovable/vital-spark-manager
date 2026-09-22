@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { ChangePasswordRequired } from "@/components/auth/ChangePasswordRequired";
+import { ImpersonationBanner } from "@/components/auth/ImpersonationBanner";
 import { useNavigate, Navigate, useLocation } from "react-router-dom";
 import { AppointmentsModal } from "@/components/modals/AppointmentsModal";
 import { AppointmentDetailModal } from "@/components/modals/AppointmentDetailModal";
@@ -103,6 +104,8 @@ export function AppLayout({ children }: AppLayoutProps) {
           {/* Modals */}
           <AppointmentsModal />
           <AppointmentDetailModal />
+
+          <ImpersonationBanner />
 
           <header className="h-14 md:h-16 flex items-center justify-between border-b bg-card px-3 md:px-4 gap-2 md:gap-4 shrink-0">
             <div className="flex items-center gap-2 md:gap-3 min-w-0">

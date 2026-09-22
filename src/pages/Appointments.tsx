@@ -16,6 +16,8 @@ import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/s
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
 import { viewDatePreset } from "@/lib/viewDatePreset";
 import { appointmentInvoiceMap } from "@/lib/appointmentInvoiceMap";
+import { billCellState } from "@/lib/billCellState";
+import { formatMoneyExact } from "@/lib/currency";
 import { fetchInvoicesByAppointmentIds, invoiceMapByAppointment } from "@/lib/invoicesForAppointments";
 import { assertWrote } from "@/lib/rowAccess";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, ClipboardList, Pin, Printer, Trash2 } from "lucide-react";
@@ -730,7 +732,7 @@ const Appointments = () => {
   // toViewRow), so it is keyed on the same date range the appointments query
   // uses rather than on the id list itself.
   const fullApptIds = useMemo(() => appointments.map((a: any) => a.id), [appointments]);
-  const { data: invoices = [], isError: fullInvoicesFailed } = useQuery({
+  const { data: invoices = [], isError: fullInvoicesFailed, isLoading: fullInvoicesLoading } = useQuery({
     queryKey: [
       "invoices-for-appointments",
       "full",
@@ -750,7 +752,7 @@ const Appointments = () => {
     () => (apptPageData?.rows ?? []).map((a: any) => a.id),
     [apptPageData]
   );
-  const { data: pageInvoices = [], isError: pageInvoicesFailed } = useQuery({
+  const { data: pageInvoices = [], isError: pageInvoicesFailed, isLoading: pageInvoicesLoading } = useQuery({
     queryKey: ["invoices-for-appointments", "page", pageApptIds],
     queryFn: () => fetchInvoicesByAppointmentIds(fetchInvoiceChunk, pageApptIds),
     enabled: view === "table" && !viewHasFilters && pageApptIds.length > 0,
@@ -773,6 +775,29 @@ const Appointments = () => {
 
   // Say so instead of showing a column of dashes that looks like "no bills".
   const billLookupFailed = fullInvoicesFailed || pageInvoicesFailed;
+  // Only one of the two queries ever runs; a disabled one reports isLoading
+  // false, so OR-ing them is safe and mirrors billLookupFailed above.
+  const billLookupLoading = fullInvoicesLoading || pageInvoicesLoading;
+
+  // One dash used to stand for "no bill", "lookup failed", "still loading" and
+  // "nothing to show" alike, and the clinic read it as money going missing on a
+  // day whose takings actually reconciled with Salesforce to the paise. Say
+  // which it is - and never claim "No bill" when the figure is simply unknown.
+  const renderBillCell = (
+    invoice: { total_amount?: number | string | null } | undefined,
+    emphasise = false,
+  ) => {
+    switch (billCellState({ hasInvoice: !!invoice, loading: billLookupLoading, failed: billLookupFailed })) {
+      case "amount":
+        return <span className={emphasise ? "font-medium" : undefined}>{formatMoneyExact(invoice.total_amount)}</span>;
+      case "failed":
+        return <span className="text-destructive" title="The bill could not be loaded - this is not the same as there being none">Unavailable</span>;
+      case "loading":
+        return <span className="text-muted-foreground">…</span>;
+      default:
+        return <span className="text-muted-foreground">No bill</span>;
+    }
+  };
   useEffect(() => {
     if (billLookupFailed) toast.error("Could not load bill amounts - the Bill and Payment Mode columns may be blank.");
   }, [billLookupFailed]);
@@ -2461,7 +2486,7 @@ const Appointments = () => {
                                     </td>
                                   )}
                                   {shouldShowColumn("bill") && (
-                                    <td className="p-2 text-muted-foreground text-xs">{invoice ? `₹${invoice.total_amount?.toLocaleString()}` : "—"}</td>
+                                    <td className="p-2 text-muted-foreground text-xs">{renderBillCell(invoice)}</td>
                                   )}
                                   {shouldShowColumn("visit_status") && (
                                     <td className="p-2 text-muted-foreground text-xs">{apt.visit_status || "—"}</td>
@@ -2558,7 +2583,7 @@ const Appointments = () => {
                                   </td>
                                 )}
                                 {shouldShowColumn("bill") && (
-                                  <td className="p-3 text-xs">{invoice ? <span className="font-medium">₹{invoice.total_amount?.toLocaleString()}</span> : <span className="text-muted-foreground">—</span>}</td>
+                                  <td className="p-3 text-xs">{renderBillCell(invoice, true)}</td>
                                 )}
                                 {shouldShowColumn("visit_status") && (
                                   <td className="p-3 text-xs">{apt.visit_status ? <Badge variant="outline" className="text-xs">{apt.visit_status}</Badge> : <span className="text-muted-foreground">—</span>}</td>

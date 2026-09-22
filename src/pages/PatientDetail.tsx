@@ -1,4 +1,6 @@
 import { useState, useRef, useMemo, createContext, useContext } from "react";
+import { withDrPrefix } from "@/lib/staffName";
+import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { useParams, useNavigate } from "react-router-dom";
 import { shortPatientId } from "@/lib/utils";
@@ -1069,11 +1071,11 @@ const PatientDetail = () => {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-medium text-sm">{apt.service}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{apt.staff ? `Dr. ${apt.staff.first_name} ${apt.staff.last_name}` : "—"}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{apt.staff ? withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`) : "—"}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <Badge variant="secondary" className="text-xs">{apt.status}</Badge>
-                      <p className="text-xs text-muted-foreground mt-1">{new Date(apt.start_time).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{displayDate(apt.start_time)}</p>
                       <p className="text-xs text-muted-foreground">{new Date(apt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                   </div>
@@ -1096,11 +1098,11 @@ const PatientDetail = () => {
                   ) : appointments.map((apt: any) => (
                     <tr key={apt.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setSelectedAppointmentId(apt.id)}>
                       <td className="p-4 text-sm">
-                        <p>{new Date(apt.start_time).toLocaleDateString()}</p>
+                        <p>{displayDate(apt.start_time)}</p>
                         <p className="text-xs text-muted-foreground">{new Date(apt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                       </td>
                       <td className="p-4 font-medium text-sm">{apt.service}</td>
-                      <td className="p-4 text-sm text-muted-foreground">{apt.staff ? `Dr. ${apt.staff.first_name} ${apt.staff.last_name}` : "—"}</td>
+                      <td className="p-4 text-sm text-muted-foreground">{apt.staff ? withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`) : "—"}</td>
                       <td className="p-4"><Badge variant="secondary" className="text-xs">{apt.status}</Badge></td>
                     </tr>
                   ))}
@@ -1126,7 +1128,7 @@ const PatientDetail = () => {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-medium text-sm">{inv.invoice_number}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{new Date(inv.created_at).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{displayDate(inv.created_at)}</p>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {(inv.services || []).slice(0, 2).map((s: string, i: number) => (
                           <Badge key={i} variant="secondary" className="text-[10px]">{s}</Badge>
@@ -1160,7 +1162,7 @@ const PatientDetail = () => {
                   ) : invoices.map((inv: any) => (
                     <tr key={inv.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => navigate(`/billing?viewInvoice=${inv.id}`)}>
                       <td className="p-4 font-medium text-sm">{inv.invoice_number}</td>
-                      <td className="p-4 text-sm">{new Date(inv.created_at).toLocaleDateString()}</td>
+                      <td className="p-4 text-sm">{displayDate(inv.created_at)}</td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-1">
                           {(inv.services || []).map((s: string, i: number) => (
@@ -1259,7 +1261,7 @@ const PatientDetail = () => {
                     </div>
                     <div className="p-2 md:p-3">
                       {photo.procedures?.service_name && <p className="text-xs text-muted-foreground truncate">{photo.procedures.service_name}</p>}
-                      <p className="text-xs text-muted-foreground mt-0.5">{new Date(photo.taken_at).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{displayDate(photo.taken_at)}</p>
                     </div>
                   </div>
                 ))}
@@ -1285,13 +1287,13 @@ const PatientDetail = () => {
                     <div className="min-w-0">
                       <p className="font-medium text-sm">{proc.service_name}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {proc.staff ? `Dr. ${proc.staff.first_name} ${proc.staff.last_name}` : "—"}
+                        {proc.staff ? withDrPrefix(`${proc.staff.first_name} ${proc.staff.last_name}`) : "—"}
                       </p>
                       {proc.diagnosis && <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{proc.diagnosis}</p>}
                     </div>
                     <div className="text-right shrink-0">
                       <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
-                      <p className="text-xs text-muted-foreground mt-1">{new Date(proc.procedure_date).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{displayDate(proc.procedure_date)}</p>
                     </div>
                   </div>
                 </div>
@@ -1313,9 +1315,9 @@ const PatientDetail = () => {
                     <tr><td colSpan={5} className="text-center py-8 text-muted-foreground text-sm">No prescriptions recorded</td></tr>
                   ) : procedures.map((proc: any) => (
                     <tr key={proc.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setSelectedProcedureId(proc.id)}>
-                      <td className="p-4 text-sm">{new Date(proc.procedure_date).toLocaleDateString()}</td>
+                      <td className="p-4 text-sm">{displayDate(proc.procedure_date)}</td>
                       <td className="p-4 font-medium text-sm">{proc.service_name}</td>
-                      <td className="p-4 text-sm text-muted-foreground">{proc.staff ? `Dr. ${proc.staff.first_name} ${proc.staff.last_name}` : "—"}</td>
+                      <td className="p-4 text-sm text-muted-foreground">{proc.staff ? withDrPrefix(`${proc.staff.first_name} ${proc.staff.last_name}`) : "—"}</td>
                       <td className="p-4 text-sm text-muted-foreground truncate max-w-[200px]">{proc.diagnosis || "—"}</td>
                       <td className="p-4"><Badge variant="secondary" className="text-xs">{proc.status}</Badge></td>
                     </tr>
@@ -1343,7 +1345,7 @@ const PatientDetail = () => {
                       <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select procedure" /></SelectTrigger>
                       <SelectContent>
                         {procedures.map((proc: any) => (
-                          <SelectItem key={proc.id} value={proc.id}>{proc.service_name} — {new Date(proc.procedure_date).toLocaleDateString()}</SelectItem>
+                          <SelectItem key={proc.id} value={proc.id}>{proc.service_name} — {displayDate(proc.procedure_date)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1434,7 +1436,7 @@ const PatientDetail = () => {
                       {rx.procedures && (
                         <div className="text-left sm:text-right text-xs text-muted-foreground">
                           <p>{rx.procedures.service_name}</p>
-                          <p>{new Date(rx.procedures.procedure_date).toLocaleDateString()}</p>
+                          <p>{displayDate(rx.procedures.procedure_date)}</p>
                         </div>
                       )}
                       <Button
@@ -1517,7 +1519,7 @@ const PatientDetail = () => {
                     <p className="font-medium text-sm truncate">{a.survey_templates?.name || "Survey"}</p>
                     <div className="flex items-center gap-2 shrink-0">
                       <Badge variant="outline" className="text-[10px]">Pending patient</Badge>
-                      <p className="text-xs text-muted-foreground">{new Date(a.created_at).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">{displayDate(a.created_at)}</p>
                     </div>
                   </div>
                 ))}
@@ -1563,7 +1565,7 @@ const PatientDetail = () => {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                        <p className="text-xs text-muted-foreground">{new Date(sr.created_at).toLocaleDateString()}</p>
+                        <p className="text-xs text-muted-foreground">{displayDate(sr.created_at)}</p>
                       </div>
                     </div>
                   );
@@ -1629,7 +1631,7 @@ const PatientDetail = () => {
                             {att.procedures?.service_name && (
                               <Badge variant="secondary" className="text-[10px]">{att.procedures.service_name}</Badge>
                             )}
-                            <span className="text-xs text-muted-foreground">{new Date(att.created_at).toLocaleDateString()}</span>
+                            <span className="text-xs text-muted-foreground">{displayDate(att.created_at)}</span>
                           </div>
                           {att.notes && <p className="text-xs text-muted-foreground mt-1">{att.notes}</p>}
                         </div>

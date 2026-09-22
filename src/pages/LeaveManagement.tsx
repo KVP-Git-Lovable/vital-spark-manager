@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { Plus, Search, Calendar, Loader2, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -301,7 +302,7 @@ const LeaveManagement = () => {
                     <TableCell className="font-medium">{app.staff?.first_name} {app.staff?.last_name}</TableCell>
                     <TableCell className="text-sm">{app.leave_types?.name}</TableCell>
                     <TableCell className="text-sm">
-                      {new Date(app.start_date).toLocaleDateString()} — {new Date(app.end_date).toLocaleDateString()}
+                      {displayDate(app.start_date)} — {displayDate(app.end_date)}
                     </TableCell>
                     <TableCell className="text-sm font-medium">{app.days}</TableCell>
                     <TableCell className="text-sm text-muted-foreground truncate max-w-[150px]">{app.reason || "—"}</TableCell>

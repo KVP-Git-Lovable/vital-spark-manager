@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { withDrPrefix } from "@/lib/staffName";
 import { numVal } from "@/lib/numberInput";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -677,7 +678,7 @@ const Portal = () => {
                         <p className="font-semibold text-sm">{p.service_name}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {new Date(p.procedure_date).toLocaleDateString("en-IN", { month: "long", day: "numeric", year: "numeric" })}
-                          {p.staff && ` • Dr. ${p.staff.first_name} ${p.staff.last_name}`}
+                          {p.staff && ` • ${withDrPrefix(`${p.staff.first_name} ${p.staff.last_name}`)}`}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { withDrPrefix } from "@/lib/staffName";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
 import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon, ClipboardCheck, StickyNote } from "lucide-react";
@@ -1253,7 +1254,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {format(new Date(proc.procedure_date), "dd/MM/yyyy")}
-                                {proc.staff && ` · Dr. ${proc.staff.first_name}`}
+                                {proc.staff && ` · ${withDrPrefix(`${proc.staff.first_name}`)}`}
                               </p>
                               {proc.diagnosis && <p className="text-xs mt-2 text-muted-foreground">{proc.diagnosis}</p>}
                             </div>
@@ -1289,7 +1290,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {format(new Date(apt.start_time), "EEE, MMM d, yyyy · h:mm a")}
-                                {apt.staff && ` · Dr. ${apt.staff.first_name} ${apt.staff.last_name}`}
+                                {apt.staff && ` · ${withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`)}`}
                               </p>
                               {apt.reason_for_consultation && (
                                 <p className="text-xs mt-2 text-muted-foreground">{apt.reason_for_consultation}</p>
@@ -1327,7 +1328,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {format(new Date(proc.procedure_date), "MMM d, yyyy")}
-                                {proc.staff && ` · Dr. ${proc.staff.first_name} ${proc.staff.last_name}`}
+                                {proc.staff && ` · ${withDrPrefix(`${proc.staff.first_name} ${proc.staff.last_name}`)}`}
                               </p>
                               {proc.diagnosis && <p className="text-xs mt-2 text-muted-foreground">{proc.diagnosis}</p>}
                             </div>

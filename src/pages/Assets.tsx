@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { displayDate } from "@/lib/dateInput";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -356,7 +357,7 @@ const Assets = () => {
                     <td className="p-4 text-sm">{issue.asset?.name || "—"}</td>
                     <td className="p-4"><span className={`text-xs px-2.5 py-1 rounded-full font-medium ${priorityColors[issue.priority] || ""}`}>{issue.priority}</span></td>
                     <td className="p-4"><span className={`text-xs px-2.5 py-1 rounded-full font-medium ${issueStatusColors[issue.status] || ""}`}>{issue.status}</span></td>
-                    <td className="p-4 text-sm text-muted-foreground">{new Date(issue.reported_date).toLocaleDateString()}</td>
+                    <td className="p-4 text-sm text-muted-foreground">{displayDate(issue.reported_date)}</td>
                     <td className="p-4 text-sm text-muted-foreground">{issue.vendor?.name || "—"}</td>
                     <td className="p-4 text-right text-sm font-medium">{issue.cost > 0 ? `₹${Number(issue.cost).toLocaleString()}` : "—"}</td>
                   </tr>

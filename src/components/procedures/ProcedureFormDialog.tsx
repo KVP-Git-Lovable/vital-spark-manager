@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -1170,7 +1171,7 @@ export function ProcedureFormDialog({
                         )}
                       </span>
                       <span className="text-[11px] text-muted-foreground">
-                        {new Date(s.created_at).toLocaleDateString()} · {s.dr_status || "pending"}
+                        {displayDate(s.created_at)} · {s.dr_status || "pending"}
                       </span>
                     </div>
                     {s.ai_summary && <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">{s.ai_summary}</p>}

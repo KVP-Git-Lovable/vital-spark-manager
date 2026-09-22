@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/currency";
+import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { assertWrote, NOT_YOURS_MESSAGE } from "@/lib/rowAccess";
 import { useStackedTable } from "@/hooks/useStackedTable";
@@ -3189,7 +3190,7 @@ const Billing = () => {
                   <tr key={inv.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => openViewSheet(inv)}>
                     <td className="p-4">
                       <p className="font-medium text-sm text-primary hover:underline">{inv.invoice_number}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">{displayDate(inv.created_at)}</p>
                     </td>
                     <td className="p-4 text-sm">{getPatientName(inv, patientById) || "—"}</td>
                     <td className="p-4 hidden lg:table-cell">

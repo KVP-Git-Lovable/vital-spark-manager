@@ -72,10 +72,12 @@ describe("PhotoViewer", () => {
     expect(screen.queryByText(/of 1/)).toBeNull();
   });
 
-  it("captions with the service and the date it was taken", () => {
+  it("captions with the service and the date it was taken, as dd/MM/yyyy", () => {
     render(<Harness start={0} />);
-    const expected = `Laser Toning · ${new Date("2026-09-10T04:30:00Z").toLocaleDateString()}`;
-    expect(screen.getByText(expected)).toBeInTheDocument();
+    // Asserted literally, not via toLocaleDateString: this caption used to
+    // follow the machine's region, so a 10 September photo read "9/10/2026" on
+    // a US-configured clinic PC and was taken for the 9th of October.
+    expect(screen.getByText("Laser Toning · 10/09/2026")).toBeInTheDocument();
   });
 
   it("does not print Invalid Date when the date is missing or unusable", () => {

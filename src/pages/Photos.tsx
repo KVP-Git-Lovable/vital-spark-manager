@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { displayDate } from "@/lib/dateInput";
 import { Plus, Camera, Image, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -415,7 +416,7 @@ const Photos = () => {
                 {photo.procedures?.service_name && (
                   <p className="text-xs text-muted-foreground truncate">{photo.procedures.service_name}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">{new Date(photo.taken_at).toLocaleDateString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">{displayDate(photo.taken_at)}</p>
               </div>
             </motion.div>
           ))}
@@ -433,7 +434,7 @@ const Photos = () => {
               <img src={viewPhoto.photo_url} alt="" className="w-full max-h-[60vh] object-contain rounded-lg bg-muted" />
               <div className="flex flex-wrap gap-2 items-center">
                 <span className="text-sm font-medium">{viewPhoto.patients?.first_name} {viewPhoto.patients?.last_name}</span>
-                <span className="text-xs text-muted-foreground">• {new Date(viewPhoto.taken_at).toLocaleDateString()}</span>
+                <span className="text-xs text-muted-foreground">• {displayDate(viewPhoto.taken_at)}</span>
               </div>
               {viewPhoto.procedures?.service_name && (
                 <p className="text-sm text-muted-foreground">Procedure: <span className="text-foreground">{viewPhoto.procedures.service_name}</span></p>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { format } from "date-fns";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
@@ -994,7 +995,7 @@ const Pharma = () => {
                                 const su = getSaleUom(prod, unitsByProduct[i.product_id]);
                                 return (
                                   <SelectItem key={i.id} value={i.id}>
-                                    {i.pharma_products?.name} — Batch: {i.batch_number} ({fmtQty(toUomQty(Number(i.quantity), su.factor))} {su.name}, exp {new Date(i.expiry_date).toLocaleDateString()})
+                                    {i.pharma_products?.name} — Batch: {i.batch_number} ({fmtQty(toUomQty(Number(i.quantity), su.factor))} {su.name}, exp {displayDate(i.expiry_date)})
                                   </SelectItem>
                                 );
                               })}
@@ -1252,7 +1253,7 @@ const Pharma = () => {
                       <TableCell>₹{priceIn(Number(i.purchase_price) || 0).toFixed(2)}<div className="text-[11px] text-muted-foreground">/{viewUom.name}</div></TableCell>
                       <TableCell>₹{priceIn(Number(i.mrp) || 0).toFixed(2)}</TableCell>
                       <TableCell>₹{priceIn(Number(i.selling_price || i.mrp) || 0).toFixed(2)}</TableCell>
-                      <TableCell>{exp.toLocaleDateString()}</TableCell>
+                      <TableCell>{displayDate(exp)}</TableCell>
                       <TableCell className="text-muted-foreground">{(() => {
                         if (!i.supplier) return "—";
                         const vendor = vendors.find((v: any) => v.id === i.supplier);
@@ -1292,7 +1293,7 @@ const Pharma = () => {
                 ) : bills.map((b: any) => (
                   <TableRow key={b.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setSelectedBillId(b.id)}>
                     <TableCell className="font-medium">{b.bill_number}</TableCell>
-                    <TableCell>{new Date(b.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>{displayDate(b.created_at)}</TableCell>
                     <TableCell>{b.patient_name || "—"}</TableCell>
                     <TableCell>₹{Number(b.total_amount).toFixed(2)}</TableCell>
                     <TableCell>₹{Number(b.discount).toFixed(2)}</TableCell>

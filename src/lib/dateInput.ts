@@ -42,3 +42,24 @@ export function maskTyping(raw: string): string {
   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
+
+/**
+ * A date for reading: always dd/MM/yyyy, on every machine.
+ *
+ * `toLocaleDateString()` renders in the *browser's* region, so the same visit
+ * showed as 19/09/2026 on one clinic PC and 9/19/2026 on the next. Staff read
+ * "9/19" as the 9th of a nineteenth month, or worse, read 10/09 as the 10th of
+ * September when it means the 9th of October. This is the same problem the
+ * native date input had, fixed the same way: pick the format, do not inherit it.
+ *
+ * Accepts a Date, an ISO string or a timestamp. Returns "" for anything that is
+ * not a real date, so a missing value renders as blank rather than "Invalid Date".
+ */
+export function displayDate(value: string | number | Date | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}

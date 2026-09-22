@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { displayDate } from "@/lib/dateInput";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Download, ImageOff } from "lucide-react";
@@ -64,7 +65,7 @@ export function PhotoViewer({ photos, index, onIndexChange, patientName }: Photo
   const takenAt = photo.taken_at ? new Date(photo.taken_at) : null;
   const caption = [
     photo.procedures?.service_name,
-    takenAt && !Number.isNaN(takenAt.getTime()) ? takenAt.toLocaleDateString() : null,
+    takenAt && !Number.isNaN(takenAt.getTime()) ? displayDate(takenAt) : null,
   ]
     .filter(Boolean)
     .join(" · ");

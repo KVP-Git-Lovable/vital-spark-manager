@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { displayToIso, isoToDisplay, maskTyping } from "./dateInput";
+import { displayToIso, isoToDisplay, maskTyping, displayDate } from "./dateInput";
 
 describe("isoToDisplay", () => {
   it("turns a stored date into dd/MM/yyyy", () => {
@@ -75,5 +75,29 @@ describe("maskTyping", () => {
     expect(maskTyping("31-07-1982")).toBe("31/07/1982");
     expect(maskTyping("31/07/19825555")).toBe("31/07/1982");
     expect(maskTyping("abc")).toBe("");
+  });
+});
+
+describe("displayDate", () => {
+  it("is dd/MM/yyyy whatever the machine's region", () => {
+    expect(displayDate("2026-09-19T17:30:00")).toBe("19/09/2026");
+    // The case that reads as a different date entirely in US order.
+    expect(displayDate("2026-10-09T12:00:00")).toBe("09/10/2026");
+  });
+
+  it("pads single digits, so columns line up and nothing is ambiguous", () => {
+    expect(displayDate("2026-01-05T00:00:00")).toBe("05/01/2026");
+  });
+
+  it("takes a Date or a timestamp as well as a string", () => {
+    expect(displayDate(new Date(2026, 8, 19))).toBe("19/09/2026");
+    expect(displayDate(new Date(2026, 8, 19).getTime())).toBe("19/09/2026");
+  });
+
+  it("renders blank rather than 'Invalid Date' for a missing or broken value", () => {
+    expect(displayDate(null)).toBe("");
+    expect(displayDate(undefined)).toBe("");
+    expect(displayDate("")).toBe("");
+    expect(displayDate("not a date")).toBe("");
   });
 });

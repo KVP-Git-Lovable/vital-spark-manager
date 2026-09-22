@@ -1359,6 +1359,39 @@ export type Database = {
         }
         Relationships: []
       }
+      impersonation_log: {
+        Row: {
+          actor_email: string | null
+          actor_user_id: string
+          ended_at: string | null
+          id: string
+          started_at: string
+          target_email: string | null
+          target_name: string | null
+          target_user_id: string
+        }
+        Insert: {
+          actor_email?: string | null
+          actor_user_id: string
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          target_email?: string | null
+          target_name?: string | null
+          target_user_id: string
+        }
+        Update: {
+          actor_email?: string | null
+          actor_user_id?: string
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          target_email?: string | null
+          target_name?: string | null
+          target_user_id?: string
+        }
+        Relationships: []
+      }
       invoice_breakdown_backup_20260922: {
         Row: {
           captured_at: string | null
@@ -5450,6 +5483,7 @@ export type Database = {
         }[]
       }
       has_full_data_scope: { Args: never; Returns: boolean }
+      is_admin_user: { Args: never; Returns: boolean }
       is_my_patient: { Args: { _patient_id: string }; Returns: boolean }
       is_pure_consultation: { Args: { _text: string }; Returns: boolean }
       move_to_trash: {

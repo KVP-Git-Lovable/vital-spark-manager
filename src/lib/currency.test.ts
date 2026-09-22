@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
   DEFAULT_CURRENCY_SETTINGS,
+  formatAmountExact,
   formatMoney,
   formatMoneyCompact,
   formatMoneyExact,
@@ -139,5 +140,33 @@ describe("formatMoneyPrecise", () => {
     setCurrencySettingsCache({ symbol: "₹", show_decimals: false, decimal_digits: 2, number_style: "indian", abbreviate: false });
     expect(formatMoneyPrecise(-2000)).toBe("-₹2,000.00");
     expect(formatMoneyPrecise(null)).toBe("₹0.00");
+  });
+});
+
+describe("formatAmountExact - the report PDF's cells", () => {
+  it("prints the same figure as formatMoneyExact, without the symbol", () => {
+    // reportColumnHeader already puts "(Rs)" in the heading.
+    expect(formatAmountExact(334000)).toBe("3,34,000");
+    expect(formatAmountExact(334000)).toBe(formatMoneyExact(334000).replace("₹", ""));
+  });
+
+  it("keeps the paise that made a report disagree with its own total", () => {
+    expect(formatAmountExact(9922.5)).toBe("9,922.50");
+    expect(formatAmountExact(4987.5)).toBe("4,987.50");
+  });
+
+  it("leaves a whole amount whole", () => {
+    expect(formatAmountExact(850)).toBe("850");
+  });
+
+  it("never abbreviates, whatever the setting says", () => {
+    setCurrencySettingsCache({ ...DEFAULT_CURRENCY_SETTINGS, abbreviate: true });
+    expect(formatAmountExact(334000)).toBe("3,34,000");
+  });
+
+  it("puts the sign in front and gives zero for nothing", () => {
+    expect(formatAmountExact(-2000)).toBe("-2,000");
+    expect(formatAmountExact(null)).toBe("0");
+    expect(formatAmountExact("not a number")).toBe("0");
   });
 });

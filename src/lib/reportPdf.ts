@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { formatNumber } from "@/lib/currency";
+import { formatAmountExact, formatNumber } from "@/lib/currency";
 import { REPORT_DATE_RANGE_OPTIONS } from "@/lib/reportDateRange";
 import type { ReportColumn, ReportConfig, ReportSummaryCard } from "@/lib/reportsCatalog";
 import type { FilterState } from "@/components/reports/ReportFilterBar";
@@ -45,7 +45,15 @@ export function reportCellText(col: ReportColumn, row: ReportRow): string {
   const v = cellValue(col, row);
   if (v === null || v === undefined || v === "") return "-";
   switch (col.type) {
+    // Money is the figure someone totals by hand against a bank statement, so
+    // it never abbreviates and never loses its paise. Sending it through
+    // formatNumber rounded to whole rupees while decimals are off, and a day
+    // whose summary card read Rs 1,66,322.50 printed rows adding up to
+    // Rs 1,66,324.00 - three half-rupee bills, each rounded up, in a document
+    // that could not be reconciled against itself.
     case "currency":
+      return formatAmountExact(Number(v));
+    // A count has no paise and should not grow any.
     case "number":
       return formatNumber(Number(v));
     case "date":

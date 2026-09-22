@@ -109,6 +109,27 @@ export function formatMoneyExact(value: number | string | null | undefined): str
 }
 
 /**
+ * The same number `formatMoneyExact` prints, without the currency symbol.
+ *
+ * The report PDF's table cells need this: `reportColumnHeader` already puts
+ * "(Rs)" in the column heading, so the cells carry the figure alone. They used
+ * to go through `formatNumber`, which rounds to whole rupees while decimals are
+ * off - so a day whose summary card read Rs 1,66,322.50 printed rows adding up
+ * to Rs 1,66,324.00, and the document could not be reconciled against itself.
+ * Three half-rupee bills, each rounded up.
+ *
+ * Shares `reconcilableDigits` with formatMoneyExact rather than restating the
+ * rule, so the printed document and the screen cannot drift apart.
+ */
+export function formatAmountExact(value: number | string | null | undefined): string {
+  const n = typeof value === "string" ? Number(value) : value;
+  if (n == null || Number.isNaN(n)) return "0";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  return `${sign}${grouped(abs, cache, reconcilableDigits(abs, cache))}`;
+}
+
+/**
  * Currency with two decimals always, whatever `show_decimals` says.
  *
  * For a GST invoice this is not a display preference. The clinic has chosen

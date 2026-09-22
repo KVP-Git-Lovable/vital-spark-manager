@@ -479,6 +479,45 @@ export default function UserManagement() {
               </Table>
             </CardContent>
           </Card>
+
+          {isAdmin && (
+            <Card className="mt-4">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <History className="h-4 w-4" />Login-as History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Who</TableHead>
+                      <TableHead>Acted as</TableHead>
+                      <TableHead>Started</TableHead>
+                      <TableHead>Ended</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loginAsLog.map((l: any) => (
+                      <TableRow key={l.id}>
+                        <TableCell className="font-medium">{l.actor_email || "—"}</TableCell>
+                        <TableCell>{l.target_name || l.target_email || "—"}</TableCell>
+                        <TableCell>{new Date(l.started_at).toLocaleString()}</TableCell>
+                        <TableCell>{l.ended_at ? new Date(l.ended_at).toLocaleString() : "Still active"}</TableCell>
+                      </TableRow>
+                    ))}
+                    {loginAsLog.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                          Never used yet
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="roles">

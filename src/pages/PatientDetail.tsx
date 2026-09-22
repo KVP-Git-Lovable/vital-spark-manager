@@ -33,6 +33,7 @@ import { SkinTracker } from "@/components/shared/SkinTracker";
 import { PhotoViewer } from "@/components/patients/PhotoViewer";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { CameraDialog } from "@/components/shared/CameraDialog";
+import { PatientAttachments } from "@/components/patients/PatientAttachments";
 import { FamilyMembers } from "@/components/patients/FamilyMembers";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
@@ -158,7 +159,6 @@ const PatientDetail = () => {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [failedPhotoIds, setFailedPhotoIds] = useState<Set<string>>(new Set());
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-  const [attachmentCameraOpen, setAttachmentCameraOpen] = useState(false);
   const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [otpCode, setOtpCode] = useState<string | null>(null);
   const [otpCopied, setOtpCopied] = useState(false);
@@ -172,15 +172,8 @@ const PatientDetail = () => {
   const [selectedProcedureId, setSelectedProcedureId] = useState<string | null>(null);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [quickApptOpen, setQuickApptOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const [pendingAttachmentFile, setPendingAttachmentFile] = useState<File | null>(null);
-  const [docTypeDialogOpen, setDocTypeDialogOpen] = useState(false);
-  const [viewingAttachment, setViewingAttachment] = useState<any>(null);
-  const [selectedDocType, setSelectedDocType] = useState<string>("Prescription");
-  const [attachmentFilter, setAttachmentFilter] = useState<string>("all");
   const [surveyTemplateSelectOpen, setSurveyTemplateSelectOpen] = useState(false);
   const [selectedSurveyTemplateId, setSelectedSurveyTemplateId] = useState<string | null>(null);
   const [surveyFillOpen, setSurveyFillOpen] = useState(false);
@@ -310,7 +303,9 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
-  const { data: attachments = [], refetch: refetchAttachments } = useQuery({
+  // Kept for the tab label's count only; PatientAttachments owns the list and
+  // uses this same query key, so this costs no extra request.
+  const { data: attachments = [] } = useQuery({
     queryKey: ["patient-attachments", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -508,44 +503,6 @@ const PatientDetail = () => {
     }
   };
 
-  const handleAttachmentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !id) return;
-    setPendingAttachmentFile(file);
-    setSelectedDocType("Prescription");
-    setDocTypeDialogOpen(true);
-    e.target.value = "";
-  };
-
-  const uploadPendingAttachment = async () => {
-    if (!pendingAttachmentFile || !id) return;
-    setUploadingAttachment(true);
-    const file = pendingAttachmentFile;
-    try {
-      const ext = file.name.split(".").pop() || "bin";
-      const filePath = `${id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("patient-photos").upload(filePath, file);
-      if (uploadError) throw uploadError;
-      const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${filePath}`;
-      const { error } = await supabase.from("procedure_attachments").insert({
-        patient_id: id,
-        procedure_id: procedures.length > 0 ? procedures[0].id : null,
-        file_name: file.name,
-        file_url: fileUrl,
-        document_type: selectedDocType,
-      } as any);
-      if (error) throw error;
-      toast.success("Attachment uploaded");
-      setDocTypeDialogOpen(false);
-      setPendingAttachmentFile(null);
-      refetchAttachments();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setUploadingAttachment(false);
-    }
-  };
-
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !id) return;
@@ -591,22 +548,6 @@ const PatientDetail = () => {
       queryClient.invalidateQueries({ queryKey: ["patient-photos", id] });
     } catch (err: any) {
       toast.error(err.message || "Failed to delete photo");
-    }
-  };
-
-  const deleteAttachment = async (att: any) => {
-    if (!confirm("Delete this attachment?")) return;
-    try {
-      const parts = att.file_url?.split("/patient-photos/");
-      if (parts && parts[1]) {
-        await supabase.storage.from("patient-photos").remove([parts[1]]);
-      }
-      const { error } = await supabase.from("procedure_attachments").delete().eq("id", att.id);
-      if (error) throw error;
-      toast.success("Attachment deleted");
-      refetchAttachments();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete attachment");
     }
   };
 
@@ -1575,92 +1516,9 @@ const PatientDetail = () => {
           </motion.div>
         </TabsContent>
 
-        {/* Attachments Tab */}
+        {/* Attachments Tab - shared with the appointment sheet, see PatientAttachments */}
         <TabsContent value="attachments">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-              <Select value={attachmentFilter} onValueChange={setAttachmentFilter}>
-                <SelectTrigger className="h-8 text-xs w-full sm:w-56"><SelectValue placeholder="Filter by type" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  <SelectItem value="Prescription">Prescription</SelectItem>
-                  <SelectItem value="Consent Form">Consent Form</SelectItem>
-                  <SelectItem value="Lab Report">Lab Report</SelectItem>
-                  <SelectItem value="Previous Doctor Report">Previous Doctor Report</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2">
-                <input type="file" ref={fileInputRef} className="hidden" onChange={handleAttachmentUpload} />
-                <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" disabled={uploadingAttachment} onClick={() => setAttachmentCameraOpen(true)}>
-                  <Camera className="h-3.5 w-3.5" /> Take Photo
-                </Button>
-                <Button size="sm" className="gap-1.5 h-8 text-xs" disabled={uploadingAttachment} onClick={() => fileInputRef.current?.click()}>
-                  {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                  Upload File
-                </Button>
-              </div>
-            </div>
-            {(() => {
-              const filtered = attachmentFilter === "all"
-                ? attachments
-                : attachments.filter((a: any) => a.document_type === attachmentFilter);
-              if (filtered.length === 0) {
-                return (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Paperclip className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">No attachments {attachmentFilter !== "all" ? `of type "${attachmentFilter}"` : "yet"}. Upload files to attach to this patient.</p>
-                  </div>
-                );
-              }
-              return (
-                <div className="space-y-3">
-                  {filtered.map((att: any) => (
-                  <div key={att.id} className="stat-card p-3 md:p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                          <FileText className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm truncate">{att.file_name}</p>
-                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            {att.document_type && (
-                              <Badge variant="default" className="text-[10px]">{att.document_type}</Badge>
-                            )}
-                            {att.procedures?.service_name && (
-                              <Badge variant="secondary" className="text-[10px]">{att.procedures.service_name}</Badge>
-                            )}
-                            <span className="text-xs text-muted-foreground">{displayDate(att.created_at)}</span>
-                          </div>
-                          {att.notes && <p className="text-xs text-muted-foreground mt-1">{att.notes}</p>}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => setViewingAttachment(att)}
-                        >
-                          View
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => deleteAttachment(att)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                  ))}
-                </div>
-              );
-            })()}
-          </motion.div>
+          <PatientAttachments patientId={id} defaultProcedureId={procedures.length > 0 ? procedures[0].id : null} />
         </TabsContent>
 
         {/* Campaigns Tab */}
@@ -1747,55 +1605,12 @@ const PatientDetail = () => {
       </Tabs>
 
 
-      <Dialog open={docTypeDialogOpen} onOpenChange={(o) => { if (!o) { setDocTypeDialogOpen(false); setPendingAttachmentFile(null); } }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-display">Document Type</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            {pendingAttachmentFile && (
-              <p className="text-xs text-muted-foreground truncate">File: {pendingAttachmentFile.name}</p>
-            )}
-            <div>
-              <Label>Type</Label>
-              <Select value={selectedDocType} onValueChange={setSelectedDocType}>
-                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Prescription">Prescription</SelectItem>
-                  <SelectItem value="Consent Form">Consent Form</SelectItem>
-                  <SelectItem value="Lab Report">Lab Report</SelectItem>
-                  <SelectItem value="Previous Doctor Report">Previous Doctor Report</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setDocTypeDialogOpen(false); setPendingAttachmentFile(null); }}>Cancel</Button>
-              <Button size="sm" disabled={uploadingAttachment} onClick={uploadPendingAttachment}>
-                {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null} Save
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       <CameraDialog
         open={cameraOpen}
         onOpenChange={setCameraOpen}
         title="Take Patient Photo"
         onCapture={(file) => savePhotoFile(file)}
       />
-      <CameraDialog
-        open={attachmentCameraOpen}
-        onOpenChange={setAttachmentCameraOpen}
-        title="Capture Attachment"
-        onCapture={(file) => {
-          setPendingAttachmentFile(file);
-          setSelectedDocType("Prescription");
-          setDocTypeDialogOpen(true);
-        }}
-      />
-
       <PhotoViewer
         photos={photos}
         index={viewerIndex}
@@ -1850,44 +1665,6 @@ const PatientDetail = () => {
 
       {/* Survey detail moved to dedicated /surveys/:id route */}
 
-      <Dialog open={!!viewingAttachment} onOpenChange={(o) => { if (!o) setViewingAttachment(null); }}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle className="font-display truncate pr-8">{viewingAttachment?.file_name}</DialogTitle>
-          </DialogHeader>
-          {viewingAttachment && (() => {
-            const url: string = viewingAttachment.file_url || "";
-            const name: string = viewingAttachment.file_name || url;
-            const lower = name.toLowerCase();
-            const isImage = /\.(jpe?g|png|gif|webp|bmp|heic|heif|svg)$/i.test(lower) || /\.(jpe?g|png|gif|webp|bmp)$/i.test(url.split("?")[0]);
-            const isPdf = /\.pdf$/i.test(lower) || /\.pdf(\?|$)/i.test(url);
-            return (
-              <div className="space-y-3">
-                <div className="bg-muted/40 rounded-lg overflow-hidden flex items-center justify-center" style={{ minHeight: 400 }}>
-                  {isImage ? (
-                    <img src={url} alt={name} className="max-h-[70vh] w-auto object-contain" />
-                  ) : isPdf ? (
-                    <iframe src={url} title={name} className="w-full h-[70vh]" />
-                  ) : (
-                    <div className="p-8 text-center">
-                      <FileText className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
-                      <p className="text-sm text-muted-foreground">Preview not available for this file type.</p>
-                    </div>
-                  )}
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={url} target="_blank" rel="noopener noreferrer">Open in new tab</a>
-                  </Button>
-                  <Button size="sm" asChild>
-                    <a href={url} download={name}>Download</a>
-                  </Button>
-                </div>
-              </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

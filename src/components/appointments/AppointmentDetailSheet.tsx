@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PatientAttachments } from "@/components/patients/PatientAttachments";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
@@ -997,6 +998,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   <TabsTrigger value="photos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Photos</TabsTrigger>
                   <TabsTrigger value="feedback" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Feedback</TabsTrigger>
                   <TabsTrigger value="survey" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Survey</TabsTrigger>
+                  <TabsTrigger value="attachments" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Attachments</TabsTrigger>
                   <TabsTrigger value="notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Notes</TabsTrigger>
                 </TabsList>
 
@@ -1682,6 +1684,18 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       </div>
                       <SurveyRecommendations appointmentId={appointmentId!} patientId={appointment.patient_id} />
                     </>
+                  )}
+                </TabsContent>
+
+                {/* The patient's whole document set, the same list and the same
+                    component as the patient page's Attachments tab - a consent
+                    form signed last year is exactly what is wanted while the
+                    patient is in the chair. */}
+                <TabsContent value="attachments" className="p-6 pt-2 mt-0">
+                  {!appointment.patient_id ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No patient linked to this appointment.</p>
+                  ) : (
+                    <PatientAttachments patientId={appointment.patient_id} title="Attachments" />
                   )}
                 </TabsContent>
 

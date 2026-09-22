@@ -24,7 +24,6 @@ import { procedureDate } from "./procedureDate.ts";
 import { hsnForRate } from "./hsnForRate.ts";
 import { isPureConsultation, billLineName } from "./consultation.ts";
 import { recentTargetQueries, mergePatientIds } from "./recentTargets.ts";
-import { appointmentForBill } from "./billAppointment.ts";
 import { describeSfFailure } from "./sfError.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
@@ -495,12 +494,7 @@ async function syncPatient(
       tax_amount: taxAmount,
       cgst_amount: taxAmount / 2,
       sgst_amount: taxAmount / 2,
-      // Salesforce leaves Appointment__c blank on some bills, and the
-      // Appointments list reads Bill Amount by appointment_id alone - so an
-      // unlinked bill printed a dash on a day whose takings Reports had right.
-      // See billAppointment.ts: the named link wins, and with none we take the
-      // patient's sole appointment that day, never a guess between two.
-      appointment_id: appointmentForBill(b.Appointment__c, b.CreatedDate, apptIdMap, apptStartBySfId),
+      appointment_id: b.Appointment__c ? apptIdMap.get(b.Appointment__c) || null : null,
       doctor_id: doctorFor(b.Doctor_Name__c),
       notes: b.Doctor_Name__c ? `Doctor: ${b.Doctor_Name__c}` : null,
       sf_id: b.Id,

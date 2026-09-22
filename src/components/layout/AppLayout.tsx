@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { ChangePasswordRequired } from "@/components/auth/ChangePasswordRequired";
+import { ImpersonationBanner } from "@/components/auth/ImpersonationBanner";
 import { useNavigate, Navigate, useLocation } from "react-router-dom";
 import { AppointmentsModal } from "@/components/modals/AppointmentsModal";
 import { AppointmentDetailModal } from "@/components/modals/AppointmentDetailModal";

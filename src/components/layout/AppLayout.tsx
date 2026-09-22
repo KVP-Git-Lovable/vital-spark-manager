@@ -105,6 +105,8 @@ export function AppLayout({ children }: AppLayoutProps) {
           <AppointmentsModal />
           <AppointmentDetailModal />
 
+          <ImpersonationBanner />
+
           <header className="h-14 md:h-16 flex items-center justify-between border-b bg-card px-3 md:px-4 gap-2 md:gap-4 shrink-0">
             <div className="flex items-center gap-2 md:gap-3 min-w-0">
               <SidebarTrigger className="shrink-0 md:hidden" />

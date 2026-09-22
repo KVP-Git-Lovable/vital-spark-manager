@@ -55,3 +55,27 @@ export function awaitingRealService(current: string | null | undefined, d: Diagn
     .map((x) => String(x).trim().toLowerCase())
     .includes(v);
 }
+
+/**
+ * Does this Investigation text say anything beyond "they came in"?
+ *
+ * Salesforce's Investigation__c is where the clinic types what the visit was
+ * for. Most of it is a visit marker - "New Consult", "Old consult", "Review" -
+ * which "Consultation" renders faithfully and keeps reports groupable. But
+ * 1,244 of them carry the actual treatment on the end ("New consult + RF",
+ * "Review+ 1rx Peel B"), and collapsing those to the bare word "Consultation"
+ * is how a prescription came to show less than Salesforce does.
+ *
+ * So: strip the visit markers and the punctuation joining them. Anything left
+ * is real detail and belongs in the Service column.
+ */
+export function investigationAddsDetail(raw: string | null | undefined): boolean {
+  const rest = String(raw ?? "")
+    .toLowerCase()
+    .replace(/\b(new|old|1st|first|follow[- ]?up)\b/g, " ")
+    .replace(/\bconsult(ation)?s?\b/g, " ")
+    .replace(/\breview\b/g, " ")
+    .replace(/[\s+.,;:&/-]+/g, " ")
+    .trim();
+  return rest.length > 0;
+}

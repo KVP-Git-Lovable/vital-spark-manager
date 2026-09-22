@@ -3,6 +3,7 @@ import {
   procedureServiceName,
   awaitingRealService,
   NO_SERVICE_RECORDED,
+  investigationAddsDetail,
 } from "../../supabase/functions/sf-import-clinical/serviceName";
 
 /**
@@ -63,5 +64,36 @@ describe("awaitingRealService", () => {
 
   it("does not treat a service as replaceable just because some other row's visit type matches", () => {
     expect(awaitingRealService("Walk-In", { Type_Of_Appointment__c: null, Visit_type__c: null })).toBe(false);
+  });
+});
+
+/**
+ * A prescription showed "Consultation" while Salesforce showed
+ * "Review + 3rx Peel B last session on 17/06/2026". 1,244 prescriptions across
+ * 974 patients were hiding treatment detail behind the placeholder.
+ */
+describe("investigationAddsDetail", () => {
+  it("is false for a plain visit marker, which Consultation renders faithfully", () => {
+    for (const raw of ["New Consult", "Old consult", "new consult", "Review", "review", "Consultation", "New Consult "]) {
+      expect(investigationAddsDetail(raw)).toBe(false);
+    }
+  });
+
+  it("is true when the text names an actual treatment", () => {
+    for (const raw of [
+      "New consult + RF",
+      "Review+ 1rx Peel B",
+      "2rx Peel B last session on 14/05/2026",
+      "consullt + Hydra facial+4rx underarms",
+      "PORE REFINING",
+    ]) {
+      expect(investigationAddsDetail(raw)).toBe(true);
+    }
+  });
+
+  it("is false for nothing at all, so a blank never becomes a service name", () => {
+    expect(investigationAddsDetail("")).toBe(false);
+    expect(investigationAddsDetail(null)).toBe(false);
+    expect(investigationAddsDetail("  + - ")).toBe(false);
   });
 });

@@ -19,7 +19,7 @@
 //           synced_at marker before re-importing. Off by default.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
-import { procedureServiceName, awaitingRealService, NO_SERVICE_RECORDED } from "./serviceName.ts";
+import { procedureServiceName, awaitingRealService, investigationAddsDetail, NO_SERVICE_RECORDED } from "./serviceName.ts";
 import { procedureDate } from "./procedureDate.ts";
 import { isPureConsultation, billLineName } from "./consultation.ts";
 import { recentTargetQueries, mergePatientIds } from "./recentTargets.ts";
@@ -514,12 +514,23 @@ async function syncPatient(
   const newDiagnoses = diagnoses.filter((d) => !procServiceBySfId.has(d.Id));
   const seenDiagnoses = diagnoses.filter((d) => procServiceBySfId.has(d.Id));
 
-  const serviceNameFor = (d: any) =>
-    procedureServiceName(
+  const serviceNameFor = (d: any) => {
+    const resolved = procedureServiceName(
       d,
       d.Appointment__c ? billingProcBySfApptId.get(d.Appointment__c) : null,
       d.Appointment__c ? apptServiceBySfId.get(d.Appointment__c) : null,
     );
+    // Nothing named a service, so we are about to write the word
+    // "Consultation". If the visit's own Investigation text says more than
+    // "they came in" - "Review+ 1rx Peel B" rather than "New Consult" - show
+    // that instead. Salesforce displays it, and a prescription reading less
+    // than Salesforce does is what the clinic reported.
+    if (resolved === NO_SERVICE_RECORDED && d.Appointment__c) {
+      const raw = apptInvestigationBySfId.get(d.Appointment__c);
+      if (raw && investigationAddsDetail(raw)) return raw.trim();
+    }
+    return resolved;
+  };
 
   const procRows = newDiagnoses.map((d) => {
     const serviceName = serviceNameFor(d);

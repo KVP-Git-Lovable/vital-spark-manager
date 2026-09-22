@@ -477,7 +477,7 @@ async function syncPatient(
     // HSN comes from the rate, via the clinic's Tax Master - see hsnForRate.ts.
     // Billing__c carries no HSN of its own, and this used to be hardcoded "",
     // which is why the HSN column printed blank on every bill.
-    const hsn = hsnForRate(taxRate);
+    const hsn = hsnForRate(taxRate, b.CreatedDate);
     const lineItems = names.map((name: string) => ({ name, qty: 1, price: base / names.length, hsn, gst: taxRate }));
     return {
       invoice_number: b.Name,

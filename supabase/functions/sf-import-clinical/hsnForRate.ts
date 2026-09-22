@@ -1,31 +1,53 @@
-// Which HSN code a billed line carries, from the GST rate it was charged at.
+// Which HSN code a billed line carries.
 //
 // Salesforce's Billing__c has no HSN field - the import wrote `hsn: ""` on every
-// line, so the HSN column printed blank on all 18,534 line items. The codes do
-// exist, in the clinic's own Tax Master (hsn_tax_master), and the rate is enough
-// to pick one because the two active codes are defined by their rate:
+// line, so the HSN column printed blank on all of them. The codes exist, but
+// which set applies depends on when the bill was raised, because the clinic
+// moved to the six-digit SAC codes at the September 2025 GST rate change:
 //
-//   999319  CGST 0   + SGST 0    exempt - a doctor's consultation
-//   999722  CGST 2.5 + SGST 2.5  5% - beauty and physical well-being services
+//   Before 2025-09-21        After
+//   9997   taxable (18%)     999722  taxable (5%)  - beauty / physical well-being
+//   9993   exempt  (0%)      999319  exempt  (0%)  - human health services
 //
-// 18% is deliberately NOT mapped. 30,682 bills between 2020-08-03 and
-// 2025-09-20 were charged at 18%, before the September 2025 rate change; the
-// Tax Master has no code at that rate and the clinic asked for those to stay
-// blank rather than have one guessed. A wrong HSN on a tax invoice is worse
-// than an empty one, because an empty cell is visibly missing and a wrong code
-// is not.
+// The four-digit codes are still visible in this codebase: src/lib/hsn.ts was
+// written because a service "still storing an old code - 9997" kept putting it
+// back in front of the front desk after it was retired from the Tax Master.
+//
+// A rate this does not recognise returns "". A wrong HSN on a tax invoice is
+// worse than an empty one - an empty cell is visibly missing, a wrong code is
+// not.
 
+/** The day the clinic's GST rates and HSN codes changed. */
+export const HSN_CHANGEOVER = "2025-09-21";
+
+export const HSN_EXEMPT_OLD = "9993";
+export const HSN_TAXABLE_OLD = "9997";
 export const HSN_EXEMPT = "999319";
 export const HSN_SERVICES_5 = "999722";
 
-/** The HSN for a line charged at this GST rate, or "" when none is defined. */
-export function hsnForRate(rate: number | string | null | undefined): string {
+/**
+ * The HSN for a line charged at this GST rate on this date.
+ *
+ * `billedOn` decides which code set applies; an unparseable or missing date is
+ * treated as current, since anything being imported now without a usable date
+ * is far more likely to be a new bill than a 2020 one.
+ */
+export function hsnForRate(
+  rate: number | string | null | undefined,
+  billedOn?: string | Date | null,
+): string {
   // Guard before converting: Number(null) and Number("") are both 0, which
-  // would hand the exempt code to a line whose rate is simply unknown.
+  // would hand an exempt code to a line whose rate is simply unknown.
   if (rate === null || rate === undefined || String(rate).trim() === "") return "";
   const n = Number(rate);
   if (!Number.isFinite(n)) return "";
-  if (n === 0) return HSN_EXEMPT;
-  if (n === 5) return HSN_SERVICES_5;
-  return "";
+
+  const when = billedOn ? new Date(billedOn) : null;
+  const isOld = when && !Number.isNaN(when.getTime())
+    ? when < new Date(HSN_CHANGEOVER)
+    : false;
+
+  if (n === 0) return isOld ? HSN_EXEMPT_OLD : HSN_EXEMPT;
+  if (isOld) return n === 18 ? HSN_TAXABLE_OLD : "";
+  return n === 5 ? HSN_SERVICES_5 : "";
 }

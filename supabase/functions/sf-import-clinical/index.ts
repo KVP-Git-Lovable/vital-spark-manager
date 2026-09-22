@@ -21,6 +21,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { procedureServiceName, awaitingRealService, investigationAddsDetail, NO_SERVICE_RECORDED } from "./serviceName.ts";
 import { procedureDate } from "./procedureDate.ts";
+import { hsnForRate } from "./hsnForRate.ts";
 import { isPureConsultation, billLineName } from "./consultation.ts";
 import { recentTargetQueries, mergePatientIds } from "./recentTargets.ts";
 import { describeSfFailure } from "./sfError.ts";
@@ -473,7 +474,11 @@ async function syncPatient(
     const explicitTax = Number(b.Total_Tax_Applicable__c || 0);
     const base = taxRate > 0 ? total / (1 + taxRate / 100) : Math.max(total - explicitTax, 0);
     const taxAmount = taxRate > 0 ? total - base : explicitTax;
-    const lineItems = names.map((name: string) => ({ name, qty: 1, price: base / names.length, hsn: "", gst: taxRate }));
+    // HSN comes from the rate, via the clinic's Tax Master - see hsnForRate.ts.
+    // Billing__c carries no HSN of its own, and this used to be hardcoded "",
+    // which is why the HSN column printed blank on every bill.
+    const hsn = hsnForRate(taxRate);
+    const lineItems = names.map((name: string) => ({ name, qty: 1, price: base / names.length, hsn, gst: taxRate }));
     return {
       invoice_number: b.Name,
       patient_id: p.lovable_id,

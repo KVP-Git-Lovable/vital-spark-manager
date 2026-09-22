@@ -86,6 +86,30 @@ export function formatMoneyExact(value: number | string | null | undefined): str
   return `${sign}${cache.symbol}${grouped(Math.abs(n), cache)}`;
 }
 
+/**
+ * Currency with two decimals always, whatever `show_decimals` says.
+ *
+ * For a GST invoice this is not a display preference. The clinic has chosen
+ * whole rupees for the app generally, and that is fine everywhere except a tax
+ * document, where rounding stops the figures reconciling: a ₹4,000 bill at 5%
+ * inclusive is ₹3,809.52 + ₹190.48, and rounding it prints CGST ₹95 + SGST ₹95
+ * = ₹190 against a tax line of ₹190.48. The printed PDF already shows the exact
+ * figures, so rounding on screen also made the two disagree about the same bill.
+ *
+ * Used for amounts and tax heads on invoices. Everything else keeps the
+ * configured setting.
+ */
+export function formatMoneyPrecise(value: number | string | null | undefined): string {
+  const n = typeof value === "string" ? Number(value) : value;
+  if (n == null || Number.isNaN(n)) return `${cache.symbol}0.00`;
+  const sign = n < 0 ? "-" : "";
+  const body = Math.abs(n).toLocaleString(
+    cache.number_style === "indian" ? "en-IN" : "en-US",
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+  );
+  return `${sign}${cache.symbol}${body}`;
+}
+
 /** Currency string that always shortens large amounts (Lakh/Crore or K/M),
  *  so big figures never overflow a small card. Small amounts stay grouped. */
 export function formatMoneyCompact(value: number | string | null | undefined): string {

@@ -6,6 +6,7 @@ import {
   formatMoneyExact,
   formatNumber,
   setCurrencySettingsCache,
+  formatMoneyPrecise,
 } from "./currency";
 
 afterEach(() => setCurrencySettingsCache(DEFAULT_CURRENCY_SETTINGS));
@@ -81,5 +82,27 @@ describe("the other formatters are unchanged by the shared grouping helper", () 
     expect(formatMoneyCompact(99999)).toBe("₹99,999");
     expect(formatMoneyCompact(100000)).toBe("₹1.00 L");
     expect(formatMoneyCompact(12345678)).toBe("₹1.23 Cr");
+  });
+});
+
+describe("formatMoneyPrecise", () => {
+  it("keeps two decimals even when the clinic has chosen whole rupees", () => {
+    setCurrencySettingsCache({ symbol: "₹", show_decimals: false, decimal_digits: 2, number_style: "indian", abbreviate: false });
+    // The exact case that made the screen and the PDF disagree: a ₹4,000 bill
+    // at 5% inclusive splits ₹3,809.52 + ₹190.48, and CGST/SGST are ₹95.24 each.
+    expect(formatMoneyPrecise(3809.523809523809)).toBe("₹3,809.52");
+    expect(formatMoneyPrecise(95.23809523809541)).toBe("₹95.24");
+    expect(formatMoneyPrecise(4000)).toBe("₹4,000.00");
+  });
+
+  it("never abbreviates, so a large bill stays reconcilable", () => {
+    setCurrencySettingsCache({ symbol: "₹", show_decimals: false, decimal_digits: 2, number_style: "indian", abbreviate: true });
+    expect(formatMoneyPrecise(250000)).toBe("₹2,50,000.00");
+  });
+
+  it("puts the sign outside the symbol and handles a missing value", () => {
+    setCurrencySettingsCache({ symbol: "₹", show_decimals: false, decimal_digits: 2, number_style: "indian", abbreviate: false });
+    expect(formatMoneyPrecise(-2000)).toBe("-₹2,000.00");
+    expect(formatMoneyPrecise(null)).toBe("₹0.00");
   });
 });

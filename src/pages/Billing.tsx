@@ -1,4 +1,4 @@
-import { formatMoney } from "@/lib/currency";
+import { formatMoney, formatMoneyPrecise } from "@/lib/currency";
 import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { assertWrote, NOT_YOURS_MESSAGE } from "@/lib/rowAccess";
@@ -3370,11 +3370,11 @@ const Billing = () => {
                             <td className="px-3 py-2">{r.name}</td>
                             <td className="px-3 py-2 text-muted-foreground text-xs">{r.hsn || "—"}</td>
                             <td className="px-3 py-2 text-right">{r.qty}</td>
-                            <td className="px-3 py-2 text-right">{formatMoney(r.price)}</td>
-                            <td className="px-3 py-2 text-right">{formatMoney(r.amount)}</td>
+                            <td className="px-3 py-2 text-right">{formatMoneyPrecise(r.price)}</td>
+                            <td className="px-3 py-2 text-right">{formatMoneyPrecise(r.amount)}</td>
                             <td className="px-3 py-2 text-right">{r.gst ? `${r.gst}%` : "—"}</td>
-                            <td className="px-3 py-2 text-right">{formatMoney(r.tax)}</td>
-                            <td className="px-3 py-2 text-right font-medium">{formatMoney(r.total)}</td>
+                            <td className="px-3 py-2 text-right">{formatMoneyPrecise(r.tax)}</td>
+                            <td className="px-3 py-2 text-right font-medium">{formatMoneyPrecise(r.total)}</td>
                           </tr>
                         ))}
                         {/* Tax breakdown - shown as its own row(s) right above Total,
@@ -3382,21 +3382,21 @@ const Billing = () => {
                         {Number(viewInvoice.cgst_amount) > 0 && (
                           <tr className="border-t text-muted-foreground">
                             <td className="px-3 py-1.5" colSpan={6}>CGST</td>
-                            <td className="px-3 py-1.5 text-right">{formatMoney(Number(viewInvoice.cgst_amount))}</td>
+                            <td className="px-3 py-1.5 text-right">{formatMoneyPrecise(Number(viewInvoice.cgst_amount))}</td>
                             <td className="px-3 py-1.5" />
                           </tr>
                         )}
                         {Number(viewInvoice.sgst_amount) > 0 && (
                           <tr className="border-t text-muted-foreground">
                             <td className="px-3 py-1.5" colSpan={6}>SGST</td>
-                            <td className="px-3 py-1.5 text-right">{formatMoney(Number(viewInvoice.sgst_amount))}</td>
+                            <td className="px-3 py-1.5 text-right">{formatMoneyPrecise(Number(viewInvoice.sgst_amount))}</td>
                             <td className="px-3 py-1.5" />
                           </tr>
                         )}
                         {Number(viewInvoice.igst_amount) > 0 && (
                           <tr className="border-t text-muted-foreground">
                             <td className="px-3 py-1.5" colSpan={6}>IGST</td>
-                            <td className="px-3 py-1.5 text-right">{formatMoney(Number(viewInvoice.igst_amount))}</td>
+                            <td className="px-3 py-1.5 text-right">{formatMoneyPrecise(Number(viewInvoice.igst_amount))}</td>
                             <td className="px-3 py-1.5" />
                           </tr>
                         )}
@@ -3408,12 +3408,12 @@ const Billing = () => {
                                 rather than a flat, unlabeled "Tax" line. */}
                             <tr className="border-t text-muted-foreground">
                               <td className="px-3 py-1.5" colSpan={6}>CGST</td>
-                              <td className="px-3 py-1.5 text-right">{formatMoney(Math.round(t.tax) / 2)}</td>
+                              <td className="px-3 py-1.5 text-right">{formatMoneyPrecise(t.tax / 2)}</td>
                               <td className="px-3 py-1.5" />
                             </tr>
                             <tr className="border-t text-muted-foreground">
                               <td className="px-3 py-1.5" colSpan={6}>SGST</td>
-                              <td className="px-3 py-1.5 text-right">{formatMoney(Math.round(t.tax) / 2)}</td>
+                              <td className="px-3 py-1.5 text-right">{formatMoneyPrecise(t.tax / 2)}</td>
                               <td className="px-3 py-1.5" />
                             </tr>
                           </>

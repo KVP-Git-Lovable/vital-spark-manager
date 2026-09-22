@@ -17,6 +17,7 @@ import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib
 import { viewDatePreset } from "@/lib/viewDatePreset";
 import { appointmentInvoiceMap } from "@/lib/appointmentInvoiceMap";
 import { billCellState } from "@/lib/billCellState";
+import { billedPatientDays, patientDayKey, type BilledDayRow } from "@/lib/billedPatientDays";
 import { formatMoneyExact } from "@/lib/currency";
 import { fetchInvoicesByAppointmentIds, invoiceMapByAppointment } from "@/lib/invoicesForAppointments";
 import { assertWrote } from "@/lib/rowAccess";
@@ -773,6 +774,16 @@ const Appointments = () => {
     [viewHasFilters, invoiceByAppointmentId, pageInvoiceByAppointmentId],
   );
 
+  // Patient-days that already have a bill on one of their appointments. A
+  // patient can hold two records for the same slot - Kiran Shetty had two at
+  // 4:00 PM on 21 September against a single Rs 6,300 bill - and the row
+  // without it read "No bill" while he had in fact paid. Built from rows
+  // already fetched, so it costs no query.
+  const billedOnAnotherVisit = useMemo(() => {
+    const rows: BilledDayRow[] = [...appointments, ...(apptPageData?.rows ?? [])];
+    return billedPatientDays(rows, (id) => billInvoiceByAppointmentId.has(id));
+  }, [appointments, apptPageData, billInvoiceByAppointmentId]);
+
   // Say so instead of showing a column of dashes that looks like "no bills".
   const billLookupFailed = fullInvoicesFailed || pageInvoicesFailed;
   // Only one of the two queries ever runs; a disabled one reports isLoading
@@ -785,15 +796,31 @@ const Appointments = () => {
   // which it is - and never claim "No bill" when the figure is simply unknown.
   const renderBillCell = (
     invoice: { total_amount?: number | string | null } | undefined,
+    apt?: { patient_id?: string | null; start_time?: string | null },
     emphasise = false,
   ) => {
-    switch (billCellState({ hasInvoice: !!invoice, loading: billLookupLoading, failed: billLookupFailed })) {
+    const key = apt ? patientDayKey(apt.patient_id, apt.start_time) : null;
+    switch (billCellState({
+      hasInvoice: !!invoice,
+      loading: billLookupLoading,
+      failed: billLookupFailed,
+      billedElsewhere: !!key && billedOnAnotherVisit.has(key),
+    })) {
       case "amount":
         return <span className={emphasise ? "font-medium" : undefined}>{formatMoneyExact(invoice.total_amount)}</span>;
       case "failed":
         return <span className="text-destructive" title="The bill could not be loaded - this is not the same as there being none">Unavailable</span>;
       case "loading":
         return <span className="text-muted-foreground">…</span>;
+      case "elsewhere":
+        return (
+          <span
+            className="text-muted-foreground italic"
+            title="This patient has another appointment on the same day, and the bill is on that one"
+          >
+            On another visit
+          </span>
+        );
       default:
         return <span className="text-muted-foreground">No bill</span>;
     }
@@ -2486,7 +2513,7 @@ const Appointments = () => {
                                     </td>
                                   )}
                                   {shouldShowColumn("bill") && (
-                                    <td className="p-2 text-muted-foreground text-xs">{renderBillCell(invoice)}</td>
+                                    <td className="p-2 text-muted-foreground text-xs">{renderBillCell(invoice, apt)}</td>
                                   )}
                                   {shouldShowColumn("visit_status") && (
                                     <td className="p-2 text-muted-foreground text-xs">{apt.visit_status || "—"}</td>
@@ -2583,7 +2610,7 @@ const Appointments = () => {
                                   </td>
                                 )}
                                 {shouldShowColumn("bill") && (
-                                  <td className="p-3 text-xs">{renderBillCell(invoice, true)}</td>
+                                  <td className="p-3 text-xs">{renderBillCell(invoice, apt, true)}</td>
                                 )}
                                 {shouldShowColumn("visit_status") && (
                                   <td className="p-3 text-xs">{apt.visit_status ? <Badge variant="outline" className="text-xs">{apt.visit_status}</Badge> : <span className="text-muted-foreground">—</span>}</td>

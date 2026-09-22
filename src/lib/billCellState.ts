@@ -15,15 +15,21 @@
  * An invoice already in hand wins over everything: a background refetch should
  * not blank a figure that is sitting right there.
  */
-export type BillCellState = "amount" | "failed" | "loading" | "none";
+export type BillCellState = "amount" | "failed" | "loading" | "elsewhere" | "none";
 
 export function billCellState(opts: {
   hasInvoice: boolean;
   loading: boolean;
   failed: boolean;
+  /** The patient has a bill that day, on one of their other appointments. */
+  billedElsewhere?: boolean;
 }): BillCellState {
   if (opts.hasInvoice) return "amount";
   if (opts.failed) return "failed";
   if (opts.loading) return "loading";
+  // A patient can hold two appointment records for one slot, with the single
+  // bill attached to the other. "No bill" is true of the row and false of the
+  // visit, which is the one case where this column genuinely misleads.
+  if (opts.billedElsewhere) return "elsewhere";
   return "none";
 }

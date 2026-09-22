@@ -210,11 +210,14 @@ Deno.serve(async (req) => {
               engagement_retention_signal: r.breakdown.retentionSignal,
               engagement_compliance: r.breakdown.compliance,
               engagement_updated_at: stamp,
-              total_visits: r.stats.completedAppointments,
               lifetime_value: r.stats.totalBilled,
-              last_visit_date: r.stats.lastVisitDate,
-              days_since_last_visit:
-                r.stats.daysSinceLastVisit >= 999 ? null : r.stats.daysSinceLastVisit,
+              // total_visits, last_visit_date and days_since_last_visit are
+              // deliberately NOT written here. recalc_patient_visit_rollups owns
+              // them, and it counts a past appointment with a paid invoice as
+              // attended - 3,371 visits this function cannot see, because it
+              // reads status alone. Two writers with two different rules is what
+              // put a last visit of 18 Sept beside a days-since taken from an
+              // October booking, and left 59 patients with a negative number.
             })
             .eq("id", pid)
         )

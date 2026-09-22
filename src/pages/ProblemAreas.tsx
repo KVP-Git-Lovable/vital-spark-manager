@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isVisit } from "@/lib/visitStats";
 import { Plus, Pencil, Trash2, Search, ArrowLeft, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +46,7 @@ const ProblemAreas = () => {
       // Get all appointments that contain this primary concern id
       const { data: appointments, error } = await supabase
         .from("appointments")
-        .select("patient_id, patient_name, start_time")
+        .select("patient_id, patient_name, start_time, status")
         .contains("problem_area_ids", [selectedArea.id]);
       if (error) throw error;
       if (!appointments || appointments.length === 0) return [];
@@ -54,6 +55,9 @@ const ProblemAreas = () => {
       const patientMap = new Map<string, { patient_id: string; patient_name: string; lastAppointment: string; totalVisits: number }>();
       for (const appt of appointments) {
         if (!appt.patient_id) continue;
+        // "Total Visits" here means visits for this concern that the patient
+        // actually attended - a cancellation or a future booking is not one.
+        if (!isVisit(appt.status)) continue;
         const existing = patientMap.get(appt.patient_id);
         if (existing) {
           existing.totalVisits++;

@@ -42,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/supabasePaginate";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { CameraCapture } from "@/components/shared/CameraCapture";
@@ -233,20 +234,42 @@ const fetchPatientsPage = async (
 };
 
 
+/**
+ * Every patient a saved view might match.
+ *
+ * Saved views filter and count in the browser (`applyFilters` over `viewRows`),
+ * so whatever this returns IS the view - anything it does not fetch cannot be
+ * matched, and the "N items" count is the count of what it fetched.
+ *
+ * This used to take `.limit(2000)`. With the list ordered by last visit, that
+ * meant every custom view silently saw only the 2,000 most recently seen
+ * patients out of ~27,000: a "lifetime value over 2k" view reported 573, having
+ * never looked at the other 25,000. A recall or marketing list built from it
+ * would have missed most of the clinic's patients without saying so.
+ *
+ * So it pages through all of them instead, via the helper written for exactly
+ * this (`fetchAll` bypasses PostgREST's 1,000-row cap). That is ~27 requests
+ * and a few seconds on a cold view; the list already shows a loading state, and
+ * a filter that quietly ignores 92% of the patients is the worse trade.
+ */
 const fetchAllPatients = async (search: string): Promise<Patient[]> => {
   const term = search.trim();
-  let q = supabase
-    .from("patients")
-    .select("*")
-    .order("last_visit_date", { ascending: false, nullsFirst: false })
-    .limit(2000);
-  if (term) {
-    const or = buildOrFilter(term, ["first_name", "last_name", "email", "phone"]);
-    if (or) q = q.or(or);
-  }
-  const { data, error } = await q;
-  if (error) throw error;
-  return (data as Patient[]) || [];
+  return fetchAll<Patient>((from, to) => {
+    let q = supabase
+      .from("patients")
+      .select("*")
+      .order("last_visit_date", { ascending: false, nullsFirst: false })
+      // last_visit_date is not unique - 8,000 patients share a null alone - and
+      // .range() paging over a non-unique order can skip or repeat rows between
+      // pages. id breaks the tie so every page is deterministic.
+      .order("id", { ascending: true })
+      .range(from, to);
+    if (term) {
+      const or = buildOrFilter(term, ["first_name", "last_name", "email", "phone"]);
+      if (or) q = q.or(or);
+    }
+    return q;
+  });
 };
 
 const Patients = () => {

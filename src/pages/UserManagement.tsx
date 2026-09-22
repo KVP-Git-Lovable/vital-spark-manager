@@ -17,7 +17,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ShieldCheck, Plus, Save, Search, UserPlus, KeyRound, Trash2, Pencil } from "lucide-react";
+import { ShieldCheck, Plus, Save, Search, UserPlus, KeyRound, Trash2, Pencil, UserCog, History } from "lucide-react";
+import { canImpersonate, startImpersonation } from "@/lib/impersonation";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import CreateUserDialog from "@/components/users/CreateUserDialog";
 import EditUserDialog from "@/components/users/EditUserDialog";
@@ -97,6 +98,29 @@ export default function UserManagement() {
         status: s.is_active ? "Active" : "Inactive",
       }));
     },
+  });
+
+  // May this account log in as someone else? Decided on the server against a
+  // backend allow-list secret - the answer here only hides or shows the button.
+  const { data: mayImpersonate = false } = useQuery({
+    queryKey: ["can-impersonate"],
+    queryFn: canImpersonate,
+    enabled: isAdmin,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Audit trail. Readable only by admins (enforced by the database).
+  const { data: loginAsLog = [] } = useQuery({
+    queryKey: ["impersonation-log"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("impersonation_log")
+        .select("id, actor_email, target_name, target_email, started_at, ended_at")
+        .order("started_at", { ascending: false })
+        .limit(50);
+      return data || [];
+    },
+    enabled: isAdmin,
   });
 
   // Fetch permissions for selected role
@@ -393,6 +417,16 @@ export default function UserManagement() {
                       </TableCell>
                       {isAdmin && (
                         <TableCell className="flex gap-1">
+                          {mayImpersonate && s.auth_user_id && s.is_active && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Log in as this user"
+                              onClick={() => setImpersonateStaff(s)}
+                            >
+                              <UserCog className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"

@@ -1359,6 +1359,69 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_breakdown_backup_20260922: {
+        Row: {
+          captured_at: string | null
+          cgst_amount: number | null
+          id: string | null
+          line_items: Json | null
+          sgst_amount: number | null
+          tax_amount: number | null
+        }
+        Insert: {
+          captured_at?: string | null
+          cgst_amount?: number | null
+          id?: string | null
+          line_items?: Json | null
+          sgst_amount?: number | null
+          tax_amount?: number | null
+        }
+        Update: {
+          captured_at?: string | null
+          cgst_amount?: number | null
+          id?: string | null
+          line_items?: Json | null
+          sgst_amount?: number | null
+          tax_amount?: number | null
+        }
+        Relationships: []
+      }
+      invoice_hsn_backup_20260922: {
+        Row: {
+          captured_at: string | null
+          id: string | null
+          line_items: Json | null
+        }
+        Insert: {
+          captured_at?: string | null
+          id?: string | null
+          line_items?: Json | null
+        }
+        Update: {
+          captured_at?: string | null
+          id?: string | null
+          line_items?: Json | null
+        }
+        Relationships: []
+      }
+      invoice_hsn_topup_backup_20260922: {
+        Row: {
+          captured_at: string
+          id: string
+          line_items: Json | null
+        }
+        Insert: {
+          captured_at?: string
+          id: string
+          line_items?: Json | null
+        }
+        Update: {
+          captured_at?: string
+          id?: string
+          line_items?: Json | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           appointment_id: string | null
@@ -1512,6 +1575,123 @@ export type Database = {
           },
         ]
       }
+      invoices_dummy_backup_20260922: {
+        Row: {
+          appointment_id: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by_name: string | null
+          cgst_amount: number | null
+          created_at: string | null
+          created_by: string | null
+          doctor_id: string | null
+          due_date: string | null
+          id: string | null
+          igst_amount: number | null
+          installment_count: number | null
+          installment_number: number | null
+          invoice_number: string | null
+          line_items: Json | null
+          merged_into_invoice_id: string | null
+          notes: string | null
+          owner_id: string | null
+          paid_amount: number | null
+          patient_id: string | null
+          patient_name: string | null
+          payment_mode: string | null
+          payment_splits: Json | null
+          payment_type: string | null
+          pdf_url: string | null
+          recurring_group_id: string | null
+          services: string[] | null
+          sf_id: string | null
+          sgst_amount: number | null
+          status: string | null
+          tax_amount: number | null
+          tax_id: string | null
+          tax_rate: number | null
+          total_amount: number | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_name?: string | null
+          cgst_amount?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          doctor_id?: string | null
+          due_date?: string | null
+          id?: string | null
+          igst_amount?: number | null
+          installment_count?: number | null
+          installment_number?: number | null
+          invoice_number?: string | null
+          line_items?: Json | null
+          merged_into_invoice_id?: string | null
+          notes?: string | null
+          owner_id?: string | null
+          paid_amount?: number | null
+          patient_id?: string | null
+          patient_name?: string | null
+          payment_mode?: string | null
+          payment_splits?: Json | null
+          payment_type?: string | null
+          pdf_url?: string | null
+          recurring_group_id?: string | null
+          services?: string[] | null
+          sf_id?: string | null
+          sgst_amount?: number | null
+          status?: string | null
+          tax_amount?: number | null
+          tax_id?: string | null
+          tax_rate?: number | null
+          total_amount?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_name?: string | null
+          cgst_amount?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          doctor_id?: string | null
+          due_date?: string | null
+          id?: string | null
+          igst_amount?: number | null
+          installment_count?: number | null
+          installment_number?: number | null
+          invoice_number?: string | null
+          line_items?: Json | null
+          merged_into_invoice_id?: string | null
+          notes?: string | null
+          owner_id?: string | null
+          paid_amount?: number | null
+          patient_id?: string | null
+          patient_name?: string | null
+          payment_mode?: string | null
+          payment_splits?: Json | null
+          payment_type?: string | null
+          pdf_url?: string | null
+          recurring_group_id?: string | null
+          services?: string[] | null
+          sf_id?: string | null
+          sgst_amount?: number | null
+          status?: string | null
+          tax_amount?: number | null
+          tax_id?: string | null
+          tax_rate?: number | null
+          total_amount?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       leave_applications: {
         Row: {
           approved_by: string | null
@@ -1657,6 +1837,39 @@ export type Database = {
           updated_at?: string
           user_id?: string
           visibility?: string
+        }
+        Relationships: []
+      }
+      media_dupes_backup_20260922: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          notes: string | null
+          patient_id: string | null
+          sf_id: string | null
+          src: string | null
+          taken_at: string | null
+          url: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          notes?: string | null
+          patient_id?: string | null
+          sf_id?: string | null
+          src?: string | null
+          taken_at?: string | null
+          url?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          notes?: string | null
+          patient_id?: string | null
+          sf_id?: string | null
+          src?: string | null
+          taken_at?: string | null
+          url?: string | null
         }
         Relationships: []
       }
@@ -3348,6 +3561,27 @@ export type Database = {
         }
         Relationships: []
       }
+      procedures_service_backup_20260922: {
+        Row: {
+          captured_at: string | null
+          id: string | null
+          service_name: string | null
+          sf_id: string | null
+        }
+        Insert: {
+          captured_at?: string | null
+          id?: string | null
+          service_name?: string | null
+          sf_id?: string | null
+        }
+        Update: {
+          captured_at?: string | null
+          id?: string | null
+          service_name?: string | null
+          sf_id?: string | null
+        }
+        Relationships: []
+      }
       product_prices: {
         Row: {
           created_at: string
@@ -4418,6 +4652,375 @@ export type Database = {
           },
         ]
       }
+      test_appointments_backup_20260922: {
+        Row: {
+          appointment_type: string | null
+          consultation_reasons: string[] | null
+          consultation_type: string | null
+          created_at: string | null
+          created_by: string | null
+          doctor_name: string | null
+          end_time: string | null
+          id: string | null
+          is_recurring: boolean | null
+          owner_id: string | null
+          parent_appointment_id: string | null
+          patient_id: string | null
+          patient_name: string | null
+          problem_area_ids: string[] | null
+          reason_for_consultation: string | null
+          recurrence_end_date: string | null
+          recurrence_pattern: string | null
+          service: string | null
+          sf_id: string | null
+          source: string | null
+          staff_id: string | null
+          start_time: string | null
+          status: string | null
+          survey_template_id: string | null
+          updated_at: string | null
+          updated_by: string | null
+          visit_status: string | null
+        }
+        Insert: {
+          appointment_type?: string | null
+          consultation_reasons?: string[] | null
+          consultation_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          doctor_name?: string | null
+          end_time?: string | null
+          id?: string | null
+          is_recurring?: boolean | null
+          owner_id?: string | null
+          parent_appointment_id?: string | null
+          patient_id?: string | null
+          patient_name?: string | null
+          problem_area_ids?: string[] | null
+          reason_for_consultation?: string | null
+          recurrence_end_date?: string | null
+          recurrence_pattern?: string | null
+          service?: string | null
+          sf_id?: string | null
+          source?: string | null
+          staff_id?: string | null
+          start_time?: string | null
+          status?: string | null
+          survey_template_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          visit_status?: string | null
+        }
+        Update: {
+          appointment_type?: string | null
+          consultation_reasons?: string[] | null
+          consultation_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          doctor_name?: string | null
+          end_time?: string | null
+          id?: string | null
+          is_recurring?: boolean | null
+          owner_id?: string | null
+          parent_appointment_id?: string | null
+          patient_id?: string | null
+          patient_name?: string | null
+          problem_area_ids?: string[] | null
+          reason_for_consultation?: string | null
+          recurrence_end_date?: string | null
+          recurrence_pattern?: string | null
+          service?: string | null
+          sf_id?: string | null
+          source?: string | null
+          staff_id?: string | null
+          start_time?: string | null
+          status?: string | null
+          survey_template_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          visit_status?: string | null
+        }
+        Relationships: []
+      }
+      test_patients_backup_20260922: {
+        Row: {
+          address: string | null
+          allergies: string | null
+          auth_user_id: string | null
+          blood_group: string | null
+          city: string | null
+          consultation_reasons: string[] | null
+          consultation_type: string | null
+          created_at: string | null
+          created_by: string | null
+          current_medications: string | null
+          date_of_birth: string | null
+          days_since_last_visit: number | null
+          doctor_id: string | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          engagement_compliance: number | null
+          engagement_retention_signal: number | null
+          engagement_revenue_value: number | null
+          engagement_score: number | null
+          engagement_tier: string | null
+          engagement_treatment_depth: number | null
+          engagement_updated_at: string | null
+          engagement_visit_frequency: number | null
+          facebook_url: string | null
+          first_name: string | null
+          follows_facebook: boolean | null
+          follows_instagram: boolean | null
+          gender: string | null
+          id: string | null
+          instagram_url: string | null
+          last_name: string | null
+          last_visit_date: string | null
+          lifetime_value: number | null
+          medical_history: string | null
+          notes: string | null
+          owner_id: string | null
+          phone: string | null
+          pincode: string | null
+          portal_pin_failed_attempts: number | null
+          portal_pin_hash: string | null
+          portal_pin_locked_until: string | null
+          previous_treatments: string | null
+          registered_at: string | null
+          sf_attachments_synced_at: string | null
+          sf_clinical_synced_at: string | null
+          sf_id: string | null
+          sf_pictures_synced_at: string | null
+          sf_registered_at: string | null
+          skin_concerns: string | null
+          skin_type: string | null
+          source: string | null
+          source_ad_details: string | null
+          source_other_text: string | null
+          source_referral_doctor: string | null
+          state: string | null
+          status: string | null
+          total_visits: number | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          address?: string | null
+          allergies?: string | null
+          auth_user_id?: string | null
+          blood_group?: string | null
+          city?: string | null
+          consultation_reasons?: string[] | null
+          consultation_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_medications?: string | null
+          date_of_birth?: string | null
+          days_since_last_visit?: number | null
+          doctor_id?: string | null
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          engagement_compliance?: number | null
+          engagement_retention_signal?: number | null
+          engagement_revenue_value?: number | null
+          engagement_score?: number | null
+          engagement_tier?: string | null
+          engagement_treatment_depth?: number | null
+          engagement_updated_at?: string | null
+          engagement_visit_frequency?: number | null
+          facebook_url?: string | null
+          first_name?: string | null
+          follows_facebook?: boolean | null
+          follows_instagram?: boolean | null
+          gender?: string | null
+          id?: string | null
+          instagram_url?: string | null
+          last_name?: string | null
+          last_visit_date?: string | null
+          lifetime_value?: number | null
+          medical_history?: string | null
+          notes?: string | null
+          owner_id?: string | null
+          phone?: string | null
+          pincode?: string | null
+          portal_pin_failed_attempts?: number | null
+          portal_pin_hash?: string | null
+          portal_pin_locked_until?: string | null
+          previous_treatments?: string | null
+          registered_at?: string | null
+          sf_attachments_synced_at?: string | null
+          sf_clinical_synced_at?: string | null
+          sf_id?: string | null
+          sf_pictures_synced_at?: string | null
+          sf_registered_at?: string | null
+          skin_concerns?: string | null
+          skin_type?: string | null
+          source?: string | null
+          source_ad_details?: string | null
+          source_other_text?: string | null
+          source_referral_doctor?: string | null
+          state?: string | null
+          status?: string | null
+          total_visits?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          address?: string | null
+          allergies?: string | null
+          auth_user_id?: string | null
+          blood_group?: string | null
+          city?: string | null
+          consultation_reasons?: string[] | null
+          consultation_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_medications?: string | null
+          date_of_birth?: string | null
+          days_since_last_visit?: number | null
+          doctor_id?: string | null
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          engagement_compliance?: number | null
+          engagement_retention_signal?: number | null
+          engagement_revenue_value?: number | null
+          engagement_score?: number | null
+          engagement_tier?: string | null
+          engagement_treatment_depth?: number | null
+          engagement_updated_at?: string | null
+          engagement_visit_frequency?: number | null
+          facebook_url?: string | null
+          first_name?: string | null
+          follows_facebook?: boolean | null
+          follows_instagram?: boolean | null
+          gender?: string | null
+          id?: string | null
+          instagram_url?: string | null
+          last_name?: string | null
+          last_visit_date?: string | null
+          lifetime_value?: number | null
+          medical_history?: string | null
+          notes?: string | null
+          owner_id?: string | null
+          phone?: string | null
+          pincode?: string | null
+          portal_pin_failed_attempts?: number | null
+          portal_pin_hash?: string | null
+          portal_pin_locked_until?: string | null
+          previous_treatments?: string | null
+          registered_at?: string | null
+          sf_attachments_synced_at?: string | null
+          sf_clinical_synced_at?: string | null
+          sf_id?: string | null
+          sf_pictures_synced_at?: string | null
+          sf_registered_at?: string | null
+          skin_concerns?: string | null
+          skin_type?: string | null
+          source?: string | null
+          source_ad_details?: string | null
+          source_other_text?: string | null
+          source_referral_doctor?: string | null
+          state?: string | null
+          status?: string | null
+          total_visits?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      test_procedures_backup_20260922: {
+        Row: {
+          appointment_id: string | null
+          assisted_by: string | null
+          assisted_by_ids: string[] | null
+          cf_test: string | null
+          consultation_notes: string | null
+          created_at: string | null
+          created_by: string | null
+          diagnosis: string | null
+          id: string | null
+          lab_tests: string | null
+          owner_id: string | null
+          patient_id: string | null
+          procedure_date: string | null
+          procedure_notes: string | null
+          recommendations: string | null
+          recurring_count: number | null
+          recurring_dates: string[] | null
+          review_notes: string | null
+          service_name: string | null
+          sf_id: string | null
+          staff_id: string | null
+          status: string | null
+          survey_response_id: string | null
+          symptoms: string | null
+          updated_at: string | null
+          updated_by: string | null
+          visit_type: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          assisted_by?: string | null
+          assisted_by_ids?: string[] | null
+          cf_test?: string | null
+          consultation_notes?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          diagnosis?: string | null
+          id?: string | null
+          lab_tests?: string | null
+          owner_id?: string | null
+          patient_id?: string | null
+          procedure_date?: string | null
+          procedure_notes?: string | null
+          recommendations?: string | null
+          recurring_count?: number | null
+          recurring_dates?: string[] | null
+          review_notes?: string | null
+          service_name?: string | null
+          sf_id?: string | null
+          staff_id?: string | null
+          status?: string | null
+          survey_response_id?: string | null
+          symptoms?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          visit_type?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          assisted_by?: string | null
+          assisted_by_ids?: string[] | null
+          cf_test?: string | null
+          consultation_notes?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          diagnosis?: string | null
+          id?: string | null
+          lab_tests?: string | null
+          owner_id?: string | null
+          patient_id?: string | null
+          procedure_date?: string | null
+          procedure_notes?: string | null
+          recommendations?: string | null
+          recurring_count?: number | null
+          recurring_dates?: string[] | null
+          review_notes?: string | null
+          service_name?: string | null
+          sf_id?: string | null
+          staff_id?: string | null
+          status?: string | null
+          survey_response_id?: string | null
+          symptoms?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          visit_type?: string | null
+        }
+        Relationships: []
+      }
       therapy_notes_retired_20260918: {
         Row: {
           appointment_id: string
@@ -4864,6 +5467,17 @@ export type Database = {
         Returns: undefined
       }
       restore_from_trash: { Args: { _trash_id: string }; Returns: undefined }
+      sf_clinical_catchup: {
+        Args: {
+          _batch?: number
+          _bill_window_hours?: number
+          _cooldown_hours?: number
+          _seen_days?: number
+          _stale_days?: number
+        }
+        Returns: number
+      }
+      sf_fire_function: { Args: { _path: string }; Returns: number }
       sf_link_patients_bulk: {
         Args: { payload: Json }
         Returns: {
@@ -4880,6 +5494,7 @@ export type Database = {
         Args: { payload: Json }
         Returns: number
       }
+      sf_tail_cursor: { Args: { _back?: number }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       trash_allowed_object: { Args: { _object_type: string }; Returns: boolean }

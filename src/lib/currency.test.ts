@@ -66,6 +66,41 @@ describe("formatMoneyExact", () => {
   });
 });
 
+describe("formatMoneyExact - paise, only when there are paise", () => {
+  it("shows the half-rupee that made the report disagree with Salesforce", () => {
+    // 21 September took Rs 1,66,322.50. Rounded to whole rupees the report read
+    // Rs 1,66,323 and Salesforce read Rs 1,66,322 - the same half-rupee rounded
+    // in opposite directions, on a figure the clinic reconciles daily.
+    expect(formatMoneyExact(166322.5)).toBe("₹1,66,322.50");
+  });
+
+  it("leaves a whole amount whole, which is what the setting was chosen for", () => {
+    expect(formatMoneyExact(166322)).toBe("₹1,66,322");
+    expect(formatMoneyExact(4200)).toBe("₹4,200");
+    expect(formatMoneyExact(0)).toBe("₹0");
+  });
+
+  it("does not read floating-point drift in a summed column as a whole rupee", () => {
+    // Summing numerics lands just under; this is still a half-rupee.
+    expect(formatMoneyExact(166322.49999999)).toBe("₹1,66,322.50");
+    // And drift just above a whole amount is still whole.
+    expect(formatMoneyExact(4200.0000001)).toBe("₹4,200");
+  });
+
+  it("shows paise on a negative too, sign outside the symbol", () => {
+    expect(formatMoneyExact(-166322.5)).toBe("-₹1,66,322.50");
+  });
+
+  it("still obeys an explicit decimals setting rather than second-guessing it", () => {
+    setCurrencySettingsCache({ ...DEFAULT_CURRENCY_SETTINGS, show_decimals: true, decimal_digits: 2 });
+    expect(formatMoneyExact(166322)).toBe("₹1,66,322.00");
+  });
+
+  it("rounds to paise, never inventing a third decimal", () => {
+    expect(formatMoneyExact(95.238095)).toBe("₹95.24");
+  });
+});
+
 describe("the other formatters are unchanged by the shared grouping helper", () => {
   it("formatNumber still groups and still dashes on nothing", () => {
     expect(formatNumber(1234567)).toBe("12,34,567");

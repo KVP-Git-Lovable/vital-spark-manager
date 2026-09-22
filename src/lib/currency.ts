@@ -33,12 +33,32 @@ export function setCurrencySettingsCache(next: Partial<CurrencySettings> | null)
 const digits = (s: CurrencySettings) => (s.show_decimals ? Math.min(Math.max(s.decimal_digits, 0), 6) : 0);
 
 /** Every digit, grouped the configured way. The one place the locale and the
- *  decimal clamp are decided, so the three formatters below cannot drift. */
-const grouped = (n: number, s: CurrencySettings) =>
+ *  decimal clamp are decided, so the formatters below cannot drift. */
+const grouped = (n: number, s: CurrencySettings, fractionDigits = digits(s)) =>
   n.toLocaleString(s.number_style === "indian" ? "en-IN" : "en-US", {
-    minimumFractionDigits: digits(s),
-    maximumFractionDigits: digits(s),
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
   });
+
+/**
+ * Decimal places for a figure that gets reconciled against another system.
+ *
+ * The clinic has chosen whole rupees, and for almost every amount that is
+ * right. But a total carrying paise is then rounded, and the two systems round
+ * the same half-rupee in opposite directions: 21 September took
+ * Rs 1,66,322.50, which printed as Rs 1,66,323 on the report against
+ * Salesforce's Rs 1,66,322. Neither was wrong and neither could be reconciled.
+ *
+ * So: the configured digits when decimals are switched on, and otherwise two
+ * only when the amount actually has paise to show. A whole amount stays whole,
+ * which is what the setting was chosen for.
+ */
+const reconcilableDigits = (n: number, s: CurrencySettings) => {
+  if (s.show_decimals) return digits(s);
+  // Judged at paise resolution: summing a column of numerics can land on
+  // 166322.49999999, which is a half-rupee and must not read as a whole one.
+  return Math.round(n * 100) % 100 === 0 ? 0 : 2;
+};
 
 /** Plain grouped number, honouring Indian vs US grouping and decimal settings. */
 export function formatNumber(value: number | string | null | undefined): string {
@@ -83,7 +103,9 @@ export function formatMoneyExact(value: number | string | null | undefined): str
   // Sign outside the symbol - "-₹2,000", the way formatMoneyCompact writes the
   // negatives it shortens, rather than formatMoney's "₹-2,000".
   const sign = n < 0 ? "-" : "";
-  return `${sign}${cache.symbol}${grouped(Math.abs(n), cache)}`;
+  const abs = Math.abs(n);
+  // Paise shown only when there are paise - see reconcilableDigits.
+  return `${sign}${cache.symbol}${grouped(abs, cache, reconcilableDigits(abs, cache))}`;
 }
 
 /**

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { onlyCountableInvoices } from "@/lib/revenueScope";
 import { numVal } from "@/lib/numberInput";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -154,7 +155,8 @@ const InvoicesTab = ({ staffId }: { staffId: string }) => {
       const ids = appts.map((a: any) => a.id);
       const { data, error } = await supabase.from("invoices").select("*").in("appointment_id", ids).order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      // A cancelled bill is money never taken - see src/lib/revenueScope.ts.
+      return onlyCountableInvoices(data || []);
     },
   });
 

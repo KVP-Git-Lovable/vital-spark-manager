@@ -148,6 +148,10 @@ export default function DashboardExplore() {
         let q = supabase
           .from("invoices")
           .select("*, appointments(problem_area_ids)")
+          // This screen is the Dashboard's drill-down, and the Dashboard drops
+          // cancelled bills before it totals anything. Including them here made
+          // the detail disagree with the number that was clicked to reach it.
+          .neq("status", "Cancelled")
           .order("created_at", { ascending: false })
           .limit(5000);
         if (fromISO) q = q.gte("created_at", fromISO);

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { onlyCountableInvoices } from "@/lib/revenueScope";
 import { numVal } from "@/lib/numberInput";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -68,9 +69,10 @@ export default function CampaignDetail() {
     queryFn: async () => {
       if (linkedPatients.length === 0) return { total: 0 };
       const ids = linkedPatients.map((p: any) => p.id);
-      const { data, error } = await supabase.from("invoices").select("total_amount").in("patient_id", ids);
+      const { data, error } = await supabase.from("invoices").select("total_amount, status").in("patient_id", ids);
       if (error) throw error;
-      const total = (data || []).reduce((s, inv: any) => s + Number(inv.total_amount || 0), 0);
+      // Cancelled bills are not campaign revenue - see src/lib/revenueScope.ts.
+      const total = onlyCountableInvoices(data || []).reduce((s, inv: any) => s + Number(inv.total_amount || 0), 0);
       return { total };
     },
     enabled: linkedPatients.length > 0,
@@ -81,10 +83,10 @@ export default function CampaignDetail() {
     queryFn: async () => {
       if (linkedPatients.length === 0) return {} as Record<string, number>;
       const ids = linkedPatients.map((p: any) => p.id);
-      const { data, error } = await supabase.from("invoices").select("patient_id, total_amount").in("patient_id", ids);
+      const { data, error } = await supabase.from("invoices").select("patient_id, total_amount, status").in("patient_id", ids);
       if (error) throw error;
       const map: Record<string, number> = {};
-      (data || []).forEach((inv: any) => {
+      onlyCountableInvoices(data || []).forEach((inv: any) => {
         map[inv.patient_id] = (map[inv.patient_id] || 0) + Number(inv.total_amount || 0);
       });
       return map;

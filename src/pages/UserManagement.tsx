@@ -74,6 +74,8 @@ export default function UserManagement() {
   const [deleteStaff, setDeleteStaff] = useState<any>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editStaff, setEditStaff] = useState<any>(null);
+  const [impersonateStaff, setImpersonateStaff] = useState<any>(null);
+  const [impersonating, setImpersonating] = useState(false);
 
   // Fetch roles
   const { data: roles = [] } = useQuery({

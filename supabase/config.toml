@@ -63,3 +63,6 @@ verify_jwt = true
 
 [functions.sf-describe-patient-fields]
 verify_jwt = true
+
+[functions.sf-import-demographics]
+verify_jwt = true

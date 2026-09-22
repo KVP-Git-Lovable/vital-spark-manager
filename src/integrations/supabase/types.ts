@@ -2233,6 +2233,33 @@ export type Database = {
           },
         ]
       }
+      patients_demographics_backup_20260921: {
+        Row: {
+          captured_at: string | null
+          date_of_birth: string | null
+          email: string | null
+          gender: string | null
+          id: string | null
+          sf_id: string | null
+        }
+        Insert: {
+          captured_at?: string | null
+          date_of_birth?: string | null
+          email?: string | null
+          gender?: string | null
+          id?: string | null
+          sf_id?: string | null
+        }
+        Update: {
+          captured_at?: string | null
+          date_of_birth?: string | null
+          email?: string | null
+          gender?: string | null
+          id?: string | null
+          sf_id?: string | null
+        }
+        Relationships: []
+      }
       patients_name_backup_20260921: {
         Row: {
           captured_at: string | null
@@ -4843,6 +4870,10 @@ export type Database = {
           created: number
           linked: number
         }[]
+      }
+      sf_set_patient_demographics_bulk: {
+        Args: { payload: Json }
+        Returns: number
       }
       sf_set_patient_name_bulk: { Args: { payload: Json }; Returns: number }
       sf_set_patient_registered_bulk: {

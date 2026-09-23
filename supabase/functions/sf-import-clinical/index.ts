@@ -308,7 +308,7 @@ async function syncPatient(
     existingSfIds("invoices", p.lovable_id),
     // Every column the top-up below may fill, so it can tell empty from typed.
     admin.from("procedures")
-      .select("sf_id, service_name, diagnosis, symptoms, lab_tests, procedure_notes, consultation_notes, recommendations, review_notes, appointment_id, staff_id")
+      .select("sf_id, service_name, diagnosis, symptoms, lab_tests, procedure_notes, consultation_notes, recommendations, review_notes, additional_instructions, appointment_id, staff_id")
       .eq("patient_id", p.lovable_id).not("sf_id", "is", null)
       .then(({ data }) => data || []),
   ]);

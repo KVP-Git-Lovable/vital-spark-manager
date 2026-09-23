@@ -967,6 +967,16 @@ Deno.serve(async (req) => {
     const doctorFor = await buildDoctorMap();
     const serviceFor = await buildServiceMatcher();
 
+    // Refreshed once per invocation, and never allowed to take the sync down.
+    let priceBookEntriesImported = 0;
+    let priceBookError: string | null = null;
+    try {
+      priceBookEntriesImported = await importPriceBookEntries(AbortSignal.timeout(20_000));
+    } catch (e) {
+      priceBookError = (e as Error).message;
+      console.error("Price book import failed:", priceBookError);
+    }
+
     if (reset && only) {
       await admin.from("patients").update({ sf_clinical_synced_at: null }).in("id", targets.map((t) => t.lovable_id));
     }

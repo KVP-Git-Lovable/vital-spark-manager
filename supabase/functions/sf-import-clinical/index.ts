@@ -553,6 +553,31 @@ async function syncPatient(
         log.billing_lines_staged = (log.billing_lines_staged || 0) + batch.length;
       }
     }
+
+    // Stage the bill-level figures (Billing__c) into sf_billing_headers,
+    // verbatim - read-and-stage only. Same rule as the line items and it
+    // matters more here: a NULL Total_Tax_Applicable__c (Salesforce recorded
+    // no tax figure) and a zero (Salesforce recorded that no tax was charged)
+    // are completely different things for the reconciliation, so neither is
+    // coerced and neither is rounded. Uses ALL billings, not just
+    // newBillings: the 46k invoices imported before this existed have header
+    // figures worth staging too.
+    const headerRows = billings.map((b) => ({
+      sf_id: b.Id,
+      bill_number: b.Name,
+      gst_rate: b.GST__c,
+      total_amount: b.Total_Amount__c,
+      total_price: b.Total_Price__c,
+      total_tax_applicable: b.Total_Tax_Applicable__c,
+      total_service_fee: b.Total_Service_Fee__c,
+      discount: b.Discount__c,
+      sf_created_at: b.CreatedDate,
+    }));
+    for (const batch of chunk(headerRows, 100)) {
+      const { error } = await admin.from("sf_billing_headers").upsert(batch, { onConflict: "sf_id" });
+      if (error) throw new Error(`sf_billing_headers upsert: ${error.message}`);
+      log.billing_headers_staged = (log.billing_headers_staged || 0) + batch.length;
+    }
   } catch (e) {
     // A bad field name or a missing object permission must not take down the
     // clinical import that has worked all along - log it and carry on.
@@ -767,7 +792,7 @@ Deno.serve(async (req) => {
     let stoppedEarly = false;
     await mapPool(targets, 8, async (p) => {
       if (Date.now() > deadline) { stoppedEarly = true; return; }
-      const log: any = { patient: p.name, appointments: 0, updated: 0, invoices: 0, procedures: 0, filled: 0, left_alone: 0, skipped: 0, billing_lines_staged: 0, errors: [] as any[] };
+      const log: any = { patient: p.name, appointments: 0, updated: 0, invoices: 0, procedures: 0, filled: 0, left_alone: 0, skipped: 0, billing_lines_staged: 0, billing_headers_staged: 0, errors: [] as any[] };
       const remainingMs = Math.max(1, deadline - Date.now());
       const patientTimeoutMs = Math.min(20_000, remainingMs);
       try {
@@ -844,6 +869,9 @@ Deno.serve(async (req) => {
         // Fill-only top-up of already-imported prescriptions.
         prescriptions_filled: results.reduce((n, r) => n + (r.filled || 0), 0),
         prescriptions_left_alone: results.reduce((n, r) => n + (r.left_alone || 0), 0),
+        // Read-and-stage counters for the Salesforce reconciliation tables.
+        billing_lines_staged: results.reduce((n, r) => n + (r.billing_lines_staged || 0), 0),
+        billing_headers_staged: results.reduce((n, r) => n + (r.billing_headers_staged || 0), 0),
         requested: requestedLimit,
         batch_size: targets.length,
         capped: requestedLimit > limit,

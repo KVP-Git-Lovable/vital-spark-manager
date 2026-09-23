@@ -32,6 +32,7 @@ export function procedureServiceName(
   return (
     treatment ||
     (d.Procedure_Type__c || "").trim() ||
+    (d.Service__c || "").trim() ||
     (d.Service_Type__c || "").trim() ||
     (fromBilling || "").trim() ||
     (fromAppointment || "").trim() ||

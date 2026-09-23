@@ -154,6 +154,51 @@ function chunk<T>(arr: T[], n: number): T[][] {
   return out;
 }
 
+// pharma_products by normalised name, so an imported prescription row can point
+// at the catalogue entry where one exists. Built once per invocation - the
+// products list is small and every patient in the batch needs the same map.
+let productCatalogueCache: Map<string, string> | null = null;
+async function productCatalogue(): Promise<Map<string, string>> {
+  if (productCatalogueCache) return productCatalogueCache;
+  const { data } = await admin.from("pharma_products").select("id, name");
+  const map = new Map<string, string>();
+  (data || []).forEach((r: any) => {
+    const key = normalize(r.name);
+    if (key && !map.has(key)) map.set(key, r.id);
+  });
+  productCatalogueCache = map;
+  return map;
+}
+
+// Price_Book_Entry__c: 25 codes ("PBE-0055") that Salesforce writes into
+// Billing_Line_Item__c.Service1__c instead of a service name. Imported into a
+// small lookup table so the codes can be shown as readable names. Read-only
+// against Salesforce, and a failure here never stops the clinical import.
+async function importPriceBookEntries(signal?: AbortSignal): Promise<number> {
+  const rows = await sfQuery(
+    "SELECT Id, Name, Service__r.Name, Price_Book__r.Name, UnitPrice__c, GST__c, IsActive__c, CreatedDate FROM Price_Book_Entry__c",
+    signal,
+  );
+  const payload = rows.map((r: any) => ({
+    sf_id: r.Id,
+    code: r.Name,
+    service_name: r.Service__r?.Name ?? null,
+    price_book_name: r.Price_Book__r?.Name ?? null,
+    unit_price: r.UnitPrice__c,
+    gst_rate: r.GST__c,
+    is_active: r.IsActive__c,
+    sf_created_at: r.CreatedDate,
+  }));
+  let imported = 0;
+  for (const batch of chunk(payload, 100)) {
+    const { error } = await admin.from("sf_price_book_entries").upsert(batch, { onConflict: "sf_id" });
+    if (error) throw new Error(`sf_price_book_entries upsert: ${error.message}`);
+    imported += batch.length;
+  }
+  return imported;
+}
+
+
 // Run `fn` over `items` with at most `concurrency` in flight at once.
 // Salesforce queries and DB inserts across different patients are fully
 // independent, so this is safe - it just caps how many we hit at once to

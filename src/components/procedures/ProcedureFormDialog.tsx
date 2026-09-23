@@ -58,6 +58,18 @@ const SKIN_TYPE_OPTIONS = ["Normal", "Dry", "Oily", "Combination", "Sensitive"];
 const ELABORATABLE_MEDICAL_FIELDS = MEDICAL_FIELDS.filter(([field]) => field !== "skin_type");
 
 interface PrescriptionInput {
+  /**
+   * Identity of this row, stable for as long as it exists.
+   *
+   * These rows were keyed by their array index. Removing the second of four
+   * medicines then left React re-using the same component instances for what
+   * was now different data - the Radix Selects kept the state of the row that
+   * had been in that position, so Remove looked as though it had deleted the
+   * wrong medicine or done nothing at all, and the section re-rendered on its
+   * own as the values shuffled up. A key that belongs to the row rather than
+   * its position is what makes a removal remove that row.
+   */
+  key: string;
   product_id: string;
   medicine_name: string;
   frequency: string;
@@ -66,12 +78,19 @@ interface PrescriptionInput {
   quantity: number;
 }
 
+let rxSeq = 0;
+const newRxKey = () => `rx-${Date.now()}-${rxSeq++}`;
+let assetSeq = 0;
+const newAssetKey = () => `asset-${Date.now()}-${assetSeq++}`;
+
 interface StockInfo {
   available: number;
   loading: boolean;
 }
 
 interface AssetInput {
+  /** Same reason as PrescriptionInput.key - this list also removes rows. */
+  key: string;
   asset_id: string;
   asset_name: string;
   usage_guideline: string;
@@ -124,7 +143,7 @@ export function ProcedureFormDialog({
   const [recurringCount, setRecurringCount] = useState(2);
   const [recurringDates, setRecurringDates] = useState<string[]>(["", ""]);
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
-  const [stockMap, setStockMap] = useState<Record<number, StockInfo>>({});
+  const [stockMap, setStockMap] = useState<Record<string, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);
   // Notes typed before the procedure exists. procedure_sticky_notes.procedure_id is NOT NULL,
   // so these are buffered here and flushed once the procedure row has an id.
@@ -287,6 +306,7 @@ export function ProcedureFormDialog({
       }
       if (Array.isArray(data.prescriptions) && data.prescriptions.length > 0) {
         const newRx = data.prescriptions.map((p: any) => ({
+          key: newRxKey(),
           product_id: "",
           medicine_name: p.medicine_name || "",
           frequency: p.frequency || "",
@@ -555,6 +575,7 @@ export function ProcedureFormDialog({
         for (const m of meds as any[]) {
           if (next.some((rx) => rx.product_id && rx.product_id === m.product_id)) continue;
           next.push({
+            key: newRxKey(),
             product_id: m.product_id,
             medicine_name: m.pharma_products?.name || "",
             frequency: m.frequency || "",
@@ -578,6 +599,7 @@ export function ProcedureFormDialog({
         for (const a of assetLinksData as any[]) {
           if (next.some((x) => x.asset_id === a.asset_id)) continue;
           next.push({
+            key: newAssetKey(),
             asset_id: a.asset_id,
             asset_name: a.assets?.name || "",
             usage_guideline: a.usage_guideline || "",
@@ -809,54 +831,70 @@ export function ProcedureFormDialog({
   });
 
   const addPrescription = () => {
-    setPrescriptions([...prescriptions, { product_id: "", medicine_name: "", frequency: "", duration: "", instructions: "", quantity: 1 }]);
+    setPrescriptions((prev) => [...prev, { key: newRxKey(), product_id: "", medicine_name: "", frequency: "", duration: "", instructions: "", quantity: 1 }]);
   };
 
-  const fetchStock = async (productId: string, index: number) => {
-    setStockMap((prev) => ({ ...prev, [index]: { available: 0, loading: true } }));
+  const fetchStock = async (productId: string, key: string) => {
+    setStockMap((prev) => ({ ...prev, [key]: { available: 0, loading: true } }));
     // Inventory rows are decremented at the point of sale, so they already reflect live stock.
     const { data: invData } = await supabase
       .from("pharma_inventory")
       .select("quantity")
       .eq("product_id", productId);
     const totalStock = (invData || []).reduce((s, i) => s + Number(i.quantity), 0);
-    setStockMap((prev) => ({ ...prev, [index]: { available: Math.max(0, totalStock), loading: false } }));
+    setStockMap((prev) => ({ ...prev, [key]: { available: Math.max(0, totalStock), loading: false } }));
   };
 
-  const updatePrescription = (index: number, field: keyof PrescriptionInput, value: string | number) => {
-    const updated = [...prescriptions];
-    if (field === "product_id") {
-      if (value === OTHERS_VALUE) {
-        updated[index].product_id = OTHERS_VALUE;
-        updated[index].medicine_name = "";
-      } else {
+  // Addressed by the row's own key, not its position, and the row object is
+  // replaced rather than written into. `[...prescriptions]` copies the array
+  // but not the rows inside it, so assigning to updated[index].field wrote
+  // straight into the object React was already holding - the state changed
+  // without React being told, which is how an edit could land on screen only
+  // after some other keystroke forced a render.
+  const updatePrescription = (key: string, field: keyof PrescriptionInput, value: string | number) => {
+    setPrescriptions((prev) =>
+      prev.map((rx) => {
+        if (rx.key !== key) return rx;
+        if (field !== "product_id") return { ...rx, [field]: value };
+        if (value === OTHERS_VALUE) return { ...rx, product_id: OTHERS_VALUE, medicine_name: "" };
         const prod = products.find((p) => p.id === value) as any;
-        updated[index].product_id = value as string;
-        updated[index].medicine_name = prod?.name || "";
-        // Always populate prescription defaults from the product master when medicine is selected
-        updated[index].frequency = prod?.default_frequency || "";
-        updated[index].duration = prod?.default_duration || "";
-        updated[index].instructions = prod?.default_instructions || "";
-        fetchStock(value as string, index);
-      }
-    } else {
-      (updated[index] as any)[field] = value;
-    }
-    setPrescriptions(updated);
+        fetchStock(value as string, key);
+        return {
+          ...rx,
+          product_id: value as string,
+          medicine_name: prod?.name || "",
+          // Always populate prescription defaults from the product master when medicine is selected
+          frequency: prod?.default_frequency || "",
+          duration: prod?.default_duration || "",
+          instructions: prod?.default_instructions || "",
+        };
+      }),
+    );
   };
 
-  const removePrescription = (index: number) => {
-    setPrescriptions(prescriptions.filter((_, i) => i !== index));
+  const removePrescription = (key: string) => {
+    setPrescriptions((prev) => prev.filter((rx) => rx.key !== key));
+    // The stock note belongs to the row that has gone, not to whatever row
+    // slides up into its place.
+    setStockMap((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
-  const addAsset = () => setProcedureAssets([...procedureAssets, { asset_id: "", asset_name: "", usage_guideline: "", time_taken: "" }]);
-  const updateAsset = (index: number, field: keyof AssetInput, value: string) => {
-    const updated = [...procedureAssets];
-    (updated[index] as any)[field] = value;
-    if (field === "asset_id") { updated[index].asset_name = allAssets.find((a) => a.id === value)?.name || ""; }
-    setProcedureAssets(updated);
+  const addAsset = () => setProcedureAssets((prev) => [...prev, { key: newAssetKey(), asset_id: "", asset_name: "", usage_guideline: "", time_taken: "" }]);
+  const updateAsset = (key: string, field: keyof AssetInput, value: string) => {
+    setProcedureAssets((prev) =>
+      prev.map((a) => {
+        if (a.key !== key) return a;
+        const next = { ...a, [field]: value } as AssetInput;
+        if (field === "asset_id") next.asset_name = allAssets.find((x) => x.id === value)?.name || "";
+        return next;
+      }),
+    );
   };
-  const removeAsset = (index: number) => setProcedureAssets(procedureAssets.filter((_, i) => i !== index));
+  const removeAsset = (key: string) => setProcedureAssets((prev) => prev.filter((a) => a.key !== key));
 
   const isFromAppointment = !!defaultAppointmentId;
 
@@ -1250,13 +1288,13 @@ export function ProcedureFormDialog({
               </Button>
             </div>
             {prescriptions.map((rx, i) => (
-              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-background">
+              <div key={rx.key} className="border rounded-lg p-3 mb-3 space-y-2 bg-background">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Medicine {i + 1}</span>
-                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removePrescription(i)}>Remove</Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removePrescription(rx.key)}>Remove</Button>
                 </div>
                 <div>
-                  <Select value={rx.product_id} onValueChange={(v) => updatePrescription(i, "product_id", v)}>
+                  <Select value={rx.product_id} onValueChange={(v) => updatePrescription(rx.key, "product_id", v)}>
                     <SelectTrigger><SelectValue placeholder="Select medicine *" /></SelectTrigger>
                     <SelectContent>
                       {products.map((p) => (
@@ -1270,16 +1308,16 @@ export function ProcedureFormDialog({
                       className="mt-1"
                       placeholder="Medicine name"
                       value={rx.medicine_name}
-                      onChange={(e) => updatePrescription(i, "medicine_name", e.target.value)}
+                      onChange={(e) => updatePrescription(rx.key, "medicine_name", e.target.value)}
                     />
                   )}
-                  {rx.product_id && rx.product_id !== OTHERS_VALUE && stockMap[i] && (
-                    stockMap[i].loading ? (
+                  {rx.product_id && rx.product_id !== OTHERS_VALUE && stockMap[rx.key] && (
+                    stockMap[rx.key].loading ? (
                       <p className="text-xs text-muted-foreground mt-1">Checking stock...</p>
-                    ) : stockMap[i].available <= 0 ? (
+                    ) : stockMap[rx.key].available <= 0 ? (
                       <p className="text-xs text-amber-600 mt-1">⚠️ This medicine is currently out of stock</p>
                     ) : (
-                      <p className="text-xs text-green-600 mt-1">Available stock: {stockMap[i].available} units</p>
+                      <p className="text-xs text-green-600 mt-1">Available stock: {stockMap[rx.key].available} units</p>
                     )
                   )}
                 </div>
@@ -1288,32 +1326,32 @@ export function ProcedureFormDialog({
                     <div>
                       <label className="text-xs font-medium text-muted-foreground mb-1 block">Frequency</label>
                       <div className="relative">
-                        <Input placeholder="e.g. Twice a day" value={rx.frequency} onChange={(e) => updatePrescription(i, "frequency", e.target.value)} className="pr-9" />
+                        <Input placeholder="e.g. Twice a day" value={rx.frequency} onChange={(e) => updatePrescription(rx.key, "frequency", e.target.value)} className="pr-9" />
                         <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                          <MicButton value={rx.frequency} onChange={(v) => updatePrescription(i, "frequency", v)} mode="replace" />
+                          <MicButton value={rx.frequency} onChange={(v) => updatePrescription(rx.key, "frequency", v)} mode="replace" />
                         </div>
                       </div>
                     </div>
                     <div>
                       <label className="text-xs font-medium text-muted-foreground mb-1 block">Duration</label>
                       <div className="relative">
-                        <Input placeholder="e.g. 7 days" value={rx.duration} onChange={(e) => updatePrescription(i, "duration", e.target.value)} className="pr-9" />
+                        <Input placeholder="e.g. 7 days" value={rx.duration} onChange={(e) => updatePrescription(rx.key, "duration", e.target.value)} className="pr-9" />
                         <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                          <MicButton value={rx.duration} onChange={(v) => updatePrescription(i, "duration", v)} mode="replace" />
+                          <MicButton value={rx.duration} onChange={(v) => updatePrescription(rx.key, "duration", v)} mode="replace" />
                         </div>
                       </div>
                     </div>
                     <div>
                       <label className="text-xs font-medium text-muted-foreground mb-1 block">Qty</label>
-                      <Input type="number" placeholder="1" value={rx.quantity || ""} onChange={(e) => updatePrescription(i, "quantity", e.target.value === "" ? 0 : Math.max(1, parseInt(e.target.value) || 1))} />
+                      <Input type="number" placeholder="1" value={rx.quantity || ""} onChange={(e) => updatePrescription(rx.key, "quantity", e.target.value === "" ? 0 : Math.max(1, parseInt(e.target.value) || 1))} />
                     </div>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Special Instructions</label>
                     <div className="relative">
-                      <Input placeholder="e.g. Apply after cleansing" value={rx.instructions} onChange={(e) => updatePrescription(i, "instructions", e.target.value)} className="pr-9" />
+                      <Input placeholder="e.g. Apply after cleansing" value={rx.instructions} onChange={(e) => updatePrescription(rx.key, "instructions", e.target.value)} className="pr-9" />
                       <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                        <MicButton value={rx.instructions} onChange={(v) => updatePrescription(i, "instructions", v)} />
+                        <MicButton value={rx.instructions} onChange={(v) => updatePrescription(rx.key, "instructions", v)} />
                       </div>
                     </div>
                   </div>
@@ -1341,12 +1379,12 @@ export function ProcedureFormDialog({
               <p className="text-xs text-muted-foreground mb-2">No assets linked. Select a service to auto-populate or add manually.</p>
             )}
             {procedureAssets.map((asset, i) => (
-              <div key={i} className="border rounded-lg p-3 mb-3 space-y-2 bg-background">
+              <div key={asset.key} className="border rounded-lg p-3 mb-3 space-y-2 bg-background">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Asset {i + 1}</span>
-                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeAsset(i)}>Remove</Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeAsset(asset.key)}>Remove</Button>
                 </div>
-                <Select value={asset.asset_id} onValueChange={(v) => updateAsset(i, "asset_id", v)}>
+                <Select value={asset.asset_id} onValueChange={(v) => updateAsset(asset.key, "asset_id", v)}>
                   <SelectTrigger><SelectValue placeholder="Select asset" /></SelectTrigger>
                   <SelectContent>
                     {allAssets.map((a) => (
@@ -1355,8 +1393,8 @@ export function ProcedureFormDialog({
                   </SelectContent>
                 </Select>
                 <div className="grid grid-cols-2 gap-2">
-                  <Input placeholder="Usage guideline" value={asset.usage_guideline} onChange={(e) => updateAsset(i, "usage_guideline", e.target.value)} />
-                  <Input type="number" placeholder="Time taken (mins)" value={numVal(asset.time_taken)} onChange={(e) => updateAsset(i, "time_taken", e.target.value)} />
+                  <Input placeholder="Usage guideline" value={asset.usage_guideline} onChange={(e) => updateAsset(asset.key, "usage_guideline", e.target.value)} />
+                  <Input type="number" placeholder="Time taken (mins)" value={numVal(asset.time_taken)} onChange={(e) => updateAsset(asset.key, "time_taken", e.target.value)} />
                 </div>
               </div>
             ))}

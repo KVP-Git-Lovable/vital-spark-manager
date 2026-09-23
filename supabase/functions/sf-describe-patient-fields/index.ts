@@ -1,4 +1,4 @@
-// READ-ONLY. Lists what Patient__c actually holds in Salesforce, and how much of
+// READ-ONLY. Lists what a Salesforce object actually holds, and how much of
 // it is filled in.
 //
 // Why: every Salesforce query this app makes for a patient asks for
@@ -11,8 +11,9 @@
 // clinical field names is how the wrong column ends up in a patient record, so
 // this reports what is there and leaves the mapping to a human.
 //
-// Writes nothing. Touches no table. Reads at most `sample` patients.
-//   sample - how many Patient__c rows to measure fill rates over (default 200)
+// Writes nothing. Touches no table. Reads at most `sample` rows.
+//   object - Salesforce object API name to describe (default Patient__c)
+//   sample - how many rows to measure fill rates over (default 200)
 
 import { describeSfFailure } from "./sfError.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
@@ -34,11 +35,23 @@ async function sf(path: string): Promise<any> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  const sample = Math.max(1, Math.min(2000, Number(new URL(req.url).searchParams.get("sample") || "200")));
+  const url = new URL(req.url);
+  const sample = Math.max(1, Math.min(2000, Number(url.searchParams.get("sample") || "200")));
+  // Object API name. Default to Patient__c so existing callers are unaffected.
+  // Allow only plain Salesforce object names: letters, digits, underscores.
+  // Custom objects end in __c; standard objects (Account, Contact) do not.
+  // This blocks SOQL injection, semicolons, spaces, and anything else unsafe.
+  const object = (url.searchParams.get("object") || "Patient__c").trim();
+  if (!/^[A-Za-z0-9_]+$/.test(object)) {
+    return new Response(
+      JSON.stringify({ ok: false, error: `Invalid object name: ${object}` }, null, 2),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
 
   try {
     // FIELDS(ALL) returns every readable field without naming them up front.
-    const q = `SELECT FIELDS(ALL) FROM Patient__c LIMIT ${sample}`;
+    const q = `SELECT FIELDS(ALL) FROM ${object} LIMIT ${sample}`;
     const payload = await sf(`/query?q=${encodeURIComponent(q)}`);
     const records: any[] = payload.records || [];
     if (!records.length) {

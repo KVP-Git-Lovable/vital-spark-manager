@@ -118,6 +118,16 @@ const visitStatusOptions = ["Follow-up visit", "Recurring visit"];
 
 const PINNED_FILTERS_KEY = "appointments.pinnedFilters";
 
+/**
+ * Most rows the calendar / filtered-view path will pull into memory.
+ *
+ * 10 round trips at a page each. Generous enough that no realistic date range
+ * reaches it - the busiest full month is under 2,000 - and low enough that an
+ * accidental whole-table fetch cannot leave the page spinning through 57 of
+ * them.
+ */
+const APPT_MEMORY_CAP = 10000;
+
 const DATE_PRESETS = [
   { key: "today", label: "Today" },
   { key: "tomorrow", label: "Tomorrow" },
@@ -257,7 +267,20 @@ const Appointments = () => {
   const [filterStatus, setFilterStatus] = useState<string>(pinnedInit.status || "all");
   const [filterVisitStatus, setFilterVisitStatus] = useState<string>(pinnedInit.visit || "all");
   // Date filter: preset key + optional specific date / range
-  const [datePreset, setDatePreset] = useState<string>(pinnedInit.date || "this_week");
+  // Defaults to every date, not this week.
+  //
+  // The quick date chips that used to sit above the list were removed, and
+  // this default outlived them: the list still opened filtered to the current
+  // week, with nothing on screen saying so now the chips were gone. "All
+  // Appointments" then read 221 of 56,438 on a fresh browser and something
+  // else on a browser where someone had changed the preset, for the same user
+  // with the same permissions - which looked like a data or permissions fault
+  // and was neither.
+  //
+  // A named view is free to set its own preset (see fromView.preset below),
+  // and the date filter is still there in the filter panel. What is gone is
+  // the invisible one.
+  const [datePreset, setDatePreset] = useState<string>(pinnedInit.date || "all");
   const [specificDate, setSpecificDate] = useState<Date | undefined>(
     pinnedInit.specificDate ? new Date(pinnedInit.specificDate) : undefined
   );
@@ -609,6 +632,12 @@ const Appointments = () => {
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments", datePreset, appointmentsDateRange?.start?.toISOString(), appointmentsDateRange?.end?.toISOString()],
     queryFn: async () => {
+      // Capped, because this path pulls rows into memory a page at a time.
+      // With no date filter that is 56,438 rows over 57 sequential requests,
+      // which is how the Photos page came to hang. It only runs for a saved
+      // view whose filters are client-side and whose conditions name no date
+      // (one filtering on doctor, say) - a view that does filter on a date
+      // narrows this fetch through selectViewAndDate below.
       return await fetchAll<any>((from, to) => {
         let q = supabase
           .from("appointments")
@@ -621,7 +650,7 @@ const Appointments = () => {
             .lte("start_time", appointmentsDateRange.end.toISOString());
         }
         return q;
-      });
+      }, 1000, APPT_MEMORY_CAP);
     },
     // Day/Week/Month views only - the List view uses the server-paginated
     // query below instead of pulling the full date range into memory
@@ -2251,7 +2280,7 @@ const Appointments = () => {
             )}
 
             {(searchQuery || filterDoctors.size > 0 || datePreset !== "this_week" || filterStatus !== "all" || filterVisitStatus !== "all") && (
-              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterStatus("all"); setFilterVisitStatus("all"); setDatePreset("this_week"); setSpecificDate(undefined); setRangeFrom(undefined); setRangeTo(undefined); }}>Clear filters</Button>
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterStatus("all"); setFilterVisitStatus("all"); setDatePreset("all"); setSpecificDate(undefined); setRangeFrom(undefined); setRangeTo(undefined); }}>Clear filters</Button>
             )}
             <span className="text-xs text-muted-foreground ml-auto">{(view === "table" ? apptTotal : filteredAppointments.length).toLocaleString()} appointment{(view === "table" ? apptTotal : filteredAppointments.length) !== 1 ? "s" : ""}</span>
           </motion.div>

@@ -3936,6 +3936,45 @@ export type Database = {
         }
         Relationships: []
       }
+      sf_billing_headers: {
+        Row: {
+          bill_number: string | null
+          discount: number | null
+          gst_rate: number | null
+          imported_at: string
+          sf_created_at: string | null
+          sf_id: string
+          total_amount: number | null
+          total_price: number | null
+          total_service_fee: number | null
+          total_tax_applicable: number | null
+        }
+        Insert: {
+          bill_number?: string | null
+          discount?: number | null
+          gst_rate?: number | null
+          imported_at?: string
+          sf_created_at?: string | null
+          sf_id: string
+          total_amount?: number | null
+          total_price?: number | null
+          total_service_fee?: number | null
+          total_tax_applicable?: number | null
+        }
+        Update: {
+          bill_number?: string | null
+          discount?: number | null
+          gst_rate?: number | null
+          imported_at?: string
+          sf_created_at?: string | null
+          sf_id?: string
+          total_amount?: number | null
+          total_price?: number | null
+          total_service_fee?: number | null
+          total_tax_applicable?: number | null
+        }
+        Relationships: []
+      }
       sf_billing_line_items: {
         Row: {
           billing_sf_id: string

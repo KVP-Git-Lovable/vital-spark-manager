@@ -807,6 +807,67 @@ async function syncPatient(
     log.filled = (log.filled || 0) + 1;
   }
   log.skipped += seenDiagnoses.length;
+
+  // Products the doctor picked from the catalogue in Salesforce, written as
+  // rows in the prescriptions table so the visit shows a Products/Medications
+  // list instead of "Nothing added yet". Strictly additive and safe to re-run:
+  // a row is inserted only when that procedure has no row with that medicine
+  // name yet, and nothing existing is ever updated or deleted - a prescription
+  // a doctor entered in this app is untouchable.
+  const diagnosesWithProducts = diagnoses.filter((d) =>
+    PRODUCT_SLOTS.some((s) => (d[s.product]?.Name || "").trim())
+  );
+  if (diagnosesWithProducts.length) {
+    const { data: procIdRows } = await admin
+      .from("procedures")
+      .select("id, sf_id")
+      .eq("patient_id", p.lovable_id)
+      .not("sf_id", "is", null);
+    const procIdBySfId = new Map<string, string>((procIdRows || []).map((r: any) => [r.sf_id, r.id]));
+    const productIdByName = await productCatalogue();
+
+    const wanted: Array<{ procedure_id: string; medicine_name: string; instructions: string | null; quantity: number; product_id: string | null }> = [];
+    for (const d of diagnosesWithProducts) {
+      const procedureId = procIdBySfId.get(d.Id);
+      if (!procedureId) continue;
+      for (const slot of PRODUCT_SLOTS) {
+        const name = String(d[slot.product]?.Name || "").trim();
+        if (!name) continue;
+        const rawQty = slot.quantity ? Number(d[slot.quantity]) : NaN;
+        wanted.push({
+          procedure_id: procedureId,
+          medicine_name: name.slice(0, 500),
+          instructions: (d[slot.instruction] || null) as string | null,
+          quantity: Number.isFinite(rawQty) && rawQty > 0 ? Math.round(rawQty) : 1,
+          product_id: productIdByName.get(normalize(name)) || null,
+        });
+      }
+    }
+
+    if (wanted.length) {
+      const procedureIds = [...new Set(wanted.map((w) => w.procedure_id))];
+      const already = new Set<string>();
+      for (const batch of chunk(procedureIds, 100)) {
+        const { data } = await admin
+          .from("prescriptions")
+          .select("procedure_id, medicine_name")
+          .in("procedure_id", batch);
+        (data || []).forEach((r: any) => already.add(`${r.procedure_id}|${normalize(r.medicine_name || "")}`));
+      }
+      const fresh = wanted.filter((w) => {
+        const key = `${w.procedure_id}|${normalize(w.medicine_name)}`;
+        if (already.has(key)) return false;
+        already.add(key); // Salesforce sometimes repeats a product across slots
+        return true;
+      });
+      for (const batch of chunk(fresh, 100)) {
+        const { error } = await admin.from("prescriptions").insert(batch);
+        if (error) throw new Error(`prescriptions insert: ${error.message}`);
+        log.product_rows = (log.product_rows || 0) + batch.length;
+      }
+    }
+    log.diagnoses_with_products = diagnosesWithProducts.length;
+  }
 }
 
 Deno.serve(async (req) => {

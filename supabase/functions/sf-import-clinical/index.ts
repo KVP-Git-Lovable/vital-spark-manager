@@ -37,6 +37,22 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
 interface Target { lovable_id: string; sf_id: string; name: string }
 
+// Diagnosis__c carries up to 15 prescribed products in numbered slots:
+// Product__c, Product1__c .. Product14__c. They are lookups to the product
+// catalogue (verified against the org), so the readable name comes from the
+// relationship - Product__r.Name. Instructions follow the same numbering;
+// quantity only exists for the first ten slots. Quantity_available__c is
+// stock on hand, NOT the amount prescribed, and is deliberately not read.
+const PRODUCT_SLOTS = Array.from({ length: 15 }, (_, i) => ({
+  product: i === 0 ? "Product__r" : `Product${i}__r`,
+  instruction: i === 0 ? "Standard_instruction_from_Dr__c" : `Standard_instruction_from_Dr${i}__c`,
+  quantity: i === 0 ? "Prescription_quantity__c" : i <= 9 ? `Prescription_quantity${i}__c` : null,
+}));
+
+const PRODUCT_SLOT_FIELDS = PRODUCT_SLOTS.flatMap((s) =>
+  [`${s.product}.Name`, s.instruction, s.quantity].filter(Boolean) as string[]
+).join(", ");
+
 async function sfQuery(soql: string, signal?: AbortSignal): Promise<any[]> {
   const out: any[] = [];
   let url: string | null = `${GATEWAY}/query?q=${encodeURIComponent(soql)}`;

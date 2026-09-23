@@ -1476,6 +1476,45 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_tax_wrong_state_20260923: {
+        Row: {
+          captured_at: string | null
+          cgst_amount: number | null
+          id: string | null
+          invoice_number: string | null
+          line_items: Json | null
+          sf_id: string | null
+          sgst_amount: number | null
+          tax_amount: number | null
+          tax_rate: number | null
+          total_amount: number | null
+        }
+        Insert: {
+          captured_at?: string | null
+          cgst_amount?: number | null
+          id?: string | null
+          invoice_number?: string | null
+          line_items?: Json | null
+          sf_id?: string | null
+          sgst_amount?: number | null
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total_amount?: number | null
+        }
+        Update: {
+          captured_at?: string | null
+          cgst_amount?: number | null
+          id?: string | null
+          invoice_number?: string | null
+          line_items?: Json | null
+          sf_id?: string | null
+          sgst_amount?: number | null
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total_amount?: number | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           appointment_id: string | null

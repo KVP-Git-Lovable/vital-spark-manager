@@ -104,7 +104,7 @@ export default function ViewBar({
               <ChevronDown className="h-4 w-4 shrink-0 opacity-60" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="z-50 w-64 bg-popover">
+          <DropdownMenuContent align="start" className="z-50 w-72 bg-popover">
             <DropdownMenuLabel className="text-xs">Standard Views</DropdownMenuLabel>
             {standardViews.map((v) => (
               <DropdownMenuItem key={v.id} onClick={() => onSelect(v.id)} className="flex items-center gap-2">
@@ -117,8 +117,14 @@ export default function ViewBar({
             {savedViews.length === 0 && (
               <div className="px-2 py-1.5 text-xs text-muted-foreground">No saved views yet.</div>
             )}
-            {savedViews.map((v) => (
-              <DropdownMenuItem key={v.id} onClick={() => onSelect(v.id)} className="flex items-center gap-2">
+            {savedViews.map((v) => {
+              // Edit and Delete used to live only in the gear menu, and only ever
+              // acted on the ACTIVE view - so removing a view meant switching to
+              // it first. The clinic looked for them here, beside the pin, which
+              // is where a list of views should carry its own controls.
+              const canManageThis = !v.is_standard && !!currentUserId && v.owner_id === currentUserId;
+              return (
+              <DropdownMenuItem key={v.id} onClick={() => onSelect(v.id)} className="flex items-center gap-1.5">
                 <span className="flex-1 truncate">{v.name}</span>
                 <button
                   type="button"
@@ -133,13 +139,49 @@ export default function ViewBar({
                 >
                   {v.is_default ? <PinOff className="h-3.5 w-3.5 text-primary" /> : <Pin className="h-3.5 w-3.5" />}
                 </button>
+                {/* Only on views this person owns - the same rule canManage uses
+                    for the gear menu. Someone else's shared view stays listed and
+                    selectable, just not editable. */}
+                {canManageThis && (
+                  <>
+                    <button
+                      type="button"
+                      title="Edit this view"
+                      aria-label={`Edit ${v.name}`}
+                      className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-primary"
+                      onClick={(e) => {
+                        // Without both of these the click would also select the
+                        // view, so editing one would silently switch you to it.
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onEdit(v);
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete this view"
+                      aria-label={`Delete ${v.name}`}
+                      className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onDelete(v);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
                 {v.visibility !== "private" && (
                   <Badge variant="secondary" className="px-1 py-0 text-[9px]">
                     {v.visibility === "everyone" ? "All" : "Shared"}
                   </Badge>
                 )}
               </DropdownMenuItem>
-            ))}
+              );
+            })}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onNew} className="gap-2">
               <Plus className="h-3.5 w-3.5" />

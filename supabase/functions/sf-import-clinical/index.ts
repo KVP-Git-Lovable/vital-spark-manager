@@ -443,85 +443,14 @@ async function syncPatient(
   }
 
 
-  const newBillings = billings.filter((b) => !existingInvoices.has(b.Id));
-  log.skipped += billings.length - newBillings.length;
-  const invRows = newBillings.map((b) => {
-    const services = [b.Procedure_Type__c, b.Procedure_Type_2__c, b.Procedure_Type_3__c].filter(Boolean);
-    const investigation = b.Appointment__c ? apptInvestigationBySfId.get(b.Appointment__c) : null;
-    // Name the line by what was actually done.
-    //
-    // The clinic's rule: show the service only where a service was performed,
-    // and never the raw Investigation text - that is the visit's notes, not the
-    // treatment. So the visit's own resolved service comes FIRST, and the
-    // literal "Service" placeholder is gone: it had been written onto 30,816
-    // bills, which printed the word "Service" where the treatment belonged.
-    // Where no service was recorded, a consultation is what happened, and
-    // saying so is more use than a placeholder nobody can read.
-    const fallbackName =
-      (b.Appointment__c && apptServiceBySfId.get(b.Appointment__c)) ||
-      billLineName(investigation, "") ||
-      "Consultation";
-    const names = services.length ? services : [fallbackName];
-    const total = Number(b.Total_Amount__c || b.Total_Price__c || 0);
-    // A doctor's consultation carries no GST. Salesforce sends 5% on these
-    // anyway, so override it here; every other visit keeps whatever GST__c says,
-    // because the clinic's rule is that only the consultation itself is exempt.
-    const consultationOnly = !services.length && isPureConsultation(investigation);
-    const taxRate = consultationOnly ? 0 : Number(b.GST__c || 0);
-    // Billing__c has no per-line item breakdown (Procedure_Type__c etc. are
-    // just names, no price/HSN) and no separate CGST/SGST fields. total is
-    // tax-INCLUSIVE (it's what total_amount/paid_amount store directly), so
-    // the pre-tax base must come from the GST rate algebraically
-    // (base * (1+rate/100) = total) rather than by subtracting
-    // Total_Tax_Applicable__c, which Salesforce doesn't always populate even
-    // when GST__c (the rate) is set - subtracting a missing/zero tax figure
-    // would leave line_items.price at the full total, then applying gst on
-    // top of that later (client/PDF) would double-count the tax. Derive tax
-    // amount the same way when SF didn't supply one, and split it 50/50 as
-    // CGST+SGST (this clinic's own convention for GST elsewhere - see
-    // tax_master) rather than leaving no per-tax-head breakdown.
-    const explicitTax = Number(b.Total_Tax_Applicable__c || 0);
-    const base = taxRate > 0 ? total / (1 + taxRate / 100) : Math.max(total - explicitTax, 0);
-    const taxAmount = taxRate > 0 ? total - base : explicitTax;
-    // HSN comes from the rate, via the clinic's Tax Master - see hsnForRate.ts.
-    // Billing__c carries no HSN of its own, and this used to be hardcoded "",
-    // which is why the HSN column printed blank on every bill.
-    const hsn = hsnForRate(taxRate, b.CreatedDate);
-    const lineItems = names.map((name: string) => ({ name, qty: 1, price: base / names.length, hsn, gst: taxRate }));
-    return {
-      invoice_number: b.Name,
-      patient_id: p.lovable_id,
-      patient_name: p.name,
-      services: names,
-      line_items: lineItems,
-      total_amount: total,
-      paid_amount: total, // SF billings are historical/paid
-      status: total > 0 ? "Paid" : "Pending",
-      payment_type: "One-time",
-      payment_mode: b.Payment_Mode__c || "Cash",
-      tax_rate: taxRate,
-      tax_amount: taxAmount,
-      cgst_amount: taxAmount / 2,
-      sgst_amount: taxAmount / 2,
-      appointment_id: b.Appointment__c ? apptIdMap.get(b.Appointment__c) || null : null,
-      doctor_id: doctorFor(b.Doctor_Name__c),
-      notes: b.Doctor_Name__c ? `Doctor: ${b.Doctor_Name__c}` : null,
-      sf_id: b.Id,
-      created_at: b.CreatedDate,
-      updated_at: b.CreatedDate,
-    };
-  });
-  for (const batch of chunk(invRows, 100)) {
-    const { error } = await admin.from("invoices").insert(batch);
-    if (error) throw new Error(`invoices insert: ${error.message}`);
-    log.invoices += batch.length;
-  }
-
-  // Stage the real per-line breakdown (Billing_Line_Item__c) into
-  // sf_billing_line_items, verbatim - read-and-stage only, invoices and
-  // line_items are still built the old way above. Note this uses ALL
-  // billings returned, not just newBillings: the 46k invoices imported
-  // before this existed have lines worth staging too.
+  // The real per-line breakdown (Billing_Line_Item__c). Fetched BEFORE the
+  // invoices are built, because it is now the source of truth for what was
+  // charged and what tax was charged on it - Billing__c.GST__c is only a
+  // bill-level rate and the derivation from it is a fallback for bills that
+  // have no lines at all. Still staged verbatim into sf_billing_line_items
+  // as well. Uses ALL billings, not just newBillings: the 46k invoices
+  // imported before this existed have lines worth staging too.
+  const linesByBill = new Map<string, any[]>();
   try {
     for (const idBatch of chunk(billings.map((b) => b.Id), 200)) {
       const inList = idBatch.map((id) => `'${id}'`).join(",");
@@ -529,6 +458,11 @@ async function syncPatient(
         `SELECT Id, Billing__c, Service1__c, Products__c, Quantity__c, MRP_Per_Unit__c, Total_Price__c, GST__c, Tax_Amount__c, CGST_SGST__c, Tax_applicable__c, CreatedDate FROM Billing_Line_Item__c WHERE Billing__c IN (${inList})`,
         signal,
       );
+      lines.forEach((l) => {
+        if (!l.Billing__c) return;
+        const arr = linesByBill.get(l.Billing__c);
+        if (arr) arr.push(l); else linesByBill.set(l.Billing__c, [l]);
+      });
       const lineRows = lines.map((l) => ({
         // Values are stored exactly as Salesforce sent them: no coercion of
         // blanks to zero and no rounding, so NULL keeps meaning "Salesforce
@@ -580,9 +514,140 @@ async function syncPatient(
     }
   } catch (e) {
     // A bad field name or a missing object permission must not take down the
-    // clinical import that has worked all along - log it and carry on.
+    // clinical import that has worked all along - log it and carry on. The
+    // invoice build below then falls back to the bill-level derivation, which
+    // is exactly what it did before the line items existed.
     log.errors.push(`billing line items: ${(e as Error).message}`);
   }
+
+  const newBillings = billings.filter((b) => !existingInvoices.has(b.Id));
+  log.skipped += billings.length - newBillings.length;
+
+  const invRows = newBillings.map((b) => {
+    const services = [b.Procedure_Type__c, b.Procedure_Type_2__c, b.Procedure_Type_3__c].filter(Boolean);
+    const investigation = b.Appointment__c ? apptInvestigationBySfId.get(b.Appointment__c) : null;
+    // Name the line by what was actually done.
+    //
+    // The clinic's rule: show the service only where a service was performed,
+    // and never the raw Investigation text - that is the visit's notes, not the
+    // treatment. So the visit's own resolved service comes FIRST, and the
+    // literal "Service" placeholder is gone: it had been written onto 30,816
+    // bills, which printed the word "Service" where the treatment belonged.
+    // Where no service was recorded, a consultation is what happened, and
+    // saying so is more use than a placeholder nobody can read.
+    const fallbackName =
+      (b.Appointment__c && apptServiceBySfId.get(b.Appointment__c)) ||
+      billLineName(investigation, "") ||
+      "Consultation";
+    const names = services.length ? services : [fallbackName];
+    const total = Number(b.Total_Amount__c || b.Total_Price__c || 0);
+    // What Salesforce actually charged, line by line. Billing_Line_Item__c
+    // carries the real service/product, its tax-inclusive Total_Price__c and
+    // its own GST__c and Tax_Amount__c, so the bill-level GST__c rate is no
+    // longer used to invent a split when these exist. A line's Tax_Amount__c
+    // of zero means no tax was charged on it - that is a real figure, not a
+    // missing one, so it is summed as zero and never re-derived from a rate.
+    const sfLines = linesByBill.get(b.Id) || [];
+    if (sfLines.length) {
+      const lineItems = sfLines.map((l: any) => {
+        const gst = Number(l.GST__c || 0);
+        const lineTotal = Number(l.Total_Price__c || 0);
+        const name = String(l.Service1__c || l.Products__c || fallbackName);
+        return {
+          name,
+          qty: 1,
+          // Total_Price__c is tax-inclusive, like the bill total.
+          price: gst > 0 ? lineTotal / (1 + gst / 100) : lineTotal,
+          hsn: hsnForRate(gst, b.CreatedDate),
+          gst,
+        };
+      });
+      const lineTax = sfLines.reduce((s: number, l: any) => s + Number(l.Tax_Amount__c || 0), 0);
+      // Keep a single bill-level rate only where every taxed line agrees on
+      // one; a mixed bill has no meaningful single rate, so it stays 0 and
+      // the per-line gst above is what anything downstream reads.
+      const rates = Array.from(new Set(lineItems.map((l) => l.gst)));
+      return {
+        invoice_number: b.Name,
+        patient_id: p.lovable_id,
+        patient_name: p.name,
+        services: lineItems.map((l) => l.name),
+        line_items: lineItems,
+        total_amount: total,
+        paid_amount: total,
+        status: total > 0 ? "Paid" : "Pending",
+        payment_type: "One-time",
+        payment_mode: b.Payment_Mode__c || "Cash",
+        tax_rate: rates.length === 1 ? rates[0] : 0,
+        tax_amount: lineTax,
+        cgst_amount: lineTax / 2,
+        sgst_amount: lineTax / 2,
+        appointment_id: b.Appointment__c ? apptIdMap.get(b.Appointment__c) || null : null,
+        doctor_id: doctorFor(b.Doctor_Name__c),
+        notes: b.Doctor_Name__c ? `Doctor: ${b.Doctor_Name__c}` : null,
+        sf_id: b.Id,
+        created_at: b.CreatedDate,
+        updated_at: b.CreatedDate,
+      };
+    }
+    // No line items on this bill - fall back to the bill-level derivation
+    // below, which is how every invoice was built before the lines existed.
+    //
+    // A doctor's consultation carries no GST. Salesforce sends 5% on these
+    // anyway, so override it here; every other visit keeps whatever GST__c says,
+    // because the clinic's rule is that only the consultation itself is exempt.
+    const consultationOnly = !services.length && isPureConsultation(investigation);
+    const taxRate = consultationOnly ? 0 : Number(b.GST__c || 0);
+    // Billing__c has no per-line item breakdown (Procedure_Type__c etc. are
+    // just names, no price/HSN) and no separate CGST/SGST fields. total is
+    // tax-INCLUSIVE (it's what total_amount/paid_amount store directly), so
+    // the pre-tax base must come from the GST rate algebraically
+    // (base * (1+rate/100) = total) rather than by subtracting
+    // Total_Tax_Applicable__c, which Salesforce doesn't always populate even
+    // when GST__c (the rate) is set - subtracting a missing/zero tax figure
+    // would leave line_items.price at the full total, then applying gst on
+    // top of that later (client/PDF) would double-count the tax. Derive tax
+    // amount the same way when SF didn't supply one, and split it 50/50 as
+    // CGST+SGST (this clinic's own convention for GST elsewhere - see
+    // tax_master) rather than leaving no per-tax-head breakdown.
+    const explicitTax = Number(b.Total_Tax_Applicable__c || 0);
+    const base = taxRate > 0 ? total / (1 + taxRate / 100) : Math.max(total - explicitTax, 0);
+    const taxAmount = taxRate > 0 ? total - base : explicitTax;
+    // HSN comes from the rate, via the clinic's Tax Master - see hsnForRate.ts.
+    // Billing__c carries no HSN of its own, and this used to be hardcoded "",
+    // which is why the HSN column printed blank on every bill.
+    const hsn = hsnForRate(taxRate, b.CreatedDate);
+    const lineItems = names.map((name: string) => ({ name, qty: 1, price: base / names.length, hsn, gst: taxRate }));
+
+    return {
+      invoice_number: b.Name,
+      patient_id: p.lovable_id,
+      patient_name: p.name,
+      services: names,
+      line_items: lineItems,
+      total_amount: total,
+      paid_amount: total, // SF billings are historical/paid
+      status: total > 0 ? "Paid" : "Pending",
+      payment_type: "One-time",
+      payment_mode: b.Payment_Mode__c || "Cash",
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      cgst_amount: taxAmount / 2,
+      sgst_amount: taxAmount / 2,
+      appointment_id: b.Appointment__c ? apptIdMap.get(b.Appointment__c) || null : null,
+      doctor_id: doctorFor(b.Doctor_Name__c),
+      notes: b.Doctor_Name__c ? `Doctor: ${b.Doctor_Name__c}` : null,
+      sf_id: b.Id,
+      created_at: b.CreatedDate,
+      updated_at: b.CreatedDate,
+    };
+  });
+  for (const batch of chunk(invRows, 100)) {
+    const { error } = await admin.from("invoices").insert(batch);
+    if (error) throw new Error(`invoices insert: ${error.message}`);
+    log.invoices += batch.length;
+  }
+
 
   const billingProcBySfApptId = new Map<string, string>();
   billings.forEach((b) => {

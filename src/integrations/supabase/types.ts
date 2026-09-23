@@ -2390,6 +2390,24 @@ export type Database = {
           },
         ]
       }
+      patient_sync_marker_backup_20260923: {
+        Row: {
+          captured_at: string | null
+          id: string | null
+          sf_clinical_synced_at: string | null
+        }
+        Insert: {
+          captured_at?: string | null
+          id?: string | null
+          sf_clinical_synced_at?: string | null
+        }
+        Update: {
+          captured_at?: string | null
+          id?: string | null
+          sf_clinical_synced_at?: string | null
+        }
+        Relationships: []
+      }
       patients: {
         Row: {
           address: string | null
@@ -3398,6 +3416,48 @@ export type Database = {
           },
         ]
       }
+      procedure_notes_backup_20260923: {
+        Row: {
+          captured_at: string | null
+          consultation_notes: string | null
+          id: string | null
+          lab_tests: string | null
+        }
+        Insert: {
+          captured_at?: string | null
+          consultation_notes?: string | null
+          id?: string | null
+          lab_tests?: string | null
+        }
+        Update: {
+          captured_at?: string | null
+          consultation_notes?: string | null
+          id?: string | null
+          lab_tests?: string | null
+        }
+        Relationships: []
+      }
+      procedure_service_backup_20260923: {
+        Row: {
+          appointment_id: string | null
+          captured_at: string | null
+          id: string | null
+          service_name: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          captured_at?: string | null
+          id?: string | null
+          service_name?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          captured_at?: string | null
+          id?: string | null
+          service_name?: string | null
+        }
+        Relationships: []
+      }
       procedure_services: {
         Row: {
           created_at: string
@@ -3495,6 +3555,7 @@ export type Database = {
       }
       procedures: {
         Row: {
+          additional_instructions: string | null
           appointment_id: string | null
           assisted_by: string | null
           assisted_by_ids: string[]
@@ -3524,6 +3585,7 @@ export type Database = {
           visit_type: string
         }
         Insert: {
+          additional_instructions?: string | null
           appointment_id?: string | null
           assisted_by?: string | null
           assisted_by_ids?: string[]
@@ -3553,6 +3615,7 @@ export type Database = {
           visit_type?: string
         }
         Update: {
+          additional_instructions?: string | null
           appointment_id?: string | null
           assisted_by?: string | null
           assisted_by_ids?: string[]
@@ -4107,6 +4170,42 @@ export type Database = {
           tax_amount?: number | null
           tax_applicable?: string | null
           total_price?: number | null
+        }
+        Relationships: []
+      }
+      sf_price_book_entries: {
+        Row: {
+          code: string
+          gst_rate: number | null
+          imported_at: string
+          is_active: boolean | null
+          price_book_name: string | null
+          service_name: string | null
+          sf_created_at: string | null
+          sf_id: string
+          unit_price: number | null
+        }
+        Insert: {
+          code: string
+          gst_rate?: number | null
+          imported_at?: string
+          is_active?: boolean | null
+          price_book_name?: string | null
+          service_name?: string | null
+          sf_created_at?: string | null
+          sf_id: string
+          unit_price?: number | null
+        }
+        Update: {
+          code?: string
+          gst_rate?: number | null
+          imported_at?: string
+          is_active?: boolean | null
+          price_book_name?: string | null
+          service_name?: string | null
+          sf_created_at?: string | null
+          sf_id?: string
+          unit_price?: number | null
         }
         Relationships: []
       }

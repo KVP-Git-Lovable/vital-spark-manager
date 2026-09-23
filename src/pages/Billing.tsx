@@ -1,5 +1,6 @@
 import { formatMoney, formatMoneyPrecise } from "@/lib/currency";
 import { reserveTab, type PendingTab } from "@/lib/newTab";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { offerBlockedLink } from "@/components/shared/popupFallback";
 import { useAuth } from "@/hooks/useAuth";
 import { displayDate } from "@/lib/dateInput";
@@ -313,9 +314,18 @@ const Billing = () => {
     const t = toast.loading("Generating invoice PDF…");
     try {
       const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
+        // Bounded on the request itself - functions-js turns this into an
+        // AbortController - so a builder that never answers falls through to
+        // the printable invoice below instead of leaving the tab on its
+        // placeholder indefinitely.
         body: { invoiceId: inv.id, wait: true },
+        timeout: 45000,
       });
-      if (error) throw error;
+      if (error) {
+        throw new Error(
+          await edgeFunctionErrorMessage(error, "The invoice PDF could not be prepared."),
+        );
+      }
       const url = (data as any)?.url;
       if (!url) throw new Error("PDF url missing");
       toast.dismiss(t);

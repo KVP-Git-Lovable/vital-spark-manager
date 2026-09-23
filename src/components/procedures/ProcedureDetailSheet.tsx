@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { numVal } from "@/lib/numberInput";
-import { reserveTab } from "@/lib/newTab";
-import { offerBlockedLink } from "@/components/shared/popupFallback";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -23,6 +22,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
 import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
@@ -150,25 +150,35 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [previewingPdf, setPreviewingPdf] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewPdf, setPreviewPdf] = useState<{ url: string; filename: string } | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [sendingWa, setSendingWa] = useState(false);
 
-  // The builder answers in a couple of seconds. Without a bound, a request
-  // that never comes back leaves the preview tab on "Preparing…" and the
-  // Download button spinning, with nothing to tell the user either way.
+  // The builder answers in a couple of seconds. The bound belongs on the
+  // request itself, not on a race beside it: functions-js turns `timeout`
+  // into an AbortController, so the request is actually cancelled. A
+  // setTimeout racing outside it leaves the real request running, and is
+  // itself throttled once the tab goes to the background.
   const PDF_TIMEOUT_MS = 45000;
 
   const fetchPrescriptionPdf = async () => {
     if (!procedureId) return null;
-    const { data, error } = await Promise.race([
-      supabase.functions.invoke("generate-prescription-pdf", { body: { procedureId } }),
-      new Promise<never>((_, reject) =>
-        setTimeout(
-          () => reject(new Error("The prescription is taking longer than usual. Please try again.")),
-          PDF_TIMEOUT_MS,
+    const { data, error } = await supabase.functions.invoke("generate-prescription-pdf", {
+      body: { procedureId },
+      timeout: PDF_TIMEOUT_MS,
+    });
+    // supabase-js flattens every non-2xx to "Edge Function returned a non-2xx
+    // status code" and drops the body. Recover what the function actually
+    // said, so a failure names itself instead of needing to be guessed at.
+    if (error) {
+      throw new Error(
+        await edgeFunctionErrorMessage(
+          error,
+          "The prescription could not be prepared. Please try again.",
         ),
-      ),
-    ]);
-    if (error) throw error;
+      );
+    }
     if (!data?.base64) throw new Error("No PDF returned");
     const bin = atob(data.base64);
     const bytes = new Uint8Array(bin.length);
@@ -197,31 +207,48 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     }
   };
 
-  // Opens the same PDF the browser's native viewer instead of forcing a
-  // download - lets staff/patients view or print it without a file piling
-  // up on their device every time.
+  // Shown in the page rather than in a second tab.
+  //
+  // It used to open a tab and point it at the PDF. That made the preview
+  // depend on a browser pop-up permission, on a blank tab surviving the wait
+  // and on a blob URL navigating across contexts - and when any link in that
+  // chain did not complete, all the doctor had was a foreign tab reading
+  // "Preparing the prescription..." with nothing to act on. The app already
+  // previews PDFs inline for patient attachments; the same iframe works here
+  // and removes every one of those dependencies. Open in new tab is still a
+  // button inside the dialog, where clicking it is a fresh gesture and so is
+  // never blocked.
   const handlePreviewPrescription = async () => {
-    // Reserved in the click. Building the prescription PDF takes a few
-    // seconds, and a tab opened after that wait is blocked as a pop-up.
-    const tab = reserveTab("Preparing the prescription…");
     setPreviewingPdf(true);
+    setPreviewError(null);
+    setPreviewPdf(null);
+    setPreviewOpen(true);
     try {
       const pdf = await fetchPrescriptionPdf();
       if (!pdf) {
-        tab.cancel();
+        setPreviewOpen(false);
         return;
       }
-      if (tab.blocked) offerBlockedLink(pdf.url, "prescription");
-      else tab.navigate(pdf.url);
+      setPreviewPdf(pdf);
     } catch (e: any) {
       const message = e?.message || "Failed to generate prescription";
-      // Said in the tab as well as here: the tab is where the user is
-      // looking, and closing it silently reads as nothing having happened.
-      tab.fail(message);
+      // Stated where the doctor is looking, not only in a toast that fades.
+      setPreviewError(message);
       toast.error(message);
     } finally {
       setPreviewingPdf(false);
     }
+  };
+
+  // The blob is held by the browser until released; drop it when the dialog
+  // closes so a long clinic session does not accumulate them.
+  const closePreview = () => {
+    setPreviewOpen(false);
+    setPreviewPdf((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+    setPreviewError(null);
   };
 
   const handleSendWhatsApp = async () => {
@@ -1401,6 +1428,41 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
           )}
         </SheetContent>
       </Sheet>
+
+      <Dialog open={previewOpen} onOpenChange={(o) => (o ? setPreviewOpen(true) : closePreview())}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Prescription preview</DialogTitle>
+          </DialogHeader>
+          <div className="bg-muted/40 rounded-lg overflow-hidden flex items-center justify-center" style={{ minHeight: 400 }}>
+            {previewError ? (
+              <div className="p-8 text-center">
+                <p className="text-sm text-destructive">{previewError}</p>
+                <Button type="button" variant="outline" size="sm" className="mt-3" onClick={handlePreviewPrescription}>
+                  Try again
+                </Button>
+              </div>
+            ) : previewPdf ? (
+              <iframe src={previewPdf.url} title={previewPdf.filename} className="w-full h-[70vh]" />
+            ) : (
+              <div className="p-8 text-center text-sm text-muted-foreground flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Preparing the prescription…
+              </div>
+            )}
+          </div>
+          {previewPdf && (
+            <div className="flex justify-end gap-2">
+              {/* A click in here is a fresh gesture, so this one is never blocked. */}
+              <Button type="button" variant="outline" size="sm" onClick={() => window.open(previewPdf.url, "_blank")}>
+                Open in new tab
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={handleDownloadPrescription} disabled={downloadingPdf}>
+                <Download className="h-4 w-4 mr-1" /> Download
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {cameraOpen && procedure?.patient_id && (
         <CameraCapture

@@ -517,6 +517,48 @@ async function syncPatient(
     log.invoices += batch.length;
   }
 
+  // Stage the real per-line breakdown (Billing_Line_Item__c) into
+  // sf_billing_line_items, verbatim - read-and-stage only, invoices and
+  // line_items are still built the old way above. Note this uses ALL
+  // billings returned, not just newBillings: the 46k invoices imported
+  // before this existed have lines worth staging too.
+  try {
+    for (const idBatch of chunk(billings.map((b) => b.Id), 200)) {
+      const inList = idBatch.map((id) => `'${id}'`).join(",");
+      const lines = await sfQuery(
+        `SELECT Id, Billing__c, Service1__c, Products__c, Quantity__c, MRP_Per_Unit__c, Total_Price__c, GST__c, Tax_Amount__c, CGST_SGST__c, Tax_applicable__c, CreatedDate FROM Billing_Line_Item__c WHERE Billing__c IN (${inList})`,
+        signal,
+      );
+      const lineRows = lines.map((l) => ({
+        // Values are stored exactly as Salesforce sent them: no coercion of
+        // blanks to zero and no rounding, so NULL keeps meaning "Salesforce
+        // had nothing", distinct from a real zero - that distinction is what
+        // the reconciliation into invoices depends on.
+        sf_id: l.Id,
+        billing_sf_id: l.Billing__c,
+        service_name: l.Service1__c,
+        product_name: l.Products__c,
+        quantity: l.Quantity__c,
+        mrp_per_unit: l.MRP_Per_Unit__c,
+        total_price: l.Total_Price__c,
+        gst_rate: l.GST__c,
+        tax_amount: l.Tax_Amount__c,
+        cgst_sgst: l.CGST_SGST__c,
+        tax_applicable: l.Tax_applicable__c,
+        sf_created_at: l.CreatedDate,
+      }));
+      for (const batch of chunk(lineRows, 100)) {
+        const { error } = await admin.from("sf_billing_line_items").upsert(batch, { onConflict: "sf_id" });
+        if (error) throw new Error(`sf_billing_line_items upsert: ${error.message}`);
+        log.billing_lines_staged = (log.billing_lines_staged || 0) + batch.length;
+      }
+    }
+  } catch (e) {
+    // A bad field name or a missing object permission must not take down the
+    // clinical import that has worked all along - log it and carry on.
+    log.errors.push(`billing line items: ${(e as Error).message}`);
+  }
+
   const billingProcBySfApptId = new Map<string, string>();
   billings.forEach((b) => {
     if (b.Appointment__c) {
@@ -725,7 +767,7 @@ Deno.serve(async (req) => {
     let stoppedEarly = false;
     await mapPool(targets, 8, async (p) => {
       if (Date.now() > deadline) { stoppedEarly = true; return; }
-      const log: any = { patient: p.name, appointments: 0, updated: 0, invoices: 0, procedures: 0, filled: 0, left_alone: 0, skipped: 0, errors: [] as any[] };
+      const log: any = { patient: p.name, appointments: 0, updated: 0, invoices: 0, procedures: 0, filled: 0, left_alone: 0, skipped: 0, billing_lines_staged: 0, errors: [] as any[] };
       const remainingMs = Math.max(1, deadline - Date.now());
       const patientTimeoutMs = Math.min(20_000, remainingMs);
       try {

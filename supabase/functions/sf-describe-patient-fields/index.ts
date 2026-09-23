@@ -39,6 +39,29 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const url = new URL(req.url);
   const sample = Math.max(1, Math.min(2000, Number(url.searchParams.get("sample") || "200")));
+  const list = (url.searchParams.get("list") || "").trim();
+
+  // list=objects: return every object in the org - API name and label only.
+  // No record data, no field values, no row counts. This is the org's shape.
+  if (list === "objects") {
+    try {
+      const payload = await sf("/sobjects");
+      const sobjects: any[] = payload.sobjects || [];
+      const objects = sobjects
+        .filter((s) => s && typeof s.name === "string")
+        .map((s) => ({ name: s.name, label: s.label || s.name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      return new Response(JSON.stringify({ ok: true, objects }, null, 2), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, error: (e as Error).message }, null, 2), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
   // Object API name. Default to Patient__c so existing callers are unaffected.
   // Allow only plain Salesforce object names: letters, digits, underscores.
   // Custom objects end in __c; standard objects (Account, Contact) do not.

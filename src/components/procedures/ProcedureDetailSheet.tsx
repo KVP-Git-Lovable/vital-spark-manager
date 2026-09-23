@@ -151,7 +151,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [previewingPdf, setPreviewingPdf] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewPdf, setPreviewPdf] = useState<{ url: string; filename: string } | null>(null);
+  const [previewPdf, setPreviewPdf] = useState<{ blobUrl: string; viewUrl: string; filename: string } | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [sendingWa, setSendingWa] = useState(false);
 
@@ -184,7 +184,56 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     const blob = new Blob([bytes], { type: "application/pdf" });
-    return { url: URL.createObjectURL(blob), filename: data.filename || "Prescription.pdf" };
+    const blobUrl = URL.createObjectURL(blob);
+    return {
+      blobUrl,
+      viewUrl: await publishForViewing(blob, blobUrl),
+      filename: data.filename || "Prescription.pdf",
+    };
+  };
+
+  /**
+   * An https address for the PDF, because a blob: one cannot be relied on to
+   * open.
+   *
+   * A blob URL is a local handle, and privacy and ad-blocking extensions
+   * treat navigating to one as something to stop: the clinic's browser
+   * refused it with ERR_BLOCKED_BY_CLIENT, which is the extension talking,
+   * not Chrome. That one cause accounts for every symptom seen - the frame
+   * drawing a broken-document icon, "Open in new tab" landing on a blocked
+   * page, and, before that, the reserved tab sitting on its placeholder
+   * because the navigation to the blob was refused without a word. Download
+   * kept working throughout because <a download> saves the blob rather than
+   * navigating to it.
+   *
+   * So the PDF is put where it has an ordinary https address, which nothing
+   * treats as suspect. One object per visit, replaced each time, in the
+   * bucket the prescription PDF is already written to when it is sent on
+   * WhatsApp - and no procedure_attachments row, so previewing does not
+   * litter the patient's record.
+   *
+   * If any of that fails the blob URL is still returned: no worse than
+   * before, and Download is unaffected either way.
+   */
+  const publishForViewing = async (blob: Blob, fallback: string) => {
+    if (!procedureId) return fallback;
+    const path = `previews/${procedureId}.pdf`;
+    try {
+      // The bucket grants insert and delete to staff but not update, so a
+      // replacement is a remove followed by an upload rather than an upsert.
+      // Removing something that isn't there is not an error.
+      await supabase.storage.from("procedure-attachments").remove([path]);
+      const { error: uploadError } = await supabase.storage
+        .from("procedure-attachments")
+        .upload(path, blob, { contentType: "application/pdf" });
+      if (uploadError) return fallback;
+      const { data: pub } = supabase.storage.from("procedure-attachments").getPublicUrl(path);
+      // Cache-busted: the path is reused, so the browser would otherwise show
+      // the previous visit's copy of this prescription.
+      return pub?.publicUrl ? `${pub.publicUrl}?t=${Date.now()}` : fallback;
+    } catch {
+      return fallback;
+    }
   };
 
   const handleDownloadPrescription = async () => {
@@ -193,12 +242,14 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       const pdf = await fetchPrescriptionPdf();
       if (!pdf) return;
       const a = document.createElement("a");
-      a.href = pdf.url;
+      // The blob, deliberately: a cross-origin href makes the browser ignore
+      // the download attribute and navigate to the file instead of saving it.
+      a.href = pdf.blobUrl;
       a.download = pdf.filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(pdf.url);
+      URL.revokeObjectURL(pdf.blobUrl);
       toast.success("Prescription downloaded");
     } catch (e: any) {
       toast.error(e.message || "Failed to generate prescription");
@@ -245,7 +296,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const closePreview = () => {
     setPreviewOpen(false);
     setPreviewPdf((prev) => {
-      if (prev) URL.revokeObjectURL(prev.url);
+      if (prev) URL.revokeObjectURL(prev.blobUrl);
       return null;
     });
     setPreviewError(null);
@@ -1443,25 +1494,22 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </Button>
               </div>
             ) : previewPdf ? (
-              // <object>, not <iframe>, because it degrades honestly.
-              //
-              // Showing a PDF inline needs the browser's own PDF viewer to be
-              // available in this frame, and it is not always: a sandboxed or
-              // embedded host frame can refuse it, and an <iframe> answers
-              // that by drawing a broken-document icon with nothing to act
-              // on. <object> renders its children instead, so the doctor gets
-              // a sentence and two buttons that do work. Note the attachment
-              // preview elsewhere in the app shows an https storage URL,
-              // which is not subject to whatever refuses a blob here.
-              <object data={previewPdf.url} type="application/pdf" className="w-full h-[70vh]">
+              // <object>, not <iframe>, because it degrades honestly. An
+              // <iframe> that cannot show its document draws a
+              // broken-document icon with nothing to act on; <object> renders
+              // its children instead. viewUrl is an ordinary https address
+              // (see publishForViewing), so this is no longer expected to
+              // fire - it is the net under a browser that still will not
+              // display a PDF in place.
+              <object data={previewPdf.viewUrl} type="application/pdf" className="w-full h-[70vh]">
                 <div className="p-8 text-center space-y-3">
                   <FileText className="h-10 w-10 mx-auto text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
                     This browser will not display the prescription inside the app.
-                    It is ready — open or download it below.
+                    It is ready — open it in a tab or download it.
                   </p>
                   <div className="flex justify-center gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => window.open(previewPdf.url, "_blank")}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => window.open(previewPdf.viewUrl, "_blank")}>
                       Open in new tab
                     </Button>
                     <Button type="button" variant="outline" size="sm" onClick={handleDownloadPrescription} disabled={downloadingPdf}>
@@ -1479,7 +1527,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
           {previewPdf && (
             <div className="flex justify-end gap-2">
               {/* A click in here is a fresh gesture, so this one is never blocked. */}
-              <Button type="button" variant="outline" size="sm" onClick={() => window.open(previewPdf.url, "_blank")}>
+              <Button type="button" variant="outline" size="sm" onClick={() => window.open(previewPdf.viewUrl, "_blank")}>
                 Open in new tab
               </Button>
               <Button type="button" variant="outline" size="sm" onClick={handleDownloadPrescription} disabled={downloadingPdf}>

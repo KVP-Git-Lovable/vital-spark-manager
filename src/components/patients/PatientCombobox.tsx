@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { buildOrFilter, buildFuzzyOrFilter, fuzzyRank, normalize, fuzzyScore } from "@/lib/fuzzySearch";
+import { buildFuzzyOrFilter, buildTokenFilters, fuzzyRank, normalize, fuzzyScore } from "@/lib/fuzzySearch";
 
 const PHONE_LIKE_NAME = /^[+\d\s()\-]{7,}$/;
 
@@ -151,12 +151,13 @@ export function PatientCombobox({
         }
       }
 
-      // Final fallback: standard OR search
-      const or = buildOrFilter(q, ["first_name", "last_name", "phone"]);
-      const { data: orResults, error } = await supabase
-        .from("patients")
-        .select(columns)
-        .or(or)
+      // Every word must match somewhere - see buildTokenFilters. The fuzzy
+      // fallback below still covers a strict miss.
+      let orQuery = supabase.from("patients").select(columns);
+      for (const f of buildTokenFilters(q, ["first_name", "last_name", "phone"])) {
+        orQuery = orQuery.or(f);
+      }
+      const { data: orResults, error } = await orQuery
         .order("first_name")
         .limit(PAGE_SIZE);
       if (error) throw error;

@@ -51,7 +51,7 @@ import { EngagementBadge } from "@/components/patients/EngagementBadge";
 import { PatientAvatar } from "@/components/patients/PatientAvatar";
 import { usePatientAvatars } from "@/hooks/usePatientAvatars";
 import { useEngagementScores } from "@/hooks/useEngagementScores";
-import { buildOrFilter, buildFuzzyOrFilter, fuzzyRank } from "@/lib/fuzzySearch";
+import { buildOrFilter, buildFuzzyOrFilter, buildTokenFilters, fuzzyRank } from "@/lib/fuzzySearch";
 import type { Tables } from "@/integrations/supabase/types";
 import { QueryTimeoutNotice } from "@/components/shared/QueryTimeoutNotice";
 
@@ -188,9 +188,12 @@ const fetchPatientsPage = async (
       }
     }
 
-    // Final fallback: standard OR search (substring matching)
-    const or = buildOrFilter(term, cols);
-    if (or) q = q.or(or);
+    // Every word must appear somewhere on the record - separate .or() calls are
+    // ANDed by PostgREST - so "nisha rai" no longer returns every Rai. Nothing
+    // is lost when a strict match finds nobody: the typo-tolerant fallback below
+    // still runs on an empty result.
+    const tokenFilters = buildTokenFilters(term, cols);
+    for (const f of tokenFilters) q = q.or(f);
   }
 
   const { data, error, count } = await q;
@@ -265,8 +268,9 @@ const fetchAllPatients = async (search: string): Promise<Patient[]> => {
       .order("id", { ascending: true })
       .range(from, to);
     if (term) {
-      const or = buildOrFilter(term, ["first_name", "last_name", "email", "phone"]);
-      if (or) q = q.or(or);
+      for (const f of buildTokenFilters(term, ["first_name", "last_name", "email", "phone"])) {
+        q = q.or(f);
+      }
     }
     return q;
   });

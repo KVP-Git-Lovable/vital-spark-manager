@@ -10,7 +10,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
-import { buildOrFilter, fuzzyRank } from "@/lib/fuzzySearch";
+import { buildOrFilter, buildTokenFilters, fuzzyRank } from "@/lib/fuzzySearch";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
@@ -110,14 +110,21 @@ export function GlobalSearch({ className }: { className?: string }) {
     (async () => {
       const like = `%${q}%`;
       const wants = (k: Kind) => scope === "all" || scope === k;
-      const patientFilter = buildOrFilter(q, ["first_name", "last_name", "phone", "email"]);
+      const PATIENT_COLS = ["first_name", "last_name", "phone", "email"];
+      // Every word has to appear somewhere on the record: separate .or() calls
+      // are ANDed by PostgREST. "nisha rai" now means nisha AND rai, so it finds
+      // Anisha Rai instead of every Rai in the clinic.
+      const tokenFilters = buildTokenFilters(q, PATIENT_COLS);
+      const strictPatients = async () => {
+        let query = supabase.from("patients").select("id, first_name, last_name, phone, email");
+        for (const f of tokenFilters) query = query.or(f);
+        if (tokenFilters.length === 0) query = query.or(`first_name.ilike.${like}`);
+        return query.limit(25);
+      };
 
       const noRows = { data: [] as any[] };
       const [patients, appts, procs, invs, staff, services, products] = await Promise.all([
-        wants("patient")
-          ? supabase.from("patients").select("id, first_name, last_name, phone, email")
-              .or(patientFilter || `first_name.ilike.${like}`).limit(25)
-          : noRows,
+        wants("patient") ? strictPatients() : noRows,
         wants("appointment")
           ? supabase.from("appointments").select("id, patient_name, service, start_time, status")
               .or(`patient_name.ilike.${like},service.ilike.${like},status.ilike.${like}`)
@@ -148,7 +155,20 @@ export function GlobalSearch({ className }: { className?: string }) {
 
       if (cancelled) return;
 
-      const patientRows = ((patients as any).data || []) as any[];
+      let patientRows = ((patients as any).data || []) as any[];
+      // Requiring every word can legitimately find nobody - a typo, a middle
+      // name, a patient recorded under one name only. Rather than show an empty
+      // dropdown where there used to be results, fall back to the old loose
+      // match. Only when strict found nothing, so a good search is never diluted.
+      if (wants("patient") && patientRows.length === 0 && tokenFilters.length > 1) {
+        const loose = buildOrFilter(q, PATIENT_COLS);
+        if (loose) {
+          const { data: looseRows } = await supabase
+            .from("patients").select("id, first_name, last_name, phone, email")
+            .or(loose).limit(25);
+          patientRows = looseRows || [];
+        }
+      }
       const ranked = fuzzyRank(
         patientRows,
         q,

@@ -39,6 +39,29 @@ export const buildOrFilter = (term: string, columns: string[]) => {
     .join(",");
 };
 
+/**
+ * One PostgREST `or(...)` expression per token, each covering every column.
+ *
+ * Applied as SEPARATE `.or()` calls, which PostgREST ANDs together, so a record
+ * has to contain every token somewhere:
+ *
+ *   .or("first_name.ilike.%nisha%,last_name.ilike.%nisha%,…")
+ *   .or("first_name.ilike.%rai%,last_name.ilike.%rai%,…")
+ *
+ * This is what buildOrFilter could not do. It comma-joins everything into one
+ * `or`, so "nisha rai" matched any record containing nisha OR rai - returning
+ * Dr Supriya Rai, NISHA DSOUZA, Punya Rai and Sulan Raiker (that last on the
+ * substring "rai"), while the actual Anisha Rai was nowhere near the top.
+ *
+ * Substring matching is deliberate: "nisha" has to keep finding "Anisha", who is
+ * exactly the person such a search is looking for.
+ */
+export const buildTokenFilters = (term: string, columns: string[]): string[] => {
+  const tokens = Array.from(new Set(sanitizeTerm(term).split(/\s+/).filter(Boolean)));
+  if (tokens.length === 0 || columns.length === 0) return [];
+  return tokens.map((t) => columns.map((c) => `${c}.ilike.%${t}%`).join(","));
+};
+
 /** Loose filter used for the typo-tolerant fallback query (first 3 chars of each token). */
 export const buildFuzzyOrFilter = (term: string, columns: string[]) => {
   const tokens = sanitizeTerm(term)
@@ -77,7 +100,12 @@ export function fuzzyScore(term: string, haystack: string): number {
   if (!t || !h) return 0;
   if (h.includes(t)) return 1;
   const words = h.split(" ");
-  let best = 0;
+  // The WEAKEST token decides the score, not the strongest. Taking the best
+  // token meant "Punya Rai" scored a perfect 1 against "nisha rai" purely on
+  // "rai", so half the Rais in the clinic outranked the person being looked for.
+  // Every token has to find something for a row to rank well. With one token
+  // this is identical to what it did before.
+  let worst = 1;
   for (const tok of t.split(" ")) {
     let tokBest = 0;
     for (const w of words) {
@@ -89,9 +117,9 @@ export function fuzzyScore(term: string, haystack: string): number {
       const sim = 1 - d / Math.max(tok.length, w.length);
       tokBest = Math.max(tokBest, sim);
     }
-    best = Math.max(best, tokBest);
+    worst = Math.min(worst, tokBest);
   }
-  return best;
+  return worst;
 }
 
 /** Ranks and filters rows by fuzzy similarity against the given text accessor. */

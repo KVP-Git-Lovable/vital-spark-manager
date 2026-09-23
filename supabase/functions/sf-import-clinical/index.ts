@@ -300,6 +300,9 @@ async function syncPatient(
   const procServiceBySfId = new Map<string, string | null>(
     (existingProcs as any[]).map((r: any) => [r.sf_id as string, (r.service_name ?? null) as string | null]),
   );
+  const procRowBySfId = new Map<string, any>(
+    (existingProcs as any[]).map((r: any) => [r.sf_id as string, r]),
+  );
 
   // Independent per-patient queries - run concurrently instead of one
   // after another (this is the main driver of total sync time at scale).

@@ -38,6 +38,7 @@ import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { OTHERS_VALUE } from "@/lib/othersOption";
 import { partitionVisitMedia } from "@/lib/visitMedia";
+import { parsePrescriptionText } from "@/lib/prescriptionText";
 import type { Tables } from "@/integrations/supabase/types";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -121,6 +122,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [medicalDirty, setMedicalDirty] = useState(false);
   const [editProcedureNotes, setEditProcedureNotes] = useState("");
   const [editRecommendations, setEditRecommendations] = useState("");
+  // The medicines a Salesforce visit recorded, read out of the free text they
+  // were typed into. Only used when this visit has no structured prescription
+  // rows of its own - see the Products/Medications panel below.
+  const importedPrescription = parsePrescriptionText(editProcedureNotes);
   const [editReviewNotes, setEditReviewNotes] = useState("");
   const [editAssistedByIds, setEditAssistedByIds] = useState<string[]>([]);
   const [editServiceLines, setEditServiceLines] = useState<ServiceLineRow[]>([]);
@@ -1043,20 +1048,38 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                         </div>
                       </div>
                     );
-                  }) : editProcedureNotes.trim() ? (
+                  }) : importedPrescription.length ? (
                     /* The products a doctor prescribed in Salesforce arrive as the
-                       free text they typed - 14,638 visits carry them this way -
+                       free text they typed - 25,346 visits carry them this way -
                        while this panel reads the structured prescriptions table,
-                       which holds 28 rows in the whole database. So every imported
+                       which holds 31 rows in the whole database. So every imported
                        visit read "Nothing added yet" with the prescription sitting
-                       one field away. Shown verbatim rather than parsed into rows:
-                       a parser 95% right across 25,000 prescriptions is wrong about
-                       a dosage on more than a thousand of them. */
+                       one field away.
+
+                       Listed as rows, matching the Product/Instruction table on the
+                       printed prescription, so the screen and the document agree.
+                       parsePrescriptionText picks its separator per entry and never
+                       drops text - see its own notes for why a single rule would
+                       print "1-0-0" as a product on 82 real visits. */
                     <div className="rounded-lg border bg-background p-3">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">
                         Prescribed on this visit
                       </p>
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{editProcedureNotes}</p>
+                      <ol className="space-y-2">
+                        {importedPrescription.map((item, i) => (
+                          <li key={i} className="flex gap-2 text-sm">
+                            <span className="text-muted-foreground tabular-nums shrink-0">{i + 1}.</span>
+                            <span className="min-w-0">
+                              <span className="whitespace-pre-wrap leading-relaxed">{item.product}</span>
+                              {item.instruction && (
+                                <span className="block text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">
+                                  {item.instruction}
+                                </span>
+                              )}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
                       <p className="text-[11px] text-muted-foreground mt-2">
                         As recorded at the visit. Use "Add Medicine" to add a product from the catalogue.
                       </p>
@@ -1065,6 +1088,27 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     <p className="text-sm text-muted-foreground text-center py-2">Nothing added yet. Click "Add Medicine" to add a product or medication.</p>
                   )}
                 </div>
+
+                {/* Special Instructions
+                    Salesforce's Special_Instructions__c, on 17,581 visits. It was
+                    read, saved and printed into a column of the procedure table,
+                    but never shown on this screen at all. Hidden when the visit's
+                    service lines already carry it, so it is not said twice. */}
+                {editRecommendations.trim() && !editServiceLines.some(
+                  (l) => !l._deleted && l.recommendations.trim() === editRecommendations.trim(),
+                ) && (
+                  <div className="rounded-xl border bg-card p-4 shadow-sm">
+                    <Label className="text-base font-display font-semibold flex items-center gap-2 mb-3">
+                      <ClipboardList className="h-4 w-4" /> Special Instructions
+                    </Label>
+                    <Textarea
+                      className="min-h-[80px]"
+                      value={editRecommendations}
+                      onChange={(e) => setEditRecommendations(e.target.value)}
+                      placeholder="Instructions for this visit"
+                    />
+                  </div>
+                )}
 
                 {/* Photos */}
                 <div className="rounded-xl border bg-card p-4 shadow-sm">

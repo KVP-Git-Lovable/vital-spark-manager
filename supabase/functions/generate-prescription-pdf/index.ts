@@ -2,6 +2,7 @@ import { PDFDocument, PDFImage, PDFFont, PDFPage, StandardFonts, rgb } from "htt
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
+import { parsePrescriptionText } from "./prescriptionText.ts";
 
 const BodySchema = z.object({
   procedureId: z.string().uuid(),
@@ -18,14 +19,31 @@ const blue = rgb(0.22, 0.43, 0.68);
 const dark = rgb(0.08, 0.08, 0.08);
 const lineGrey = rgb(0.3, 0.3, 0.3);
 
+/**
+ * Line breaks are content, not noise.
+ *
+ * This used to fold every control character into a space and then collapse all
+ * whitespace, so a field written over several lines printed as one run-on
+ * paragraph. Lab tests were the visible case - five tests on five lines in the
+ * app arrived as "Vitamin d3 Viatmin B12 TSH Hb Serum ferittin" on the
+ * document - but it flattened diagnosis, symptoms, prescriptions and notes
+ * just the same.
+ *
+ * So newlines survive here and `wrap` lays them out. Everything else the PDF
+ * font cannot draw is still replaced, and runs of spaces are still collapsed -
+ * just not across a line ending.
+ */
 function sanitize(value: unknown): string {
   return String(value ?? "")
-    .replace(/[\u0000-\u001F\u007F]+/g, " ")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0009\u000B-\u001F\u007F]+/g, " ")
     .replace(/[–—]/g, "-")
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
-    .replace(/[^\x20-\x7E]/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/[^\x20-\x7E\n]/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -42,10 +60,10 @@ function ageFromDob(dob?: string | null): string {
   return String(Math.floor((Date.now() - date.getTime()) / (365.25 * 24 * 3600 * 1000)));
 }
 
-function wrap(text: unknown, font: PDFFont, size: number, maxWidth: number): string[] {
-  const clean = sanitize(text);
-  if (!clean) return [""];
-  const words = clean.split(/\s+/);
+/** Word-wraps one line - no line breaks of its own. See `wrap`. */
+function wrapOneLine(clean: string, font: PDFFont, size: number, maxWidth: number): string[] {
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (!words.length) return [""];
   const lines: string[] = [];
   let line = "";
 
@@ -70,6 +88,20 @@ function wrap(text: unknown, font: PDFFont, size: number, maxWidth: number): str
   }
   if (line) lines.push(line);
   return lines;
+}
+
+/**
+ * Lays text out to `maxWidth`, keeping the author's own line breaks: each line
+ * the writer typed starts a new line on the page, and is word-wrapped within
+ * it. A prescription or a list of lab tests then reads on the document exactly
+ * as it does on the screen.
+ */
+function wrap(text: unknown, font: PDFFont, size: number, maxWidth: number): string[] {
+  const clean = sanitize(text);
+  if (!clean) return [""];
+  return clean.split("\n").flatMap((authorLine) =>
+    authorLine.trim() ? wrapOneLine(authorLine, font, size, maxWidth) : [""]
+  );
 }
 
 function drawFooter(page: PDFPage, font: PDFFont, bold: PDFFont, clinic: Record<string, unknown>) {
@@ -357,6 +389,30 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     .filter((r) => !(isPlaceholderService(r.service) && !r.notes && !r.recommendations))
     .map((r) => ({ service: r.service, notes: r.notes || "-", recommendations: r.recommendations || "-" }));
 
+  /**
+   * The visit's special instructions, under their own heading.
+   *
+   * These (Salesforce's Special_Instructions__c, filled on 17,581 visits) only
+   * ever appeared squeezed into a column of the Procedure Details table, where
+   * the clinic could not find them. They get their own labelled block - but
+   * only when that table is not already printing the same words, so a
+   * single-service visit does not say everything twice.
+   */
+  const drawSpecialInstructions = () => {
+    const text = sanitize(procedure.recommendations);
+    if (!text) return;
+    if (serviceRows.some((r) => r.recommendations === text)) return;
+    ensureSpace(30);
+    page.drawText("Special Instructions", { x: MARGIN, y, size: 11, font: bold, color: blue });
+    y -= 15;
+    for (const textLine of wrap(text, font, 10, PAGE_WIDTH - 2 * MARGIN - 8)) {
+      ensureSpace(13);
+      page.drawText(textLine, { x: MARGIN + 8, y, size: 10, font, color: dark });
+      y -= 13;
+    }
+    y -= 10;
+  };
+
   // This visit's own findings first, then the patient's standing history.
   // Diagnosis and Symptoms used to be loose sections above Procedure Details,
   // and Lab Tests was not on the document at all. Empty rows stay hidden, as
@@ -402,13 +458,26 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
   };
 
   const drawMedications = () => {
-  const rows = (prescriptions || []).map((prescription: Record<string, unknown>, index: number) => {
+  // Structured prescription rows are what this app writes when a doctor
+  // prescribes here. The 25,346 visits imported from Salesforce have no such
+  // rows - their medicines are one free-text field, which used to mean the
+  // Products/Medications table simply did not appear on those documents even
+  // though the visit had a prescription. So fall back to that text, read by
+  // the same parser the screen uses.
+  const structured = (prescriptions || []).map((prescription: Record<string, unknown>, index: number) => {
     const details = [prescription.dosage, prescription.frequency, prescription.duration ? `for ${prescription.duration}` : "", prescription.instructions]
       .map(sanitize)
       .filter(Boolean)
       .join(" - ");
     return { serial: String(index + 1), product: sanitize(prescription.medicine_name) || "-", instruction: details || "-" };
   });
+  const rows = structured.length
+    ? structured
+    : parsePrescriptionText(procedure.procedure_notes as string | null).map((item, index) => ({
+        serial: String(index + 1),
+        product: sanitize(item.product) || "-",
+        instruction: sanitize(item.instruction) || "-",
+      }));
 
   if (rows.length) {
     const tableX = MARGIN;
@@ -458,6 +527,7 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
   // done, then anything written alongside it.
   drawKeyValueTable("Medical Information", medicalRows);
   drawMedications();
+  drawSpecialInstructions();
   drawServicesTable(serviceRows);
   drawNotes();
 

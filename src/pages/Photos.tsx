@@ -45,6 +45,9 @@ import { PHOTO_VIEW_FIELDS, DEFAULT_PHOTO_VIEW_COLUMNS } from "@/lib/listViews/p
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
+/** How many photos the gallery holds at once. See the query below. */
+const PHOTO_LIMIT = 500;
+
 const Photos = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -69,28 +72,33 @@ const Photos = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
 
-  // Paged, and capped. This pulled every row in one request - 85,000 of them -
-  // and for a doctor each row is then run through the restrictive policy's
-  // is_my_patient(), which does two EXISTS lookups per photo. That times out,
-  // and a thrown query leaves data undefined, which the page rendered as "No
-  // photos uploaded yet" - so a doctor with 20,000 appointments saw an empty
-  // gallery and read it as having no access at all.
+  // The newest PHOTO_LIMIT photos, in one request.
+  //
+  // This page used to ask for every row - 85,000 of them - and render them all.
+  // Paging that through fetchAll only made it worse: 86 sequential round trips,
+  // which is why the gallery sat on "Loading photos..." indefinitely. Neither is
+  // right for a wall of images nobody scrolls to the end of.
+  //
+  // The cost is that search and the filters below work over what was fetched, so
+  // they cover the most recent PHOTO_LIMIT rather than the whole archive. The
+  // banner says so when the cap is actually reached, rather than quietly
+  // pretending this is everything - a patient's full set is on their own page.
   const { data: photos = [], isLoading, isError } = useQuery({
     queryKey: ["patient-photos"],
     queryFn: async () => {
-      const rows = await fetchAll<Record<string, unknown>>((from, to) =>
-        supabase
-          .from("patient_photos")
-          .select("*, patients(first_name, last_name), procedures(service_name)")
-          .order("taken_at", { ascending: false })
-          // taken_at is not unique, and .range() paging over a non-unique order
-          // can skip or repeat rows between pages; id settles the tie.
-          .order("id", { ascending: true })
-          .range(from, to),
-      );
-      return rows;
+      const { data, error } = await supabase
+        .from("patient_photos")
+        .select("*, patients(first_name, last_name), procedures(service_name)")
+        .order("taken_at", { ascending: false })
+        // taken_at is not unique, and a limit over a non-unique order can return
+        // a different slice each time; id settles the tie.
+        .order("id", { ascending: true })
+        .limit(PHOTO_LIMIT);
+      if (error) throw error;
+      return data ?? [];
     },
   });
+  const photosCapped = photos.length >= PHOTO_LIMIT;
 
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],
@@ -400,6 +408,13 @@ const Photos = () => {
       )}
 
       {/* Photo Grid */}
+      {photosCapped && !isLoading && !isError && (
+        <p className="mb-3 text-xs text-muted-foreground">
+          Showing the {PHOTO_LIMIT} most recent photos. Search and filters here cover these;
+          open a patient to see their full set.
+        </p>
+      )}
+
       {isLoading ? (
         <p className="text-center py-12 text-muted-foreground">Loading photos...</p>
       ) : isError ? (

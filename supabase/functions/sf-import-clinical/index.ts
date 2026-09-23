@@ -442,16 +442,19 @@ async function syncPatient(
   const invRows = newBillings.map((b) => {
     const services = [b.Procedure_Type__c, b.Procedure_Type_2__c, b.Procedure_Type_3__c].filter(Boolean);
     const investigation = b.Appointment__c ? apptInvestigationBySfId.get(b.Appointment__c) : null;
-    // Name the line by what was actually done. The old fallback stored the
-    // literal "Service", which generate-invoice-pdf then swapped for the
-    // appointment's resolved service - almost always "Consultation" - so every
-    // bill read "Consultation" and the front desk could not tell procedures
-    // apart. billLineName() keeps "Consultation" only when the visit really was
-    // one.
+    // Name the line by what was actually done.
+    //
+    // The clinic's rule: show the service only where a service was performed,
+    // and never the raw Investigation text - that is the visit's notes, not the
+    // treatment. So the visit's own resolved service comes FIRST, and the
+    // literal "Service" placeholder is gone: it had been written onto 30,816
+    // bills, which printed the word "Service" where the treatment belonged.
+    // Where no service was recorded, a consultation is what happened, and
+    // saying so is more use than a placeholder nobody can read.
     const fallbackName =
-      billLineName(investigation, "") ||
       (b.Appointment__c && apptServiceBySfId.get(b.Appointment__c)) ||
-      "Service";
+      billLineName(investigation, "") ||
+      "Consultation";
     const names = services.length ? services : [fallbackName];
     const total = Number(b.Total_Amount__c || b.Total_Price__c || 0);
     // A doctor's consultation carries no GST. Salesforce sends 5% on these

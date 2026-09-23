@@ -216,14 +216,16 @@ async function mapPool<T>(items: T[], concurrency: number, fn: (item: T) => Prom
 
 async function fetchTargets(only: string, limit: number): Promise<Target[]> {
   if (only) {
-    const { data, error } = await admin
-      .from("patients")
-      .select("id, sf_id, first_name, last_name")
-      .not("sf_id", "is", null);
+    // Matched in the database, not in memory: the patients table is far larger
+    // than PostgREST's default page, so filtering a fetched page here used to
+    // miss anyone who fell outside it.
+    const isUuid = /^[0-9a-f-]{36}$/i.test(only);
+    const query = admin.from("patients").select("id, sf_id, first_name, last_name").not("sf_id", "is", null);
+    const { data, error } = isUuid
+      ? await query.eq("id", only)
+      : await query.or(`first_name.ilike.%${only}%,last_name.ilike.%${only}%`).limit(50);
     if (error) throw error;
-    return (data || [])
-      .filter((p) => p.id === only || `${p.first_name} ${p.last_name}`.toLowerCase().includes(only.toLowerCase()))
-      .map((p) => ({ lovable_id: p.id, sf_id: p.sf_id as string, name: `${p.first_name} ${p.last_name}`.trim() }));
+    return (data || []).map((p) => ({ lovable_id: p.id, sf_id: p.sf_id as string, name: `${p.first_name} ${p.last_name}`.trim() }));
   }
   const { data, error } = await admin
     .from("patients")

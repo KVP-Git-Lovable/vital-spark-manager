@@ -443,8 +443,86 @@ async function syncPatient(
   }
 
 
+  // The real per-line breakdown (Billing_Line_Item__c). Fetched BEFORE the
+  // invoices are built, because it is now the source of truth for what was
+  // charged and what tax was charged on it - Billing__c.GST__c is only a
+  // bill-level rate and the derivation from it is a fallback for bills that
+  // have no lines at all. Still staged verbatim into sf_billing_line_items
+  // as well. Uses ALL billings, not just newBillings: the 46k invoices
+  // imported before this existed have lines worth staging too.
+  const linesByBill = new Map<string, any[]>();
+  try {
+    for (const idBatch of chunk(billings.map((b) => b.Id), 200)) {
+      const inList = idBatch.map((id) => `'${id}'`).join(",");
+      const lines = await sfQuery(
+        `SELECT Id, Billing__c, Service1__c, Products__c, Quantity__c, MRP_Per_Unit__c, Total_Price__c, GST__c, Tax_Amount__c, CGST_SGST__c, Tax_applicable__c, CreatedDate FROM Billing_Line_Item__c WHERE Billing__c IN (${inList})`,
+        signal,
+      );
+      lines.forEach((l) => {
+        if (!l.Billing__c) return;
+        const arr = linesByBill.get(l.Billing__c);
+        if (arr) arr.push(l); else linesByBill.set(l.Billing__c, [l]);
+      });
+      const lineRows = lines.map((l) => ({
+        // Values are stored exactly as Salesforce sent them: no coercion of
+        // blanks to zero and no rounding, so NULL keeps meaning "Salesforce
+        // had nothing", distinct from a real zero - that distinction is what
+        // the reconciliation into invoices depends on.
+        sf_id: l.Id,
+        billing_sf_id: l.Billing__c,
+        service_name: l.Service1__c,
+        product_name: l.Products__c,
+        quantity: l.Quantity__c,
+        mrp_per_unit: l.MRP_Per_Unit__c,
+        total_price: l.Total_Price__c,
+        gst_rate: l.GST__c,
+        tax_amount: l.Tax_Amount__c,
+        cgst_sgst: l.CGST_SGST__c,
+        tax_applicable: l.Tax_applicable__c,
+        sf_created_at: l.CreatedDate,
+      }));
+      for (const batch of chunk(lineRows, 100)) {
+        const { error } = await admin.from("sf_billing_line_items").upsert(batch, { onConflict: "sf_id" });
+        if (error) throw new Error(`sf_billing_line_items upsert: ${error.message}`);
+        log.billing_lines_staged = (log.billing_lines_staged || 0) + batch.length;
+      }
+    }
+
+    // Stage the bill-level figures (Billing__c) into sf_billing_headers,
+    // verbatim - read-and-stage only. Same rule as the line items and it
+    // matters more here: a NULL Total_Tax_Applicable__c (Salesforce recorded
+    // no tax figure) and a zero (Salesforce recorded that no tax was charged)
+    // are completely different things for the reconciliation, so neither is
+    // coerced and neither is rounded. Uses ALL billings, not just
+    // newBillings: the 46k invoices imported before this existed have header
+    // figures worth staging too.
+    const headerRows = billings.map((b) => ({
+      sf_id: b.Id,
+      bill_number: b.Name,
+      gst_rate: b.GST__c,
+      total_amount: b.Total_Amount__c,
+      total_price: b.Total_Price__c,
+      total_tax_applicable: b.Total_Tax_Applicable__c,
+      total_service_fee: b.Total_Service_Fee__c,
+      discount: b.Discount__c,
+      sf_created_at: b.CreatedDate,
+    }));
+    for (const batch of chunk(headerRows, 100)) {
+      const { error } = await admin.from("sf_billing_headers").upsert(batch, { onConflict: "sf_id" });
+      if (error) throw new Error(`sf_billing_headers upsert: ${error.message}`);
+      log.billing_headers_staged = (log.billing_headers_staged || 0) + batch.length;
+    }
+  } catch (e) {
+    // A bad field name or a missing object permission must not take down the
+    // clinical import that has worked all along - log it and carry on. The
+    // invoice build below then falls back to the bill-level derivation, which
+    // is exactly what it did before the line items existed.
+    log.errors.push(`billing line items: ${(e as Error).message}`);
+  }
+
   const newBillings = billings.filter((b) => !existingInvoices.has(b.Id));
   log.skipped += billings.length - newBillings.length;
+
   const invRows = newBillings.map((b) => {
     const services = [b.Procedure_Type__c, b.Procedure_Type_2__c, b.Procedure_Type_3__c].filter(Boolean);
     const investigation = b.Appointment__c ? apptInvestigationBySfId.get(b.Appointment__c) : null;

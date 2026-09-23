@@ -546,8 +546,10 @@ async function syncPatient(
     return resolved;
   };
 
-  const procRows = newDiagnoses.map((d) => {
-    const serviceName = serviceNameFor(d);
+  // The clinical content Salesforce holds for one Diagnosis__c row. Shared by
+  // the insert below and by the fill-only top-up of already-imported rows, so
+  // both always read Salesforce the same way.
+  const clinicalFieldsFor = (d: any) => {
     const symptoms = [d.Symptoms__c, d.Symptoms_all__c && d.Symptoms_all__c !== d.Symptoms__c ? d.Symptoms_all__c : null]
       .filter(Boolean).join("\n") || null;
     const consultationParts = [
@@ -566,15 +568,6 @@ async function syncPatient(
       d.Follow_Up_Date__c && `Follow-Up: ${d.Follow_Up_Date__c}`,
     ].filter(Boolean);
     return {
-      patient_id: p.lovable_id,
-      service_name: String(serviceName).slice(0, 500),
-      // The visit date, not the day the record was typed up. Falls back to
-      // CreatedDate for a prescription with no appointment behind it.
-      procedure_date: procedureDate(
-        d.CreatedDate,
-        d.Appointment__c ? apptStartBySfId.get(d.Appointment__c) : null,
-      ),
-      status: "Completed",
       appointment_id: d.Appointment__c ? apptIdMap.get(d.Appointment__c) || null : null,
       // Diagnosis__c carries no doctor field of its own - borrow it from the
       // linked appointment, same as invoices already do for Billing__c.
@@ -586,6 +579,22 @@ async function syncPatient(
       consultation_notes: consultationParts.length ? consultationParts.join("\n") : null,
       recommendations: d.Special_Instructions__c || null,
       review_notes: reviewBits.length ? reviewBits.join(" | ") : null,
+    };
+  };
+
+  const procRows = newDiagnoses.map((d) => {
+    const serviceName = serviceNameFor(d);
+    return {
+      patient_id: p.lovable_id,
+      service_name: String(serviceName).slice(0, 500),
+      // The visit date, not the day the record was typed up. Falls back to
+      // CreatedDate for a prescription with no appointment behind it.
+      procedure_date: procedureDate(
+        d.CreatedDate,
+        d.Appointment__c ? apptStartBySfId.get(d.Appointment__c) : null,
+      ),
+      status: "Completed",
+      ...clinicalFieldsFor(d),
       sf_id: d.Id,
       created_at: d.CreatedDate,
       updated_at: d.CreatedDate,

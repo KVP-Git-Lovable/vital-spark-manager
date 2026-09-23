@@ -541,6 +541,58 @@ async function syncPatient(
       "Consultation";
     const names = services.length ? services : [fallbackName];
     const total = Number(b.Total_Amount__c || b.Total_Price__c || 0);
+    // What Salesforce actually charged, line by line. Billing_Line_Item__c
+    // carries the real service/product, its tax-inclusive Total_Price__c and
+    // its own GST__c and Tax_Amount__c, so the bill-level GST__c rate is no
+    // longer used to invent a split when these exist. A line's Tax_Amount__c
+    // of zero means no tax was charged on it - that is a real figure, not a
+    // missing one, so it is summed as zero and never re-derived from a rate.
+    const sfLines = linesByBill.get(b.Id) || [];
+    if (sfLines.length) {
+      const lineItems = sfLines.map((l: any) => {
+        const gst = Number(l.GST__c || 0);
+        const lineTotal = Number(l.Total_Price__c || 0);
+        const name = String(l.Service1__c || l.Products__c || fallbackName);
+        return {
+          name,
+          qty: 1,
+          // Total_Price__c is tax-inclusive, like the bill total.
+          price: gst > 0 ? lineTotal / (1 + gst / 100) : lineTotal,
+          hsn: hsnForRate(gst, b.CreatedDate),
+          gst,
+        };
+      });
+      const lineTax = sfLines.reduce((s: number, l: any) => s + Number(l.Tax_Amount__c || 0), 0);
+      // Keep a single bill-level rate only where every taxed line agrees on
+      // one; a mixed bill has no meaningful single rate, so it stays 0 and
+      // the per-line gst above is what anything downstream reads.
+      const rates = Array.from(new Set(lineItems.map((l) => l.gst)));
+      return {
+        invoice_number: b.Name,
+        patient_id: p.lovable_id,
+        patient_name: p.name,
+        services: lineItems.map((l) => l.name),
+        line_items: lineItems,
+        total_amount: total,
+        paid_amount: total,
+        status: total > 0 ? "Paid" : "Pending",
+        payment_type: "One-time",
+        payment_mode: b.Payment_Mode__c || "Cash",
+        tax_rate: rates.length === 1 ? rates[0] : 0,
+        tax_amount: lineTax,
+        cgst_amount: lineTax / 2,
+        sgst_amount: lineTax / 2,
+        appointment_id: b.Appointment__c ? apptIdMap.get(b.Appointment__c) || null : null,
+        doctor_id: doctorFor(b.Doctor_Name__c),
+        notes: b.Doctor_Name__c ? `Doctor: ${b.Doctor_Name__c}` : null,
+        sf_id: b.Id,
+        created_at: b.CreatedDate,
+        updated_at: b.CreatedDate,
+      };
+    }
+    // No line items on this bill - fall back to the bill-level derivation
+    // below, which is how every invoice was built before the lines existed.
+    //
     // A doctor's consultation carries no GST. Salesforce sends 5% on these
     // anyway, so override it here; every other visit keeps whatever GST__c says,
     // because the clinic's rule is that only the consultation itself is exempt.
@@ -566,6 +618,7 @@ async function syncPatient(
     // which is why the HSN column printed blank on every bill.
     const hsn = hsnForRate(taxRate, b.CreatedDate);
     const lineItems = names.map((name: string) => ({ name, qty: 1, price: base / names.length, hsn, gst: taxRate }));
+
     return {
       invoice_number: b.Name,
       patient_id: p.lovable_id,

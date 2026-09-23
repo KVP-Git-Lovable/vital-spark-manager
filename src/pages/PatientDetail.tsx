@@ -4,7 +4,7 @@ import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { useParams, useNavigate } from "react-router-dom";
 import { shortPatientId } from "@/lib/utils";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound, Megaphone, Search, Sparkles, ImageOff } from "lucide-react";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound, Megaphone, Search, Sparkles, ImageOff, Lock } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
@@ -65,13 +65,19 @@ const SectionTitle = ({ children }: { children: React.ReactNode }) => (
   <h3 className="text-sm font-semibold text-foreground border-b pb-1.5 mb-3">{children}</h3>
 );
 
-/** A field withheld because the patient is under another doctor. Says why: an
- *  empty value reads as missing data, which is a different problem entirely. */
+/** A field withheld because the patient is under another doctor.
+ *
+ *  A small lock rather than the word "Hidden", which read oddly in a column of
+ *  real values. It still has to say something: a bare dash is what every empty
+ *  field here shows, so withheld and simply-not-recorded would look identical.
+ *  The lock carries the reason on hover. */
 const MaskedField = ({ label }: { label: string }) => (
   <div>
     <Label className="text-xs text-muted-foreground">{label}</Label>
-    <p className="text-sm mt-1 text-muted-foreground italic" title="Hidden because this patient is under another doctor">
-      Hidden
+    <p className="text-sm mt-1 text-muted-foreground flex items-center gap-1.5" title="Only this patient's own doctor can see this">
+      <Lock className="h-3 w-3" aria-hidden />
+      <span className="sr-only">Not shown - only this patient's own doctor can see this</span>
+      <span aria-hidden>&mdash;</span>
     </p>
   </div>
 );
@@ -629,9 +635,9 @@ const PatientDetail = () => {
                   {patient.gender && <span>{patient.gender}</span>}
                   {getAge(patient.date_of_birth) !== null && <span>• Age {getAge(patient.date_of_birth)}</span>}
                   {patient.blood_group && <span>• {patient.blood_group}</span>}
-                  {patient.phone && <span className="hidden sm:inline">• {patient.phone}</span>}
+                  {patient.phone && !hideOtherDoctorDetails && <span className="hidden sm:inline">• {patient.phone}</span>}
                 </div>
-                {patient.phone && <p className="text-xs text-muted-foreground sm:hidden mt-0.5">{patient.phone}</p>}
+                {patient.phone && !hideOtherDoctorDetails && <p className="text-xs text-muted-foreground sm:hidden mt-0.5">{patient.phone}</p>}
               </div>
             </div>
             <div className="flex flex-col items-stretch sm:items-end gap-2">

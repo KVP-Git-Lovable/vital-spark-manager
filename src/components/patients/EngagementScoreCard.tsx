@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, TrendingUp, ChevronDown, ChevronUp, Sparkles, HelpCircle, Calendar } from "lucide-react";
+import { Loader2, TrendingUp, ChevronDown, ChevronUp, Sparkles, HelpCircle, Calendar, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
@@ -199,7 +199,13 @@ export const EngagementScoreCard = (
           <div className="text-center flex-1">
             <p className="text-base font-bold">
               {hideBilled ? (
-                <span className="text-sm italic text-muted-foreground" title="Hidden because this patient is under another doctor">Hidden</span>
+                <span
+                  className="inline-flex items-center justify-center text-muted-foreground"
+                  title="Only this patient's own doctor can see what they have been billed"
+                >
+                  <Lock className="h-3.5 w-3.5" aria-hidden />
+                  <span className="sr-only">Not shown - only this patient's own doctor can see this</span>
+                </span>
               ) : (
                 `₹${data.stats.totalBilled >= 1000 ? `${(data.stats.totalBilled / 1000).toFixed(1)}k` : data.stats.totalBilled}`
               )}

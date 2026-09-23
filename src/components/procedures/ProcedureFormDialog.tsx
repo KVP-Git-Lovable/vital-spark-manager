@@ -635,10 +635,18 @@ export function ProcedureFormDialog({
         }
       }
 
-      const cleanLines = serviceLines.filter((l) => (l.name || "").trim());
-      const effectiveLines = cleanLines.length
-        ? cleanLines
-        : [{ key: "default", service_id: "", name: "Consultation", procedure_notes: "", recommendations: "", material_percent: "", price: 0 }];
+      // A visit where nobody picked a service is saved with no service, not
+      // with an invented one.
+      //
+      // This used to substitute a line called "Consultation" whenever the form
+      // was saved without one, which then read back as though a service had
+      // been chosen - and it is why "Consultation" is the service on 24,610
+      // procedures. A blank service says "none recorded", which is true and
+      // can be corrected; a made-up one cannot be told apart from a real
+      // consultation afterwards.
+      //
+      // Only new saves are affected: nothing already stored is rewritten.
+      const effectiveLines = serviceLines.filter((l) => (l.name || "").trim());
       const combine = (field: "procedure_notes" | "recommendations") =>
         effectiveLines
           .filter((l) => (l[field] || "").trim())
@@ -670,7 +678,8 @@ export function ProcedureFormDialog({
         .single();
       if (error) throw error;
 
-      const { error: svcErr } = await supabase.from("procedure_services").insert(
+      // No service lines means no service rows - not one placeholder row.
+      const { error: svcErr } = effectiveLines.length === 0 ? { error: null } : await supabase.from("procedure_services").insert(
         effectiveLines.map((l, i) => ({
           procedure_id: proc.id,
           service_id: l.service_id && l.service_id !== OTHERS_VALUE ? l.service_id : null,

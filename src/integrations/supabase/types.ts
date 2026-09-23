@@ -3398,6 +3398,48 @@ export type Database = {
           },
         ]
       }
+      procedure_notes_backup_20260923: {
+        Row: {
+          captured_at: string | null
+          consultation_notes: string | null
+          id: string | null
+          lab_tests: string | null
+        }
+        Insert: {
+          captured_at?: string | null
+          consultation_notes?: string | null
+          id?: string | null
+          lab_tests?: string | null
+        }
+        Update: {
+          captured_at?: string | null
+          consultation_notes?: string | null
+          id?: string | null
+          lab_tests?: string | null
+        }
+        Relationships: []
+      }
+      procedure_service_backup_20260923: {
+        Row: {
+          appointment_id: string | null
+          captured_at: string | null
+          id: string | null
+          service_name: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          captured_at?: string | null
+          id?: string | null
+          service_name?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          captured_at?: string | null
+          id?: string | null
+          service_name?: string | null
+        }
+        Relationships: []
+      }
       procedure_services: {
         Row: {
           created_at: string

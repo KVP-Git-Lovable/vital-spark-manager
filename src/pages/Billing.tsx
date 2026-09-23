@@ -1,4 +1,6 @@
 import { formatMoney, formatMoneyPrecise } from "@/lib/currency";
+import { reserveTab, type PendingTab } from "@/lib/newTab";
+import { offerBlockedLink } from "@/components/shared/popupFallback";
 import { useAuth } from "@/hooks/useAuth";
 import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
@@ -105,7 +107,10 @@ const rateLabel = (n: number) =>
 /** Number input helper: 0 shows as an empty field with a "0" watermark. */
 
 // ─── PDF Generation ───────────────────────────────
-const generateInvoicePDF = (inv: any) => {
+// Takes the tab the click already reserved rather than opening one itself:
+// this only ever runs as openInvoicePDF's fallback, by which point the
+// click is long over and a fresh window.open would be blocked.
+const generateInvoicePDF = (inv: any, tab: PendingTab) => {
   const date = new Date(inv.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
   const balance = Number(inv.total_amount) - Number(inv.paid_amount);
   const drName = inv.appointments?.doctors ? withDrPrefix(`${inv.appointments.doctors.first_name || ""} ${inv.appointments.doctors.last_name || ""}`) : "";
@@ -205,12 +210,8 @@ const generateInvoicePDF = (inv: any) => {
 </body>
 </html>`;
 
-  const printWindow = window.open("", "_blank");
-  if (printWindow) {
-    printWindow.document.write(html);
-    printWindow.document.close();
-    setTimeout(() => printWindow.print(), 300);
-  }
+  tab.write(html);
+  tab.print(300);
 };
 
 // ─── Types ────────────────────────────────────────
@@ -306,6 +307,9 @@ const Billing = () => {
       toast.error("Invoice id missing");
       return;
     }
+    // Claimed here, in the click, because building the PDF takes seconds and
+    // by the time it lands the browser will no longer open a tab for us.
+    const tab = reserveTab("Preparing the invoice…");
     const t = toast.loading("Generating invoice PDF…");
     try {
       const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
@@ -315,12 +319,14 @@ const Billing = () => {
       const url = (data as any)?.url;
       if (!url) throw new Error("PDF url missing");
       toast.dismiss(t);
-      window.open(`${url}?t=${Date.now()}`, "_blank");
+      const stamped = `${url}?t=${Date.now()}`;
+      if (tab.blocked) offerBlockedLink(stamped, "invoice");
+      else tab.navigate(stamped);
     } catch (e: any) {
       console.error(e);
       toast.dismiss(t);
       toast.message("Falling back to the printable invoice");
-      generateInvoicePDF(inv);
+      generateInvoicePDF(inv, tab);
     }
   };
 

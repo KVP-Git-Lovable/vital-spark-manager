@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { reserveTab, type PendingTab } from "./newTab";
 import { fetchAppointmentsPage, type FetchAppointmentsPageParams } from "@/lib/appointmentsPage";
 import { investigationText } from "@/lib/investigationText";
 
@@ -27,13 +28,27 @@ const PRINT_SORT = { sortColumn: "start_time", sortDirection: "asc" } as const;
 export async function printAppointments(
   params: Omit<FetchAppointmentsPageParams, "page" | "pageSize" | "sortColumn" | "sortDirection">,
   opts: { clinicName?: string; rangeLabel: string; staffName: (id: string | null) => string },
+  /**
+   * The tab the click already reserved. Fetching the whole filtered list
+   * takes several seconds - a window opened once that is done is blocked as
+   * a pop-up, which is why this used to end in "Please allow pop-ups".
+   * Reserved here when the caller did not, so tests and any other caller
+   * still work.
+   */
+  tab: PendingTab = reserveTab("Preparing the appointment list…"),
 ) {
   const PAGE = 500;
   const rows: any[] = [];
-  for (let page = 1; page <= 40; page++) {
-    const res = await fetchAppointmentsPage({ ...params, ...PRINT_SORT, page, pageSize: PAGE });
-    rows.push(...res.rows);
-    if (rows.length >= res.total || res.rows.length === 0) break;
+  try {
+    for (let page = 1; page <= 40; page++) {
+      const res = await fetchAppointmentsPage({ ...params, ...PRINT_SORT, page, pageSize: PAGE });
+      rows.push(...res.rows);
+      if (rows.length >= res.total || res.rows.length === 0) break;
+    }
+  } catch (e) {
+    // Don't leave the reserved tab sitting on the placeholder forever.
+    tab.cancel();
+    throw e;
   }
 
   const body = rows
@@ -77,10 +92,7 @@ ${rows.length === 0 ? '<p class="empty">No appointments match the current filter
 <tbody>${body}</tbody></table>`}
 </body></html>`;
 
-  const win = window.open("", "_blank", "width=1200,height=800");
-  if (!win) throw new Error("Please allow pop-ups to print this list.");
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 400);
+  if (tab.blocked) throw new Error("Please allow pop-ups to print this list.");
+  tab.write(html);
+  tab.print(400);
 }

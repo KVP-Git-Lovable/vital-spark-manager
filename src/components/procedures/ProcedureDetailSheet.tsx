@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { numVal } from "@/lib/numberInput";
+import { reserveTab } from "@/lib/newTab";
+import { offerBlockedLink } from "@/components/shared/popupFallback";
 
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -177,12 +179,20 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   // download - lets staff/patients view or print it without a file piling
   // up on their device every time.
   const handlePreviewPrescription = async () => {
+    // Reserved in the click. Building the prescription PDF takes a few
+    // seconds, and a tab opened after that wait is blocked as a pop-up.
+    const tab = reserveTab("Preparing the prescription…");
     setPreviewingPdf(true);
     try {
       const pdf = await fetchPrescriptionPdf();
-      if (!pdf) return;
-      window.open(pdf.url, "_blank");
+      if (!pdf) {
+        tab.cancel();
+        return;
+      }
+      if (tab.blocked) offerBlockedLink(pdf.url, "prescription");
+      else tab.navigate(pdf.url);
     } catch (e: any) {
+      tab.cancel();
       toast.error(e.message || "Failed to generate prescription");
     } finally {
       setPreviewingPdf(false);

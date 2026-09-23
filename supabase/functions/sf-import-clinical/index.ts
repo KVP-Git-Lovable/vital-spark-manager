@@ -37,6 +37,22 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
 interface Target { lovable_id: string; sf_id: string; name: string }
 
+// Diagnosis__c carries up to 15 prescribed products in numbered slots:
+// Product__c, Product1__c .. Product14__c. They are lookups to the product
+// catalogue (verified against the org), so the readable name comes from the
+// relationship - Product__r.Name. Instructions follow the same numbering;
+// quantity only exists for the first ten slots. Quantity_available__c is
+// stock on hand, NOT the amount prescribed, and is deliberately not read.
+const PRODUCT_SLOTS = Array.from({ length: 15 }, (_, i) => ({
+  product: i === 0 ? "Product__r" : `Product${i}__r`,
+  instruction: i === 0 ? "Standard_instruction_from_Dr__c" : `Standard_instruction_from_Dr${i}__c`,
+  quantity: i === 0 ? "Prescription_quantity__c" : i <= 9 ? `Prescription_quantity${i}__c` : null,
+}));
+
+const PRODUCT_SLOT_FIELDS = PRODUCT_SLOTS.flatMap((s) =>
+  [`${s.product}.Name`, s.instruction, s.quantity].filter(Boolean) as string[]
+).join(", ");
+
 async function sfQuery(soql: string, signal?: AbortSignal): Promise<any[]> {
   const out: any[] = [];
   let url: string | null = `${GATEWAY}/query?q=${encodeURIComponent(soql)}`;
@@ -138,6 +154,51 @@ function chunk<T>(arr: T[], n: number): T[][] {
   return out;
 }
 
+// pharma_products by normalised name, so an imported prescription row can point
+// at the catalogue entry where one exists. Built once per invocation - the
+// products list is small and every patient in the batch needs the same map.
+let productCatalogueCache: Map<string, string> | null = null;
+async function productCatalogue(): Promise<Map<string, string>> {
+  if (productCatalogueCache) return productCatalogueCache;
+  const { data } = await admin.from("pharma_products").select("id, name");
+  const map = new Map<string, string>();
+  (data || []).forEach((r: any) => {
+    const key = normalize(r.name);
+    if (key && !map.has(key)) map.set(key, r.id);
+  });
+  productCatalogueCache = map;
+  return map;
+}
+
+// Price_Book_Entry__c: 25 codes ("PBE-0055") that Salesforce writes into
+// Billing_Line_Item__c.Service1__c instead of a service name. Imported into a
+// small lookup table so the codes can be shown as readable names. Read-only
+// against Salesforce, and a failure here never stops the clinical import.
+async function importPriceBookEntries(signal?: AbortSignal): Promise<number> {
+  const rows = await sfQuery(
+    "SELECT Id, Name, Service__r.Name, Price_Book__r.Name, UnitPrice__c, GST__c, IsActive__c, CreatedDate FROM Price_Book_Entry__c",
+    signal,
+  );
+  const payload = rows.map((r: any) => ({
+    sf_id: r.Id,
+    code: r.Name,
+    service_name: r.Service__r?.Name ?? null,
+    price_book_name: r.Price_Book__r?.Name ?? null,
+    unit_price: r.UnitPrice__c,
+    gst_rate: r.GST__c,
+    is_active: r.IsActive__c,
+    sf_created_at: r.CreatedDate,
+  }));
+  let imported = 0;
+  for (const batch of chunk(payload, 100)) {
+    const { error } = await admin.from("sf_price_book_entries").upsert(batch, { onConflict: "sf_id" });
+    if (error) throw new Error(`sf_price_book_entries upsert: ${error.message}`);
+    imported += batch.length;
+  }
+  return imported;
+}
+
+
 // Run `fn` over `items` with at most `concurrency` in flight at once.
 // Salesforce queries and DB inserts across different patients are fully
 // independent, so this is safe - it just caps how many we hit at once to
@@ -155,14 +216,16 @@ async function mapPool<T>(items: T[], concurrency: number, fn: (item: T) => Prom
 
 async function fetchTargets(only: string, limit: number): Promise<Target[]> {
   if (only) {
-    const { data, error } = await admin
-      .from("patients")
-      .select("id, sf_id, first_name, last_name")
-      .not("sf_id", "is", null);
+    // Matched in the database, not in memory: the patients table is far larger
+    // than PostgREST's default page, so filtering a fetched page here used to
+    // miss anyone who fell outside it.
+    const isUuid = /^[0-9a-f-]{36}$/i.test(only);
+    const query = admin.from("patients").select("id, sf_id, first_name, last_name").not("sf_id", "is", null);
+    const { data, error } = isUuid
+      ? await query.eq("id", only)
+      : await query.or(`first_name.ilike.%${only}%,last_name.ilike.%${only}%`).limit(50);
     if (error) throw error;
-    return (data || [])
-      .filter((p) => p.id === only || `${p.first_name} ${p.last_name}`.toLowerCase().includes(only.toLowerCase()))
-      .map((p) => ({ lovable_id: p.id, sf_id: p.sf_id as string, name: `${p.first_name} ${p.last_name}`.trim() }));
+    return (data || []).map((p) => ({ lovable_id: p.id, sf_id: p.sf_id as string, name: `${p.first_name} ${p.last_name}`.trim() }));
   }
   const { data, error } = await admin
     .from("patients")
@@ -292,7 +355,7 @@ async function syncPatient(
     existingSfIds("invoices", p.lovable_id),
     // Every column the top-up below may fill, so it can tell empty from typed.
     admin.from("procedures")
-      .select("sf_id, service_name, diagnosis, symptoms, lab_tests, procedure_notes, consultation_notes, recommendations, review_notes, appointment_id, staff_id")
+      .select("sf_id, service_name, diagnosis, symptoms, lab_tests, procedure_notes, consultation_notes, recommendations, review_notes, additional_instructions, appointment_id, staff_id")
       .eq("patient_id", p.lovable_id).not("sf_id", "is", null)
       .then(({ data }) => data || []),
   ]);
@@ -316,7 +379,7 @@ async function syncPatient(
       signal,
     ),
     sfQuery(
-      `SELECT Id, Appointment__c, Diagnosis__c, Diagnoses__c, Symptoms__c, Symptoms_all__c, Prescription__c, Advice__c, Dietary_Advice__c, Procedure_Type__c, Treatment__c, Service__c, Service_Type__c, Type_Of_Appointment__c, Visit_type__c, Special_Instructions__c, Payment_Instruction__c, Required_Lab_Test_s__c, History__c, Review__c, Follow_Up_Date__c, Consultation_Fee__c, CreatedDate FROM Diagnosis__c WHERE Patient__c = '${p.sf_id}'`,
+      `SELECT Id, Appointment__c, Diagnosis__c, Diagnoses__c, Symptoms__c, Symptoms_all__c, Prescription__c, Advice__c, Dietary_Advice__c, Procedure_Type__c, Treatment__c, Service__c, Service_Type__c, Type_Of_Appointment__c, Visit_type__c, Special_Instructions__c, Payment_Instruction__c, Required_Lab_Test_s__c, History__c, Review__c, Follow_Up_Date__c, Consultation_Fee__c, Additional_Instructions__c, Additional_Instructions2__c, ${PRODUCT_SLOT_FIELDS}, CreatedDate FROM Diagnosis__c WHERE Patient__c = '${p.sf_id}'`,
       signal,
     ),
   ]);
@@ -711,6 +774,9 @@ async function syncPatient(
       consultation_notes: consultationParts.length ? consultationParts.join("\n") : null,
       recommendations: d.Special_Instructions__c || null,
       review_notes: reviewBits.length ? reviewBits.join(" | ") : null,
+      // The doctor's free-text extras that sit alongside the product slots.
+      additional_instructions:
+        [d.Additional_Instructions__c, d.Additional_Instructions2__c].filter(Boolean).join("\n") || null,
     };
   };
 
@@ -788,6 +854,67 @@ async function syncPatient(
     log.filled = (log.filled || 0) + 1;
   }
   log.skipped += seenDiagnoses.length;
+
+  // Products the doctor picked from the catalogue in Salesforce, written as
+  // rows in the prescriptions table so the visit shows a Products/Medications
+  // list instead of "Nothing added yet". Strictly additive and safe to re-run:
+  // a row is inserted only when that procedure has no row with that medicine
+  // name yet, and nothing existing is ever updated or deleted - a prescription
+  // a doctor entered in this app is untouchable.
+  const diagnosesWithProducts = diagnoses.filter((d) =>
+    PRODUCT_SLOTS.some((s) => (d[s.product]?.Name || "").trim())
+  );
+  if (diagnosesWithProducts.length) {
+    const { data: procIdRows } = await admin
+      .from("procedures")
+      .select("id, sf_id")
+      .eq("patient_id", p.lovable_id)
+      .not("sf_id", "is", null);
+    const procIdBySfId = new Map<string, string>((procIdRows || []).map((r: any) => [r.sf_id, r.id]));
+    const productIdByName = await productCatalogue();
+
+    const wanted: Array<{ procedure_id: string; medicine_name: string; instructions: string | null; quantity: number; product_id: string | null }> = [];
+    for (const d of diagnosesWithProducts) {
+      const procedureId = procIdBySfId.get(d.Id);
+      if (!procedureId) continue;
+      for (const slot of PRODUCT_SLOTS) {
+        const name = String(d[slot.product]?.Name || "").trim();
+        if (!name) continue;
+        const rawQty = slot.quantity ? Number(d[slot.quantity]) : NaN;
+        wanted.push({
+          procedure_id: procedureId,
+          medicine_name: name.slice(0, 500),
+          instructions: (d[slot.instruction] || null) as string | null,
+          quantity: Number.isFinite(rawQty) && rawQty > 0 ? Math.round(rawQty) : 1,
+          product_id: productIdByName.get(normalize(name)) || null,
+        });
+      }
+    }
+
+    if (wanted.length) {
+      const procedureIds = [...new Set(wanted.map((w) => w.procedure_id))];
+      const already = new Set<string>();
+      for (const batch of chunk(procedureIds, 100)) {
+        const { data } = await admin
+          .from("prescriptions")
+          .select("procedure_id, medicine_name")
+          .in("procedure_id", batch);
+        (data || []).forEach((r: any) => already.add(`${r.procedure_id}|${normalize(r.medicine_name || "")}`));
+      }
+      const fresh = wanted.filter((w) => {
+        const key = `${w.procedure_id}|${normalize(w.medicine_name)}`;
+        if (already.has(key)) return false;
+        already.add(key); // Salesforce sometimes repeats a product across slots
+        return true;
+      });
+      for (const batch of chunk(fresh, 100)) {
+        const { error } = await admin.from("prescriptions").insert(batch);
+        if (error) throw new Error(`prescriptions insert: ${error.message}`);
+        log.product_rows = (log.product_rows || 0) + batch.length;
+      }
+    }
+    log.diagnoses_with_products = diagnosesWithProducts.length;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -842,6 +969,16 @@ Deno.serve(async (req) => {
     const doctorFor = await buildDoctorMap();
     const serviceFor = await buildServiceMatcher();
 
+    // Refreshed once per invocation, and never allowed to take the sync down.
+    let priceBookEntriesImported = 0;
+    let priceBookError: string | null = null;
+    try {
+      priceBookEntriesImported = await importPriceBookEntries(AbortSignal.timeout(20_000));
+    } catch (e) {
+      priceBookError = (e as Error).message;
+      console.error("Price book import failed:", priceBookError);
+    }
+
     if (reset && only) {
       await admin.from("patients").update({ sf_clinical_synced_at: null }).in("id", targets.map((t) => t.lovable_id));
     }
@@ -857,7 +994,7 @@ Deno.serve(async (req) => {
     let stoppedEarly = false;
     await mapPool(targets, 8, async (p) => {
       if (Date.now() > deadline) { stoppedEarly = true; return; }
-      const log: any = { patient: p.name, appointments: 0, updated: 0, invoices: 0, procedures: 0, filled: 0, left_alone: 0, skipped: 0, billing_lines_staged: 0, billing_headers_staged: 0, errors: [] as any[] };
+      const log: any = { patient: p.name, appointments: 0, updated: 0, invoices: 0, procedures: 0, filled: 0, left_alone: 0, skipped: 0, billing_lines_staged: 0, billing_headers_staged: 0, product_rows: 0, diagnoses_with_products: 0, errors: [] as any[] };
       const remainingMs = Math.max(1, deadline - Date.now());
       const patientTimeoutMs = Math.min(20_000, remainingMs);
       try {
@@ -937,6 +1074,11 @@ Deno.serve(async (req) => {
         // Read-and-stage counters for the Salesforce reconciliation tables.
         billing_lines_staged: results.reduce((n, r) => n + (r.billing_lines_staged || 0), 0),
         billing_headers_staged: results.reduce((n, r) => n + (r.billing_headers_staged || 0), 0),
+        // Products the doctor picked from the Salesforce catalogue.
+        product_rows_written: results.reduce((n, r) => n + (r.product_rows || 0), 0),
+        diagnoses_with_products: results.reduce((n, r) => n + (r.diagnoses_with_products || 0), 0),
+        price_book_entries_imported: priceBookEntriesImported,
+        price_book_error: priceBookError,
         requested: requestedLimit,
         batch_size: targets.length,
         capped: requestedLimit > limit,

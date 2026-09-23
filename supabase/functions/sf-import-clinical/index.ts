@@ -290,12 +290,18 @@ async function syncPatient(
     admin.from("appointments").select("id, sf_id").eq("patient_id", p.lovable_id).not("sf_id", "is", null)
       .then(({ data }) => data || []),
     existingSfIds("invoices", p.lovable_id),
-    admin.from("procedures").select("sf_id, service_name").eq("patient_id", p.lovable_id).not("sf_id", "is", null)
+    // Every column the top-up below may fill, so it can tell empty from typed.
+    admin.from("procedures")
+      .select("sf_id, service_name, diagnosis, symptoms, lab_tests, procedure_notes, consultation_notes, recommendations, review_notes, appointment_id, staff_id")
+      .eq("patient_id", p.lovable_id).not("sf_id", "is", null)
       .then(({ data }) => data || []),
   ]);
   const existingAppts = new Set(existingApptRows.map((r: any) => r.sf_id as string));
   const procServiceBySfId = new Map<string, string | null>(
     (existingProcs as any[]).map((r: any) => [r.sf_id as string, (r.service_name ?? null) as string | null]),
+  );
+  const procRowBySfId = new Map<string, any>(
+    (existingProcs as any[]).map((r: any) => [r.sf_id as string, r]),
   );
 
   // Independent per-patient queries - run concurrently instead of one
@@ -310,7 +316,7 @@ async function syncPatient(
       signal,
     ),
     sfQuery(
-      `SELECT Id, Appointment__c, Diagnosis__c, Diagnoses__c, Symptoms__c, Symptoms_all__c, Prescription__c, Advice__c, Dietary_Advice__c, Procedure_Type__c, Treatment__c, Service_Type__c, Type_Of_Appointment__c, Visit_type__c, Special_Instructions__c, Payment_Instruction__c, Required_Lab_Test_s__c, History__c, Review__c, Follow_Up_Date__c, Consultation_Fee__c, CreatedDate FROM Diagnosis__c WHERE Patient__c = '${p.sf_id}'`,
+      `SELECT Id, Appointment__c, Diagnosis__c, Diagnoses__c, Symptoms__c, Symptoms_all__c, Prescription__c, Advice__c, Dietary_Advice__c, Procedure_Type__c, Treatment__c, Service__c, Service_Type__c, Type_Of_Appointment__c, Visit_type__c, Special_Instructions__c, Payment_Instruction__c, Required_Lab_Test_s__c, History__c, Review__c, Follow_Up_Date__c, Consultation_Fee__c, CreatedDate FROM Diagnosis__c WHERE Patient__c = '${p.sf_id}'`,
       signal,
     ),
   ]);
@@ -540,8 +546,10 @@ async function syncPatient(
     return resolved;
   };
 
-  const procRows = newDiagnoses.map((d) => {
-    const serviceName = serviceNameFor(d);
+  // The clinical content Salesforce holds for one Diagnosis__c row. Shared by
+  // the insert below and by the fill-only top-up of already-imported rows, so
+  // both always read Salesforce the same way.
+  const clinicalFieldsFor = (d: any) => {
     const symptoms = [d.Symptoms__c, d.Symptoms_all__c && d.Symptoms_all__c !== d.Symptoms__c ? d.Symptoms_all__c : null]
       .filter(Boolean).join("\n") || null;
     const consultationParts = [
@@ -560,15 +568,6 @@ async function syncPatient(
       d.Follow_Up_Date__c && `Follow-Up: ${d.Follow_Up_Date__c}`,
     ].filter(Boolean);
     return {
-      patient_id: p.lovable_id,
-      service_name: String(serviceName).slice(0, 500),
-      // The visit date, not the day the record was typed up. Falls back to
-      // CreatedDate for a prescription with no appointment behind it.
-      procedure_date: procedureDate(
-        d.CreatedDate,
-        d.Appointment__c ? apptStartBySfId.get(d.Appointment__c) : null,
-      ),
-      status: "Completed",
       appointment_id: d.Appointment__c ? apptIdMap.get(d.Appointment__c) || null : null,
       // Diagnosis__c carries no doctor field of its own - borrow it from the
       // linked appointment, same as invoices already do for Billing__c.
@@ -580,6 +579,22 @@ async function syncPatient(
       consultation_notes: consultationParts.length ? consultationParts.join("\n") : null,
       recommendations: d.Special_Instructions__c || null,
       review_notes: reviewBits.length ? reviewBits.join(" | ") : null,
+    };
+  };
+
+  const procRows = newDiagnoses.map((d) => {
+    const serviceName = serviceNameFor(d);
+    return {
+      patient_id: p.lovable_id,
+      service_name: String(serviceName).slice(0, 500),
+      // The visit date, not the day the record was typed up. Falls back to
+      // CreatedDate for a prescription with no appointment behind it.
+      procedure_date: procedureDate(
+        d.CreatedDate,
+        d.Appointment__c ? apptStartBySfId.get(d.Appointment__c) : null,
+      ),
+      status: "Completed",
+      ...clinicalFieldsFor(d),
       sf_id: d.Id,
       created_at: d.CreatedDate,
       updated_at: d.CreatedDate,
@@ -605,16 +620,40 @@ async function syncPatient(
   // above: that flag defaults off, and the whole point here is that an ordinary
   // daily sync should pick up a treatment recorded after the visit was synced.
   // The guard is what makes that safe, not the flag.
+  //
+  // The same reasoning extends to the rest of the clinical columns, but strictly
+  // FILL-ONLY: a column is written only when it is empty here and Salesforce has
+  // something for it. Anything already holding a value - imported or typed into
+  // the app - always wins and is never overwritten. That rule is the whole
+  // safety of this top-up.
   for (const d of seenDiagnoses) {
+    const current = procRowBySfId.get(d.Id) || {};
+    const patch: Record<string, any> = {};
+
     const next = serviceNameFor(d);
-    if (next === NO_SERVICE_RECORDED) continue;
-    if (!awaitingRealService(procServiceBySfId.get(d.Id) ?? null, d)) continue;
-    const { error } = await admin
-      .from("procedures")
-      .update({ service_name: String(next).slice(0, 500) })
-      .eq("sf_id", d.Id);
+    if (next !== NO_SERVICE_RECORDED && awaitingRealService(procServiceBySfId.get(d.Id) ?? null, d)) {
+      patch.service_name = String(next).slice(0, 500);
+    }
+
+    const incoming = clinicalFieldsFor(d);
+    for (const [col, value] of Object.entries(incoming)) {
+      if (value === null || value === undefined) continue;
+      if (typeof value === "string" && !value.trim()) continue;
+      const existing = current[col];
+      const isEmpty = existing === null || existing === undefined ||
+        (typeof existing === "string" && !existing.trim());
+      if (!isEmpty) continue; // typed here, or already imported - never overwrite
+      patch[col] = value;
+    }
+
+    if (!Object.keys(patch).length) {
+      log.left_alone = (log.left_alone || 0) + 1;
+      continue;
+    }
+    const { error } = await admin.from("procedures").update(patch).eq("sf_id", d.Id);
     if (error) throw new Error(`procedures update: ${error.message}`);
     log.updated = (log.updated || 0) + 1;
+    log.filled = (log.filled || 0) + 1;
   }
   log.skipped += seenDiagnoses.length;
 }
@@ -686,7 +725,7 @@ Deno.serve(async (req) => {
     let stoppedEarly = false;
     await mapPool(targets, 8, async (p) => {
       if (Date.now() > deadline) { stoppedEarly = true; return; }
-      const log: any = { patient: p.name, appointments: 0, updated: 0, invoices: 0, procedures: 0, skipped: 0, errors: [] as any[] };
+      const log: any = { patient: p.name, appointments: 0, updated: 0, invoices: 0, procedures: 0, filled: 0, left_alone: 0, skipped: 0, errors: [] as any[] };
       const remainingMs = Math.max(1, deadline - Date.now());
       const patientTimeoutMs = Math.min(20_000, remainingMs);
       try {
@@ -760,6 +799,9 @@ Deno.serve(async (req) => {
       JSON.stringify({
         ok: true,
         processed: results.length,
+        // Fill-only top-up of already-imported prescriptions.
+        prescriptions_filled: results.reduce((n, r) => n + (r.filled || 0), 0),
+        prescriptions_left_alone: results.reduce((n, r) => n + (r.left_alone || 0), 0),
         requested: requestedLimit,
         batch_size: targets.length,
         capped: requestedLimit > limit,

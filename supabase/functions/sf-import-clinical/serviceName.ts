@@ -4,6 +4,7 @@
 export interface DiagnosisFields {
   Treatment__c?: string | null;
   Procedure_Type__c?: string | null;
+  Service__c?: string | null;
   Service_Type__c?: string | null;
   Type_Of_Appointment__c?: string | null;
   Visit_type__c?: string | null;
@@ -31,6 +32,7 @@ export function procedureServiceName(
   return (
     treatment ||
     (d.Procedure_Type__c || "").trim() ||
+    (d.Service__c || "").trim() ||
     (d.Service_Type__c || "").trim() ||
     (fromBilling || "").trim() ||
     (fromAppointment || "").trim() ||

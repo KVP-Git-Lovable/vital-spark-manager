@@ -307,7 +307,9 @@ export function ProcedureFormDialog({
       if (Array.isArray(data.prescriptions) && data.prescriptions.length > 0) {
         const newRx = data.prescriptions.map((p: any) => ({
           key: newRxKey(),
-          product_id: "",
+          // Read out of free text, so there is a name but no catalogue row.
+          // "Others" keeps that name visible and editable; "" hid it.
+          product_id: p.medicine_name ? OTHERS_VALUE : "",
           medicine_name: p.medicine_name || "",
           frequency: p.frequency || "",
           duration: p.duration || "",
@@ -576,7 +578,7 @@ export function ProcedureFormDialog({
           if (next.some((rx) => rx.product_id && rx.product_id === m.product_id)) continue;
           next.push({
             key: newRxKey(),
-            product_id: m.product_id,
+            product_id: m.product_id || (m.pharma_products?.name ? OTHERS_VALUE : ""),
             medicine_name: m.pharma_products?.name || "",
             frequency: m.frequency || "",
             duration: m.duration || "",
@@ -647,7 +649,10 @@ export function ProcedureFormDialog({
 
       // Warn about zero stock for prescribed medicines (don't block)
       for (const rx of prescriptions) {
-        if (!rx.product_id) continue;
+        // "__others__" is not a product id. Querying stock with it returns
+        // nothing and would warn that every typed-in medicine is out of
+        // stock - and rows loaded from Salesforce now carry it.
+        if (!rx.product_id || rx.product_id === OTHERS_VALUE) continue;
         const { data: invData } = await supabase.from("pharma_inventory").select("quantity").eq("product_id", rx.product_id);
         const { data: rxData } = await supabase.from("prescriptions").select("quantity").eq("product_id", rx.product_id);
         const totalStock = (invData || []).reduce((s, i) => s + Number(i.quantity), 0);

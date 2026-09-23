@@ -77,6 +77,17 @@ describe("reserveTab", () => {
     expect(win.print).toHaveBeenCalled();
   });
 
+  it("says why nothing is coming rather than leaving the spinner up", () => {
+    const win = fakeWindow();
+    vi.stubGlobal("open", () => win);
+
+    reserveTab("Preparing the prescription…").fail("The prescription is taking longer than usual.");
+
+    const shown = win.document.written.at(-1) ?? "";
+    expect(shown).toContain("The prescription is taking longer than usual.");
+    expect(shown).not.toContain("Preparing the prescription…");
+  });
+
   it("closes the tab when the work fails", () => {
     const win = fakeWindow();
     vi.stubGlobal("open", () => win);

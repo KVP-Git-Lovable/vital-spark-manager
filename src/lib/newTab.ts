@@ -30,9 +30,27 @@ export interface PendingTab {
   write(html: string): void;
   /** Bring it forward and print it, once the content has had a moment to lay out. */
   print(delayMs?: number): void;
+  /**
+   * Say why nothing is coming. Better than cancel() when the user is
+   * looking at the tab: a tab that closes itself reads as "nothing
+   * happened", and one left on the placeholder reads as "still working"
+   * forever.
+   */
+  fail(message: string): void;
   /** The work failed - close the tab rather than leaving it sitting on the placeholder. */
   cancel(): void;
 }
+
+const failureDoc = (message: string) => `<!doctype html>
+<html><head><meta charset="utf-8"><title>Could not open</title>
+<style>
+  body { margin:0; height:100vh; display:flex; align-items:center; justify-content:center;
+         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+         color:#334155; background:#f8fafc; text-align:center; padding:24px; }
+  .msg { max-width:32rem; font-size:15px; line-height:1.6; }
+  .hint { margin-top:10px; font-size:13px; color:#64748b; }
+</style></head>
+<body><div class="msg">${message}<div class="hint">You can close this tab and try again.</div></div></body></html>`;
 
 const placeholderDoc = (message: string) => `<!doctype html>
 <html><head><meta charset="utf-8"><title>${message}</title>
@@ -98,6 +116,9 @@ export function reserveTab(message = "Preparing your document…"): PendingTab {
       }
     },
     write: fill,
+    fail(message: string) {
+      fill(failureDoc(message));
+    },
     print(delayMs = 400) {
       if (!win) return;
       try {

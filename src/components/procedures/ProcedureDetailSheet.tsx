@@ -57,6 +57,14 @@ const SKIN_TYPE_OPTIONS = ["Normal", "Dry", "Oily", "Combination", "Sensitive"];
 
 interface PrescriptionRow {
   id?: string;
+  /**
+   * Identity of this row, stable while it exists - the same reason
+   * ServiceLineRow above carries one. Keyed by array index, removing a
+   * medicine made React re-use each row's component instances for the data
+   * that shuffled up into its place, so Remove appeared to delete the wrong
+   * one or nothing at all.
+   */
+  key: string;
   product_id: string;
   medicine_name: string;
   dosage: string;
@@ -66,6 +74,9 @@ interface PrescriptionRow {
   quantity: number;
   _deleted?: boolean;
 }
+
+let rxSeq = 0;
+const newRxKey = () => `rx-${Date.now()}-${rxSeq++}`;
 
 interface ServiceLineRow {
   id?: string;
@@ -141,11 +152,22 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [previewingPdf, setPreviewingPdf] = useState(false);
   const [sendingWa, setSendingWa] = useState(false);
 
+  // The builder answers in a couple of seconds. Without a bound, a request
+  // that never comes back leaves the preview tab on "Preparing…" and the
+  // Download button spinning, with nothing to tell the user either way.
+  const PDF_TIMEOUT_MS = 45000;
+
   const fetchPrescriptionPdf = async () => {
     if (!procedureId) return null;
-    const { data, error } = await supabase.functions.invoke("generate-prescription-pdf", {
-      body: { procedureId },
-    });
+    const { data, error } = await Promise.race([
+      supabase.functions.invoke("generate-prescription-pdf", { body: { procedureId } }),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("The prescription is taking longer than usual. Please try again.")),
+          PDF_TIMEOUT_MS,
+        ),
+      ),
+    ]);
     if (error) throw error;
     if (!data?.base64) throw new Error("No PDF returned");
     const bin = atob(data.base64);
@@ -192,8 +214,11 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       if (tab.blocked) offerBlockedLink(pdf.url, "prescription");
       else tab.navigate(pdf.url);
     } catch (e: any) {
-      tab.cancel();
-      toast.error(e.message || "Failed to generate prescription");
+      const message = e?.message || "Failed to generate prescription";
+      // Said in the tab as well as here: the tab is where the user is
+      // looking, and closing it silently reads as nothing having happened.
+      tab.fail(message);
+      toast.error(message);
     } finally {
       setPreviewingPdf(false);
     }
@@ -442,7 +467,14 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   if (prescriptions.length > 0 && initialized && editPrescriptions.length === 0) {
     setEditPrescriptions(prescriptions.map((rx: any) => ({
       id: rx.id,
-      product_id: rx.product_id || "",
+      key: newRxKey(),
+      // A medicine the pharmacy catalogue has no row for - most of the ones
+      // imported from Salesforce - has a name but no product_id. Left as "",
+      // the picker showed its placeholder and the name input stayed hidden,
+      // so the row looked empty even though the name was sitting right there
+      // in medicine_name (and printed correctly on the prescription).
+      // "Others" is exactly this case: a name we hold as text.
+      product_id: rx.product_id || (rx.medicine_name ? OTHERS_VALUE : ""),
       medicine_name: rx.medicine_name,
       dosage: rx.dosage || "",
       frequency: rx.frequency || "",
@@ -594,34 +626,33 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   });
 
   const addPrescription = () => {
-    setEditPrescriptions([...editPrescriptions, { product_id: "", medicine_name: "", dosage: "", frequency: "", duration: "", instructions: "", quantity: 1 }]);
+    setEditPrescriptions((prev) => [...prev, { key: newRxKey(), product_id: "", medicine_name: "", dosage: "", frequency: "", duration: "", instructions: "", quantity: 1 }]);
   };
 
-  const updateRx = (index: number, field: string, value: any) => {
-    const updated = [...editPrescriptions];
-    if (field === "product_id") {
-      if (value === OTHERS_VALUE) {
-        updated[index].product_id = OTHERS_VALUE;
-        updated[index].medicine_name = "";
-      } else {
+  // `[...editPrescriptions]` copies the array but not the rows in it, so
+  // assigning to updated[index].field wrote into the object React was
+  // already holding: the change never registered until some later keystroke
+  // forced a render. Replace the row instead, and find it by key.
+  const updateRx = (key: string, field: string, value: any) => {
+    setEditPrescriptions((prev) =>
+      prev.map((rx) => {
+        if (rx.key !== key) return rx;
+        if (field !== "product_id") return { ...rx, [field]: value };
+        if (value === OTHERS_VALUE) return { ...rx, product_id: OTHERS_VALUE, medicine_name: "" };
         const prod = products.find((p) => p.id === value);
-        updated[index].product_id = value;
-        updated[index].medicine_name = prod?.name || "";
-      }
-    } else {
-      (updated[index] as any)[field] = value;
-    }
-    setEditPrescriptions(updated);
+        return { ...rx, product_id: value, medicine_name: prod?.name || "" };
+      }),
+    );
   };
 
-  const removeRx = (index: number) => {
-    const updated = [...editPrescriptions];
-    if (updated[index].id) {
-      updated[index]._deleted = true;
-    } else {
-      updated.splice(index, 1);
-    }
-    setEditPrescriptions(updated);
+  const removeRx = (key: string) => {
+    setEditPrescriptions((prev) =>
+      prev
+        // A saved row is marked deleted so the save can remove it from the
+        // database; an unsaved one just goes.
+        .map((rx) => (rx.key === key && rx.id ? { ...rx, _deleted: true } : rx))
+        .filter((rx) => rx.key !== key || rx.id),
+    );
   };
 
   const handleFileUpload = async (files: FileList) => {
@@ -1036,17 +1067,16 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     </Button>
                   </div>
                   {visibleRx.length > 0 ? visibleRx.map((rx, idx) => {
-                    const realIdx = editPrescriptions.indexOf(rx);
                     return (
-                      <div key={realIdx} className="border rounded-lg p-3 mb-3 space-y-2 bg-background shadow-sm transition-shadow hover:shadow-md">
+                      <div key={rx.key} className="border rounded-lg p-3 mb-3 space-y-2 bg-background shadow-sm transition-shadow hover:shadow-md">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-medium text-muted-foreground">Medicine {idx + 1}</span>
-                          <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeRx(realIdx)}>Remove</Button>
+                          <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeRx(rx.key)}>Remove</Button>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <Label className="text-xs text-muted-foreground">Medicine *</Label>
-                            <Select value={rx.product_id} onValueChange={(v) => updateRx(realIdx, "product_id", v)}>
+                            <Select value={rx.product_id} onValueChange={(v) => updateRx(rx.key, "product_id", v)}>
                               <SelectTrigger className="mt-1"><SelectValue placeholder="Select medicine" /></SelectTrigger>
                               <SelectContent>
                                 {products.map((p) => (
@@ -1060,32 +1090,32 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                                 className="mt-1"
                                 placeholder="Medicine name"
                                 value={rx.medicine_name}
-                                onChange={(e) => updateRx(realIdx, "medicine_name", e.target.value)}
+                                onChange={(e) => updateRx(rx.key, "medicine_name", e.target.value)}
                               />
                             )}
                           </div>
                           <div>
-                            <Label className="text-xs text-muted-foreground flex items-center justify-between">Dosage <MicButton value={rx.dosage} onChange={(v) => updateRx(realIdx, "dosage", v)} mode="replace" /></Label>
-                            <Input className="mt-1" placeholder="e.g. 500mg" value={rx.dosage} onChange={(e) => updateRx(realIdx, "dosage", e.target.value)} />
+                            <Label className="text-xs text-muted-foreground flex items-center justify-between">Dosage <MicButton value={rx.dosage} onChange={(v) => updateRx(rx.key, "dosage", v)} mode="replace" /></Label>
+                            <Input className="mt-1" placeholder="e.g. 500mg" value={rx.dosage} onChange={(e) => updateRx(rx.key, "dosage", e.target.value)} />
                           </div>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           <div>
-                            <Label className="text-xs text-muted-foreground flex items-center justify-between">Frequency <MicButton value={rx.frequency} onChange={(v) => updateRx(realIdx, "frequency", v)} mode="replace" /></Label>
-                            <Input className="mt-1" placeholder="e.g. Twice daily" value={rx.frequency} onChange={(e) => updateRx(realIdx, "frequency", e.target.value)} />
+                            <Label className="text-xs text-muted-foreground flex items-center justify-between">Frequency <MicButton value={rx.frequency} onChange={(v) => updateRx(rx.key, "frequency", v)} mode="replace" /></Label>
+                            <Input className="mt-1" placeholder="e.g. Twice daily" value={rx.frequency} onChange={(e) => updateRx(rx.key, "frequency", e.target.value)} />
                           </div>
                           <div>
-                            <Label className="text-xs text-muted-foreground flex items-center justify-between">Duration <MicButton value={rx.duration} onChange={(v) => updateRx(realIdx, "duration", v)} mode="replace" /></Label>
-                            <Input className="mt-1" placeholder="e.g. 7 days" value={rx.duration} onChange={(e) => updateRx(realIdx, "duration", e.target.value)} />
+                            <Label className="text-xs text-muted-foreground flex items-center justify-between">Duration <MicButton value={rx.duration} onChange={(v) => updateRx(rx.key, "duration", v)} mode="replace" /></Label>
+                            <Input className="mt-1" placeholder="e.g. 7 days" value={rx.duration} onChange={(e) => updateRx(rx.key, "duration", e.target.value)} />
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Quantity</Label>
-                            <Input className="mt-1" type="number" placeholder="1" value={numVal(rx.quantity)} onChange={(e) => updateRx(realIdx, "quantity", parseInt(e.target.value) || 1)} />
+                            <Input className="mt-1" type="number" placeholder="1" value={numVal(rx.quantity)} onChange={(e) => updateRx(rx.key, "quantity", parseInt(e.target.value) || 1)} />
                           </div>
                         </div>
                         <div>
-                          <Label className="text-xs text-muted-foreground flex items-center justify-between">Special Instructions <MicButton value={numVal(rx.instructions)} onChange={(v) => updateRx(realIdx, "instructions", v)} /></Label>
-                          <Input className="mt-1" placeholder="e.g. After meals" value={rx.instructions} onChange={(e) => updateRx(realIdx, "instructions", e.target.value)} />
+                          <Label className="text-xs text-muted-foreground flex items-center justify-between">Special Instructions <MicButton value={numVal(rx.instructions)} onChange={(v) => updateRx(rx.key, "instructions", v)} /></Label>
+                          <Input className="mt-1" placeholder="e.g. After meals" value={rx.instructions} onChange={(e) => updateRx(rx.key, "instructions", e.target.value)} />
                         </div>
                       </div>
                     );

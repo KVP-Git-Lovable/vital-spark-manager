@@ -581,7 +581,15 @@ const Appointments = () => {
   // every appointment ever (now tens of thousands, with Salesforce history
   // synced in) on every page load is too slow. "All Dates" intentionally
   // stays unbounded - that's an explicit choice to pull full history.
-  const getDateFilterRange = (preset: string): { start: Date; end: Date } | null => {
+  const getDateFilterRange = (
+    preset: string,
+    // A saved view's own dates, when resolving the view's window rather than
+    // the one the user picked.
+    opts?: { specificDate?: Date; rangeFrom?: Date; rangeTo?: Date },
+  ): { start: Date; end: Date } | null => {
+    const theDate = opts?.specificDate ?? specificDate;
+    const fromDate = opts?.rangeFrom ?? rangeFrom;
+    const toDate = opts?.rangeTo ?? rangeTo;
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart);
@@ -596,12 +604,12 @@ const Appointments = () => {
       case "last_week": return { start: startOfWeek(addDays(todayStart, -7)), end: endOfWeek(addDays(todayStart, -7)) };
       case "next_week": return { start: startOfWeek(addDays(todayStart, 7)), end: endOfWeek(addDays(todayStart, 7)) };
       case "this_month": return { start: startOfMonth(todayStart), end: endOfDay(endOfMonth(todayStart)) };
-      case "specific": return specificDate ? { start: startOfDay(specificDate), end: endOfDay(specificDate) } : null;
+      case "specific": return theDate ? { start: startOfDay(theDate), end: endOfDay(theDate) } : null;
       case "range":
-        if (!rangeFrom && !rangeTo) return null;
+        if (!fromDate && !toDate) return null;
         return {
-          start: rangeFrom ? startOfDay(rangeFrom) : new Date(1970, 0, 1),
-          end: rangeTo ? endOfDay(rangeTo) : new Date(2999, 0, 1),
+          start: fromDate ? startOfDay(fromDate) : new Date(1970, 0, 1),
+          end: toDate ? endOfDay(toDate) : new Date(2999, 0, 1),
         };
       default: return null;
     }
@@ -620,7 +628,38 @@ const Appointments = () => {
     return null;
   }, [view, currentDate]);
 
-  const appointmentsDateRange = view === "table" ? getDateFilterRange(datePreset) : calendarDateRange;
+  // The window the list actually fetches.
+  //
+  // `datePreset` is state the user sets, and a saved view's own date condition
+  // only ever reached it through selectViewAndDate - i.e. when someone clicked
+  // the view. On a page load the active view is restored from localStorage
+  // asynchronously and that click never happens, so the fetch ran with no date
+  // bound at all while the view's conditions still filtered client-side to,
+  // say, today. Ordered by start_time ascending and capped, that fetched the
+  // OLDEST rows in the table, none of which are today's: "Todays Appointments"
+  // opened on "0 items" and only came right when the user picked it by hand.
+  // It was also the slow one - up to the cap in rows, every load.
+  //
+  // Derived here rather than pushed into state, so there is no load-order race
+  // to lose: an explicit preset still wins, and when there is none the view's
+  // own window bounds the fetch. Narrowing to that window can never drop a row
+  // the user would have seen, because the view's own conditions would have
+  // filtered anything outside it away anyway.
+  const viewOwnRange = (() => {
+    const fromView = viewDatePreset(activeView?.filters);
+    // null: the view says nothing about dates. "all": it does, but not as a
+    // window we can express exactly - fetch everything and let it filter.
+    if (!fromView || fromView.preset === "all") return null;
+    return getDateFilterRange(fromView.preset, {
+      specificDate: fromView.specificDate,
+      rangeFrom: fromView.rangeFrom,
+      rangeTo: fromView.rangeTo,
+    });
+  })();
+
+  const appointmentsDateRange = view === "table"
+    ? (getDateFilterRange(datePreset) ?? viewOwnRange)
+    : calendarDateRange;
 
   // A saved view's filter conditions run client-side (some fields, like bill
   // amount / payment mode, only exist after joining invoices). Server-side

@@ -25,6 +25,20 @@ describe("viewDatePreset", () => {
     ).toBeNull();
   });
 
+  it("resolves the clinic's own saved Todays Appointments view", () => {
+    // The exact filter the "Todays Appointments" view holds in the database,
+    // as the hook normalises it. This view opened on "0 items" until the user
+    // picked it a second time: on a page load its window never reached the
+    // fetch, which then pulled the oldest rows in the table and filtered every
+    // one of them away. The fetch now derives its bound from this.
+    expect(
+      viewDatePreset({
+        match: "all",
+        conditions: [{ field: "start_time", operator: "today", value: "", value2: "" }],
+      }),
+    ).toEqual({ preset: "today" });
+  });
+
   it("maps the operators a chip can express exactly", () => {
     for (const key of ["today", "tomorrow", "yesterday", "this_week", "last_week", "next_week", "this_month"]) {
       expect(viewDatePreset(withDate(key))).toEqual({ preset: key });

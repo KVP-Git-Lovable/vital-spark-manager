@@ -5638,6 +5638,7 @@ export type Database = {
         Returns: string
       }
       normalize_name: { Args: { _text: string }; Returns: string }
+      promote_billing_lines: { Args: { _batch?: number }; Returns: number }
       purge_trash_item: { Args: { _trash_id: string }; Returns: undefined }
       recalc_patient_invoice_rollups: {
         Args: { _patient_id: string }

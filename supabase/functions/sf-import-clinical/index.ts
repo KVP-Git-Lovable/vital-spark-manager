@@ -290,7 +290,10 @@ async function syncPatient(
     admin.from("appointments").select("id, sf_id").eq("patient_id", p.lovable_id).not("sf_id", "is", null)
       .then(({ data }) => data || []),
     existingSfIds("invoices", p.lovable_id),
-    admin.from("procedures").select("sf_id, service_name").eq("patient_id", p.lovable_id).not("sf_id", "is", null)
+    // Every column the top-up below may fill, so it can tell empty from typed.
+    admin.from("procedures")
+      .select("sf_id, service_name, diagnosis, symptoms, lab_tests, procedure_notes, consultation_notes, recommendations, review_notes, appointment_id, staff_id")
+      .eq("patient_id", p.lovable_id).not("sf_id", "is", null)
       .then(({ data }) => data || []),
   ]);
   const existingAppts = new Set(existingApptRows.map((r: any) => r.sf_id as string));

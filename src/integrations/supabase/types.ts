@@ -1455,6 +1455,27 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_service_name_backup_20260923: {
+        Row: {
+          captured_at: string
+          id: string
+          line_items: Json | null
+          services: string[] | null
+        }
+        Insert: {
+          captured_at?: string
+          id: string
+          line_items?: Json | null
+          services?: string[] | null
+        }
+        Update: {
+          captured_at?: string
+          id?: string
+          line_items?: Json | null
+          services?: string[] | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           appointment_id: string | null

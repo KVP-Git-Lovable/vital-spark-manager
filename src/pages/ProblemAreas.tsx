@@ -55,19 +55,20 @@ const ProblemAreas = () => {
       const patientMap = new Map<string, { patient_id: string; patient_name: string; lastAppointment: string; totalVisits: number }>();
       for (const appt of appointments) {
         if (!appt.patient_id) continue;
-        // "Total Visits" here means visits for this concern that the patient
-        // actually attended - a cancellation or a future booking is not one.
-        if (!isVisit(appt.status)) continue;
+        // Keep the patient in the list regardless of status - staff need to see
+        // upcoming bookings and the many Salesforce-imported past visits still
+        // marked "Confirmed". Only attended appointments count as a visit.
+        const attended = isVisit(appt.status);
         const existing = patientMap.get(appt.patient_id);
         if (existing) {
-          existing.totalVisits++;
+          if (attended) existing.totalVisits++;
           if (appt.start_time > existing.lastAppointment) existing.lastAppointment = appt.start_time;
         } else {
           patientMap.set(appt.patient_id, {
             patient_id: appt.patient_id,
             patient_name: appt.patient_name || "Unknown",
             lastAppointment: appt.start_time,
-            totalVisits: 1,
+            totalVisits: attended ? 1 : 0,
           });
         }
       }

@@ -1,4 +1,4 @@
-// READ-ONLY. Lists what Patient__c actually holds in Salesforce, and how much of
+// READ-ONLY. Lists what a Salesforce object actually holds, and how much of
 // it is filled in.
 //
 // Why: every Salesforce query this app makes for a patient asks for
@@ -11,8 +11,9 @@
 // clinical field names is how the wrong column ends up in a patient record, so
 // this reports what is there and leaves the mapping to a human.
 //
-// Writes nothing. Touches no table. Reads at most `sample` patients.
-//   sample - how many Patient__c rows to measure fill rates over (default 200)
+// Writes nothing. Touches no table. Reads at most `sample` rows.
+//   object - Salesforce object API name to describe (default Patient__c)
+//   sample - how many rows to measure fill rates over (default 200)
 
 import { describeSfFailure } from "./sfError.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";

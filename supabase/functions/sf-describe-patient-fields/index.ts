@@ -14,6 +14,8 @@
 // Writes nothing. Touches no table. Reads at most `sample` rows.
 //   object - Salesforce object API name to describe (default Patient__c)
 //   sample - how many rows to measure fill rates over (default 200)
+//   list   - when "objects", returns the org's available objects (API name +
+//           label) instead of describing one object. No record data.
 
 import { describeSfFailure } from "./sfError.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";

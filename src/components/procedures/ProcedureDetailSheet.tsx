@@ -4,7 +4,7 @@ import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList, StickyNote, Eye } from "lucide-react";
+import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList, StickyNote, Eye, FileText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1443,7 +1443,33 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 </Button>
               </div>
             ) : previewPdf ? (
-              <iframe src={previewPdf.url} title={previewPdf.filename} className="w-full h-[70vh]" />
+              // <object>, not <iframe>, because it degrades honestly.
+              //
+              // Showing a PDF inline needs the browser's own PDF viewer to be
+              // available in this frame, and it is not always: a sandboxed or
+              // embedded host frame can refuse it, and an <iframe> answers
+              // that by drawing a broken-document icon with nothing to act
+              // on. <object> renders its children instead, so the doctor gets
+              // a sentence and two buttons that do work. Note the attachment
+              // preview elsewhere in the app shows an https storage URL,
+              // which is not subject to whatever refuses a blob here.
+              <object data={previewPdf.url} type="application/pdf" className="w-full h-[70vh]">
+                <div className="p-8 text-center space-y-3">
+                  <FileText className="h-10 w-10 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    This browser will not display the prescription inside the app.
+                    It is ready — open or download it below.
+                  </p>
+                  <div className="flex justify-center gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => window.open(previewPdf.url, "_blank")}>
+                      Open in new tab
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={handleDownloadPrescription} disabled={downloadingPdf}>
+                      <Download className="h-4 w-4 mr-1" /> Download
+                    </Button>
+                  </div>
+                </div>
+              </object>
             ) : (
               <div className="p-8 text-center text-sm text-muted-foreground flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" /> Preparing the prescription…

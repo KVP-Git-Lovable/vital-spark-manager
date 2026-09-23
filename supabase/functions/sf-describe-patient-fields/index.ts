@@ -35,11 +35,23 @@ async function sf(path: string): Promise<any> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  const sample = Math.max(1, Math.min(2000, Number(new URL(req.url).searchParams.get("sample") || "200")));
+  const url = new URL(req.url);
+  const sample = Math.max(1, Math.min(2000, Number(url.searchParams.get("sample") || "200")));
+  // Object API name. Default to Patient__c so existing callers are unaffected.
+  // Allow only plain Salesforce object names: letters, digits, underscores.
+  // Custom objects end in __c; standard objects (Account, Contact) do not.
+  // This blocks SOQL injection, semicolons, spaces, and anything else unsafe.
+  const object = (url.searchParams.get("object") || "Patient__c").trim();
+  if (!/^[A-Za-z0-9_]+$/.test(object)) {
+    return new Response(
+      JSON.stringify({ ok: false, error: `Invalid object name: ${object}` }, null, 2),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
 
   try {
     // FIELDS(ALL) returns every readable field without naming them up front.
-    const q = `SELECT FIELDS(ALL) FROM Patient__c LIMIT ${sample}`;
+    const q = `SELECT FIELDS(ALL) FROM ${object} LIMIT ${sample}`;
     const payload = await sf(`/query?q=${encodeURIComponent(q)}`);
     const records: any[] = payload.records || [];
     if (!records.length) {

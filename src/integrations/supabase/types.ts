@@ -1476,6 +1476,45 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_tax_wrong_state_20260923: {
+        Row: {
+          captured_at: string | null
+          cgst_amount: number | null
+          id: string | null
+          invoice_number: string | null
+          line_items: Json | null
+          sf_id: string | null
+          sgst_amount: number | null
+          tax_amount: number | null
+          tax_rate: number | null
+          total_amount: number | null
+        }
+        Insert: {
+          captured_at?: string | null
+          cgst_amount?: number | null
+          id?: string | null
+          invoice_number?: string | null
+          line_items?: Json | null
+          sf_id?: string | null
+          sgst_amount?: number | null
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total_amount?: number | null
+        }
+        Update: {
+          captured_at?: string | null
+          cgst_amount?: number | null
+          id?: string | null
+          invoice_number?: string | null
+          line_items?: Json | null
+          sf_id?: string | null
+          sgst_amount?: number | null
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total_amount?: number | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           appointment_id: string | null
@@ -3936,6 +3975,93 @@ export type Database = {
         }
         Relationships: []
       }
+      sf_billing_headers: {
+        Row: {
+          bill_number: string | null
+          discount: number | null
+          gst_rate: number | null
+          imported_at: string
+          sf_created_at: string | null
+          sf_id: string
+          total_amount: number | null
+          total_price: number | null
+          total_service_fee: number | null
+          total_tax_applicable: number | null
+        }
+        Insert: {
+          bill_number?: string | null
+          discount?: number | null
+          gst_rate?: number | null
+          imported_at?: string
+          sf_created_at?: string | null
+          sf_id: string
+          total_amount?: number | null
+          total_price?: number | null
+          total_service_fee?: number | null
+          total_tax_applicable?: number | null
+        }
+        Update: {
+          bill_number?: string | null
+          discount?: number | null
+          gst_rate?: number | null
+          imported_at?: string
+          sf_created_at?: string | null
+          sf_id?: string
+          total_amount?: number | null
+          total_price?: number | null
+          total_service_fee?: number | null
+          total_tax_applicable?: number | null
+        }
+        Relationships: []
+      }
+      sf_billing_line_items: {
+        Row: {
+          billing_sf_id: string
+          cgst_sgst: number | null
+          gst_rate: number | null
+          imported_at: string
+          mrp_per_unit: number | null
+          product_name: string | null
+          quantity: number | null
+          service_name: string | null
+          sf_created_at: string | null
+          sf_id: string
+          tax_amount: number | null
+          tax_applicable: string | null
+          total_price: number | null
+        }
+        Insert: {
+          billing_sf_id: string
+          cgst_sgst?: number | null
+          gst_rate?: number | null
+          imported_at?: string
+          mrp_per_unit?: number | null
+          product_name?: string | null
+          quantity?: number | null
+          service_name?: string | null
+          sf_created_at?: string | null
+          sf_id: string
+          tax_amount?: number | null
+          tax_applicable?: string | null
+          total_price?: number | null
+        }
+        Update: {
+          billing_sf_id?: string
+          cgst_sgst?: number | null
+          gst_rate?: number | null
+          imported_at?: string
+          mrp_per_unit?: number | null
+          product_name?: string | null
+          quantity?: number | null
+          service_name?: string | null
+          sf_created_at?: string | null
+          sf_id?: string
+          tax_amount?: number | null
+          tax_applicable?: string | null
+          total_price?: number | null
+        }
+        Relationships: []
+      }
       staff: {
         Row: {
           auth_user_id: string | null
@@ -5512,6 +5638,7 @@ export type Database = {
         Returns: string
       }
       normalize_name: { Args: { _text: string }; Returns: string }
+      promote_billing_lines: { Args: { _batch?: number }; Returns: number }
       purge_trash_item: { Args: { _trash_id: string }; Returns: undefined }
       recalc_patient_invoice_rollups: {
         Args: { _patient_id: string }

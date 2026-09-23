@@ -69,3 +69,6 @@ verify_jwt = true
 
 [functions.impersonate]
 verify_jwt = true
+
+[functions.sf-backfill-billing-lines]
+verify_jwt = true

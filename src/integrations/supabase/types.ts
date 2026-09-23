@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointment_name_backup_20260923: {
+        Row: {
+          captured_at: string | null
+          id: string | null
+          patient_id: string | null
+          patient_name: string | null
+        }
+        Insert: {
+          captured_at?: string | null
+          id?: string | null
+          patient_id?: string | null
+          patient_name?: string | null
+        }
+        Update: {
+          captured_at?: string | null
+          id?: string | null
+          patient_id?: string | null
+          patient_name?: string | null
+        }
+        Relationships: []
+      }
       appointment_sticky_notes: {
         Row: {
           appointment_id: string
@@ -1452,6 +1473,33 @@ export type Database = {
           captured_at?: string
           id?: string
           line_items?: Json | null
+        }
+        Relationships: []
+      }
+      invoice_name_backup_20260923: {
+        Row: {
+          captured_at: string | null
+          id: string | null
+          invoice_number: string | null
+          patient_id: string | null
+          patient_name: string | null
+          total_amount: number | null
+        }
+        Insert: {
+          captured_at?: string | null
+          id?: string | null
+          invoice_number?: string | null
+          patient_id?: string | null
+          patient_name?: string | null
+          total_amount?: number | null
+        }
+        Update: {
+          captured_at?: string | null
+          id?: string | null
+          invoice_number?: string | null
+          patient_id?: string | null
+          patient_name?: string | null
+          total_amount?: number | null
         }
         Relationships: []
       }

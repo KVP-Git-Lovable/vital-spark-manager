@@ -727,6 +727,9 @@ async function syncPatient(
       consultation_notes: consultationParts.length ? consultationParts.join("\n") : null,
       recommendations: d.Special_Instructions__c || null,
       review_notes: reviewBits.length ? reviewBits.join(" | ") : null,
+      // The doctor's free-text extras that sit alongside the product slots.
+      additional_instructions:
+        [d.Additional_Instructions__c, d.Additional_Instructions2__c].filter(Boolean).join("\n") || null,
     };
   };
 

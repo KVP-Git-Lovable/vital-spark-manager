@@ -1149,6 +1149,15 @@ export function ProcedureFormDialog({
                 </div>
               </div>
             ))}
+            {/* The same action again at the foot of the list. With three
+                services filled in, the button at the top of the card is a
+                screen and a half away, and adding a fourth meant scrolling up
+                to find it and back down to type. */}
+            {serviceLines.length > 0 && (
+              <Button type="button" variant="outline" size="sm" className="w-full border-dashed" onClick={addServiceLine}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add another service
+              </Button>
+            )}
           </div>
 
 
@@ -1273,6 +1282,11 @@ export function ProcedureFormDialog({
                 </div>
               </div>
             ))}
+            {prescriptions.length > 0 && (
+              <Button type="button" variant="outline" size="sm" className="w-full border-dashed" onClick={addPrescription}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add another medicine
+              </Button>
+            )}
           </div>
 
           {/* Required Assets */}
@@ -1308,6 +1322,11 @@ export function ProcedureFormDialog({
                 </div>
               </div>
             ))}
+            {procedureAssets.length > 0 && (
+              <Button type="button" variant="outline" size="sm" className="w-full border-dashed" onClick={addAsset}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add another asset
+              </Button>
+            )}
           </div>
 
           {/* Notes — inline rather than a tab of its own: staff jot an observation

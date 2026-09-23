@@ -981,6 +981,14 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                       </div>
                     </div>
                   ))}
+                  {/* Repeated at the foot of the list: with several services
+                      filled in, the button in the card header is a screenful
+                      away and adding another meant scrolling up and back. */}
+                  {visibleLines.length > 0 && (
+                    <Button type="button" variant="outline" size="sm" className="w-full border-dashed" onClick={addLine}>
+                      <Plus className="h-3.5 w-3.5 mr-1" /> Add another service
+                    </Button>
+                  )}
                 </div>
 
 
@@ -1086,6 +1094,11 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-2">Nothing added yet. Click "Add Medicine" to add a product or medication.</p>
+                  )}
+                  {visibleRx.length > 0 && (
+                    <Button type="button" variant="outline" size="sm" className="w-full border-dashed mt-1" onClick={addPrescription}>
+                      <Plus className="h-3.5 w-3.5 mr-1" /> Add another medicine
+                    </Button>
                   )}
                 </div>
 

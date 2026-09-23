@@ -799,6 +799,9 @@ Deno.serve(async (req) => {
       JSON.stringify({
         ok: true,
         processed: results.length,
+        // Fill-only top-up of already-imported prescriptions.
+        prescriptions_filled: results.reduce((n, r) => n + (r.filled || 0), 0),
+        prescriptions_left_alone: results.reduce((n, r) => n + (r.left_alone || 0), 0),
         requested: requestedLimit,
         batch_size: targets.length,
         capped: requestedLimit > limit,

@@ -1072,6 +1072,11 @@ Deno.serve(async (req) => {
         // Read-and-stage counters for the Salesforce reconciliation tables.
         billing_lines_staged: results.reduce((n, r) => n + (r.billing_lines_staged || 0), 0),
         billing_headers_staged: results.reduce((n, r) => n + (r.billing_headers_staged || 0), 0),
+        // Products the doctor picked from the Salesforce catalogue.
+        product_rows_written: results.reduce((n, r) => n + (r.product_rows || 0), 0),
+        diagnoses_with_products: results.reduce((n, r) => n + (r.diagnoses_with_products || 0), 0),
+        price_book_entries_imported: priceBookEntriesImported,
+        price_book_error: priceBookError,
         requested: requestedLimit,
         batch_size: targets.length,
         capped: requestedLimit > limit,

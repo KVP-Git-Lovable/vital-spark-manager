@@ -41,6 +41,14 @@ const ReportView = () => {
   const { key } = useParams<{ key: string }>();
   const report = key ? getReport(key) : undefined;
 
+  // Billing is the one thing still scoped per doctor - every other clinical
+  // table is shared, so a doctor filter works everywhere else and is worth
+  // keeping. On these two the rows are already limited to the viewer, so the
+  // filter would offer choices that change nothing.
+  const INVOICE_SCOPED_REPORTS = ["invoices", "cancelled_invoices"];
+  const { dataScope } = useAuth();
+  const hideDoctorFilter = dataScope === "own" && !!key && INVOICE_SCOPED_REPORTS.includes(key);
+
   const { reportPeriodLimit } = useAuth();
   useMoneyFormat(); // keeps currency formatting in step with admin settings
   const dayOnly = reportPeriodLimit === "day";
@@ -261,6 +269,7 @@ const ReportView = () => {
         state={filterState}
         onChange={setFilterState}
         singleDay={dayOnly}
+        hideDoctorFilter={hideDoctorFilter}
       />
 
       {summary.length > 0 && (

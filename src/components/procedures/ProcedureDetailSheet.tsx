@@ -1043,7 +1043,25 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                         </div>
                       </div>
                     );
-                  }) : (
+                  }) : editProcedureNotes.trim() ? (
+                    /* The products a doctor prescribed in Salesforce arrive as the
+                       free text they typed - 14,638 visits carry them this way -
+                       while this panel reads the structured prescriptions table,
+                       which holds 28 rows in the whole database. So every imported
+                       visit read "Nothing added yet" with the prescription sitting
+                       one field away. Shown verbatim rather than parsed into rows:
+                       a parser 95% right across 25,000 prescriptions is wrong about
+                       a dosage on more than a thousand of them. */
+                    <div className="rounded-lg border bg-background p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                        Prescribed on this visit
+                      </p>
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{editProcedureNotes}</p>
+                      <p className="text-[11px] text-muted-foreground mt-2">
+                        As recorded at the visit. Use "Add Medicine" to add a product from the catalogue.
+                      </p>
+                    </div>
+                  ) : (
                     <p className="text-sm text-muted-foreground text-center py-2">Nothing added yet. Click "Add Medicine" to add a product or medication.</p>
                   )}
                 </div>

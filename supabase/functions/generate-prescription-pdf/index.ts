@@ -339,12 +339,23 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     y -= 10;
   };
 
+  /** The name the importer uses when Salesforce recorded no treatment at all. */
+  const isPlaceholderService = (name: string) => name.trim().toLowerCase() === "consultation";
+
   const serviceRows = (serviceLineRows && serviceLineRows.length
     ? serviceLineRows.map((s: Record<string, unknown>) => ({ service: s.service_name, notes: s.procedure_notes, recommendations: s.recommendations }))
     : [{ service: procedure.service_name, notes: procedure.procedure_notes, recommendations: procedure.recommendations }]
   )
-    .map((r) => ({ service: sanitize(r.service), notes: sanitize(r.notes) || "-", recommendations: sanitize(r.recommendations) || "-" }))
-    .filter((r) => r.service);
+    .map((r) => ({ service: sanitize(r.service), notes: sanitize(r.notes), recommendations: sanitize(r.recommendations) }))
+    .filter((r) => r.service)
+    // A visit where no procedure was done still carries the "Consultation"
+    // placeholder as its service name, so the document printed a Procedure
+    // Details table reading "Consultation | - | -" - a heading, a box and two
+    // dashes saying nothing happened. Drop a row that is the placeholder with
+    // nothing recorded against it; a real service, or a consultation that does
+    // carry notes, still prints.
+    .filter((r) => !(isPlaceholderService(r.service) && !r.notes && !r.recommendations))
+    .map((r) => ({ service: r.service, notes: r.notes || "-", recommendations: r.recommendations || "-" }));
 
   // This visit's own findings first, then the patient's standing history.
   // Diagnosis and Symptoms used to be loose sections above Procedure Details,

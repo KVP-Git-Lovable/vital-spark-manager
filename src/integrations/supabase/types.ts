@@ -2390,6 +2390,24 @@ export type Database = {
           },
         ]
       }
+      patient_sync_marker_backup_20260923: {
+        Row: {
+          captured_at: string | null
+          id: string | null
+          sf_clinical_synced_at: string | null
+        }
+        Insert: {
+          captured_at?: string | null
+          id?: string | null
+          sf_clinical_synced_at?: string | null
+        }
+        Update: {
+          captured_at?: string | null
+          id?: string | null
+          sf_clinical_synced_at?: string | null
+        }
+        Relationships: []
+      }
       patients: {
         Row: {
           address: string | null

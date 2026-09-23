@@ -1,4 +1,5 @@
 import { formatMoney, formatMoneyPrecise } from "@/lib/currency";
+import { useAuth } from "@/hooks/useAuth";
 import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { assertWrote, NOT_YOURS_MESSAGE } from "@/lib/rowAccess";
@@ -271,6 +272,11 @@ const DEFAULT_BILLING_FIELDS = ["invoice_number", "patient_name", "total_amount"
 const PAGE_SIZE = 50;
 
 const Billing = () => {
+  // A doctor only sees their own rows, so a doctor filter offers choices that
+  // change nothing and implies data they cannot reach. Same scope the database
+  // enforces, rather than a role-name test here.
+  const { dataScope } = useAuth();
+  const ownScopeOnly = dataScope === "own";
   const invoiceTableRef = useStackedTable<HTMLTableElement>();
   const queryClient = useQueryClient();
   const invalidateInvoices = () => {
@@ -3104,6 +3110,7 @@ const Billing = () => {
                     </PopoverContent>
                   </Popover>
                 </div>
+                {!ownScopeOnly && (
                 <div className="space-y-2">
                   <Label className="text-xs">Doctor</Label>
                   <Select value={filterDoctor || "all"} onValueChange={(v) => setFilterDoctor(v === "all" ? "" : v)}>
@@ -3114,6 +3121,7 @@ const Billing = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                )}
                 <div className="space-y-2">
                   <Label className="text-xs">Service</Label>
                   <Select value={filterService || "all"} onValueChange={(v) => setFilterService(v === "all" ? "" : v)}>

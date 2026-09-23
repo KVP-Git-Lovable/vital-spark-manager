@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,11 @@ interface Props {
 const isDoctorRole = (role?: string | null) => /doctor/i.test(role || "");
 
 export function ReportFilterBar({ filters, state, onChange, showSearch = true, singleDay = false }: Props) {
+  // A doctor only ever sees their own rows, so a doctor filter offers choices
+  // that change nothing and implies data they cannot reach. Read from the same
+  // scope the database enforces rather than testing role names here.
+  const { dataScope } = useAuth();
+  const ownScopeOnly = dataScope === "own";
   const dateRange = filters.find((f) => f.type === "dateRange");
   const selects = filters.filter((f) => f.type === "select");
   const hasDoctor = filters.some((f) => f.type === "doctor");
@@ -211,7 +217,7 @@ export function ReportFilterBar({ filters, state, onChange, showSearch = true, s
           )
         )}
 
-        {hasDoctor && (
+        {hasDoctor && !ownScopeOnly && (
           <div className="min-w-[150px]">
             <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Doctor</label>
             <Select value={state.selects.doctor || "all"} onValueChange={(v) => setSelect("doctor", v)}>

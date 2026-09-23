@@ -69,15 +69,26 @@ const Photos = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
 
-  const { data: photos = [], isLoading } = useQuery({
+  // Paged, and capped. This pulled every row in one request - 85,000 of them -
+  // and for a doctor each row is then run through the restrictive policy's
+  // is_my_patient(), which does two EXISTS lookups per photo. That times out,
+  // and a thrown query leaves data undefined, which the page rendered as "No
+  // photos uploaded yet" - so a doctor with 20,000 appointments saw an empty
+  // gallery and read it as having no access at all.
+  const { data: photos = [], isLoading, isError } = useQuery({
     queryKey: ["patient-photos"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("patient_photos")
-        .select("*, patients(first_name, last_name), procedures(service_name)")
-        .order("taken_at", { ascending: false });
-      if (error) throw error;
-      return data;
+      const rows = await fetchAll<Record<string, unknown>>((from, to) =>
+        supabase
+          .from("patient_photos")
+          .select("*, patients(first_name, last_name), procedures(service_name)")
+          .order("taken_at", { ascending: false })
+          // taken_at is not unique, and .range() paging over a non-unique order
+          // can skip or repeat rows between pages; id settles the tie.
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
+      return rows;
     },
   });
 
@@ -391,6 +402,14 @@ const Photos = () => {
       {/* Photo Grid */}
       {isLoading ? (
         <p className="text-center py-12 text-muted-foreground">Loading photos...</p>
+      ) : isError ? (
+        /* A failed fetch is not an empty gallery, and saying so is the whole
+           point: this page read as "no access" when the query simply fell over. */
+        <div className="text-center py-16">
+          <Camera className="h-12 w-12 mx-auto text-destructive/40 mb-3" />
+          <p className="text-destructive">Could not load photos</p>
+          <p className="text-sm text-muted-foreground mt-1">This is not the same as there being none. Try refreshing.</p>
+        </div>
       ) : viewFiltered.length === 0 ? (
         <div className="text-center py-16">
           <Camera className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />

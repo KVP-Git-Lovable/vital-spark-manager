@@ -1,4 +1,5 @@
 import { useStackedTable } from "@/hooks/useStackedTable";
+import { useAuth } from "@/hooks/useAuth";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useState, useCallback, useRef, useMemo, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -201,6 +202,11 @@ const badgeClasses = (status: string) =>
   STATUS_BADGE_CLASSES[status] || STATUS_BADGE_CLASSES.Proposed;
 
 const Appointments = () => {
+  // A doctor only sees their own rows, so a doctor filter offers choices that
+  // change nothing and implies data they cannot reach. Same scope the database
+  // enforces, rather than a role-name test here.
+  const { dataScope } = useAuth();
+  const ownScopeOnly = dataScope === "own";
   const appointmentsTableRef = useStackedTable<HTMLTableElement>();
   const queryClient = useQueryClient();
   const routerNavigate = useNavigate();
@@ -2163,6 +2169,7 @@ const Appointments = () => {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search patient name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9 text-sm" />
             </div>
+            {!ownScopeOnly && (
             <div className="flex items-center">
               <Select value={filterDoctors.size === 0 ? "all" : filterDoctors.size === 1 ? [...filterDoctors][0] : "multi"} onValueChange={(v) => {
                 if (v === "all") setFilterDoctors(new Set());
@@ -2176,6 +2183,7 @@ const Appointments = () => {
               </Select>
               <PinButton pinKey="doctor" value={filterDoctors.size === 1 ? [...filterDoctors][0] : ""} label="doctor filter" />
             </div>
+            )}
 
             <div className="flex items-center">
               <Select value={filterStatus} onValueChange={setFilterStatus}>

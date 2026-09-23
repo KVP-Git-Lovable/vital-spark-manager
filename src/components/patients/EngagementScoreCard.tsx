@@ -110,7 +110,10 @@ const generateAITips = (data: EngagementData): string[] => {
   return tips.slice(0, 4);
 };
 
-export const EngagementScoreCard = ({ patientId }: { patientId: string }) => {
+export const EngagementScoreCard = (
+  { patientId, hideBilled = false }:
+  { patientId: string; /** Withheld when the patient is under another doctor. */ hideBilled?: boolean },
+) => {
   const [data, setData] = useState<EngagementData | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -190,8 +193,17 @@ export const EngagementScoreCard = ({ patientId }: { patientId: string }) => {
             <p className="text-base font-bold">{data.stats.distinctServices}</p>
             <p className="text-[10px] text-muted-foreground">Services</p>
           </div>
+          {/* A doctor should not read another doctor's takings off this header.
+              Shown as withheld rather than dropped, so the row does not reshuffle
+              and read as "nothing billed". */}
           <div className="text-center flex-1">
-            <p className="text-base font-bold">₹{data.stats.totalBilled >= 1000 ? `${(data.stats.totalBilled / 1000).toFixed(1)}k` : data.stats.totalBilled}</p>
+            <p className="text-base font-bold">
+              {hideBilled ? (
+                <span className="text-sm italic text-muted-foreground" title="Hidden because this patient is under another doctor">Hidden</span>
+              ) : (
+                `₹${data.stats.totalBilled >= 1000 ? `${(data.stats.totalBilled / 1000).toFixed(1)}k` : data.stats.totalBilled}`
+              )}
+            </p>
             <p className="text-[10px] text-muted-foreground">Billed</p>
           </div>
           <div className="text-center flex-1">

@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 
 import { SkinTracker } from "@/components/shared/SkinTracker";
@@ -62,6 +63,17 @@ const DetailsFieldContext = createContext<DetailsCtx>({
 
 const SectionTitle = ({ children }: { children: React.ReactNode }) => (
   <h3 className="text-sm font-semibold text-foreground border-b pb-1.5 mb-3">{children}</h3>
+);
+
+/** A field withheld because the patient is under another doctor. Says why: an
+ *  empty value reads as missing data, which is a different problem entirely. */
+const MaskedField = ({ label }: { label: string }) => (
+  <div>
+    <Label className="text-xs text-muted-foreground">{label}</Label>
+    <p className="text-sm mt-1 text-muted-foreground italic" title="Hidden because this patient is under another doctor">
+      Hidden
+    </p>
+  </div>
 );
 
 const Field = ({ label, value, field, type = "text" }: { label: string; value: any; field: string; type?: string }) => {
@@ -152,6 +164,7 @@ function SurveyAnswersView({ surveyId, answers, templateId }: { surveyId: string
 }
 
 const PatientDetail = () => {
+  const { dataScope } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -302,6 +315,23 @@ const PatientDetail = () => {
     },
     enabled: !!id,
   });
+
+  // A doctor on data_scope = 'own' sees every patient's chart - that is
+  // deliberate, and the scoping migration says so - but the clinic does not want
+  // them reading contact details or takings for a patient another doctor treats.
+  // Asked of the database rather than inferred from the role: is_my_patient()
+  // returns true for anyone with full scope, so admins and reception are
+  // untouched without a second condition here.
+  const { data: isMyPatient = true } = useQuery({
+    queryKey: ["is-my-patient", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("is_my_patient", { _patient_id: id! });
+      if (error) throw error;
+      return data === true;
+    },
+    enabled: !!id && dataScope === "own",
+  });
+  const hideOtherDoctorDetails = dataScope === "own" && !isMyPatient;
 
   // Kept for the tab label's count only; PatientAttachments owns the list and
   // uses this same query key, so this costs no extra request.
@@ -710,7 +740,7 @@ const PatientDetail = () => {
       )}
 
       <div className="space-y-4 mb-4">
-        <EngagementScoreCard patientId={id!} />
+        <EngagementScoreCard patientId={id!} hideBilled={hideOtherDoctorDetails} />
       </div>
 
       <Tabs defaultValue="details" className="mt-2">
@@ -837,8 +867,17 @@ const PatientDetail = () => {
                           </Select>
                         )}
                       </div>
-                      <Field label="Phone" value={d.phone} field="phone" />
-                      <Field label="Email" value={d.email} field="email" type="email" />
+                      {hideOtherDoctorDetails ? (
+                        <>
+                          <MaskedField label="Phone" />
+                          <MaskedField label="Email" />
+                        </>
+                      ) : (
+                        <>
+                          <Field label="Phone" value={d.phone} field="phone" />
+                          <Field label="Email" value={d.email} field="email" type="email" />
+                        </>
+                      )}
                       <div>
                         <Label className="text-xs text-muted-foreground">Status</Label>
                         {readOnly ? (

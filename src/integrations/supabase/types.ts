@@ -3537,6 +3537,7 @@ export type Database = {
       }
       procedures: {
         Row: {
+          additional_instructions: string | null
           appointment_id: string | null
           assisted_by: string | null
           assisted_by_ids: string[]
@@ -3566,6 +3567,7 @@ export type Database = {
           visit_type: string
         }
         Insert: {
+          additional_instructions?: string | null
           appointment_id?: string | null
           assisted_by?: string | null
           assisted_by_ids?: string[]
@@ -3595,6 +3597,7 @@ export type Database = {
           visit_type?: string
         }
         Update: {
+          additional_instructions?: string | null
           appointment_id?: string | null
           assisted_by?: string | null
           assisted_by_ids?: string[]
@@ -4149,6 +4152,42 @@ export type Database = {
           tax_amount?: number | null
           tax_applicable?: string | null
           total_price?: number | null
+        }
+        Relationships: []
+      }
+      sf_price_book_entries: {
+        Row: {
+          code: string
+          gst_rate: number | null
+          imported_at: string
+          is_active: boolean | null
+          price_book_name: string | null
+          service_name: string | null
+          sf_created_at: string | null
+          sf_id: string
+          unit_price: number | null
+        }
+        Insert: {
+          code: string
+          gst_rate?: number | null
+          imported_at?: string
+          is_active?: boolean | null
+          price_book_name?: string | null
+          service_name?: string | null
+          sf_created_at?: string | null
+          sf_id: string
+          unit_price?: number | null
+        }
+        Update: {
+          code?: string
+          gst_rate?: number | null
+          imported_at?: string
+          is_active?: boolean | null
+          price_book_name?: string | null
+          service_name?: string | null
+          sf_created_at?: string | null
+          sf_id?: string
+          unit_price?: number | null
         }
         Relationships: []
       }

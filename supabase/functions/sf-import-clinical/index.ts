@@ -620,16 +620,40 @@ async function syncPatient(
   // above: that flag defaults off, and the whole point here is that an ordinary
   // daily sync should pick up a treatment recorded after the visit was synced.
   // The guard is what makes that safe, not the flag.
+  //
+  // The same reasoning extends to the rest of the clinical columns, but strictly
+  // FILL-ONLY: a column is written only when it is empty here and Salesforce has
+  // something for it. Anything already holding a value - imported or typed into
+  // the app - always wins and is never overwritten. That rule is the whole
+  // safety of this top-up.
   for (const d of seenDiagnoses) {
+    const current = procRowBySfId.get(d.Id) || {};
+    const patch: Record<string, any> = {};
+
     const next = serviceNameFor(d);
-    if (next === NO_SERVICE_RECORDED) continue;
-    if (!awaitingRealService(procServiceBySfId.get(d.Id) ?? null, d)) continue;
-    const { error } = await admin
-      .from("procedures")
-      .update({ service_name: String(next).slice(0, 500) })
-      .eq("sf_id", d.Id);
+    if (next !== NO_SERVICE_RECORDED && awaitingRealService(procServiceBySfId.get(d.Id) ?? null, d)) {
+      patch.service_name = String(next).slice(0, 500);
+    }
+
+    const incoming = clinicalFieldsFor(d);
+    for (const [col, value] of Object.entries(incoming)) {
+      if (value === null || value === undefined) continue;
+      if (typeof value === "string" && !value.trim()) continue;
+      const existing = current[col];
+      const isEmpty = existing === null || existing === undefined ||
+        (typeof existing === "string" && !existing.trim());
+      if (!isEmpty) continue; // typed here, or already imported - never overwrite
+      patch[col] = value;
+    }
+
+    if (!Object.keys(patch).length) {
+      log.left_alone = (log.left_alone || 0) + 1;
+      continue;
+    }
+    const { error } = await admin.from("procedures").update(patch).eq("sf_id", d.Id);
     if (error) throw new Error(`procedures update: ${error.message}`);
     log.updated = (log.updated || 0) + 1;
+    log.filled = (log.filled || 0) + 1;
   }
   log.skipped += seenDiagnoses.length;
 }

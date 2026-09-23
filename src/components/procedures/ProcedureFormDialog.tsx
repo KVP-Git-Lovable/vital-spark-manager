@@ -1137,6 +1137,35 @@ export function ProcedureFormDialog({
                   />
                 )}
                 <div>
+                  <Label className="text-xs text-muted-foreground">Material Cost %</Label>
+                  {/* Filled from the Service Master when a service is picked, and
+                      editable - a custom service has no master row to read, and a
+                      visit can use more material than the standard rate assumes.
+                      It is recorded per line, so a later change to the master
+                      does not rewrite what was already done.
+
+                      Internal only: this never reaches an invoice or the printed
+                      bill, it is for working out what to deduct per service or
+                      doctor in the reports. */}
+                  <div className="relative mt-1">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      inputMode="decimal"
+                      className="pr-7"
+                      placeholder="e.g. 20"
+                      value={line.material_percent}
+                      onChange={(e) => updateServiceLine(line.key, { material_percent: e.target.value })}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Internal only — not shown on the invoice. Used for material cost in reports.
+                  </p>
+                </div>
+                <div>
                   <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
                   <Textarea
                     rows={3}

@@ -956,6 +956,29 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                         </Select>
                       </div>
                       <div>
+                        <Label className="text-xs text-muted-foreground">Material Cost %</Label>
+                        {/* Internal only - never reaches an invoice or the printed
+                            bill. Recorded per line so correcting the Service Master
+                            later does not rewrite a visit that already happened. */}
+                        <div className="relative mt-1">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.01"
+                            inputMode="decimal"
+                            className="pr-7"
+                            placeholder="e.g. 20"
+                            value={line.material_percent}
+                            onChange={(e) => updateLine(line.key, { material_percent: e.target.value })}
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Internal only — not shown on the invoice.
+                        </p>
+                      </div>
+                      <div>
                         <div className="flex items-center justify-between">
                           <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
                           <div className="flex items-center gap-1">

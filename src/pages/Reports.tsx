@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronRight, Users, CalendarCheck, IndianRupee, Receipt, Pill, Megaphone, FileX } from "lucide-react";
+import { ChevronRight, Users, CalendarCheck, IndianRupee, Receipt, Pill, Megaphone, FileX, Percent } from "lucide-react";
 import { REPORTS } from "@/lib/reportsCatalog";
 
 const ICONS: Record<string, any> = {
@@ -11,6 +11,7 @@ const ICONS: Record<string, any> = {
   expenses: Receipt,
   pharma_bills: Pill,
   campaigns: Megaphone,
+  material_cost: Percent,
 };
 
 const CATEGORY_ORDER = ["Patients", "Operations", "Finance", "Marketing"] as const;

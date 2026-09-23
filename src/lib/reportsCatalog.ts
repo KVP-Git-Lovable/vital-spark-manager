@@ -645,6 +645,75 @@ export const REPORTS: ReportConfig[] = [
           .slice(0, 10),
     },
   },
+  // Material cost, so the clinic can deduct what a service consumed from what
+  // it earned, per service or per doctor. Deliberately its own report and not a
+  // column on Invoices & Revenue: this is an internal margin figure, it never
+  // appears on an invoice or a printed bill, and putting it beside Total Billed
+  // is how it ends up quoted to a patient.
+  //
+  // The arithmetic lives in the material_cost_lines view, one row per billed
+  // service line. See that migration for which percentage wins - the one typed
+  // on the visit beats the Service Master's, so correcting the master later
+  // does not rewrite what a past visit cost.
+  {
+    key: "material_cost",
+    title: "Material Cost",
+    description: "Material cost per billed service, to deduct by service or doctor. Internal only — never on an invoice.",
+    category: "Finance",
+    defaultSort: { key: "created_at", dir: "desc" },
+    columns: [
+      { key: "invoice_number", label: "Invoice #", sortable: true },
+      { key: "patient_name", label: "Patient", sortable: true },
+      { key: "service_name", label: "Service", sortable: true },
+      { key: "service_amount", label: "Service Value", sortable: true, type: "currency" },
+      { key: "material_percent", label: "Material %", sortable: true, type: "number" },
+      { key: "material_cost", label: "Material Cost", sortable: true, type: "currency" },
+      { key: "doctor_name", label: "Doctor", sortable: true, accessor: (r) => invoiceDoctorName(r) },
+      { key: "created_at", label: "Date", sortable: true, type: "date" },
+    ],
+    filters: [
+      { key: "dateRange", label: "Billed", type: "dateRange", serverDateField: "created_at" },
+      { key: "doctor", label: "Doctor", type: "doctor", matches: (r, v) => String(r.doctor_id ?? "") === v },
+      { key: "service", label: "Service", type: "service", matches: (r, v) => String(r.service_name ?? "") === v },
+    ],
+    searchFields: ["invoice_number", "patient_name", "service_name"],
+    rowHref: () => `/billing`,
+    // Only lines that actually carry a percentage. A report of thousands of
+    // zero rows would bury the handful that cost something, and the clinic is
+    // here to deduct, not to browse everything it billed.
+    fetcher: async ({ from, to }) =>
+      fetchAll((s, e) => {
+        let q = supabase
+          .from("material_cost_lines")
+          .select("*, doctor:doctor_id(first_name, last_name), appointment:appointment_id(doctor_name)")
+          .gt("material_percent", 0)
+          .order("created_at", { ascending: false })
+          .range(s, e);
+        if (from) q = q.gte("created_at", from);
+        if (to) q = q.lte("created_at", to);
+        return q;
+      }),
+    summary: (rows) => {
+      const value = rows.reduce((a, r) => a + Number(r.service_amount || 0), 0);
+      const cost = rows.reduce((a, r) => a + Number(r.material_cost || 0), 0);
+      return [
+        { label: "Billed Lines", value: rows.length.toLocaleString() },
+        { label: "Service Value", value: formatMoneyExact(value) },
+        { label: "Material Cost", value: formatMoneyExact(cost) },
+        {
+          label: "Net of Material",
+          value: formatMoneyExact(value - cost),
+          hint: value > 0 ? `${((cost / value) * 100).toFixed(1)}% of service value` : undefined,
+        },
+      ];
+    },
+    chart: {
+      title: "Material Cost by Service",
+      valueLabel: "₹ Material",
+      orientation: "horizontal",
+      build: (rows) => groupSum(rows, "service_name", "material_cost", 10, "Unnamed"),
+    },
+  },
 ];
 
 export function getReport(key: string) {

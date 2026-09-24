@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Loader2, Download, FileText, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
  * interfered with - and it is a choice, not something to sit and wait on.
  */
 export interface PdfPreviewDialogProps {
+  /**
+   * The document's pages, already drawn (see renderPdf.ts). Preferred over
+   * `url`, because showing these asks the browser to load nothing.
+   */
+  pages?: string[] | null;
   open: boolean;
   onClose: () => void;
   title: string;
@@ -36,15 +42,31 @@ export interface PdfPreviewDialogProps {
 }
 
 export function PdfPreviewDialog({
-  open, onClose, title, preparing, url, html, error, onRetry, onDownload, downloading,
+  open, onClose, title, preparing, pages, url, html, error, onRetry, onDownload, downloading,
 }: PdfPreviewDialogProps) {
+  const printFrame = useRef<HTMLIFrameElement | null>(null);
+
+  const printPages = () => {
+    // The drawn pages are printed from a frame carrying them as its own
+    // document, via srcdoc. No window is opened and nothing is navigated to,
+    // which are the two things that get blocked.
+    const frame = printFrame.current;
+    if (!frame?.contentWindow) return;
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+  };
+
   const print = () => {
-    // Printed from the frame it is already in - no second window to be
-    // blocked, and no navigation.
     const frame = document.getElementById("pdf-preview-frame") as HTMLIFrameElement | null;
     frame?.contentWindow?.focus();
     frame?.contentWindow?.print();
   };
+
+  // One image per page at full width, and nothing else - what the printer
+  // should put on paper.
+  const printableDoc = (pages ?? [])
+    .map((src) => `<img src="${src}" style="display:block;width:100%;page-break-after:always" />`)
+    .join("");
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? undefined : onClose())}>
@@ -65,6 +87,25 @@ export function PdfPreviewDialog({
                   Try again
                 </Button>
               )}
+            </div>
+          ) : pages && pages.length > 0 ? (
+            <div className="w-full h-[70vh] overflow-auto bg-muted/40 p-3 space-y-3">
+              {pages.map((src, i) => (
+                <img
+                  key={i}
+                  src={src}
+                  alt={`${title} — page ${i + 1}`}
+                  className="w-full shadow-sm bg-white"
+                />
+              ))}
+              <iframe
+                ref={printFrame}
+                title="print"
+                aria-hidden="true"
+                tabIndex={-1}
+                className="hidden"
+                srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:0}body{margin:0}</style></head><body>${printableDoc}</body></html>`}
+              />
             </div>
           ) : html ? (
             // srcdoc, not a written-to window: the document travels with the
@@ -90,9 +131,13 @@ export function PdfPreviewDialog({
           )}
         </div>
 
-        {(url || html) && !error && (
+        {((pages && pages.length > 0) || url || html) && !error && (
           <div className="flex justify-end gap-2">
-            {html ? (
+            {pages && pages.length > 0 ? (
+              <Button type="button" variant="outline" size="sm" onClick={printPages}>
+                <Printer className="h-4 w-4 mr-1" /> Print
+              </Button>
+            ) : html ? (
               <Button type="button" variant="outline" size="sm" onClick={print}>
                 <Printer className="h-4 w-4 mr-1" /> Print
               </Button>

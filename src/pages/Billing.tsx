@@ -1,5 +1,6 @@
 import { formatMoney, formatMoneyPrecise } from "@/lib/currency";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { renderPdfToImages } from "@/lib/renderPdf";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { displayDate } from "@/lib/dateInput";
@@ -318,6 +319,8 @@ const Billing = () => {
   // this page loads at all - and saves them through <a download>. Saving is
   // not navigating, and navigating is what gets blocked.
   const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfPages, setPdfPages] = useState<string[] | null>(null);
+  const pdfBytes = useRef<ArrayBuffer | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfHtml, setPdfHtml] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -332,6 +335,8 @@ const Billing = () => {
     }
     setPdfInvoice(inv);
     setPdfUrl(null);
+    setPdfPages(null);
+    pdfBytes.current = null;
     setPdfHtml(null);
     setPdfError(null);
     setPdfOpen(true);
@@ -347,20 +352,46 @@ const Billing = () => {
       }
       const url = (data as { url?: string } | null)?.url;
       if (!url) throw new Error("PDF url missing");
-      setPdfUrl(`${url}?t=${Date.now()}`);
+      const stamped = `${url}?t=${Date.now()}`;
+      setPdfUrl(stamped);
+      // Fetched as bytes and drawn, rather than handed to the browser to
+      // open. The bytes are kept for Download so it needs no second trip.
+      const res = await fetch(stamped);
+      if (!res.ok) throw new Error(`The invoice PDF could not be fetched (${res.status})`);
+      const bytes = await res.arrayBuffer();
+      pdfBytes.current = bytes;
+      setPdfPages(await renderPdfToImages(bytes));
     } catch (e) {
       console.error(e);
-      // Only when the real invoice cannot be built. This template is not the
-      // clinic's invoice and must never stand in for it while the proper one
-      // is available - substituting it silently is exactly what went wrong.
-      toast.message("The invoice PDF could not be built - showing the plain printable copy");
+      // Only when the real invoice cannot be built or drawn. This template is
+      // not the clinic's invoice and must never stand in for it silently
+      // while the proper one is available.
+      toast.message("The invoice PDF could not be shown - showing the plain printable copy");
       setPdfHtml(invoicePrintableHtml(inv));
     }
+  };
+
+  const saveBytes = (bytes: ArrayBuffer, filename: string) => {
+    const objUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objUrl);
   };
 
   const downloadInvoicePDF = async () => {
     const inv = pdfInvoice;
     if (!inv?.id) return;
+    const filename = `${inv.invoice_number || "invoice"}.pdf`;
+    // Already fetched to draw the preview - no need to ask again.
+    if (pdfBytes.current) {
+      saveBytes(pdfBytes.current, filename);
+      toast.success("Invoice downloaded");
+      return;
+    }
     setPdfDownloading(true);
     const t = toast.loading("Generating invoice PDF…");
     try {
@@ -379,14 +410,7 @@ const Billing = () => {
       // navigate to the file, which is the blocked path.
       const res = await fetch(`${url}?t=${Date.now()}`);
       if (!res.ok) throw new Error(`The PDF could not be fetched (${res.status})`);
-      const objUrl = URL.createObjectURL(await res.blob());
-      const a = document.createElement("a");
-      a.href = objUrl;
-      a.download = `${inv.invoice_number || "invoice"}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(objUrl);
+      saveBytes(await res.arrayBuffer(), filename);
       toast.dismiss(t);
       toast.success("Invoice downloaded");
     } catch (e: any) {
@@ -3803,6 +3827,7 @@ const Billing = () => {
         onClose={() => { setPdfOpen(false); setPdfUrl(null); setPdfHtml(null); setPdfError(null); }}
         title={pdfInvoice?.invoice_number ? `Invoice ${pdfInvoice.invoice_number}` : "Invoice"}
         preparing="Preparing the invoice…"
+        pages={pdfPages}
         url={pdfUrl}
         html={pdfHtml}
         error={pdfError}

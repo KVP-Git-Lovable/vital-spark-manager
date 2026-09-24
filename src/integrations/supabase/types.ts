@@ -3341,6 +3341,54 @@ export type Database = {
           },
         ]
       }
+      prescriptions_moved_to_services_20260924: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          dosage: string | null
+          duration: string | null
+          frequency: string | null
+          id: string | null
+          instructions: string | null
+          medicine_name: string | null
+          procedure_id: string | null
+          product_id: string | null
+          quantity: number | null
+          survey_response_id: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          dosage?: string | null
+          duration?: string | null
+          frequency?: string | null
+          id?: string | null
+          instructions?: string | null
+          medicine_name?: string | null
+          procedure_id?: string | null
+          product_id?: string | null
+          quantity?: number | null
+          survey_response_id?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          dosage?: string | null
+          duration?: string | null
+          frequency?: string | null
+          id?: string | null
+          instructions?: string | null
+          medicine_name?: string | null
+          procedure_id?: string | null
+          product_id?: string | null
+          quantity?: number | null
+          survey_response_id?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       problem_areas: {
         Row: {
           created_at: string
@@ -3444,6 +3492,24 @@ export type Database = {
           consultation_notes?: string | null
           id?: string | null
           lab_tests?: string | null
+        }
+        Relationships: []
+      }
+      procedure_notes_backup_20260924: {
+        Row: {
+          id: string | null
+          procedure_notes: string | null
+          taken_at: string | null
+        }
+        Insert: {
+          id?: string | null
+          procedure_notes?: string | null
+          taken_at?: string | null
+        }
+        Update: {
+          id?: string | null
+          procedure_notes?: string | null
+          taken_at?: string | null
         }
         Relationships: []
       }
@@ -5093,7 +5159,6 @@ export type Database = {
           current_medications: string | null
           date_of_birth: string | null
           days_since_last_visit: number | null
-          dietary_advice: string | null
           doctor_id: string | null
           email: string | null
           emergency_contact_name: string | null
@@ -5156,7 +5221,6 @@ export type Database = {
           current_medications?: string | null
           date_of_birth?: string | null
           days_since_last_visit?: number | null
-          dietary_advice?: string | null
           doctor_id?: string | null
           email?: string | null
           emergency_contact_name?: string | null
@@ -5219,7 +5283,6 @@ export type Database = {
           current_medications?: string | null
           date_of_birth?: string | null
           days_since_last_visit?: number | null
-          dietary_advice?: string | null
           doctor_id?: string | null
           email?: string | null
           emergency_contact_name?: string | null
@@ -5477,6 +5540,24 @@ export type Database = {
           id?: boolean
           retention_days?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      treatment_names: {
+        Row: {
+          added_at: string
+          name: string
+          source: string
+        }
+        Insert: {
+          added_at?: string
+          name: string
+          source: string
+        }
+        Update: {
+          added_at?: string
+          name?: string
+          source?: string
         }
         Relationships: []
       }

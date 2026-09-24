@@ -46,6 +46,7 @@ import { toast } from "sonner";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { approveSurveyResponse, enrichAiProducts, enrichAiServices } from "@/lib/surveyApproval";
 import { procedureDateLabel } from "@/lib/procedureDate";
+import { investigationText } from "@/lib/investigationText";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -1087,7 +1088,7 @@ const PatientDetail = () => {
                 <thead>
                   <tr className="border-b bg-muted/50">
                     <th className="text-left text-xs font-medium text-muted-foreground p-4">Date & Time</th>
-                    <th className="text-left text-xs font-medium text-muted-foreground p-4">Service</th>
+                    <th className="text-left text-xs font-medium text-muted-foreground p-4">Investigation</th>
                     <th className="text-left text-xs font-medium text-muted-foreground p-4">Doctor</th>
                     <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
                   </tr>
@@ -1101,7 +1102,11 @@ const PatientDetail = () => {
                         <p>{displayDate(apt.start_time)}</p>
                         <p className="text-xs text-muted-foreground">{new Date(apt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                       </td>
-                      <td className="p-4 font-medium text-sm">{apt.service}</td>
+                      {/* What the visit was about, not the service booked -
+                          that reads "Consultation" on most rows and says
+                          nothing. investigationText falls back to the service
+                          when a visit has no investigation recorded. */}
+                      <td className="p-4 font-medium text-sm">{investigationText(apt, "—")}</td>
                       <td className="p-4 text-sm text-muted-foreground">{apt.staff ? withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`) : "—"}</td>
                       <td className="p-4"><Badge variant="secondary" className="text-xs">{apt.status}</Badge></td>
                     </tr>

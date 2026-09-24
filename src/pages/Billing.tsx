@@ -17,7 +17,7 @@ import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { assertWrote, NOT_YOURS_MESSAGE } from "@/lib/rowAccess";
 import { useStackedTable } from "@/hooks/useStackedTable";
-import { useState, useMemo, useRef, useEffect, lazy, Suspense } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, addMonths, isSameDay } from "date-fns";
 import SearchableSelect from "@/components/shared/SearchableSelect";
@@ -89,6 +89,7 @@ import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
 import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { invoiceFormHasContent } from "@/lib/invoiceFormState";
 import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { fetchAll } from "@/lib/supabasePaginate";
@@ -911,11 +912,60 @@ const Billing = () => {
     },
   });
 
+  const resetForm = useCallback(() => {
+    setPatientId("");
+    setDoctorId("");
+    setInvoiceDate(new Date());
+    setInvoiceSeq(Date.now().toString().slice(-6));
+    setServiceInputs([{ name: "", price: 0, hsn: "", gst: 0 }]);
+    setPaidAmount(0);
+    setPaymentType("One-time");
+    setPaymentMode("Cash");
+    setSplits([]);
+    setNotes("");
+    // tax is per-line, nothing to reset
+    setPharmaItems([]);
+    setStages([{ label: "Stage 1", amount: 0, paid: 0 }]);
+    setRecurringCount(1);
+    setRecurringAmount(0);
+    setRecurringCollected([0]);
+    setRecurringTotalAmount(0);
+    setRecurringDueDates([new Date()]);
+    setRecurringApptDates([]);
+    setRecurringStatuses(["Pending"]);
+    setRecurringInvoiceNow([true]);
+    setSourceAppointmentId(null);
+    setLinkAppointmentChoice(undefined);
+    setServiceSearchOpen(null);
+    // Only state setters above, all stable, so this never needs to change.
+  }, []);
+
+  /**
+   * Does the Create Invoice form hold anything worth not throwing away?
+   *
+   * Opening the dialog now clears it, which makes an accidental Escape
+   * unrecoverable - so an accidental Escape is what gets prevented instead.
+   * The X in the corner stays the deliberate way out, and it discards.
+   */
+  const createFormHasContent = () =>
+    invoiceFormHasContent({
+      patientId,
+      doctorId,
+      serviceInputs,
+      pharmaItemCount: pharmaItems.length,
+      paidAmount,
+      notes,
+    });
+
   // Pre-fill from Appointments flow
   useEffect(() => {
     const prefillPatient = searchParams.get("prefillPatient");
     const prefillService = searchParams.get("prefillService");
     if (prefillPatient || prefillService) {
+      // Clear whatever the form was last left holding before filling it: the
+      // same state backs Edit Invoice and the "New Bill" prefill, so without
+      // this the new bill inherits the previous one's lines.
+      resetForm();
       if (prefillPatient) setPatientId(prefillPatient);
       if (prefillService) {
         const svc = (serviceMaster as any[]).find((s: any) => s?.name === prefillService);
@@ -927,7 +977,7 @@ const Billing = () => {
       setOpen(true);
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams, serviceMaster]);
+  }, [searchParams, serviceMaster, resetForm]);
 
   // Open a specific invoice via ?viewInvoice=<id> (e.g. from Patient detail).
   // Default (server-paginated) mode only holds one page of invoices in
@@ -967,6 +1017,10 @@ const Billing = () => {
     let payload: any = null;
     if (raw) { try { payload = JSON.parse(raw); } catch { payload = null; } }
     sessionStorage.removeItem("billing_prefill");
+
+    // Same reason as the route above: empty the form first, then fill it from
+    // this appointment only.
+    resetForm();
 
     if (payload?.patientId) setPatientId(payload.patientId);
     if (payload?.doctorId) setDoctorId(payload.doctorId);
@@ -2184,32 +2238,6 @@ const Billing = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const resetForm = () => {
-    setPatientId("");
-    setDoctorId("");
-    setInvoiceDate(new Date());
-    setInvoiceSeq(Date.now().toString().slice(-6));
-    setServiceInputs([{ name: "", price: 0, hsn: "", gst: 0 }]);
-    setPaidAmount(0);
-    setPaymentType("One-time");
-    setPaymentMode("Cash");
-    setSplits([]);
-    setNotes("");
-    // tax is per-line, nothing to reset
-    setPharmaItems([]);
-    setStages([{ label: "Stage 1", amount: 0, paid: 0 }]);
-    setRecurringCount(1);
-    setRecurringAmount(0);
-    setRecurringCollected([0]);
-    setRecurringTotalAmount(0);
-    setRecurringDueDates([new Date()]);
-    setRecurringApptDates([]);
-    setRecurringStatuses(["Pending"]);
-    setRecurringInvoiceNow([true]);
-    setSourceAppointmentId(null);
-    setLinkAppointmentChoice(undefined);
-    setServiceSearchOpen(null);
-  };
 
   const addServiceInput = () => setServiceInputs([...serviceInputs, { name: "", price: 0, hsn: "", gst: 0 }]);
   const updateServiceInput = (i: number, patch: Partial<{ name: string; price: number; hsn: string; gst: number; service_id?: string; material_percent?: string }>) => {
@@ -2766,14 +2794,45 @@ const Billing = () => {
         </div>
         <div className="flex gap-2 w-fit flex-wrap">
           <SalesforceSyncButton />
-          <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setInvoiceSeq(Date.now().toString().slice(-6)); }}>
+          {/*
+            Every time staff open this dialog themselves, it starts empty.
+
+            The create form's state is shared with Edit Invoice
+            (startEditingInvoice seeds the very same serviceInputs/pharmaItems)
+            and with the "New Bill" prefill, and nothing used to clear it
+            except a successful save. So merely opening an existing invoice to
+            edit it, or abandoning a half-made bill, left that invoice's
+            service and product lines sitting in state - and the next Create
+            Invoice opened already carrying treatments nobody had chosen for
+            that patient. That is what was reported as services being added
+            automatically "not sure from where it came from", and it is why
+            those bills had to be deleted.
+
+            Resetting on open and not on close is deliberate: a programmatic
+            setOpen(true) from the two prefill routes does not fire
+            onOpenChange, so those still land on a clean form (they call
+            resetForm themselves) and then fill it.
+          */}
+          <Dialog open={open} onOpenChange={(o) => { if (o) resetForm(); setOpen(o); }}>
             <DialogTrigger asChild>
               <Button className="gap-2 w-fit">
                 <IndianRupee className="h-4 w-4" />
                 Create Invoice
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 overflow-hidden">
+          <DialogContent
+            className="max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 overflow-hidden"
+            onEscapeKeyDown={(e) => {
+              if (!createFormHasContent()) return;
+              e.preventDefault();
+              toast.info("This invoice is still open", {
+                description: "Use the X in the corner to discard it.",
+              });
+            }}
+            onInteractOutside={(e) => {
+              if (createFormHasContent()) e.preventDefault();
+            }}
+          >
             <DialogHeader className="px-6 pt-6 pb-3 border-b">
               <DialogTitle className="font-display">Create Invoice</DialogTitle>
             </DialogHeader>

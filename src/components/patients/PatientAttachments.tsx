@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CameraDialog } from "@/components/shared/CameraDialog";
 import { displayDate } from "@/lib/dateInput";
+import { attachmentStoragePath } from "@/lib/attachmentPath";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -69,7 +70,10 @@ export function PatientAttachments({
   const [filter, setFilter] = useState<string>("all");
   const [cameraOpen, setCameraOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  // Staff pick several scans at once, so a bare spinner leaves them guessing
+  // how far through the batch it is.
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [docTypeDialogOpen, setDocTypeDialogOpen] = useState(false);
   const [selectedDocType, setSelectedDocType] = useState<string>("Prescription");
   const [viewing, setViewing] = useState<PatientAttachment | null>(null);
@@ -89,42 +93,75 @@ export function PatientAttachments({
   });
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !patientId) return;
-    setPendingFile(file);
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0 || !patientId) return;
+    setPendingFiles(files);
     setSelectedDocType("Prescription");
     setDocTypeDialogOpen(true);
+    // Cleared so picking the same files again still fires a change event.
     e.target.value = "";
   };
 
   const uploadPending = async () => {
-    if (!pendingFile || !patientId) return;
+    if (pendingFiles.length === 0 || !patientId) return;
     setUploading(true);
-    const file = pendingFile;
-    try {
-      const ext = file.name.split(".").pop() || "bin";
-      const filePath = `${patientId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("patient-photos").upload(filePath, file);
-      if (uploadError) throw uploadError;
-      const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${filePath}`;
-      const { error } = await supabase.from("procedure_attachments").insert({
-        patient_id: patientId,
-        procedure_id: defaultProcedureId,
-        file_name: file.name,
-        file_url: fileUrl,
-        document_type: selectedDocType,
-        // The generated table types do not describe this insert shape.
-      } as never);
-      if (error) throw error;
-      toast.success("Attachment uploaded");
-      setDocTypeDialogOpen(false);
-      setPendingFile(null);
-      refetch();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setUploading(false);
+    setProgress({ done: 0, total: pendingFiles.length });
+
+    // Each file is attempted on its own. Throwing on the first failure - which
+    // is what this did while it only ever handled one file - would silently
+    // drop every scan after a bad one in a batch of seven.
+    // Tracked by position, not by name: two scans can arrive called
+    // "WhatsApp Image.jpeg", and filtering by name would re-queue the one that
+    // already uploaded.
+    const failed: { index: number; name: string; reason: string }[] = [];
+    let uploaded = 0;
+
+    for (const [index, file] of pendingFiles.entries()) {
+      try {
+        const filePath = attachmentStoragePath(patientId, file.name, index);
+        const { error: uploadError } = await supabase.storage.from("patient-photos").upload(filePath, file);
+        if (uploadError) throw uploadError;
+        const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${filePath}`;
+        const { error } = await supabase.from("procedure_attachments").insert({
+          patient_id: patientId,
+          procedure_id: defaultProcedureId,
+          file_name: file.name,
+          file_url: fileUrl,
+          document_type: selectedDocType,
+        });
+        if (error) throw error;
+        uploaded += 1;
+      } catch (err) {
+        failed.push({ index, name: file.name, reason: err instanceof Error ? err.message : "Upload failed" });
+      } finally {
+        setProgress({ done: index + 1, total: pendingFiles.length });
+      }
     }
+
+    if (uploaded > 0) {
+      toast.success(uploaded === 1 ? "Attachment uploaded" : `${uploaded} attachments uploaded`);
+    }
+    if (failed.length > 0) {
+      // Name them: "2 failed" alone leaves staff re-uploading all seven to find
+      // out which ones are missing.
+      toast.error(
+        `${failed.length} of ${pendingFiles.length} could not be uploaded — ` +
+          failed.map((f) => `${f.name}: ${f.reason}`).join("; "),
+      );
+    }
+
+    setUploading(false);
+    setProgress(null);
+    if (failed.length === 0) {
+      setDocTypeDialogOpen(false);
+      setPendingFiles([]);
+    } else {
+      // Leave the dialog open holding only what did not make it, so Save is a
+      // retry rather than a re-pick.
+      const stillFailing = new Set(failed.map((f) => f.index));
+      setPendingFiles(pendingFiles.filter((_, i) => stillFailing.has(i)));
+    }
+    refetch();
   };
 
   const deleteAttachment = async (att: PatientAttachment) => {
@@ -166,7 +203,7 @@ export function PatientAttachments({
             </SelectContent>
           </Select>
           <div className="flex gap-2">
-            <input type="file" ref={fileInputRef} className="hidden" onChange={handleUpload} />
+            <input type="file" multiple ref={fileInputRef} className="hidden" onChange={handleUpload} />
             <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" disabled={uploading || !patientId} onClick={() => setCameraOpen(true)}>
               <Camera className="h-3.5 w-3.5" /> Take Photo
             </Button>
@@ -227,14 +264,30 @@ export function PatientAttachments({
         )}
       </motion.div>
 
-      <Dialog open={docTypeDialogOpen} onOpenChange={(o) => { if (!o) { setDocTypeDialogOpen(false); setPendingFile(null); } }}>
+      <Dialog open={docTypeDialogOpen} onOpenChange={(o) => { if (!o && !uploading) { setDocTypeDialogOpen(false); setPendingFiles([]); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-display">Document Type</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            {pendingFile && (
-              <p className="text-xs text-muted-foreground truncate">File: {pendingFile.name}</p>
+            {pendingFiles.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-foreground">
+                  {pendingFiles.length === 1 ? "1 file" : `${pendingFiles.length} files`}
+                </p>
+                {/* Named, so staff can see they picked what they meant to
+                    before one type is applied to the whole batch. */}
+                <ul className="mt-1 max-h-28 overflow-y-auto space-y-0.5">
+                  {pendingFiles.map((f, i) => (
+                    <li key={`${f.name}-${i}`} className="text-xs text-muted-foreground truncate">{f.name}</li>
+                  ))}
+                </ul>
+                {pendingFiles.length > 1 && (
+                  <p className="text-[11px] text-muted-foreground mt-1.5">
+                    The type below is applied to all {pendingFiles.length}.
+                  </p>
+                )}
+              </div>
             )}
             <div>
               <Label>Type</Label>
@@ -248,9 +301,12 @@ export function PatientAttachments({
               </Select>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setDocTypeDialogOpen(false); setPendingFile(null); }}>Cancel</Button>
-              <Button size="sm" disabled={uploading} onClick={uploadPending}>
-                {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null} Save
+              <Button variant="outline" size="sm" disabled={uploading} onClick={() => { setDocTypeDialogOpen(false); setPendingFiles([]); }}>Cancel</Button>
+              <Button size="sm" disabled={uploading || pendingFiles.length === 0} onClick={uploadPending}>
+                {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                {uploading && progress && progress.total > 1
+                  ? `Uploading ${progress.done} of ${progress.total}`
+                  : "Save"}
               </Button>
             </div>
           </div>
@@ -262,7 +318,9 @@ export function PatientAttachments({
         onOpenChange={setCameraOpen}
         title="Capture Attachment"
         onCapture={(file) => {
-          setPendingFile(file);
+          // A camera gives one shot at a time; it goes through the same batch
+          // path as a batch of one.
+          setPendingFiles([file]);
           setSelectedDocType("Prescription");
           setDocTypeDialogOpen(true);
         }}

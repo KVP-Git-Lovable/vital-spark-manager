@@ -109,3 +109,64 @@ describe("printAppointments", () => {
     expect(html.indexOf("Midday")).toBeLessThan(html.indexOf("Evening"));
   });
 });
+
+describe("printAppointments - the printed sheet's layout", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    fetchAppointmentsPage.mockReset();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  const printed = async (rows: unknown[]) => {
+    fetchAppointmentsPage.mockResolvedValue({ rows, total: rows.length });
+    const written = stubPrintWindow();
+    await printAppointments(baseParams, opts);
+    return written.join("");
+  };
+
+  it("heads the columns in the order the list on screen uses", async () => {
+    const html = await printed([row("2026-09-24T10:15:00", "Angel")]);
+    expect(html).toContain(
+      "<thead><tr><th>#</th><th>Patient</th><th>Phone</th><th>Doctor</th><th>Date</th><th>Time</th><th>Investigation</th><th>Status</th></tr></thead>",
+    );
+  });
+
+  it("numbers the rows from one, down the sheet", async () => {
+    const html = await printed([
+      row("2026-09-24T10:15:00", "Angel"),
+      row("2026-09-24T10:30:00", "Keerthi"),
+      row("2026-09-24T11:00:00", "Lakshmi"),
+    ]);
+    // The number precedes the name it belongs to, in clock order.
+    expect(html.indexOf("<td>1</td>")).toBeLessThan(html.indexOf("Angel"));
+    expect(html.indexOf("Angel")).toBeLessThan(html.indexOf("<td>2</td>"));
+    expect(html.indexOf("<td>2</td>")).toBeLessThan(html.indexOf("Keerthi"));
+    expect(html).toContain("<td>3</td>");
+  });
+
+  it("prints the date as dd/mm/yyyy, which reads the same on every clinic PC", async () => {
+    const html = await printed([row("2026-09-24T10:15:00", "Angel")]);
+    // Scoped to the rows: the "printed on" line in the header keeps its own
+    // long-form date, and matching the whole document would catch that instead.
+    const tbody = html.slice(html.indexOf("<tbody>"), html.indexOf("</tbody>"));
+    expect(tbody).toContain("<td>24/09/2026</td>");
+    expect(tbody).not.toContain("24 Sep 2026");
+  });
+
+  it("prints the start time only", async () => {
+    const html = await printed([
+      { ...row("2026-09-24T10:15:00", "Angel"), end_time: "2026-09-24T10:45:00" },
+    ]);
+    expect(html).toContain("10:15 AM");
+    expect(html).not.toContain("10:45 AM");
+  });
+
+  it("puts the patient before the doctor and the investigation after both", async () => {
+    const html = await printed([row("2026-09-24T10:15:00", "Angel")]);
+    expect(html.indexOf("Angel")).toBeLessThan(html.indexOf("Dr Vindhya Pai"));
+    expect(html.indexOf("Dr Vindhya Pai")).toBeLessThan(html.indexOf("Review"));
+  });
+});

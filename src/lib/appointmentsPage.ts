@@ -112,8 +112,16 @@ export async function fetchAppointmentsPage({
     case "doctor":
       q = q.order("first_name", { referencedTable: "staff", ascending });
       break;
+    case "phone":
+      q = q.order("phone", { referencedTable: "patients", ascending });
+      break;
     case "start_time":
+    // Bill Amount and Payment Mode have no column here to order by - both come
+    // from an invoice lookup done after these rows arrive, keyed on the ids of
+    // the page in hand. They keep the date order from the server and are sorted
+    // within the page by sortAppointmentsByPageColumn.
     case "bill":
+    case "payment_mode":
     default:
       q = q.order("start_time", { ascending });
       break;

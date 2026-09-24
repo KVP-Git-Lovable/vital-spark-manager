@@ -5,28 +5,28 @@
 // shared engine needs no changes to how columns are displayed.
 import type { FieldDef } from "./engine";
 
+// Listed in the order the table renders them, so the field picker reads the
+// same way the list does. "time" is gone: date and clock time are one column
+// now. A saved view still naming it is dropped harmlessly, the same way the
+// removed "visit_status" key already is - see displayColumns in Appointments.tsx.
 export const APPOINTMENT_VIEW_FIELDS: FieldDef[] = [
-  { key: "start_time", label: "Date", type: "date" },
-  { key: "time", label: "Time", type: "text" },
   { key: "patient", label: "Patient", type: "text" },
   { key: "phone", label: "Phone", type: "text" },
-  { key: "service", label: "Service", type: "text" },
   { key: "doctor", label: "Doctor", type: "picklist", optionsSource: "doctor" },
-  { key: "status", label: "Status", type: "picklist", optionsSource: "status" },
-  { key: "bill", label: "Bill Amount", type: "number" },
-  { key: "visit_status", label: "Next Visit", type: "picklist", optionsSource: "visit_status" },
   { key: "payment_mode", label: "Payment Mode", type: "text" },
+  { key: "bill", label: "Bill Amount", type: "number" },
+  { key: "start_time", label: "Date & Time", type: "date" },
+  { key: "service", label: "Investigation", type: "text" },
+  { key: "status", label: "Status", type: "picklist", optionsSource: "status" },
 ];
 
 export const DEFAULT_APPOINTMENT_VIEW_COLUMNS = [
   "patient",
   "phone",
-  "service",
   "doctor",
-  "start_time",
-  "time",
-  "status",
-  "bill",
-  "visit_status",
   "payment_mode",
+  "bill",
+  "start_time",
+  "service",
+  "status",
 ];

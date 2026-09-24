@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { reserveTab, type PendingTab } from "./newTab";
 import { fetchAppointmentsPage, type FetchAppointmentsPageParams } from "@/lib/appointmentsPage";
+import { displayDate } from "@/lib/dateInput";
 import { investigationText } from "@/lib/investigationText";
 
 const esc = (v: any) =>
@@ -52,16 +53,20 @@ export async function printAppointments(
   }
 
   const body = rows
-    .map((a) => {
+    .map((a, i) => {
       const p = a.patients;
       const name = p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() : a.patient_name || "—";
+      // Same column order as the list on screen, so a printed sheet can be read
+      // alongside it. Date is dd/MM/yyyy via the app's own displayDate, and the
+      // start time only - the end time is recorded but not printed.
       return `<tr>
+        <td>${i + 1}</td>
         <td>${esc(name)}</td>
         <td>${esc(p?.phone || "")}</td>
-        <td class="inv">${esc(investigationText(a, "—"))}</td>
         <td>${esc(opts.staffName(a.staff_id))}</td>
-        <td>${a.start_time ? esc(format(new Date(a.start_time), "dd MMM yyyy")) : ""}</td>
+        <td>${a.start_time ? esc(displayDate(a.start_time)) : ""}</td>
         <td>${a.start_time ? esc(format(new Date(a.start_time), "hh:mm a")) : ""}</td>
+        <td class="inv">${esc(investigationText(a, "—"))}</td>
         <td>${esc(a.status || "")}</td>
       </tr>`;
     })
@@ -84,11 +89,13 @@ export async function printAppointments(
      rather than clipped, because paper has no hover title to recover from. */
   .inv { max-width: 70mm; overflow-wrap: break-word; }
   .empty { font-size: 12px; color: #666; }
+  /* The serial number is a counter, not data - it should not take width. */
+  td:first-child, th:first-child { width: 8mm; text-align: right; color: #555; }
 </style></head><body>
 <h1>${esc(opts.clinicName || "Appointments")}</h1>
 <div class="meta">${esc(opts.rangeLabel)} · ${rows.length} appointment(s) · printed ${esc(format(new Date(), "dd MMM yyyy, hh:mm a"))}</div>
 ${rows.length === 0 ? '<p class="empty">No appointments match the current filters.</p>' : `<table>
-<thead><tr><th>Patient</th><th>Phone</th><th>Investigation</th><th>Doctor</th><th>Date</th><th>Time</th><th>Status</th></tr></thead>
+<thead><tr><th>#</th><th>Patient</th><th>Phone</th><th>Doctor</th><th>Date</th><th>Time</th><th>Investigation</th><th>Status</th></tr></thead>
 <tbody>${body}</tbody></table>`}
 </body></html>`;
 

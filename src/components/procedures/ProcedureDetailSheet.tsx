@@ -45,6 +45,7 @@ import { MEDICAL_FIELDS, SKIN_TYPE_OPTIONS } from "@/lib/medicalFields";
 import { partitionVisitMedia } from "@/lib/visitMedia";
 import { parsePrescriptionText } from "@/lib/prescriptionText";
 import type { Tables } from "@/integrations/supabase/types";
+import { procedureDateLabel } from "@/lib/procedureDate";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 // The busiest patient has 310 photos; this is a guard, not a limit anyone
@@ -815,7 +816,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     <Badge variant="outline" className="text-[10px] text-muted-foreground mb-1.5 font-normal">Procedure</Badge>
                     <SheetTitle className="font-display text-lg">{patientName}</SheetTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {format(new Date(procedure.procedure_date), "EEE, dd/MM/yyyy · h:mm a")}
+                      {procedureDateLabel(procedure, "EEE, dd/MM/yyyy · h:mm a")}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-2">

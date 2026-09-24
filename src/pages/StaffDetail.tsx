@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { motion } from "framer-motion";
 import StaffPerformanceCharts from "@/components/staff/StaffPerformanceCharts";
+import { procedureDateLabel } from "@/lib/procedureDate";
 
 const StaffDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -229,7 +230,7 @@ const ProceduresTab = ({ staffId }: { staffId: string }) => {
             <TableBody>
               {procedures.map((p: any) => (
                 <TableRow key={p.id}>
-                  <TableCell className="text-sm">{format(new Date(p.procedure_date), "dd MMM yyyy")}</TableCell>
+                  <TableCell className="text-sm">{procedureDateLabel(p, "dd MMM yyyy")}</TableCell>
                   <TableCell>{p.patients ? `${p.patients.first_name} ${p.patients.last_name}` : "—"}</TableCell>
                   <TableCell>{p.service_name}</TableCell>
                   <TableCell><Badge variant={p.status === "Completed" ? "default" : "secondary"}>{p.status}</Badge></TableCell>

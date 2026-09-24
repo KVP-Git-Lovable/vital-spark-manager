@@ -142,7 +142,7 @@ const Photos = () => {
   const { data: procedures = [] } = useQuery({
     queryKey: ["procedures-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("procedures").select("id, service_name, procedure_date, patients(first_name, last_name)").order("procedure_date", { ascending: false }).limit(50);
+      const { data, error } = await supabase.from("procedures").select("id, service_name, procedure_date, date_not_recorded, patients(first_name, last_name)").order("procedure_date", { ascending: false }).limit(50);
       if (error) throw error;
       return data;
     },

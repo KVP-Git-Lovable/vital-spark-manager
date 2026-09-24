@@ -51,6 +51,7 @@ import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { SurveyRecommendations } from "@/components/surveys/SurveyRecommendations";
 import { useAuth } from "@/hooks/useAuth";
+import { procedureDateLabel } from "@/lib/procedureDate";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -1255,7 +1256,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                                 <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">
-                                {format(new Date(proc.procedure_date), "dd/MM/yyyy")}
+                                {procedureDateLabel(proc, "dd/MM/yyyy")}
                                 {proc.staff && ` · ${withDrPrefix(`${proc.staff.first_name}`)}`}
                               </p>
                               {proc.diagnosis && <p className="text-xs mt-2 text-muted-foreground">{proc.diagnosis}</p>}
@@ -1317,8 +1318,17 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       {previousProcedures.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-8">No procedures recorded for this patient.</p>
                       ) : (
-                        <div className="space-y-2">
-                          {(previousProcedures as any[]).map((proc: any) => (
+                        (() => {
+                          // Visits imported without a date are split out under
+                          // their own heading. They used to claim 23 April 2026,
+                          // a day the patient had not attended, and a doctor
+                          // reading the last visit before a consultation was
+                          // being told something untrue. They are real records -
+                          // they simply have no date, and must read that way.
+                          const all = previousProcedures as any[];
+                          const dated = all.filter((p: any) => !p.date_not_recorded);
+                          const undated = all.filter((p: any) => p.date_not_recorded);
+                          const card = (proc: any) => (
                             <div
                               key={proc.id}
                               className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
@@ -1329,13 +1339,26 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                                 <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">
-                                {format(new Date(proc.procedure_date), "MMM d, yyyy")}
+                                {procedureDateLabel(proc, "MMM d, yyyy")}
                                 {proc.staff && ` · ${withDrPrefix(`${proc.staff.first_name} ${proc.staff.last_name}`)}`}
                               </p>
                               {proc.diagnosis && <p className="text-xs mt-2 text-muted-foreground">{proc.diagnosis}</p>}
                             </div>
-                          ))}
-                        </div>
+                          );
+                          return (
+                            <div className="space-y-2">
+                              {dated.map(card)}
+                              {undated.length > 0 && (
+                                <>
+                                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground pt-3">
+                                    Earlier history — date not recorded
+                                  </p>
+                                  {undated.map(card)}
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()
                       )}
                     </>
                   ) : (

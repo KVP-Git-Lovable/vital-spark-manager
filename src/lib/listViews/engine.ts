@@ -307,6 +307,9 @@ export function formatCell(row: any, key: string, fields: FieldDef[], rawValue: 
   const def = fieldDefIn(fields, key);
   const val = rawValue(row, key);
   if (val === null || val === undefined || val === "") return "—";
+  // A visit imported without a date carries a sentinel so it never lists under
+  // the day it was imported on. The sentinel is not a date anyone should read.
+  if (key === "procedure_date" && row?.date_not_recorded) return "Date not recorded";
   if (def?.type === "date") {
     const d = new Date(String(val));
     if (isNaN(d.getTime())) return String(val);

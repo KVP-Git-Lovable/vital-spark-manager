@@ -45,6 +45,7 @@ import { QuickAppointmentDialog } from "@/components/appointments/QuickAppointme
 import { toast } from "sonner";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { approveSurveyResponse, enrichAiProducts, enrichAiServices } from "@/lib/surveyApproval";
+import { procedureDateLabel } from "@/lib/procedureDate";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -245,7 +246,7 @@ const PatientDetail = () => {
         queries.push(
           supabase
             .from("prescriptions")
-            .select("*, procedures(service_name, procedure_date)")
+            .select("*, procedures(service_name, procedure_date, date_not_recorded)")
             .in("procedure_id", procIds)
         );
       }
@@ -255,7 +256,7 @@ const PatientDetail = () => {
         queries.push(
           supabase
             .from("prescriptions")
-            .select("*, procedures(service_name, procedure_date)")
+            .select("*, procedures(service_name, procedure_date, date_not_recorded)")
             .in("survey_response_id", surveyIds)
             .is("procedure_id", null)
         );
@@ -1288,7 +1289,7 @@ const PatientDetail = () => {
                     </div>
                     <div className="text-right shrink-0">
                       <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
-                      <p className="text-xs text-muted-foreground mt-1">{displayDate(proc.procedure_date)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{procedureDateLabel(proc)}</p>
                     </div>
                   </div>
                 </div>
@@ -1310,7 +1311,7 @@ const PatientDetail = () => {
                     <tr><td colSpan={5} className="text-center py-8 text-muted-foreground text-sm">No prescriptions recorded</td></tr>
                   ) : procedures.map((proc: any) => (
                     <tr key={proc.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setSelectedProcedureId(proc.id)}>
-                      <td className="p-4 text-sm">{displayDate(proc.procedure_date)}</td>
+                      <td className="p-4 text-sm">{procedureDateLabel(proc)}</td>
                       <td className="p-4 font-medium text-sm">{proc.service_name}</td>
                       <td className="p-4 text-sm text-muted-foreground">{proc.staff ? withDrPrefix(`${proc.staff.first_name} ${proc.staff.last_name}`) : "—"}</td>
                       <td className="p-4 text-sm text-muted-foreground truncate max-w-[200px]">{proc.diagnosis || "—"}</td>
@@ -1340,7 +1341,7 @@ const PatientDetail = () => {
                       <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select procedure" /></SelectTrigger>
                       <SelectContent>
                         {procedures.map((proc: any) => (
-                          <SelectItem key={proc.id} value={proc.id}>{proc.service_name} — {displayDate(proc.procedure_date)}</SelectItem>
+                          <SelectItem key={proc.id} value={proc.id}>{proc.service_name} — {procedureDateLabel(proc)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1431,7 +1432,7 @@ const PatientDetail = () => {
                       {rx.procedures && (
                         <div className="text-left sm:text-right text-xs text-muted-foreground">
                           <p>{rx.procedures.service_name}</p>
-                          <p>{displayDate(rx.procedures.procedure_date)}</p>
+                          <p>{procedureDateLabel(rx.procedures)}</p>
                         </div>
                       )}
                       <Button

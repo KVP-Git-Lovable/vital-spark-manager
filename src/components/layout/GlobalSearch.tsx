@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { buildOrFilter, buildTokenFilters, fuzzyRank } from "@/lib/fuzzySearch";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { procedureDateLabel } from "@/lib/procedureDate";
 
 type Kind = "patient" | "appointment" | "procedure" | "invoice" | "staff" | "service" | "product";
 
@@ -131,7 +132,7 @@ export function GlobalSearch({ className }: { className?: string }) {
               .order("start_time", { ascending: false }).limit(12)
           : noRows,
         wants("procedure")
-          ? supabase.from("procedures").select("id, service_name, procedure_date, patients(first_name, last_name)")
+          ? supabase.from("procedures").select("id, service_name, procedure_date, date_not_recorded, patients(first_name, last_name)")
               .ilike("service_name", like).order("procedure_date", { ascending: false }).limit(12)
           : noRows,
         wants("invoice")
@@ -196,7 +197,7 @@ export function GlobalSearch({ className }: { className?: string }) {
           id: p.id,
           kind: "procedure" as const,
           title: `${p.patients?.first_name || ""} ${p.patients?.last_name || ""}`.trim() || "Prescription",
-          subtitle: `${p.service_name || ""} · ${p.procedure_date ? format(new Date(p.procedure_date), "dd/MM/yyyy") : ""}`,
+          subtitle: `${p.service_name || ""} · ${procedureDateLabel(p, "dd/MM/yyyy")}`,
           route: `/procedures?id=${p.id}`,
         })),
         ...(((invs as any).data || []) as any[]).slice(0, 5).map((i: any) => ({

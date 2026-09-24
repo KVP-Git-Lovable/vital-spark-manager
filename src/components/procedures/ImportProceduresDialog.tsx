@@ -23,6 +23,7 @@ import {
   normalizePhone,
   normalizeName,
 } from "@/lib/procedureImport";
+import { displayDate } from "@/lib/dateInput";
 
 interface Props {
   open: boolean;
@@ -281,6 +282,23 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
 
           {step === 3 && (
             <div className="space-y-3 py-2">
+              {/* On 23 April 2026 a history import ran with no date column
+                  mapped, so all 15,836 visits were stamped with that one day and
+                  doctors were shown consultations their patients never attended.
+                  The default date was always visible on the previous step; what
+                  was missing was anyone saying out loud how many rows it was
+                  about to cover. */}
+              {!Object.values(mapping).includes("procedure_date") && importableRows.length > 1 && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    No date column is mapped, so <strong>all {importableRows.length} visits</strong> will be
+                    recorded as having happened on <strong>{displayDate(defaultDate)}</strong>. If these
+                    visits happened on different days, go back and map the date column — a shared date
+                    cannot be told apart from a real one afterwards.
+                  </p>
+                </div>
+              )}
               <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
                 <div className="flex items-center gap-4 text-sm">
                   <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-success" /> {importableRows.length} valid</span>

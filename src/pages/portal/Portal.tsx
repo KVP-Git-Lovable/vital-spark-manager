@@ -677,7 +677,7 @@ const Portal = () => {
                       <div>
                         <p className="font-semibold text-sm">{p.service_name}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {new Date(p.procedure_date).toLocaleDateString("en-IN", { month: "long", day: "numeric", year: "numeric" })}
+                          {p.date_not_recorded ? "Date not recorded" : new Date(p.procedure_date).toLocaleDateString("en-IN", { month: "long", day: "numeric", year: "numeric" })}
                           {p.staff && ` • ${withDrPrefix(`${p.staff.first_name} ${p.staff.last_name}`)}`}
                         </p>
                       </div>
@@ -949,7 +949,7 @@ const Portal = () => {
                 <div>
                   <p className="font-semibold text-base">{selectedProcedure.service_name}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {new Date(selectedProcedure.procedure_date).toLocaleDateString("en-IN", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                    {selectedProcedure.date_not_recorded ? "Date not recorded" : new Date(selectedProcedure.procedure_date).toLocaleDateString("en-IN", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                   </p>
                 </div>
                 <Badge variant="secondary">{selectedProcedure.status}</Badge>

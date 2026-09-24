@@ -1,7 +1,6 @@
 import { formatMoney, formatMoneyPrecise } from "@/lib/currency";
-import { reserveTab, type PendingTab } from "@/lib/newTab";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
-import { offerBlockedLink } from "@/components/shared/popupFallback";
+import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
@@ -108,10 +107,11 @@ const rateLabel = (n: number) =>
 /** Number input helper: 0 shows as an empty field with a "0" watermark. */
 
 // ─── PDF Generation ───────────────────────────────
-// Takes the tab the click already reserved rather than opening one itself:
-// this only ever runs as openInvoicePDF's fallback, by which point the
-// click is long over and a fresh window.open would be blocked.
-const generateInvoicePDF = (inv: any, tab: PendingTab) => {
+// Returns the printable invoice as a document rather than putting it
+// anywhere. openInvoicePDF shows it in the preview dialog when the builder
+// cannot be reached; handing back a string keeps it free of any assumption
+// about tabs, which is what kept failing.
+const invoicePrintableHtml = (inv: any): string => {
   const date = new Date(inv.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
   const balance = Number(inv.total_amount) - Number(inv.paid_amount);
   const drName = inv.appointments?.doctors ? withDrPrefix(`${inv.appointments.doctors.first_name || ""} ${inv.appointments.doctors.last_name || ""}`) : "";
@@ -211,8 +211,7 @@ const generateInvoicePDF = (inv: any, tab: PendingTab) => {
 </body>
 </html>`;
 
-  tab.write(html);
-  tab.print(300);
+  return html;
 };
 
 // ─── Types ────────────────────────────────────────
@@ -303,21 +302,33 @@ const Billing = () => {
   const [kanban, setKanban] = useState(() => getKanbanConfig("billing", ALL_VIEW_ID));
 
   // Regenerate the official invoice PDF (same template as the WhatsApp copy) and open it.
+  // Shown in the page. The reserved tab this used to fill was measured
+  // failing at exactly one step in the clinic's browsers: the tab opened,
+  // the "Preparing the invoice..." placeholder wrote into it, and then
+  // navigating it to the finished PDF never completed. Nothing here
+  // navigates, so there is nothing left to be refused.
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfHtml, setPdfHtml] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  // Only what the dialog needs: the number for its title, the id to retry with.
+  const [pdfInvoice, setPdfInvoice] = useState<{ id: string; invoice_number?: string | null } | null>(null);
+
   const openInvoicePDF = async (inv: any) => {
     if (!inv?.id) {
       toast.error("Invoice id missing");
       return;
     }
-    // Claimed here, in the click, because building the PDF takes seconds and
-    // by the time it lands the browser will no longer open a tab for us.
-    const tab = reserveTab("Preparing the invoice…");
-    const t = toast.loading("Generating invoice PDF…");
+    setPdfInvoice(inv);
+    setPdfUrl(null);
+    setPdfHtml(null);
+    setPdfError(null);
+    setPdfOpen(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
         // Bounded on the request itself - functions-js turns this into an
         // AbortController - so a builder that never answers falls through to
-        // the printable invoice below instead of leaving the tab on its
-        // placeholder indefinitely.
+        // the printable invoice below instead of spinning forever.
         body: { invoiceId: inv.id, wait: true },
         timeout: 45000,
       });
@@ -328,15 +339,13 @@ const Billing = () => {
       }
       const url = (data as any)?.url;
       if (!url) throw new Error("PDF url missing");
-      toast.dismiss(t);
-      const stamped = `${url}?t=${Date.now()}`;
-      if (tab.blocked) offerBlockedLink(stamped, "invoice");
-      else tab.navigate(stamped);
+      // Cache-busted: the builder writes each invoice to the same object.
+      setPdfUrl(`${url}?t=${Date.now()}`);
     } catch (e: any) {
       console.error(e);
-      toast.dismiss(t);
-      toast.message("Falling back to the printable invoice");
-      generateInvoicePDF(inv, tab);
+      // The printable invoice still serves, and now it has somewhere to go.
+      toast.message("Showing the printable invoice instead");
+      setPdfHtml(invoicePrintableHtml(inv));
     }
   };
 
@@ -3737,6 +3746,17 @@ const Billing = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <PdfPreviewDialog
+        open={pdfOpen}
+        onClose={() => { setPdfOpen(false); setPdfUrl(null); setPdfHtml(null); setPdfError(null); }}
+        title={pdfInvoice?.invoice_number ? `Invoice ${pdfInvoice.invoice_number}` : "Invoice"}
+        preparing="Preparing the invoice…"
+        url={pdfUrl}
+        html={pdfHtml}
+        error={pdfError}
+        onRetry={() => pdfInvoice && openInvoicePDF(pdfInvoice)}
+      />
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, createContext, useContext } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { withDrPrefix } from "@/lib/staffName";
 import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
@@ -95,6 +96,12 @@ const Field = ({ label, value, field, type = "text" }: { label: string; value: a
                 : value)
             : <span className="text-muted-foreground/50">—</span>
         }</p>
+      ) : type === "date" ? (
+        // Date of Birth is the field DateInput was written for - a native
+        // date box shows 07/31/1982 on one clinic PC and 31/07/1982 on the
+        // next. The read-only branch above already prints dd/MM/yyyy; this
+        // makes editing agree with it on every machine.
+        <DateInput value={value || ""} onChange={(isoDate) => upd(field, isoDate)} className="mt-1 h-8 text-sm" />
       ) : (
         <Input type={type} value={value || ""} onChange={(e) => upd(field, e.target.value)} className="mt-1 h-8 text-sm" />
       )}

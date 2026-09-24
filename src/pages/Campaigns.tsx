@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { numVal } from "@/lib/numberInput";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -200,11 +201,11 @@ export default function Campaigns() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Start Date</Label>
-                <Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} className="mt-1.5" />
+                <DateInput value={form.start_date} onChange={(isoDate) => setForm({ ...form, start_date: isoDate })} className="mt-1.5" />
               </div>
               <div>
                 <Label>End Date</Label>
-                <Input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} className="mt-1.5" />
+                <DateInput value={form.end_date} onChange={(isoDate) => setForm({ ...form, end_date: isoDate })} className="mt-1.5" />
               </div>
             </div>
             <div>

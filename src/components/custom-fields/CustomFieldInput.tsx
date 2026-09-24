@@ -1,4 +1,5 @@
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/shared/DateInput";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -105,7 +106,7 @@ export function CustomFieldInput({ field, value, onChange, disabled, error }: Pr
         );
       case "date":
         return (
-          <Input {...common} type="date" value={value ?? ""} onChange={(e) => onChange(e.target.value || null)} />
+          <DateInput {...common} value={value ?? ""} onChange={(isoDate) => onChange(isoDate || null)} />
         );
       case "datetime":
         return (

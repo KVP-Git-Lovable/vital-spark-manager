@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/currency";
+import { DateInput } from "@/components/shared/DateInput";
 import { numVal } from "@/lib/numberInput";
 import { useState, useEffect, useCallback } from "react";
 import { VendorCombobox } from "@/components/shared/VendorCombobox";
@@ -589,7 +590,7 @@ const Expenses = () => {
               </div>
               <div>
                 <Label>Date *</Label>
-                <Input type="date" value={numVal(editingExpense.expense_date)} onChange={e => setEditingExpense((p: any) => ({ ...p, expense_date: e.target.value }))} />
+                <DateInput value={numVal(editingExpense.expense_date)} onChange={e => setEditingExpense((p: any) => ({ ...p, expense_date: isoDate }))} />
               </div>
               <div>
                 <Label>Category</Label>

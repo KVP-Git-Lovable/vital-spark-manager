@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { onlyCountableInvoices } from "@/lib/revenueScope";
 import { numVal } from "@/lib/numberInput";
 import { useParams, useNavigate } from "react-router-dom";
@@ -353,11 +354,11 @@ export default function CampaignDetail() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Start Date</Label>
-                <Input type="date" value={editForm.start_date || ""} onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })} className="mt-1.5" />
+                <DateInput value={editForm.start_date || ""} onChange={(isoDate) => setEditForm({ ...editForm, start_date: isoDate })} className="mt-1.5" />
               </div>
               <div>
                 <Label>End Date</Label>
-                <Input type="date" value={editForm.end_date || ""} onChange={(e) => setEditForm({ ...editForm, end_date: e.target.value })} className="mt-1.5" />
+                <DateInput value={editForm.end_date || ""} onChange={(isoDate) => setEditForm({ ...editForm, end_date: isoDate })} className="mt-1.5" />
               </div>
             </div>
             <div>

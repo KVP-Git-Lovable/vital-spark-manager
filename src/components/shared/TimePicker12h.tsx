@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TimePicker12hProps {
@@ -92,14 +91,21 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
 
   return (
     <div
+      // No overflow-hidden here. It used to have it, and when the control was
+      // narrow - Start and End side by side inside a half-width column is
+      // exactly narrow enough - the AM/PM toggle was the part pushed out, and
+      // it was clipped away without a trace. The clinic reported PM as
+      // missing; it had been rendered all along, just past the edge. Nothing
+      // here may hide a control the user has to reach. The clock icon went
+      // with it to buy back the width: every caller already labels the field
+      // Start or End.
       className={cn(
-        "flex w-full min-w-0 items-center gap-1 overflow-hidden rounded-md border border-input bg-background px-2 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+        "flex w-full min-w-0 items-center gap-0.5 rounded-md border border-input bg-background px-1.5 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
         compact ? "h-8" : "h-10",
         disabled && "cursor-not-allowed opacity-50",
         className,
       )}
     >
-      <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
       <input
         type="text"
         inputMode="numeric"
@@ -117,7 +123,7 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
           }
           setHourDraft(null);
         }}
-        className="w-8 shrink-0 bg-transparent text-center outline-none"
+        className="w-full min-w-0 flex-1 bg-transparent text-center outline-none"
       />
       <span className="text-muted-foreground">:</span>
       <input
@@ -137,17 +143,17 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
           }
           setMinuteDraft(null);
         }}
-        className="w-9 shrink-0 bg-transparent text-center outline-none"
+        className="w-full min-w-0 flex-1 bg-transparent text-center outline-none"
       />
 
       {/* Two-state AM/PM toggle button, not text labels - the active side is filled. */}
-      <div className={cn("ml-auto flex shrink-0 overflow-hidden rounded border border-input text-[10px] font-semibold")}>
+      <div className={cn("ml-auto flex shrink-0 rounded border border-input text-[10px] font-semibold")}>
         <button
           type="button"
           disabled={disabled}
           onClick={() => update({ period: "AM" })}
           className={cn(
-            "px-1.5 py-0.5 transition-colors",
+            "rounded-l-[3px] px-1.5 py-0.5 transition-colors",
             period === "AM" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted",
           )}
         >
@@ -158,7 +164,7 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
           disabled={disabled}
           onClick={() => update({ period: "PM" })}
           className={cn(
-            "px-1.5 py-0.5 transition-colors border-l border-input",
+            "rounded-r-[3px] border-l border-input px-1.5 py-0.5 transition-colors",
             period === "PM" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted",
           )}
         >

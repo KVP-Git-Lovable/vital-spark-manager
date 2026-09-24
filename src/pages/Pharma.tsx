@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { format } from "date-fns";
@@ -840,7 +841,7 @@ const Pharma = () => {
                 })()}
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Batch No. *</Label><Input className="mt-1" value={stockForm.batch_number} onChange={(e) => setStockForm({ ...stockForm, batch_number: e.target.value })} /></div>
-                  <div><Label>Expiry Date *</Label><Input type="date" className="mt-1" value={stockForm.expiry_date} onChange={(e) => setStockForm({ ...stockForm, expiry_date: e.target.value })} /></div>
+                  <div><Label>Expiry Date *</Label><DateInput className="mt-1" value={stockForm.expiry_date} onChange={(isoDate) => setStockForm({ ...stockForm, expiry_date: isoDate })} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>

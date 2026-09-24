@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/currency";
+import { DateInput } from "@/components/shared/DateInput";
 import { numVal } from "@/lib/numberInput";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -689,7 +690,7 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
                       <div><Label className="text-xs">GST %</Label><Input type="number" className="mt-1 h-8" value={numVal(priceForm.gst_percent)} onChange={(e) => setPriceForm({ ...priceForm, gst_percent: parseFloat(e.target.value) || 0 })} /></div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <div><Label className="text-xs">Effective From *</Label><Input type="date" className="mt-1 h-8" value={numVal(priceForm.effective_from)} onChange={(e) => setPriceForm({ ...priceForm, effective_from: e.target.value })} required /></div>
+                      <div><Label className="text-xs">Effective From *</Label><DateInput className="mt-1 h-8" value={numVal(priceForm.effective_from)} onChange={(isoDate) => setPriceForm({ ...priceForm, effective_from: isoDate })} required /></div>
                       <div><Label className="text-xs">Notes</Label><Input className="mt-1 h-8" value={numVal(priceForm.notes)} onChange={(e) => setPriceForm({ ...priceForm, notes: e.target.value })} placeholder="Reason for price change" /></div>
                     </div>
                     <div className="flex gap-2">
@@ -914,7 +915,7 @@ export function InventoryDetailSheet({ inventoryId, onClose, onClone, products }
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Batch No. *</Label><Input className="mt-1" value={form.batch_number || ""} onChange={(e) => setForm({ ...form, batch_number: e.target.value })} /></div>
-                <div><Label>Expiry Date *</Label><Input type="date" className="mt-1" value={form.expiry_date || ""} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} /></div>
+                <div><Label>Expiry Date *</Label><DateInput className="mt-1" value={form.expiry_date || ""} onChange={(isoDate) => setForm({ ...form, expiry_date: isoDate })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Quantity *</Label><Input type="number" className="mt-1" value={numVal(form.quantity || 0)} onChange={(e) => setForm({ ...form, quantity: parseInt(e.target.value) || 0 })} /></div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -192,19 +193,17 @@ export function ReportFilterBar({ hideDoctorFilter, filters, state, onChange, sh
                 <>
                   <div className="min-w-[130px]">
                     <label className="text-[10px] uppercase tracking-wide text-muted-foreground">From</label>
-                    <Input
-                      type="date"
+                    <DateInput
                       value={state.customStart || ""}
-                      onChange={(e) => applyPreset("custom", e.target.value, undefined)}
+                      onChange={(isoDate) => applyPreset("custom", isoDate, undefined)}
                       className="h-8 text-xs"
                     />
                   </div>
                   <div className="min-w-[130px]">
                     <label className="text-[10px] uppercase tracking-wide text-muted-foreground">To</label>
-                    <Input
-                      type="date"
+                    <DateInput
                       value={state.customEnd || ""}
-                      onChange={(e) => applyPreset("custom", undefined, e.target.value)}
+                      onChange={(isoDate) => applyPreset("custom", undefined, isoDate)}
                       className="h-8 text-xs"
                     />
                   </div>

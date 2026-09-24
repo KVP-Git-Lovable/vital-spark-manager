@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { onlyCountableInvoices } from "@/lib/revenueScope";
 import { numVal } from "@/lib/numberInput";
 import { useParams, useNavigate } from "react-router-dom";
@@ -424,8 +425,8 @@ const ExperienceTab = ({ staffId }: { staffId: string }) => {
             <div><Label>Company *</Label><Input className="mt-1" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} /></div>
             <div><Label>Title *</Label><Input className="mt-1" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Start Date</Label><Input type="date" className="mt-1" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></div>
-              <div><Label>End Date</Label><Input type="date" className="mt-1" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></div>
+              <div><Label>Start Date</Label><DateInput className="mt-1" value={form.start_date} onChange={(isoDate) => setForm({ ...form, start_date: isoDate })} /></div>
+              <div><Label>End Date</Label><DateInput className="mt-1" value={form.end_date} onChange={(isoDate) => setForm({ ...form, end_date: isoDate })} /></div>
             </div>
             <div><Label>Notes</Label><Textarea className="mt-1" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
           </div>
@@ -527,7 +528,7 @@ const AspirationsTab = ({ staffId }: { staffId: string }) => {
             <div><Label>Title *</Label><Input className="mt-1" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div><Label>Description</Label><Textarea className="mt-1" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Target Date</Label><Input type="date" className="mt-1" value={form.target_date} onChange={(e) => setForm({ ...form, target_date: e.target.value })} /></div>
+              <div><Label>Target Date</Label><DateInput className="mt-1" value={form.target_date} onChange={(isoDate) => setForm({ ...form, target_date: isoDate })} /></div>
               <div>
                 <Label>Status</Label>
                 <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>

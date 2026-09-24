@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { numVal } from "@/lib/numberInput";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -123,7 +124,7 @@ export function AssetFormDialog({ open, onOpenChange, vendors }: AssetFormDialog
                   <SelectContent>{vendors.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Purchase Date</Label><Input type="date" value={form.purchase_date} onChange={(e) => update("purchase_date", e.target.value)} className="mt-1.5" /></div>
+              <div><Label>Purchase Date</Label><DateInput value={form.purchase_date} onChange={(isoDate) => update("purchase_date", isoDate)} className="mt-1.5" /></div>
               <div><Label>Purchase Price (₹)</Label><Input type="number" value={numVal(form.purchase_price)} onChange={(e) => update("purchase_price", e.target.value)} className="mt-1.5" /></div>
               <div><Label>Invoice Number</Label><Input value={numVal(form.invoice_number)} onChange={(e) => update("invoice_number", e.target.value)} className="mt-1.5" /></div>
             </div>
@@ -133,8 +134,8 @@ export function AssetFormDialog({ open, onOpenChange, vendors }: AssetFormDialog
           <div>
             <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Warranty</h4>
             <div className="grid grid-cols-2 gap-4">
-              <div><Label>Warranty Start</Label><Input type="date" value={form.warranty_start_date} onChange={(e) => update("warranty_start_date", e.target.value)} className="mt-1.5" /></div>
-              <div><Label>Warranty End</Label><Input type="date" value={form.warranty_end_date} onChange={(e) => update("warranty_end_date", e.target.value)} className="mt-1.5" /></div>
+              <div><Label>Warranty Start</Label><DateInput value={form.warranty_start_date} onChange={(isoDate) => update("warranty_start_date", isoDate)} className="mt-1.5" /></div>
+              <div><Label>Warranty End</Label><DateInput value={form.warranty_end_date} onChange={(isoDate) => update("warranty_end_date", isoDate)} className="mt-1.5" /></div>
             </div>
             <div className="mt-3"><Label>Warranty Terms</Label><Textarea value={form.warranty_terms} onChange={(e) => update("warranty_terms", e.target.value)} className="mt-1.5" rows={2} /></div>
           </div>
@@ -143,8 +144,8 @@ export function AssetFormDialog({ open, onOpenChange, vendors }: AssetFormDialog
           <div>
             <h4 className="text-sm font-semibold mb-3 text-muted-foreground">AMC (Annual Maintenance Contract)</h4>
             <div className="grid grid-cols-2 gap-4">
-              <div><Label>AMC Start</Label><Input type="date" value={form.amc_start_date} onChange={(e) => update("amc_start_date", e.target.value)} className="mt-1.5" /></div>
-              <div><Label>AMC End</Label><Input type="date" value={form.amc_end_date} onChange={(e) => update("amc_end_date", e.target.value)} className="mt-1.5" /></div>
+              <div><Label>AMC Start</Label><DateInput value={form.amc_start_date} onChange={(isoDate) => update("amc_start_date", isoDate)} className="mt-1.5" /></div>
+              <div><Label>AMC End</Label><DateInput value={form.amc_end_date} onChange={(isoDate) => update("amc_end_date", isoDate)} className="mt-1.5" /></div>
               <div>
                 <Label>AMC Vendor</Label>
                 <Select value={form.amc_vendor_id} onValueChange={(v) => update("amc_vendor_id", v)}>

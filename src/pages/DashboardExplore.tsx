@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
@@ -376,11 +377,11 @@ export default function DashboardExplore() {
         </div>
         <div>
           <label className="text-[10px] uppercase tracking-wide text-muted-foreground">From</label>
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-8 w-[140px] text-xs" />
+          <DateInput value={from} onChange={(isoDate) => setFrom(isoDate)} className="h-8 w-[140px] text-xs" />
         </div>
         <div>
           <label className="text-[10px] uppercase tracking-wide text-muted-foreground">To</label>
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-8 w-[140px] text-xs" />
+          <DateInput value={to} onChange={(isoDate) => setTo(isoDate)} className="h-8 w-[140px] text-xs" />
         </div>
         {kind !== "patients" && (
           <div>

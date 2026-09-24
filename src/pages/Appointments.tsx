@@ -1,4 +1,5 @@
 import { useStackedTable } from "@/hooks/useStackedTable";
+import { DateInput } from "@/components/shared/DateInput";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useState, useCallback, useRef, useMemo, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -2533,15 +2534,14 @@ const Appointments = () => {
                                   )}
                                   {shouldShowColumn("start_time") && (
                                     <td className="p-2">
-                                      <Input
-                                        type="date"
+                                      <DateInput
                                         className="h-8 text-xs w-36"
                                         value={datePart(editValues.start_time)}
-                                        onChange={(e) =>
+                                        onChange={(isoDate) =>
                                           setEditValues((v: any) => ({
                                             ...v,
-                                            start_time: joinDateTime(e.target.value, timePart(v.start_time)),
-                                            end_time: joinDateTime(e.target.value, timePart(v.end_time)),
+                                            start_time: joinDateTime(isoDate, timePart(v.start_time)),
+                                            end_time: joinDateTime(isoDate, timePart(v.end_time)),
                                           }))
                                         }
                                       />

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -229,11 +230,10 @@ export const ImportProceduresDialog = ({ open, onOpenChange, onSuccess }: Props)
               {!Object.values(mapping).includes("procedure_date") && (
                 <div className="flex items-center gap-3 bg-muted/40 border rounded-lg p-3">
                   <Label htmlFor="default-date" className="text-sm whitespace-nowrap">Default procedure date</Label>
-                  <Input
+                  <DateInput
                     id="default-date"
-                    type="date"
                     value={defaultDate}
-                    onChange={(e) => setDefaultDate(e.target.value)}
+                    onChange={(isoDate) => setDefaultDate(isoDate)}
                     className="h-8 w-48"
                   />
                   <span className="text-xs text-muted-foreground">Applied to all rows (no date column mapped)</span>

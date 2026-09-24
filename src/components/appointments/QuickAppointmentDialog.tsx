@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -214,7 +215,7 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
             </div>
             <div>
               <Label>Date</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1.5" />
+              <DateInput value={date} onChange={(isoDate) => setDate(isoDate)} className="mt-1.5" />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>

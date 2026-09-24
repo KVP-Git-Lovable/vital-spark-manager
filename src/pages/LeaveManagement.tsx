@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { Plus, Search, Calendar, Loader2, Trash2 } from "lucide-react";
@@ -247,11 +248,11 @@ const LeaveManagement = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Start Date *</Label>
-                    <Input type="date" className="mt-1.5" value={appStartDate} onChange={(e) => setAppStartDate(e.target.value)} />
+                    <DateInput className="mt-1.5" value={appStartDate} onChange={(isoDate) => setAppStartDate(isoDate)} />
                   </div>
                   <div>
                     <Label>End Date *</Label>
-                    <Input type="date" className="mt-1.5" value={appEndDate} onChange={(e) => setAppEndDate(e.target.value)} />
+                    <DateInput className="mt-1.5" value={appEndDate} onChange={(isoDate) => setAppEndDate(isoDate)} />
                   </div>
                 </div>
                 {appStartDate && appEndDate && (

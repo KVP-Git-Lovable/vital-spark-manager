@@ -4,6 +4,7 @@
 // PATIENT_FIELDS/GENDER_OPTIONS/etc.) so any module can reuse the same
 // view-and-edit filter panel.
 import { useEffect, useState } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -174,9 +175,9 @@ export default function ViewFiltersPanel({ view, canManage, fields, optionsFor, 
                         </Select>
                       ) : def?.type === "date" && !["last_n_days", "next_n_days"].includes(c.operator) ? (
                         <>
-                          <Input type="date" className="h-9 text-sm" value={c.value} onChange={(e) => updateCond(i, { value: e.target.value })} />
+                          <DateInput className="h-9 text-sm" value={c.value} onChange={(isoDate) => updateCond(i, { value: isoDate })} />
                           {c.operator === "between" && (
-                            <Input type="date" className="h-9 text-sm" value={c.value2 ?? ""} onChange={(e) => updateCond(i, { value2: e.target.value })} />
+                            <DateInput className="h-9 text-sm" value={c.value2 ?? ""} onChange={(isoDate) => updateCond(i, { value2: isoDate })} />
                           )}
                         </>
                       ) : (

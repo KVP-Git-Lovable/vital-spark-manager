@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { DateInput } from "@/components/shared/DateInput";
 import { withDrPrefix } from "@/lib/staffName";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
@@ -1115,12 +1116,11 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="min-w-0">
                       <Label>Date</Label>
-                      <Input
-                        type="date"
+                      <DateInput
                         className="mt-1.5"
                         value={(editStartTime || "").split("T")[0] || ""}
-                        onChange={(e) => {
-                          const d = e.target.value;
+                        onChange={(isoDate) => {
+                          const d = isoDate;
                           setEditStartTime((prev) => (d ? `${d}T${(prev || "").split("T")[1] || "09:00"}` : ""));
                           setEditEndTime((prev) => (d ? `${d}T${(prev || "").split("T")[1] || "09:30"}` : ""));
                         }}

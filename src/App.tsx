@@ -17,6 +17,7 @@ import { ShopLayout } from "@/components/shop/ShopLayout";
 import { ReactNode, Suspense } from "react";
 import { lazyWithReload } from "@/lib/lazyWithReload";
 import { useCurrencySettings } from "@/lib/currency";
+import { AppErrorBoundary } from "@/components/shared/AppErrorBoundary";
 
 // Every page is its own lazy-loaded chunk instead of one large upfront
 // bundle - the browser only downloads the page currently being visited.
@@ -91,6 +92,18 @@ const queryClient = new QueryClient({
     queries: {
       retry: 2,
       networkMode: "always",
+      // Without these two every query was stale the instant it resolved AND
+      // refetched whenever the window regained focus - so clicking back into
+      // the browser re-ran every query on the page, whole-table fetches
+      // included. That is most of the reported slowness, and the flicker of
+      // spinners and rows redrawing is what staff described as the app
+      // refreshing by itself.
+      //
+      // A minute of staleness is the right trade: mutations already invalidate
+      // the keys they touch, so anything this user changes is still immediate,
+      // and the clinic does not need another user's edit within the same minute.
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
     },
     mutations: {
       // No retry. A mutation is not idempotent: retrying a failed INSERT is how
@@ -172,6 +185,7 @@ function ProtectedRoute({ moduleKey, children }: { moduleKey: string; children: 
 }
 
 const App = () => (
+  <AppErrorBoundary>
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
@@ -280,6 +294,7 @@ const App = () => (
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
+  </AppErrorBoundary>
 );
 
 export default App;

@@ -17,7 +17,12 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
-      registerType: "autoUpdate",
+      // "prompt", not "autoUpdate". With autoUpdate the service worker took
+      // control and reloaded every open tab the moment a new build shipped -
+      // and this app is deployed several times a day, so staff had the page
+      // vanish under them mid-form. registerPwa now offers a Reload button
+      // instead and lets them finish what they were doing first.
+      registerType: "prompt",
       injectRegister: null,
       devOptions: { enabled: false },
       includeAssets: ["favicon.png", "skin-clinic-logo.png", "apple-touch-icon.png"],

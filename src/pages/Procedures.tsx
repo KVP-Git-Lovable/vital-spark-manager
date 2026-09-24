@@ -234,6 +234,7 @@ const Procedures = () => {
           displayModes={["table", "kanban"]}
           onKanbanSettings={() => setKanbanOpen(true)}
           count={filtered.length}
+          countLoading={isLoading}
           search={search}
           onSearchChange={setSearch}
           itemLabel="Procedures"

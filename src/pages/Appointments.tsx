@@ -677,7 +677,7 @@ const Appointments = () => {
   // back to the full date-bounded fetch and paginate in memory.
   const viewHasFilters = Boolean(activeView?.filters?.conditions?.length);
 
-  const { data: appointments = [] } = useQuery({
+  const { data: appointments = [], isLoading: apptBulkFetching } = useQuery({
     queryKey: ["appointments", datePreset, appointmentsDateRange?.start?.toISOString(), appointmentsDateRange?.end?.toISOString()],
     queryFn: async () => {
       // Capped, because this path pulls rows into memory a page at a time.
@@ -724,7 +724,7 @@ const Appointments = () => {
     sortDirection,
   ];
 
-  const { data: apptPageData, error: apptPageError, refetch: refetchApptPage } = useQuery({
+  const { data: apptPageData, error: apptPageError, refetch: refetchApptPage, isLoading: apptPageFetching } = useQuery({
     queryKey: apptPageQueryKey,
     queryFn: () =>
       fetchAppointmentsPage({
@@ -977,6 +977,8 @@ const Appointments = () => {
   // With saved-view filters active the full filtered set is already in memory,
   // so slice it locally and report its true size.
   const apptTotal = viewHasFilters ? filteredAppointments.length : (apptPageData?.total ?? 0);
+  // Which fetch backs that count depends on the view, same as the rows.
+  const apptPageLoading = viewHasFilters ? apptBulkFetching : apptPageFetching;
   // Server-side totals are planner estimates, so "is there a next page" comes
   // from the probe row the fetcher reports, never from apptTotal.
   const apptHasMore = viewHasFilters
@@ -2259,6 +2261,7 @@ const Appointments = () => {
             displayModes={["table", "kanban"]}
             onKanbanSettings={() => setKanbanOpen(true)}
             count={apptTotal}
+            countLoading={apptPageLoading}
             search={searchQuery}
             onSearchChange={setSearchQuery}
             itemLabel="Appointments"

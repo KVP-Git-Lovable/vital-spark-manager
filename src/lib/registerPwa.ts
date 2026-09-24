@@ -35,5 +35,24 @@ export const registerPwa = async () => {
   }
 
   const { registerSW } = await import("virtual:pwa-register");
-  registerSW({ immediate: true });
+
+  // The update is offered, not imposed. This used to be registerType
+  // "autoUpdate", which reloads every open tab as soon as a new build is
+  // published; with several deploys a day that meant the page disappearing
+  // mid-consultation, which staff reported as "the app refreshes suddenly".
+  //
+  // The toast has no timeout and cannot be dismissed by accident: whoever is
+  // mid-way through a form finishes it and reloads when they are ready. A stale
+  // tab is still safe - lazyWithReload recovers if an old chunk has gone.
+  const updateSW = registerSW({
+    immediate: true,
+    async onNeedRefresh() {
+      const { toast } = await import("sonner");
+      toast("A new version of the app is ready", {
+        description: "Reload when you have finished what you are doing.",
+        duration: Infinity,
+        action: { label: "Reload", onClick: () => updateSW(true) },
+      });
+    },
+  });
 };

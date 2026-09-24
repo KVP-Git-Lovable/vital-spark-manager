@@ -322,7 +322,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   // `isLoading || !appointment` as "Loading...", so the throw left a spinner
   // turning forever with nothing to say why. Now it resolves to null and the
   // sheet says so.
-  const { data: appointment, isLoading } = useQuery({
+  const { data: appointment, isLoading: appointmentFetching, isError: appointmentFailed, error: appointmentError, refetch: retryAppointment } = useQuery({
     queryKey: ["appointment-detail", appointmentId],
     queryFn: async () => {
       if (!appointmentId) return null;
@@ -944,8 +944,22 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
 
   const TitleTag: any = isPage ? "h1" : SheetTitle;
 
+  // isLoading is false while the query is DISABLED, so an id that has not
+  // arrived yet used to fall straight through to "not available" - the click
+  // looked like it had opened an empty panel. Waiting for an id is loading.
+  const isLoading = !appointmentId || appointmentFetching;
+
   const inner = (isLoading ? (
             <div className="p-6 text-center text-muted-foreground">Loading...</div>
+          ) : appointmentFailed ? (
+            // A failed lookup is not a missing appointment. This used to show
+            // "not available" for a network blip, so staff retried by closing
+            // and reopening and saw the same thing.
+            <div className="p-8 text-center text-muted-foreground">
+              <p className="font-medium text-foreground">Could not load this appointment</p>
+              <p className="text-sm mt-1">{appointmentError instanceof Error ? appointmentError.message : "Something went wrong."}</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => void retryAppointment()}>Try again</Button>
+            </div>
           ) : !appointment ? (
             <div className="p-8 text-center text-muted-foreground">
               <p className="font-medium text-foreground">This appointment is not available</p>

@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ListView } from "@/lib/listViews/engine";
 import { ALL_VIEW_ID, buildStandardViews, isStandardViewId, setStandardColumns } from "@/lib/listViews/standardViews";
+import { NOT_YOURS_MESSAGE } from "@/lib/rowAccess";
 
 function normalize(row: any, defaultColumns: string[]): ListView {
   const rawFilters = row.filters;
@@ -65,15 +66,25 @@ export function useModuleListViews(section: string, objectLabel: string, default
   }, [section]);
 
   useEffect(() => {
-    load().then((list) => {
+    load().then(async (list) => {
       if (initialised) return;
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
       const stored = localStorage.getItem(storageKey);
       if (isStandardViewId(stored)) {
         setActiveViewId(stored);
       } else if (stored && list.some((v) => v.id === stored)) {
         setActiveViewId(stored);
       } else {
-        const pinned = list.find((v) => v.is_default);
+        // A remembered id that no longer resolves is forgotten rather than kept
+        // for ever. Clinic machines are shared, so the id was often another
+        // user's private view - it could never resolve for this one, and the
+        // page silently fell back on every single load.
+        if (stored) localStorage.removeItem(storageKey);
+        // Only this user's own pinned default. The fallback used to search
+        // every visible view, so a colleague's pinned view - shared with
+        // everyone - quietly became your landing view.
+        const pinned = list.find((v) => v.is_default && v.owner_id === uid);
         setActiveViewId(pinned ? pinned.id : ALL_VIEW_ID);
       }
       setInitialised(true);
@@ -129,11 +140,17 @@ export function useModuleListViews(section: string, objectLabel: string, default
       };
 
       if (payload.id) {
-        const { error } = await supabase
+        // .select() so RLS filtering the row is visible. Without it an update
+        // a user is not allowed to make returns no error and no rows, and the
+        // app cheerfully said "View updated" before reloading the old values -
+        // which reads as the app losing the change.
+        const { data: updated, error } = await supabase
           .from("list_views")
           .update({ ...record, updated_at: new Date().toISOString() })
-          .eq("id", payload.id);
+          .eq("id", payload.id)
+          .select("id");
         if (error) return toast.error(error.message);
+        if (!updated || updated.length === 0) return toast.error(NOT_YOURS_MESSAGE);
         toast.success("View updated");
         await load();
         selectView(payload.id);
@@ -166,8 +183,15 @@ export function useModuleListViews(section: string, objectLabel: string, default
 
   const deleteView = useCallback(
     async (view: ListView) => {
-      const { error } = await supabase.from("list_views").delete().eq("id", view.id);
+      const { data: removed, error } = await supabase
+        .from("list_views")
+        .delete()
+        .eq("id", view.id)
+        .select("id");
       if (error) return toast.error(error.message);
+      // Same as the update above: a delete nobody is allowed to make is not an
+      // error, it is zero rows - and the view reappeared on the next load.
+      if (!removed || removed.length === 0) return toast.error(NOT_YOURS_MESSAGE);
       toast.success("View deleted");
       selectView(null);
       await load();

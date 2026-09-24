@@ -3392,6 +3392,7 @@ const Billing = () => {
           displayModes={["table", "kanban"]}
           onKanbanSettings={() => setKanbanOpen(true)}
           count={total}
+          countLoading={invoicesLoading}
           search={search}
           onSearchChange={setSearch}
           itemLabel="Invoices"

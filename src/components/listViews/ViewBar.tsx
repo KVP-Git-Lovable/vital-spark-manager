@@ -40,6 +40,8 @@ interface Props {
   /** Hide the "Display As" switcher entirely - for pages (like Appointments) that already have their own view toggle. Defaults to true. */
   showDisplaySwitcher?: boolean;
   count: number;
+  /** True while the rows behind `count` are still being fetched. */
+  countLoading?: boolean;
   search: string;
   onSearchChange: (v: string) => void;
   chartsOpen?: boolean;
@@ -75,6 +77,7 @@ export default function ViewBar({
   onDisplayChange,
   onKanbanSettings,
   count,
+  countLoading,
   search,
   onSearchChange,
   chartsOpen,
@@ -190,7 +193,12 @@ export default function ViewBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <span className="shrink-0 text-xs text-muted-foreground">{count} items</span>
+        {/* "0 items" while the fetch is still running reads as "this view is
+            empty", which is exactly how the clinic reported it. Say nothing
+            until there is something true to say. */}
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {countLoading ? "Loading…" : `${count} items`}
+        </span>
         {isStandard && (
           <Badge variant="secondary" className="shrink-0 gap-1 text-[10px]">
             <Lock className="h-3 w-3" /> Filters locked

@@ -10,6 +10,7 @@ interface DateInputProps {
   id?: string;
   className?: string;
   placeholder?: string;
+  required?: boolean;
 }
 
 /**
@@ -26,7 +27,7 @@ interface DateInputProps {
  * caret jumps to the end. (Same shape of bug as the Paid Amount zero-trap that
  * `@/lib/numberInput` exists to avoid.)
  */
-export function DateInput({ value, onChange, id, className, placeholder = "dd/mm/yyyy" }: DateInputProps) {
+export function DateInput({ value, onChange, id, className, placeholder = "dd/mm/yyyy", required }: DateInputProps) {
   const [text, setText] = useState(() => isoToDisplay(value));
 
   // Re-sync only when the incoming date is not the one already on screen, so a
@@ -40,6 +41,7 @@ export function DateInput({ value, onChange, id, className, placeholder = "dd/mm
     <Input
       id={id}
       className={className}
+      required={required}
       value={text}
       inputMode="numeric"
       placeholder={placeholder}

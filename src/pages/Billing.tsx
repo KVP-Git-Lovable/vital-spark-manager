@@ -1,6 +1,8 @@
 import { formatMoney, formatMoneyPrecise } from "@/lib/currency";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { useUrlPanel } from "@/hooks/useUrlPanel";
+import { viewDatePreset } from "@/lib/viewDatePreset";
+import { dateRangeFor } from "@/lib/listViews/engine";
 import { seedInvoiceLines } from "@/lib/invoiceEditSeed";
 import type { Json } from "@/integrations/supabase/types";
 import { stockDelta } from "@/lib/pharmaStockDelta";
@@ -576,7 +578,41 @@ const Billing = () => {
   const hasActiveFilters = !!(filterDateFrom || filterDateTo) || needsServerSearch;
   const needsClientRows = !isAllView || hasActiveFilters || display === "kanban";
 
+  /**
+   * The date window the active saved view itself implies, pushed to the server.
+   *
+   * "Today's Billing" was fetching the WHOLE invoices table - fetchAll pages at
+   * 1,000 rows, so 46,938 invoices meant about 47 sequential round trips - and
+   * only then keeping today's dozen in memory. That is why it took so long, and
+   * why it showed 0: until all of those requests finish the query has no data,
+   * so the table honestly reports nothing found, and any one of them failing
+   * leaves it empty.
+   *
+   * The view's own condition is a date range the database can apply, so it goes
+   * to the database. A view whose window cannot be expressed exactly still
+   * fetches everything and filters in memory, which is slow but never wrong.
+   */
+  const viewDateRange = (() => {
+    const preset = viewDatePreset(activeView?.filters, "created_at");
+    if (!preset || preset.preset === "all") return null;
+    if (preset.preset === "specific") {
+      return preset.specificDate ? dateRangeFor("on", preset.specificDate.toISOString()) : null;
+    }
+    if (preset.preset === "range") {
+      return preset.rangeFrom && preset.rangeTo
+        ? dateRangeFor("between", preset.rangeFrom.toISOString(), preset.rangeTo.toISOString())
+        : null;
+    }
+    return dateRangeFor(preset.preset);
+  })();
+
+  // What the user picked wins over what the view implies, so narrowing a view
+  // by hand still works.
+  const fetchDateFrom = filterDateFrom ?? viewDateRange?.from;
+  const fetchDateTo = filterDateTo ?? viewDateRange?.to;
+
   const {
+    isLoading: pagedLoading,
     data: pagedData,
     error: pagedError,
   } = useQuery({
@@ -586,15 +622,17 @@ const Billing = () => {
   });
 
   const {
+    isLoading: boundedLoading,
     data: boundedInvoices = [],
     error: boundedError,
   } = useQuery({
-    queryKey: ["invoices-bounded", filterDateFrom, filterDateTo],
-    queryFn: () => fetchInvoicesInRange({ dateFrom: filterDateFrom, dateTo: filterDateTo }),
+    queryKey: ["invoices-bounded", fetchDateFrom, fetchDateTo],
+    queryFn: () => fetchInvoicesInRange({ dateFrom: fetchDateFrom, dateTo: fetchDateTo }),
     enabled: needsClientRows && !needsServerSearch,
   });
 
   const {
+    isLoading: searchLoading,
     data: searchedInvoices = [],
     error: searchError,
   } = useQuery({
@@ -612,6 +650,11 @@ const Billing = () => {
   });
 
   const invoices: any[] = needsServerSearch ? searchedInvoices : needsClientRows ? boundedInvoices : pagedData?.rows ?? [];
+  // Which query is feeding the table decides whether it is still loading. An
+  // empty result and a result that has not arrived look identical in the data,
+  // and the table was reporting both as "No invoices found" - so a slow view
+  // read as an empty day.
+  const invoicesLoading = needsServerSearch ? searchLoading : needsClientRows ? boundedLoading : pagedLoading;
   const invoicesError = needsServerSearch ? searchError : needsClientRows ? boundedError : pagedError;
 
   useEffect(() => {
@@ -3421,7 +3464,9 @@ const Billing = () => {
             </thead>
             <tbody className="divide-y">
               {total === 0 ? (
-                <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No invoices found</td></tr>
+                <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">
+                  {invoicesLoading ? "Loading invoices…" : "No invoices found"}
+                </td></tr>
               ) : (
                 pagedInvoices.map((inv: any) => (
                   <tr key={inv.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => openViewSheet(inv)}>

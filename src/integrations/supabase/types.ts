@@ -2429,6 +2429,7 @@ export type Database = {
           current_medications: string | null
           date_of_birth: string | null
           days_since_last_visit: number | null
+          dietary_advice: string | null
           doctor_id: string | null
           email: string | null
           emergency_contact_name: string | null
@@ -2491,6 +2492,7 @@ export type Database = {
           current_medications?: string | null
           date_of_birth?: string | null
           days_since_last_visit?: number | null
+          dietary_advice?: string | null
           doctor_id?: string | null
           email?: string | null
           emergency_contact_name?: string | null
@@ -2553,6 +2555,7 @@ export type Database = {
           current_medications?: string | null
           date_of_birth?: string | null
           days_since_last_visit?: number | null
+          dietary_advice?: string | null
           doctor_id?: string | null
           email?: string | null
           emergency_contact_name?: string | null
@@ -5090,6 +5093,7 @@ export type Database = {
           current_medications: string | null
           date_of_birth: string | null
           days_since_last_visit: number | null
+          dietary_advice: string | null
           doctor_id: string | null
           email: string | null
           emergency_contact_name: string | null
@@ -5152,6 +5156,7 @@ export type Database = {
           current_medications?: string | null
           date_of_birth?: string | null
           days_since_last_visit?: number | null
+          dietary_advice?: string | null
           doctor_id?: string | null
           email?: string | null
           emergency_contact_name?: string | null
@@ -5214,6 +5219,7 @@ export type Database = {
           current_medications?: string | null
           date_of_birth?: string | null
           days_since_last_visit?: number | null
+          dietary_advice?: string | null
           doctor_id?: string | null
           email?: string | null
           emergency_contact_name?: string | null

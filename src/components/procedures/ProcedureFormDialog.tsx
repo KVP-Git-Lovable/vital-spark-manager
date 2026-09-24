@@ -35,27 +35,11 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { MicButton } from "@/components/shared/MicButton";
 import { OTHERS_VALUE } from "@/lib/othersOption";
 
-const MEDICAL_FIELDS: [string, string][] = [
-  ["symptoms", "Symptoms"],
-  ["diagnosis", "Diagnosis"],
-  ["lab_tests", "Lab Tests"],
-  ["medical_history", "Medical History"],
-  ["current_medications", "Current Medications"],
-  ["allergies", "Allergies"],
-  ["previous_treatments", "Previous Treatments"],
-  ["skin_type", "Skin Type"],
-  ["skin_concerns", "Skin Concerns"],
-];
-
-/** Visit-specific clinical fields: stored on the procedure, not on the patient record. */
-const PROCEDURE_MEDICAL_FIELDS = ["symptoms", "diagnosis", "lab_tests"];
-
-// patients.skin_type has a DB check constraint restricting it to these
-// exact values - must stay a dropdown, not free text, or saving fails.
-const SKIN_TYPE_OPTIONS = ["Normal", "Dry", "Oily", "Combination", "Sensitive"];
-// Skin Type is a constrained dropdown, not free text, so it's excluded from
-// AI elaboration (which would turn it into a sentence and break the constraint).
-const ELABORATABLE_MEDICAL_FIELDS = MEDICAL_FIELDS.filter(([field]) => field !== "skin_type");
+import {
+  MEDICAL_FIELDS,
+  ELABORATABLE_MEDICAL_FIELDS,
+  SKIN_TYPE_OPTIONS,
+} from "@/lib/medicalFields";
 
 interface PrescriptionInput {
   /**
@@ -460,7 +444,7 @@ export function ProcedureFormDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("patients")
-        .select("id, medical_history, current_medications, allergies, skin_type, skin_concerns, previous_treatments")
+        .select("id, medical_history, current_medications, dietary_advice, skin_type, previous_treatments")
         .eq("id", patientId)
         .maybeSingle();
       if (error) throw error;
@@ -473,9 +457,8 @@ export function ProcedureFormDialog({
     setMedical({
       medical_history: patientRecord.medical_history || "",
       current_medications: patientRecord.current_medications || "",
-      allergies: patientRecord.allergies || "",
+      dietary_advice: patientRecord.dietary_advice || "",
       skin_type: patientRecord.skin_type || "",
-      skin_concerns: patientRecord.skin_concerns || "",
       previous_treatments: patientRecord.previous_treatments || "",
     });
     setMedicalDirty(false);
@@ -546,8 +529,28 @@ export function ProcedureFormDialog({
       { key: `svc-${Date.now()}-${prev.length}`, service_id: "", name: "", procedure_notes: "", recommendations: "", material_percent: "", price: 0 },
     ]);
 
+  /**
+   * Whether each service line's picker is open, keyed by the line's own key.
+   *
+   * The popover used to be uncontrolled, so nothing could close it when a
+   * service was chosen - Radix only closes on an outside click or Escape, and
+   * CommandItem's onSelect is neither.
+   */
+  const [serviceMenuOpen, setServiceMenuOpen] = useState<Record<string, boolean>>({});
+  const closeServiceMenu = (key: string) => setServiceMenuOpen((m) => ({ ...m, [key]: false }));
+
   const removeServiceLine = (key: string) =>
-    setServiceLines((prev) => (prev.length === 1 ? prev : prev.filter((l) => l.key !== key)));
+    setServiceLines((prev) => {
+      if (prev.length === 1) return prev;
+      // Drop the removed line's flag with it, so a later line reusing nothing
+      // of its identity cannot inherit an open menu.
+      setServiceMenuOpen((m) => {
+        const next = { ...m };
+        delete next[key];
+        return next;
+      });
+      return prev.filter((l) => l.key !== key);
+    });
 
   const updateServiceLine = (key: string, patch: Partial<ServiceLine>) =>
     setServiceLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -774,12 +777,16 @@ export function ProcedureFormDialog({
       if (medicalDirty && patientId) {
         const { error: medErr } = await supabase
           .from("patients")
+          // Only the columns this form shows. Allergies and Skin Concerns are
+          // deliberately absent: they are no longer on the form, so
+          // `medical.allergies` is undefined and writing `|| null` would blank
+          // every patient's stored value on the next save - 5,365 of them for
+          // skin_concerns alone. Leaving a column out of the update keeps it.
           .update({
             medical_history: medical.medical_history || null,
             current_medications: medical.current_medications || null,
-            allergies: medical.allergies || null,
+            dietary_advice: medical.dietary_advice || null,
             skin_type: medical.skin_type || null,
-            skin_concerns: medical.skin_concerns || null,
             previous_treatments: medical.previous_treatments || null,
           })
           .eq("id", patientId);
@@ -1144,9 +1151,21 @@ export function ProcedureFormDialog({
                     </Button>
                   )}
                 </div>
-                <Popover modal>
+                {/* Controlled, because an uncontrolled Radix Popover only closes
+                    on an outside click or Escape - and CommandItem's onSelect is
+                    neither. Picking a service filled the line and left the list
+                    sitting open over the form, which is the fault the clinic
+                    reported. Keyed by line.key, never by the row index: removing
+                    a line would otherwise leave the open flag on whichever row
+                    slid up into its place. `modal` stays - see SearchableSelect
+                    for why dropping it breaks scrolling inside a sheet. */}
+                <Popover
+                  modal
+                  open={!!serviceMenuOpen[line.key]}
+                  onOpenChange={(open) => setServiceMenuOpen((m) => ({ ...m, [line.key]: open }))}
+                >
                   <PopoverTrigger asChild>
-                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                    <Button variant="outline" role="combobox" aria-expanded={!!serviceMenuOpen[line.key]} className="w-full justify-between font-normal">
                       <span className="truncate">{line.name || "Select service"}</span>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -1158,12 +1177,25 @@ export function ProcedureFormDialog({
                         <CommandEmpty>No service found.</CommandEmpty>
                         <CommandGroup>
                           {services.map((s: any) => (
-                            <CommandItem key={s.id} value={s.name} onSelect={() => handleServiceSelect(s.id, line.key)}>
+                            <CommandItem
+                              key={s.id}
+                              value={s.name}
+                              onSelect={() => {
+                                handleServiceSelect(s.id, line.key);
+                                closeServiceMenu(line.key);
+                              }}
+                            >
                               <Check className={`mr-2 h-4 w-4 ${line.service_id === s.id ? "opacity-100" : "opacity-0"}`} />
                               {s.name}
                             </CommandItem>
                           ))}
-                          <CommandItem value="Others" onSelect={() => updateServiceLine(line.key, { service_id: OTHERS_VALUE, name: "" })}>
+                          <CommandItem
+                            value="Others"
+                            onSelect={() => {
+                              updateServiceLine(line.key, { service_id: OTHERS_VALUE, name: "" });
+                              closeServiceMenu(line.key);
+                            }}
+                          >
                             <Check className={`mr-2 h-4 w-4 ${line.service_id === OTHERS_VALUE ? "opacity-100" : "opacity-0"}`} />
                             Others (type manually)
                           </CommandItem>
@@ -1179,35 +1211,14 @@ export function ProcedureFormDialog({
                     onChange={(e) => updateServiceLine(line.key, { name: e.target.value })}
                   />
                 )}
-                <div>
-                  <Label className="text-xs text-muted-foreground">Material Cost %</Label>
-                  {/* Filled from the Service Master when a service is picked, and
-                      editable - a custom service has no master row to read, and a
-                      visit can use more material than the standard rate assumes.
-                      It is recorded per line, so a later change to the master
-                      does not rewrite what was already done.
-
-                      Internal only: this never reaches an invoice or the printed
-                      bill, it is for working out what to deduct per service or
-                      doctor in the reports. */}
-                  <div className="relative mt-1">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step="0.01"
-                      inputMode="decimal"
-                      className="pr-7"
-                      placeholder="e.g. 20"
-                      value={line.material_percent}
-                      onChange={(e) => updateServiceLine(line.key, { material_percent: e.target.value })}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Internal only — not shown on the invoice. Used for material cost in reports.
-                  </p>
-                </div>
+                {/* Material Cost % used to sit here. It is a billing figure, not a
+                    clinical one, and the clinic asked for it in one place only.
+                    Billing owns it (55,884 material_cost_lines rows against 9
+                    here, all of those auto-filled from the Service Master rather
+                    than typed). The column and its data stay: the Material Cost
+                    report still reads the Service Master default and any value
+                    already recorded, it just cannot be entered from a
+                    prescription any more. */}
                 <div>
                   <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
                   <Textarea

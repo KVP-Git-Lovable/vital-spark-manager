@@ -1,6 +1,7 @@
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { resizeColumn, mergeSavedWidths, type ColumnWidth } from "@/lib/columnWidths";
 import { isPageSortedColumn, sortAppointments } from "@/lib/appointmentSort";
+import { isConsultationService } from "@/lib/consultationLine";
 import { displayDate } from "@/lib/dateInput";
 import { ColumnResizeHandle } from "@/components/shared/ColumnResizeHandle";
 import { DateInput } from "@/components/shared/DateInput";
@@ -2855,7 +2856,15 @@ const Appointments = () => {
                                         params.set("appointment_id", apt.id);
                                         if (apt.patient_id) params.set("patient_id", apt.patient_id);
                                         if (apt.staff_id) params.set("staff_id", apt.staff_id);
-                                        if (apt.service) params.set("service", apt.service);
+                                        // "Consultation" is the placeholder 24,610 imported
+                                        // appointments carry, not a service anyone picked, and
+                                        // the Service Master has no row for it - so it arrived
+                                        // pre-filled in a box it could never match. A visit that
+                                        // really is just a consultation opens with the service
+                                        // empty, which is what saving already records.
+                                        if (apt.service && !isConsultationService(apt.service)) {
+                                          params.set("service", apt.service);
+                                        }
                                         routerNavigate(`/procedures/new?${params.toString()}`);
                                       }}
                                     >

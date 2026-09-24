@@ -41,6 +41,7 @@ import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { OTHERS_VALUE } from "@/lib/othersOption";
+import { MEDICAL_FIELDS, SKIN_TYPE_OPTIONS } from "@/lib/medicalFields";
 import { partitionVisitMedia } from "@/lib/visitMedia";
 import { parsePrescriptionText } from "@/lib/prescriptionText";
 import type { Tables } from "@/integrations/supabase/types";
@@ -53,9 +54,9 @@ const MAX_PATIENT_MEDIA = 500;
 type PatientPhoto = Tables<"patient_photos">;
 type ProcedureAttachment = Tables<"procedure_attachments">;
 const statusOptions = ["Completed", "In Progress", "Cancelled"];
-// patients.skin_type has a DB check constraint restricting it to these
-// exact values - must stay a dropdown, not free text, or saving fails.
-const SKIN_TYPE_OPTIONS = ["Normal", "Dry", "Oily", "Combination", "Sensitive"];
+// MEDICAL_FIELDS and SKIN_TYPE_OPTIONS are shared with ProcedureFormDialog:
+// this sheet used to hold its own literal copy of the field list, so a field
+// renamed on the create form kept its old name here.
 
 interface PrescriptionRow {
   id?: string;
@@ -422,7 +423,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     queryFn: async () => {
       const { data, error } = await supabase
         .from("patients")
-        .select("id, medical_history, current_medications, allergies, skin_type, skin_concerns, previous_treatments")
+        .select("id, medical_history, current_medications, dietary_advice, skin_type, previous_treatments")
         .eq("id", procedure!.patient_id)
         .maybeSingle();
       if (error) throw error;
@@ -437,9 +438,8 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       lab_tests: (procedure as any)?.lab_tests || "",
       medical_history: patientRecord.medical_history || "",
       current_medications: patientRecord.current_medications || "",
-      allergies: patientRecord.allergies || "",
+      dietary_advice: patientRecord.dietary_advice || "",
       skin_type: patientRecord.skin_type || "",
-      skin_concerns: patientRecord.skin_concerns || "",
       previous_treatments: patientRecord.previous_treatments || "",
     });
   }
@@ -575,12 +575,13 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       if (medicalDirty && procedure?.patient_id) {
         const { error: medErr } = await supabase
           .from("patients")
+          // Only the columns this sheet shows - see ProcedureFormDialog for why
+          // listing a column the form no longer has would blank it on save.
           .update({
             medical_history: medical.medical_history || null,
             current_medications: medical.current_medications || null,
-            allergies: medical.allergies || null,
+            dietary_advice: medical.dietary_advice || null,
             skin_type: medical.skin_type || null,
-            skin_concerns: medical.skin_concerns || null,
             previous_treatments: medical.previous_treatments || null,
           })
           .eq("id", procedure.patient_id);
@@ -1047,29 +1048,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                           </SelectContent>
                         </Select>
                       </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Material Cost %</Label>
-                        {/* Internal only - never reaches an invoice or the printed
-                            bill. Recorded per line so correcting the Service Master
-                            later does not rewrite a visit that already happened. */}
-                        <div className="relative mt-1">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.01"
-                            inputMode="decimal"
-                            className="pr-7"
-                            placeholder="e.g. 20"
-                            value={line.material_percent}
-                            onChange={(e) => updateLine(line.key, { material_percent: e.target.value })}
-                          />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground mt-1">
-                          Internal only — not shown on the invoice.
-                        </p>
-                      </div>
+                      {/* Material Cost % removed here too, so the create form and
+                          this sheet agree. It lives in Billing now - see
+                          ProcedureFormDialog for the reasoning. Existing values
+                          are untouched and still feed the report. */}
                       <div>
                         <div className="flex items-center justify-between">
                           <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
@@ -1432,17 +1414,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     {procedure.patient_id ? (
                       <div className="rounded-xl border bg-card p-4 shadow-sm">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {([
-                            ["symptoms", "Symptoms"],
-                            ["diagnosis", "Diagnosis"],
-                            ["lab_tests", "Lab Tests"],
-                            ["medical_history", "Medical History"],
-                            ["current_medications", "Current Medications"],
-                            ["allergies", "Allergies"],
-                            ["previous_treatments", "Previous Treatments"],
-                            ["skin_type", "Skin Type"],
-                            ["skin_concerns", "Skin Concerns"],
-                          ] as [string, string][]).map(([field, label]) => (
+                          {MEDICAL_FIELDS.map(([field, label]) => (
                             <div key={field}>
                               <Label className="text-xs text-muted-foreground">{label}</Label>
                               {field === "skin_type" ? (

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { numVal } from "@/lib/numberInput";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { renderPdfToImages } from "@/lib/renderPdf";
+import { isConsultationService } from "@/lib/consultationLine";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
 
 import { useNavigate } from "react-router-dom";
@@ -506,6 +507,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       prev.map((l) => (l.key === key ? { ...l, _deleted: true } : l)).filter((l) => l.id || !l._deleted),
     );
   const visibleLines = editServiceLines.filter((l) => !l._deleted);
+  // A consultation is not a service (see consultationLine.ts), so it is not
+  // listed as one - but it is where much of what the doctor wrote lives, so
+  // its notes and recommendations are shown below under their own heading
+  // rather than hidden with the label.
+  const serviceLines = visibleLines.filter((l) => !isConsultationService(l.service_name));
+  const consultationLines = visibleLines.filter((l) => isConsultationService(l.service_name));
 
   // Init prescriptions from fetched data
   if (prescriptions.length > 0 && initialized && editPrescriptions.length === 0) {
@@ -998,11 +1005,11 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                       <Plus className="h-3 w-3 mr-1" /> Add Service
                     </Button>
                   </div>
-                  {visibleLines.map((line, i) => (
+                  {serviceLines.map((line, i) => (
                     <div key={line.key} className="rounded-lg border bg-background p-3 space-y-2 shadow-sm transition-shadow hover:shadow-md">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-medium text-muted-foreground">Service {i + 1}</span>
-                        {visibleLines.length > 1 && (
+                        {serviceLines.length > 1 && (
                           <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeLine(line.key)}>
                             Remove
                           </Button>
@@ -1092,12 +1099,49 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   {/* Repeated at the foot of the list: with several services
                       filled in, the button in the card header is a screenful
                       away and adding another meant scrolling up and back. */}
-                  {visibleLines.length > 0 && (
+                  {serviceLines.length > 0 && (
                     <Button type="button" variant="outline" size="sm" className="w-full border-dashed" onClick={addLine}>
                       <Plus className="h-3.5 w-3.5 mr-1" /> Add another service
                     </Button>
                   )}
                 </div>
+
+                {/* What was written against the consultation. Same fields, same
+                    editing, same saving - only the "Service" framing is gone,
+                    because the clinic does not count a consultation as one. */}
+                {consultationLines.length > 0 && (
+                  <div className="rounded-xl border-2 border-primary/25 bg-primary/5 p-4 space-y-3 shadow-sm">
+                    <Label className="text-base font-display font-semibold text-primary">Visit Notes</Label>
+                    {consultationLines.map((line) => (
+                      <div key={line.key} className="rounded-lg border bg-background p-3 space-y-2 shadow-sm">
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
+                            <div className="flex items-center gap-1">
+                              <MicButton value={line.procedure_notes} onChange={(v) => updateLine(line.key, { procedure_notes: v })} />
+                              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborateLine(line.key, "procedure_notes")} disabled={elaborating !== null}>
+                                {elaborating === `${line.key}:procedure_notes` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                              </Button>
+                            </div>
+                          </div>
+                          <Textarea value={line.procedure_notes} onChange={(e) => updateLine(line.key, { procedure_notes: e.target.value })} className="mt-1" rows={3} />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">Recommendations</Label>
+                            <div className="flex items-center gap-1">
+                              <MicButton value={line.recommendations} onChange={(v) => updateLine(line.key, { recommendations: v })} />
+                              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary" onClick={() => elaborateLine(line.key, "recommendations")} disabled={elaborating !== null}>
+                                {elaborating === `${line.key}:recommendations` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                              </Button>
+                            </div>
+                          </div>
+                          <Textarea value={line.recommendations} onChange={(e) => updateLine(line.key, { recommendations: e.target.value })} className="mt-1" rows={3} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
 
                 {/* Prescriptions - editable */}

@@ -3639,6 +3639,7 @@ export type Database = {
           consultation_notes: string | null
           created_at: string
           created_by: string | null
+          date_not_recorded: boolean
           diagnosis: string | null
           id: string
           lab_tests: string | null
@@ -3669,6 +3670,7 @@ export type Database = {
           consultation_notes?: string | null
           created_at?: string
           created_by?: string | null
+          date_not_recorded?: boolean
           diagnosis?: string | null
           id?: string
           lab_tests?: string | null
@@ -3699,6 +3701,7 @@ export type Database = {
           consultation_notes?: string | null
           created_at?: string
           created_by?: string | null
+          date_not_recorded?: boolean
           diagnosis?: string | null
           id?: string
           lab_tests?: string | null
@@ -3760,6 +3763,7 @@ export type Database = {
           consultation_notes: string | null
           created_at: string | null
           created_by: string | null
+          date_not_recorded: boolean
           diagnosis: string | null
           id: string | null
           lab_tests: string | null
@@ -3789,6 +3793,7 @@ export type Database = {
           consultation_notes?: string | null
           created_at?: string | null
           created_by?: string | null
+          date_not_recorded?: boolean
           diagnosis?: string | null
           id?: string | null
           lab_tests?: string | null
@@ -3818,6 +3823,7 @@ export type Database = {
           consultation_notes?: string | null
           created_at?: string | null
           created_by?: string | null
+          date_not_recorded?: boolean
           diagnosis?: string | null
           id?: string | null
           lab_tests?: string | null
@@ -5343,6 +5349,7 @@ export type Database = {
           consultation_notes: string | null
           created_at: string | null
           created_by: string | null
+          date_not_recorded: boolean
           diagnosis: string | null
           id: string | null
           lab_tests: string | null
@@ -5372,6 +5379,7 @@ export type Database = {
           consultation_notes?: string | null
           created_at?: string | null
           created_by?: string | null
+          date_not_recorded?: boolean
           diagnosis?: string | null
           id?: string | null
           lab_tests?: string | null
@@ -5401,6 +5409,7 @@ export type Database = {
           consultation_notes?: string | null
           created_at?: string | null
           created_by?: string | null
+          date_not_recorded?: boolean
           diagnosis?: string | null
           id?: string | null
           lab_tests?: string | null

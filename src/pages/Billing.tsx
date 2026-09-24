@@ -302,22 +302,21 @@ const Billing = () => {
   const [kanban, setKanban] = useState(() => getKanbanConfig("billing", ALL_VIEW_ID));
 
   // Regenerate the official invoice PDF (same template as the WhatsApp copy) and open it.
-  // Shown in the page, and built here rather than fetched.
+  // The clinic's own invoice, from generate-invoice-pdf, shown in the page.
   //
-  // The clinic's browser blocks brdrkhgfbbrgdkzdfbpr.supabase.co outright -
-  // ERR_BLOCKED_BY_CLIENT, an extension - so any route that asks it to load
-  // the PDF as a document fails: navigating a tab to it, pointing an
-  // <object> at it, blob: and https alike. What is NOT blocked is the app's
-  // own XHR to the same host; that is how this page loads its invoices in
-  // the first place, and how the PDF builder is reached.
+  // It is deliberately THIS document and not a local rendering. I briefly
+  // made the preview draw from invoicePrintableHtml instead, because the
+  // clinic's browser blocks the backend host - ERR_BLOCKED_BY_CLIENT, an
+  // extension - and a locally drawn page needs no request. But that put a
+  // different-looking invoice in front of staff, which is worse than one
+  // that will not display: the invoice is the clinic's document and its
+  // layout is not ours to swap out. The printable copy is a fallback for
+  // when the real one cannot be built at all, and says so when it appears.
   //
-  // So the invoice on screen is drawn from the record the page already has,
-  // with the printable template the app has always carried. No request, so
-  // nothing to block, and nothing to wait for either - it appears at once
-  // instead of after a round trip to the builder. The official PDF is still
-  // a click away under Download, which fetches the bytes by XHR and saves
-  // them: <a download> saves rather than navigates, which is the one thing
-  // that kept working throughout.
+  // Download is the dependable route while that extension is in place: it
+  // fetches the bytes by XHR - which the same host serves happily, being how
+  // this page loads at all - and saves them through <a download>. Saving is
+  // not navigating, and navigating is what gets blocked.
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfHtml, setPdfHtml] = useState<string | null>(null);
@@ -326,16 +325,37 @@ const Billing = () => {
   // Only what the dialog needs: the number for its title, the id to download with.
   const [pdfInvoice, setPdfInvoice] = useState<{ id: string; invoice_number?: string | null } | null>(null);
 
-  const openInvoicePDF = (inv: any) => {
+  const openInvoicePDF = async (inv: { id: string; invoice_number?: string | null }) => {
     if (!inv?.id) {
       toast.error("Invoice id missing");
       return;
     }
     setPdfInvoice(inv);
     setPdfUrl(null);
+    setPdfHtml(null);
     setPdfError(null);
-    setPdfHtml(invoicePrintableHtml(inv));
     setPdfOpen(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
+        body: { invoiceId: inv.id, wait: true },
+        timeout: 45000,
+      });
+      if (error) {
+        throw new Error(
+          await edgeFunctionErrorMessage(error, "The invoice PDF could not be prepared."),
+        );
+      }
+      const url = (data as { url?: string } | null)?.url;
+      if (!url) throw new Error("PDF url missing");
+      setPdfUrl(`${url}?t=${Date.now()}`);
+    } catch (e) {
+      console.error(e);
+      // Only when the real invoice cannot be built. This template is not the
+      // clinic's invoice and must never stand in for it while the proper one
+      // is available - substituting it silently is exactly what went wrong.
+      toast.message("The invoice PDF could not be built - showing the plain printable copy");
+      setPdfHtml(invoicePrintableHtml(inv));
+    }
   };
 
   const downloadInvoicePDF = async () => {
@@ -3788,6 +3808,7 @@ const Billing = () => {
         error={pdfError}
         onDownload={downloadInvoicePDF}
         downloading={pdfDownloading}
+        onRetry={() => pdfInvoice && openInvoicePDF(pdfInvoice)}
       />
     </div>
   );

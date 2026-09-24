@@ -100,8 +100,11 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
       // with it to buy back the width: every caller already labels the field
       // Start or End.
       className={cn(
-        "flex w-full min-w-0 items-center gap-0.5 rounded-md border border-input bg-background px-1.5 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
-        compact ? "h-8" : "h-10",
+        "flex w-full items-center justify-center gap-0.5 rounded-md border border-input bg-background px-1.5 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+        // A floor wide enough for both digits and the AM/PM toggle. Without
+        // one, a narrow caller squeezed the digits away to nothing - which is
+        // what a table cell sized for reading "10:15 AM" did to it.
+        compact ? "h-8 min-w-[7.5rem]" : "h-10 min-w-[8.5rem]",
         disabled && "cursor-not-allowed opacity-50",
         className,
       )}
@@ -123,7 +126,7 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
           }
           setHourDraft(null);
         }}
-        className="w-full min-w-0 flex-1 bg-transparent text-center outline-none"
+        className="w-7 shrink-0 bg-transparent text-center outline-none"
       />
       <span className="text-muted-foreground">:</span>
       <input
@@ -143,7 +146,7 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
           }
           setMinuteDraft(null);
         }}
-        className="w-full min-w-0 flex-1 bg-transparent text-center outline-none"
+        className="w-8 shrink-0 bg-transparent text-center outline-none"
       />
 
       {/* Two-state AM/PM toggle button, not text labels - the active side is filled. */}

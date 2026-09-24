@@ -2506,93 +2506,113 @@ const Appointments = () => {
                                   data-index={virtualRow.index}
                                   className="border-b bg-primary/5"
                                 >
-                                  {shouldShowColumn("patient") && (
-                                    <td className="p-2 font-medium">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</td>
-                                  )}
-                                  {shouldShowColumn("phone") && (
-                                    <td className="p-2 text-muted-foreground text-xs">{patientPhone || "—"}</td>
-                                  )}
-                                  {shouldShowColumn("service") && (
-                                    <td className="p-2">
-                                      <Input
-                                        className="h-8 text-xs w-44"
-                                        placeholder="Investigation"
-                                        value={editValues.reason_for_consultation ?? ""}
-                                        onChange={(e) => setEditValues({ ...editValues, reason_for_consultation: e.target.value })}
-                                      />
-                                    </td>
-                                  )}
-                                  {shouldShowColumn("doctor") && (
-                                    <td className="p-2">
-                                      <Select value={editValues.staff_id} onValueChange={(val) => setEditValues({ ...editValues, staff_id: val })}>
-                                        <SelectTrigger className="h-8 text-xs w-36"><SelectValue placeholder="Select" /></SelectTrigger>
-                                        <SelectContent>
-                                          {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
-                                        </SelectContent>
-                                      </Select>
-                                    </td>
-                                  )}
-                                  {shouldShowColumn("start_time") && (
-                                    <td className="p-2">
-                                      <DateInput
-                                        className="h-8 text-xs w-36"
-                                        value={datePart(editValues.start_time)}
-                                        onChange={(isoDate) =>
-                                          setEditValues((v: any) => ({
-                                            ...v,
-                                            start_time: joinDateTime(isoDate, timePart(v.start_time)),
-                                            end_time: joinDateTime(isoDate, timePart(v.end_time)),
-                                          }))
-                                        }
-                                      />
-                                    </td>
-                                  )}
-                                  {shouldShowColumn("time") && (
-                                    <td className="p-2">
-                                      <div className="flex items-center gap-1.5">
-                                        <TimePicker12h
-                                          compact
-                                          className="w-32"
-                                          value={timePart(editValues.start_time)}
-                                          onChange={(t) =>
-                                            setEditValues((v: any) => ({ ...v, start_time: joinDateTime(datePart(v.start_time), t) }))
-                                          }
-                                        />
-                                        <span className="text-xs text-muted-foreground">–</span>
-                                        <TimePicker12h
-                                          compact
-                                          className="w-32"
-                                          value={timePart(editValues.end_time)}
-                                          onChange={(t) =>
-                                            setEditValues((v: any) => ({ ...v, end_time: joinDateTime(datePart(v.end_time) || datePart(editValues.start_time), t) }))
-                                          }
-                                        />
+                                  {/* The editor gets a row of its own, spanning the table.
+                                      Laid out cell-by-cell it had to live inside columns sized
+                                      for reading - Date is 7% of the width, enough for "Sep 24",
+                                      and Time 12%, enough for "10:15 AM - 10:30 AM" - so a date
+                                      box and two time pickers were crushed into them and came
+                                      out as "24/09/20:" and ": AM PM". Those shares cannot
+                                      simply be widened: the colgroup is table-wide and the
+                                      virtualizer measures against it (see
+                                      APPOINTMENT_COLUMN_WIDTHS). A colSpan cell sidesteps the
+                                      colgroup entirely, so the editor gets the full width and
+                                      the reading columns are left alone. */}
+                                  <td className="p-3" colSpan={visibleColumnWidths.length + 1}>
+                                    <div className="flex flex-wrap items-end gap-3">
+                                      {/* Always shown, whatever columns are on: without it the
+                                          strip does not say whose appointment is being changed. */}
+                                      <div className="min-w-[9rem]">
+                                        <span className="text-[11px] text-muted-foreground">Patient</span>
+                                        <p className="text-sm font-medium leading-tight">
+                                          {apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground leading-tight">{patientPhone || "—"}</p>
                                       </div>
-                                    </td>
-                                  )}
-                                  {shouldShowColumn("status") && (
-                                    <td className="p-2">
-                                      <Select value={editValues.status} onValueChange={(val) => setEditValues({ ...editValues, status: val })}>
-                                        <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                          {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                                        </SelectContent>
-                                      </Select>
-                                    </td>
-                                  )}
-                                  {shouldShowColumn("bill") && (
-                                    <td className="p-2 text-muted-foreground text-xs">{renderBillCell(invoice, apt)}</td>
-                                  )}
-                                  {shouldShowColumn("visit_status") && (
-                                    <td className="p-2 text-muted-foreground text-xs">{apt.visit_status || "—"}</td>
-                                  )}
-                                  {shouldShowColumn("payment_mode") && (
-                                    <td className="p-2 text-muted-foreground text-xs">{invoice?.payment_mode || "—"}</td>
-                                  )}
-                                  <td className="p-2">
-                                    <div className="flex items-center gap-1">
-                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-success" onClick={saveInlineEdit}><CheckIcon className="h-3.5 w-3.5" /></Button>
-                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={cancelInlineEdit}><X className="h-3.5 w-3.5" /></Button>
+
+                                      {shouldShowColumn("service") && (
+                                        <div className="min-w-[13rem] flex-1">
+                                          <span className="text-[11px] text-muted-foreground">Investigation</span>
+                                          <Input
+                                            className="mt-1 h-8 text-xs"
+                                            placeholder="Investigation"
+                                            value={editValues.reason_for_consultation ?? ""}
+                                            onChange={(e) => setEditValues({ ...editValues, reason_for_consultation: e.target.value })}
+                                          />
+                                        </div>
+                                      )}
+
+                                      {shouldShowColumn("doctor") && (
+                                        <div className="w-44">
+                                          <span className="text-[11px] text-muted-foreground">Doctor</span>
+                                          <Select value={editValues.staff_id} onValueChange={(val) => setEditValues({ ...editValues, staff_id: val })}>
+                                            <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
+                                            <SelectContent>
+                                              {doctorsList.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.first_name} {d.last_name}</SelectItem>)}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                      )}
+
+                                      {shouldShowColumn("start_time") && (
+                                        <div className="w-36">
+                                          <span className="text-[11px] text-muted-foreground">Date</span>
+                                          <DateInput
+                                            className="mt-1 h-8 text-xs"
+                                            value={datePart(editValues.start_time)}
+                                            onChange={(isoDate) =>
+                                              setEditValues((v: any) => ({
+                                                ...v,
+                                                start_time: joinDateTime(isoDate, timePart(v.start_time)),
+                                                end_time: joinDateTime(isoDate, timePart(v.end_time)),
+                                              }))
+                                            }
+                                          />
+                                        </div>
+                                      )}
+
+                                      {shouldShowColumn("time") && (
+                                        <>
+                                          <div className="w-36">
+                                            <span className="text-[11px] text-muted-foreground">Start</span>
+                                            <TimePicker12h
+                                              compact
+                                              className="mt-1"
+                                              value={timePart(editValues.start_time)}
+                                              onChange={(t) =>
+                                                setEditValues((v: any) => ({ ...v, start_time: joinDateTime(datePart(v.start_time), t) }))
+                                              }
+                                            />
+                                          </div>
+                                          <div className="w-36">
+                                            <span className="text-[11px] text-muted-foreground">End</span>
+                                            <TimePicker12h
+                                              compact
+                                              className="mt-1"
+                                              value={timePart(editValues.end_time)}
+                                              onChange={(t) =>
+                                                setEditValues((v: any) => ({ ...v, end_time: joinDateTime(datePart(v.end_time) || datePart(editValues.start_time), t) }))
+                                              }
+                                            />
+                                          </div>
+                                        </>
+                                      )}
+
+                                      {shouldShowColumn("status") && (
+                                        <div className="w-36">
+                                          <span className="text-[11px] text-muted-foreground">Status</span>
+                                          <Select value={editValues.status} onValueChange={(val) => setEditValues({ ...editValues, status: val })}>
+                                            <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                              {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                      )}
+
+                                      <div className="ml-auto flex items-center gap-1 pb-0.5">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-success" onClick={saveInlineEdit}><CheckIcon className="h-4 w-4" /></Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={cancelInlineEdit}><X className="h-4 w-4" /></Button>
+                                      </div>
                                     </div>
                                   </td>
                                 </tr>

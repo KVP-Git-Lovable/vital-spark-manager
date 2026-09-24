@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { numVal } from "@/lib/numberInput";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { renderPdfToImages } from "@/lib/renderPdf";
+import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
 
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -22,7 +24,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
 import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
@@ -151,7 +152,9 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [previewingPdf, setPreviewingPdf] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewPdf, setPreviewPdf] = useState<{ blobUrl: string; viewUrl: string; filename: string } | null>(null);
+  const [previewPages, setPreviewPages] = useState<string[] | null>(null);
+  const [previewFilename, setPreviewFilename] = useState("Prescription.pdf");
+  const prescriptionBytes = useRef<ArrayBuffer | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [sendingWa, setSendingWa] = useState(false);
 
@@ -183,73 +186,34 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     const bin = atob(data.base64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const blob = new Blob([bytes], { type: "application/pdf" });
-    const blobUrl = URL.createObjectURL(blob);
-    return {
-      blobUrl,
-      viewUrl: await publishForViewing(blob, blobUrl),
-      filename: data.filename || "Prescription.pdf",
-    };
+    return { bytes: bytes.buffer, filename: data.filename || "Prescription.pdf" };
   };
 
-  /**
-   * An https address for the PDF, because a blob: one cannot be relied on to
-   * open.
-   *
-   * A blob URL is a local handle, and privacy and ad-blocking extensions
-   * treat navigating to one as something to stop: the clinic's browser
-   * refused it with ERR_BLOCKED_BY_CLIENT, which is the extension talking,
-   * not Chrome. That one cause accounts for every symptom seen - the frame
-   * drawing a broken-document icon, "Open in new tab" landing on a blocked
-   * page, and, before that, the reserved tab sitting on its placeholder
-   * because the navigation to the blob was refused without a word. Download
-   * kept working throughout because <a download> saves the blob rather than
-   * navigating to it.
-   *
-   * So the PDF is put where it has an ordinary https address, which nothing
-   * treats as suspect. One object per visit, replaced each time, in the
-   * bucket the prescription PDF is already written to when it is sent on
-   * WhatsApp - and no procedure_attachments row, so previewing does not
-   * litter the patient's record.
-   *
-   * If any of that fails the blob URL is still returned: no worse than
-   * before, and Download is unaffected either way.
-   */
-  const publishForViewing = async (blob: Blob, fallback: string) => {
-    if (!procedureId) return fallback;
-    const path = `previews/${procedureId}.pdf`;
-    try {
-      // The bucket grants insert and delete to staff but not update, so a
-      // replacement is a remove followed by an upload rather than an upsert.
-      // Removing something that isn't there is not an error.
-      await supabase.storage.from("procedure-attachments").remove([path]);
-      const { error: uploadError } = await supabase.storage
-        .from("procedure-attachments")
-        .upload(path, blob, { contentType: "application/pdf" });
-      if (uploadError) return fallback;
-      const { data: pub } = supabase.storage.from("procedure-attachments").getPublicUrl(path);
-      // Cache-busted: the path is reused, so the browser would otherwise show
-      // the previous visit's copy of this prescription.
-      return pub?.publicUrl ? `${pub.publicUrl}?t=${Date.now()}` : fallback;
-    } catch {
-      return fallback;
-    }
+  const savePrescription = (bytes: ArrayBuffer, filename: string) => {
+    const objUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const a = document.createElement("a");
+    // <a download> saves rather than navigates, and navigating is what the
+    // clinic's extension blocks. This path worked throughout.
+    a.href = objUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objUrl);
   };
 
   const handleDownloadPrescription = async () => {
+    // Already fetched to draw the preview - no need to build it twice.
+    if (prescriptionBytes.current) {
+      savePrescription(prescriptionBytes.current, previewFilename);
+      toast.success("Prescription downloaded");
+      return;
+    }
     setDownloadingPdf(true);
     try {
       const pdf = await fetchPrescriptionPdf();
       if (!pdf) return;
-      const a = document.createElement("a");
-      // The blob, deliberately: a cross-origin href makes the browser ignore
-      // the download attribute and navigate to the file instead of saving it.
-      a.href = pdf.blobUrl;
-      a.download = pdf.filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(pdf.blobUrl);
+      savePrescription(pdf.bytes, pdf.filename);
       toast.success("Prescription downloaded");
     } catch (e: any) {
       toast.error(e.message || "Failed to generate prescription");
@@ -272,7 +236,8 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const handlePreviewPrescription = async () => {
     setPreviewingPdf(true);
     setPreviewError(null);
-    setPreviewPdf(null);
+    setPreviewPages(null);
+    prescriptionBytes.current = null;
     setPreviewOpen(true);
     try {
       const pdf = await fetchPrescriptionPdf();
@@ -280,7 +245,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         setPreviewOpen(false);
         return;
       }
-      setPreviewPdf(pdf);
+      prescriptionBytes.current = pdf.bytes;
+      setPreviewFilename(pdf.filename);
+      // Drawn here rather than handed to the browser to open: showing a PDF
+      // any other way means loading a document, which is the thing being
+      // refused on the clinic's machines.
+      setPreviewPages(await renderPdfToImages(pdf.bytes));
     } catch (e: any) {
       const message = e?.message || "Failed to generate prescription";
       // Stated where the doctor is looking, not only in a toast that fades.
@@ -291,14 +261,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     }
   };
 
-  // The blob is held by the browser until released; drop it when the dialog
-  // closes so a long clinic session does not accumulate them.
   const closePreview = () => {
     setPreviewOpen(false);
-    setPreviewPdf((prev) => {
-      if (prev) URL.revokeObjectURL(prev.blobUrl);
-      return null;
-    });
+    setPreviewPages(null);
+    prescriptionBytes.current = null;
     setPreviewError(null);
   };
 
@@ -1480,63 +1446,17 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         </SheetContent>
       </Sheet>
 
-      <Dialog open={previewOpen} onOpenChange={(o) => (o ? setPreviewOpen(true) : closePreview())}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Prescription preview</DialogTitle>
-          </DialogHeader>
-          <div className="bg-muted/40 rounded-lg overflow-hidden flex items-center justify-center" style={{ minHeight: 400 }}>
-            {previewError ? (
-              <div className="p-8 text-center">
-                <p className="text-sm text-destructive">{previewError}</p>
-                <Button type="button" variant="outline" size="sm" className="mt-3" onClick={handlePreviewPrescription}>
-                  Try again
-                </Button>
-              </div>
-            ) : previewPdf ? (
-              // <object>, not <iframe>, because it degrades honestly. An
-              // <iframe> that cannot show its document draws a
-              // broken-document icon with nothing to act on; <object> renders
-              // its children instead. viewUrl is an ordinary https address
-              // (see publishForViewing), so this is no longer expected to
-              // fire - it is the net under a browser that still will not
-              // display a PDF in place.
-              <object data={previewPdf.viewUrl} type="application/pdf" className="w-full h-[70vh]">
-                <div className="p-8 text-center space-y-3">
-                  <FileText className="h-10 w-10 mx-auto text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    This browser will not display the prescription inside the app.
-                    It is ready — open it in a tab or download it.
-                  </p>
-                  <div className="flex justify-center gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => window.open(previewPdf.viewUrl, "_blank")}>
-                      Open in new tab
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={handleDownloadPrescription} disabled={downloadingPdf}>
-                      <Download className="h-4 w-4 mr-1" /> Download
-                    </Button>
-                  </div>
-                </div>
-              </object>
-            ) : (
-              <div className="p-8 text-center text-sm text-muted-foreground flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" /> Preparing the prescription…
-              </div>
-            )}
-          </div>
-          {previewPdf && (
-            <div className="flex justify-end gap-2">
-              {/* A click in here is a fresh gesture, so this one is never blocked. */}
-              <Button type="button" variant="outline" size="sm" onClick={() => window.open(previewPdf.viewUrl, "_blank")}>
-                Open in new tab
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={handleDownloadPrescription} disabled={downloadingPdf}>
-                <Download className="h-4 w-4 mr-1" /> Download
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <PdfPreviewDialog
+        open={previewOpen}
+        onClose={closePreview}
+        title="Prescription preview"
+        preparing="Preparing the prescription…"
+        pages={previewPages}
+        error={previewError}
+        onRetry={handlePreviewPrescription}
+        onDownload={handleDownloadPrescription}
+        downloading={downloadingPdf}
+      />
 
       {cameraOpen && procedure?.patient_id && (
         <CameraCapture

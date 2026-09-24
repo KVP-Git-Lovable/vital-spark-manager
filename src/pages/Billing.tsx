@@ -461,7 +461,7 @@ const Billing = () => {
   // Form state
   const [patientId, setPatientId] = useState("");
   const [doctorId, setDoctorId] = useState("");
-  const [serviceInputs, setServiceInputs] = useState<{ name: string; price: number; hsn: string; gst: number; service_id?: string }[]>([{ name: "", price: 0, hsn: "", gst: 0 }]);
+  const [serviceInputs, setServiceInputs] = useState<{ name: string; price: number; hsn: string; gst: number; service_id?: string; material_percent?: string }[]>([{ name: "", price: 0, hsn: "", gst: 0 }]);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentType, setPaymentType] = useState("One-time");
   const [paymentMode, setPaymentMode] = useState("Cash");
@@ -1395,6 +1395,13 @@ const Billing = () => {
             hsn: s.hsn || "",
             gst: Number(s.gst) || 0,
             service_id: s.service_id && s.service_id !== OTHERS_VALUE ? s.service_id : null,
+            // Read by the material_cost_lines view, which prefers it over the
+            // visit's override and the Service Master default. Omitted rather
+            // than stored as 0 when it was left blank, so "not recorded" stays
+            // distinguishable from "no material cost".
+            ...(String(s.material_percent ?? "").trim() === ""
+              ? {}
+              : { material_percent: Number(s.material_percent) || 0 }),
           })),
         ...pharmaItems
           .filter((i) => i.product_name)
@@ -2026,7 +2033,7 @@ const Billing = () => {
   };
 
   const addServiceInput = () => setServiceInputs([...serviceInputs, { name: "", price: 0, hsn: "", gst: 0 }]);
-  const updateServiceInput = (i: number, patch: Partial<{ name: string; price: number; hsn: string; gst: number; service_id?: string }>) => {
+  const updateServiceInput = (i: number, patch: Partial<{ name: string; price: number; hsn: string; gst: number; service_id?: string; material_percent?: string }>) => {
     setServiceInputs((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   };
   const removeServiceInput = (i: number) => setServiceInputs(serviceInputs.filter((_, idx) => idx !== i));
@@ -2369,6 +2376,10 @@ const Billing = () => {
                                       hsn: liveHsn(svc.hsn_code, activeCodes),
                                       gst: Number(svc.gst_percent) || 0,
                                       service_id: svc.id,
+                                      material_percent:
+                                        svc.material_percent === null || svc.material_percent === undefined
+                                          ? ""
+                                          : String(svc.material_percent),
                                     });
                                     setServiceSearchOpen(null);
                                   }}>
@@ -2417,6 +2428,33 @@ const Billing = () => {
                         value={s.name}
                         onChange={(e) => updateServiceInput(i, { name: e.target.value })}
                       />
+                    )}
+                    {/* Filled from the Service Master when a service is picked, typed in
+                        for a one-off. Recorded on the line itself so a bill raised by
+                        hand - which is most of them - carries its own figure rather than
+                        depending on a master entry whose name happens to match. It never
+                        reaches the invoice: invoiceLineRows builds a fixed shape that both
+                        the on-screen invoice and the printed one render from, and
+                        generate-invoice-pdf maps only name/qty/price/hsn/gst. */}
+                    {(s.name.trim() || s.service_id) && (
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground shrink-0">Material cost</span>
+                        <div className="relative w-24">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.01"
+                            inputMode="decimal"
+                            className="h-8 pr-6 text-xs"
+                            placeholder="e.g. 20"
+                            value={numVal(s.material_percent)}
+                            onChange={(e) => updateServiceInput(i, { material_percent: e.target.value })}
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground pointer-events-none">%</span>
+                        </div>
+                        <span className="text-[11px] text-muted-foreground">Internal only — not shown on the invoice.</span>
+                      </div>
                     )}
                     {s.price > 0 && (() => {
                       const lineTax = getServiceLineTax(s.name, s.price, (s as any).hsn);

@@ -8,6 +8,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { stockDelta } from "@/lib/pharmaStockDelta";
 import { isConsultationService } from "@/lib/consultationLine";
 import { resolveServiceFromMaster } from "@/lib/serviceMatch";
+import { pickAppointmentForInvoice, type LinkableAppointment } from "@/lib/appointmentForInvoice";
 import { renderPdfToImages } from "@/lib/renderPdf";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -294,6 +295,10 @@ const Billing = () => {
     queryClient.invalidateQueries({ queryKey: ["invoices-bounded"] });
     queryClient.invalidateQueries({ queryKey: ["invoices-search"] });
     queryClient.invalidateQueries({ queryKey: ["invoice-stats"] });
+    // The appointments list's Bill Amount / Payment Mode columns. Nothing
+    // invalidated this, so a bill taken here only reached that screen when its
+    // query happened to refetch on remount or window focus.
+    queryClient.invalidateQueries({ queryKey: ["invoices-for-appointments"] });
   };
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -664,23 +669,76 @@ const Billing = () => {
     }
   }, [invoicesError]);
 
-  // Appointments belonging to the invoice's patient — used to re-link an
-  // installment to a different visit of the SAME patient.
+  // Appointments belonging to a patient — used to re-link an installment to a
+  // different visit of the SAME patient when editing, and to attach a bill
+  // raised from this page to the visit it pays for when creating.
+  const fetchPatientAppointments = async (id: string | null) => {
+    if (!id) return [];
+    const { data, error } = await supabase
+      .from("appointments")
+      // staff_id is what separates two visits on one day when the bill has to
+      // choose between them - see pickAppointmentForInvoice.
+      .select("id, service, start_time, status, staff_id")
+      .eq("patient_id", id)
+      .order("start_time", { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    return data || [];
+  };
+
+  /** The picker needs the display fields as well as what the guess reads. */
+  type PickerAppointment = LinkableAppointment & { service?: string | null; status?: string | null };
+
   const linkPatientId = (viewInvoice as any)?.patient_id || null;
   const { data: patientAppointments = [] } = useQuery({
     queryKey: ["invoice-patient-appointments", linkPatientId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("id, service, start_time, status")
-        .eq("patient_id", linkPatientId)
-        .order("start_time", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return data || [];
-    },
+    queryFn: () => fetchPatientAppointments(linkPatientId),
     enabled: !!linkPatientId,
   });
+
+  // The same list for whoever is selected in the create form.
+  const { data: createPatientAppointments = [] } = useQuery({
+    queryKey: ["invoice-patient-appointments", patientId],
+    queryFn: () => fetchPatientAppointments(patientId),
+    enabled: !!patientId,
+  });
+
+  // A bill raised from this page used to save with appointment_id null, so the
+  // appointments list - which looks bills up by that column alone - reported
+  // the visit as unbilled. Guess the visit when the guess is unambiguous, and
+  // show it in the form so staff can correct it before saving.
+  const suggestedAppointmentId = useMemo(
+    () =>
+      pickAppointmentForInvoice(createPatientAppointments as LinkableAppointment[], {
+        invoiceDate,
+        doctorId,
+      }),
+    [createPatientAppointments, invoiceDate, doctorId],
+  );
+
+  // undefined = nobody has touched the picker, so follow the suggestion;
+  // "" = deliberately unlinked. Keeping the two apart is what lets the
+  // suggestion update as the patient or date changes without overriding a
+  // choice staff already made.
+  const [linkAppointmentChoice, setLinkAppointmentChoice] = useState<string | undefined>(undefined);
+
+  const createApptIds = useMemo(
+    () => new Set((createPatientAppointments as PickerAppointment[]).map((a) => a.id)),
+    [createPatientAppointments],
+  );
+
+  // A chosen id only counts while it still belongs to the patient on the form.
+  // Switching the patient after picking would otherwise bill this patient's
+  // money against someone else's appointment, and the list would show it there.
+  // An explicit "" (Not linked) is a choice and survives.
+  const choiceStillValid =
+    linkAppointmentChoice !== undefined &&
+    (linkAppointmentChoice === "" || createApptIds.has(linkAppointmentChoice));
+  const effectiveLinkAppointmentId = choiceStillValid
+    ? (linkAppointmentChoice as string)
+    // sourceAppointmentId covers the moment before the patient's appointments
+    // have loaded, when a prefilled choice cannot be confirmed yet.
+    : suggestedAppointmentId || sourceAppointmentId || "";
 
   const { data: patients = [] } = useQuery({
     queryKey: ["patients-list"],
@@ -907,7 +965,12 @@ const Billing = () => {
 
     if (payload?.patientId) setPatientId(payload.patientId);
     if (payload?.doctorId) setDoctorId(payload.doctorId);
-    if (payload?.appointmentId) setSourceAppointmentId(payload.appointmentId);
+    if (payload?.appointmentId) {
+      setSourceAppointmentId(payload.appointmentId);
+      // Show it in the picker too, so the form states which visit it will bill
+      // rather than linking silently.
+      setLinkAppointmentChoice(payload.appointmentId);
+    }
 
     // Payment Type is left at its "One-time" default regardless of whether the
     // source procedure/appointment is a recurring visit - visit cadence and
@@ -1713,7 +1776,9 @@ const Billing = () => {
           services: allServices,
           line_items: lineItemsSnapshot,
           doctor_id: doctorId || null,
-          appointment_id: sourceAppointmentId || null,
+          // The picker is authoritative: it already falls back to the prefilled
+          // appointment, so what the form shows is what gets saved.
+          appointment_id: effectiveLinkAppointmentId || null,
           total_amount: grandTotal,
           paid_amount: paidAmount,
           status,
@@ -2137,6 +2202,7 @@ const Billing = () => {
     setRecurringStatuses(["Pending"]);
     setRecurringInvoiceNow([true]);
     setSourceAppointmentId(null);
+    setLinkAppointmentChoice(undefined);
     setServiceSearchOpen(null);
   };
 
@@ -2762,6 +2828,36 @@ const Billing = () => {
                 })()}
                 </div>
               </div>
+
+              {/* Which visit this bill pays for. Without it the bill saves with
+                  appointment_id null and the appointments list - which reads
+                  that column alone - shows the visit as unbilled. */}
+              {patientId && (
+                <div>
+                  <Label>Linked Appointment</Label>
+                  <Select
+                    value={effectiveLinkAppointmentId || "none"}
+                    onValueChange={(v) => setLinkAppointmentChoice(v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select appointment" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not linked</SelectItem>
+                      {(createPatientAppointments as PickerAppointment[]).map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {format(new Date(a.start_time), "dd MMM yyyy, h:mm a")} · {a.service || "Visit"}{a.status ? ` · ${a.status}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {effectiveLinkAppointmentId
+                      ? "This bill will show against that appointment in the appointments list."
+                      : (createPatientAppointments as PickerAppointment[]).length
+                        ? "Not linked, so the appointment will keep reading \"No bill\". Pick the visit this bill is for."
+                        : "This patient has no appointments to link to."}
+                  </p>
+                </div>
+              )}
 
               {serviceAndProductSections}
 

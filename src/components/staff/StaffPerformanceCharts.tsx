@@ -23,7 +23,7 @@ const StaffPerformanceCharts = ({ staffId, staffName }: { staffId: string; staff
   const { data: procedures = [] } = useQuery({
     queryKey: ["staff-perf-procs", staffId],
     queryFn: async () => {
-      const { data } = await supabase.from("procedures").select("*").eq("staff_id", staffId);
+      const { data } = await supabase.from("procedures").select("*").eq("staff_id", staffId).eq("date_not_recorded", false);
       return data || [];
     },
   });

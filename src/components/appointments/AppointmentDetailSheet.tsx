@@ -434,6 +434,10 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         .from("procedures")
         .select("*, staff:staff!procedures_staff_id_fkey(first_name, last_name)")
         .eq("appointment_id", appointmentId!)
+        // Visits imported without a date are left out: the clinic wants the
+        // record to match Salesforce exactly, nothing more. The rows are still
+        // in the database - see the 20260925 migration - just not listed.
+        .eq("date_not_recorded", false)
         .order("procedure_date", { ascending: false });
       if (error) throw error;
       return data;
@@ -468,6 +472,10 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         .from("procedures")
         .select("*, staff:staff!procedures_staff_id_fkey(first_name, last_name)")
         .eq("patient_id", appointment!.patient_id!)
+        // Visits imported without a date are left out: the clinic wants the
+        // record to match Salesforce exactly, nothing more. The rows are still
+        // in the database - see the 20260925 migration - just not listed.
+        .eq("date_not_recorded", false)
         .order("procedure_date", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -1318,17 +1326,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       {previousProcedures.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-8">No procedures recorded for this patient.</p>
                       ) : (
-                        (() => {
-                          // Visits imported without a date are split out under
-                          // their own heading. They used to claim 23 April 2026,
-                          // a day the patient had not attended, and a doctor
-                          // reading the last visit before a consultation was
-                          // being told something untrue. They are real records -
-                          // they simply have no date, and must read that way.
-                          const all = previousProcedures as any[];
-                          const dated = all.filter((p: any) => !p.date_not_recorded);
-                          const undated = all.filter((p: any) => p.date_not_recorded);
-                          const card = (proc: any) => (
+                        <div className="space-y-2">
+                          {(previousProcedures as any[]).map((proc: any) => (
                             <div
                               key={proc.id}
                               className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
@@ -1344,21 +1343,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                               </p>
                               {proc.diagnosis && <p className="text-xs mt-2 text-muted-foreground">{proc.diagnosis}</p>}
                             </div>
-                          );
-                          return (
-                            <div className="space-y-2">
-                              {dated.map(card)}
-                              {undated.length > 0 && (
-                                <>
-                                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground pt-3">
-                                    Earlier history — date not recorded
-                                  </p>
-                                  {undated.map(card)}
-                                </>
-                              )}
-                            </div>
-                          );
-                        })()
+                          ))}
+                        </div>
                       )}
                     </>
                   ) : (

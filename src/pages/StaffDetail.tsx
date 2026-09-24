@@ -207,7 +207,7 @@ const ProceduresTab = ({ staffId }: { staffId: string }) => {
   const { data: procedures = [] } = useQuery({
     queryKey: ["staff-procedures", staffId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("procedures").select("*, patients(first_name, last_name)").eq("staff_id", staffId).order("procedure_date", { ascending: false }).limit(50);
+      const { data, error } = await supabase.from("procedures").select("*, patients(first_name, last_name)").eq("staff_id", staffId).eq("date_not_recorded", false).order("procedure_date", { ascending: false }).limit(50);
       if (error) throw error;
       return data;
     },

@@ -117,6 +117,10 @@ const Procedures = () => {
       const { data, error } = await supabase
         .from("procedures")
         .select("*, patients(first_name, last_name), staff:staff!procedures_staff_id_fkey(first_name, last_name), appointments(staff:staff_id(first_name, last_name), reason_for_consultation)")
+        // Visits imported without a date are left out: the clinic wants the
+        // record to match Salesforce exactly, nothing more. The rows are still
+        // in the database - see the 20260925 migration - just not listed.
+        .eq("date_not_recorded", false)
         .order("procedure_date", { ascending: false });
       if (error) throw error;
       return data;

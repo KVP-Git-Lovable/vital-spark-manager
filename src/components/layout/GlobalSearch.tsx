@@ -133,7 +133,7 @@ export function GlobalSearch({ className }: { className?: string }) {
           : noRows,
         wants("procedure")
           ? supabase.from("procedures").select("id, service_name, procedure_date, date_not_recorded, patients(first_name, last_name)")
-              .ilike("service_name", like).order("procedure_date", { ascending: false }).limit(12)
+              .ilike("service_name", like).eq("date_not_recorded", false).order("procedure_date", { ascending: false }).limit(12)
           : noRows,
         wants("invoice")
           ? supabase.from("invoices").select("id, invoice_number, patient_name, total_amount, status, created_at")

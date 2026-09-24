@@ -1,5 +1,7 @@
 import { formatMoney, formatMoneyPrecise } from "@/lib/currency";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { isConsultationService } from "@/lib/consultationLine";
+import { resolveServiceFromMaster } from "@/lib/serviceMatch";
 import { renderPdfToImages } from "@/lib/renderPdf";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -459,7 +461,7 @@ const Billing = () => {
   // Form state
   const [patientId, setPatientId] = useState("");
   const [doctorId, setDoctorId] = useState("");
-  const [serviceInputs, setServiceInputs] = useState<{ name: string; price: number; hsn: string; gst: number; service_id?: string; doctor_fee?: boolean }[]>([{ name: "", price: 0, hsn: "", gst: 0 }]);
+  const [serviceInputs, setServiceInputs] = useState<{ name: string; price: number; hsn: string; gst: number; service_id?: string }[]>([{ name: "", price: 0, hsn: "", gst: 0 }]);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentType, setPaymentType] = useState("One-time");
   const [paymentMode, setPaymentMode] = useState("Cash");
@@ -880,22 +882,16 @@ const Billing = () => {
     // with no active codes at all still gets its prefill.
     if (!hsnMasterLoaded) return;
 
-    const norm = (v: any) =>
-      String(v || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, " ")
-        .trim();
-
     const names: string[] = Array.isArray(payload?.services) ? payload.services.filter(Boolean) : [];
     if (names.length) {
-      setServiceInputs(
-        names.map((n: string) => {
-          const key = norm(n);
-          const list = serviceMaster as any[];
-          const svc =
-            list.find((s: any) => norm(s?.name) === key) ||
-            list.find((s: any) => norm(s?.name).startsWith(key) || key.startsWith(norm(s?.name))) ||
-            list.find((s: any) => norm(s?.name).includes(key) || key.includes(norm(s?.name)));
+      // A bare "Consultation" resolves to nothing and is not billed as a line
+      // (resolveServiceFromMaster), so a consultation-only visit prefills no
+      // services at all rather than one doctor's consultation chosen for
+      // everybody. Fall back to a single blank row so the form is usable.
+      const rows = names
+        .filter((n) => !isConsultationService(n))
+        .map((n: string) => {
+          const svc = resolveServiceFromMaster(n, serviceMaster as any[]);
           return {
             name: svc?.name || n,
             price: Number(svc?.price) || 0,
@@ -903,8 +899,8 @@ const Billing = () => {
             gst: Number(svc?.gst_percent) || 0,
             service_id: svc?.id,
           };
-        }),
-      );
+        });
+      setServiceInputs(rows.length ? rows : [{ name: "", price: 0, hsn: "", gst: 0 }]);
     }
 
     const products: any[] = Array.isArray(payload?.products) ? payload.products : [];
@@ -1398,7 +1394,6 @@ const Billing = () => {
             price: Number(s.price) || 0,
             hsn: s.hsn || "",
             gst: Number(s.gst) || 0,
-            doctor_fee: !!s.doctor_fee,
             service_id: s.service_id && s.service_id !== OTHERS_VALUE ? s.service_id : null,
           })),
         ...pharmaItems
@@ -2031,35 +2026,22 @@ const Billing = () => {
   };
 
   const addServiceInput = () => setServiceInputs([...serviceInputs, { name: "", price: 0, hsn: "", gst: 0 }]);
-  const updateServiceInput = (i: number, patch: Partial<{ name: string; price: number; hsn: string; gst: number; service_id?: string; doctor_fee?: boolean }>) => {
+  const updateServiceInput = (i: number, patch: Partial<{ name: string; price: number; hsn: string; gst: number; service_id?: string }>) => {
     setServiceInputs((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   };
   const removeServiceInput = (i: number) => setServiceInputs(serviceInputs.filter((_, idx) => idx !== i));
 
   // Doctor selection: maintain a single auto "Consultation - Dr. X" line item
-  // marked with `doctor_fee: true`. Replacing the doctor replaces that row.
+  // Choosing a doctor no longer bills a consultation.
+  //
+  // It used to add a "Consultation - Dr X" row automatically, priced from the
+  // Staff Master, and the row's remove button was disabled so nobody could
+  // take it off. The clinic's instruction is that no consultation line should
+  // appear by default for any doctor - they add one from the Service Master
+  // when they mean to. Any row left over from the old behaviour is stripped.
   const handleDoctorChange = (newDoctorId: string) => {
     setDoctorId(newDoctorId);
-    setServiceInputs((prev) => {
-      // Strip any existing doctor-fee row first
-      const stripped = prev.filter((r) => !r.doctor_fee);
-      if (!newDoctorId) {
-        return stripped.length > 0 ? stripped : [{ name: "", price: 0, hsn: "", gst: 0 }];
-      }
-      const doc: any = (doctorsList as any[]).find((d: any) => d.id === newDoctorId);
-      const fee = Number(doc?.consultation_fee) || 0;
-      const docName = doc ? withDrPrefix(`${doc.first_name || ""} ${doc.last_name || ""}`) || "Doctor" : "Doctor";
-      const feeRow = {
-        name: `Consultation - ${docName}`,
-        price: fee,
-        hsn: liveHsn(doc?.consultation_hsn, activeCodes),
-        gst: 0,
-        doctor_fee: true as const,
-      };
-      // If user only had the empty initial blank row, drop it.
-      const cleaned = stripped.filter((r) => r.name.trim() || r.price > 0);
-      return [feeRow, ...cleaned];
-    });
+    setServiceInputs((prev) => (prev.length > 0 ? prev : [{ name: "", price: 0, hsn: "", gst: 0 }]));
   };
 
   const addStage = () => setStages([...stages, { label: `Stage ${stages.length + 1}`, amount: 0, paid: 0 }]);
@@ -2327,7 +2309,7 @@ const Billing = () => {
                   return (
                     <p className="text-[11px] text-muted-foreground mt-1">
                       {fee > 0
-                        ? `Consultation fee ₹${fee.toLocaleString()} added as a line item.`
+                        ? `Consultation fee for this doctor is ₹${fee.toLocaleString()} — add it as a service if you are billing it.`
                         : "This doctor has no consultation fee set in Staff Master."}
                     </p>
                   );
@@ -2425,7 +2407,7 @@ const Billing = () => {
                         options={hsnOptions}
                       />
                       {serviceInputs.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0 w-8 px-0" disabled={!!s.doctor_fee} onClick={() => removeServiceInput(i)}>✕</Button>
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0 w-8 px-0" onClick={() => removeServiceInput(i)}>✕</Button>
                       )}
                     </div>
                     {s.service_id === OTHERS_VALUE && (

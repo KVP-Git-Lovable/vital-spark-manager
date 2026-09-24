@@ -302,33 +302,49 @@ const Billing = () => {
   const [kanban, setKanban] = useState(() => getKanbanConfig("billing", ALL_VIEW_ID));
 
   // Regenerate the official invoice PDF (same template as the WhatsApp copy) and open it.
-  // Shown in the page. The reserved tab this used to fill was measured
-  // failing at exactly one step in the clinic's browsers: the tab opened,
-  // the "Preparing the invoice..." placeholder wrote into it, and then
-  // navigating it to the finished PDF never completed. Nothing here
-  // navigates, so there is nothing left to be refused.
+  // Shown in the page, and built here rather than fetched.
+  //
+  // The clinic's browser blocks brdrkhgfbbrgdkzdfbpr.supabase.co outright -
+  // ERR_BLOCKED_BY_CLIENT, an extension - so any route that asks it to load
+  // the PDF as a document fails: navigating a tab to it, pointing an
+  // <object> at it, blob: and https alike. What is NOT blocked is the app's
+  // own XHR to the same host; that is how this page loads its invoices in
+  // the first place, and how the PDF builder is reached.
+  //
+  // So the invoice on screen is drawn from the record the page already has,
+  // with the printable template the app has always carried. No request, so
+  // nothing to block, and nothing to wait for either - it appears at once
+  // instead of after a round trip to the builder. The official PDF is still
+  // a click away under Download, which fetches the bytes by XHR and saves
+  // them: <a download> saves rather than navigates, which is the one thing
+  // that kept working throughout.
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfHtml, setPdfHtml] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
-  // Only what the dialog needs: the number for its title, the id to retry with.
+  const [pdfDownloading, setPdfDownloading] = useState(false);
+  // Only what the dialog needs: the number for its title, the id to download with.
   const [pdfInvoice, setPdfInvoice] = useState<{ id: string; invoice_number?: string | null } | null>(null);
 
-  const openInvoicePDF = async (inv: any) => {
+  const openInvoicePDF = (inv: any) => {
     if (!inv?.id) {
       toast.error("Invoice id missing");
       return;
     }
     setPdfInvoice(inv);
     setPdfUrl(null);
-    setPdfHtml(null);
     setPdfError(null);
+    setPdfHtml(invoicePrintableHtml(inv));
     setPdfOpen(true);
+  };
+
+  const downloadInvoicePDF = async () => {
+    const inv = pdfInvoice;
+    if (!inv?.id) return;
+    setPdfDownloading(true);
+    const t = toast.loading("Generating invoice PDF…");
     try {
       const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
-        // Bounded on the request itself - functions-js turns this into an
-        // AbortController - so a builder that never answers falls through to
-        // the printable invoice below instead of spinning forever.
         body: { invoiceId: inv.id, wait: true },
         timeout: 45000,
       });
@@ -339,16 +355,31 @@ const Billing = () => {
       }
       const url = (data as any)?.url;
       if (!url) throw new Error("PDF url missing");
-      // Cache-busted: the builder writes each invoice to the same object.
-      setPdfUrl(`${url}?t=${Date.now()}`);
+      // Fetched, not linked to: a cross-origin href would make the browser
+      // navigate to the file, which is the blocked path.
+      const res = await fetch(`${url}?t=${Date.now()}`);
+      if (!res.ok) throw new Error(`The PDF could not be fetched (${res.status})`);
+      const objUrl = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = `${inv.invoice_number || "invoice"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objUrl);
+      toast.dismiss(t);
+      toast.success("Invoice downloaded");
     } catch (e: any) {
       console.error(e);
-      // The printable invoice still serves, and now it has somewhere to go.
-      toast.message("Showing the printable invoice instead");
-      setPdfHtml(invoicePrintableHtml(inv));
+      toast.dismiss(t);
+      toast.error(
+        e?.message ||
+          "The PDF could not be downloaded. The invoice on screen can still be printed.",
+      );
+    } finally {
+      setPdfDownloading(false);
     }
   };
-
 
   const [open, setOpen] = useState(false);
   // Seeded from ?q= so global search can hand a term to this list view
@@ -3755,7 +3786,8 @@ const Billing = () => {
         url={pdfUrl}
         html={pdfHtml}
         error={pdfError}
-        onRetry={() => pdfInvoice && openInvoicePDF(pdfInvoice)}
+        onDownload={downloadInvoicePDF}
+        downloading={pdfDownloading}
       />
     </div>
   );

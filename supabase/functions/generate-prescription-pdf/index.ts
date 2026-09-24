@@ -450,14 +450,13 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
   // every row here always has.
   const medicalFields: [string, unknown][] = [
     ["Diagnosis", procedure.diagnosis],
-    ["Symptoms", procedure.symptoms || procedure.consultation_notes],
+    ["History/Examination details", procedure.symptoms || procedure.consultation_notes],
     ["Lab Tests", procedure.lab_tests],
     ["Medical History", patient.medical_history],
     ["Current Medications", patient.current_medications],
-    ["Allergies", patient.allergies],
+    ["Dietary Advice", patient.dietary_advice],
     ["Previous Treatments", patient.previous_treatments],
     ["Skin Type", patient.skin_type],
-    ["Skin Concerns", patient.skin_concerns],
   ];
   const medicalRows = medicalFields
     .map(([label, value]) => ({ label, value: sanitize(value) }))

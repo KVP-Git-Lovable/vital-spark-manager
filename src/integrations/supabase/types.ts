@@ -1701,6 +1701,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "invoices_merged_into_invoice_id_fkey"
+            columns: ["merged_into_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "material_cost_lines"
+            referencedColumns: ["invoice_id"]
+          },
+          {
             foreignKeyName: "invoices_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
@@ -5740,7 +5747,44 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      material_cost_lines: {
+        Row: {
+          appointment_id: string | null
+          created_at: string | null
+          doctor_id: string | null
+          invoice_id: string | null
+          invoice_number: string | null
+          material_cost: number | null
+          material_percent: number | null
+          patient_id: string | null
+          patient_name: string | null
+          service_amount: number | null
+          service_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       add_custom_field_column: {

@@ -374,20 +374,50 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
   /** The name the importer uses when Salesforce recorded no treatment at all. */
   const isPlaceholderService = (name: string) => name.trim().toLowerCase() === "consultation";
 
-  const serviceRows = (serviceLineRows && serviceLineRows.length
+  // A "Consultation" service name is not a procedure - it means "the patient
+  // was seen". 10,586 of these rows carry procedure notes and 9,178 carry
+  // recommendations, so the text must not be lost: it prints under a "Visit
+  // notes" heading above the table instead of inside it. Real services stay in
+  // the Procedure Details table; when no real service remains, the table is
+  // not drawn at all.
+  const allServiceRows = (serviceLineRows && serviceLineRows.length
     ? serviceLineRows.map((s: Record<string, unknown>) => ({ service: s.service_name, notes: s.procedure_notes, recommendations: s.recommendations }))
     : [{ service: procedure.service_name, notes: procedure.procedure_notes, recommendations: procedure.recommendations }]
   )
     .map((r) => ({ service: sanitize(r.service), notes: sanitize(r.notes), recommendations: sanitize(r.recommendations) }))
-    .filter((r) => r.service)
-    // A visit where no procedure was done still carries the "Consultation"
-    // placeholder as its service name, so the document printed a Procedure
-    // Details table reading "Consultation | - | -" - a heading, a box and two
-    // dashes saying nothing happened. Drop a row that is the placeholder with
-    // nothing recorded against it; a real service, or a consultation that does
-    // carry notes, still prints.
-    .filter((r) => !(isPlaceholderService(r.service) && !r.notes && !r.recommendations))
+    .filter((r) => r.service);
+
+  const consultationRows = allServiceRows.filter((r) => isPlaceholderService(r.service));
+  const visitNotesText = consultationRows
+    .flatMap((r) => [r.notes, r.recommendations].filter(Boolean))
+    .join("\n")
+    .trim();
+
+  const serviceRows = allServiceRows
+    .filter((r) => !isPlaceholderService(r.service))
     .map((r) => ({ service: r.service, notes: r.notes || "-", recommendations: r.recommendations || "-" }));
+
+  /**
+   * The visit's own notes - the procedure notes and recommendations attached to
+   * the "Consultation" placeholder row. These are not a service performed, so
+   * they print under their own heading above the Procedure Details table, the
+   * same way Special Instructions does, instead of being squeezed into a table
+   * column. The text is never dropped: 10,586 rows carry notes, 9,178 carry
+   * recommendations.
+   */
+  const drawVisitNotes = () => {
+    const text = sanitize(visitNotesText);
+    if (!text) return;
+    ensureSpace(30);
+    page.drawText("Visit notes", { x: MARGIN, y, size: 11, font: bold, color: blue });
+    y -= 15;
+    for (const textLine of wrap(text, font, 10, PAGE_WIDTH - 2 * MARGIN - 8)) {
+      ensureSpace(13);
+      page.drawText(textLine, { x: MARGIN + 8, y, size: 10, font, color: dark });
+      y -= 13;
+    }
+    y -= 10;
+  };
 
   /**
    * The visit's special instructions, under their own heading.
@@ -402,6 +432,7 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     const text = sanitize(procedure.recommendations);
     if (!text) return;
     if (serviceRows.some((r) => r.recommendations === text)) return;
+    if (visitNotesText.split(/\n/).includes(text)) return;
     ensureSpace(30);
     page.drawText("Special Instructions", { x: MARGIN, y, size: 11, font: bold, color: blue });
     y -= 15;
@@ -527,6 +558,7 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
   // done, then anything written alongside it.
   drawKeyValueTable("Medical Information", medicalRows);
   drawMedications();
+  drawVisitNotes();
   drawSpecialInstructions();
   drawServicesTable(serviceRows);
   drawNotes();

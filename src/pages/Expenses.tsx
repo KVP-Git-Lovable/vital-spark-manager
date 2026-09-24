@@ -590,7 +590,7 @@ const Expenses = () => {
               </div>
               <div>
                 <Label>Date *</Label>
-                <DateInput value={numVal(editingExpense.expense_date)} onChange={e => setEditingExpense((p: any) => ({ ...p, expense_date: isoDate }))} />
+                <DateInput value={numVal(editingExpense.expense_date)} onChange={isoDate => setEditingExpense((p: any) => ({ ...p, expense_date: isoDate }))} />
               </div>
               <div>
                 <Label>Category</Label>

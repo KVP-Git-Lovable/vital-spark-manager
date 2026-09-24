@@ -46,7 +46,6 @@ import { AlertCircle } from "lucide-react";
 import { Sparkles, Loader2 } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { findDuplicates, type DuplicateMatch } from "@/lib/duplicates/engine";
-import DuplicateAlertDialog from "@/components/duplicates/DuplicateAlertDialog";
 import DuplicateNotificationBand from "@/components/duplicates/DuplicateNotificationBand";
 import DuplicateResolveDialog from "@/components/duplicates/DuplicateResolveDialog";
 
@@ -138,8 +137,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [resolveWith, setResolveWith] = useState<Record<string, any> | null>(null);
 
   const [duplicateAck, setDuplicateAck] = useState(false);
-  const [dupMatches, setDupMatches] = useState<DuplicateMatch[]>([]);
-  const [dupDialogOpen, setDupDialogOpen] = useState(false);
   const [familyExisting, setFamilyExisting] = useState<Record<string, any>>({});
   const { toast } = useToast();
   const isEditing = !!patient;
@@ -488,24 +485,18 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     }
   };
 
-  const handleSave = async (opts: { skipDuplicateCheck?: boolean } = {}) => {
+  // No duplicate gate here. This used to re-run findDuplicates and return
+  // early on ANY match, whatever its severity, diverting into a modal whose
+  // "save anyway" button was itself hidden for blocking rules - so a patient
+  // sharing a family phone number could not be registered at all. The live
+  // band above the form is the whole warning now.
+  const handleSave = async () => {
     if (!form.first_name.trim()) {
       toast({ title: "Error", description: "First name is required", variant: "destructive" });
       return;
     }
 
     const cfErrors = validateCustomFields(customFieldDefs, customValues);
-    if (!opts.skipDuplicateCheck) {
-      const matches = await findDuplicates("patients", form as Record<string, any>, {
-        excludeId: patient?.id ?? null,
-      });
-      if (matches.length > 0) {
-        setDupMatches(matches);
-        setDupDialogOpen(true);
-        return;
-      }
-    }
-
     setCustomErrors(cfErrors);
     if (Object.keys(cfErrors).length) {
       toast({ title: "Validation failed", description: String(Object.values(cfErrors)[0]), variant: "destructive" });
@@ -588,13 +579,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
 
   return (
     <>
-    <DuplicateAlertDialog
-      open={dupDialogOpen}
-      matches={dupMatches}
-      objectKey="patients"
-      onClose={() => setDupDialogOpen(false)}
-      onIgnore={() => void handleSave({ skipDuplicateCheck: true })}
-    />
     <DuplicateResolveDialog
       open={!!resolveWith && !!patient}
       onClose={() => setResolveWith(null)}
@@ -630,12 +614,16 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
           </div>
         )}
 
-        {liveMatches.length > 0 && (
+        {/* duplicateAck was set in two places and read in none, so dismissing
+            only worked until the next keystroke re-ran the check. It hides the
+            band now, and the live check clears it when a fresh match arrives,
+            so editing the phone brings the warning back. */}
+        {liveMatches.length > 0 && !duplicateAck && (
           <DuplicateNotificationBand
             className="mt-4"
             matches={liveMatches}
             objectKey="patients"
-            onIgnore={() => { setDuplicateAck(true); setLiveMatches([]); }}
+            onIgnore={() => setDuplicateAck(true)}
             onResolve={(rec) => setResolveWith(rec)}
           />
         )}

@@ -1190,7 +1190,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                         </div>
                       </div>
                     );
-                  }) : importedPrescription.length ? (
+                  }) : (procedure as any)?.sf_id && importedPrescription.length ? (
                     /* The products a doctor prescribed in Salesforce arrive as the
                        free text they typed - 25,346 visits carry them this way -
                        while this panel reads the structured prescriptions table,

@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { ALL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { formatMoneyExact } from "@/lib/currency";
-import { collectionCards, paymentBucket, PAYMENT_BUCKETS } from "@/lib/paymentModes";
+import { collectionCards, modesOf, paymentModeLabel, PAYMENT_BUCKETS } from "@/lib/paymentModes";
 
 export type ColumnType = "text" | "number" | "currency" | "date" | "datetime" | "badge";
 
@@ -352,7 +352,15 @@ export const REPORTS: ReportConfig[] = [
         sortable: true,
         accessor: (r) => invoiceDoctorName(r),
       },
-      { key: "payment_mode", label: "Mode", sortable: true },
+      {
+        key: "payment_mode",
+        label: "Mode",
+        sortable: true,
+        // accessor, not render: reportPdf.ts cannot call render, so a render
+        // here would make the printed report say "Split" while the screen
+        // named the instruments.
+        accessor: (r) => paymentModeLabel(r),
+      },
       { key: "created_at", label: "Date", sortable: true, type: "date" },
     ],
     filters: [
@@ -375,7 +383,7 @@ export const REPORTS: ReportConfig[] = [
         type: "select",
         field: "payment_mode",
         options: PAYMENT_BUCKETS.map((v) => ({ value: v, label: v })),
-        matches: (r, v) => paymentBucket(r.payment_mode) === v,
+        matches: (r, v) => modesOf(r).includes(v as (typeof PAYMENT_BUCKETS)[number]),
       },
     ],
     searchFields: ["invoice_number", "patient_name"],
@@ -444,7 +452,7 @@ export const REPORTS: ReportConfig[] = [
         type: "select",
         field: "payment_mode",
         options: PAYMENT_BUCKETS.map((v) => ({ value: v, label: v })),
-        matches: (r, v) => paymentBucket(r.payment_mode) === v,
+        matches: (r, v) => modesOf(r).includes(v as (typeof PAYMENT_BUCKETS)[number]),
       },
     ],
     searchFields: ["invoice_number", "patient_name", "cancellation_reason", "cancelled_by_name"],

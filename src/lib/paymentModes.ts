@@ -182,3 +182,54 @@ export function collectionCards(
     ...(bucket === "Other" ? { hint: unrecognisedModeHint(rows) } : {}),
   }));
 }
+
+/**
+ * What one invoice was actually paid with, for a Mode column.
+ *
+ * `payment_mode` alone answers this for all but a handful of invoices. When
+ * staff take a bill across two instruments, Billing writes the literal string
+ * "Split" into that column and puts the detail in `payment_splits` - so the
+ * report printed "Split" and nobody could tell whether the drawer should hold
+ * the money. The parts are named here instead: "Cash ₹700 + UPI ₹100".
+ *
+ * Modes are printed as recorded, not bucketed, because this is a record of
+ * what happened at the counter. Bucketing belongs in the collection totals,
+ * where the question is "how much came in on UPI".
+ */
+export function paymentModeLabel(row: PaidRow): string {
+  const splits = splitsOf(row).filter((s) => String(s?.mode ?? "").trim() || Number(s?.amount ?? 0));
+  const stored = String(row?.payment_mode ?? "").trim();
+  if (splits.length < 2) return stored || (splits[0] ? String(splits[0].mode ?? "").trim() : "");
+  return splits
+    .map((s) => {
+      const mode = String(s?.mode ?? "").trim() || UNRECORDED_MODE;
+      const amount = Number(s?.amount ?? 0) || 0;
+      return `${mode} ₹${amount.toLocaleString("en-IN")}`;
+    })
+    .join(" + ");
+}
+
+/**
+ * Every bucket an invoice paid through, so a filter can find a split under
+ * either half of it.
+ *
+ * Without this, picking "Cash" missed an invoice that was half cash: "Split"
+ * buckets to "Other", while the money itself was already counted under Cash
+ * and UPI on the cards above - the filter and the totals contradicted
+ * each other.
+ */
+export function modesOf(row: PaidRow): PaymentBucket[] {
+  const splits = splitsOf(row);
+  if (splits.length === 0) return [paymentBucket(row?.payment_mode)];
+  const seen = new Set<PaymentBucket>();
+  for (const split of splits) {
+    if (!(Number(split?.amount ?? 0) || 0) && !String(split?.mode ?? "").trim()) continue;
+    seen.add(paymentBucket(split?.mode));
+  }
+  // A split that does not add up leaves a remainder on the invoice's own mode,
+  // exactly as attributions() treats it, so the filter matches that mode too.
+  const paid = Number(row?.paid_amount ?? 0) || 0;
+  const attributed = splits.reduce((a, s) => a + (Number(s?.amount ?? 0) || 0), 0);
+  if (Math.round((paid - attributed) * 100) !== 0) seen.add(paymentBucket(row?.payment_mode));
+  return seen.size ? [...seen] : [paymentBucket(row?.payment_mode)];
+}

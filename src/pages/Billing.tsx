@@ -9,6 +9,7 @@ import { stockDelta } from "@/lib/pharmaStockDelta";
 import { isConsultationService } from "@/lib/consultationLine";
 import { resolveServiceFromMaster } from "@/lib/serviceMatch";
 import { pickAppointmentForInvoice, type LinkableAppointment } from "@/lib/appointmentForInvoice";
+import { paymentModeLabel } from "@/lib/paymentModes";
 import { renderPdfToImages } from "@/lib/renderPdf";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -859,7 +860,11 @@ const Billing = () => {
   const viewOptionsFor = (source?: string): PickOption[] => {
     switch (source) {
       case "status": return ["Paid", "Partial", "Pending"].map((s) => ({ value: s, label: s }));
-      case "payment_mode": return ["Cash", "Card", "Online Transfer", "Cheque"].map((s) => ({ value: s, label: s }));
+      // The modes Billing actually writes, plus "Split" for a bill taken across
+      // two of them. The old list offered "Online Transfer", which nothing
+      // stores, and omitted UPI - most of the clinic's takings - so filtering a
+      // saved view by payment mode could not find them.
+      case "payment_mode": return ["Cash", "Card", "UPI", "Bank Transfer", "Cheque", "Split"].map((s) => ({ value: s, label: s }));
       default: return [];
     }
   };
@@ -3554,13 +3559,14 @@ const Billing = () => {
                 <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden md:table-cell">Services</th>
                 <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden sm:table-cell">Type</th>
                 <th className="text-right text-xs font-medium text-muted-foreground p-4">Amount</th>
+                <th className="text-left text-xs font-medium text-muted-foreground p-4 hidden sm:table-cell">Mode</th>
                 <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
                 <th className="text-right text-xs font-medium text-muted-foreground p-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {total === 0 ? (
-                <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">
+                <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">
                   {invoicesLoading ? "Loading invoices…" : "No invoices found"}
                 </td></tr>
               ) : (
@@ -3593,6 +3599,11 @@ const Billing = () => {
                       {inv.status !== "Pending" && (
                         <p className="text-xs text-muted-foreground">Paid: ₹{Number(inv.paid_amount).toLocaleString()}</p>
                       )}
+                    </td>
+                    {/* A bill taken across two instruments stores the literal
+                        "Split" in payment_mode, so the parts are named here. */}
+                    <td className="p-4 hidden sm:table-cell">
+                      <span className="text-xs text-muted-foreground">{paymentModeLabel(inv) || "—"}</span>
                     </td>
                     <td className="p-4" onClick={(e) => e.stopPropagation()}>
                       {inv.status === "Cancelled" ? (

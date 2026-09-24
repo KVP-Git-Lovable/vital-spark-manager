@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   collectionCards,
   collectionsByBucket,
+  modesOf,
   paymentBucket,
+  paymentModeLabel,
+  UNRECORDED_MODE,
   unrecognisedModeTotals,
 } from "./paymentModes";
 
@@ -234,5 +237,79 @@ describe("what is inside the Other card", () => {
     // and the Other card is the sum of the modes its hint names
     const unrecognised = Array.from(unrecognisedModeTotals(rows).values()).reduce((a, n) => a + n, 0);
     expect(unrecognised).toBe(13045 + 900);
+  });
+});
+
+describe("paymentModeLabel", () => {
+  it("prints the stored mode when there is no split", () => {
+    expect(paymentModeLabel({ payment_mode: "UPI", paid_amount: 850 })).toBe("UPI");
+    expect(paymentModeLabel({ payment_mode: "Cash", paid_amount: 500, payment_splits: null })).toBe("Cash");
+  });
+
+  it("names both instruments instead of the useless word Split", () => {
+    // INV-365362: the report printed "Split" and nobody could tell whether the
+    // drawer should hold the money.
+    expect(
+      paymentModeLabel({
+        payment_mode: "Split",
+        paid_amount: 800,
+        payment_splits: [{ mode: "Cash", amount: 700 }, { mode: "UPI", amount: 100 }],
+      }),
+    ).toBe("Cash ₹700 + UPI ₹100");
+  });
+
+  it("uses the stored mode when a split has only one part", () => {
+    // Billing already collapses a single-part split to that mode on save.
+    expect(
+      paymentModeLabel({ payment_mode: "Cash", paid_amount: 500, payment_splits: [{ mode: "Cash", amount: 500 }] }),
+    ).toBe("Cash");
+  });
+
+  it("survives a malformed or empty payment_splits", () => {
+    expect(paymentModeLabel({ payment_mode: "Cash", payment_splits: [] })).toBe("Cash");
+    expect(paymentModeLabel({ payment_mode: "Cash", payment_splits: "nonsense" })).toBe("Cash");
+    expect(paymentModeLabel({ payment_mode: null, paid_amount: 0 })).toBe("");
+    expect(
+      paymentModeLabel({ payment_mode: "Split", paid_amount: 300, payment_splits: [{ amount: 200 }, { mode: "UPI", amount: 100 }] }),
+    ).toBe(`${UNRECORDED_MODE} ₹200 + UPI ₹100`);
+  });
+
+  it("formats amounts the Indian way, as the rest of the app does", () => {
+    expect(
+      paymentModeLabel({
+        payment_mode: "Split",
+        paid_amount: 250000,
+        payment_splits: [{ mode: "Cash", amount: 150000 }, { mode: "Card", amount: 100000 }],
+      }),
+    ).toBe("Cash ₹1,50,000 + Card ₹1,00,000");
+  });
+});
+
+describe("modesOf", () => {
+  it("returns the one bucket an ordinary invoice paid through", () => {
+    expect(modesOf({ payment_mode: "Google Pay", paid_amount: 500 })).toEqual(["UPI"]);
+    expect(modesOf({ payment_mode: null, paid_amount: 500 })).toEqual(["Other"]);
+  });
+
+  it("returns every bucket a split paid through, so either finds it", () => {
+    // "Split" buckets to "Other", so filtering by Cash used to miss this row
+    // while the Cash card above it counted its 700.
+    const row = {
+      payment_mode: "Split",
+      paid_amount: 800,
+      payment_splits: [{ mode: "Cash", amount: 700 }, { mode: "Google Pay", amount: 100 }],
+    };
+    expect(modesOf(row).sort()).toEqual(["Cash", "UPI"]);
+  });
+
+  it("also returns the invoice's own mode when the split does not add up", () => {
+    // attributions() puts the remainder on the invoice's mode, so the filter
+    // has to agree with where the money was counted.
+    const row = {
+      payment_mode: "Card",
+      paid_amount: 800,
+      payment_splits: [{ mode: "Cash", amount: 700 }],
+    };
+    expect(modesOf(row).sort()).toEqual(["Card", "Cash"]);
   });
 });

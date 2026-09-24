@@ -52,6 +52,8 @@ import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { SurveyRecommendations } from "@/components/surveys/SurveyRecommendations";
 import { useAuth } from "@/hooks/useAuth";
 import { procedureDateLabel } from "@/lib/procedureDate";
+import { investigationText } from "@/lib/investigationText";
+import { displayDate } from "@/lib/dateInput";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -1295,17 +1297,22 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                               className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
                               onClick={() => { handleClose(); navigate(`/appointments/${apt.id}`); }}
                             >
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="font-medium text-sm">{apt.service}</p>
-                                <Badge variant="outline" className={`text-xs ${STATUS_BADGE_CLASSES[apt.status] || ""}`}>{apt.status}</Badge>
+                              {/* What was actually done leads the card. The
+                                  service is "Consultation" on most of these and
+                                  says nothing; the Investigation text is what a
+                                  doctor is looking for. Falls back to the
+                                  service when there is no text. */}
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="font-medium text-sm">{investigationText(apt, apt.service || "Consultation")}</p>
+                                <Badge variant="outline" className={`text-xs shrink-0 ${STATUS_BADGE_CLASSES[apt.status] || ""}`}>{apt.status}</Badge>
                               </div>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {format(new Date(apt.start_time), "EEE, MMM d, yyyy · h:mm a")}
-                                {apt.staff && ` · ${withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`)}`}
+                              <p className="text-xs mt-1">
+                                <span className="font-medium text-foreground">{displayDate(apt.start_time)}</span>
+                                <span className="text-muted-foreground">
+                                  {` · ${format(new Date(apt.start_time), "h:mm a")}`}
+                                  {apt.staff && ` · ${withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`)}`}
+                                </span>
                               </p>
-                              {apt.reason_for_consultation && (
-                                <p className="text-xs mt-2 text-muted-foreground">{apt.reason_for_consultation}</p>
-                              )}
                             </div>
                           ))}
                         </div>
@@ -1337,9 +1344,11 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                                 <p className="font-medium text-sm">{proc.service_name}</p>
                                 <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
                               </div>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {procedureDateLabel(proc, "MMM d, yyyy")}
-                                {proc.staff && ` · ${withDrPrefix(`${proc.staff.first_name} ${proc.staff.last_name}`)}`}
+                              <p className="text-xs mt-1">
+                                <span className="font-medium text-foreground">{procedureDateLabel(proc, "dd/MM/yyyy")}</span>
+                                <span className="text-muted-foreground">
+                                  {proc.staff && ` · ${withDrPrefix(`${proc.staff.first_name} ${proc.staff.last_name}`)}`}
+                                </span>
                               </p>
                               {proc.diagnosis && <p className="text-xs mt-2 text-muted-foreground">{proc.diagnosis}</p>}
                             </div>

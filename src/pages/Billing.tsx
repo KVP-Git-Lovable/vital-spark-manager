@@ -1,5 +1,6 @@
 import { formatMoney, formatMoneyPrecise } from "@/lib/currency";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { useUrlPanel } from "@/hooks/useUrlPanel";
 import { isConsultationService } from "@/lib/consultationLine";
 import { resolveServiceFromMaster } from "@/lib/serviceMatch";
 import { renderPdfToImages } from "@/lib/renderPdf";
@@ -433,7 +434,8 @@ const Billing = () => {
   const [paymentInv, setPaymentInv] = useState<any>(null);
   const [addPaymentAmount, setAddPaymentAmount] = useState(0);
   const [addPaymentMode, setAddPaymentMode] = useState("Cash");
-  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  // In the address, so Back closes the panel instead of leaving Billing.
+  const { openId: selectedAppointmentId, open: openAppointment, close: closeAppointment } = useUrlPanel("appointment");
 
   // View/Edit Sheet
   const [viewInvoice, setViewInvoice] = useState<any>(null);
@@ -3569,7 +3571,7 @@ const Billing = () => {
               {/* Linked appointment */}
               {viewInvoice.appointments && (
                 <button
-                  onClick={() => { setSelectedAppointmentId(viewInvoice.appointments.id); setViewInvoice(null); }}
+                  onClick={() => { setViewInvoice(null); openAppointment(viewInvoice.appointments.id); }}
                   className="w-full flex items-center gap-2 text-sm text-primary bg-primary/5 hover:bg-primary/10 rounded-lg px-3 py-2 transition-colors"
                 >
                   <CalendarClock className="h-4 w-4" />
@@ -3740,7 +3742,7 @@ const Billing = () => {
 
       <AppointmentDetailSheet
         appointmentId={selectedAppointmentId}
-        onClose={() => setSelectedAppointmentId(null)}
+        onClose={closeAppointment}
       />
 
       <KanbanSettingsDialog

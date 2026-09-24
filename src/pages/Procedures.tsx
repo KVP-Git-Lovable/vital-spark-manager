@@ -13,6 +13,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
+import { useUrlPanel } from "@/hooks/useUrlPanel";
 import { ImportProceduresDialog } from "@/components/procedures/ImportProceduresDialog";
 import { useModuleListViews } from "@/hooks/useModuleListViews";
 import ViewBar from "@/components/listViews/ViewBar";
@@ -67,7 +68,9 @@ const Procedures = () => {
   const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(searchParams.get("id"));
+  // Two-way now. It was seeded from ?id= but never wrote back, so opening a
+  // record left no history entry and Back walked out of the list.
+  const { openId: selectedId, open: openProcedure, close: closeProcedure } = useUrlPanel("id");
   const [cameraProc, setCameraProc] = useState<any>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | HTMLDivElement | null>>({});
@@ -96,13 +99,16 @@ const Procedures = () => {
       description: "View Record",
       action: {
         label: "View Record",
-        onClick: () => setSelectedId(savedId),
+        onClick: () => openProcedure(savedId),
       },
       duration: 6000,
     });
     // Clear highlight after 3 seconds
     setTimeout(() => setHighlightedId(null), 3000);
-  }, []);
+    // openProcedure changes identity with the address, and the toast's action
+    // must open the record against the CURRENT one - a stale copy would put
+    // the panel on an address the user has since navigated away from.
+  }, [openProcedure]);
 
   const { data: procedures = [], isLoading } = useQuery({
     queryKey: ["procedures"],
@@ -276,7 +282,7 @@ const Procedures = () => {
               options={kanbanOptions}
               columns={displayColumns}
               fields={PROCEDURE_VIEW_FIELDS}
-              onOpen={(row) => setSelectedId(row.id)}
+              onOpen={(row) => openProcedure(row.id)}
               onMove={moveKanbanCard}
               titleField="patient"
             />
@@ -298,7 +304,7 @@ const Procedures = () => {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               className={`stat-card p-3 cursor-pointer active:scale-[0.98] transition-all duration-500 ${highlightedId === proc.id ? "ring-2 ring-primary bg-primary/5" : ""}`}
-              onClick={() => setSelectedId(proc.id)}
+              onClick={() => openProcedure(proc.id)}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -341,7 +347,7 @@ const Procedures = () => {
               <TableRow><TableCell colSpan={displayColumns.length + 1} className="text-center py-8 text-muted-foreground">No prescriptions found</TableCell></TableRow>
             ) : (
               filtered.map((proc: any) => (
-                <TableRow key={proc.id} ref={(el) => { rowRefs.current[proc.id] = el; }} className={`cursor-pointer hover:bg-muted/50 transition-all duration-500 ${highlightedId === proc.id ? "ring-2 ring-primary bg-primary/5" : ""}`} onClick={() => setSelectedId(proc.id)}>
+                <TableRow key={proc.id} ref={(el) => { rowRefs.current[proc.id] = el; }} className={`cursor-pointer hover:bg-muted/50 transition-all duration-500 ${highlightedId === proc.id ? "ring-2 ring-primary bg-primary/5" : ""}`} onClick={() => openProcedure(proc.id)}>
                   {shouldShowColumn("procedure_date") && <TableCell className="text-sm">{format(new Date(proc.procedure_date), "dd/MM/yyyy")}</TableCell>}
                   {shouldShowColumn("patient") && <TableCell className="font-medium">{proc.patients?.first_name} {proc.patients?.last_name}</TableCell>}
                   {shouldShowColumn("service_name") && <TableCell>{proc.service_name}</TableCell>}
@@ -381,14 +387,7 @@ const Procedures = () => {
 
       <ProcedureDetailSheet
         procedureId={selectedId}
-        onClose={() => {
-          setSelectedId(null);
-          if (searchParams.get("id")) {
-            const next = new URLSearchParams(searchParams);
-            next.delete("id");
-            setSearchParams(next, { replace: true });
-          }
-        }}
+        onClose={closeProcedure}
         onSaved={handleProcedureSaved}
       />
 

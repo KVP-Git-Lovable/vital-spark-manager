@@ -1,4 +1,6 @@
 import { useStackedTable } from "@/hooks/useStackedTable";
+import { resizeColumn, mergeSavedWidths, type ColumnWidth } from "@/lib/columnWidths";
+import { ColumnResizeHandle } from "@/components/shared/ColumnResizeHandle";
 import { DateInput } from "@/components/shared/DateInput";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useState, useCallback, useRef, useMemo, useEffect, lazy, Suspense } from "react";
@@ -156,7 +158,9 @@ const DATE_PRESETS = [
  * ORDER MATTERS: a colgroup maps to columns positionally, so this list must stay
  * in the same order as the <th> cells in the table below.
  */
-const APPOINTMENT_COLUMN_WIDTHS: [string, number][] = [
+const COLUMN_WIDTH_KEY = "appointments.columnWidths";
+
+const APPOINTMENT_COLUMN_WIDTHS: ColumnWidth[] = [
   ["patient", 15],
   ["phone", 11],
   ["service", 14],
@@ -165,7 +169,6 @@ const APPOINTMENT_COLUMN_WIDTHS: [string, number][] = [
   ["time", 12],
   ["status", 10],
   ["bill", 8],
-  ["visit_status", 8],
   ["payment_mode", 9],
 ];
 /** The Actions column is always rendered, after every optional one. */
@@ -180,7 +183,6 @@ const DEFAULT_APPOINTMENT_FIELDS = [
   "time",
   "status",
   "bill",
-  "visit_status",
   "payment_mode",
 ];
 
@@ -1023,14 +1025,42 @@ const Appointments = () => {
   });
 
   // Get columns to display based on active saved view or default
-  const displayColumns = activeView?.columns?.length ? activeView.columns : DEFAULT_APPOINTMENT_FIELDS;
+  // A saved view stores its own column list in the database, and one saved
+  // before "Next Visit" was removed still names visit_status. Left in, it
+  // would render a header with no matching <col> and slide every column out
+  // of true, so it is filtered on the way in rather than migrated in place.
+  const displayColumns = (activeView?.columns?.length ? activeView.columns : DEFAULT_APPOINTMENT_FIELDS)
+    .filter((c) => APPOINTMENT_COLUMN_WIDTHS.some(([key]) => key === c));
+
+  // Widths the user dragged, kept per browser. They are a display preference
+  // rather than part of the shared view, so they are not written to the
+  // database - which does mean another machine starts from the defaults.
+  const [columnWidths, setColumnWidths] = useState<ColumnWidth[]>(() => {
+    try {
+      return mergeSavedWidths(APPOINTMENT_COLUMN_WIDTHS, JSON.parse(localStorage.getItem(COLUMN_WIDTH_KEY) || "null"));
+    } catch {
+      return APPOINTMENT_COLUMN_WIDTHS;
+    }
+  });
+
+  const applyColumnResize = (key: string, deltaShares: number) => {
+    setColumnWidths((prev) => {
+      const next = resizeColumn(prev, key, deltaShares);
+      try {
+        localStorage.setItem(COLUMN_WIDTH_KEY, JSON.stringify(Object.fromEntries(next)));
+      } catch {
+        // A browser with storage blocked still resizes for this session.
+      }
+      return next;
+    });
+  };
 
   // Check if a column should be displayed
   const shouldShowColumn = (column: string) => displayColumns.includes(column);
 
   // Width shares for the columns actually on screen, renormalised so they fill
   // the table whichever subset is shown.
-  const visibleColumnWidths = APPOINTMENT_COLUMN_WIDTHS.filter(([key]) => shouldShowColumn(key));
+  const visibleColumnWidths = columnWidths.filter(([key]) => shouldShowColumn(key));
   const totalColumnWeight =
     visibleColumnWidths.reduce((sum, [, w]) => sum + w, 0) + ACTIONS_COLUMN_WEIGHT;
   const colWidth = (weight: number) => `${((weight / totalColumnWeight) * 100).toFixed(4)}%`;
@@ -2426,48 +2456,89 @@ const Appointments = () => {
                   <thead>
                     <tr className="border-b bg-muted/30">
                       {shouldShowColumn("patient") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("patient")}>
+                        <th className="relative text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("patient")}>
                           <span className="flex items-center">Patient<SortIcon column="patient" /></span>
+                        
+                          <ColumnResizeHandle
+                            onResize={(delta) => applyColumnResize("patient", delta)}
+                            tableWidth={() => appointmentsTableRef.current?.clientWidth ?? 0}
+                          />
                         </th>
                       )}
                       {shouldShowColumn("phone") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
+                        <th className="relative text-left p-3 font-medium text-muted-foreground">Phone
+                          <ColumnResizeHandle
+                            onResize={(delta) => applyColumnResize("phone", delta)}
+                            tableWidth={() => appointmentsTableRef.current?.clientWidth ?? 0}
+                          />
+                        </th>
                       )}
                       {shouldShowColumn("service") && (
                         // Column key stays "service" so saved views keep working; what it
                         // shows and sorts on is the Investigation text.
-                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("reason_for_consultation")}>
+                        <th className="relative text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("reason_for_consultation")}>
                           <span className="flex items-center">Investigation<SortIcon column="reason_for_consultation" /></span>
+                          <ColumnResizeHandle
+                            onResize={(delta) => applyColumnResize("service", delta)}
+                            tableWidth={() => appointmentsTableRef.current?.clientWidth ?? 0}
+                          />
                         </th>
                       )}
                       {shouldShowColumn("doctor") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("doctor")}>
+                        <th className="relative text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("doctor")}>
                           <span className="flex items-center">Doctor<SortIcon column="doctor" /></span>
+                        
+                          <ColumnResizeHandle
+                            onResize={(delta) => applyColumnResize("doctor", delta)}
+                            tableWidth={() => appointmentsTableRef.current?.clientWidth ?? 0}
+                          />
                         </th>
                       )}
                       {shouldShowColumn("start_time") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("start_time")}>
+                        <th className="relative text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("start_time")}>
                           <span className="flex items-center">Date<SortIcon column="start_time" /></span>
+                        
+                          <ColumnResizeHandle
+                            onResize={(delta) => applyColumnResize("start_time", delta)}
+                            tableWidth={() => appointmentsTableRef.current?.clientWidth ?? 0}
+                          />
                         </th>
                       )}
                       {shouldShowColumn("time") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground">Time</th>
+                        <th className="relative text-left p-3 font-medium text-muted-foreground">Time
+                          <ColumnResizeHandle
+                            onResize={(delta) => applyColumnResize("time", delta)}
+                            tableWidth={() => appointmentsTableRef.current?.clientWidth ?? 0}
+                          />
+                        </th>
                       )}
                       {shouldShowColumn("status") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("status")}>
+                        <th className="relative text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("status")}>
                           <span className="flex items-center">Status<SortIcon column="status" /></span>
+                        
+                          <ColumnResizeHandle
+                            onResize={(delta) => applyColumnResize("status", delta)}
+                            tableWidth={() => appointmentsTableRef.current?.clientWidth ?? 0}
+                          />
                         </th>
                       )}
                       {shouldShowColumn("bill") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground" title="Not sortable across pages">
+                        <th className="relative text-left p-3 font-medium text-muted-foreground" title="Not sortable across pages">
                           Bill Amount
+                        
+                          <ColumnResizeHandle
+                            onResize={(delta) => applyColumnResize("bill", delta)}
+                            tableWidth={() => appointmentsTableRef.current?.clientWidth ?? 0}
+                          />
                         </th>
                       )}
-                      {shouldShowColumn("visit_status") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground">Next Visit</th>
-                      )}
                       {shouldShowColumn("payment_mode") && (
-                        <th className="text-left p-3 font-medium text-muted-foreground">Payment Mode</th>
+                        <th className="relative text-left p-3 font-medium text-muted-foreground">Payment Mode
+                          <ColumnResizeHandle
+                            onResize={(delta) => applyColumnResize("payment_mode", delta)}
+                            tableWidth={() => appointmentsTableRef.current?.clientWidth ?? 0}
+                          />
+                        </th>
                       )}
                       <th className="text-left p-3 font-medium text-muted-foreground w-20">Actions</th>
                     </tr>
@@ -2669,7 +2740,10 @@ const Appointments = () => {
                                 )}
                                 {shouldShowColumn("time") && (
                                   <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
-                                    {format(new Date(apt.start_time), "h:mm a")} – {format(new Date(apt.end_time), "h:mm a")}
+                                    {/* Start only. The end time is still recorded, still
+                                        edited in the row editor and the appointment sheet -
+                                        it just does not earn a share of the width here. */}
+                                    {format(new Date(apt.start_time), "h:mm a")}
                                   </td>
                                 )}
                                 {shouldShowColumn("status") && (
@@ -2699,9 +2773,6 @@ const Appointments = () => {
                                 )}
                                 {shouldShowColumn("bill") && (
                                   <td className="p-3 text-xs">{renderBillCell(invoice, apt, true)}</td>
-                                )}
-                                {shouldShowColumn("visit_status") && (
-                                  <td className="p-3 text-xs">{apt.visit_status ? <Badge variant="outline" className="text-xs">{apt.visit_status}</Badge> : <span className="text-muted-foreground">—</span>}</td>
                                 )}
                                 {shouldShowColumn("payment_mode") && (
                                   <td className="p-3 text-xs">{invoice?.payment_mode ? <Badge variant="outline" className="text-xs">{invoice.payment_mode}</Badge> : <span className="text-muted-foreground">—</span>}</td>

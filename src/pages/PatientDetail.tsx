@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, createContext, useContext } from "react";
 import { DateInput } from "@/components/shared/DateInput";
+import { useUrlPanel } from "@/hooks/useUrlPanel";
 import { withDrPrefix } from "@/lib/staffName";
 import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
@@ -196,7 +197,8 @@ const PatientDetail = () => {
   const [addRxOpen, setAddRxOpen] = useState(false);
   const [rxForm, setRxForm] = useState({ medicine_name: "", dosage: "", frequency: "", duration: "", quantity: 1, instructions: "", procedure_id: "" });
   const [selectedProcedureId, setSelectedProcedureId] = useState<string | null>(null);
-  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+  // In the address, so Back closes the panel instead of leaving the patient.
+  const { openId: selectedAppointmentId, open: openAppointment, close: closeAppointment } = useUrlPanel("appointment");
   const [quickApptOpen, setQuickApptOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -1060,7 +1062,7 @@ const PatientDetail = () => {
               {appointments.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">No appointments found</div>
               ) : appointments.map((apt: any) => (
-                <div key={apt.id} className="stat-card p-3 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setSelectedAppointmentId(apt.id)}>
+                <div key={apt.id} className="stat-card p-3 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => openAppointment(apt.id)}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-medium text-sm">{apt.service}</p>
@@ -1089,7 +1091,7 @@ const PatientDetail = () => {
                   {appointments.length === 0 ? (
                     <tr><td colSpan={4} className="text-center py-8 text-muted-foreground text-sm">No appointments found</td></tr>
                   ) : appointments.map((apt: any) => (
-                    <tr key={apt.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setSelectedAppointmentId(apt.id)}>
+                    <tr key={apt.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => openAppointment(apt.id)}>
                       <td className="p-4 text-sm">
                         <p>{displayDate(apt.start_time)}</p>
                         <p className="text-xs text-muted-foreground">{new Date(apt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
@@ -1696,7 +1698,7 @@ const PatientDetail = () => {
         appointmentId={selectedAppointmentId}
         fullScreen
         onClose={() => {
-          setSelectedAppointmentId(null);
+          closeAppointment();
           queryClient.invalidateQueries({ queryKey: ["patient-appointments", id] });
         }}
       />

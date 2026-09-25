@@ -2,6 +2,7 @@ import { useStackedTable } from "@/hooks/useStackedTable";
 import { resizeColumn, mergeSavedWidths, type ColumnWidth } from "@/lib/columnWidths";
 import { isPageSortedColumn, sortAppointments } from "@/lib/appointmentSort";
 import { isConsultationService } from "@/lib/consultationLine";
+import { appointmentDeleteNote } from "@/lib/appointmentDeleteNote";
 import { displayDate } from "@/lib/dateInput";
 import { ColumnResizeHandle } from "@/components/shared/ColumnResizeHandle";
 import { DateInput } from "@/components/shared/DateInput";
@@ -395,7 +396,7 @@ const Appointments = () => {
   // Inline edit state
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>({});
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string; fromSalesforce: boolean } | null>(null);
 
   // Drag-reschedule state
   const dragRef = useRef<{ aptId: string; originalStart: string; originalEnd: string } | null>(null);
@@ -2881,6 +2882,7 @@ const Appointments = () => {
                                       onClick={() => setDeleteTarget({
                                         id: apt.id,
                                         label: `${apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "Appointment")} — ${format(new Date(apt.start_time), "MMM d, h:mm a")}`,
+                                        fromSalesforce: !!apt.sf_id,
                                       })}
                                     >
                                       <Trash2 className="h-3.5 w-3.5" />
@@ -3208,7 +3210,11 @@ const Appointments = () => {
         //
         // "Notes" here means appointment_sticky_notes, what the Notes tab writes.
         // This used to say "therapy notes", naming a table no screen could write to.
-        note="Its bills and procedures are kept but will no longer be linked to it, and any notes or feedback on it are removed for good."
+        //
+        // A Salesforce-sourced appointment gets an extra line: that delete used to
+        // be undone by the next sync, and now that it holds, staff should know it
+        // holds only here and not in Salesforce.
+        note={appointmentDeleteNote(!!deleteTarget?.fromSalesforce)}
         onConfirm={async () => {
           if (!deleteTarget) return;
           // The mutation's onError already reports the failure.

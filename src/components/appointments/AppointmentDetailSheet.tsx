@@ -52,6 +52,7 @@ import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { SurveyRecommendations } from "@/components/surveys/SurveyRecommendations";
 import { useAuth } from "@/hooks/useAuth";
 import { procedureDateLabel } from "@/lib/procedureDate";
+import { appointmentDeleteNote } from "@/lib/appointmentDeleteNote";
 import { investigationText } from "@/lib/investigationText";
 import { displayDate } from "@/lib/dateInput";
 
@@ -1211,7 +1212,13 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Delete appointment?</AlertDialogTitle>
-                          <AlertDialogDescription>This will permanently remove this appointment.</AlertDialogDescription>
+                          {/* It said "permanently remove", which was never true - the row
+                              goes to Trash and can be restored. The second sentence is
+                              the one that matters now: a Salesforce appointment used to
+                              be put back by the next sync, and no longer is. */}
+                          <AlertDialogDescription>
+                            This will move the appointment to Trash. {appointmentDeleteNote(!!(appointment as any)?.sf_id)}
+                          </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>

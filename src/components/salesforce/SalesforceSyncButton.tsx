@@ -137,7 +137,8 @@ export function SalesforceSyncButton() {
           <p className="text-xs text-muted-foreground">
             Pulls patients, appointments, procedures, billing, photos and documents from Salesforce.
             Already-imported records are skipped automatically — nothing gets duplicated, and nothing
-            manually entered in the app is ever touched or deleted.
+            manually entered in the app is ever touched or deleted. Anything you have deleted here
+            stays deleted: the sync will not bring it back.
           </p>
         </div>
 

@@ -67,7 +67,7 @@ export function AttachPhotosButton({ patientId, appointmentId, procedureId, size
           notes: null,
           // photo_type is left to the column default, exactly as the patient
           // tab already did - attaching a photo should not grow a new prompt.
-        } as never);
+        });
         if (error) throw error;
         uploaded += 1;
       } catch (err) {

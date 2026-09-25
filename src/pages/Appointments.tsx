@@ -2803,8 +2803,15 @@ const Appointments = () => {
                                     {patientPhone ? <span className="flex items-center gap-1 text-xs"><Phone className="h-3 w-3" />{patientPhone}</span> : "—"}
                                   </td>
                                 )}
+                                {/* Doctor is bold, and out of the muted grey the other
+                                    secondary columns use: bold grey barely reads as bold,
+                                    and this is one of the two names a clinician scans the
+                                    list for. The em dash stays muted - an absence, not a
+                                    name. */}
                                 {shouldShowColumn("doctor") && (
-                                  <td className="p-3 text-muted-foreground">{getDoctorName(apt) || "—"}</td>
+                                  <td className="p-3 font-semibold">
+                                    {getDoctorName(apt) || <span className="font-normal text-muted-foreground">—</span>}
+                                  </td>
                                 )}
                                 {shouldShowColumn("payment_mode") && (
                                   <td className="p-3 text-xs">{invoice?.payment_mode ? <Badge variant="outline" className="text-xs">{invoice.payment_mode}</Badge> : <span className="text-muted-foreground">—</span>}</td>

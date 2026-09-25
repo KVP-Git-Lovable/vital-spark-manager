@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "sonner";
+import { caseAnalysisDate } from "@/lib/caseAnalysisDate";
 
 interface CaseAnalysisProps {
   patientId: string;
@@ -99,7 +100,7 @@ export const CaseAnalysis = ({ patientId, patientName }: CaseAnalysisProps) => {
                       <div key={i} className="flex items-start gap-3 pl-6 relative">
                         <div className="absolute left-0.5 top-1 w-3 h-3 rounded-full bg-primary border-2 border-background" />
                         <div>
-                          <p className="text-xs font-medium">{t.date} — {t.event}</p>
+                          <p className="text-xs font-medium">{caseAnalysisDate(t.date)} — {t.event}</p>
                           <p className="text-xs text-muted-foreground">{t.details}</p>
                         </div>
                       </div>

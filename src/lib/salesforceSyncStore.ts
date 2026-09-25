@@ -131,7 +131,9 @@ async function invokeWithRetry(nameWithQuery: string, attempts = 4): Promise<any
       lastErr = e as Error;
       if (i < attempts - 1) {
         pushLog(`Retrying after error: ${syncErrorMessage(lastErr.message)}`);
-        await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, i)));
+        // Salesforce rate limits ask for ~60s; short backoff just fails again.
+        const rateLimited = /429|rate limit/i.test(lastErr.message);
+        await new Promise((r) => setTimeout(r, rateLimited ? 65_000 : 2000 * Math.pow(2, i)));
       }
     }
   }

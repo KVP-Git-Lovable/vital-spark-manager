@@ -3763,7 +3763,6 @@ export type Database = {
           consultation_notes: string | null
           created_at: string | null
           created_by: string | null
-          date_not_recorded: boolean
           diagnosis: string | null
           id: string | null
           lab_tests: string | null
@@ -3793,7 +3792,6 @@ export type Database = {
           consultation_notes?: string | null
           created_at?: string | null
           created_by?: string | null
-          date_not_recorded?: boolean
           diagnosis?: string | null
           id?: string | null
           lab_tests?: string | null
@@ -3823,7 +3821,6 @@ export type Database = {
           consultation_notes?: string | null
           created_at?: string | null
           created_by?: string | null
-          date_not_recorded?: boolean
           diagnosis?: string | null
           id?: string | null
           lab_tests?: string | null
@@ -3865,6 +3862,24 @@ export type Database = {
           id?: string | null
           service_name?: string | null
           sf_id?: string | null
+        }
+        Relationships: []
+      }
+      procedures_undated_20260925: {
+        Row: {
+          id: string | null
+          original_procedure_date: string | null
+          taken_at: string | null
+        }
+        Insert: {
+          id?: string | null
+          original_procedure_date?: string | null
+          taken_at?: string | null
+        }
+        Update: {
+          id?: string | null
+          original_procedure_date?: string | null
+          taken_at?: string | null
         }
         Relationships: []
       }
@@ -5349,7 +5364,6 @@ export type Database = {
           consultation_notes: string | null
           created_at: string | null
           created_by: string | null
-          date_not_recorded: boolean
           diagnosis: string | null
           id: string | null
           lab_tests: string | null
@@ -5379,7 +5393,6 @@ export type Database = {
           consultation_notes?: string | null
           created_at?: string | null
           created_by?: string | null
-          date_not_recorded?: boolean
           diagnosis?: string | null
           id?: string | null
           lab_tests?: string | null
@@ -5409,7 +5422,6 @@ export type Database = {
           consultation_notes?: string | null
           created_at?: string | null
           created_by?: string | null
-          date_not_recorded?: boolean
           diagnosis?: string | null
           id?: string | null
           lab_tests?: string | null

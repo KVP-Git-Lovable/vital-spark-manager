@@ -56,6 +56,7 @@ const PRODUCT_SLOT_FIELDS = PRODUCT_SLOTS.flatMap((s) =>
 async function sfQuery(soql: string, signal?: AbortSignal): Promise<any[]> {
   const out: any[] = [];
   let url: string | null = `${GATEWAY}/query?q=${encodeURIComponent(soql)}`;
+  let rateLimitWaits = 0;
   while (url) {
     const response: Response = await fetch(url, {
       signal,
@@ -64,6 +65,15 @@ async function sfQuery(soql: string, signal?: AbortSignal): Promise<any[]> {
         "X-Connection-Api-Key": SALESFORCE_API_KEY,
       },
     });
+    if (response.status === 429 && rateLimitWaits < 2) {
+      // Salesforce asks for ~60s; wait (bounded) and repeat the same page.
+      await response.text();
+      const retryAfter = Number(response.headers.get("Retry-After"));
+      const waitMs = Math.min(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 30_000, 60_000);
+      rateLimitWaits++;
+      await new Promise((r) => setTimeout(r, waitMs));
+      continue;
+    }
     if (!response.ok) throw new Error(describeSfFailure(response.status, await response.text()));
     const payload: { records?: any[]; done?: boolean; nextRecordsUrl?: string } = await response.json();
     out.push(...(payload.records || []));
@@ -253,9 +263,9 @@ async function fetchRecentTargets(
   toIso: string,
   signal?: AbortSignal,
 ): Promise<{ targets: Target[]; unmatched: number; sfPatients: number; createdPatients: number }> {
-  const resultSets = await Promise.all(
-    recentTargetQueries(fromIso, toIso).map((soql) => sfQuery(soql, signal)),
-  );
+  // Sequential, not parallel: firing these together tripped Salesforce's rate limit.
+  const resultSets: any[][] = [];
+  for (const soql of recentTargetQueries(fromIso, toIso)) resultSets.push(await sfQuery(soql, signal));
   const sfIds = mergePatientIds(resultSets);
   const targets: Target[] = [];
   const found = new Set<string>();

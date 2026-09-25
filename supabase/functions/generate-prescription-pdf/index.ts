@@ -501,7 +501,9 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
       .join(" - ");
     return { serial: String(index + 1), product: sanitize(prescription.medicine_name) || "-", instruction: details || "-" };
   });
-  const rows = structured.length
+  // Only Salesforce-imported visits keep medicines in procedure_notes; on an
+  // app-entered visit that field is the doctor's clinical notes.
+  const rows = structured.length || !procedure.sf_id
     ? structured
     : parsePrescriptionText(procedure.procedure_notes as string | null).map((item, index) => ({
         serial: String(index + 1),

@@ -1420,6 +1420,17 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   )}
                 </div>
 
+                {/* The doctor's notes print on the prescription, so they are
+                    shown here too - not only behind the Notes tab. */}
+                {procedure?.id && (
+                  <div className="rounded-xl border bg-card p-4 space-y-2">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <StickyNote className="h-4 w-4" /> Notes
+                    </h3>
+                    <StickyNotes key={`inline-${procedure.id}`} procedureId={procedure.id} />
+                  </div>
+                )}
+
                 {procedure?.id && (
                   <div className="space-y-4">
                     <SystemRecordSection

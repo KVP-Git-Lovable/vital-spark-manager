@@ -150,6 +150,19 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [servicesInitialized, setServicesInitialized] = useState(false);
   const [editPrescriptions, setEditPrescriptions] = useState<PrescriptionRow[]>([]);
   const [attachmentNotes, setAttachmentNotes] = useState("");
+  // Moving from one visit to another without closing the sheet kept the
+  // previous visit's services, medicines and medical info on screen. Reset the
+  // edit state whenever the visit changes so it reloads from this visit.
+  const [loadedFor, setLoadedFor] = useState(procedureId);
+  if (loadedFor !== procedureId) {
+    setLoadedFor(procedureId);
+    setInitialized(false);
+    setServicesInitialized(false);
+    setEditServiceLines([]);
+    setEditPrescriptions([]);
+    setMedical({});
+    setMedicalDirty(false);
+  }
   const [uploading, setUploading] = useState(false);
   const [elaborating, setElaborating] = useState<null | string>(null);
 

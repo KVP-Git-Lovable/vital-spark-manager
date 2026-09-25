@@ -62,10 +62,15 @@ export function PdfPreviewDialog({
     frame?.contentWindow?.print();
   };
 
-  // One image per page at full width, and nothing else - what the printer
-  // should put on paper.
+  // One image per sheet, sized to fit inside the sheet. A full-width image
+  // could be a hair taller than the printable area (paper size, rounding),
+  // spilling onto an extra blank sheet; and a break after the last page added
+  // another. Each page is boxed to the sheet height and only breaks between.
   const printableDoc = (pages ?? [])
-    .map((src) => `<img src="${src}" style="display:block;width:100%;page-break-after:always" />`)
+    .map(
+      (src, i, all) =>
+        `<div class="pg"${i < all.length - 1 ? ' style="break-after:page;page-break-after:always"' : ""}><img src="${src}" /></div>`,
+    )
     .join("");
 
   return (
@@ -104,7 +109,7 @@ export function PdfPreviewDialog({
                 aria-hidden="true"
                 tabIndex={-1}
                 className="hidden"
-                srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:0}body{margin:0}</style></head><body>${printableDoc}</body></html>`}
+                srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:0}html,body{margin:0;padding:0}.pg{height:99vh;overflow:hidden;display:flex;align-items:flex-start;justify-content:center;break-inside:avoid;page-break-inside:avoid}.pg img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}</style></head><body>${printableDoc}</body></html>`}
               />
             </div>
           ) : html ? (

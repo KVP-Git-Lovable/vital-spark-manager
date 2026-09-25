@@ -41,6 +41,7 @@ import { fetchAll } from "@/lib/supabasePaginate";
 import { useValidator } from "@/hooks/useValidationRules";
 import { useCustomFields } from "@/lib/custom-fields/api";
 import { CustomFieldsRenderer, validateCustomFields } from "@/components/custom-fields/CustomFieldsRenderer";
+import { PATIENT_SOURCE_OPTIONS, optionsIncluding } from "@/lib/patientSourceOptions";
 import type { ValidationMessage } from "@/lib/validation/engine";
 import { AlertCircle } from "lucide-react";
 import { Sparkles, Loader2 } from "lucide-react";
@@ -732,6 +733,16 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    {/* City had no input here at all, though it is in the saved
+                        payload and editable on the patient's Details tab. */}
+                    <Label>City</Label>
+                    <Input
+                      value={form.city || ""}
+                      onChange={(e) => updateField("city", e.target.value)}
+                      className="mt-1.5"
+                    />
+                  </div>
+                  <div>
                     <Label>State</Label>
                     <Input
                       value={form.state || ""}
@@ -814,12 +825,13 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Walk-in">Walk-in</SelectItem>
-                    <SelectItem value="Advertisement">Advertisement</SelectItem>
-                    <SelectItem value="Dr. referral">Dr. referral</SelectItem>
-                    <SelectItem value="Referred by Patient">Referred by Patient</SelectItem>
-                    <SelectItem value="Campaign">Campaign</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
+                    {/* One list, shared with the patient Details tab - the two
+                        had drifted to different options and different wording.
+                        A value a record already holds stays on the list, so an
+                        imported "Social media" is not silently replaced. */}
+                    {optionsIncluding(form.source, PATIENT_SOURCE_OPTIONS).map((o) => (
+                      <SelectItem key={o} value={o}>{o}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

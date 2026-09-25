@@ -48,6 +48,12 @@ import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { approveSurveyResponse, enrichAiProducts, enrichAiServices } from "@/lib/surveyApproval";
 import { procedureDateLabel } from "@/lib/procedureDate";
 import { investigationText } from "@/lib/investigationText";
+import { PATIENT_SOURCE_OPTIONS, PATIENT_GENDER_OPTIONS, optionsIncluding, isReferralSource } from "@/lib/patientSourceOptions";
+import { CustomFieldsRenderer } from "@/components/custom-fields/CustomFieldsRenderer";
+import { useCustomFields } from "@/lib/custom-fields/api";
+
+/** A referral value that is an id rather than a doctor's name. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -222,6 +228,29 @@ const PatientDetail = () => {
     },
     enabled: !!id,
   });
+
+  // Who referred them, when the referrer is another patient. The column holds
+  // that patient's id in that case, and a doctor's name in the other, so this
+  // only looks up something that is actually an id.
+  const referringPatientId =
+    patient?.source === "Referred by Patient" && UUID_RE.test(String(patient?.source_referral_doctor || ""))
+      ? String(patient.source_referral_doctor)
+      : null;
+  const { data: referringPatient } = useQuery({
+    queryKey: ["referring-patient", referringPatientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name")
+        .eq("id", referringPatientId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!referringPatientId,
+  });
+
+  const { data: customFields = [] } = useCustomFields("patients", true);
 
   const { data: procedures = [] } = useQuery({
     queryKey: ["patient-procedures", id],
@@ -813,6 +842,16 @@ const PatientDetail = () => {
                     previous_treatments: patient.previous_treatments, notes: patient.notes, status: patient.status,
                     source: patient.source, source_ad_details: patient.source_ad_details,
                     source_referral_doctor: patient.source_referral_doctor,
+                    // Were left out, so the inline edit silently could not touch them.
+                    source_other_text: patient.source_other_text,
+                    consultation_type: patient.consultation_type,
+                    consultation_reasons: patient.consultation_reasons,
+                    // Whatever an admin has configured. Seeded by name rather than
+                    // spreading the whole record, which would carry the engagement
+                    // roll-ups and Salesforce markers back into the update.
+                    ...Object.fromEntries(
+                      customFields.map((f) => [f.column_name, (patient as Record<string, unknown>)[f.column_name]]),
+                    ),
                     facebook_url: patient.facebook_url, instagram_url: patient.instagram_url,
                     follows_facebook: patient.follows_facebook, follows_instagram: patient.follows_instagram,
                   });
@@ -823,6 +862,13 @@ const PatientDetail = () => {
             </div>
             {(() => {
               const d = detailsEditing ? detailsForm : patient;
+              // "Dr. referral" stores the doctor's name; "Referred by Patient"
+              // stores that patient's id. Show the name either way rather than a
+              // raw uuid - referringPatient resolves the second case.
+              const referredByLabel =
+                (d.source === "Referred by Patient" && referringPatient
+                  ? `${referringPatient.first_name || ""} ${referringPatient.last_name || ""}`.trim()
+                  : "") || d.source_referral_doctor;
               const upd = (field: string, value: any) => setDetailsForm((prev: any) => ({ ...prev, [field]: value || null }));
               const readOnly = !detailsEditing;
 
@@ -874,9 +920,10 @@ const PatientDetail = () => {
                           <Select value={d.gender || ""} onValueChange={(v) => upd("gender", v)}>
                             <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Male">Male</SelectItem>
-                              <SelectItem value="Female">Female</SelectItem>
-                              <SelectItem value="Other">Other</SelectItem>
+                              {/* The form offers "Prefer not to say"; this list did not. */}
+                              {optionsIncluding(d.gender, PATIENT_GENDER_OPTIONS).map((o) => (
+                                <SelectItem key={o} value={o}>{o}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         )}
@@ -992,15 +1039,43 @@ const PatientDetail = () => {
                           <Select value={d.source || "Walk-in"} onValueChange={(v) => upd("source", v)}>
                             <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Walk-in">Walk-in</SelectItem>
-                              <SelectItem value="Advertisement">Advertisement</SelectItem>
-                              <SelectItem value="Other Dr. referral">Other Dr. referral</SelectItem>
+                              {/* Was three literal options - Walk-in, Advertisement
+                                  and "Other Dr. referral", a value the form never
+                                  writes - against the form's six. Shared now, and
+                                  whatever the record already holds stays on the
+                                  list so an imported source is not overwritten. */}
+                              {optionsIncluding(d.source, PATIENT_SOURCE_OPTIONS).map((o) => (
+                                <SelectItem key={o} value={o}>{o}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         )}
                       </div>
                       {d.source === "Advertisement" && <Field label="Ad Details" value={d.source_ad_details} field="source_ad_details" />}
-                      {d.source === "Other Dr. referral" && <Field label="Referring Doctor" value={d.source_referral_doctor} field="source_referral_doctor" />}
+                      {/* Was gated on "Other Dr. referral", a value the form never
+                          writes, so whoever referred the patient never showed. For
+                          "Referred by Patient" the column holds that patient's id,
+                          which would otherwise print as a raw uuid. */}
+                      {isReferralSource(d.source) && (
+                        <Field label="Referred By" value={referredByLabel} field="source_referral_doctor" />
+                      )}
+                      {d.source === "Other" && <Field label="Specify Source" value={d.source_other_text} field="source_other_text" />}
+                      {/* Asked for on every registration and shown nowhere on the
+                          record until now. Read-only here: the tag picker lives in
+                          the Add/Edit form, which is where it is chosen. */}
+                      {(d.consultation_type || (d.consultation_reasons || []).length > 0) && (
+                        <div className="col-span-2">
+                          <p className="text-xs text-muted-foreground">Reason for Consultation</p>
+                          {d.consultation_type && <p className="text-sm mt-0.5">{d.consultation_type}</p>}
+                          {(d.consultation_reasons || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                              {(d.consultation_reasons || []).map((reason: string) => (
+                                <Badge key={reason} variant="secondary" className="text-xs font-normal">{reason}</Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <Field label="Facebook URL" value={d.facebook_url} field="facebook_url" />
                       <Field label="Instagram URL" value={d.instagram_url} field="instagram_url" />
                       <div className="flex items-center gap-4 col-span-2">
@@ -1021,6 +1096,20 @@ const PatientDetail = () => {
                     patient={patient}
                     visitsOverride={visitCount}
                     lifetimeValueOverride={lifetimeValue}
+                  />
+
+                  {/* Custom fields
+                      The Add/Edit form renders and saves whatever an admin has
+                      configured, and this tab had no renderer for them at all -
+                      so a clinic could add a field, fill it in on registration,
+                      and never see it again. Same component as the form, with
+                      `disabled` standing in for read mode. It renders nothing
+                      when no custom fields are configured. */}
+                  <CustomFieldsRenderer
+                    objectKey="patients"
+                    values={d as Record<string, unknown>}
+                    onChange={(key, value) => upd(key, value)}
+                    disabled={readOnly}
                   />
 
                   {/* Notes */}

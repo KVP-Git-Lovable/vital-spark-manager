@@ -4270,6 +4270,30 @@ export type Database = {
         }
         Relationships: []
       }
+      sf_deleted_records: {
+        Row: {
+          deleted_at: string
+          deleted_by: string | null
+          object_type: string
+          record_label: string | null
+          sf_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          deleted_by?: string | null
+          object_type: string
+          record_label?: string | null
+          sf_id: string
+        }
+        Update: {
+          deleted_at?: string
+          deleted_by?: string | null
+          object_type?: string
+          record_label?: string | null
+          sf_id?: string
+        }
+        Relationships: []
+      }
       sf_price_book_entries: {
         Row: {
           code: string
@@ -4303,6 +4327,33 @@ export type Database = {
           sf_created_at?: string | null
           sf_id?: string
           unit_price?: number | null
+        }
+        Relationships: []
+      }
+      sf_suppressed_inserts: {
+        Row: {
+          attempts: number
+          first_seen: string
+          last_seen: string
+          object_type: string
+          reason: string
+          sf_id: string
+        }
+        Insert: {
+          attempts?: number
+          first_seen?: string
+          last_seen?: string
+          object_type: string
+          reason: string
+          sf_id: string
+        }
+        Update: {
+          attempts?: number
+          first_seen?: string
+          last_seen?: string
+          object_type?: string
+          reason?: string
+          sf_id?: string
         }
         Relationships: []
       }
@@ -5966,6 +6017,10 @@ export type Database = {
           linked: number
         }[]
       }
+      sf_note_suppressed_insert: {
+        Args: { _object_type: string; _reason: string; _sf_id: string }
+        Returns: undefined
+      }
       sf_set_patient_demographics_bulk: {
         Args: { payload: Json }
         Returns: number
@@ -5974,6 +6029,10 @@ export type Database = {
       sf_set_patient_registered_bulk: {
         Args: { payload: Json }
         Returns: number
+      }
+      sf_suppression_reason: {
+        Args: { _object_type: string; _sf_id: string }
+        Returns: string
       }
       sf_tail_cursor: { Args: { _back?: number }; Returns: string }
       show_limit: { Args: never; Returns: number }

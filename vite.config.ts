@@ -20,8 +20,14 @@ export default defineConfig(({ mode }) => ({
       // "prompt", not "autoUpdate". With autoUpdate the service worker took
       // control and reloaded every open tab the moment a new build shipped -
       // and this app is deployed several times a day, so staff had the page
-      // vanish under them mid-form. registerPwa now offers a Reload button
-      // instead and lets them finish what they were doing first.
+      // vanish under them mid-form.
+      //
+      // "prompt" alone went too far the other way: a waiting build was applied
+      // only if somebody noticed a toast, and navigations are answered from the
+      // old worker's precache, so everyone sat on a stale copy of the app for
+      // days with reloading making no difference. registerPwa now applies a
+      // build that was already waiting when the page loaded - nothing is typed
+      // at that point - and only asks about one that turns up mid-session.
       registerType: "prompt",
       injectRegister: null,
       devOptions: { enabled: false },
@@ -29,6 +35,11 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallbackDenylist: [/^\/~oauth/],
+        // Take over open tabs as soon as the new worker activates. skipWaiting
+        // stays off deliberately - that is what keeps an update from imposing
+        // itself on someone mid-form - but once it has been applied there is no
+        // reason to make them navigate again before it takes effect.
+        clientsClaim: true,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [
           {
@@ -40,7 +51,12 @@ export default defineConfig(({ mode }) => ({
             urlPattern: ({ request }) =>
               ["script", "style", "font", "image"].includes(request.destination),
             handler: "CacheFirst",
-            options: { cacheName: "skin-clinic-assets" },
+            options: {
+              cacheName: "skin-clinic-assets",
+              // Without this the cache kept every superseded chunk for ever, so
+              // a long-lived browser hoarded old builds it could never use.
+              expiration: { maxEntries: 300, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            },
           },
         ],
       },

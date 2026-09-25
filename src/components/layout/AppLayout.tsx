@@ -32,6 +32,7 @@ import { useEffect, useRef, useState } from "react";
 import { BackToReportBar } from "@/components/reports/BackToReportBar";
 import { MicButton } from "@/components/shared/MicButton";
 import { GlobalSearch } from "@/components/layout/GlobalSearch";
+import { AppUpdateButton } from "@/components/pwa/AppUpdateButton";
 import { ThemeSelector } from "@/components/theme/ThemeSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { useModal } from "@/hooks/useModal";
@@ -113,6 +114,9 @@ export function AppLayout({ children }: AppLayoutProps) {
               <GlobalSearch className="hidden md:block" />
             </div>
             <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+              {/* Only ever visible when a new build is genuinely waiting. */}
+              <AppUpdateButton />
+
               <NotificationsBell />
 
               <ThemeSelector />

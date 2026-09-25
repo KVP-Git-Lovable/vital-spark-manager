@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
 import { parsePrescriptionText } from "./prescriptionText.ts";
+import { isRollUpOf } from "./procedureRollup.ts";
 
 const BodySchema = z.object({
   procedureId: z.string().uuid(),
@@ -397,6 +398,14 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     .filter((r) => !isPlaceholderService(r.service))
     .map((r) => ({ service: r.service, notes: r.notes || "-", recommendations: r.recommendations || "-" }));
 
+  // The same lines in the shape the shared roll-up rule expects, before the
+  // "-" placeholders above are substituted in.
+  const rollUpLines = allServiceRows.map((r) => ({
+    service_name: r.service,
+    procedure_notes: r.notes,
+    recommendations: r.recommendations,
+  }));
+
   /**
    * The visit's own notes - the procedure notes and recommendations attached to
    * the "Consultation" placeholder row. These are not a service performed, so
@@ -425,13 +434,19 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
    * These (Salesforce's Special_Instructions__c, filled on 17,581 visits) only
    * ever appeared squeezed into a column of the Procedure Details table, where
    * the clinic could not find them. They get their own labelled block - but
-   * only when that table is not already printing the same words, so a
-   * single-service visit does not say everything twice.
+   * only when the table is not already printing the same words, however many
+   * services the visit has.
    */
   const drawSpecialInstructions = () => {
     const text = sanitize(procedure.recommendations);
     if (!text) return;
-    if (serviceRows.some((r) => r.recommendations === text)) return;
+    // Skip it when it is nothing more than the roll-up of the lines already
+    // printed in Procedure Details. This used to compare a raw line ("1v2")
+    // against the prefixed parent ("FILLERS: 1v2"), so on any visit with two
+    // services it never matched and the same words printed twice - once in the
+    // table, once here. Same rule as the screen; see procedureRollup.ts beside
+    // this file, and keep the two in step.
+    if (isRollUpOf(text, rollUpLines, "recommendations")) return;
     if (visitNotesText.split(/\n/).includes(text)) return;
     ensureSpace(30);
     page.drawText("Special Instructions", { x: MARGIN, y, size: 11, font: bold, color: blue });

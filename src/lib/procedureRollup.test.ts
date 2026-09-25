@@ -90,3 +90,37 @@ describe("nextRollUpValue", () => {
     expect(nextRollUpValue(imported, RATHISH, lines, "procedure_notes", imported)).toBe(imported);
   });
 });
+
+// The printed prescription draws its own Special Instructions block from the
+// same parent column, using a mirror of this rule in
+// supabase/functions/generate-prescription-pdf/procedureRollup.ts. Its guard
+// had the identical off-by-a-prefix bug, so "1v2" printed twice: once in the
+// Procedure Details table and again under Special Instructions.
+describe("the printed prescription's Special Instructions block", () => {
+  const skipsBlock = (parent: string, lines: typeof RATHISH) => isRollUpOf(parent, lines, "recommendations");
+
+  it("is skipped on the reported two-service visit", () => {
+    expect(skipsBlock("FILLERS: 1v2", RATHISH)).toBe(true);
+  });
+
+  it("is skipped when several lines carry a recommendation", () => {
+    const lines = [
+      { service_name: "REVLITE LASER TONING B", recommendations: "4 sessions -once in a week " },
+      { service_name: "RADIANCE A", recommendations: "4 sessions -once in 2 weeks " },
+    ];
+    // Trailing spaces are real in this data; the comparison trims both sides.
+    expect(skipsBlock(
+      "REVLITE LASER TONING B: 4 sessions -once in a week \n\nRADIANCE A: 4 sessions -once in 2 weeks ",
+      lines as typeof RATHISH,
+    )).toBe(true);
+  });
+
+  it("still prints genuine Salesforce instructions the lines do not carry", () => {
+    expect(skipsBlock("Review after 6 weeks", RATHISH)).toBe(false);
+    expect(skipsBlock("single session today", RATHISH)).toBe(false);
+  });
+
+  it("is skipped on a single-service visit, as it already was", () => {
+    expect(skipsBlock("1v2", [{ service_name: "FILLERS", recommendations: "1v2" }] as typeof RATHISH)).toBe(true);
+  });
+});

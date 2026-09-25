@@ -836,7 +836,14 @@ const Patients = () => {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         patient={editingPatient}
-        onSuccess={() => reloadPatients()}
+        // A new registration opens straight into the patient's record. The
+        // front desk registers someone in order to book them in, and was
+        // having to search the list for the name they had just typed.
+        // An edit stays on the list, which is where it was started from.
+        onSuccess={(saved) => {
+          reloadPatients();
+          if (saved?.created) navigate(`/patients/${saved.id}`);
+        }}
       />
 
       <ImportPatientsDialog

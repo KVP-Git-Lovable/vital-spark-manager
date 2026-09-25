@@ -72,7 +72,13 @@ interface PatientFormSheetProps {
   onOpenChange: (open: boolean) => void;
   patient?: Patient | null;
   defaultValues?: Partial<Patient> | null;
-  onSuccess: () => void;
+  /**
+   * Given the patient that was saved, so a caller can go somewhere useful.
+   * `created` distinguishes a new registration from an edit - the Patients page
+   * opens the new patient's record, which is where the front desk goes next to
+   * book them in, and does not move on an edit.
+   */
+  onSuccess: (saved?: { id: string; created: boolean }) => void;
 }
 
 const emptyForm: TablesInsert<"patients"> = {
@@ -568,7 +574,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         await saveFamilyRows(patientId);
       }
 
-      onSuccess();
+      onSuccess(patientId ? { id: patientId, created: !isEditing } : undefined);
       onOpenChange(false);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });

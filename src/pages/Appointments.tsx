@@ -21,6 +21,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { applyFilters as applyListFilters, fieldDefIn, type ListDisplayMode, type ListView } from "@/lib/listViews/engine";
 import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/standardViews";
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
+import { resolveViewSort } from "@/lib/listViews/viewSort";
 import { viewDatePreset } from "@/lib/viewDatePreset";
 import { appointmentInvoiceMap } from "@/lib/appointmentInvoiceMap";
 import { billCellState } from "@/lib/billCellState";
@@ -352,18 +353,35 @@ const Appointments = () => {
     );
   };
 
-  // Sort state for table view
-  const [sortColumn, setSortColumn] = useState<string>("start_time");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  // Sort state for table view. The day reads morning to evening.
+  const DEFAULT_SORT = { column: "start_time", direction: "asc" } as const;
+  const [sortColumn, setSortColumn] = useState<string>(DEFAULT_SORT.column);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(DEFAULT_SORT.direction);
 
-  // Apply a custom saved view's sorting when one is selected. The standard
-  // "All"/"Recently Viewed" views default sort_field to "created_at" -
-  // ignored here so the table's default order (start_time/asc) is unchanged
-  // when no custom view is active.
+  // Apply a saved view's sorting when one is selected - but only when it names
+  // a column this list actually sorts on.
+  //
+  // list_views.sort_by defaults to 'created_at' and sort_direction to 'desc',
+  // and the View editor opens pre-set to the same, so every appointment view
+  // was stored that way without anyone choosing it. No list offers created_at
+  // as a column, yet it was still applied: it fell through to start_time and
+  // dragged the stored "desc" along, putting the last patient of the day on
+  // top. And because the active view id is remembered across navigation while
+  // the sort is not, leaving the module and coming back re-imposed it every
+  // time - which is what staff saw when a manual sort would not stick.
+  //
+  // resolveViewSort keeps a sort someone really did pick and drops one they
+  // did not, falling back to the default above.
   useEffect(() => {
     if (activeView && !activeView.is_standard) {
-      setSortColumn(activeView.sort_field || "start_time");
-      setSortDirection(activeView.sort_dir || "asc");
+      const resolved = resolveViewSort(
+        activeView.sort_field,
+        activeView.sort_dir,
+        APPOINTMENT_VIEW_FIELDS,
+        DEFAULT_SORT,
+      );
+      setSortColumn(resolved.column);
+      setSortDirection(resolved.direction);
     }
   }, [activeView?.id]);
 

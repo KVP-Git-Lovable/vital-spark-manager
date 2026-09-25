@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { ChangePasswordRequired } from "@/components/auth/ChangePasswordRequired";
 import { ImpersonationBanner } from "@/components/auth/ImpersonationBanner";
-import { useNavigate, Navigate, useLocation } from "react-router-dom";
+import { useNavigate, Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { AppointmentsModal } from "@/components/modals/AppointmentsModal";
 import { AppointmentDetailModal } from "@/components/modals/AppointmentDetailModal";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +48,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { openModal, closeModal } = useModal();
+  const [searchParams] = useSearchParams();
+  // The appointment overlay lives in the address now, so the clamp below has to
+  // read it from there - reading only the context left the overlay unclamped.
+  const overlayOpen = !!openModal || !!searchParams.get("appointmentDetail");
   const lastPathRef = useRef(location.pathname);
 
   // Close any full-screen overlay modal when the route changes, so the
@@ -99,7 +103,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           this they stretch to the height of the still-mounted page behind them -
           an appointments list is ~11,000px, which is the blank area you could
           scroll through forever after opening an appointment. */}
-      <div className={cn("flex w-full", openModal ? "h-screen overflow-hidden" : "min-h-screen")}>
+      <div className={cn("flex w-full", overlayOpen ? "h-screen overflow-hidden" : "min-h-screen")}>
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0 relative">
           {/* Modals */}

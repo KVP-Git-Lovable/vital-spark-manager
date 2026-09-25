@@ -32,7 +32,6 @@ import { assertWrote } from "@/lib/rowAccess";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, ClipboardList, Pin, Printer, Trash2 } from "lucide-react";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
 import { moveToTrash } from "@/lib/trash";
-import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -232,8 +231,11 @@ const Appointments = () => {
   // and pressing Back landed on the bare list with the appointment gone. Every
   // comparable screen - PatientDetail, Billing, Procedures - already uses this
   // hook, under the same "appointment" parameter.
-  const { openId: selectedAppointmentId, open: openAppointment, close: closeAppointment } =
-    useUrlPanel("appointment");
+  //
+  // "appointmentDetail", not "appointment": Patients and Billing use that one
+  // for their own side sheets, and sharing the name would pop this full-screen
+  // overlay open on top of them. AppointmentDetailModal renders it.
+  const { openId: selectedAppointmentId, open: openAppointment } = useUrlPanel("appointmentDetail");
   // With a panel open the page does not scroll with the window, so window-based
   // virtualization would leave blank space. Render every row directly instead.
   const inOverlay = !!selectedAppointmentId;
@@ -3138,11 +3140,6 @@ const Appointments = () => {
           </div>
         </motion.div>
       </div>
-
-      <AppointmentDetailSheet
-        appointmentId={selectedAppointmentId}
-        onClose={closeAppointment}
-      />
 
       <Dialog open={showBillingPrompt} onOpenChange={setShowBillingPrompt}>
         <DialogContent className="max-w-md">

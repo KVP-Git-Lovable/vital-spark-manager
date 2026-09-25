@@ -465,9 +465,11 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
   // every row here always has.
   const medicalFields: [string, unknown][] = [
     ["Diagnosis", procedure.diagnosis],
-    ["History/Examination details", procedure.symptoms || procedure.consultation_notes],
+    // Kept in step with src/lib/medicalFields.ts - the screen and the document
+    // must head these the same way.
+    ["Symptoms", procedure.symptoms || procedure.consultation_notes],
     ["Lab Tests", procedure.lab_tests],
-    ["Medical History", patient.medical_history],
+    ["History/Examination details", patient.medical_history],
     ["Current Medications", patient.current_medications],
     ["Dietary Advice", patient.dietary_advice],
     ["Previous Treatments", patient.previous_treatments],

@@ -12,14 +12,17 @@
 export type MedicalField = readonly [key: string, label: string];
 
 export const MEDICAL_FIELDS: MedicalField[] = [
-  // Renamed from "Symptoms" at the clinic's request: what doctors write here is
-  // the history taken and what was seen on examination, not a symptom list. The
-  // column keeps its name, and the 15,271 visits that already carry text are
-  // describing the same thing under a narrower heading.
-  ["symptoms", "History/Examination details"],
+  // These two carry the clinic's second pass at the wording: symptoms went to
+  // "History/Examination details" and has come back to "Symptoms", and the
+  // History/Examination heading now sits on medical_history instead.
+  //
+  // Labels only - no data moves. What is already in medical_history on 5,365
+  // patients now reads under the new heading, which is the point: it is the
+  // history taken, and that is where doctors want to find it.
+  ["symptoms", "Symptoms"],
   ["diagnosis", "Diagnosis"],
   ["lab_tests", "Lab Tests"],
-  ["medical_history", "Medical History"],
+  ["medical_history", "History/Examination details"],
   ["current_medications", "Current Medications"],
   // Took the slot Allergies used to hold. Deliberately a new column rather than
   // a rename of skin_concerns: that column is not free text, it holds the

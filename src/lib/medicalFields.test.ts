@@ -12,8 +12,18 @@ const labelFor = (key: string) => MEDICAL_FIELDS.find(([k]) => k === key)?.[1];
 
 describe("MEDICAL_FIELDS", () => {
   it("carries the labels the clinic asked for", () => {
-    expect(labelFor("symptoms")).toBe("History/Examination details");
+    // Second pass on the wording: symptoms went to "History/Examination
+    // details" and came back, and that heading now sits on medical_history.
+    expect(labelFor("symptoms")).toBe("Symptoms");
+    expect(labelFor("medical_history")).toBe("History/Examination details");
     expect(labelFor("dietary_advice")).toBe("Dietary Advice");
+  });
+
+  it("does not head two fields the same way", () => {
+    // The swap is only safe while the labels stay distinct - two boxes reading
+    // "History/Examination details" would be worse than the original wording.
+    const labels = MEDICAL_FIELDS.map(([, label]) => label);
+    expect(new Set(labels).size).toBe(labels.length);
   });
 
   it("no longer offers Allergies or Skin Concerns on a prescription", () => {

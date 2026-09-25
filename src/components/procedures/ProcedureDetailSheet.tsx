@@ -3,6 +3,7 @@ import { numVal } from "@/lib/numberInput";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { renderPdfToImages } from "@/lib/renderPdf";
 import { isConsultationService } from "@/lib/consultationLine";
+import { isRollUpOf, nextRollUpValue } from "@/lib/procedureRollup";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
 
 import { useNavigate } from "react-router-dom";
@@ -158,6 +159,9 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [previewPages, setPreviewPages] = useState<string[] | null>(null);
   const [previewFilename, setPreviewFilename] = useState("Prescription.pdf");
   const prescriptionBytes = useRef<ArrayBuffer | null>(null);
+  // The service lines as this visit was opened, so the save can tell a parent
+  // value that is merely their roll-up from one holding something of its own.
+  const originalServiceLinesRef = useRef<ServiceLineRow[]>([]);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [sendingWa, setSendingWa] = useState(false);
 
@@ -469,6 +473,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   // duplicate id-less fallback line is fabricated from the parent
   // procedure's fields, which then inserts a second identical row on save.
   if (procedure && initialized && !servicesInitialized && !procedureServicesLoading) {
+    const parentTextIsRollUp = (procedure.service_name || "").includes(", ");
     const rows: ServiceLineRow[] = procedureServices.length
       ? procedureServices.map((s: any) => ({
           id: s.id,
@@ -486,13 +491,22 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
             key: `svc-${Date.now()}`,
             service_id: null,
             service_name: procedure.service_name || "",
-            procedure_notes: procedure.procedure_notes || "",
-            recommendations: procedure.recommendations || "",
+            // A parent row whose service_name is a joined list already holds a
+            // roll-up of several services. Folding that back into one line and
+            // saving re-prefixes it - "FILLERS, BOTOX: FILLERS: 1v2" - and it
+            // compounds on every round trip. The text stays on the parent,
+            // where the save rule below now protects it.
+            procedure_notes: parentTextIsRollUp ? "" : procedure.procedure_notes || "",
+            recommendations: parentTextIsRollUp ? "" : procedure.recommendations || "",
             material_percent: "",
             price: 0,
           },
         ];
     setEditServiceLines(rows);
+    // What the lines added up to when this visit was opened. The save compares
+    // against it to tell "the parent is just these lines" from "the parent
+    // holds something of its own".
+    originalServiceLinesRef.current = rows;
     setServicesInitialized(true);
   }
 
@@ -550,19 +564,28 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const updateMutation = useMutation({
     mutationFn: async () => {
       const kept = editServiceLines.filter((l) => !l._deleted && (l.service_name || "").trim());
-      const combine = (field: "procedure_notes" | "recommendations") =>
-        kept
-          .filter((l) => (l[field] || "").trim())
-          .map((l) => (kept.length > 1 ? `${l.service_name}: ${l[field]}` : l[field]))
-          .join("\n\n");
+      const original = originalServiceLinesRef.current;
+
+      // Write the roll-up only where the lines account for what is stored. An
+      // imported visit can hold Salesforce's Special Instructions AND service
+      // lines, and a save on this screen is not permission to destroy the
+      // former - which it did, silently, for any visit the treatments move gave
+      // its first service lines.
+      //
+      // Where the parent does hold its own text it is the editable box on
+      // screen, so what was typed there is what gets saved. It used to be
+      // recomputed from the lines either way, which meant a textarea that
+      // accepted typing and threw it away on save.
+      const rolled = (field: "procedure_notes" | "recommendations", edited: string) =>
+        nextRollUpValue(procedure?.[field] ?? null, original, kept, field, edited);
 
       // Update procedure
       const { error } = await supabase.from("procedures").update({
         service_name: kept.length ? kept.map((l) => l.service_name).join(", ") : editServiceName,
         status: editStatus,
         staff_id: editStaffId && editStaffId.trim() ? editStaffId : null,
-        procedure_notes: kept.length ? combine("procedure_notes") : editProcedureNotes,
-        recommendations: kept.length ? combine("recommendations") : editRecommendations,
+        procedure_notes: kept.length ? rolled("procedure_notes", editProcedureNotes) : editProcedureNotes,
+        recommendations: kept.length ? rolled("recommendations", editRecommendations) : editRecommendations,
         review_notes: editReviewNotes,
         assisted_by: editAssistedByIds[0] || null,
         assisted_by_ids: editAssistedByIds,
@@ -1239,10 +1262,18 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 {/* Special Instructions
                     Salesforce's Special_Instructions__c, on 17,581 visits. It was
                     read, saved and printed into a column of the procedure table,
-                    but never shown on this screen at all. Hidden when the visit's
-                    service lines already carry it, so it is not said twice. */}
-                {editRecommendations.trim() && !editServiceLines.some(
-                  (l) => !l._deleted && l.recommendations.trim() === editRecommendations.trim(),
+                    but never shown on this screen at all.
+
+                    Shown only when it holds something the service lines do not.
+                    The check used to compare a raw line ("1v2") against the
+                    prefixed roll-up ("FILLERS: 1v2"), so on any visit with two
+                    services it never matched and the doctor was shown her own
+                    recommendation twice, the second time under a name she had
+                    not typed it into. */}
+                {!isRollUpOf(
+                  editRecommendations,
+                  editServiceLines.filter((l) => !l._deleted && (l.service_name || "").trim()),
+                  "recommendations",
                 ) && (
                   <div className="rounded-xl border bg-card p-4 shadow-sm">
                     <Label className="text-base font-display font-semibold flex items-center gap-2 mb-3">

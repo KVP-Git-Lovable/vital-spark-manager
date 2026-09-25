@@ -244,3 +244,15 @@ export function buildConsultationReasonsForSave(
     return r;
   });
 }
+
+/**
+ * "None" is the select's cleared state, but it is a real string the moment it is
+ * saved - a patient whose type was cleared would read "None" on their record
+ * instead of blank. Both screens that write consultation_type run the value
+ * through here so they agree on what "no type" means in the column.
+ */
+export function normaliseConsultationType(value: string | null | undefined): string | null {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed || trimmed === "None") return null;
+  return trimmed;
+}

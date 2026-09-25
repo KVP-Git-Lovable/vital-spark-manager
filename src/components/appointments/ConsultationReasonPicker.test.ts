@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildConsultationReasonsForSave,
+  normaliseConsultationType,
   parseConsultationReasonsForEdit,
 } from "./ConsultationReasonPicker";
 
@@ -46,5 +47,29 @@ describe("consultation reasons round trip", () => {
   it("keeps a free-text value that itself contains a colon", () => {
     const saved = buildConsultationReasonsForSave(["Others (Aesthetic)"], "Ref: Dr Rao", "");
     expect(parseConsultationReasonsForEdit(saved).othersAestheticText).toBe("Ref: Dr Rao");
+  });
+});
+
+/**
+ * The select's cleared state is the string "None", and both the Add/Edit form
+ * and the patient record save the type straight from it - so without this a
+ * patient whose reason was cleared would read "None" rather than blank.
+ */
+describe("normaliseConsultationType", () => {
+  it("treats the cleared option as no value", () => {
+    expect(normaliseConsultationType("None")).toBeNull();
+  });
+
+  it("treats nothing recorded as no value", () => {
+    expect(normaliseConsultationType("")).toBeNull();
+    expect(normaliseConsultationType("   ")).toBeNull();
+    expect(normaliseConsultationType(null)).toBeNull();
+    expect(normaliseConsultationType(undefined)).toBeNull();
+  });
+
+  it("leaves a real choice alone, including the combined one", () => {
+    expect(normaliseConsultationType("Aesthetic")).toBe("Aesthetic");
+    expect(normaliseConsultationType("Clinical")).toBe("Clinical");
+    expect(normaliseConsultationType("Aesthetic & Clinical")).toBe("Aesthetic & Clinical");
   });
 });

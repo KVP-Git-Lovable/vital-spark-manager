@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import {
   ConsultationReasonPicker,
   buildConsultationReasonsForSave,
+  normaliseConsultationType,
   parseConsultationReasonsForEdit,
   type ConsultationType,
 } from "@/components/appointments/ConsultationReasonPicker";
@@ -527,6 +528,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
       let patientId: string | null = patient?.id || null;
       const payload = {
         ...form,
+        // The picker's cleared state is the literal string "None"; stored as-is
+        // it would read back as a consultation type of "None".
+        consultation_type: normaliseConsultationType(form.consultation_type),
         consultation_reasons: consultationReasons.length
           ? buildConsultationReasonsForSave(consultationReasons, othersAestheticText, othersClinicalText)
           : null,

@@ -50,6 +50,13 @@ import { procedureDateLabel } from "@/lib/procedureDate";
 import { investigationText } from "@/lib/investigationText";
 import { PATIENT_SOURCE_OPTIONS, PATIENT_GENDER_OPTIONS, optionsIncluding, isReferralSource } from "@/lib/patientSourceOptions";
 import { CustomFieldsRenderer } from "@/components/custom-fields/CustomFieldsRenderer";
+import {
+  ConsultationReasonPicker,
+  buildConsultationReasonsForSave,
+  normaliseConsultationType,
+  parseConsultationReasonsForEdit,
+  type ConsultationType,
+} from "@/components/appointments/ConsultationReasonPicker";
 import { useCustomFields } from "@/lib/custom-fields/api";
 
 /** A referral value that is an id rather than a doctor's name. */
@@ -93,8 +100,11 @@ const MaskedField = ({ label }: { label: string }) => (
   </div>
 );
 
-const Field = ({ label, value, field, type = "text" }: { label: string; value: any; field: string; type?: string }) => {
-  const { readOnly, upd } = useContext(DetailsFieldContext);
+const Field = ({ label, value, field, type = "text", neverEditable = false }: { label: string; value: any; field: string; type?: string; neverEditable?: boolean }) => {
+  const { readOnly: readOnlyMode, upd } = useContext(DetailsFieldContext);
+  // neverEditable is for a value that is displayed but is not what the column
+  // holds - editing it would write the display over the real value.
+  const readOnly = readOnlyMode || neverEditable;
   return (
     <div>
       <Label className="text-xs text-muted-foreground">{label}</Label>
@@ -202,6 +212,11 @@ const PatientDetail = () => {
   const [detailsEditing, setDetailsEditing] = useState(false);
   const [elaboratingField, setElaboratingField] = useState<string | null>(null);
   const [detailsForm, setDetailsForm] = useState<any>(null);
+  // The picker's two "Others" boxes are not patient columns, and the Details
+  // save sends the whole detailsForm object - keeping them here rather than in
+  // that object is what stops the update failing on an unknown column.
+  const [othersAestheticText, setOthersAestheticText] = useState("");
+  const [othersClinicalText, setOthersClinicalText] = useState("");
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [addRxOpen, setAddRxOpen] = useState(false);
   const [rxForm, setRxForm] = useState({ medicine_name: "", dosage: "", frequency: "", duration: "", quantity: 1, instructions: "", procedure_id: "" });
@@ -808,17 +823,34 @@ const PatientDetail = () => {
             <div className="flex justify-end mb-3">
               {detailsEditing ? (
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => { setDetailsEditing(false); setDetailsForm(null); }}>Cancel</Button>
+                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => { setDetailsEditing(false); setDetailsForm(null); setOthersAestheticText(""); setOthersClinicalText(""); }}>Cancel</Button>
                   <Button size="sm" className="gap-1.5 h-8 text-xs" disabled={detailsSaving} onClick={async () => {
                     if (!detailsForm) return;
                     setDetailsSaving(true);
                     try {
-                      const { error } = await supabase.from("patients").update(detailsForm).eq("id", id!);
+                      // detailsForm holds the picker's tags while editing (the
+                      // same shape the Add/Edit form keeps); the two "Others"
+                      // boxes are folded back in here, so what was typed into
+                      // them survives a save.
+                      const payload = {
+                        ...detailsForm,
+                        consultation_type: normaliseConsultationType(detailsForm.consultation_type),
+                        consultation_reasons: (detailsForm.consultation_reasons || []).length
+                          ? buildConsultationReasonsForSave(
+                              detailsForm.consultation_reasons,
+                              othersAestheticText,
+                              othersClinicalText,
+                            )
+                          : null,
+                      };
+                      const { error } = await supabase.from("patients").update(payload).eq("id", id!);
                       if (error) throw error;
                       toast.success("Patient details updated");
                       queryClient.invalidateQueries({ queryKey: ["patient", id] });
                       setDetailsEditing(false);
                       setDetailsForm(null);
+                      setOthersAestheticText("");
+                      setOthersClinicalText("");
                     } catch (err: any) {
                       toast.error(err.message);
                     } finally {
@@ -831,6 +863,11 @@ const PatientDetail = () => {
               ) : (
                 <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => {
                   setDetailsEditing(true);
+                  // Splits "Others (Aesthetic): dry patches" back into the tag
+                  // and the text, so editing cannot drop what was typed.
+                  const parsedReasons = parseConsultationReasonsForEdit(patient.consultation_reasons);
+                  setOthersAestheticText(parsedReasons.othersAestheticText);
+                  setOthersClinicalText(parsedReasons.othersClinicalText);
                   setDetailsForm({
                     first_name: patient.first_name, last_name: patient.last_name, date_of_birth: patient.date_of_birth,
                     gender: patient.gender, phone: patient.phone, email: patient.email, address: patient.address,
@@ -845,7 +882,7 @@ const PatientDetail = () => {
                     // Were left out, so the inline edit silently could not touch them.
                     source_other_text: patient.source_other_text,
                     consultation_type: patient.consultation_type,
-                    consultation_reasons: patient.consultation_reasons,
+                    consultation_reasons: parsedReasons.reasons,
                     // Whatever an admin has configured. Seeded by name rather than
                     // spreading the whole record, which would carry the engagement
                     // roll-ups and Salesforce markers back into the update.
@@ -869,7 +906,11 @@ const PatientDetail = () => {
                 (d.source === "Referred by Patient" && referringPatient
                   ? `${referringPatient.first_name || ""} ${referringPatient.last_name || ""}`.trim()
                   : "") || d.source_referral_doctor;
-              const upd = (field: string, value: any) => setDetailsForm((prev: any) => ({ ...prev, [field]: value || null }));
+              // Empty text becomes null, but a boolean is passed through: `false || null`
+              // wrote null when a "Follows us on..." box was unticked, leaving a
+              // yes/no column with three states.
+              const upd = (field: string, value: any) =>
+                setDetailsForm((prev: any) => ({ ...prev, [field]: typeof value === "boolean" ? value : value || null }));
               const readOnly = !detailsEditing;
 
               const elaborate = async (field: string, label: string, currentText: string) => {
@@ -942,7 +983,7 @@ const PatientDetail = () => {
                       <div>
                         <Label className="text-xs text-muted-foreground">Status</Label>
                         {readOnly ? (
-                          <p className="text-sm mt-1">{d.status}</p>
+                          <p className="text-sm mt-1">{d.status || <span className="text-muted-foreground/50">—</span>}</p>
                         ) : (
                           <Select value={d.status || "Active"} onValueChange={(v) => upd("status", v)}>
                             <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
@@ -1001,6 +1042,39 @@ const PatientDetail = () => {
                       <TextareaField label="Current Medications" value={d.current_medications} field="current_medications" ai />
                       <TextareaField label="Allergies" value={d.allergies} field="allergies" ai />
                     </div>
+                    {/* Asked for on every registration. This rendered only when a
+                        value was already stored, so on the 27,000-odd patients who
+                        have none there was no field at all and no way to set one.
+                        Always shown now, and in edit mode it is the same picker the
+                        Add/Edit form uses, so the choices cannot drift apart. */}
+                    <div className="mt-4 pt-4 border-t">
+                      {readOnly ? (
+                        <>
+                          <Label className="text-xs text-muted-foreground">Reason for Consultation</Label>
+                          <p className="text-sm mt-1">
+                            {normaliseConsultationType(d.consultation_type) || <span className="text-muted-foreground/50">—</span>}
+                          </p>
+                          {(d.consultation_reasons || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {(d.consultation_reasons || []).map((reason: string) => (
+                                <Badge key={reason} variant="secondary" className="text-xs font-normal">{reason}</Badge>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <ConsultationReasonPicker
+                          consultationType={(d.consultation_type || "") as ConsultationType | ""}
+                          onConsultationTypeChange={(v) => upd("consultation_type", v)}
+                          consultationReasons={d.consultation_reasons || []}
+                          onConsultationReasonsChange={(r) => upd("consultation_reasons", r)}
+                          othersAestheticText={othersAestheticText}
+                          setOthersAestheticText={setOthersAestheticText}
+                          othersClinicalText={othersClinicalText}
+                          setOthersClinicalText={setOthersClinicalText}
+                        />
+                      )}
+                    </div>
                   </div>
 
                   {/* Derma */}
@@ -1057,25 +1131,19 @@ const PatientDetail = () => {
                           "Referred by Patient" the column holds that patient's id,
                           which would otherwise print as a raw uuid. */}
                       {isReferralSource(d.source) && (
-                        <Field label="Referred By" value={referredByLabel} field="source_referral_doctor" />
+                        // For "Referred by Patient" the column holds the referring
+                        // patient's id while this shows their name, so an editable
+                        // box here would write the name over the id and break the
+                        // lookup. That case is chosen with the form's patient
+                        // picker; "Dr. referral" really does store a name.
+                        <Field
+                          label="Referred By"
+                          value={referredByLabel}
+                          field="source_referral_doctor"
+                          neverEditable={UUID_RE.test(String(d.source_referral_doctor || ""))}
+                        />
                       )}
                       {d.source === "Other" && <Field label="Specify Source" value={d.source_other_text} field="source_other_text" />}
-                      {/* Asked for on every registration and shown nowhere on the
-                          record until now. Read-only here: the tag picker lives in
-                          the Add/Edit form, which is where it is chosen. */}
-                      {(d.consultation_type || (d.consultation_reasons || []).length > 0) && (
-                        <div className="col-span-2">
-                          <p className="text-xs text-muted-foreground">Reason for Consultation</p>
-                          {d.consultation_type && <p className="text-sm mt-0.5">{d.consultation_type}</p>}
-                          {(d.consultation_reasons || []).length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-1.5">
-                              {(d.consultation_reasons || []).map((reason: string) => (
-                                <Badge key={reason} variant="secondary" className="text-xs font-normal">{reason}</Badge>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
                       <Field label="Facebook URL" value={d.facebook_url} field="facebook_url" />
                       <Field label="Instagram URL" value={d.instagram_url} field="instagram_url" />
                       <div className="flex items-center gap-4 col-span-2">

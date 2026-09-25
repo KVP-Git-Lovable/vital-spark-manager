@@ -389,13 +389,19 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     .filter((r) => r.service);
 
   const consultationRows = allServiceRows.filter((r) => isPlaceholderService(r.service));
-  const visitNotesText = consultationRows
-    .flatMap((r) => [r.notes, r.recommendations].filter(Boolean))
-    .join("\n")
-    .trim();
+  const realServiceRows = allServiceRows.filter((r) => !isPlaceholderService(r.service));
+  // When the doctor chose only "Consultation" as the service, it is what they
+  // entered, so it prints in Procedure Details (with its notes) rather than
+  // vanishing from the document.
+  const onlyConsultation = realServiceRows.length === 0 && consultationRows.length > 0;
+  const visitNotesText = onlyConsultation
+    ? ""
+    : consultationRows
+        .flatMap((r) => [r.notes, r.recommendations].filter(Boolean))
+        .join("\n")
+        .trim();
 
-  const serviceRows = allServiceRows
-    .filter((r) => !isPlaceholderService(r.service))
+  const serviceRows = (onlyConsultation ? consultationRows : realServiceRows)
     .map((r) => ({ service: r.service, notes: r.notes || "-", recommendations: r.recommendations || "-" }));
 
   // The same lines in the shape the shared roll-up rule expects, before the

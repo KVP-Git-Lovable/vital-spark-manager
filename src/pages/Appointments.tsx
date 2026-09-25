@@ -1,7 +1,7 @@
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { resizeColumn, mergeSavedWidths, type ColumnWidth } from "@/lib/columnWidths";
 import { isPageSortedColumn, sortAppointments } from "@/lib/appointmentSort";
-import { isConsultationService } from "@/lib/consultationLine";
+import { isPlaceholderVisitService } from "@/lib/consultationLine";
 import { appointmentDeleteNote } from "@/lib/appointmentDeleteNote";
 import { displayDate } from "@/lib/dateInput";
 import { ColumnResizeHandle } from "@/components/shared/ColumnResizeHandle";
@@ -2860,13 +2860,17 @@ const Appointments = () => {
                                         params.set("appointment_id", apt.id);
                                         if (apt.patient_id) params.set("patient_id", apt.patient_id);
                                         if (apt.staff_id) params.set("staff_id", apt.staff_id);
-                                        // "Consultation" is the placeholder 24,610 imported
-                                        // appointments carry, not a service anyone picked, and
-                                        // the Service Master has no row for it - so it arrived
-                                        // pre-filled in a box it could never match. A visit that
-                                        // really is just a consultation opens with the service
+                                        // "Consultation" and its cousins ("New Consult", "Old
+                                        // Consult", "consult") are what an appointment carries when
+                                        // nobody recorded any work, not a service anyone picked, and
+                                        // the Service Master has no row for any of them - so they
+                                        // arrived pre-filled in a box they could never match. A visit
+                                        // that really is just a consultation opens with the service
                                         // empty, which is what saving already records.
-                                        if (apt.service && !isConsultationService(apt.service)) {
+                                        //
+                                        // The form filters this too, so a stale URL is safe; keeping
+                                        // it out of the URL as well keeps the two consistent.
+                                        if (apt.service && !isPlaceholderVisitService(apt.service)) {
                                           params.set("service", apt.service);
                                         }
                                         routerNavigate(`/procedures/new?${params.toString()}`);

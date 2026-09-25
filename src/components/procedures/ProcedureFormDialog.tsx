@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { MicButton } from "@/components/shared/MicButton";
 import { OTHERS_VALUE } from "@/lib/othersOption";
+import { isPlaceholderVisitService } from "@/lib/consultationLine";
 
 import {
   MEDICAL_FIELDS,
@@ -118,8 +119,21 @@ export function ProcedureFormDialog({
   const [medical, setMedical] = useState<Record<string, string>>({});
   const [medicalDirty, setMedicalDirty] = useState(false);
   const [appointmentId] = useState(defaultAppointmentId || "");
+
+  // "Consultation", "New Consult", "Old Consult" and the rest are what an
+  // appointment carries when nobody recorded any work - the Service Master has
+  // no row for any of them, so they could never match and just sat in the box
+  // as text nobody chose.
+  //
+  // Filtered here rather than in the callers because there are three ways into
+  // this form - the appointments list, the appointment sheet, and a ?service=
+  // URL on /procedures/new - and only one of them was filtering. Doing it at
+  // the one place the form receives the name covers all three, a stale URL, and
+  // anything added later.
+  const seedServiceName = isPlaceholderVisitService(defaultServiceName) ? "" : (defaultServiceName || "");
+
   const [serviceLines, setServiceLines] = useState<ServiceLine[]>([
-    { key: `svc-${Date.now()}`, service_id: "", name: defaultServiceName || "", procedure_notes: "", recommendations: "", material_percent: "", price: 0 },
+    { key: `svc-${Date.now()}`, service_id: "", name: seedServiceName, procedure_notes: "", recommendations: "", material_percent: "", price: 0 },
   ]);
 
   const [nextAppointmentAt, setNextAppointmentAt] = useState("");
@@ -624,9 +638,11 @@ export function ProcedureFormDialog({
     if (svc) await applyServiceData(svc, svcId, lineKey);
   };
 
-  // Auto-match defaultServiceName on first load
-  if (defaultServiceName && services.length > 0 && !autoFilled && !serviceLines[0]?.service_id) {
-    const match = services.find((s: any) => s.name === defaultServiceName);
+  // Auto-match the seeded service on first load. A placeholder never reaches
+  // here, so a per-doctor "CONSULTATION - DR ..." - which is a real billed
+  // service - still matches and still fills in its price.
+  if (seedServiceName && services.length > 0 && !autoFilled && !serviceLines[0]?.service_id) {
+    const match = services.find((s: any) => s.name === seedServiceName);
     if (match) {
       applyServiceData(match, match.id, serviceLines[0].key);
     }

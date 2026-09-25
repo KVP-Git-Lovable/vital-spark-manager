@@ -3,6 +3,33 @@ import { fetchAll } from "@/lib/supabasePaginate";
 import { ALL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { formatMoneyExact } from "@/lib/currency";
 import { collectionCards, modesOf, paymentModeLabel, PAYMENT_BUCKETS } from "@/lib/paymentModes";
+import { npsBreakdown, npsCategory, ratingLabel } from "@/lib/feedbackScores";
+
+/** Written by the Feedback tab when an appointment has no patient attached. */
+const NO_PATIENT_ID = "00000000-0000-0000-0000-000000000000";
+
+/** A feedback row as it arrives, before the fetcher flattens it. */
+interface FeedbackRow {
+  patient_id?: string | null;
+  patient_name?: string | null;
+  nps_score?: number | null;
+  service_rating?: number | null;
+  comments?: string | null;
+  appointment?: {
+    start_time?: string | null;
+    service?: string | null;
+    doctor_name?: string | null;
+    staff_id?: string | null;
+    patient_id?: string | null;
+  } | null;
+}
+
+interface FeedbackPatient {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+}
 
 export type ColumnType = "text" | "number" | "currency" | "date" | "datetime" | "badge";
 
@@ -720,6 +747,144 @@ export const REPORTS: ReportConfig[] = [
       valueLabel: "₹ Material",
       orientation: "horizontal",
       build: (rows) => groupSum(rows, "service_name", "material_cost", 10, "Unnamed"),
+    },
+  },
+  {
+    key: "patient_feedback",
+    title: "Patient Feedback",
+    description: "Every NPS score and star rating patients have left, with the visit it was about.",
+    category: "Patients",
+    defaultSort: { key: "created_at", dir: "desc" },
+    columns: [
+      { key: "created_at", label: "Submitted", sortable: true, type: "datetime" },
+      { key: "patient_name", label: "Patient", sortable: true },
+      { key: "phone", label: "Phone", sortable: true },
+      { key: "doctor_name", label: "Doctor", sortable: true },
+      { key: "appointment_date", label: "Visit Date", sortable: true, type: "date" },
+      { key: "service", label: "Investigation", sortable: true },
+      { key: "nps_score", label: "NPS", sortable: true, type: "number" },
+      // accessor, not render: the printed report and the CSV cannot call
+      // render, and the band is the part a reader actually acts on.
+      { key: "nps_category", label: "NPS Group", sortable: true, type: "badge", accessor: (r) => npsCategory(r.nps_score) },
+      { key: "service_rating", label: "Stars", sortable: true, type: "number" },
+      { key: "rating_label", label: "Rating", sortable: true, accessor: (r) => ratingLabel(r.service_rating) },
+      { key: "comments", label: "Comments", sortable: false },
+    ],
+    filters: [
+      { key: "dateRange", label: "Submitted", type: "dateRange", serverDateField: "created_at" },
+      { key: "doctor", label: "Doctor", type: "doctor", matches: (r, v) => String(r.staff_id ?? "") === v },
+      {
+        key: "nps_category",
+        label: "NPS Group",
+        type: "select",
+        field: "nps_category",
+        options: ["Promoter", "Passive", "Detractor"].map((v) => ({ value: v, label: v })),
+      },
+      {
+        key: "service_rating",
+        label: "Star Rating",
+        type: "select",
+        field: "service_rating",
+        options: [5, 4, 3, 2, 1].map((v) => ({ value: String(v), label: `${v} star${v === 1 ? "" : "s"}` })),
+        matches: (r, v) => String(r.service_rating ?? "") === v,
+      },
+      {
+        key: "has_comment",
+        label: "Comment",
+        type: "select",
+        field: "has_comment",
+        options: [
+          { value: "yes", label: "With a comment" },
+          { value: "no", label: "Score only" },
+        ],
+      },
+    ],
+    searchFields: ["patient_name", "phone", "comments", "doctor_name", "service"],
+    rowHref: (r) => (r.appointment_id ? `/appointments?appointmentDetail=${r.appointment_id}` : null),
+    /**
+     * Two fetches, not one embed: patient_feedback.patient_id has no foreign
+     * key, so PostgREST cannot embed patients from it. The appointment carries
+     * the doctor, the visit date and the investigation; the patient is looked
+     * up separately for the phone number. Everything is flattened onto the row
+     * because searchFields and the select filters only see flat fields.
+     */
+    fetcher: async ({ from, to }) => {
+      const rows = await fetchAll((s, e) => {
+        let q = supabase
+          .from("patient_feedback")
+          .select("*, appointment:appointment_id(start_time, service, doctor_name, staff_id, patient_id)")
+          .order("created_at", { ascending: false })
+          .range(s, e);
+        if (from) q = q.gte("created_at", from);
+        if (to) q = q.lte("created_at", to);
+        return q;
+      });
+
+      // The Feedback tab writes a zero uuid when an appointment has no patient,
+      // so it is not an id to look anything up by.
+      const ids = Array.from(
+        new Set(
+          rows
+            .map((r: FeedbackRow) => r.patient_id || r.appointment?.patient_id)
+            .filter((id): id is string => !!id && id !== NO_PATIENT_ID),
+        ),
+      );
+      const patients = ids.length
+        ? await fetchAll((s, e) =>
+            supabase.from("patients").select("id, first_name, last_name, phone").in("id", ids).range(s, e),
+          )
+        : [];
+      const byId = new Map((patients as FeedbackPatient[]).map((p) => [p.id, p]));
+
+      return (rows as FeedbackRow[]).map((r) => {
+        const p = byId.get(r.patient_id) || byId.get(r.appointment?.patient_id);
+        const name = [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim();
+        return {
+          ...r,
+          // The row carries a copy of the name from when it was left; the live
+          // patient record wins when there is one, so a renamed patient reads
+          // correctly here too.
+          patient_name: name || r.patient_name || "",
+          phone: p?.phone || "",
+          doctor_name: r.appointment?.doctor_name || "",
+          staff_id: r.appointment?.staff_id || "",
+          appointment_date: r.appointment?.start_time || null,
+          service: r.appointment?.service || "",
+          nps_category: npsCategory(r.nps_score),
+          rating_label: ratingLabel(r.service_rating),
+          has_comment: String(r.comments || "").trim() ? "yes" : "no",
+        };
+      });
+    },
+    summary: (rows) => {
+      const b = npsBreakdown(rows as { nps_score?: number | null; service_rating?: number | null }[]);
+      return [
+        { label: "Responses", value: b.responses.toLocaleString() },
+        {
+          label: "NPS",
+          value: b.nps === null ? "-" : String(b.nps),
+          hint: "% promoters minus % detractors",
+        },
+        {
+          label: "Avg Rating",
+          value: b.averageRating === null ? "-" : `${b.averageRating.toFixed(2)} / 5`,
+          hint: b.averageScore === null ? undefined : `Avg NPS score ${b.averageScore.toFixed(2)} / 10`,
+        },
+        {
+          label: "Promoters",
+          value: b.promoters.toLocaleString(),
+          hint: `${b.passives} passive, ${b.detractors} detractor${b.detractors === 1 ? "" : "s"}`,
+        },
+      ];
+    },
+    chart: {
+      title: "Responses by NPS Group",
+      valueLabel: "Responses",
+      build: (rows) =>
+        (["Promoter", "Passive", "Detractor"] as const).map((label) => ({
+          label,
+          value: (rows as FeedbackRow[]).filter((r) => npsCategory(r.nps_score) === label).length,
+        })),
     },
   },
 ];

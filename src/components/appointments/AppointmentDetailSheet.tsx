@@ -53,6 +53,9 @@ import { SurveyRecommendations } from "@/components/surveys/SurveyRecommendation
 import { useAuth } from "@/hooks/useAuth";
 import { procedureDateLabel } from "@/lib/procedureDate";
 import { appointmentDeleteNote } from "@/lib/appointmentDeleteNote";
+// Shared with the Patient Feedback report, so a visit cannot read "Passive"
+// on one screen and "Promoter" on the other.
+import { npsCategory, ratingLabel } from "@/lib/feedbackScores";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
 import { investigationText } from "@/lib/investigationText";
 import { displayDate } from "@/lib/dateInput";
@@ -137,11 +140,6 @@ function FeedbackTabContent({
     return "bg-green-600 text-white";
   };
 
-  const getNpsLabel = (score: number) => {
-    if (score <= 6) return "Detractor";
-    if (score <= 8) return "Passive";
-    return "Promoter";
-  };
 
   if (isLoading) return <TabsContent value="feedback" className="p-6 mt-0"><p className="text-sm text-muted-foreground text-center py-8">Loading...</p></TabsContent>;
 
@@ -158,7 +156,7 @@ function FeedbackTabContent({
               <span className={`inline-flex items-center justify-center h-8 w-8 rounded-full text-sm font-bold ${getNpsColor(existingFeedback.nps_score)}`}>
                 {existingFeedback.nps_score}
               </span>
-              <Badge variant="outline" className="text-xs">{getNpsLabel(existingFeedback.nps_score)}</Badge>
+              <Badge variant="outline" className="text-xs">{npsCategory(existingFeedback.nps_score)}</Badge>
             </div>
           </div>
           <div>
@@ -211,7 +209,7 @@ function FeedbackTabContent({
           <span>Extremely likely</span>
         </div>
         {npsScore !== null && (
-          <Badge variant="outline" className="text-xs">{getNpsLabel(npsScore)}</Badge>
+          <Badge variant="outline" className="text-xs">{npsCategory(npsScore)}</Badge>
         )}
       </div>
 
@@ -232,7 +230,7 @@ function FeedbackTabContent({
         </div>
         {serviceRating !== null && (
           <p className="text-xs text-muted-foreground">
-            {serviceRating <= 2 ? "Poor" : serviceRating === 3 ? "Average" : serviceRating === 4 ? "Good" : "Excellent"}
+            {ratingLabel(serviceRating)}
           </p>
         )}
       </div>

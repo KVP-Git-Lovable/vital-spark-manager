@@ -424,6 +424,12 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     setInitialized(true);
   }
 
+  // Nothing that navigates away calls this first any more. Closing the panel
+  // before leaving stripped it out of the address, so the history entry left
+  // behind was the bare list and Back could never return to the appointment.
+  // On the screens where onClose is navigate(-1) it was worse still: a pop and
+  // a push fired in the same tick. Only the delete path closes on its own, and
+  // it should - the record is gone.
   const handleClose = () => {
     setInitialized(false);
     setActiveTab("details");
@@ -732,7 +738,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         products,
       }),
     );
-    handleClose();
     navigate("/billing?newInvoice=1");
   };
 
@@ -978,7 +983,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         className="hover:text-primary underline-offset-2 hover:underline transition-colors text-left"
                         onClick={() => {
                           if (patientId) {
-                            handleClose();
                             navigate(`/patients/${patientId}`);
                           }
                         }}
@@ -1039,7 +1043,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         className="w-full justify-start font-normal text-left"
                         onClick={() => {
                           if (patientId) {
-                            handleClose();
                             navigate(`/patients/${patientId}`);
                           }
                         }}
@@ -1112,7 +1115,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       <Button
                         variant="outline"
                         className="w-full justify-start font-normal text-left mt-1.5"
-                        onClick={() => { handleClose(); navigate(`/appointments/${(parentAppointment as any).id}`); }}
+                        onClick={() => { navigate(`/appointments/${(parentAppointment as any).id}`); }}
                       >
                         {(parentAppointment as any).service || "Appointment"} · {format(new Date((parentAppointment as any).start_time), "dd MMM yyyy")}
                         <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
@@ -1317,7 +1320,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                             <div
                               key={apt.id}
                               className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => { handleClose(); navigate(`/appointments/${apt.id}`); }}
+                              onClick={() => { navigate(`/appointments/${apt.id}`); }}
                             >
                               {/* What was actually done leads the card. The
                                   service is "Consultation" on most of these and
@@ -1407,7 +1410,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                           <div
                             key={inv.id}
                             className="border rounded-lg p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
-                            onClick={() => { handleClose(); navigate(`/billing?viewInvoice=${inv.id}`); }}
+                            onClick={() => { navigate(`/billing?viewInvoice=${inv.id}`); }}
                             title="Open bill"
                           >
                             <div className="flex items-center justify-between">
@@ -1439,7 +1442,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       {parentAppointment && (
                         <button
                           className="w-full text-left border rounded-lg p-2 bg-muted/20 hover:bg-muted/40 transition-colors"
-                          onClick={() => { handleClose(); navigate(`/appointments/${(parentAppointment as any).id}`); }}
+                          onClick={() => { navigate(`/appointments/${(parentAppointment as any).id}`); }}
                         >
                           <span className="text-xs text-muted-foreground">Parent appointment</span>
                           <p className="text-sm font-medium flex items-center gap-1.5">
@@ -1480,7 +1483,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                                   )}
                                   <button
                                     className="text-sm font-medium text-left hover:underline flex items-center gap-1.5"
-                                    onClick={() => { handleClose(); navigate(`/billing?viewInvoice=${inv.id}`); }}
+                                    onClick={() => { navigate(`/billing?viewInvoice=${inv.id}`); }}
                                   >
                                     {scheduled ? "Scheduled amount" : "Installment"} {inv.installment_number || "—"} of {inv.installment_count || "—"}
                                     <ExternalLink className="h-3 w-3 text-primary" />
@@ -1501,7 +1504,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                               {inv.appointment_id && inv.appointment_id !== appointmentId && (
                                 <button
                                   className="mt-1 text-[11px] text-primary hover:underline flex items-center gap-1"
-                                  onClick={() => { handleClose(); navigate(`/appointments/${inv.appointment_id}`); }}
+                                  onClick={() => { navigate(`/appointments/${inv.appointment_id}`); }}
                                 >
                                   View linked appointment <ExternalLink className="h-3 w-3" />
                                 </button>

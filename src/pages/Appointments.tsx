@@ -9,7 +9,7 @@ import { DateInput } from "@/components/shared/DateInput";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useState, useCallback, useRef, useMemo, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useModal } from "@/hooks/useModal";
+import { useUrlPanel } from "@/hooks/useUrlPanel";
 import { useModuleListViews } from "@/hooks/useModuleListViews";
 import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
@@ -225,11 +225,18 @@ const Appointments = () => {
   const appointmentsTableRef = useStackedTable<HTMLTableElement>();
   const queryClient = useQueryClient();
   const routerNavigate = useNavigate();
-  const { setOpenModal, openModal } = useModal();
-  // Inside the full-screen overlay the page does not scroll with the window
-  // (the shell is clamped), so window-based virtualization would leave blank
-  // space. Render every row of the page directly in that case.
-  const inOverlay = !!openModal;
+  // The open appointment lives in the address, so Back returns to it.
+  //
+  // This page alone still held the panel in the in-memory useModal context, so
+  // opening one left nothing in history: going to Billing from an appointment
+  // and pressing Back landed on the bare list with the appointment gone. Every
+  // comparable screen - PatientDetail, Billing, Procedures - already uses this
+  // hook, under the same "appointment" parameter.
+  const { openId: selectedAppointmentId, open: openAppointment, close: closeAppointment } =
+    useUrlPanel("appointment");
+  // With a panel open the page does not scroll with the window, so window-based
+  // virtualization would leave blank space. Render every row directly instead.
+  const inOverlay = !!selectedAppointmentId;
   const [searchParams, setSearchParams] = useSearchParams();
   const [showBillingPrompt, setShowBillingPrompt] = useState(false);
   const [lastCreatedPatientId, setLastCreatedPatientId] = useState("");
@@ -263,7 +270,6 @@ const Appointments = () => {
   const [kanban, setKanban] = useState(() => getKanbanConfig("appointments", ALL_VIEW_ID));
   const [currentDate, setCurrentDate] = useState(new Date());
   const [open, setOpen] = useState(false);
-  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const today = new Date();
 
   // Filter state — pinned filters are restored from localStorage
@@ -1762,7 +1768,7 @@ const Appointments = () => {
         compact ? "px-1.5 py-0.5 text-[10px]" : "p-2 text-xs mb-1"
       )}
       onMouseDown={(e) => { e.stopPropagation(); }}
-      onClick={(e) => { e.stopPropagation(); setOpenModal("appointmentDetail", apt.id); }}
+      onClick={(e) => { e.stopPropagation(); openAppointment(apt.id); }}
     >
       <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name || "—"}</p>
       {!compact && <p className="opacity-70 truncate">{apt.service}</p>}
@@ -2513,7 +2519,7 @@ const Appointments = () => {
                     columns={displayColumns}
                     fields={APPOINTMENT_VIEW_FIELDS}
                     rawValue={kanbanRawValue}
-                    onOpen={(row) => setOpenModal("appointmentDetail", row.id)}
+                    onOpen={(row) => openAppointment(row.id)}
                     onMove={moveKanbanCard}
                     titleField="patient"
                   />
@@ -2774,7 +2780,7 @@ const Appointments = () => {
                                 ref={rowVirtualizer.measureElement}
                                 data-index={virtualRow.index}
                                 className="border-b hover:bg-muted/20 cursor-pointer transition-colors"
-                                onClick={() => setOpenModal("appointmentDetail", apt.id)}
+                                onClick={() => openAppointment(apt.id)}
                               >
                                 {shouldShowColumn("serial") && (
                                   <td className="p-3 text-right text-xs text-muted-foreground tabular-nums">
@@ -3135,7 +3141,7 @@ const Appointments = () => {
 
       <AppointmentDetailSheet
         appointmentId={selectedAppointmentId}
-        onClose={() => setSelectedAppointmentId(null)}
+        onClose={closeAppointment}
       />
 
       <Dialog open={showBillingPrompt} onOpenChange={setShowBillingPrompt}>

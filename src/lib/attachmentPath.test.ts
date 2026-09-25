@@ -49,3 +49,20 @@ describe("attachmentStoragePath", () => {
     paths.forEach((p) => expect(p.startsWith(`${PATIENT}/`)).toBe(true));
   });
 });
+
+describe("attachmentStoragePath in a batch", () => {
+  it("gives every file in one loop a distinct key", () => {
+    // The property the multi-file upload depends on. The single-file path it
+    // replaced was `${patientId}/${Date.now()}.${ext}`, and in a loop several
+    // files land in the same millisecond - Supabase then rejects the duplicate
+    // key and only the first photo survives.
+    const now = 1_700_000_000_000;
+    const files = ["a.jpg", "b.jpg", "WhatsApp Image.jpeg", "WhatsApp Image.jpeg", "c.png"];
+    const keys = files.map((name, i) => attachmentStoragePath("patient-1", name, i, now, "abc123"));
+    expect(new Set(keys).size).toBe(files.length);
+  });
+
+  it("keeps the patient folder, so delete-by-prefix still works", () => {
+    expect(attachmentStoragePath("patient-1", "a.jpg", 0)).toMatch(/^patient-1\//);
+  });
+});

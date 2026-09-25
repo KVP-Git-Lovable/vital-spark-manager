@@ -53,6 +53,7 @@ import { SurveyRecommendations } from "@/components/surveys/SurveyRecommendation
 import { useAuth } from "@/hooks/useAuth";
 import { procedureDateLabel } from "@/lib/procedureDate";
 import { appointmentDeleteNote } from "@/lib/appointmentDeleteNote";
+import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
 import { investigationText } from "@/lib/investigationText";
 import { displayDate } from "@/lib/dateInput";
 
@@ -1563,6 +1564,16 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                     </h3>
                     {appointment.patient_id && (
                       <div className="flex gap-2">
+                        {/* This tab had no way to attach a photo already on the
+                            machine - only the camera. The appointment id is
+                            passed so an attached photo lands under "This
+                            Appointment" below, not just in the patient's pile. */}
+                        <AttachPhotosButton
+                          patientId={appointment.patient_id}
+                          appointmentId={appointmentId}
+                          size="sm"
+                          className="gap-1"
+                        />
                         <Button size="sm" variant="outline" className="gap-1" onClick={() => setSkinTrackerOpen(true)}>
                           <ScanEye className="h-3 w-3" /> Skin Tracker
                         </Button>

@@ -36,6 +36,7 @@ import { SkinTracker } from "@/components/shared/SkinTracker";
 import { PhotoViewer } from "@/components/patients/PhotoViewer";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { CameraDialog } from "@/components/shared/CameraDialog";
+import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
 import { PatientAttachments } from "@/components/patients/PatientAttachments";
 import { FamilyMembers } from "@/components/patients/FamilyMembers";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
@@ -202,7 +203,6 @@ const PatientDetail = () => {
   // In the address, so Back closes the panel instead of leaving the patient.
   const { openId: selectedAppointmentId, open: openAppointment, close: closeAppointment } = useUrlPanel("appointment");
   const [quickApptOpen, setQuickApptOpen] = useState(false);
-  const photoInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [surveyTemplateSelectOpen, setSurveyTemplateSelectOpen] = useState(false);
   const [selectedSurveyTemplateId, setSelectedSurveyTemplateId] = useState<string | null>(null);
@@ -552,13 +552,6 @@ const PatientDetail = () => {
     } catch (e: any) {
       toast.error(e.message || "Failed to update status");
     }
-  };
-
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !id) return;
-    e.target.value = "";
-    savePhotoFile(file);
   };
 
   const savePhotoFile = async (file: File) => {
@@ -1194,24 +1187,11 @@ const PatientDetail = () => {
         <TabsContent value="photos">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex justify-end gap-2 mb-3">
-              {/* accept="image/*" with no capture attribute is what makes a phone offer
-                  the gallery rather than jumping straight into the camera. */}
-              <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoCapture}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5 h-8 text-xs"
-                disabled={uploadingPhoto}
-                onClick={() => photoInputRef.current?.click()}
-              >
-                <Paperclip className="h-3.5 w-3.5" /> {uploadingPhoto ? "Uploading..." : "Attach Photo"}
-              </Button>
+              {/* Several photos at once. This used to be a single-file input
+                  here, so ten photos meant ten trips through the picker; the
+                  shared control also puts the same button on the appointment
+                  tab, which had no way to attach a photo at all. */}
+              <AttachPhotosButton patientId={id!} size="sm" className="h-8 text-xs" />
               <Button
                 size="sm"
                 className="gap-1.5 h-8 text-xs"

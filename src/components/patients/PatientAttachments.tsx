@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CameraDialog } from "@/components/shared/CameraDialog";
 import { displayDate } from "@/lib/dateInput";
 import { attachmentStoragePath } from "@/lib/attachmentPath";
+import { uploadFailureMessage, uploadSuccessMessage, type FailedUpload } from "@/lib/uploadSummary";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -113,7 +114,7 @@ export function PatientAttachments({
     // Tracked by position, not by name: two scans can arrive called
     // "WhatsApp Image.jpeg", and filtering by name would re-queue the one that
     // already uploaded.
-    const failed: { index: number; name: string; reason: string }[] = [];
+    const failed: FailedUpload[] = [];
     let uploaded = 0;
 
     for (const [index, file] of pendingFiles.entries()) {
@@ -138,17 +139,13 @@ export function PatientAttachments({
       }
     }
 
-    if (uploaded > 0) {
-      toast.success(uploaded === 1 ? "Attachment uploaded" : `${uploaded} attachments uploaded`);
-    }
-    if (failed.length > 0) {
-      // Name them: "2 failed" alone leaves staff re-uploading all seven to find
-      // out which ones are missing.
-      toast.error(
-        `${failed.length} of ${pendingFiles.length} could not be uploaded — ` +
-          failed.map((f) => `${f.name}: ${f.reason}`).join("; "),
-      );
-    }
+    // Shared with the photo uploader so the two cannot word this differently.
+    // Naming each failure matters: "2 failed" alone leaves staff re-uploading
+    // all seven to find out which ones are missing.
+    const success = uploadSuccessMessage(uploaded, "Attachment", "attachments");
+    if (success) toast.success(success);
+    const failure = uploadFailureMessage(failed, pendingFiles.length);
+    if (failure) toast.error(failure);
 
     setUploading(false);
     setProgress(null);

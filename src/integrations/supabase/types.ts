@@ -1503,6 +1503,30 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_number_series_20260926: {
+        Row: {
+          created_at: string
+          id: string
+          mapped_at: string
+          new_invoice_number: string
+          old_invoice_number: string
+        }
+        Insert: {
+          created_at: string
+          id: string
+          mapped_at?: string
+          new_invoice_number: string
+          old_invoice_number: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mapped_at?: string
+          new_invoice_number?: string
+          old_invoice_number?: string
+        }
+        Relationships: []
+      }
       invoice_service_name_backup_20260923: {
         Row: {
           captured_at: string
@@ -5987,6 +6011,7 @@ export type Database = {
         Args: { _label?: string; _object_type: string; _record_id: string }
         Returns: string
       }
+      next_invoice_numbers: { Args: { _count?: number }; Returns: string[] }
       normalize_name: { Args: { _text: string }; Returns: string }
       promote_billing_lines: { Args: { _batch?: number }; Returns: number }
       purge_trash_item: { Args: { _trash_id: string }; Returns: undefined }

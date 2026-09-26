@@ -1827,6 +1827,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
           onOpenChange={setSkinTrackerOpen}
           photos={photos}
           patientName={patientName}
+          patientId={appointment.patient_id}
+          appointmentId={appointmentId ?? undefined}
         />
       )}
 

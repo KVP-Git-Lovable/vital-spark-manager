@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DateInput } from "@/components/shared/DateInput";
 import { withDrPrefix } from "@/lib/staffName";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
@@ -42,6 +42,7 @@ import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { allocateInvoiceNumber, allocateInvoiceNumbers } from "@/lib/invoiceNumber";
+import { assertWrote } from "@/lib/rowAccess";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
@@ -362,6 +363,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [editStaffId, setEditStaffId] = useState("");
   const [editProblemAreas, setEditProblemAreas] = useState<string[]>([]);
   const [initialized, setInitialized] = useState(false);
+  // Which appointment the edit fields below were filled from.
+  const seededFor = useRef<string | null>(null);
 
   // Fetch staff list for dropdown
   const { data: staffList = [] } = useQuery({
@@ -410,6 +413,16 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   });
 
   const staffOnLeaveIds = new Set(approvedLeaves.map((l: any) => l.staff_id));
+
+  // The sheet can move to another appointment without unmounting - the
+  // Previous Appointments tab navigates to /appointments/:id and the route
+  // keeps this element mounted. `initialized` used to be cleared only on
+  // close, so the edit fields still held the PREVIOUS appointment's date and
+  // Save stamped that date onto this one, leaving the first looking unmoved.
+  if (appointmentId && seededFor.current !== appointmentId) {
+    seededFor.current = appointmentId;
+    setInitialized(false);
+  }
 
   if (appointment && !initialized) {
     setEditService(appointment.service || "");
@@ -762,7 +775,13 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       const newStatus = editStatus;
       const newStaffId = editStaffId || null;
 
-      const { error } = await supabase
+      // Ask for the row back. Appointments carry a restrictive RLS policy on
+      // UPDATE, and a write it filters out is not an error - Postgres reports
+      // zero rows and no error - so without this the toast said "Appointment
+      // updated", and the WhatsApp below went to the patient, for a
+      // reschedule that never saved. Every other path that moves an
+      // appointment already guards this way.
+      const { data: written, error } = await supabase
         .from("appointments")
         .update({
           service: editService,
@@ -774,8 +793,10 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
           staff_id: newStaffId,
           problem_area_ids: editProblemAreas,
         } as any)
-        .eq("id", appointmentId!);
+        .eq("id", appointmentId!)
+        .select("id");
       if (error) throw error;
+      assertWrote(written);
 
       // WhatsApp notifications on save
       try {

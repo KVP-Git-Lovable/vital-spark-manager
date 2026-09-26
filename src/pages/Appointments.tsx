@@ -29,6 +29,7 @@ import { billedPatientDays, patientDayKey, type BilledDayRow } from "@/lib/bille
 import { formatMoneyExact } from "@/lib/currency";
 import { fetchInvoicesByAppointmentIds, invoiceMapByAppointment } from "@/lib/invoicesForAppointments";
 import { assertWrote } from "@/lib/rowAccess";
+import { joinDateTime, hasIncompleteDateTime } from "@/lib/inlineTimeEdit";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, ClipboardList, Pin, Printer, Trash2 } from "lucide-react";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
 import { moveToTrash } from "@/lib/trash";
@@ -102,7 +103,7 @@ const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 /** Helpers for splitting/rejoining the "yyyy-MM-ddTHH:mm" values the inline editor keeps. */
 const datePart = (v: string) => (v || "").split("T")[0] || "";
 const timePart = (v: string) => ((v || "").split("T")[1] || "").slice(0, 5);
-const joinDateTime = (d: string, t: string) => (d && t ? `${d}T${t}` : "");
+
 // 15-min slots from 8:00 to 19:45
 const slots: { hour: number; minute: number }[] = [];
 for (let h = 8; h < 20; h++) {
@@ -1139,6 +1140,13 @@ const Appointments = () => {
 
   const saveInlineEdit = async () => {
     if (!editingRow) return;
+    // joinDateTime returns "" when either half is blank, and the guards below
+    // skip a falsy value - so clearing the time and changing only the date used
+    // to write nothing at all and still report "Updated". Say so instead.
+    if (hasIncompleteDateTime(editValues)) {
+      toast.error("Set both a date and a time before saving");
+      return;
+    }
     const updates: any = {};
     if (editValues.reason_for_consultation !== undefined)
       updates.reason_for_consultation = editValues.reason_for_consultation.trim() || null;

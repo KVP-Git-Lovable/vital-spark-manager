@@ -327,7 +327,8 @@ const PatientDetail = () => {
         .from("appointments")
         .select("*, staff(first_name, last_name)")
         .eq("patient_id", id!)
-        .order("start_time", { ascending: false });
+        .order("start_time", { ascending: false })
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },

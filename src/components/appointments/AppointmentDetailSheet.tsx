@@ -362,6 +362,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [editEndTime, setEditEndTime] = useState("");
   const [editStaffId, setEditStaffId] = useState("");
   const [editProblemAreas, setEditProblemAreas] = useState<string[]>([]);
+  const [editAppointmentId, setEditAppointmentId] = useState<string | null>(null);
 
   // Fetch staff list for dropdown
   const { data: staffList = [] } = useQuery({
@@ -417,6 +418,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   // with the previous record's date fields, so a quick Save copied the wrong
   // date onto the newly opened appointment.
   useEffect(() => {
+    setEditAppointmentId(null);
     if (!appointment || appointment.id !== appointmentId) return;
     setEditService(appointment.service || "");
     setEditInvestigation(appointment.reason_for_consultation || "");
@@ -426,6 +428,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     setEditEndTime(appointment.end_time ? format(new Date(appointment.end_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditStaffId(appointment.staff_id || "");
     setEditProblemAreas(((appointment as any).problem_area_ids as string[]) || []);
+    setEditAppointmentId(appointment.id);
   }, [appointment, appointmentId]);
 
   // Nothing that navigates away calls this first any more. Closing the panel
@@ -761,6 +764,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
 
   const updateMutation = useMutation({
     mutationFn: async () => {
+      if (!appointmentId || editAppointmentId !== appointmentId) {
+        throw new Error("Please wait for this appointment to finish loading");
+      }
       const prevStatus = appointment?.status || null;
       const prevStaffId = appointment?.staff_id || null;
       const newStatus = editStatus;
@@ -840,6 +846,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-detail", appointmentId] });
+      queryClient.invalidateQueries({ queryKey: ["patient-appointments", appointment?.patient_id] });
       toast.success("Appointment updated");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1214,7 +1221,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   </div>
 
                   <div className="flex gap-2 pt-4 border-t">
-                    <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="flex-1 gap-2">
+                    <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending || editAppointmentId !== appointmentId} className="flex-1 gap-2">
                       <Save className="h-4 w-4" />
                       {updateMutation.isPending ? "Saving..." : "Save Changes"}
                     </Button>

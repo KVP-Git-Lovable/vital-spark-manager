@@ -362,9 +362,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [editEndTime, setEditEndTime] = useState("");
   const [editStaffId, setEditStaffId] = useState("");
   const [editProblemAreas, setEditProblemAreas] = useState<string[]>([]);
-  const [initialized, setInitialized] = useState(false);
-  // Which appointment the edit fields below were filled from.
-  const seededFor = useRef<string | null>(null);
+  const [editAppointmentId, setEditAppointmentId] = useState<string | null>(null);
 
   // Fetch staff list for dropdown
   const { data: staffList = [] } = useQuery({
@@ -414,17 +412,14 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
 
   const staffOnLeaveIds = new Set(approvedLeaves.map((l: any) => l.staff_id));
 
-  // The sheet can move to another appointment without unmounting - the
-  // Previous Appointments tab navigates to /appointments/:id and the route
-  // keeps this element mounted. `initialized` used to be cleared only on
-  // close, so the edit fields still held the PREVIOUS appointment's date and
-  // Save stamped that date onto this one, leaving the first looking unmoved.
-  if (appointmentId && seededFor.current !== appointmentId) {
-    seededFor.current = appointmentId;
-    setInitialized(false);
-  }
-
-  if (appointment && !initialized) {
+  // The sheet stays mounted while Previous Appointments switches records.
+  // Seed the form only after the query has returned that exact appointment;
+  // doing this during render left one render where the new record was paired
+  // with the previous record's date fields, so a quick Save copied the wrong
+  // date onto the newly opened appointment.
+  useEffect(() => {
+    setEditAppointmentId(null);
+    if (!appointment || appointment.id !== appointmentId) return;
     setEditService(appointment.service || "");
     setEditInvestigation(appointment.reason_for_consultation || "");
     setEditStatus(appointment.status || "Reserved");
@@ -433,8 +428,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     setEditEndTime(appointment.end_time ? format(new Date(appointment.end_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditStaffId(appointment.staff_id || "");
     setEditProblemAreas(((appointment as any).problem_area_ids as string[]) || []);
-    setInitialized(true);
-  }
+    setEditAppointmentId(appointment.id);
+  }, [appointment, appointmentId]);
 
   // Nothing that navigates away calls this first any more. Closing the panel
   // before leaving stripped it out of the address, so the history entry left
@@ -443,7 +438,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   // a push fired in the same tick. Only the delete path closes on its own, and
   // it should - the record is gone.
   const handleClose = () => {
-    setInitialized(false);
     setActiveTab("details");
     onClose();
   };
@@ -770,6 +764,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
 
   const updateMutation = useMutation({
     mutationFn: async () => {
+      if (!appointmentId || editAppointmentId !== appointmentId) {
+        throw new Error("Please wait for this appointment to finish loading");
+      }
       const prevStatus = appointment?.status || null;
       const prevStaffId = appointment?.staff_id || null;
       const newStatus = editStatus;
@@ -849,6 +846,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-detail", appointmentId] });
+      queryClient.invalidateQueries({ queryKey: ["patient-appointments", appointment?.patient_id] });
       toast.success("Appointment updated");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1223,7 +1221,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   </div>
 
                   <div className="flex gap-2 pt-4 border-t">
-                    <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="flex-1 gap-2">
+                    <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending || editAppointmentId !== appointmentId} className="flex-1 gap-2">
                       <Save className="h-4 w-4" />
                       {updateMutation.isPending ? "Saving..." : "Save Changes"}
                     </Button>

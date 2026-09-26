@@ -220,6 +220,19 @@ async function processMessage(opts: { fromRaw: string; userBody: string; message
     ]);
     log("parallel_loaded");
 
+    // The bot is switched off: every inbound message, button or free text,
+    // gets the same fixed "please call us" reply. The AI path below is kept
+    // but no longer reached.
+    {
+      const sid = await sendWhatsAppReply(phone, CLINIC_CALL_MESSAGE);
+      await sb.from("whatsapp_conversations").insert({
+        patient_id: patient?.id ?? null, phone, direction: "outbound", role: "assistant", content: CLINIC_CALL_MESSAGE, message_sid: sid,
+      });
+      if (patient) sb.from("whatsapp_conversations").update({ patient_id: patient.id }).eq("message_sid", messageSid).is("patient_id", null).then(() => {});
+      log("done_fixed_reply");
+      return;
+    }
+
     if (!patient) {
       const replyText = `Hi! 👋 I couldn't find a patient profile for this WhatsApp number (${phone}). Please visit the clinic or contact us so we can register you. Once registered, I'll be able to help you book appointments, order products, and track orders right here on WhatsApp.`;
       const ts = performance.now();

@@ -1781,6 +1781,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       so notes save straight away. */}
                   <StickyNotes appointmentId={appointmentId} />
                 </TabsContent>
+                <TabsContent value="ai-repo" className="p-6 mt-0">
+                  <AiRepository patientId={appointment.patient_id} patientName={patientName} />
+                </TabsContent>
               </Tabs>
             </>
           ));

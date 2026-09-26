@@ -1,34 +1,32 @@
--- A morning of reschedules came back.
+-- Why Dr Punya's Monday reschedules came back, and who fixes it.
 --
--- Dr Punya's Monday (28 Sep) patients were moved to other dates, and the list
--- kept showing them on Monday. At 16:17:13 IST on 26 Sep one write touched 107
--- appointments across four doctors, spanning appointment dates from Oct 2025 to
--- Oct 2026, and Punya's twenty Monday slots came back holding Salesforce's
--- original times.
+-- At 16:17:13 IST on 26 Sep one write touched 107 appointments across four
+-- doctors, spanning appointment dates from Oct 2025 to Oct 2026, and her twenty
+-- Monday (28 Sep) slots came back holding Salesforce's original times. One
+-- write, one second, four doctors, a year of dates: sf-import-clinical's
+-- date-window refresh. syncPatient gets refreshExisting = (mode === "recent"),
+-- and that branch overwrites start_time and end_time straight from
+-- Start_Time__c for every Salesforce-origin appointment in the window - which
+-- is what the "Today / Last 7 days / Next 7 days / Next 30 days" buttons send.
+-- The five-minute catch-up is not involved: it runs with no mode, so it only
+-- inserts.
 --
--- The cause is sf-import-clinical's date-window refresh. syncPatient receives
--- refreshExisting = (mode === "recent"), and that branch overwrites start_time
--- and end_time straight from Billing/Appointment Start_Time__c for every
--- Salesforce-origin appointment in the window. mode=recent is what the
--- "Today / Last 7 days / Next 7 days / Next 30 days" buttons send. The
--- five-minute catch-up is not involved: it fires sf-import-clinical?limit=20
--- with no mode, so refreshExisting is false and it only inserts.
--- 20260922000000_count_a_visit_by_evidence.sql already warned about this for
--- status; it applies to the date just the same.
+-- I first made this trigger preserve start_time/end_time on any row with
+-- app_edited_at set, so the importer could never move an appointment a person
+-- had edited. That is WITHDRAWN here, and this restores the plain body, for a
+-- good reason: drizzle/migrations/0014 plus the LastModifiedDate check now in
+-- sf-import-clinical decide this far better than a trigger can. The importer
+-- skips the refresh when app_edited_at is newer than Salesforce's
+-- LastModifiedDate, so staff edits win, but a visit genuinely rescheduled IN
+-- Salesforce still comes through. A blanket trigger block had no way to tell
+-- those apart and would have re-broken the case 0012 had just fixed - staff
+-- delete the old slot, the clinic moves the visit in Salesforce, and the new
+-- time must appear.
 --
--- The importer runs as the service role, so auth.uid() is NULL for its writes -
--- confirmed against live data: all 186 Salesforce-inserted appointments since
--- 20 Sep have created_by NULL, while app_edited_at is set on exactly the rows
--- that carry an updated_by. That is the only reliable way to tell the importer
--- from a person, so it is what this guard turns on.
---
--- Replacing the function body rather than adding a trigger is deliberate:
--- CREATE TRIGGER needs ACCESS EXCLUSIVE on appointments and has timed out
--- against the sync before. CREATE OR REPLACE FUNCTION takes no table lock.
---
--- Only start_time and end_time are protected. Status is written by check-in,
--- completion, cancellation and the paid-invoice trigger, and freezing those
--- would break the day's workflow to fix a problem nobody reported.
+-- Residual gap, worth a future prompt: the importer compares
+-- LastModifiedDate, so if a Salesforce record is touched for an unrelated
+-- reason after an app-side reschedule, the refresh still proceeds and the old
+-- time returns. Comparing Start_Time__c itself would close that.
 
 create or replace function public.stamp_appointment_app_edit()
 returns trigger
@@ -37,21 +35,9 @@ set search_path to 'public'
 as $function$
 BEGIN
   IF auth.uid() IS NOT NULL THEN
-    -- A person, working in the app. From now on this appointment is the
-    -- clinic's own version of the truth.
     NEW.app_edited_at := now();
     NEW.updated_at := now();
-    RETURN NEW;
   END IF;
-
-  -- No signed-in user, so this is the Salesforce importer. It may still fill in
-  -- an appointment nobody has touched, but once a person has moved one,
-  -- Salesforce's old time must not come back over it.
-  IF OLD.app_edited_at IS NOT NULL THEN
-    NEW.start_time := OLD.start_time;
-    NEW.end_time   := OLD.end_time;
-  END IF;
-
   RETURN NEW;
 END;
 $function$;

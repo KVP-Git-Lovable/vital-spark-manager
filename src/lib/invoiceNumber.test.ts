@@ -1,7 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const rpc = vi.fn();
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
+// The real supabase.rpc reads `this` internally, so a detached reference throws
+// "Cannot read properties of undefined (reading 'rest')" - which is exactly what
+// broke every bill save. The first version of this mock was a standalone arrow
+// function, so it could not fail that way and the bug sailed through. This mock
+// reads `this` like the real client does.
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    rest: "present",
+    rpc(this: { rest?: string } | undefined, ...args: unknown[]) {
+      if (!this?.rest) {
+        throw new TypeError("Cannot read properties of undefined (reading 'rest')");
+      }
+      return rpc(...args);
+    },
+  },
+}));
 
 const { allocateInvoiceNumber, allocateInvoiceNumbers } = await import("./invoiceNumber");
 

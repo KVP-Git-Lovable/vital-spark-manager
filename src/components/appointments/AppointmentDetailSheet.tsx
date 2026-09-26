@@ -41,6 +41,7 @@ import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { allocateInvoiceNumber, allocateInvoiceNumbers } from "@/lib/invoiceNumber";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
@@ -622,7 +623,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         if (error) throw error;
         toast.success(`Collected ₹${total.toLocaleString()} (incl. tax ₹${tax.toFixed(2)})`);
       } else {
-        const number = `INV-${Date.now().toString().slice(-6)}-M`;
+        const number = await allocateInvoiceNumber();
         const { data: merged, error: mErr } = await supabase
           .from("invoices")
           .insert({
@@ -905,10 +906,10 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     try {
       const schedule = customSchedule;
       const services = [appointment?.service || ""].filter(Boolean);
+      const numbers = await allocateInvoiceNumbers(schedule.length);
       const inserts = schedule.map((inst, i) => {
-        const baseNum = (Date.now() + i + 1).toString().slice(-6);
         return {
-          invoice_number: `INV-${baseNum}`,
+          invoice_number: numbers[i],
           patient_id: appointment?.patient_id || null,
           patient_name: patientName,
           services,

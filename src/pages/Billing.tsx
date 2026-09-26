@@ -90,6 +90,7 @@ import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { invoiceFormHasContent } from "@/lib/invoiceFormState";
+import { allocateInvoiceNumbers } from "@/lib/invoiceNumber";
 import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { fetchAll } from "@/lib/supabasePaginate";
@@ -521,7 +522,6 @@ const Billing = () => {
   const [sourceAppointmentId, setSourceAppointmentId] = useState<string | null>(null);
   const [serviceSearchOpen, setServiceSearchOpen] = useState<number | null>(null);
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
-  const [invoiceSeq, setInvoiceSeq] = useState<string>(() => Date.now().toString().slice(-6));
 
   const handleRecurringCountChange = (count: number) => {
     // 0 is allowed so the field can sit empty (placeholder) until the user types.
@@ -916,7 +916,6 @@ const Billing = () => {
     setPatientId("");
     setDoctorId("");
     setInvoiceDate(new Date());
-    setInvoiceSeq(Date.now().toString().slice(-6));
     setServiceInputs([{ name: "", price: 0, hsn: "", gst: 0 }]);
     setPaidAmount(0);
     setPaymentType("One-time");
@@ -1037,7 +1036,6 @@ const Billing = () => {
     // plan) explicitly, e.g. for a high-value package split into payments.
     setPendingPrefill(payload || {});
     setInvoiceDate(new Date());
-    setInvoiceSeq(Date.now().toString().slice(-6));
     setOpen(true);
     setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1613,7 +1611,12 @@ const Billing = () => {
 
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
-      const baseNum = invoiceSeq;
+      // One number per invoice row, drawn from the database so the series stays
+      // unbroken however many people are billing at once. Taken here, at save,
+      // so an abandoned dialog does not spend one.
+      const rowCount =
+        paymentType === "Staged" ? stages.length : paymentType === "Recurring" ? recurringCount : 1;
+      const invoiceNumbers = await allocateInvoiceNumbers(rowCount);
       const createdAt = invoiceDate ? invoiceDate.toISOString() : new Date().toISOString();
       // Per-line tax aggregation: sum cgst/sgst/igst from each service & pharma line by its own mapped rate
       const aggregateLineTax = (svcAmounts: { name: string; price: number }[], pharma: PharmaLineItem[], scale: number) => {
@@ -1646,7 +1649,7 @@ const Billing = () => {
           if (stage.paid >= stageTotal && stageTotal > 0) status = "Paid";
           else if (stage.paid > 0) status = "Partial";
           return {
-            invoice_number: `INV-${baseNum}-S${i + 1}`,
+            invoice_number: invoiceNumbers[i],
             created_at: createdAt,
             patient_id: patientId || null,
             patient_name: patientName,
@@ -1668,7 +1671,7 @@ const Billing = () => {
         if (error) throw error;
         // Return a summary for downstream WhatsApp notification
         var summary: any = {
-          invoiceNumber: `INV-${baseNum} (${stages.length} stages)`,
+          invoiceNumber: `${invoiceNumbers[0]} (${stages.length} stages)`,
           totalAmount: rows.reduce((s, r: any) => s + Number(r.total_amount), 0),
           paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
           status: "Staged plan",
@@ -1768,7 +1771,7 @@ const Billing = () => {
           if (collected >= lineTotal && lineTotal > 0) status = "Paid";
           else if (collected > 0 && instStatus === "Pending") status = "Partial";
           return {
-            invoice_number: `INV-${baseNum}-R${i + 1}`,
+            invoice_number: invoiceNumbers[i],
             created_at: createdAt,
             patient_id: patientId || null,
             patient_name: patientName,
@@ -1794,7 +1797,7 @@ const Billing = () => {
         const { error } = await supabase.from("invoices").insert(rows as any);
         if (error) throw error;
         var summary: any = {
-          invoiceNumber: `INV-${baseNum} (${recurringCount} installments)`,
+          invoiceNumber: `${invoiceNumbers[0]} (${recurringCount} installments)`,
           totalAmount: rows.reduce((s, r: any) => s + Number(r.total_amount), 0),
           paidAmount: rows.reduce((s, r: any) => s + Number(r.paid_amount), 0),
           status: "Recurring plan",
@@ -1828,7 +1831,7 @@ const Billing = () => {
           : paymentMode;
 
         const { data: insertedInv, error } = await supabase.from("invoices").insert({
-          invoice_number: `INV-${baseNum}`,
+          invoice_number: invoiceNumbers[0],
           created_at: createdAt,
           patient_id: patientId || null,
           patient_name: patientName,
@@ -1851,7 +1854,7 @@ const Billing = () => {
         } as any).select("id").single();
         if (error) throw error;
         var summary: any = {
-          invoiceNumber: `INV-${baseNum}`,
+          invoiceNumber: invoiceNumbers[0],
           totalAmount: grandTotal,
           paidAmount: paidAmount,
           status,
@@ -2841,7 +2844,10 @@ const Billing = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label>Invoice #</Label>
-                  <Input value={`INV-${invoiceSeq}`} readOnly className="mt-1.5 bg-muted/50 font-mono" />
+                  {/* The number is drawn from the database when the bill is saved,
+                      so there is nothing honest to show yet - this box used to
+                      display one that was not the number the bill got. */}
+                  <Input value="Assigned on save" readOnly className="mt-1.5 bg-muted/50 font-mono text-muted-foreground" />
                 </div>
                 <div>
                   <Label>Invoice Date</Label>

@@ -74,6 +74,8 @@ export function PatientToolsBar({
           onOpenChange={setSkinTrackerOpen}
           photos={photos as any}
           patientName={patientName}
+          patientId={patientId}
+          appointmentId={context === "appointment" ? contextId : undefined}
         />
       )}
     </>

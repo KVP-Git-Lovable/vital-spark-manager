@@ -81,6 +81,7 @@ export type Database = {
       }
       appointments: {
         Row: {
+          app_edited_at: string | null
           appointment_type: string
           consultation_reasons: string[] | null
           consultation_type: string | null
@@ -110,6 +111,7 @@ export type Database = {
           visit_status: string | null
         }
         Insert: {
+          app_edited_at?: string | null
           appointment_type?: string
           consultation_reasons?: string[] | null
           consultation_type?: string | null
@@ -139,6 +141,7 @@ export type Database = {
           visit_status?: string | null
         }
         Update: {
+          app_edited_at?: string | null
           appointment_type?: string
           consultation_reasons?: string[] | null
           consultation_type?: string | null

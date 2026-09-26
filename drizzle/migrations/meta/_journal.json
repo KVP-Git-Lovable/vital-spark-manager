@@ -92,6 +92,13 @@
       "when": 1790401863537,
       "tag": "0012_restore_rescheduled_appointments",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790401978300,
+      "tag": "0013_remove_appointment_overlap_trigger",
+      "breakpoints": true
     }
   ]
 }

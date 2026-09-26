@@ -2442,7 +2442,14 @@ const Billing = () => {
       })),
     );
     editedLinesOriginal.current = {
-      lineItems: JSON.stringify(Array.isArray(inv?.line_items) ? inv.line_items : []),
+      // Baseline must be the SAME snapshot shape the save path compares
+      // against (lineItemsSnapshotFor of the seeded form state), not the raw
+      // stored JSON. Stored lines predate the current snapshot shape (no
+      // `kind`, different key set/order), so comparing against them made
+      // linesChanged true on every edit of an existing bill - which then
+      // rewrote the total, tax and pharmacy stock from a recompute nobody
+      // asked for.
+      lineItems: JSON.stringify(lineItemsSnapshotFor(seeded.services, seeded.products)),
       products: seeded.products.map((p) => ({ inventory_id: p.inventory_id, quantity: p.quantity, uom_factor: p.uom_factor })),
     };
     setIsEditing(true);

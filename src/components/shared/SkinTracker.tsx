@@ -10,6 +10,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { SkinAnalysisResults, type SkinAnalysis } from "./SkinAnalysisResults";
+import { saveAiRecord } from "@/lib/aiRepository";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Photo {
   id: string;
@@ -25,9 +27,12 @@ interface SkinTrackerProps {
   onOpenChange: (open: boolean) => void;
   photos: Photo[];
   patientName: string;
+  patientId?: string;
+  appointmentId?: string;
 }
 
-export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTrackerProps) {
+export function SkinTracker({ open, onOpenChange, photos, patientName, patientId, appointmentId }: SkinTrackerProps) {
+  const qc = useQueryClient();
   const [beforePhoto, setBeforePhoto] = useState<Photo | null>(null);
   const [afterPhoto, setAfterPhoto] = useState<Photo | null>(null);
   const [selecting, setSelecting] = useState<"before" | "after" | null>(null);
@@ -146,6 +151,10 @@ export function SkinTracker({ open, onOpenChange, photos, patientName }: SkinTra
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setAnalysis(data as SkinAnalysis);
+      if (patientId) {
+        await saveAiRecord({ patientId, appointmentId, kind: "skin_analysis", title: `AI Photo Analysis - ${patientName}`, content: { ...data, beforePhotoId: beforePhoto.id, afterPhotoId: afterPhoto.id } });
+        qc.invalidateQueries({ queryKey: ["ai-repository", patientId] });
+      }
     } catch (err: any) {
       console.error("Skin analysis failed:", err);
       toast.error(err?.message || "Failed to analyze skin photos. Please try again.");

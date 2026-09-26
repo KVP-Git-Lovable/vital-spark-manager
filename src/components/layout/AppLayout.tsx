@@ -156,7 +156,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           </header>
           <main className="flex-1 p-3 md:p-6 overflow-auto">
             <BackToReportBar />
-            {children}
+            <div key={location.pathname} className="animate-page-reveal motion-reduce:animate-none">
+              {children}
+            </div>
           </main>
         </div>
       </div>

@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_repository: {
+        Row: {
+          appointment_id: string | null
+          content: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          patient_id: string
+          title: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          content: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          patient_id: string
+          title: string
+        }
+        Update: {
+          appointment_id?: string | null
+          content?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          patient_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_repository_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_repository_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointment_name_backup_20260923: {
         Row: {
           captured_at: string | null

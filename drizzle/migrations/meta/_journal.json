@@ -113,6 +113,13 @@
       "when": 1790419677881,
       "tag": "0015_invoice_autolink_appointment",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790442879295,
+      "tag": "0016_create_ai_repository",
+      "breakpoints": true
     }
   ]
 }

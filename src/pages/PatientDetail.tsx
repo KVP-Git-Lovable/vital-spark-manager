@@ -35,6 +35,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { PhotoViewer } from "@/components/patients/PhotoViewer";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
+import { AiRepository } from "@/components/shared/AiRepository";
 import { CameraDialog } from "@/components/shared/CameraDialog";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
 import { PatientAttachments } from "@/components/patients/PatientAttachments";
@@ -815,6 +816,7 @@ const PatientDetail = () => {
             <TabsTrigger value="surveys" title="Surveys" aria-label="Surveys" className="gap-1 text-xs md:text-sm"><ClipboardCheck className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Surveys</span> ({surveyResponses.length + surveyAssignments.length})</TabsTrigger>
             <TabsTrigger value="attachments" title="Attachments" aria-label="Attachments" className="gap-1 text-xs md:text-sm"><Paperclip className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Attachments</span> ({attachments.length})</TabsTrigger>
             <TabsTrigger value="campaigns" title="Campaigns" aria-label="Campaigns" className="gap-1 text-xs md:text-sm"><Megaphone className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Campaigns</span> ({patientCampaigns.length})</TabsTrigger>
+            <TabsTrigger value="ai-repo" title="AI Repository" aria-label="AI Repository" className="gap-1 text-xs md:text-sm"><Sparkles className="h-3.5 w-3.5" /> <span className="hidden sm:inline">AI Repository</span></TabsTrigger>
           </TabsList>
         </div>
 
@@ -1724,6 +1726,10 @@ const PatientDetail = () => {
         </TabsContent>
 
         {/* Campaigns Tab */}
+        <TabsContent value="ai-repo">
+          <div className="mt-4"><AiRepository patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} /></div>
+        </TabsContent>
+
         <TabsContent value="campaigns">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
             <div className="flex justify-end mb-3">
@@ -1825,6 +1831,7 @@ const PatientDetail = () => {
         onOpenChange={setSkinTrackerOpen}
         photos={photos}
         patientName={`${patient.first_name} ${patient.last_name}`}
+        patientId={id!}
       />
 
       <ProcedureFormDialog

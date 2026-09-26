@@ -50,6 +50,7 @@ import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { ScanProcedureDialog } from "@/components/procedures/ScanProcedureDialog";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
+import { AiRepository } from "@/components/shared/AiRepository";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { SurveyRecommendations } from "@/components/surveys/SurveyRecommendations";
 import { useAuth } from "@/hooks/useAuth";
@@ -1050,6 +1051,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   <TabsTrigger value="survey" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Survey</TabsTrigger>
                   <TabsTrigger value="attachments" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Attachments</TabsTrigger>
                   <TabsTrigger value="notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Notes</TabsTrigger>
+                  <TabsTrigger value="ai-repo" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">AI Repository</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="details" className={isPage ? "p-6 grid gap-4 md:grid-cols-2 md:items-start mt-0" : "p-6 space-y-4 mt-0"}>
@@ -1275,7 +1277,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                           <Pill className="h-4 w-4" /> Linked Prescriptions
                         </h3>
                         <div className="flex gap-2">
-                          <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
+                          <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} appointmentId={appointment.id} />
                           <Button size="sm" variant="outline" className="gap-1" onClick={() => setScanProcOpen(true)}>
                             <ScanEye className="h-3 w-3" /> Scan Prescription
                           </Button>
@@ -1328,7 +1330,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                     <>
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold font-display">Previous Appointments</h3>
-                        <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
+                        <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} appointmentId={appointment.id} />
                       </div>
                       {previousAppointments.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-8">No other appointments for this patient.</p>
@@ -1371,7 +1373,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                     <>
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold font-display">Previous Prescriptions</h3>
-                        <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
+                        <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} appointmentId={appointment.id} />
                       </div>
                       {previousProcedures.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-8">No procedures recorded for this patient.</p>

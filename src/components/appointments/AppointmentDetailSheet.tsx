@@ -362,9 +362,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [editEndTime, setEditEndTime] = useState("");
   const [editStaffId, setEditStaffId] = useState("");
   const [editProblemAreas, setEditProblemAreas] = useState<string[]>([]);
-  const [initialized, setInitialized] = useState(false);
-  // Which appointment the edit fields below were filled from.
-  const seededFor = useRef<string | null>(null);
 
   // Fetch staff list for dropdown
   const { data: staffList = [] } = useQuery({
@@ -414,17 +411,13 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
 
   const staffOnLeaveIds = new Set(approvedLeaves.map((l: any) => l.staff_id));
 
-  // The sheet can move to another appointment without unmounting - the
-  // Previous Appointments tab navigates to /appointments/:id and the route
-  // keeps this element mounted. `initialized` used to be cleared only on
-  // close, so the edit fields still held the PREVIOUS appointment's date and
-  // Save stamped that date onto this one, leaving the first looking unmoved.
-  if (appointmentId && seededFor.current !== appointmentId) {
-    seededFor.current = appointmentId;
-    setInitialized(false);
-  }
-
-  if (appointment && !initialized) {
+  // The sheet stays mounted while Previous Appointments switches records.
+  // Seed the form only after the query has returned that exact appointment;
+  // doing this during render left one render where the new record was paired
+  // with the previous record's date fields, so a quick Save copied the wrong
+  // date onto the newly opened appointment.
+  useEffect(() => {
+    if (!appointment || appointment.id !== appointmentId) return;
     setEditService(appointment.service || "");
     setEditInvestigation(appointment.reason_for_consultation || "");
     setEditStatus(appointment.status || "Reserved");
@@ -433,8 +426,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     setEditEndTime(appointment.end_time ? format(new Date(appointment.end_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditStaffId(appointment.staff_id || "");
     setEditProblemAreas(((appointment as any).problem_area_ids as string[]) || []);
-    setInitialized(true);
-  }
+  }, [appointment, appointmentId]);
 
   // Nothing that navigates away calls this first any more. Closing the panel
   // before leaving stripped it out of the address, so the history entry left
@@ -443,7 +435,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   // a push fired in the same tick. Only the delete path closes on its own, and
   // it should - the record is gone.
   const handleClose = () => {
-    setInitialized(false);
     setActiveTab("details");
     onClose();
   };

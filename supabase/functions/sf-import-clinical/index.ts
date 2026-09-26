@@ -360,7 +360,7 @@ async function syncPatient(
   }
 
   const [existingApptRows, existingInvoices, existingProcs] = await Promise.all([
-    admin.from("appointments").select("id, sf_id").eq("patient_id", p.lovable_id).not("sf_id", "is", null)
+    admin.from("appointments").select("id, sf_id, app_edited_at").eq("patient_id", p.lovable_id).not("sf_id", "is", null)
       .then(({ data }) => data || []),
     existingSfIds("invoices", p.lovable_id),
     // Every column the top-up below may fill, so it can tell empty from typed.
@@ -370,6 +370,9 @@ async function syncPatient(
       .then(({ data }) => data || []),
   ]);
   const existingAppts = new Set(existingApptRows.map((r: any) => r.sf_id as string));
+  const appEditedAt = new Map<string, string>(
+    existingApptRows.filter((r: any) => r.app_edited_at).map((r: any) => [r.sf_id as string, r.app_edited_at as string]),
+  );
   const procServiceBySfId = new Map<string, string | null>(
     (existingProcs as any[]).map((r: any) => [r.sf_id as string, (r.service_name ?? null) as string | null]),
   );
@@ -381,7 +384,7 @@ async function syncPatient(
   // after another (this is the main driver of total sync time at scale).
   const [appts, billings, diagnoses] = await Promise.all([
     sfQuery(
-      `SELECT Id, Start_Time__c, End_Time__c, Appointment_Status__c, Appointment_type__c, Visit_Type__c, Doctor_Name__c, Investigation__c, Description__c, CreatedDate FROM Appointment__c WHERE Patient__c = '${p.sf_id}'`,
+      `SELECT Id, Start_Time__c, End_Time__c, Appointment_Status__c, Appointment_type__c, Visit_Type__c, Doctor_Name__c, Investigation__c, Description__c, CreatedDate, LastModifiedDate FROM Appointment__c WHERE Patient__c = '${p.sf_id}'`,
       signal,
     ),
     sfQuery(
@@ -494,6 +497,14 @@ async function syncPatient(
   // "(Dr. Whoever)" in reason, so there would be nothing left to read.
   if (refreshExisting) {
     for (const a of seenAppts) {
+      // Staff edits in the app win. Only take Salesforce's values when the
+      // record was changed in Salesforce AFTER the last edit made here -
+      // otherwise a reschedule done in the app gets reset to the old time.
+      const editedAt = appEditedAt.get(a.Id);
+      if (editedAt && (!a.LastModifiedDate || new Date(a.LastModifiedDate) <= new Date(editedAt))) {
+        log.skipped += 1;
+        continue;
+      }
       const row = mapAppt(a);
       const { error } = await admin
         .from("appointments")

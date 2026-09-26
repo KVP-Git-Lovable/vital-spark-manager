@@ -78,6 +78,41 @@
       "when": 1790167598187,
       "tag": "0010_add_additional_instructions_and_price_book_lookup",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790401797212,
+      "tag": "0011_restore_appointment_overlap_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790401863537,
+      "tag": "0012_restore_rescheduled_appointments",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790401978300,
+      "tag": "0013_remove_appointment_overlap_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790419628728,
+      "tag": "0014_appointments_app_edited_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790419677881,
+      "tag": "0015_invoice_autolink_appointment",
+      "breakpoints": true
     }
   ]
 }

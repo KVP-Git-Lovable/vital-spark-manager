@@ -81,6 +81,7 @@ export type Database = {
       }
       appointments: {
         Row: {
+          app_edited_at: string | null
           appointment_type: string
           consultation_reasons: string[] | null
           consultation_type: string | null
@@ -110,6 +111,7 @@ export type Database = {
           visit_status: string | null
         }
         Insert: {
+          app_edited_at?: string | null
           appointment_type?: string
           consultation_reasons?: string[] | null
           consultation_type?: string | null
@@ -139,6 +141,7 @@ export type Database = {
           visit_status?: string | null
         }
         Update: {
+          app_edited_at?: string | null
           appointment_type?: string
           consultation_reasons?: string[] | null
           consultation_type?: string | null
@@ -1500,6 +1503,30 @@ export type Database = {
           patient_id?: string | null
           patient_name?: string | null
           total_amount?: number | null
+        }
+        Relationships: []
+      }
+      invoice_number_series_20260926: {
+        Row: {
+          created_at: string
+          id: string
+          mapped_at: string
+          new_invoice_number: string
+          old_invoice_number: string
+        }
+        Insert: {
+          created_at: string
+          id: string
+          mapped_at?: string
+          new_invoice_number: string
+          old_invoice_number: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mapped_at?: string
+          new_invoice_number?: string
+          old_invoice_number?: string
         }
         Relationships: []
       }
@@ -5987,6 +6014,7 @@ export type Database = {
         Args: { _label?: string; _object_type: string; _record_id: string }
         Returns: string
       }
+      next_invoice_numbers: { Args: { _count?: number }; Returns: string[] }
       normalize_name: { Args: { _text: string }; Returns: string }
       promote_billing_lines: { Args: { _batch?: number }; Returns: number }
       purge_trash_item: { Args: { _trash_id: string }; Returns: undefined }

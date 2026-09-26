@@ -24,7 +24,9 @@ export async function allocateInvoiceNumbers(count: number): Promise<string[]> {
 
   // The generated Supabase types do not carry this function yet, so the call is
   // typed here rather than cast to any.
-  const callRpc = supabase.rpc as unknown as (
+  // Bound to the client: a detached `supabase.rpc` loses `this` and throws
+  // "Cannot read properties of undefined (reading 'rest')" on every save.
+  const callRpc = supabase.rpc.bind(supabase) as unknown as (
     fn: string,
     args: Record<string, unknown>,
   ) => Promise<{ data: unknown; error: { message: string } | null }>;

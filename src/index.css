@@ -249,6 +249,14 @@
     box-shadow: var(--glass-shadow);
     backdrop-filter: blur(14px) saturate(1.08);
   }
+
+  /* Floating choices and blocking panels stay opaque so underlying records
+     can never compete visually with menu or dialog text. */
+  .overlay-surface {
+    background: hsl(var(--popover));
+    border-color: hsl(var(--border));
+    box-shadow: var(--glass-shadow-hover);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

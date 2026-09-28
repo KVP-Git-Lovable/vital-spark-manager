@@ -25,7 +25,7 @@ describe("Patient Feedback report", () => {
 
   it("shows who left it, about which visit, and what they said", async () => {
     const keys = (await getReport("patient_feedback")).columns.map((c) => c.key);
-    for (const k of ["patient_name", "phone", "doctor_name", "appointment_date", "service",
+    for (const k of ["patient_name", "phone", "doctor_name", "appointment_date", "investigation",
                      "nps_score", "nps_category", "service_rating", "comments", "created_at"]) {
       expect(keys).toContain(k);
     }

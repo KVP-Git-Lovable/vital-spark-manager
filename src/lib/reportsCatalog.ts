@@ -17,7 +17,7 @@ interface FeedbackRow {
   comments?: string | null;
   appointment?: {
     start_time?: string | null;
-    service?: string | null;
+    reason_for_consultation?: string | null;
     doctor_name?: string | null;
     staff_id?: string | null;
     patient_id?: string | null;
@@ -761,7 +761,11 @@ export const REPORTS: ReportConfig[] = [
       { key: "phone", label: "Phone", sortable: true },
       { key: "doctor_name", label: "Doctor", sortable: true },
       { key: "appointment_date", label: "Visit Date", sortable: true, type: "date" },
-      { key: "service", label: "Investigation", sortable: true },
+      // "Investigation" is reason_for_consultation everywhere else in the app -
+      // the appointments list, the patient's Appts tab, the prescription. This
+      // read `service`, which only Salesforce-imported appointments carry, so
+      // every visit booked in the app showed a dash.
+      { key: "investigation", label: "Investigation", sortable: true },
       { key: "nps_score", label: "NPS", sortable: true, type: "number" },
       // accessor, not render: the printed report and the CSV cannot call
       // render, and the band is the part a reader actually acts on.
@@ -799,7 +803,7 @@ export const REPORTS: ReportConfig[] = [
         ],
       },
     ],
-    searchFields: ["patient_name", "phone", "comments", "doctor_name", "service"],
+    searchFields: ["patient_name", "phone", "comments", "doctor_name", "investigation"],
     rowHref: (r) => (r.appointment_id ? `/appointments?appointmentDetail=${r.appointment_id}` : null),
     /**
      * Two fetches, not one embed: patient_feedback.patient_id has no foreign
@@ -812,7 +816,7 @@ export const REPORTS: ReportConfig[] = [
       const rows = await fetchAll((s, e) => {
         let q = supabase
           .from("patient_feedback")
-          .select("*, appointment:appointment_id(start_time, service, doctor_name, staff_id, patient_id)")
+          .select("*, appointment:appointment_id(start_time, reason_for_consultation, doctor_name, staff_id, patient_id)")
           .order("created_at", { ascending: false })
           .range(s, e);
         if (from) q = q.gte("created_at", from);
@@ -849,7 +853,7 @@ export const REPORTS: ReportConfig[] = [
           doctor_name: r.appointment?.doctor_name || "",
           staff_id: r.appointment?.staff_id || "",
           appointment_date: r.appointment?.start_time || null,
-          service: r.appointment?.service || "",
+          investigation: r.appointment?.reason_for_consultation || "",
           nps_category: npsCategory(r.nps_score),
           rating_label: ratingLabel(r.service_rating),
           has_comment: String(r.comments || "").trim() ? "yes" : "no",

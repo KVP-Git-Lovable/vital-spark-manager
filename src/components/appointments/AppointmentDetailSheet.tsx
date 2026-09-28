@@ -43,6 +43,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { allocateInvoiceNumber, allocateInvoiceNumbers } from "@/lib/invoiceNumber";
 import { assertWrote } from "@/lib/rowAccess";
+import { forgetOpenAppointment, rememberOpenAppointment } from "@/lib/openAppointment";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
@@ -440,6 +441,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   // it should - the record is gone.
   const handleClose = () => {
     setActiveTab("details");
+    forgetOpenAppointment();
     onClose();
   };
 
@@ -964,6 +966,16 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
 
   const patientPhone = appointment?.patients?.phone || "";
   const patientId = appointment?.patients?.id || appointment?.patient_id;
+
+  // While this appointment is open, every other page offers one tap back to it.
+  // Front desk leave here for Billing and then reach for the Appointments menu
+  // item, which lands them on the list - the browser's Back button works, but
+  // nobody uses it.
+  useEffect(() => {
+    if (appointmentId && appointment) {
+      rememberOpenAppointment({ id: appointmentId, patientName });
+    }
+  }, [appointmentId, appointment, patientName]);
 
   const appointmentPhotos = photos.filter((p: any) => p.appointment_id === appointmentId);
   const otherPhotos = photos.filter((p: any) => p.appointment_id !== appointmentId);

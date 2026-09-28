@@ -10,6 +10,7 @@ import { ImpersonationBanner } from "@/components/auth/ImpersonationBanner";
 import { useNavigate, Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { AppointmentsModal } from "@/components/modals/AppointmentsModal";
 import { AppointmentDetailModal } from "@/components/modals/AppointmentDetailModal";
+import { ReturnToAppointmentBar } from "@/components/appointments/ReturnToAppointmentBar";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -156,6 +157,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </header>
           <main className="flex-1 p-3 md:p-6 overflow-auto">
             <BackToReportBar />
+            <ReturnToAppointmentBar />
             <div key={location.pathname} className="animate-page-reveal motion-reduce:animate-none">
               {children}
             </div>

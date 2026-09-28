@@ -4,11 +4,11 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { DateInput } from "./DateInput";
 
 /** Mirrors how PatientFormSheet holds date_of_birth: ISO in, ISO out. */
-function Harness({ initial = "", onIso }: { initial?: string; onIso?: (v: string) => void }) {
+function Harness({ initial = "", onIso, withCalendar }: { initial?: string; onIso?: (v: string) => void; withCalendar?: boolean }) {
   const [iso, setIso] = useState(initial);
   return (
     <>
-      <DateInput value={iso} onChange={(v) => { setIso(v); onIso?.(v); }} />
+      <DateInput value={iso} onChange={(v) => { setIso(v); onIso?.(v); }} withCalendar={withCalendar} />
       <span data-testid="stored">{iso}</span>
     </>
   );
@@ -77,5 +77,44 @@ describe("DateInput", () => {
     type("31021982");
     expect(box().value).toBe("31/02/1982");
     expect(stored()).toBe("");
+  });
+});
+
+/**
+ * Booking an appointment offers a month view; editing one only had a text box,
+ * so rescheduling meant typing eight digits. The calendar is opt-in, so every
+ * other date field in the app keeps exactly the box it had.
+ */
+describe("DateInput with a calendar", () => {
+  it("offers no calendar unless asked, so existing fields are untouched", () => {
+    render(<Harness initial="2026-09-28" />);
+    expect(screen.queryByLabelText("Open calendar")).toBeNull();
+  });
+
+  it("offers a calendar when asked, alongside a box that still types", () => {
+    render(<Harness initial="2026-09-28" withCalendar />);
+    expect(screen.getByLabelText("Open calendar")).toBeTruthy();
+    expect(box().value).toBe("28/09/2026");
+
+    fireEvent.change(box(), { target: { value: "" } });
+    type("29092026");
+    expect(stored()).toBe("2026-09-29");
+  });
+
+  it("opens the month of the date already on the appointment", () => {
+    render(<Harness initial="2026-09-28" withCalendar />);
+    fireEvent.click(screen.getByLabelText("Open calendar"));
+    expect(screen.getByText(/September 2026/)).toBeTruthy();
+  });
+
+  it("writes the day that was clicked, not the one before it", () => {
+    render(<Harness initial="2026-09-28" withCalendar />);
+    fireEvent.click(screen.getByLabelText("Open calendar"));
+    // A date built with toISOString() would store the 15th as the 14th for any
+    // clinic east of UTC, which is every one of them here. The 15th is picked
+    // because it cannot also be August's tail or October's head in this grid.
+    fireEvent.click(screen.getByText("15"));
+    expect(stored()).toBe("2026-09-15");
+    expect(box().value).toBe("15/09/2026");
   });
 });

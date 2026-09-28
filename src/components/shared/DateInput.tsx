@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { displayToIso, isoToDisplay, maskTyping } from "@/lib/dateInput";
 
 interface DateInputProps {
@@ -11,6 +16,25 @@ interface DateInputProps {
   className?: string;
   placeholder?: string;
   required?: boolean;
+  /**
+   * Show a calendar button that opens a month view, as booking an appointment
+   * does. Off by default so every existing date box stays exactly as it is.
+   */
+  withCalendar?: boolean;
+}
+
+/** Local yyyy-MM-dd. Not toISOString(), which is UTC and lands on the day before. */
+function toIsoDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/** Midday, so no timezone shift can tip the calendar onto an adjacent day. */
+function fromIsoDate(iso: string): Date | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+  if (!m) return undefined;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
 }
 
 /**
@@ -26,8 +50,21 @@ interface DateInputProps {
  * this kind impossible to type in: the text is reformatted mid-edit and the
  * caret jumps to the end. (Same shape of bug as the Paid Amount zero-trap that
  * `@/lib/numberInput` exists to avoid.)
+ *
+ * With `withCalendar` it also offers the month view used when booking, so
+ * rescheduling is a click rather than eight digits. The box stays typeable -
+ * front desk are quicker at typing a date they already know than at paging a
+ * calendar to it.
  */
-export function DateInput({ value, onChange, id, className, placeholder = "dd/mm/yyyy", required }: DateInputProps) {
+export function DateInput({
+  value,
+  onChange,
+  id,
+  className,
+  placeholder = "dd/mm/yyyy",
+  required,
+  withCalendar = false,
+}: DateInputProps) {
   const [text, setText] = useState(() => isoToDisplay(value));
 
   // Re-sync only when the incoming date is not the one already on screen, so a
@@ -37,10 +74,10 @@ export function DateInput({ value, onChange, id, className, placeholder = "dd/mm
     if (displayToIso(text) !== (value || null)) setText(isoToDisplay(value));
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
+  const field = (
     <Input
       id={id}
-      className={className}
+      className={withCalendar ? "w-full pr-9" : className}
       required={required}
       value={text}
       inputMode="numeric"
@@ -58,5 +95,43 @@ export function DateInput({ value, onChange, id, className, placeholder = "dd/mm
         if (text !== "" && displayToIso(text) === null) setText(isoToDisplay(value));
       }}
     />
+  );
+
+  if (!withCalendar) return field;
+
+  const selected = fromIsoDate(value);
+
+  return (
+    <div className={cn("relative", className)}>
+      {field}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Open calendar"
+            className="absolute right-0 top-0 h-full w-9 text-muted-foreground hover:text-foreground"
+          >
+            <CalendarIcon className="h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="end">
+          <Calendar
+            mode="single"
+            selected={selected}
+            defaultMonth={selected}
+            onSelect={(date) => {
+              if (!date) return;
+              const iso = toIsoDate(date);
+              setText(isoToDisplay(iso));
+              onChange(iso);
+            }}
+            initialFocus
+            className={cn("p-3 pointer-events-auto")}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }

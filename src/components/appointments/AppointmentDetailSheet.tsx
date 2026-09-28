@@ -1168,6 +1168,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       <Label>Date</Label>
                       <DateInput
                         className="mt-1.5"
+                        withCalendar
                         value={(editStartTime || "").split("T")[0] || ""}
                         onChange={(isoDate) => {
                           const d = isoDate;

@@ -5,10 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { caseAnalysisDate } from "@/lib/caseAnalysisDate";
+import { saveAiRecord } from "@/lib/aiRepository";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface CaseAnalysisProps {
   patientId: string;
   patientName: string;
+  appointmentId?: string;
 }
 
 interface CaseResult {
@@ -22,7 +25,8 @@ interface CaseResult {
   clinicalRecommendations: string[];
 }
 
-export const CaseAnalysis = ({ patientId, patientName }: CaseAnalysisProps) => {
+export const CaseAnalysis = ({ patientId, patientName, appointmentId }: CaseAnalysisProps) => {
+  const qc = useQueryClient();
   const [result, setResult] = useState<CaseResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -44,6 +48,10 @@ export const CaseAnalysis = ({ patientId, patientName }: CaseAnalysisProps) => {
       }
       const data = await res.json();
       setResult(data.analysis);
+      if (data.analysis) {
+        await saveAiRecord({ patientId, appointmentId, kind: "case_analysis", title: `AI Case Analysis - ${patientName}`, content: data.analysis });
+        qc.invalidateQueries({ queryKey: ["ai-repository", patientId] });
+      }
       setSheetOpen(true);
     } catch (e: any) {
       toast.error(e.message || "Case analysis failed");

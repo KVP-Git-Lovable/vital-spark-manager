@@ -50,6 +50,7 @@ import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { ScanProcedureDialog } from "@/components/procedures/ScanProcedureDialog";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
+import { AiRepository } from "@/components/shared/AiRepository";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { SurveyRecommendations } from "@/components/surveys/SurveyRecommendations";
 import { useAuth } from "@/hooks/useAuth";
@@ -362,9 +363,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [editEndTime, setEditEndTime] = useState("");
   const [editStaffId, setEditStaffId] = useState("");
   const [editProblemAreas, setEditProblemAreas] = useState<string[]>([]);
-  const [initialized, setInitialized] = useState(false);
-  // Which appointment the edit fields below were filled from.
-  const seededFor = useRef<string | null>(null);
+  const [editAppointmentId, setEditAppointmentId] = useState<string | null>(null);
 
   // Fetch staff list for dropdown
   const { data: staffList = [] } = useQuery({
@@ -414,17 +413,14 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
 
   const staffOnLeaveIds = new Set(approvedLeaves.map((l: any) => l.staff_id));
 
-  // The sheet can move to another appointment without unmounting - the
-  // Previous Appointments tab navigates to /appointments/:id and the route
-  // keeps this element mounted. `initialized` used to be cleared only on
-  // close, so the edit fields still held the PREVIOUS appointment's date and
-  // Save stamped that date onto this one, leaving the first looking unmoved.
-  if (appointmentId && seededFor.current !== appointmentId) {
-    seededFor.current = appointmentId;
-    setInitialized(false);
-  }
-
-  if (appointment && !initialized) {
+  // The sheet stays mounted while Previous Appointments switches records.
+  // Seed the form only after the query has returned that exact appointment;
+  // doing this during render left one render where the new record was paired
+  // with the previous record's date fields, so a quick Save copied the wrong
+  // date onto the newly opened appointment.
+  useEffect(() => {
+    setEditAppointmentId(null);
+    if (!appointment || appointment.id !== appointmentId) return;
     setEditService(appointment.service || "");
     setEditInvestigation(appointment.reason_for_consultation || "");
     setEditStatus(appointment.status || "Reserved");
@@ -433,8 +429,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     setEditEndTime(appointment.end_time ? format(new Date(appointment.end_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditStaffId(appointment.staff_id || "");
     setEditProblemAreas(((appointment as any).problem_area_ids as string[]) || []);
-    setInitialized(true);
-  }
+    setEditAppointmentId(appointment.id);
+  }, [appointment, appointmentId]);
 
   // Nothing that navigates away calls this first any more. Closing the panel
   // before leaving stripped it out of the address, so the history entry left
@@ -443,7 +439,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   // a push fired in the same tick. Only the delete path closes on its own, and
   // it should - the record is gone.
   const handleClose = () => {
-    setInitialized(false);
     setActiveTab("details");
     onClose();
   };
@@ -770,6 +765,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
 
   const updateMutation = useMutation({
     mutationFn: async () => {
+      if (!appointmentId || editAppointmentId !== appointmentId) {
+        throw new Error("Please wait for this appointment to finish loading");
+      }
       const prevStatus = appointment?.status || null;
       const prevStaffId = appointment?.staff_id || null;
       const newStatus = editStatus;
@@ -849,6 +847,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-detail", appointmentId] });
+      queryClient.invalidateQueries({ queryKey: ["patient-appointments", appointment?.patient_id] });
       toast.success("Appointment updated");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1052,6 +1051,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   <TabsTrigger value="survey" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Survey</TabsTrigger>
                   <TabsTrigger value="attachments" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Attachments</TabsTrigger>
                   <TabsTrigger value="notes" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Notes</TabsTrigger>
+                  <TabsTrigger value="ai-repo" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">AI Repository</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="details" className={isPage ? "p-6 grid gap-4 md:grid-cols-2 md:items-start mt-0" : "p-6 space-y-4 mt-0"}>
@@ -1223,7 +1223,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   </div>
 
                   <div className="flex gap-2 pt-4 border-t">
-                    <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="flex-1 gap-2">
+                    <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending || editAppointmentId !== appointmentId} className="flex-1 gap-2">
                       <Save className="h-4 w-4" />
                       {updateMutation.isPending ? "Saving..." : "Save Changes"}
                     </Button>
@@ -1277,7 +1277,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                           <Pill className="h-4 w-4" /> Linked Prescriptions
                         </h3>
                         <div className="flex gap-2">
-                          <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
+                          <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} appointmentId={appointment.id} />
                           <Button size="sm" variant="outline" className="gap-1" onClick={() => setScanProcOpen(true)}>
                             <ScanEye className="h-3 w-3" /> Scan Prescription
                           </Button>
@@ -1330,7 +1330,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                     <>
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold font-display">Previous Appointments</h3>
-                        <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
+                        <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} appointmentId={appointment.id} />
                       </div>
                       {previousAppointments.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-8">No other appointments for this patient.</p>
@@ -1373,7 +1373,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                     <>
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold font-display">Previous Prescriptions</h3>
-                        <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} />
+                        <CaseAnalysis patientId={appointment.patient_id} patientName={patientName} appointmentId={appointment.id} />
                       </div>
                       {previousProcedures.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-8">No procedures recorded for this patient.</p>
@@ -1781,6 +1781,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       so notes save straight away. */}
                   <StickyNotes appointmentId={appointmentId} />
                 </TabsContent>
+                <TabsContent value="ai-repo" className="p-6 mt-0">
+                  <AiRepository patientId={appointment.patient_id} patientName={patientName} />
+                </TabsContent>
               </Tabs>
             </>
           ));
@@ -1824,6 +1827,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
           onOpenChange={setSkinTrackerOpen}
           photos={photos}
           patientName={patientName}
+          patientId={appointment.patient_id}
+          appointmentId={appointmentId ?? undefined}
         />
       )}
 

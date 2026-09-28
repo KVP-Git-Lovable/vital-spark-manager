@@ -112,7 +112,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
           <ImpersonationBanner />
 
-          <header className="h-14 md:h-16 flex items-center justify-between border-b bg-card px-3 md:px-4 gap-2 md:gap-4 shrink-0">
+          <header className="app-glass-header sticky top-0 z-40 h-14 md:h-16 flex items-center justify-between border-b px-3 md:px-4 gap-2 md:gap-4 shrink-0">
             <div className="flex items-center gap-2 md:gap-3 min-w-0">
               <SidebarTrigger className="shrink-0 md:hidden" />
               <GlobalSearch className="hidden md:block" />
@@ -156,7 +156,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           </header>
           <main className="flex-1 p-3 md:p-6 overflow-auto">
             <BackToReportBar />
-            {children}
+            <div key={location.pathname} className="animate-page-reveal motion-reduce:animate-none">
+              {children}
+            </div>
           </main>
         </div>
       </div>

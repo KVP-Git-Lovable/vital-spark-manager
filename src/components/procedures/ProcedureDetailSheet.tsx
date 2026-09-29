@@ -42,6 +42,8 @@ import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { OTHERS_VALUE } from "@/lib/othersOption";
+import { ServicePicker } from "@/components/procedures/ServicePicker";
+import { type ServiceOption } from "@/lib/servicePicker";
 import { MEDICAL_FIELDS, SKIN_TYPE_OPTIONS } from "@/lib/medicalFields";
 import { partitionVisitMedia } from "@/lib/visitMedia";
 import { parsePrescriptionText } from "@/lib/prescriptionText";
@@ -523,6 +525,14 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     setServicesInitialized(true);
   }
 
+  // Keyed by the row's own key, never by its index - see ServicePicker.
+  const [serviceMenuOpen, setServiceMenuOpen] = useState<Record<string, boolean>>({});
+
+  // "Others (type manually)" is a picker sentinel, not a service. It must never
+  // reach the uuid column - the typed name is what is saved, in service_name.
+  // The create form applies the same rule on its own save.
+  const serviceIdForSave = (id: string | null) => (id && id !== OTHERS_VALUE ? id : null);
+
   const updateLine = (key: string, patch: Partial<ServiceLineRow>) =>
     setEditServiceLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const addLine = () =>
@@ -632,7 +642,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       for (const [i, l] of kept.entries()) {
         if (l.id) {
           await supabase.from("procedure_services").update({
-            service_id: l.service_id,
+            service_id: serviceIdForSave(l.service_id),
             service_name: l.service_name,
             procedure_notes: l.procedure_notes || null,
             recommendations: l.recommendations || null,
@@ -642,7 +652,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         } else {
           await supabase.from("procedure_services").insert({
             procedure_id: procedureId!,
-            service_id: l.service_id,
+            service_id: serviceIdForSave(l.service_id),
             service_name: l.service_name,
             procedure_notes: l.procedure_notes || null,
             recommendations: l.recommendations || null,
@@ -1053,38 +1063,31 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                           </Button>
                         )}
                       </div>
-                      <div className="flex gap-2">
-                        <Input
-                          className="flex-1"
-                          placeholder="Service / procedure name"
-                          value={line.service_name}
-                          onChange={(e) => updateLine(line.key, { service_name: e.target.value })}
-                        />
-                        <Select
-                          value={line.service_id || ""}
-                          onValueChange={(v) => {
-                            const svc: any = servicesMaster.find((s: any) => s.id === v);
-                            updateLine(line.key, {
-                              service_id: v,
-                              service_name: svc?.name || line.service_name,
-                              procedure_notes: line.procedure_notes || svc?.procedure_notes || "",
-                              recommendations:
-                                line.recommendations ||
-                                (Array.isArray(svc?.recommendations) ? svc.recommendations.join("\n") : svc?.recommendations || ""),
-                              material_percent:
-                                svc?.material_percent === null || svc?.material_percent === undefined
-                                  ? ""
-                                  : String(svc.material_percent),
-                              price: Number(svc?.price || 0),
-                            });
-                          }}
-                        >
-                          <SelectTrigger className="w-40"><SelectValue placeholder="From master" /></SelectTrigger>
-                          <SelectContent>
-                            {servicesMaster.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <ServicePicker
+                        services={servicesMaster as ServiceOption[]}
+                        serviceId={line.service_id}
+                        serviceName={line.service_name}
+                        open={!!serviceMenuOpen[line.key]}
+                        onOpenChange={(open) => setServiceMenuOpen((m) => ({ ...m, [line.key]: open }))}
+                        onPickMaster={(v) => {
+                          const svc: any = servicesMaster.find((s: any) => s.id === v);
+                          updateLine(line.key, {
+                            service_id: v,
+                            service_name: svc?.name || line.service_name,
+                            procedure_notes: line.procedure_notes || svc?.procedure_notes || "",
+                            recommendations:
+                              line.recommendations ||
+                              (Array.isArray(svc?.recommendations) ? svc.recommendations.join("\n") : svc?.recommendations || ""),
+                            material_percent:
+                              svc?.material_percent === null || svc?.material_percent === undefined
+                                ? ""
+                                : String(svc.material_percent),
+                            price: Number(svc?.price || 0),
+                          });
+                        }}
+                        onChooseOthers={() => updateLine(line.key, { service_id: OTHERS_VALUE, service_name: "" })}
+                        onNameChange={(service_name) => updateLine(line.key, { service_name })}
+                      />
                       {/* Material Cost % removed here too, so the create form and
                           this sheet agree. It lives in Billing now - see
                           ProcedureFormDialog for the reasoning. Existing values

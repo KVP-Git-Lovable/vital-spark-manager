@@ -34,6 +34,8 @@ import { toast } from "sonner";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { MicButton } from "@/components/shared/MicButton";
 import { OTHERS_VALUE } from "@/lib/othersOption";
+import { ServicePicker } from "@/components/procedures/ServicePicker";
+import { type ServiceOption } from "@/lib/servicePicker";
 import { isPlaceholderVisitService } from "@/lib/consultationLine";
 
 import {
@@ -152,6 +154,8 @@ export function ProcedureFormDialog({
   const [dictation, setDictation] = useState("");
   const [parsing, setParsing] = useState(false);
   const [elaboratingAll, setElaboratingAll] = useState(false);
+  // Which single field is being elaborated, as "<lineKey>:<field>".
+  const [elaborating, setElaborating] = useState<string | null>(null);
   const [elaboratingMedical, setElaboratingMedical] = useState(false);
   const [recentlyFilled, setRecentlyFilled] = useState<Record<string, boolean>>({});
   const [unmatchedHints, setUnmatchedHints] = useState<{
@@ -383,6 +387,34 @@ export function ProcedureFormDialog({
       toast.error(e.message || "Failed to elaborate");
     } finally {
       setElaboratingAll(false);
+    }
+  };
+
+  // One field at a time, as the saved-prescription editor has always offered.
+  // Same edge function it calls (elaborate-text), so a doctor gets the same
+  // wording whether they are writing the prescription or correcting it later.
+  const elaborateLine = async (lineKey: string, fieldType: "procedure_notes" | "recommendations") => {
+    const line = serviceLines.find((l) => l.key === lineKey);
+    if (!line) return;
+    const currentText = fieldType === "procedure_notes" ? line.procedure_notes : line.recommendations;
+    setElaborating(`${lineKey}:${fieldType}`);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elaborate-text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+        body: JSON.stringify({ serviceName: (line.name || "Consultation").trim(), fieldType, currentText }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "AI request failed" }));
+        throw new Error(err.error || "AI request failed");
+      }
+      const { text } = await res.json();
+      setServiceLines((prev) => prev.map((l) => (l.key === lineKey ? { ...l, [fieldType]: text } : l)));
+      toast.success("Text elaborated");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to elaborate");
+    } finally {
+      setElaborating(null);
     }
   };
 
@@ -1167,66 +1199,16 @@ export function ProcedureFormDialog({
                     </Button>
                   )}
                 </div>
-                {/* Controlled, because an uncontrolled Radix Popover only closes
-                    on an outside click or Escape - and CommandItem's onSelect is
-                    neither. Picking a service filled the line and left the list
-                    sitting open over the form, which is the fault the clinic
-                    reported. Keyed by line.key, never by the row index: removing
-                    a line would otherwise leave the open flag on whichever row
-                    slid up into its place. `modal` stays - see SearchableSelect
-                    for why dropping it breaks scrolling inside a sheet. */}
-                <Popover
-                  modal
+                <ServicePicker
+                  services={services as ServiceOption[]}
+                  serviceId={line.service_id}
+                  serviceName={line.name}
                   open={!!serviceMenuOpen[line.key]}
                   onOpenChange={(open) => setServiceMenuOpen((m) => ({ ...m, [line.key]: open }))}
-                >
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" role="combobox" aria-expanded={!!serviceMenuOpen[line.key]} className="w-full justify-between font-normal">
-                      <span className="truncate">{line.name || "Select service"}</span>
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder="Search service..." />
-                      <CommandList>
-                        <CommandEmpty>No service found.</CommandEmpty>
-                        <CommandGroup>
-                          {services.map((s: any) => (
-                            <CommandItem
-                              key={s.id}
-                              value={s.name}
-                              onSelect={() => {
-                                handleServiceSelect(s.id, line.key);
-                                closeServiceMenu(line.key);
-                              }}
-                            >
-                              <Check className={`mr-2 h-4 w-4 ${line.service_id === s.id ? "opacity-100" : "opacity-0"}`} />
-                              {s.name}
-                            </CommandItem>
-                          ))}
-                          <CommandItem
-                            value="Others"
-                            onSelect={() => {
-                              updateServiceLine(line.key, { service_id: OTHERS_VALUE, name: "" });
-                              closeServiceMenu(line.key);
-                            }}
-                          >
-                            <Check className={`mr-2 h-4 w-4 ${line.service_id === OTHERS_VALUE ? "opacity-100" : "opacity-0"}`} />
-                            Others (type manually)
-                          </CommandItem>
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                {line.service_id === OTHERS_VALUE && (
-                  <Input
-                    placeholder="Service / procedure name"
-                    value={line.name}
-                    onChange={(e) => updateServiceLine(line.key, { name: e.target.value })}
-                  />
-                )}
+                  onPickMaster={(svcId) => handleServiceSelect(svcId, line.key)}
+                  onChooseOthers={() => updateServiceLine(line.key, { service_id: OTHERS_VALUE, name: "" })}
+                  onNameChange={(name) => updateServiceLine(line.key, { name })}
+                />
                 {/* Material Cost % used to sit here. It is a billing figure, not a
                     clinical one, and the clinic asked for it in one place only.
                     Billing owns it (55,884 material_cost_lines rows against 9
@@ -1236,7 +1218,16 @@ export function ProcedureFormDialog({
                     already recorded, it just cannot be entered from a
                     prescription any more. */}
                 <div>
-                  <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Procedure Notes</Label>
+                    <div className="flex items-center gap-1">
+                      <MicButton value={line.procedure_notes} onChange={(v) => updateServiceLine(line.key, { procedure_notes: v })} />
+                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary"
+                        onClick={() => elaborateLine(line.key, "procedure_notes")} disabled={elaborating !== null || elaboratingAll}>
+                        {elaborating === `${line.key}:procedure_notes` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                      </Button>
+                    </div>
+                  </div>
                   <Textarea
                     rows={3}
                     className={`mt-1 transition-all ${recentlyFilled.procedure_notes ? "ring-2 ring-primary/40" : ""} ${elaboratingAll ? "opacity-60" : ""}`}
@@ -1246,7 +1237,16 @@ export function ProcedureFormDialog({
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Recommendations</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Recommendations</Label>
+                    <div className="flex items-center gap-1">
+                      <MicButton value={line.recommendations} onChange={(v) => updateServiceLine(line.key, { recommendations: v })} />
+                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary"
+                        onClick={() => elaborateLine(line.key, "recommendations")} disabled={elaborating !== null || elaboratingAll}>
+                        {elaborating === `${line.key}:recommendations` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} Elaborate AI
+                      </Button>
+                    </div>
+                  </div>
                   <Textarea
                     rows={3}
                     className={`mt-1 transition-all ${recentlyFilled.recommendations ? "ring-2 ring-primary/40" : ""} ${elaboratingAll ? "opacity-60" : ""}`}

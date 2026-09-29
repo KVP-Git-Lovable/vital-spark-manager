@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUrlPanel } from "@/hooks/useUrlPanel";
 import AppointmentDetail from "@/pages/AppointmentDetail";
+import { forgetOpenAppointment } from "@/lib/openAppointment";
 
 /**
  * An appointment opened from the list, full screen.

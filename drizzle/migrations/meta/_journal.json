@@ -120,6 +120,13 @@
       "when": 1790442879295,
       "tag": "0016_create_ai_repository",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790669296422,
+      "tag": "0017_create_whatsapp_delivery_log",
+      "breakpoints": true
     }
   ]
 }

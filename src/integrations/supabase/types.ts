@@ -5946,6 +5946,53 @@ export type Database = {
           },
         ]
       }
+      whatsapp_delivery_log: {
+        Row: {
+          body_preview: string | null
+          error_code: number | null
+          error_message: string | null
+          kind: string
+          message_sid: string
+          patient_id: string | null
+          phone: string
+          sent_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          body_preview?: string | null
+          error_code?: number | null
+          error_message?: string | null
+          kind?: string
+          message_sid: string
+          patient_id?: string | null
+          phone: string
+          sent_at: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          body_preview?: string | null
+          error_code?: number | null
+          error_message?: string | null
+          kind?: string
+          message_sid?: string
+          patient_id?: string | null
+          phone?: string
+          sent_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_delivery_log_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       working_hours: {
         Row: {
           break_end: string | null

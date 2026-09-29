@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { shortPatientId } from "@/lib/utils";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { TimePicker12h } from "@/components/shared/TimePicker12h";
+import { usualDoctorId, type PastVisit } from "@/lib/usualDoctor";
 
 interface QuickAppointmentDialogProps {
   open: boolean;
@@ -66,6 +67,36 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
     },
     enabled: open,
   });
+
+  // Booking from a patient's record left the doctor blank, so front desk picked
+  // from memory the one that patient always sees. Their last visit already says
+  // who that is. Only fetched once the dialog is open, so it costs nothing until
+  // somebody books.
+  const { data: recentVisits = [] } = useQuery({
+    queryKey: ["quick-appt-recent-visits", patient?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("start_time, staff_id")
+        .eq("patient_id", patient.id)
+        .order("start_time", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && !!patient?.id,
+  });
+
+  // Fills a blank only: a doctor chosen by hand is never overridden, and the
+  // reset above still clears it when the dialog closes.
+  useEffect(() => {
+    if (!open || staffId) return;
+    const usual = usualDoctorId(
+      recentVisits as PastVisit[],
+      (staffList as { id: string }[]).map((d) => d.id),
+    );
+    if (usual) setStaffId(usual);
+  }, [open, staffId, recentVisits, staffList]);
 
   const { data: services = [] } = useQuery({
     queryKey: ["quick-appt-services"],

@@ -17,7 +17,15 @@ import { forgetOpenAppointment } from "@/lib/openAppointment";
  * them too.
  */
 export function AppointmentDetailModal() {
-  const { openId: selectedAppointmentId, close } = useUrlPanel("appointmentDetail");
+  const { openId: selectedAppointmentId, close: closePanel } = useUrlPanel("appointmentDetail");
+
+  // Closing the modal is a deliberate exit, same as "Back to Appointments" on
+  // the route version - drop the "back to this appointment" offer so it does
+  // not keep pointing at a visit the front desk already finished with.
+  const close = () => {
+    forgetOpenAppointment();
+    closePanel();
+  };
 
   if (!selectedAppointmentId) return null;
 

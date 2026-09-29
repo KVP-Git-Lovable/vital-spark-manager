@@ -4,6 +4,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
 import { parsePrescriptionText } from "./prescriptionText.ts";
 import { isRollUpOf } from "./procedureRollup.ts";
+import { tableRowHeight, tableStartSpace } from "./pdfTableLayout.ts";
 
 const BodySchema = z.object({
   procedureId: z.string().uuid(),
@@ -297,8 +298,12 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     const recWidth = tableWidth - serviceWidth - notesWidth;
     const colX = [tableX, tableX + serviceWidth, tableX + serviceWidth + notesWidth];
 
-    const drawHeader = (heading: string) => {
-      ensureSpace(42);
+    // `reserve` is the first row that will follow this heading. Without it the
+    // heading and the column header were placed wherever they themselves fitted,
+    // and a tall first row then moved to the next page on its own - leaving an
+    // empty table and most of a page of white space behind it.
+    const drawHeader = (heading: string, reserve = 0) => {
+      ensureSpace(tableStartSpace(22, reserve));
       page.drawText(heading, { x: MARGIN, y, size: 11, font: bold, color: blue });
       y -= 18;
       const height = 22;
@@ -311,13 +316,20 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
       y -= height;
     };
 
-    drawHeader("Procedure Details");
+    const heightOf = (row: { service: string; notes: string; recommendations: string }) =>
+      tableRowHeight(
+        wrap(row.service, font, 9, serviceWidth - 12).length,
+        wrap(row.notes, font, 9, notesWidth - 12).length,
+        wrap(row.recommendations, font, 9, recWidth - 12).length,
+      );
+
+    drawHeader("Procedure Details", heightOf(serviceRows[0]));
 
     for (const row of serviceRows) {
       const svcLines = wrap(row.service, font, 9, serviceWidth - 12);
       const notesLines = wrap(row.notes, font, 9, notesWidth - 12);
       const recLines = wrap(row.recommendations, font, 9, recWidth - 12);
-      const rowHeight = Math.max(25, Math.max(svcLines.length, notesLines.length, recLines.length) * 12 + 9);
+      const rowHeight = tableRowHeight(svcLines.length, notesLines.length, recLines.length);
       if (y - rowHeight < CONTENT_BOTTOM) {
         y = addContinuationPage();
         drawHeader("Procedure Details (continued)");
@@ -341,8 +353,8 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     const valueWidth = tableWidth - labelWidth;
     const colX = [tableX, tableX + labelWidth];
 
-    const drawHeader = (title: string) => {
-      ensureSpace(42);
+    const drawHeader = (title: string, reserve = 0) => {
+      ensureSpace(tableStartSpace(22, reserve));
       page.drawText(title, { x: MARGIN, y, size: 11, font: bold, color: blue });
       y -= 18;
       const height = 22;
@@ -353,12 +365,18 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
       y -= height;
     };
 
-    drawHeader(heading);
+    drawHeader(
+      heading,
+      tableRowHeight(
+        wrap(fieldRows[0].label, font, 9, labelWidth - 12).length,
+        wrap(fieldRows[0].value, font, 9, valueWidth - 12).length,
+      ),
+    );
 
     for (const row of fieldRows) {
       const labelLines = wrap(row.label, font, 9, labelWidth - 12);
       const valueLines = wrap(row.value, font, 9, valueWidth - 12);
-      const rowHeight = Math.max(25, Math.max(labelLines.length, valueLines.length) * 12 + 9);
+      const rowHeight = tableRowHeight(labelLines.length, valueLines.length);
       if (y - rowHeight < CONTENT_BOTTOM) {
         y = addContinuationPage();
         drawHeader(`${heading} (continued)`);
@@ -545,7 +563,15 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
       y -= height;
     };
 
-    ensureSpace(42);
+    ensureSpace(
+      tableStartSpace(
+        24,
+        tableRowHeight(
+          wrap(rows[0].product, font, 9, productWidth - 12).length,
+          wrap(rows[0].instruction, font, 9, instructionWidth - 12).length,
+        ),
+      ),
+    );
     page.drawText("Products/Medications", { x: MARGIN, y, size: 11, font: bold, color: blue });
     y -= 18;
     drawTableHeader();
@@ -553,7 +579,7 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     for (const row of rows) {
       const productLines = wrap(row.product, font, 9, productWidth - 12);
       const instructionLines = wrap(row.instruction, font, 9, instructionWidth - 12);
-      const rowHeight = Math.max(25, Math.max(productLines.length, instructionLines.length) * 12 + 9);
+      const rowHeight = tableRowHeight(productLines.length, instructionLines.length);
       if (y - rowHeight < CONTENT_BOTTOM) {
         y = addContinuationPage();
         page.drawText("Products/Medications (continued)", { x: MARGIN, y, size: 11, font: bold, color: blue });

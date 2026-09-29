@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUrlPanel } from "@/hooks/useUrlPanel";
 import AppointmentDetail from "@/pages/AppointmentDetail";
+import { forgetOpenAppointment } from "@/lib/openAppointment";
 
 /**
  * An appointment opened from the list, full screen.
@@ -16,7 +17,15 @@ import AppointmentDetail from "@/pages/AppointmentDetail";
  * them too.
  */
 export function AppointmentDetailModal() {
-  const { openId: selectedAppointmentId, close } = useUrlPanel("appointmentDetail");
+  const { openId: selectedAppointmentId, close: closePanel } = useUrlPanel("appointmentDetail");
+
+  // Closing the modal is a deliberate exit, same as "Back to Appointments" on
+  // the route version - drop the "back to this appointment" offer so it does
+  // not keep pointing at a visit the front desk already finished with.
+  const close = () => {
+    forgetOpenAppointment();
+    closePanel();
+  };
 
   if (!selectedAppointmentId) return null;
 

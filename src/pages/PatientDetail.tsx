@@ -44,6 +44,7 @@ import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { QuickAppointmentDialog } from "@/components/appointments/QuickAppointmentDialog";
+import { appointmentStatusClasses } from "@/lib/appointmentStatus";
 import { toast } from "sonner";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { approveSurveyResponse, enrichAiProducts, enrichAiServices } from "@/lib/surveyApproval";
@@ -1228,7 +1229,7 @@ const PatientDetail = () => {
                       <p className="text-xs text-muted-foreground mt-0.5">{apt.staff ? withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`) : "—"}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <Badge variant="secondary" className="text-xs">{apt.status}</Badge>
+                      <Badge variant="outline" className={`text-xs ${appointmentStatusClasses(apt.status)}`}>{apt.status}</Badge>
                       <p className="text-xs text-muted-foreground mt-1">{displayDate(apt.start_time)}</p>
                       <p className="text-xs text-muted-foreground">{new Date(apt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
@@ -1261,7 +1262,7 @@ const PatientDetail = () => {
                           when a visit has no investigation recorded. */}
                       <td className="p-4 font-medium text-sm">{investigationText(apt, "—")}</td>
                       <td className="p-4 text-sm text-muted-foreground">{apt.staff ? withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`) : "—"}</td>
-                      <td className="p-4"><Badge variant="secondary" className="text-xs">{apt.status}</Badge></td>
+                      <td className="p-4"><Badge variant="outline" className={`text-xs ${appointmentStatusClasses(apt.status)}`}>{apt.status}</Badge></td>
                     </tr>
                   ))}
                 </tbody>

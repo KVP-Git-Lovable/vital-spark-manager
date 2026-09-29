@@ -27,3 +27,15 @@ export const APPOINTMENT_STATUS_STYLES: Record<string, string> = {
   Completed: "bg-success/10 text-success",
   "No Show": "bg-destructive/10 text-destructive",
 };
+
+/**
+ * The badge classes for a status, with a fallback.
+ *
+ * A patient's Appts tab showed every status in the same grey badge, so a
+ * cancelled visit read exactly like a completed one. The map above already had
+ * the colours - it simply had no callers. Anything the map does not know
+ * (older Salesforce statuses such as "Scheduled") still gets a normal muted
+ * badge rather than no classes at all.
+ */
+export const appointmentStatusClasses = (status: string | null | undefined): string =>
+  APPOINTMENT_STATUS_STYLES[(status || "").trim()] || "bg-muted text-muted-foreground";

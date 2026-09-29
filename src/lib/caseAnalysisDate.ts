@@ -24,7 +24,10 @@ export function caseAnalysisDate(value: string | null | undefined): string {
   const text = (value ?? "").trim();
   if (!text) return "";
 
-  const numbers = text.match(/\d+/g) ?? [];
+  // Annotated: match() returns RegExpMatchArray | null, and the ?? [] made the
+  // type a union with never[], which left TypeScript inferring `never` for n
+  // below in some module orderings. The annotation pins it to what it is.
+  const numbers: string[] = text.match(/\d+/g) ?? [];
   const looksWhole = numbers.length >= 2 && numbers.some((n) => n.length === 4);
   if (!looksWhole) return text;
 

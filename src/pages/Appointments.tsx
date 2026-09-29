@@ -2,6 +2,7 @@ import { useStackedTable } from "@/hooks/useStackedTable";
 import { resizeColumn, mergeSavedWidths, type ColumnWidth } from "@/lib/columnWidths";
 import { isPageSortedColumn, sortAppointments } from "@/lib/appointmentSort";
 import { isPlaceholderVisitService } from "@/lib/consultationLine";
+import { usualDoctorId, type PastVisit } from "@/lib/usualDoctor";
 import { appointmentDeleteNote } from "@/lib/appointmentDeleteNote";
 import { displayDate } from "@/lib/dateInput";
 import { ColumnResizeHandle } from "@/components/shared/ColumnResizeHandle";
@@ -506,6 +507,38 @@ const Appointments = () => {
   const doctorsList = useMemo(() => (staffList as any[]).filter((s: any) => (s.role || "").toLowerCase() === "doctor"), [staffList]);
   // Other active staff (nurse, therapist, etc.) can also be assigned to an appointment
   const otherStaffList = useMemo(() => (staffList as any[]).filter((s: any) => (s.role || "").toLowerCase() !== "doctor"), [staffList]);
+
+  // Booking from a patient's record (Patients > Appts > Book Appointment lands
+  // here with the patient already chosen) left the doctor blank, so front desk
+  // picked from memory the one that patient always sees. Their last visit
+  // already says who that is. Only fetched once the dialog is open with a
+  // patient set, so it costs nothing until somebody books.
+  const { data: recentVisits = [] } = useQuery({
+    queryKey: ["new-appt-recent-visits", patientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("start_time, staff_id")
+        .eq("patient_id", patientId)
+        .order("start_time", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && !!patientId,
+  });
+
+  // Fills a blank only: a doctor chosen by hand is never overridden, resetForm
+  // still clears it, and the single-doctor filter prefill is not fought over -
+  // both are filling the same empty field.
+  useEffect(() => {
+    if (!open || staffId) return;
+    const usual = usualDoctorId(
+      recentVisits as PastVisit[],
+      (staffList as { id: string }[]).map((s) => s.id),
+    );
+    if (usual) setStaffId(usual);
+  }, [open, staffId, recentVisits, staffList]);
 
   // Saved-view filter builder options for the picklist fields
   const viewDoctorOptions: PickOption[] = useMemo(

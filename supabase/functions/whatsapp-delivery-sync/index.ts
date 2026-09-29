@@ -70,8 +70,7 @@ Deno.serve(async (req) => {
     const byPhone = new Map<string, string>();
     for (let i = 0; i < last10s.length; i += 10) {
       await Promise.all(last10s.slice(i, i + 10).map(async (p) => {
-        const { data } = await admin.from("patients").select("id").ilike("phone", `%${p}`)
-          .is("deleted_at" as any, null).limit(1);
+        const { data } = await admin.from("patients").select("id").ilike("phone", `%${p}`).limit(1);
         if (data?.[0]) byPhone.set(p, data[0].id);
       }));
     }

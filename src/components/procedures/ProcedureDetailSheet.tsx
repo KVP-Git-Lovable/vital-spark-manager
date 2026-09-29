@@ -42,6 +42,7 @@ import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { OTHERS_VALUE } from "@/lib/othersOption";
+import { parentServiceName, linesToWrite } from "@/lib/serviceLineSave";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
 import { type ServiceOption } from "@/lib/servicePicker";
 import { MEDICAL_FIELDS, SKIN_TYPE_OPTIONS } from "@/lib/medicalFields";
@@ -177,6 +178,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   // The service lines as this visit was opened, so the save can tell a parent
   // value that is merely their roll-up from one holding something of its own.
   const originalServiceLinesRef = useRef<ServiceLineRow[]>([]);
+  // Whether procedure_services actually held rows when this visit was opened.
+  // Not the same as "the lines on screen": an imported visit is shown a line
+  // read from its parent row, and that one was never stored.
+  const hadStoredLinesRef = useRef(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [sendingWa, setSendingWa] = useState(false);
 
@@ -518,6 +523,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
           },
         ];
     setEditServiceLines(rows);
+    hadStoredLinesRef.current = procedureServices.length > 0;
     // What the lines added up to when this visit was opened. The save compares
     // against it to tell "the parent is just these lines" from "the parent
     // holds something of its own".
@@ -586,7 +592,9 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      const kept = editServiceLines.filter((l) => !l._deleted && (l.service_name || "").trim());
+      const onScreen = editServiceLines.filter((l) => !l._deleted);
+      const kept = onScreen.filter((l) => (l.service_name || "").trim());
+      const toWrite = linesToWrite(onScreen);
       const original = originalServiceLinesRef.current;
 
       // Write the roll-up only where the lines account for what is stored. An
@@ -604,7 +612,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
       // Update procedure
       const { error } = await supabase.from("procedures").update({
-        service_name: kept.length ? kept.map((l) => l.service_name).join(", ") : editServiceName,
+        service_name: parentServiceName(kept, hadStoredLinesRef.current, editServiceName),
         status: editStatus,
         staff_id: editStaffId && editStaffId.trim() ? editStaffId : null,
         procedure_notes: kept.length ? rolled("procedure_notes", editProcedureNotes) : editProcedureNotes,
@@ -639,7 +647,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       for (const l of editServiceLines.filter((x) => x.id && x._deleted)) {
         await supabase.from("procedure_services").delete().eq("id", l.id!);
       }
-      for (const [i, l] of kept.entries()) {
+      for (const [i, l] of toWrite.entries()) {
         if (l.id) {
           await supabase.from("procedure_services").update({
             service_id: serviceIdForSave(l.service_id),

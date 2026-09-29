@@ -220,16 +220,21 @@ async function processMessage(opts: { fromRaw: string; userBody: string; message
     ]);
     log("parallel_loaded");
 
-    // The bot is switched off: every inbound message, button or free text,
-    // gets the same fixed "please call us" reply. The AI path below is kept
-    // but no longer reached.
+    // The bot is switched off. Confirm keeps its acknowledgement; every other
+    // button or free-text message receives only the clinic call instruction.
     {
-      const sid = await sendWhatsAppReply(phone, CLINIC_CALL_MESSAGE);
+      const buttonIntent = detectButtonIntent(buttonText || "") || detectButtonIntent(userBody);
+      const reply = buttonIntent === "confirm"
+        ? patient
+          ? `Thanks for confirming, ${patient.first_name}! 😊 See you soon.\nThe Skin Clinic, Mangalore`
+          : "Thanks for confirming! 😊 See you soon.\nThe Skin Clinic, Mangalore"
+        : CLINIC_CALL_MESSAGE;
+      const sid = await sendWhatsAppReply(phone, reply);
       await sb.from("whatsapp_conversations").insert({
-        patient_id: patient?.id ?? null, phone, direction: "outbound", role: "assistant", content: CLINIC_CALL_MESSAGE, message_sid: sid,
+        patient_id: patient?.id ?? null, phone, direction: "outbound", role: "assistant", content: reply, message_sid: sid,
       });
       if (patient) sb.from("whatsapp_conversations").update({ patient_id: patient.id }).eq("message_sid", messageSid).is("patient_id", null).then(() => {});
-      log("done_fixed_reply");
+      log(buttonIntent === "confirm" ? "done_button_confirm" : "done_fixed_reply");
       return;
     }
 

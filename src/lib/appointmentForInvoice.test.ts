@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickAppointmentForInvoice, sameLocalDay } from "./appointmentForInvoice";
+import { pickAppointmentForInvoice, doctorForInvoice, sameLocalDay } from "./appointmentForInvoice";
 
 /** Local-time ISO, so the test means the same thing wherever it runs. */
 const at = (y: number, m: number, d: number, h: number, min = 0) =>
@@ -88,5 +88,66 @@ describe("sameLocalDay", () => {
   it("compares the calendar day, not the instant", () => {
     expect(sameLocalDay(new Date(2026, 8, 24, 0, 5), new Date(2026, 8, 24, 23, 55))).toBe(true);
     expect(sameLocalDay(new Date(2026, 8, 24, 23, 55), new Date(2026, 8, 25, 0, 5))).toBe(false);
+  });
+});
+
+/**
+ * Billing a patient from their record used to open an empty form - staff picked
+ * the patient again and then the doctor from memory, and a bill could be saved
+ * with neither. The visit already says who saw them.
+ */
+describe("doctorForInvoice", () => {
+  it("takes the doctor from that day's visit", () => {
+    expect(
+      doctorForInvoice(
+        [{ id: "a", start_time: at(2026, 9, 29, 11), staff_id: DR_VINDHYA }],
+        new Date(2026, 8, 29),
+      ),
+    ).toBe(DR_VINDHYA);
+  });
+
+  it("ignores visits on other days, including a future booking", () => {
+    expect(
+      doctorForInvoice(
+        [
+          { id: "a", start_time: at(2026, 10, 5, 11), staff_id: DR_OTHER },
+          { id: "b", start_time: at(2026, 9, 28, 11), staff_id: DR_OTHER },
+        ],
+        new Date(2026, 8, 29),
+      ),
+    ).toBeNull();
+  });
+
+  it("is happy when two visits that day were with the same doctor", () => {
+    expect(
+      doctorForInvoice(
+        [
+          { id: "a", start_time: at(2026, 9, 29, 11), staff_id: DR_VINDHYA },
+          { id: "b", start_time: at(2026, 9, 29, 17), staff_id: DR_VINDHYA },
+        ],
+        new Date(2026, 8, 29),
+      ),
+    ).toBe(DR_VINDHYA);
+  });
+
+  it("names nobody when that day's visits disagree - a wrong doctor on a bill is worse than a blank", () => {
+    expect(
+      doctorForInvoice(
+        [
+          { id: "a", start_time: at(2026, 9, 29, 11), staff_id: DR_VINDHYA },
+          { id: "b", start_time: at(2026, 9, 29, 17), staff_id: DR_OTHER },
+        ],
+        new Date(2026, 8, 29),
+      ),
+    ).toBeNull();
+  });
+
+  it("copes with no visits, no date and a visit carrying no doctor", () => {
+    expect(doctorForInvoice([], new Date(2026, 8, 29))).toBeNull();
+    expect(doctorForInvoice(null, new Date(2026, 8, 29))).toBeNull();
+    expect(doctorForInvoice([{ id: "a", start_time: at(2026, 9, 29, 11), staff_id: DR_VINDHYA }], null)).toBeNull();
+    expect(
+      doctorForInvoice([{ id: "a", start_time: at(2026, 9, 29, 11), staff_id: null }], new Date(2026, 8, 29)),
+    ).toBeNull();
   });
 });

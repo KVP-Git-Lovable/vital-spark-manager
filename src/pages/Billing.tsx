@@ -8,7 +8,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { stockDelta } from "@/lib/pharmaStockDelta";
 import { isConsultationService } from "@/lib/consultationLine";
 import { resolveServiceFromMaster } from "@/lib/serviceMatch";
-import { pickAppointmentForInvoice, type LinkableAppointment } from "@/lib/appointmentForInvoice";
+import { pickAppointmentForInvoice, doctorForInvoice, type LinkableAppointment } from "@/lib/appointmentForInvoice";
 import { paymentModeLabel } from "@/lib/paymentModes";
 import { renderPdfToImages } from "@/lib/renderPdf";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
@@ -1021,7 +1021,13 @@ const Billing = () => {
     // this appointment only.
     resetForm();
 
+    // Billing a patient from their own record arrives as ?patientId=...&newInvoice=1
+    // with no stashed payload, and resetForm() above has just cleared the id the
+    // effect at the top of this file set. Without this the form opened empty and
+    // a bill could be saved with no patient at all - INV-49169 was exactly that.
+    const queryPatientId = searchParams.get("patientId");
     if (payload?.patientId) setPatientId(payload.patientId);
+    else if (queryPatientId) setPatientId(queryPatientId);
     if (payload?.doctorId) setDoctorId(payload.doctorId);
     if (payload?.appointmentId) {
       setSourceAppointmentId(payload.appointmentId);
@@ -1040,6 +1046,15 @@ const Billing = () => {
     setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  // The visit already records who saw the patient, so the bill does not have to
+  // ask. Only fills a blank - a doctor chosen by hand is never overridden - and
+  // says nothing when that day's visits disagree about the doctor.
+  useEffect(() => {
+    if (!open || !patientId || doctorId) return;
+    const fromVisit = doctorForInvoice(createPatientAppointments as LinkableAppointment[], invoiceDate);
+    if (fromVisit) setDoctorId(fromVisit);
+  }, [open, patientId, doctorId, createPatientAppointments, invoiceDate]);
 
   // Resolve prefilled service / product lines once the master lists have loaded,
   // so price + HSN are auto-filled from Service Master.
@@ -2196,6 +2211,8 @@ const Billing = () => {
 
       const { data: written, error } = await supabase.from("invoices").update({
         patient_name: editData.patient_name,
+        patient_id: editData.patient_id || null,
+        doctor_id: editData.doctor_id || null,
         total_amount: newTotal,
         paid_amount: newPaid,
         payment_mode: editData.payment_mode,
@@ -2407,6 +2424,8 @@ const Billing = () => {
     setIsEditing(false);
     setEditData({
       patient_name: getPatientName(inv, patientById),
+      patient_id: inv.patient_id || "",
+      doctor_id: inv.doctor_id || "",
       total_amount: inv.total_amount,
       paid_amount: inv.paid_amount,
       payment_mode: inv.payment_mode || "Cash",
@@ -3928,9 +3947,40 @@ const Billing = () => {
           {/* Edit Mode */}
           {viewInvoice && isEditing && (
             <div className="space-y-4">
-              <div>
-                <Label>Patient Name</Label>
-                <Input className="mt-1.5" value={editData.patient_name} disabled />
+              {/* Both were unreachable from here: the patient was a disabled box -
+                  blank whenever the bill had no patient, which is precisely when
+                  it needs correcting - and the doctor was not on the form at all. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label>Patient</Label>
+                  <PatientCombobox
+                    value={editData.patient_id || ""}
+                    onValueChange={(v) => {
+                      const p = patientById.get(v) as { first_name?: string; last_name?: string } | undefined;
+                      setEditData({
+                        ...editData,
+                        patient_id: v,
+                        // The bill keeps its own copy of the name; move it with
+                        // the link or the two disagree.
+                        patient_name: p ? `${p.first_name} ${p.last_name || ""}`.trim() : editData.patient_name,
+                      });
+                    }}
+                    placeholder="Select patient"
+                    className="mt-1.5"
+                  />
+                </div>
+                <div>
+                  <Label>Doctor</Label>
+                  <StaffCombobox
+                    value={editData.doctor_id || ""}
+                    onValueChange={(v) => setEditData({ ...editData, doctor_id: v })}
+                    allowNone
+                    noneLabel="No doctor"
+                    placeholder="Select doctor"
+                    className="mt-1.5"
+                    roleFilter={["Doctor"]}
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

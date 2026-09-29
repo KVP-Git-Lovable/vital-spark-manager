@@ -63,3 +63,31 @@ export function pickAppointmentForInvoice(
   const byDoctor = sameDay.filter((a) => a.staff_id === opts.doctorId);
   return byDoctor.length === 1 ? byDoctor[0].id : null;
 }
+
+/**
+ * The doctor to put on a bill, read from the visit it is for.
+ *
+ * Billing a patient from their record used to open an empty form: staff picked
+ * the patient again, then the doctor, from memory. The visit already says who
+ * saw them, so this reads it rather than asking.
+ *
+ * Same evidence and the same caution as pickAppointmentForInvoice: only that
+ * day's visits count, and where they disagree about the doctor this returns
+ * null rather than name the wrong one on a bill.
+ */
+export function doctorForInvoice(
+  appointments: LinkableAppointment[] | null | undefined,
+  invoiceDate: Date | null | undefined,
+): string | null {
+  if (!invoiceDate || Number.isNaN(invoiceDate.getTime())) return null;
+
+  const doctors = new Set<string>();
+  for (const a of appointments || []) {
+    if (!a?.start_time || !a.staff_id) continue;
+    const when = new Date(a.start_time);
+    if (Number.isNaN(when.getTime())) continue;
+    if (sameLocalDay(when, invoiceDate)) doctors.add(a.staff_id);
+  }
+
+  return doctors.size === 1 ? [...doctors][0] : null;
+}

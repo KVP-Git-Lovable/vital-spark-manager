@@ -74,6 +74,7 @@ const mainItems = [
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart, moduleKey: "report_builder" },
   { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard, moduleKey: "dashboards" },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone, moduleKey: "campaigns" },
+  { title: "WhatsApp Delivery", url: "/whatsapp-log", icon: MessageCircle, moduleKey: "campaigns" },
 ];
 
 const employeesSubItems = [

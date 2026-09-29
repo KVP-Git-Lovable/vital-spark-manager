@@ -36,6 +36,8 @@ import { SkinTracker } from "@/components/shared/SkinTracker";
 import { PhotoViewer } from "@/components/patients/PhotoViewer";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { AiRepository } from "@/components/shared/AiRepository";
+import { WhatsAppDeliveryLog } from "@/components/shared/WhatsAppDeliveryLog";
+import { MessageCircle } from "lucide-react";
 import { CameraDialog } from "@/components/shared/CameraDialog";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
 import { PatientAttachments } from "@/components/patients/PatientAttachments";
@@ -818,6 +820,7 @@ const PatientDetail = () => {
             <TabsTrigger value="attachments" title="Attachments" aria-label="Attachments" className="gap-1 text-xs md:text-sm"><Paperclip className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Attachments</span> ({attachments.length})</TabsTrigger>
             <TabsTrigger value="campaigns" title="Campaigns" aria-label="Campaigns" className="gap-1 text-xs md:text-sm"><Megaphone className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Campaigns</span> ({patientCampaigns.length})</TabsTrigger>
             <TabsTrigger value="ai-repo" title="AI Repository" aria-label="AI Repository" className="gap-1 text-xs md:text-sm"><Sparkles className="h-3.5 w-3.5" /> <span className="hidden sm:inline">AI Repository</span></TabsTrigger>
+            <TabsTrigger value="whatsapp" title="WhatsApp" aria-label="WhatsApp" className="gap-1 text-xs md:text-sm"><MessageCircle className="h-3.5 w-3.5" /> <span className="hidden sm:inline">WhatsApp</span></TabsTrigger>
           </TabsList>
         </div>
 
@@ -1729,6 +1732,10 @@ const PatientDetail = () => {
         {/* Campaigns Tab */}
         <TabsContent value="ai-repo">
           <div className="mt-4"><AiRepository patientId={id!} patientName={`${patient.first_name} ${patient.last_name}`} /></div>
+        </TabsContent>
+
+        <TabsContent value="whatsapp">
+          <div className="mt-4"><WhatsAppDeliveryLog patientId={id!} /></div>
         </TabsContent>
 
         <TabsContent value="campaigns">

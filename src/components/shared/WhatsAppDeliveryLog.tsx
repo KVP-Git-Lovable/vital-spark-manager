@@ -1,0 +1,139 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { FunctionsHttpError } from "@supabase/supabase-js";
+import { format } from "date-fns";
+import { RefreshCw, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "sonner";
+
+const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
+  read: { label: "Read", cls: "bg-success/15 text-success border-success/30" },
+  delivered: { label: "Delivered", cls: "bg-success/15 text-success border-success/30" },
+  sent: { label: "Sent (awaiting delivery)", cls: "bg-warning/15 text-warning border-warning/30" },
+  queued: { label: "Queued", cls: "bg-warning/15 text-warning border-warning/30" },
+  accepted: { label: "Queued", cls: "bg-warning/15 text-warning border-warning/30" },
+  undelivered: { label: "Not delivered", cls: "bg-destructive/15 text-destructive border-destructive/30" },
+  failed: { label: "Failed", cls: "bg-destructive/15 text-destructive border-destructive/30" },
+};
+
+const ERROR_HINT: Record<number, string> = {
+  63024: "Number is not on WhatsApp or is saved wrongly",
+  63016: "Outside 24-hour window",
+  63003: "Invalid WhatsApp number",
+  63049: "Blocked by WhatsApp (marketing limit)",
+};
+
+export function StatusBadge({ status }: { status: string }) {
+  const s = STATUS_LABEL[status] ?? { label: status, cls: "" };
+  return <Badge variant="outline" className={s.cls}>{s.label}</Badge>;
+}
+
+type Filter = "all" | "problem";
+
+export function WhatsAppDeliveryLog({ patientId }: { patientId?: string }) {
+  const qc = useQueryClient();
+  const [filter, setFilter] = useState<Filter>(patientId ? "all" : "problem");
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["whatsapp-delivery-log", patientId ?? "all", filter],
+    queryFn: async () => {
+      let q = supabase
+        .from("whatsapp_delivery_log")
+        .select("message_sid, patient_id, phone, status, error_code, error_message, sent_at, patients(first_name, last_name)")
+        .order("sent_at", { ascending: false })
+        .limit(patientId ? 100 : 300);
+      if (patientId) q = q.eq("patient_id", patientId);
+      if (filter === "problem") q = q.in("status", ["undelivered", "failed", "sent", "queued", "accepted"]);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
+  const sync = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("whatsapp-delivery-sync", { body: { days: 7 } });
+      if (error) {
+        const details = error instanceof FunctionsHttpError ? await error.context.text() : error.message;
+        throw new Error(details);
+      }
+      return data as { synced: number };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["whatsapp-delivery-log"] });
+      toast.success("Delivery status updated");
+    },
+    onError: (e: Error) => toast.error(`Could not update: ${e.message}`),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+        <CardTitle className="text-base">WhatsApp confirmations</CardTitle>
+        <div className="flex items-center gap-2">
+          <Select value={filter} onValueChange={(v) => setFilter(v as Filter)}>
+            <SelectTrigger className="h-9 w-[190px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All messages</SelectItem>
+              <SelectItem value="problem">Not delivered / pending</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => sync.mutate()} disabled={sync.isPending}>
+            {sync.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            <span className="ml-1">Refresh status</span>
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : rows.length === 0 ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            {filter === "problem" ? "No undelivered messages." : "No confirmation messages recorded yet."}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Sent</TableHead>
+                  {!patientId && <TableHead>Patient</TableHead>}
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Reason</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.message_sid}>
+                    <TableCell className="whitespace-nowrap">{format(new Date(r.sent_at), "dd MMM yyyy, hh:mm a")}</TableCell>
+                    {!patientId && (
+                      <TableCell>
+                        {r.patient_id && r.patients ? (
+                          <Link className="text-primary hover:underline" to={`/patients/${r.patient_id}`}>
+                            {r.patients.first_name} {r.patients.last_name}
+                          </Link>
+                        ) : <span className="text-muted-foreground">Unknown</span>}
+                      </TableCell>
+                    )}
+                    <TableCell className="whitespace-nowrap">{r.phone}</TableCell>
+                    <TableCell><StatusBadge status={r.status} /></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.error_code ? (ERROR_HINT[r.error_code] ?? r.error_message ?? `Error ${r.error_code}`) : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

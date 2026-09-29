@@ -48,6 +48,7 @@ const TaxMaster = lazyWithReload(() => import("./pages/TaxMaster"));
 const Expenses = lazyWithReload(() => import("./pages/Expenses"));
 const StaffManagement = lazyWithReload(() => import("./pages/StaffManagement"));
 const StaffDetail = lazyWithReload(() => import("./pages/StaffDetail"));
+const WhatsAppLog = lazyWithReload(() => import("./pages/WhatsAppLog"));
 const Campaigns = lazyWithReload(() => import("./pages/Campaigns"));
 const CampaignDetail = lazyWithReload(() => import("./pages/CampaignDetail"));
 const PortalLanding = lazyWithReload(() => import("./pages/portal/PortalLanding"));
@@ -243,6 +244,7 @@ const App = () => (
                     <Route path="/dashboards" element={<ProtectedRoute moduleKey="dashboards"><Dashboards /></ProtectedRoute>} />
                     <Route path="/dashboards/:id" element={<ProtectedRoute moduleKey="dashboards"><DashboardView /></ProtectedRoute>} />
                     <Route path="/dashboard-explore" element={<ProtectedRoute moduleKey="dashboard"><DashboardExplore /></ProtectedRoute>} />
+                    <Route path="/whatsapp-log" element={<ProtectedRoute moduleKey="campaigns"><WhatsAppLog /></ProtectedRoute>} />
                     <Route path="/campaigns" element={<ProtectedRoute moduleKey="campaigns"><Campaigns /></ProtectedRoute>} />
                     <Route path="/campaigns/:id" element={<ProtectedRoute moduleKey="campaigns"><CampaignDetail /></ProtectedRoute>} />
                     <Route path="/procedures" element={<ProtectedRoute moduleKey="procedures"><Procedures /></ProtectedRoute>} />

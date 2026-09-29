@@ -14,6 +14,9 @@ import { buildOrFilter, buildTokenFilters, fuzzyRank } from "@/lib/fuzzySearch";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { procedureDateLabel } from "@/lib/procedureDate";
+import {
+  readRecentSearches, rememberRecentSearch, readLastSearch, rememberLastSearch, forgetLastSearch,
+} from "@/lib/recentSearch";
 
 type Kind = "patient" | "appointment" | "procedure" | "invoice" | "staff" | "service" | "product";
 
@@ -46,29 +49,32 @@ const SCOPES: { key: "all" | Kind; label: string }[] = [
   { key: "product", label: "Products" },
 ];
 
-const RECENTS_KEY = "globalSearch.recents";
-
-const readRecents = (): string[] => {
-  try { return JSON.parse(localStorage.getItem(RECENTS_KEY) || "[]"); } catch { return []; }
-};
-
 export function GlobalSearch({ className }: { className?: string }) {
   const navigate = useNavigate();
-  const [term, setTerm] = useState("");
+  // The search that was last typed, so moving to another tab and back does not
+  // mean typing the number again. GlobalSearch is mounted once in the header,
+  // so this only has to be read back after a full reload.
+  const [term, setTerm] = useState(readLastSearch);
+  // The box is only searched once somebody has been in it: a term restored from
+  // the last visit must not fire a seven-table query on every app load.
+  const [touched, setTouched] = useState(false);
   const [scope, setScope] = useState<"all" | Kind>("all");
   const [debounced, setDebounced] = useState("");
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [recents, setRecents] = useState<string[]>(readRecents);
+  const [recents, setRecents] = useState<string[]>(readRecentSearches);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(term.trim()), 200);
+    const t = setTimeout(() => {
+      rememberLastSearch(term);
+      if (touched) setDebounced(term.trim());
+    }, 200);
     return () => clearTimeout(t);
-  }, [term]);
+  }, [term, touched]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -91,13 +97,7 @@ export function GlobalSearch({ className }: { className?: string }) {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  const rememberTerm = (q: string) => {
-    const clean = q.trim();
-    if (clean.length < 2) return;
-    const next = [clean, ...readRecents().filter((r) => r.toLowerCase() !== clean.toLowerCase())].slice(0, 6);
-    setRecents(next);
-    localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
-  };
+  const rememberTerm = (q: string) => setRecents(rememberRecentSearch(q));
 
   useEffect(() => {
     let cancelled = false;
@@ -248,19 +248,19 @@ export function GlobalSearch({ className }: { className?: string }) {
     return [...map.entries()];
   }, [results]);
 
+  // The term is deliberately left in the box: front desk look a patient up,
+  // go to Billing, and come back to the same search rather than typing the
+  // number again. The X button is the one gesture that clears it.
   const go = (r: Result) => {
     rememberTerm(term);
     setOpen(false);
-    setTerm("");
     navigate(r.route);
   };
 
   const viewAll = (kind: Kind) => {
     rememberTerm(term);
     setOpen(false);
-    const q = term.trim();
-    setTerm("");
-    navigate(`${KIND_META[kind].listRoute}?q=${encodeURIComponent(q)}`);
+    navigate(`${KIND_META[kind].listRoute}?q=${encodeURIComponent(term.trim())}`);
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -296,19 +296,19 @@ export function GlobalSearch({ className }: { className?: string }) {
             placeholder="Search patients, appointments, bills…"
             className="pl-8 pr-16 w-64 bg-transparent border-0 focus-visible:ring-0"
             value={term}
-            onFocus={() => setOpen(true)}
-            onChange={(e) => { setTerm(e.target.value); setOpen(true); }}
+            onFocus={() => { setTouched(true); setOpen(true); }}
+            onChange={(e) => { setTouched(true); setTerm(e.target.value); setOpen(true); }}
             onKeyDown={onKeyDown}
           />
           <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
             {term && (
-              <button type="button" className="p-1 text-muted-foreground hover:text-foreground" onClick={() => { setTerm(""); inputRef.current?.focus(); }} aria-label="Clear search">
+              <button type="button" className="p-1 text-muted-foreground hover:text-foreground" onClick={() => { setTerm(""); forgetLastSearch(); inputRef.current?.focus(); }} aria-label="Clear search">
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
             <MicButton
               value={term}
-              onChange={(v) => { setTerm(v); setOpen(true); }}
+              onChange={(v) => { setTouched(true); setTerm(v); setOpen(true); }}
               mode="replace"
               title="Speak to search"
             />
@@ -324,7 +324,7 @@ export function GlobalSearch({ className }: { className?: string }) {
               key={r}
               type="button"
               className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm hover:bg-accent/60"
-              onClick={() => { setTerm(r); inputRef.current?.focus(); }}
+              onClick={() => { setTouched(true); setTerm(r); inputRef.current?.focus(); }}
             >
               <Clock className="h-3.5 w-3.5 text-muted-foreground" /> {r}
             </button>

@@ -13,6 +13,7 @@ import { CameraDialog } from "@/components/shared/CameraDialog";
 import { displayDate } from "@/lib/dateInput";
 import { attachmentStoragePath } from "@/lib/attachmentPath";
 import { uploadFailureMessage, uploadSuccessMessage, type FailedUpload } from "@/lib/uploadSummary";
+import { isConsultationService } from "@/lib/consultationLine";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -233,7 +234,14 @@ export function PatientAttachments({
                         {att.document_type && (
                           <Badge variant="default" className="text-[10px]">{att.document_type}</Badge>
                         )}
-                        {att.procedures?.service_name && (
+                        {/* The visit's service, but only when it names a real
+                            treatment. An attachment is filed against the
+                            patient's current prescription, and on most visits
+                            that reads "Consultation" - which is not a service,
+                            it means the patient was seen, so it said nothing
+                            beside a lab report. Same rule as the prescription
+                            screens and the printed document. */}
+                        {att.procedures?.service_name && !isConsultationService(att.procedures.service_name) && (
                           <Badge variant="secondary" className="text-[10px]">{att.procedures.service_name}</Badge>
                         )}
                         <span className="text-xs text-muted-foreground">{displayDate(att.created_at)}</span>

@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { ALL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
+import { amountBeforeGst, gstRateLabel } from "@/lib/invoiceGst";
 import { formatMoneyExact } from "@/lib/currency";
 import { collectionCards, modesOf, paymentModeLabel, PAYMENT_BUCKETS } from "@/lib/paymentModes";
 import { npsBreakdown, npsCategory, ratingLabel } from "@/lib/feedbackScores";
@@ -175,6 +176,22 @@ const STATUS_INV = ["Pending", "Partial", "Paid"];
 const PAY_MODES = ["Cash", "Card", "UPI", "Bank Transfer", "Cheque"];
 const CAMPAIGN_TYPES = ["Google Ads", "Meta Ads", "WhatsApp", "Email", "Other"];
 const CAMPAIGN_STATUS = ["Planning", "Active", "Completed"];
+
+/**
+ * The money columns for a report whose rows are invoices: what was charged
+ * before GST, the rate the bill carries, and the total after it.
+ *
+ * One definition, used by every invoice report - Invoices & Revenue, Cancelled
+ * Bills, and any added later - so the three never drift apart or get left off a
+ * new one. Total keeps the total_amount key it always had, so sorting, the
+ * summary cards and the revenue chart are untouched: nothing here changes a
+ * figure, it only shows what the figure is made of.
+ */
+export const INVOICE_MONEY_COLUMNS: ReportColumn[] = [
+  { key: "amount_before_gst", label: "Amount", sortable: true, type: "currency", accessor: (r) => amountBeforeGst(r) },
+  { key: "gst_rate", label: "GST %", sortable: true, accessor: (r) => gstRateLabel(r) },
+  { key: "total_amount", label: "Total", sortable: true, type: "currency" },
+];
 
 export const REPORTS: ReportConfig[] = [
   {
@@ -367,7 +384,7 @@ export const REPORTS: ReportConfig[] = [
     columns: [
       { key: "invoice_number", label: "Invoice #", sortable: true },
       { key: "patient_name", label: "Patient", sortable: true },
-      { key: "total_amount", label: "Total", sortable: true, type: "currency" },
+      ...INVOICE_MONEY_COLUMNS,
       { key: "paid_amount", label: "Paid", sortable: true, type: "currency" },
       { key: "status", label: "Status", sortable: true, type: "badge" },
       // The invoice's own doctor where it has one, otherwise the doctor recorded
@@ -463,7 +480,7 @@ export const REPORTS: ReportConfig[] = [
     columns: [
       { key: "invoice_number", label: "Billing ID", sortable: true },
       { key: "patient_name", label: "Patient", sortable: true },
-      { key: "total_amount", label: "Amount", sortable: true, type: "currency" },
+      ...INVOICE_MONEY_COLUMNS,
       { key: "cancellation_reason", label: "Reason", sortable: true },
       { key: "cancelled_by_name", label: "Cancelled By", sortable: true },
       { key: "cancelled_at", label: "Cancelled On", sortable: true, type: "datetime" },

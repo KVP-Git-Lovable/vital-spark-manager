@@ -99,7 +99,7 @@ export const registerPwa = async () => {
       });
     },
 
-    async onNeedRefresh() {
+    onNeedRefresh() {
       // Deferred a tick because this can fire while registerSW is still
       // returning, before updateSW is assigned.
       const reload = () => setTimeout(() => void updateSW(true), 0);
@@ -109,15 +109,13 @@ export const registerPwa = async () => {
         return;
       }
 
+      // No popup. This used to raise a toast that never timed out, and with
+      // several builds published a day it sat over the appointments list again
+      // and again - which is what the clinic reported. The waiting build is
+      // still recorded, so the quiet "Update ready" button appears in the
+      // header and the next reload picks the build up either way.
       applyUpdate = reload;
       setUpdateWaiting(true);
-
-      const { toast } = await import("sonner");
-      toast("A new version of the app is ready", {
-        description: "Reload when you have finished what you are doing.",
-        duration: Infinity,
-        action: { label: "Reload", onClick: reload },
-      });
     },
   });
 };

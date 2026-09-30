@@ -77,3 +77,50 @@ describe("remembering across a page navigation", () => {
     getItem.mockRestore();
   });
 });
+
+/**
+ * Front desk finish in Billing and move on: they never tap the chip and never
+ * close the sheet, so nothing forgot the appointment and it followed them onto
+ * every page for the rest of the day.
+ */
+describe("the offer runs out", () => {
+  const MINUTE = 60 * 1000;
+  const OPENED = Date.UTC(2026, 8, 30, 9, 0, 0);
+  const appointment = { id: "abc", patientName: "Renita Dsouza" };
+
+  beforeEach(() => forgetOpenAppointment());
+
+  it("still offers an appointment looked at a minute ago", () => {
+    rememberOpenAppointment(appointment, OPENED);
+    expect(readOpenAppointment(OPENED + MINUTE)).toEqual(appointment);
+  });
+
+  it("still offers it at exactly half an hour, so the edge is not left to chance", () => {
+    rememberOpenAppointment(appointment, OPENED);
+    expect(readOpenAppointment(OPENED + 30 * MINUTE)).toEqual(appointment);
+  });
+
+  it("stops offering it after half an hour", () => {
+    rememberOpenAppointment(appointment, OPENED);
+    expect(readOpenAppointment(OPENED + 31 * MINUTE)).toBeNull();
+  });
+
+  it("clears an expired one, so it cannot come back on the next page", () => {
+    rememberOpenAppointment(appointment, OPENED);
+    readOpenAppointment(OPENED + 31 * MINUTE);
+    expect(readOpenAppointment(OPENED)).toBeNull();
+  });
+
+  it("restarts the clock each time the appointment is opened", () => {
+    rememberOpenAppointment(appointment, OPENED);
+    rememberOpenAppointment(appointment, OPENED + 25 * MINUTE);
+    expect(readOpenAppointment(OPENED + 50 * MINUTE)).toEqual(appointment);
+  });
+
+  it("treats a value stored before the offer had an end as expired", () => {
+    // A chip already stuck on a screen clears itself on the first load rather
+    // than waiting for the tab to be closed.
+    sessionStorage.setItem("openAppointment", JSON.stringify(appointment));
+    expect(readOpenAppointment()).toBeNull();
+  });
+});

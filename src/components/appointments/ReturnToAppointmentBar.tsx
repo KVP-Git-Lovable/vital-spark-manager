@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -28,7 +28,7 @@ export function ReturnToAppointmentBar() {
   if (!remembered) return null;
 
   return (
-    <div className="mb-3">
+    <div className="mb-3 flex items-center gap-1">
       <button
         onClick={() => {
           forgetOpenAppointment();
@@ -37,6 +37,20 @@ export function ReturnToAppointmentBar() {
         className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
       >
         <ArrowLeft className="h-3.5 w-3.5" /> {returnLabel(remembered)}
+      </button>
+      {/* Front desk finish with an appointment without ever tapping the chip,
+          so there has to be a way to say so. It also drops on its own after
+          half an hour - see openAppointment.ts. */}
+      <button
+        onClick={() => {
+          forgetOpenAppointment();
+          setRemembered(null);
+        }}
+        className="p-0.5 text-muted-foreground hover:text-foreground"
+        aria-label="Dismiss"
+        title="Dismiss"
+      >
+        <X className="h-3 w-3" />
       </button>
     </div>
   );

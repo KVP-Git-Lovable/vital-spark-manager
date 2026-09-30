@@ -14,14 +14,31 @@
 
 const KEY = "openAppointment";
 
+/**
+ * How long the offer stands.
+ *
+ * Front desk finish in Billing and move on: they do not tap the chip and they
+ * do not close the sheet, so nothing forgot the appointment and the chip
+ * followed them onto every page for the rest of the day. Half an hour is about
+ * one visit's working window, and the clock restarts every time the
+ * appointment is looked at.
+ */
+const EXPIRY_MS = 30 * 60 * 1000;
+
 export interface OpenAppointment {
   id: string;
   patientName: string;
 }
 
-export function rememberOpenAppointment(appointment: OpenAppointment): void {
+interface StoredAppointment extends OpenAppointment {
+  /** When the appointment was last open, in epoch milliseconds. */
+  at: number;
+}
+
+export function rememberOpenAppointment(appointment: OpenAppointment, now = Date.now()): void {
   try {
-    sessionStorage.setItem(KEY, JSON.stringify(appointment));
+    const stored: StoredAppointment = { ...appointment, at: now };
+    sessionStorage.setItem(KEY, JSON.stringify(stored));
   } catch {
     /* private window, or site data blocked - the chip simply will not appear */
   }
@@ -35,12 +52,22 @@ export function forgetOpenAppointment(): void {
   }
 }
 
-export function readOpenAppointment(): OpenAppointment | null {
+export function readOpenAppointment(now = Date.now()): OpenAppointment | null {
   try {
     const raw = sessionStorage.getItem(KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<OpenAppointment>;
+    const parsed = JSON.parse(raw) as Partial<StoredAppointment>;
     if (!parsed?.id) return null;
+
+    // No timestamp means it was written before the offer had an end - and a
+    // chip already stuck on somebody's screen is exactly what this fixes, so it
+    // counts as expired rather than living on.
+    const at = typeof parsed.at === "number" ? parsed.at : null;
+    if (at === null || now - at > EXPIRY_MS) {
+      forgetOpenAppointment();
+      return null;
+    }
+
     return { id: parsed.id, patientName: parsed.patientName || "" };
   } catch {
     // Unparseable or unreadable. Treated as "nothing open" rather than thrown,

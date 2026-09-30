@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote, SpellCheck } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -40,7 +40,6 @@ import { type ServiceOption } from "@/lib/servicePicker";
 import { isPlaceholderVisitService } from "@/lib/consultationLine";
 import { looksLikeInvestigation } from "@/lib/investigationAsService";
 import { patientIdentityLine } from "@/lib/patientIdentity";
-import { fixSpelling, didChange } from "@/lib/fixSpelling";
 
 import {
   MEDICAL_FIELDS,
@@ -174,7 +173,6 @@ export function ProcedureFormDialog({
   const [elaboratingAll, setElaboratingAll] = useState(false);
   // Which single field is being elaborated, as "<lineKey>:<field>".
   const [elaborating, setElaborating] = useState<string | null>(null);
-  const [fixingSpelling, setFixingSpelling] = useState(false);
   const [elaboratingMedical, setElaboratingMedical] = useState(false);
   const [recentlyFilled, setRecentlyFilled] = useState<Record<string, boolean>>({});
   const [unmatchedHints, setUnmatchedHints] = useState<{
@@ -436,63 +434,6 @@ export function ProcedureFormDialog({
       setElaborating(null);
     }
   };
-
-  /**
-   * Correct the spelling of every filled field on a card, in one press.
-   *
-   * The browser already underlines a misspelt word, but fixing it means
-   * right-clicking each one. Spelling only - the text is not rewritten, and a
-   * reply that changes the words, the lines or any figure is discarded in
-   * favour of what the doctor typed (see acceptCorrection).
-   */
-  const fixSpellingIn = async (
-    fields: { label: string; value: string; apply: (next: string) => void }[],
-  ) => {
-    const filled = fields.filter((f) => (f.value || "").trim());
-    if (filled.length === 0) {
-      toast.info("Nothing to check yet - write something first.");
-      return;
-    }
-    setFixingSpelling(true);
-    try {
-      const results = await Promise.all(
-        filled.map(async (f) => ({ field: f, corrected: await fixSpelling(f.value) })),
-      );
-      const changed = results.filter((r) => didChange(r.field.value, r.corrected));
-      changed.forEach((r) => r.field.apply(r.corrected));
-      if (changed.length === 0) toast.success("No spelling mistakes found");
-      else toast.success(`Spelling corrected in ${changed.length} field${changed.length === 1 ? "" : "s"}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not check spelling");
-    } finally {
-      setFixingSpelling(false);
-    }
-  };
-
-  const fixMedicalSpelling = () =>
-    fixSpellingIn(
-      MEDICAL_FIELDS.filter(([field]) => field !== "skin_type").map(([field, label]) => ({
-        label,
-        value: medical[field] || "",
-        apply: (next: string) => { setMedical((m) => ({ ...m, [field]: next })); setMedicalDirty(true); },
-      })),
-    );
-
-  const fixServiceSpelling = () =>
-    fixSpellingIn(
-      serviceLines.flatMap((line) => [
-        {
-          label: "Procedure Notes",
-          value: line.procedure_notes,
-          apply: (next: string) => updateServiceLine(line.key, { procedure_notes: next }),
-        },
-        {
-          label: "Recommendations",
-          value: line.recommendations,
-          apply: (next: string) => updateServiceLine(line.key, { recommendations: next }),
-        },
-      ]),
-    );
 
   const elaborateMedical = async () => {
     if (ELABORATABLE_MEDICAL_FIELDS.every(([field]) => !medical[field])) {
@@ -1068,29 +1009,16 @@ export function ProcedureFormDialog({
             Use the mic on any field, then Elaborate to turn it into clinical language.
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 gap-1.5"
-            onClick={fixMedicalSpelling}
-            disabled={fixingSpelling || elaboratingMedical}
-          >
-            {fixingSpelling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <SpellCheck className="h-3.5 w-3.5" />}
-            Fix Spelling
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="h-8 gap-1.5"
-            onClick={elaborateMedical}
-            disabled={elaboratingMedical || fixingSpelling}
-          >
-            {elaboratingMedical ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            AI Elaborate All
-          </Button>
-        </div>
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 gap-1.5"
+          onClick={elaborateMedical}
+          disabled={elaboratingMedical}
+        >
+          {elaboratingMedical ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          AI Elaborate All
+        </Button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {MEDICAL_FIELDS.map(([field, label]) => (
@@ -1182,20 +1110,9 @@ export function ProcedureFormDialog({
                 <Button
                   type="button"
                   size="sm"
-                  variant="outline"
-                  className="h-8 gap-1.5"
-                  onClick={fixServiceSpelling}
-                  disabled={fixingSpelling || elaboratingAll}
-                >
-                  {fixingSpelling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <SpellCheck className="h-3.5 w-3.5" />}
-                  Fix Spelling
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
                   className="h-8 gap-1.5"
                   onClick={elaborateAll}
-                  disabled={elaboratingAll || fixingSpelling}
+                  disabled={elaboratingAll}
                 >
                   {elaboratingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                   AI Elaborate All

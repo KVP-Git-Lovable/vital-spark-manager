@@ -22,30 +22,6 @@ const removeAppServiceWorker = async () => {
   );
 };
 
-// A build is waiting and someone has to decide. Kept here rather than in React
-// state because registration happens before the app mounts, and the header
-// needs to be able to show it whenever it does.
-let updateWaiting = false;
-const waitingListeners = new Set<(waiting: boolean) => void>();
-let applyUpdate: (() => void) | null = null;
-
-const setUpdateWaiting = (waiting: boolean) => {
-  updateWaiting = waiting;
-  waitingListeners.forEach((listener) => listener(waiting));
-};
-
-/** Subscribe to "a new build is waiting to be applied". Fires immediately with the current state. */
-export const subscribeToAppUpdate = (listener: (waiting: boolean) => void) => {
-  waitingListeners.add(listener);
-  listener(updateWaiting);
-  return () => {
-    waitingListeners.delete(listener);
-  };
-};
-
-/** Apply the waiting build and reload. Safe to call when nothing is waiting. */
-export const applyAppUpdate = () => applyUpdate?.();
-
 export const registerPwa = async () => {
   if (!("serviceWorker" in navigator)) return;
 
@@ -109,13 +85,12 @@ export const registerPwa = async () => {
         return;
       }
 
-      // No popup. This used to raise a toast that never timed out, and with
-      // several builds published a day it sat over the appointments list again
-      // and again - which is what the clinic reported. The waiting build is
-      // still recorded, so the quiet "Update ready" button appears in the
-      // header and the next reload picks the build up either way.
-      applyUpdate = reload;
-      setUpdateWaiting(true);
+      // Nothing is shown and nothing interrupts. A build that arrives while
+      // somebody is working simply waits: the next time the app is loaded it is
+      // already waiting, which lands inside the grace window above and is
+      // applied silently. The clinic asked for both the popup and the header
+      // button to go, so a reload is now the only thing that takes an update -
+      // and it always does.
     },
   });
 };

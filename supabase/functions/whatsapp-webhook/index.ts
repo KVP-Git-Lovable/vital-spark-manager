@@ -301,8 +301,9 @@ async function processMessage(opts: { fromRaw: string; userBody: string; message
         .neq("status", "Cancelled")
         .order("start_time", { ascending: true })
         .limit(5);
-      if (upcoming && upcoming.length > 0) {
-        upcomingContext = upcoming
+      const upcomingRows: any[] = (upcoming as any[] | null) ?? [];
+      if (upcomingRows.length > 0) {
+        upcomingContext = upcomingRows
           .map((a: any) => {
             const d = new Date(a.start_time);
             const when = d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true });

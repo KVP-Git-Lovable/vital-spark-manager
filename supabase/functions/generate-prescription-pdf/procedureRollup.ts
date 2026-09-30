@@ -22,6 +22,29 @@ export const rollUpServiceField = (lines: RollUpLine[], field: RollUpField): str
     .join("\n\n");
 
 /**
+ * The same words in the same order, whatever the spacing.
+ *
+ * A prescription printed the doctor's own three recommendations a second time
+ * under Special Instructions. The parent row held exactly the roll-up of its
+ * lines - but the first service is stored as "Radiance Plus ", with a trailing
+ * space, so the stored text read "Radiance Plus : ..." while the document,
+ * which trims every value before comparing, computed "Radiance Plus: ...". One
+ * character apart, the equality failed, and the block printed.
+ *
+ * So the space before the service name's colon is ignored, along with the two
+ * other spacing faults this data carries: the \r\n line endings on imported
+ * visits, and a double space typed between words. Only the comparison
+ * normalises - what gets stored is untouched, so no save moves any value.
+ */
+const normalize = (text: string): string =>
+  text
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").replace(/\s+:/g, ":").trim())
+    .join("\n")
+    .trim();
+
+/**
  * Is the parent value nothing more than a repeat of the lines?
  *
  * When it is, printing it again says the same thing twice - which is exactly
@@ -31,7 +54,7 @@ export const rollUpServiceField = (lines: RollUpLine[], field: RollUpField): str
  * is Salesforce's Special Instructions, and it is the only copy.
  */
 export const isRollUpOf = (stored: string | null | undefined, lines: RollUpLine[], field: RollUpField): boolean => {
-  const value = (stored ?? "").trim();
+  const value = normalize(stored ?? "");
   if (!value) return true;
-  return value === rollUpServiceField(lines, field).trim();
+  return value === normalize(rollUpServiceField(lines, field));
 };

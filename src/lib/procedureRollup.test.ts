@@ -124,3 +124,66 @@ describe("the printed prescription's Special Instructions block", () => {
     expect(skipsBlock("1v2", [{ service_name: "FILLERS", recommendations: "1v2" }] as typeof RATHISH)).toBe(true);
   });
 });
+
+// Prescription D-1546, 30/09/2026: three services, each with the doctor's own
+// Recommendations, and the parent row holding exactly their roll-up - yet the
+// printed document repeated all three under Special Instructions. The first
+// service is stored as "Radiance Plus ", with a trailing space, so the stored
+// roll-up reads "Radiance Plus : ..." while the document trims the name and
+// computes "Radiance Plus: ...". One character apart, the comparison failed.
+describe("a roll-up whose spacing does not survive the trip to the document", () => {
+  const D1546 = [
+    {
+      service_name: "Radiance Plus ",
+      recommendations: "To target early sagging and pigmentation-once in 7-14 days-4-5 sessions",
+    },
+    {
+      service_name: "RADIANCE A",
+      recommendations: "To target melasma and freckles -once in 3 weeks-4-5 sessions",
+    },
+    {
+      service_name: "REVLITE LASER TONING B",
+      recommendations: "To target freckles only -once in 3 weeks-4-6 sessions",
+    },
+  ];
+
+  /** What is stored on the visit row: built from the raw names, space and all. */
+  const STORED = rollUpServiceField(D1546, "recommendations");
+
+  it("is a roll-up although a service name carries a trailing space", () => {
+    expect(STORED).toContain("Radiance Plus : To target");
+    expect(isRollUpOf(STORED, D1546, "recommendations")).toBe(true);
+  });
+
+  it("is still a roll-up once the document has trimmed the service names", () => {
+    // generate-prescription-pdf sanitises every line before it compares, and
+    // sanitising trims - so the roll-up it computes has no space before the
+    // colon, while the stored text does. This is the reported fault exactly.
+    const asTheDocumentSeesThem = D1546.map((line) => ({ ...line, service_name: line.service_name.trim() }));
+    expect(rollUpServiceField(asTheDocumentSeesThem, "recommendations")).toContain("Radiance Plus: To target");
+    expect(isRollUpOf(STORED, asTheDocumentSeesThem, "recommendations")).toBe(true);
+  });
+
+  it("is a roll-up across the \\r\\n line endings imported visits carry", () => {
+    expect(isRollUpOf(STORED.replace(/\n/g, "\r\n"), D1546, "recommendations")).toBe(true);
+  });
+
+  it("is a roll-up with a double space typed between words", () => {
+    expect(isRollUpOf(STORED.replace("target early", "target  early"), D1546, "recommendations")).toBe(true);
+  });
+
+  // The half that must not regress: spacing is all that is forgiven.
+  it("is not a roll-up when the parent says something the lines do not", () => {
+    expect(isRollUpOf(`${STORED}\n\nReview after 6 weeks`, D1546, "recommendations")).toBe(false);
+    expect(isRollUpOf("Avoid sun exposure for 2 weeks", D1546, "recommendations")).toBe(false);
+  });
+
+  it("is not a roll-up when a word differs, not just the spacing", () => {
+    expect(isRollUpOf(STORED.replace("4-5 sessions", "6-8 sessions"), D1546, "recommendations")).toBe(false);
+  });
+
+  it("leaves the stored value alone - only the comparison normalises", () => {
+    expect(rollUpServiceField(D1546, "recommendations")).toBe(STORED);
+    expect(STORED).toContain("Radiance Plus : ");
+  });
+});

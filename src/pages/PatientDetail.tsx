@@ -47,6 +47,7 @@ import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailShe
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { QuickAppointmentDialog } from "@/components/appointments/QuickAppointmentDialog";
 import { appointmentStatusClasses } from "@/lib/appointmentStatus";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { toast } from "sonner";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { approveSurveyResponse, enrichAiProducts, enrichAiServices } from "@/lib/surveyApproval";
@@ -1501,17 +1502,17 @@ const PatientDetail = () => {
                   </div>
                   <div>
                     <Label className="text-xs">Medicine Name *</Label>
-                    <Select
+                    {/* This form stores the medicine's name rather than its
+                        id, so the options are keyed by name. */}
+                    <SearchableSelect
+                      className="mt-1 h-8 text-sm"
                       value={rxForm.medicine_name}
-                      onValueChange={(v) => setRxForm(p => ({ ...p, medicine_name: v }))}
-                    >
-                      <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select medicine" /></SelectTrigger>
-                      <SelectContent>
-                        {pharmaProducts.map((prod: any) => (
-                          <SelectItem key={prod.id} value={prod.name}>{prod.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(v) => setRxForm(p => ({ ...p, medicine_name: v }))}
+                      options={(pharmaProducts as { name: string }[]).map((prod) => ({ id: prod.name, name: prod.name }))}
+                      placeholder="Select medicine"
+                      searchPlaceholder="Search medicine..."
+                      emptyText="No medicine found."
+                    />
                   </div>
                   <div>
                     <Label className="text-xs flex items-center justify-between">Dosage <MicButton value={rxForm.dosage} onChange={(v) => setRxForm(p => ({ ...p, dosage: v }))} mode="replace" /></Label>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote } from "lucide-react";
@@ -35,6 +35,7 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { MicButton } from "@/components/shared/MicButton";
 import { OTHERS_VALUE } from "@/lib/othersOption";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { type ServiceOption } from "@/lib/servicePicker";
 import { isPlaceholderVisitService } from "@/lib/consultationLine";
 
@@ -665,6 +666,15 @@ export function ProcedureFormDialog({
   };
 
   // When a service is selected from dropdown
+  // The product list plus the manual-entry escape hatch, as one option list.
+  const medicineOptions = useMemo(
+    () => [
+      ...(products as { id: string; name: string }[]).map((p) => ({ id: p.id, name: p.name })),
+      { id: OTHERS_VALUE, name: "Others (type manually)" },
+    ],
+    [products],
+  );
+
   const handleServiceSelect = async (svcId: string, lineKey: string) => {
     const svc = services.find((s: any) => s.id === svcId);
     if (svc) await applyServiceData(svc, svcId, lineKey);
@@ -1326,15 +1336,16 @@ export function ProcedureFormDialog({
                   <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removePrescription(rx.key)}>Remove</Button>
                 </div>
                 <div>
-                  <Select value={rx.product_id} onValueChange={(v) => updatePrescription(rx.key, "product_id", v)}>
-                    <SelectTrigger><SelectValue placeholder="Select medicine *" /></SelectTrigger>
-                    <SelectContent>
-                      {products.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                      <SelectItem value={OTHERS_VALUE}>Others (type manually)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {/* Searchable: 239 products is too many to scroll, and the
+                      clinic needs a medicine found by any word of its name. */}
+                  <SearchableSelect
+                    value={rx.product_id}
+                    onChange={(v) => updatePrescription(rx.key, "product_id", v)}
+                    options={medicineOptions}
+                    placeholder="Select medicine *"
+                    searchPlaceholder="Search medicine..."
+                    emptyText="No medicine found."
+                  />
                   {rx.product_id === OTHERS_VALUE && (
                     <Input
                       className="mt-1"

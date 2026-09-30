@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/command";
 import { OTHERS_VALUE } from "@/lib/othersOption";
 import { servicePickerState, type ServiceOption } from "@/lib/servicePicker";
+import { optionMatchScore } from "@/lib/optionSearch";
 
 /**
  * The one way to choose a service on a prescription.
@@ -69,7 +70,7 @@ export function ServicePicker({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-          <Command>
+          <Command filter={optionMatchScore}>
             <CommandInput placeholder="Search service..." />
             <CommandList>
               <CommandEmpty>No service found.</CommandEmpty>

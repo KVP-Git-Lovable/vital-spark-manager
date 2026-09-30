@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { numVal } from "@/lib/numberInput";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { renderPdfToImages } from "@/lib/renderPdf";
@@ -44,6 +44,7 @@ import { StickyNotes } from "@/components/shared/StickyNotes";
 import { OTHERS_VALUE } from "@/lib/othersOption";
 import { parentServiceName, linesToWrite } from "@/lib/serviceLineSave";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { type ServiceOption } from "@/lib/servicePicker";
 import { MEDICAL_FIELDS, SKIN_TYPE_OPTIONS } from "@/lib/medicalFields";
 import { partitionVisitMedia } from "@/lib/visitMedia";
@@ -538,6 +539,16 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   // reach the uuid column - the typed name is what is saved, in service_name.
   // The create form applies the same rule on its own save.
   const serviceIdForSave = (id: string | null) => (id && id !== OTHERS_VALUE ? id : null);
+
+  // Same option list as the new-prescription form, so the two screens search
+  // medicines the same way.
+  const medicineOptions = useMemo(
+    () => [
+      ...(products as { id: string; name: string }[]).map((p) => ({ id: p.id, name: p.name })),
+      { id: OTHERS_VALUE, name: "Others (type manually)" },
+    ],
+    [products],
+  );
 
   const updateLine = (key: string, patch: Partial<ServiceLineRow>) =>
     setEditServiceLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -1194,15 +1205,15 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <Label className="text-xs text-muted-foreground">Medicine *</Label>
-                            <Select value={rx.product_id} onValueChange={(v) => updateRx(rx.key, "product_id", v)}>
-                              <SelectTrigger className="mt-1"><SelectValue placeholder="Select medicine" /></SelectTrigger>
-                              <SelectContent>
-                                {products.map((p) => (
-                                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                                ))}
-                                <SelectItem value={OTHERS_VALUE}>Others (type manually)</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <SearchableSelect
+                              className="mt-1"
+                              value={rx.product_id}
+                              onChange={(v) => updateRx(rx.key, "product_id", v)}
+                              options={medicineOptions}
+                              placeholder="Select medicine"
+                              searchPlaceholder="Search medicine..."
+                              emptyText="No medicine found."
+                            />
                             {rx.product_id === OTHERS_VALUE && (
                               <Input
                                 className="mt-1"

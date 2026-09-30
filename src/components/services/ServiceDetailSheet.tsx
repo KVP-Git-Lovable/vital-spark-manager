@@ -13,6 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -385,12 +386,14 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
                     <span className="text-xs font-medium text-muted-foreground">Medicine {i + 1}</span>
                     <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeMedicine(i)}>Remove</Button>
                   </div>
-                  <Select value={med.product_id} onValueChange={(v) => updateMedicine(i, "product_id", v)}>
-                    <SelectTrigger><SelectValue placeholder="Select medicine" /></SelectTrigger>
-                    <SelectContent>
-                      {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={med.product_id}
+                    onChange={(v) => updateMedicine(i, "product_id", v)}
+                    options={(products as { id: string; name: string }[]).map((p) => ({ id: p.id, name: p.name }))}
+                    placeholder="Select medicine"
+                    searchPlaceholder="Search medicine..."
+                    emptyText="No medicine found."
+                  />
                   <div className="grid grid-cols-3 gap-2">
                     <Input placeholder="Frequency" value={med.frequency} onChange={(e) => updateMedicine(i, "frequency", e.target.value)} />
                     <Input placeholder="Duration" value={med.duration} onChange={(e) => updateMedicine(i, "duration", e.target.value)} />

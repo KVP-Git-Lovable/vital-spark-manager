@@ -11,8 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { buildFuzzyOrFilter, buildTokenFilters, fuzzyRank, normalize, fuzzyScore } from "@/lib/fuzzySearch";
-
-const PHONE_LIKE_NAME = /^[+\d\s()\-]{7,}$/;
+import { hasRealName, isPhoneLikeName, rawPatientName } from "@/lib/patientName";
 
 export interface PatientLite {
   id: string;
@@ -36,6 +35,8 @@ interface PatientComboboxProps {
 }
 
 const PAGE_SIZE = 50;
+/** Enough rows to clear the block of phone-named records that sort to the front. */
+const INITIAL_FETCH = PAGE_SIZE * 10;
 
 const buildColumns = (withSource: boolean) =>
   withSource
@@ -72,10 +73,15 @@ export function PatientCombobox({
         .from("patients")
         .select(columns)
         .order("first_name")
-        .range(0, PAGE_SIZE * 2 - 1);
+        .range(0, INITIAL_FETCH - 1);
       if (error) throw error;
       const all = ((data ?? []) as unknown) as PatientLite[];
-      const withNames = all.filter(p => p.first_name && p.first_name.trim());
+      // 153 imported records hold the phone number in the name column, and
+      // digits sort before letters, so they filled this page entirely - every
+      // row read "Unnamed - 6282285155". The old test here looked for a blank
+      // name, and no patient has one. They are still found by typing the phone
+      // number; the line under the list says as much.
+      const withNames = all.filter(hasRealName);
       return withNames.slice(0, PAGE_SIZE);
     },
     enabled: open,
@@ -202,13 +208,9 @@ export function PatientCombobox({
 
   const list = debounced ? searchResults : initialList;
 
-  const getRawName = (p: PatientLite) =>
-    `${p.first_name || ""} ${p.last_name || ""}`.replace(/\s+/g, " ").trim();
+  const getRawName = (p: PatientLite) => rawPatientName(p);
 
-  const hasMeaningfulName = (p: PatientLite) => {
-    const name = getRawName(p);
-    return !!name && !PHONE_LIKE_NAME.test(name);
-  };
+  const hasMeaningfulName = (p: PatientLite) => hasRealName(p);
 
   const displayName = (p: PatientLite) => {
     const name = getRawName(p);
@@ -222,7 +224,7 @@ export function PatientCombobox({
     const phone = (p.phone || "").trim();
     const label = phone ? `${name} — ${phone}` : name;
     // Final guard: if for any reason the label is still phone-like, prepend "Unnamed — ".
-    if (PHONE_LIKE_NAME.test(label)) return `Unnamed — ${label}`;
+    if (isPhoneLikeName(label)) return `Unnamed — ${label}`;
     return label;
   };
 

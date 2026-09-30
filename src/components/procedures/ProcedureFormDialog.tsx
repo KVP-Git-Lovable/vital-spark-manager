@@ -38,6 +38,7 @@ import { ServicePicker } from "@/components/procedures/ServicePicker";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { type ServiceOption } from "@/lib/servicePicker";
 import { isPlaceholderVisitService } from "@/lib/consultationLine";
+import { looksLikeInvestigation } from "@/lib/investigationAsService";
 
 import {
   MEDICAL_FIELDS,
@@ -103,6 +104,8 @@ interface ProcedureFormDialogProps {
   defaultAppointmentId?: string;
   defaultStaffId?: string | null;
   defaultServiceName?: string;
+  /** The visit's Investigation, so its text is not mistaken for a service. */
+  defaultInvestigation?: string | null;
   defaultProblemAreaIds?: string[];
   /** Render inline (full page) instead of inside a modal dialog */
   asPage?: boolean;
@@ -111,7 +114,7 @@ interface ProcedureFormDialogProps {
 
 export function ProcedureFormDialog({
   open, onOpenChange,
-  defaultPatientId, defaultAppointmentId, defaultStaffId, defaultServiceName, defaultProblemAreaIds,
+  defaultPatientId, defaultAppointmentId, defaultStaffId, defaultServiceName, defaultInvestigation, defaultProblemAreaIds,
   asPage = false, onSaved,
 }: ProcedureFormDialogProps) {
   const queryClient = useQueryClient();
@@ -135,8 +138,20 @@ export function ProcedureFormDialog({
   // anything added later.
   const seedServiceName = isPlaceholderVisitService(defaultServiceName) ? "" : (defaultServiceName || "");
 
+  // What the box opens with, before the Service Master has loaded.
+  //
+  // A great many appointments carry the visit's Investigation in their service
+  // column - a history of past sessions, not a treatment - and showing it here
+  // is the investigation doctors reported seeing in the Services list. So text
+  // that appears inside the visit's Investigation is not written into the box
+  // on sight. A real service is not lost by this: the auto-match below fills
+  // the line from the Service Master the moment it loads, with the service's
+  // id, notes and price, which is better than the bare text ever was.
+  const seedIsInvestigation = looksLikeInvestigation(seedServiceName, defaultInvestigation);
+  const initialServiceName = seedIsInvestigation ? "" : seedServiceName;
+
   const [serviceLines, setServiceLines] = useState<ServiceLine[]>([
-    { key: `svc-${Date.now()}`, service_id: "", name: seedServiceName, procedure_notes: "", recommendations: "", material_percent: "", price: 0 },
+    { key: `svc-${Date.now()}`, service_id: "", name: initialServiceName, procedure_notes: "", recommendations: "", material_percent: "", price: 0 },
   ]);
 
   const [nextAppointmentAt, setNextAppointmentAt] = useState("");

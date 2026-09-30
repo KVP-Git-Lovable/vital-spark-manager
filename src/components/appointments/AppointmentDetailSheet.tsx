@@ -1853,6 +1853,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
           defaultAppointmentId={appointmentId!}
           defaultStaffId={appointment.staff_id}
           defaultServiceName={appointment.service}
+          defaultInvestigation={appointment.reason_for_consultation}
           defaultProblemAreaIds={((appointment as any).problem_area_ids as string[]) || []}
         />
       )}

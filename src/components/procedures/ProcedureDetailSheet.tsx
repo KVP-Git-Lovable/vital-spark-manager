@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { numVal } from "@/lib/numberInput";
+import { applyMedicineDefaults } from "@/lib/medicineDefaults";
+import { usePharmaLookup } from "@/hooks/usePharmaLookup";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { renderPdfToImages } from "@/lib/renderPdf";
 import { isConsultationService } from "@/lib/consultationLine";
@@ -434,14 +436,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     visitRef,
   );
 
-  const { data: products = [] } = useQuery({
-    queryKey: ["pharma-products-lookup"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("pharma_products").select("id, name").order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data: products = [] } = usePharmaLookup();
 
   // Patient medical snapshot — editable here and synced back to the patient record
   const { data: patientRecord } = useQuery({
@@ -759,7 +754,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         if (field !== "product_id") return { ...rx, [field]: value };
         if (value === OTHERS_VALUE) return { ...rx, product_id: OTHERS_VALUE, medicine_name: "" };
         const prod = products.find((p) => p.id === value);
-        return { ...rx, product_id: value, medicine_name: prod?.name || "" };
+        const previous = products.find((p) => p.id === rx.product_id);
+        // Same rule as the new-prescription form: the pharmacy's defaults fill
+        // the row, and what the doctor typed stays.
+        return { ...rx, product_id: value, medicine_name: prod?.name || "", ...applyMedicineDefaults(rx, prod, previous) };
       }),
     );
   };

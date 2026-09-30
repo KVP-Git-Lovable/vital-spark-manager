@@ -4,6 +4,8 @@ import { useUrlPanel } from "@/hooks/useUrlPanel";
 import { withDrPrefix } from "@/lib/staffName";
 import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
+import { applyMedicineDefaults } from "@/lib/medicineDefaults";
+import { usePharmaLookup } from "@/hooks/usePharmaLookup";
 import { useParams, useNavigate } from "react-router-dom";
 import { shortPatientId } from "@/lib/utils";
 import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound, Megaphone, Search, Sparkles, ImageOff, Lock } from "lucide-react";
@@ -340,14 +342,7 @@ const PatientDetail = () => {
     enabled: !!id,
   });
 
-  const { data: pharmaProducts = [] } = useQuery({
-    queryKey: ["pharma-products-lookup-rx"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("pharma_products").select("id, name").order("name");
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  const { data: pharmaProducts = [] } = usePharmaLookup();
 
   const { data: invoices = [] } = useQuery({
     queryKey: ["patient-invoices", id],
@@ -1507,8 +1502,22 @@ const PatientDetail = () => {
                     <SearchableSelect
                       className="mt-1 h-8 text-sm"
                       value={rxForm.medicine_name}
-                      onChange={(v) => setRxForm(p => ({ ...p, medicine_name: v }))}
-                      options={(pharmaProducts as { name: string }[]).map((prod) => ({ id: prod.name, name: prod.name }))}
+                      onChange={(v) => setRxForm(p => {
+                        // The pharmacy's defaults for the chosen medicine; a
+                        // value typed here is the doctor's and is kept.
+                        const next = pharmaProducts.find((prod) => prod.name === v);
+                        const previous = pharmaProducts.find((prod) => prod.name === p.medicine_name);
+                        return {
+                          ...p,
+                          medicine_name: v,
+                          ...applyMedicineDefaults(
+                            { frequency: p.frequency, duration: p.duration, instructions: numVal(p.instructions) },
+                            next,
+                            previous,
+                          ),
+                        };
+                      })}
+                      options={pharmaProducts.map((prod) => ({ id: prod.name, name: prod.name }))}
                       placeholder="Select medicine"
                       searchPlaceholder="Search medicine..."
                       emptyText="No medicine found."

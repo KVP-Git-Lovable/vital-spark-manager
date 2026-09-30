@@ -34,6 +34,8 @@ import { toast } from "sonner";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { MicButton } from "@/components/shared/MicButton";
 import { OTHERS_VALUE } from "@/lib/othersOption";
+import { applyMedicineDefaults } from "@/lib/medicineDefaults";
+import { usePharmaLookup } from "@/hooks/usePharmaLookup";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { type ServiceOption } from "@/lib/servicePicker";
@@ -565,17 +567,7 @@ export function ProcedureFormDialog({
     },
   });
 
-  const { data: products = [] } = useQuery({
-    queryKey: ["pharma-products-lookup"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pharma_products")
-        .select("id, name, default_frequency, default_duration, default_instructions")
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data: products = [] } = usePharmaLookup();
 
   const { data: allAssets = [] } = useQuery({
     queryKey: ["assets-lookup"],
@@ -943,16 +935,16 @@ export function ProcedureFormDialog({
         if (rx.key !== key) return rx;
         if (field !== "product_id") return { ...rx, [field]: value };
         if (value === OTHERS_VALUE) return { ...rx, product_id: OTHERS_VALUE, medicine_name: "" };
-        const prod = products.find((p) => p.id === value) as any;
+        const prod = products.find((p) => p.id === value);
+        const previous = products.find((p) => p.id === rx.product_id);
         fetchStock(value as string, key);
         return {
           ...rx,
           product_id: value as string,
           medicine_name: prod?.name || "",
-          // Always populate prescription defaults from the product master when medicine is selected
-          frequency: prod?.default_frequency || "",
-          duration: prod?.default_duration || "",
-          instructions: prod?.default_instructions || "",
+          // The pharmacy's defaults for this medicine, without overwriting
+          // anything the doctor has typed into the row already.
+          ...applyMedicineDefaults(rx, prod, previous),
         };
       }),
     );

@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { numVal } from "@/lib/numberInput";
+import { applyMedicineDefaults } from "@/lib/medicineDefaults";
+import { usePharmaLookup } from "@/hooks/usePharmaLookup";
 import { Plus, Search, Edit2, Trash2, Clock, IndianRupee, Pill, Sparkles, Loader2, Wrench, Cloud } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -152,17 +154,7 @@ const Services = () => {
     },
   });
 
-  const { data: products = [] } = useQuery({
-    queryKey: ["pharma-products-lookup"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pharma_products")
-        .select("id, name, default_frequency, default_duration, default_instructions")
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data: products = [] } = usePharmaLookup();
 
   const { data: allAssets = [] } = useQuery({
     queryKey: ["assets-lookup"],
@@ -442,25 +434,11 @@ const Services = () => {
     const updated = [...medicines];
     const row = { ...updated[index] };
     if (field === "product_id") {
-      const prevProd: any = products.find((p: any) => p.id === row.product_id);
-      const prod: any = products.find((p: any) => p.id === value);
+      const prevProd = products.find((p) => p.id === row.product_id);
+      const prod = products.find((p) => p.id === value);
       row.product_id = value;
       row.product_name = prod?.name || "";
-      // Only carry a field forward if it's empty or still matches the
-      // previous medicine's autofilled default - a manually typed value is
-      // never overwritten, but switching medicines should swap in the new
-      // medicine's own defaults instead of leaving the old one's behind.
-      const carryOver = (current: string, prevDefault?: string) =>
-        !current || current === (prevDefault || "");
-      row.frequency = carryOver(row.frequency, prevProd?.default_frequency)
-        ? prod?.default_frequency || ""
-        : row.frequency;
-      row.duration = carryOver(row.duration, prevProd?.default_duration)
-        ? prod?.default_duration || ""
-        : row.duration;
-      row.instructions = carryOver(row.instructions, prevProd?.default_instructions)
-        ? prod?.default_instructions || ""
-        : row.instructions;
+      Object.assign(row, applyMedicineDefaults(row, prod, prevProd));
     } else {
       (row[field] as string) = value;
     }

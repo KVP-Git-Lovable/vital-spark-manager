@@ -39,6 +39,7 @@ import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { type ServiceOption } from "@/lib/servicePicker";
 import { isPlaceholderVisitService } from "@/lib/consultationLine";
 import { looksLikeInvestigation } from "@/lib/investigationAsService";
+import { patientIdentityLine } from "@/lib/patientIdentity";
 
 import {
   MEDICAL_FIELDS,
@@ -506,7 +507,7 @@ export function ProcedureFormDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("patients")
-        .select("id, medical_history, current_medications, dietary_advice, skin_type, previous_treatments")
+        .select("id, date_of_birth, gender, medical_history, current_medications, dietary_advice, skin_type, previous_treatments")
         .eq("id", patientId)
         .maybeSingle();
       if (error) throw error;
@@ -1147,6 +1148,11 @@ export function ProcedureFormDialog({
                 className="mt-1.5"
                 disabled={isFromAppointment}
               />
+              {/* Age and gender, in front of the doctor while they write: both
+                  bear on dosage, and looking them up meant leaving the form. */}
+              {patientIdentityLine(patientRecord) && (
+                <p className="text-xs text-muted-foreground mt-1">{patientIdentityLine(patientRecord)}</p>
+              )}
               {unmatchedHints.patient && (
                 <p className="text-xs text-amber-600 mt-1">Couldn't match "{unmatchedHints.patient}" — please select manually.</p>
               )}

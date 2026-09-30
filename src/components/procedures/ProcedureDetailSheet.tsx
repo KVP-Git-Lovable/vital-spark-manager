@@ -43,6 +43,7 @@ import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { OTHERS_VALUE } from "@/lib/othersOption";
 import { parentServiceName, linesToWrite } from "@/lib/serviceLineSave";
+import { patientIdentityLine } from "@/lib/patientIdentity";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { type ServiceOption } from "@/lib/servicePicker";
@@ -340,7 +341,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       if (!procedureId) return null;
       const { data, error } = await supabase
         .from("procedures")
-        .select("*, patients(first_name, last_name), staff:staff!procedures_staff_id_fkey(first_name, last_name)")
+        .select("*, patients(first_name, last_name, date_of_birth, gender), staff:staff!procedures_staff_id_fkey(first_name, last_name)")
         .eq("id", procedureId)
         .maybeSingle();
       if (error) throw error;
@@ -880,6 +881,11 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                   <div>
                     <Badge variant="outline" className="text-[10px] text-muted-foreground mb-1.5 font-normal">Procedure</Badge>
                     <SheetTitle className="font-display text-lg">{patientName}</SheetTitle>
+                    {/* Same line as the new-prescription form, from the same
+                        function, so the two screens cannot disagree. */}
+                    {patientIdentityLine(procedure?.patients) && (
+                      <p className="text-xs text-muted-foreground">{patientIdentityLine(procedure?.patients)}</p>
+                    )}
                     <p className="text-sm text-muted-foreground mt-1">
                       {procedureDateLabel(procedure, "EEE, dd/MM/yyyy · h:mm a")}
                     </p>

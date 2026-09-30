@@ -9,6 +9,7 @@ import { stockDelta } from "@/lib/pharmaStockDelta";
 import { isConsultationService } from "@/lib/consultationLine";
 import { resolveServiceFromMaster } from "@/lib/serviceMatch";
 import { pickAppointmentForInvoice, doctorForInvoice, type LinkableAppointment } from "@/lib/appointmentForInvoice";
+import { resolveInvoiceAppointmentId } from "@/lib/invoiceAppointmentLink";
 import { paymentModeLabel } from "@/lib/paymentModes";
 import { renderPdfToImages } from "@/lib/renderPdf";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
@@ -1583,6 +1584,18 @@ const Billing = () => {
 
       const patient = patients.find((p) => p.id === patientId);
       const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
+      // Settled here, not read out of state: the patient's appointments are
+      // fetched when the patient is picked, and a biller who saves before that
+      // returns would otherwise write appointment_id null and the visit would
+      // read "No bill". See invoiceAppointmentLink.ts.
+      const linkedAppointmentId = await resolveInvoiceAppointmentId({
+        explicitChoice: linkAppointmentChoice,
+        formValue: effectiveLinkAppointmentId,
+        patientId,
+        invoiceDate,
+        doctorId,
+        loadAppointments: fetchPatientAppointments,
+      });
       // One number per invoice row, drawn from the database so the series stays
       // unbroken however many people are billing at once. Taken here, at save,
       // so an abandoned dialog does not spend one.
@@ -1628,6 +1641,9 @@ const Billing = () => {
             services: allServices,
             line_items: lineItemsSnapshot,
             doctor_id: doctorId || null,
+            // Staged rows used to save with no appointment_id at all, so every
+            // stage of a treatment plan read "No bill" on the visit it paid for.
+            appointment_id: linkedAppointmentId,
             total_amount: stageTotal,
             paid_amount: stage.paid,
             status,
@@ -1750,7 +1766,7 @@ const Billing = () => {
             services: allServices,
             line_items: lineItemsSnapshot,
             doctor_id: doctorId || null,
-            appointment_id: appointmentIds[i],
+            appointment_id: appointmentIds[i] || (i === 0 ? linkedAppointmentId : null),
             recurring_group_id: groupId,
             installment_number: i + 1,
             installment_count: recurringCount,
@@ -1810,9 +1826,7 @@ const Billing = () => {
           services: allServices,
           line_items: lineItemsSnapshot,
           doctor_id: doctorId || null,
-          // The picker is authoritative: it already falls back to the prefilled
-          // appointment, so what the form shows is what gets saved.
-          appointment_id: effectiveLinkAppointmentId || null,
+          appointment_id: linkedAppointmentId,
           total_amount: grandTotal,
           paid_amount: paidAmount,
           status,
@@ -2906,7 +2920,7 @@ const Billing = () => {
                     {effectiveLinkAppointmentId
                       ? "This bill will show against that appointment in the appointments list."
                       : (createPatientAppointments as PickerAppointment[]).length
-                        ? "Not linked, so the appointment will keep reading \"No bill\". Pick the visit this bill is for."
+                        ? "Not linked. Pick the visit this bill is for, so the appointments list shows it against the right one."
                         : "This patient has no appointments to link to."}
                   </p>
                 </div>

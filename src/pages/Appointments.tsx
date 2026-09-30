@@ -27,6 +27,7 @@ import { viewDatePreset } from "@/lib/viewDatePreset";
 import { appointmentInvoiceMap } from "@/lib/appointmentInvoiceMap";
 import { billCellState } from "@/lib/billCellState";
 import { billedPatientDays, patientDayKey, type BilledDayRow } from "@/lib/billedPatientDays";
+import { withUnlinkedBills, type UnlinkedBillRow, type VisitRow } from "@/lib/unlinkedVisitBills";
 import { formatMoneyExact } from "@/lib/currency";
 import { fetchInvoicesByAppointmentIds, invoiceMapByAppointment } from "@/lib/invoicesForAppointments";
 import { assertWrote } from "@/lib/rowAccess";
@@ -45,7 +46,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { format, addWeeks, addMonths, addDays, startOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isWithinInterval } from "date-fns";
+import { format, addWeeks, addMonths, addDays, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isWithinInterval } from "date-fns";
 import { motion } from "framer-motion";
 import {
   Dialog,
@@ -856,7 +857,8 @@ const Appointments = () => {
   // screen; a later page could time out, and a throwing query leaves data at
   // [], so every bill cell silently rendered as a dash. See
   // fetchInvoicesByAppointmentIds for the rest of the reasoning.
-  const INVOICE_COLUMNS = "id, appointment_id, total_amount, paid_amount, payment_mode, status";
+  const INVOICE_COLUMNS =
+    "id, appointment_id, patient_id, created_at, total_amount, paid_amount, payment_mode, status";
   const fetchInvoiceChunk = async (ids: string[]) => {
     const { data, error } = await supabase
       .from("invoices")
@@ -907,9 +909,58 @@ const Appointments = () => {
   // appointment set (there is no server page to scope to), and otherwise only
   // the current page's ids are fetched. Reading the page map unconditionally
   // left every Bill Amount and Payment Mode blank under any custom view.
-  const billInvoiceByAppointmentId = useMemo(
+  const linkedInvoiceByAppointmentId = useMemo(
     () => appointmentInvoiceMap(viewHasFilters, invoiceByAppointmentId, pageInvoiceByAppointmentId),
     [viewHasFilters, invoiceByAppointmentId, pageInvoiceByAppointmentId],
+  );
+
+  /** Every visit on screen, each counted once. */
+  const visitsOnScreen = useMemo(
+    () => [...appointments, ...(apptPageData?.rows ?? [])] as VisitRow[],
+    [appointments, apptPageData],
+  );
+
+  // Bills that never got attached to a visit. invoices.appointment_id is
+  // ON DELETE SET NULL, so deleting a duplicate appointment silently detaches
+  // its bill, and bills raised before the link was settled at save are already
+  // unattached. Without this the visit reads "No bill" though it was paid for.
+  const unlinkedBillPatientIds = useMemo(
+    () => Array.from(new Set(visitsOnScreen.map((v) => v.patient_id).filter(Boolean) as string[])),
+    [visitsOnScreen],
+  );
+  const unlinkedBillWindow = useMemo(() => {
+    const times = visitsOnScreen
+      .map((v) => (v.start_time ? new Date(v.start_time).getTime() : NaN))
+      .filter((t) => !Number.isNaN(t));
+    if (times.length === 0) return null;
+    return {
+      from: startOfDay(new Date(Math.min(...times))).toISOString(),
+      to: endOfDay(new Date(Math.max(...times))).toISOString(),
+    };
+  }, [visitsOnScreen]);
+
+  const { data: unlinkedBills = [] } = useQuery({
+    queryKey: ["invoices-for-appointments", "unlinked", unlinkedBillWindow, unlinkedBillPatientIds],
+    queryFn: () =>
+      fetchInvoicesByAppointmentIds(async (patientIds: string[]) => {
+        const { data, error } = await supabase
+          .from("invoices")
+          .select(INVOICE_COLUMNS)
+          .in("patient_id", patientIds)
+          .is("appointment_id", null)
+          .gte("created_at", unlinkedBillWindow!.from)
+          .lte("created_at", unlinkedBillWindow!.to);
+        if (error) throw error;
+        return data || [];
+      }, unlinkedBillPatientIds),
+    // A failure here costs nothing: the linked lookup still answers, and the
+    // cell falls back to what it said before.
+    enabled: !!unlinkedBillWindow && unlinkedBillPatientIds.length > 0,
+  });
+
+  const billInvoiceByAppointmentId = useMemo(
+    () => withUnlinkedBills(linkedInvoiceByAppointmentId, unlinkedBills as UnlinkedBillRow[], visitsOnScreen),
+    [linkedInvoiceByAppointmentId, unlinkedBills, visitsOnScreen],
   );
 
   // Patient-days that already have a bill on one of their appointments. A

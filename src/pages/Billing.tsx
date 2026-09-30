@@ -1090,60 +1090,17 @@ const Billing = () => {
       setServiceInputs(rows.length ? rows : [{ name: "", price: 0, hsn: "", gst: 0 }]);
     }
 
-    const products: any[] = Array.isArray(payload?.products) ? payload.products : [];
-    if (products.length) {
-      const lines: PharmaLineItem[] = [];
-      for (const p of products) {
-        const pname = String(p?.name || "").toLowerCase();
-        if (!pname) continue;
-        const master = (pharmaProducts as any[]).find(
-          (m: any) => String(m?.name || "").toLowerCase() === pname || m?.id === p?.product_id,
-        );
-        const batch = (pharmaInventory as any[])
-          .filter(
-            (inv: any) =>
-              inv.quantity > 0 &&
-              new Date(inv.expiry_date) > new Date() &&
-              String(inv.pharma_products?.name || "").toLowerCase() === pname,
-          )
-          .sort((a: any, b: any) => String(a.expiry_date).localeCompare(String(b.expiry_date)))[0];
-        if (!batch && !master) {
-          // Custom ("Others") medicine name with no master-list match -
-          // carry it over as a free-text pharma line instead of dropping it.
-          lines.push({
-            inventory_id: "",
-            product_id: OTHERS_VALUE,
-            product_name: p.name,
-            batch_number: "",
-            quantity: Math.max(1, Number(p.quantity) || 1),
-            unit_price: 0,
-            available: 0,
-            uom: "Unit",
-            uom_factor: 1,
-          });
-          continue;
-        }
-        const saleUom = getSaleUom(master, unitsByProduct[(batch?.product_id || master?.id) as string]);
-        const basePrice =
-          Number(batch?.selling_price) ||
-          Number(batch?.mrp) ||
-          Number(master?.selling_price) ||
-          Number(master?.mrp) ||
-          0;
-        lines.push({
-          inventory_id: batch?.id || "",
-          product_id: batch?.product_id || master?.id || "",
-          product_name: batch?.pharma_products?.name || master?.name || p.name,
-          batch_number: batch?.batch_number || "",
-          quantity: Math.max(1, Number(p.quantity) || 1),
-          unit_price: basePrice / (saleUom.factor || 1),
-          available: toUomQty(Number(batch?.quantity || 0), saleUom.factor),
-          uom: saleUom.name,
-          uom_factor: saleUom.factor,
-        });
-      }
-      if (lines.length) setPharmaItems(lines);
-    }
+    // A prescribed medicine is not a sale. The visit's medicines used to be
+    // carried in here and resolved against pharmacy stock; one the clinic does
+    // not stock cannot be priced, so it arrived as a free-text line at Rs 0 and
+    // the biller deleted it on every bill. The patient may buy it outside, or
+    // not at all, so the Pharmacy section now opens empty and whoever bills
+    // adds what was actually sold. The visit's services still prefill above -
+    // those are what the clinic charged for.
+    //
+    // Decided here rather than in the two screens that stash the payload, so a
+    // new route into billing cannot reintroduce it. The payload may still carry
+    // products; billing does not act on them.
 
     setPendingPrefill(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps

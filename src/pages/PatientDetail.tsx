@@ -873,7 +873,8 @@ const PatientDetail = () => {
                   setOthersClinicalText(parsedReasons.othersClinicalText);
                   setDetailsForm({
                     first_name: patient.first_name, last_name: patient.last_name, date_of_birth: patient.date_of_birth,
-                    gender: patient.gender, phone: patient.phone, email: patient.email, address: patient.address,
+                    gender: patient.gender, phone: patient.phone, alternate_phone: patient.alternate_phone,
+                    email: patient.email, address: patient.address,
                     city: patient.city, state: patient.state, pincode: patient.pincode,
                     emergency_contact_name: patient.emergency_contact_name, emergency_contact_phone: patient.emergency_contact_phone,
                     blood_group: patient.blood_group, medical_history: patient.medical_history,
@@ -975,11 +976,13 @@ const PatientDetail = () => {
                       {hideOtherDoctorDetails ? (
                         <>
                           <MaskedField label="Phone" />
+                          <MaskedField label="Alternate Phone" />
                           <MaskedField label="Email" />
                         </>
                       ) : (
                         <>
                           <Field label="Phone" value={d.phone} field="phone" />
+                          <Field label="Alternate Phone" value={d.alternate_phone} field="alternate_phone" />
                           <Field label="Email" value={d.email} field="email" type="email" />
                         </>
                       )}

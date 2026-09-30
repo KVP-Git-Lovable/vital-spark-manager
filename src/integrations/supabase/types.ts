@@ -2494,6 +2494,7 @@ export type Database = {
         Row: {
           address: string | null
           allergies: string | null
+          alternate_phone: string | null
           auth_user_id: string | null
           blood_group: string | null
           city: string | null
@@ -2557,6 +2558,7 @@ export type Database = {
         Insert: {
           address?: string | null
           allergies?: string | null
+          alternate_phone?: string | null
           auth_user_id?: string | null
           blood_group?: string | null
           city?: string | null
@@ -2620,6 +2622,7 @@ export type Database = {
         Update: {
           address?: string | null
           allergies?: string | null
+          alternate_phone?: string | null
           auth_user_id?: string | null
           blood_group?: string | null
           city?: string | null

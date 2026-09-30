@@ -89,6 +89,7 @@ const emptyForm: TablesInsert<"patients"> = {
   date_of_birth: null,
   gender: null,
   phone: null,
+  alternate_phone: null,
   email: null,
   address: null,
   city: null,
@@ -211,6 +212,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         date_of_birth: patient.date_of_birth,
         gender: patient.gender,
         phone: patient.phone,
+        alternate_phone: patient.alternate_phone,
         email: patient.email,
         address: patient.address,
         city: patient.city,
@@ -697,13 +699,25 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <Label>Phone</Label>
                 <Input
                   value={form.phone || ""}
                   onChange={(e) => updateField("phone", e.target.value)}
                   placeholder="+91 98765 43210"
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                {/* Patients who live abroad give the clinic both numbers, and
+                    one field meant the second went into the notes or replaced
+                    the first. Searching the patient list finds either. */}
+                <Label>Alternate Phone</Label>
+                <Input
+                  value={form.alternate_phone || ""}
+                  onChange={(e) => updateField("alternate_phone", e.target.value)}
+                  placeholder="+971 50 123 4567"
                   className="mt-1.5"
                 />
               </div>

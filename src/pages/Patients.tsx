@@ -102,7 +102,9 @@ const fetchPatientsPage = async (
   // without paying for an exact count.
   const toIdx = fromIdx + PAGE_SIZE;
   const term = search.trim();
-  const cols = ["first_name", "last_name", "email", "phone"];
+  // alternate_phone too: a patient who gave the clinic both an Indian and an
+  // international number is searched for by whichever one the caller used.
+  const cols = ["first_name", "last_name", "email", "phone", "alternate_phone"];
 
   // Exact counts over 23k+ patients combined with leading-wildcard ILIKE are what
   // was getting cancelled by the database, so counts stay approximate and the

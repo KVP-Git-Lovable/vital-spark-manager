@@ -25,6 +25,7 @@ const FIELD_LABELS: Record<PatientField, string> = {
   first_name: "First Name",
   last_name: "Last Name",
   phone: "Phone",
+  alternate_phone: "Alternate Phone",
   email: "Email",
   date_of_birth: "Date of Birth",
   gender: "Gender",

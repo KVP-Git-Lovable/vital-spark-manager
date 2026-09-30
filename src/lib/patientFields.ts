@@ -36,6 +36,7 @@ export const PATIENT_FIELDS: FieldDef[] = [
   { key: "first_name", label: "First Name", type: "text" },
   { key: "last_name", label: "Last Name", type: "text" },
   { key: "phone", label: "Phone", type: "text" },
+  { key: "alternate_phone", label: "Alternate Phone", type: "text" },
   { key: "email", label: "Email", type: "text" },
   { key: "gender", label: "Gender", type: "picklist", optionsSource: "gender" },
   { key: "age", label: "Age", type: "number" },

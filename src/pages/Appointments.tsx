@@ -28,6 +28,7 @@ import { appointmentInvoiceMap } from "@/lib/appointmentInvoiceMap";
 import { billCellState } from "@/lib/billCellState";
 import { billedPatientDays, patientDayKey, type BilledDayRow } from "@/lib/billedPatientDays";
 import { withUnlinkedBills, type UnlinkedBillRow, type VisitRow } from "@/lib/unlinkedVisitBills";
+import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import {
   rescheduleVerdict,
   rescheduleWarning,
@@ -1378,7 +1379,10 @@ const Appointments = () => {
       // Only a Confirmed appointment is worth messaging a patient about. Bookings
       // default to Reserved, which is a provisional hold - confirming it later goes
       // through the status-change path below, which sends the same template.
-      if (data.phone && data.patientName && data.firstStartDT && data.capturedStatus === "Confirmed") {
+      if (
+        APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED &&
+        data.phone && data.patientName && data.firstStartDT && data.capturedStatus === "Confirmed"
+      ) {
         if (data.wasRecurring && data.recurrenceEndDate) {
           supabase.functions
             .invoke("send-recurring-appointment-whatsapp", {
@@ -1503,7 +1507,7 @@ const Appointments = () => {
                 body: { kind: "cancelled", phone, patientName, appointmentDate: apptDate, appointmentTime: apptTime },
               });
               toast.success("WhatsApp cancellation sent");
-            } else if (newStatus === "Confirmed") {
+            } else if (newStatus === "Confirmed" && APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED) {
               // Confirming sends the booking-confirmation template, not the update one.
               // The update template renders only the time (its {{2}} is the time alone)
               // and carries no quick-reply buttons, so a confirmation sent through it

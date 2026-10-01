@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { DateInput } from "@/components/shared/DateInput";
 import { withDrPrefix } from "@/lib/staffName";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
+import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import { rescheduleVerdict, rescheduleWarning } from "@/lib/appointmentReschedule";
 import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
 import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon, ClipboardCheck, StickyNote } from "lucide-react";
@@ -822,7 +823,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
             });
             if (nErr) { console.error("[appt-notify] cancel error", nErr); toast.error("WhatsApp notification failed"); }
             else toast.success("WhatsApp cancellation sent");
-          } else if (newStatus === "Confirmed" && statusChanged) {
+          } else if (newStatus === "Confirmed" && statusChanged && APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED) {
             // Confirming sends the booking-confirmation template, not the update one -
             // see the matching comment in Appointments.tsx. The doctor name that used
             // to be resolved here fed only the update template, which no longer runs

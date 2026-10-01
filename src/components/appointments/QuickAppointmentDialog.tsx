@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import { DateInput } from "@/components/shared/DateInput";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -160,7 +161,7 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
       // the Appointments module. This dialog defaults to "Reserved", a provisional
       // hold - confirming it later sends the same template from the status-change
       // path there.
-      if (patient.phone && data && appointmentStatus === "Confirmed") {
+      if (APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED && patient.phone && data && appointmentStatus === "Confirmed") {
         const patientName = `${patient.first_name} ${patient.last_name}`.trim();
         supabase.functions.invoke("send-appointment-whatsapp", {
           body: {

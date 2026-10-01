@@ -299,6 +299,10 @@ function DateField({ label, value, onChange, clearable = true }: { label: string
           <Calendar
             mode="single"
             selected={value}
+            // Opens on the month already filtered for, not on today. A report
+            // filtered to 10 September opened on October once the month turned,
+            // so changing the day meant paging backwards first.
+            defaultMonth={value}
             onSelect={(d) => { onChange(d ?? undefined); setOpen(false); }}
             initialFocus
             className={cn("p-3 pointer-events-auto")}

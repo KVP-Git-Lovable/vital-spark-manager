@@ -66,3 +66,35 @@ describe("daysSinceVisit", () => {
     expect(daysSinceVisit(new Date("2026-09-11T12:00:00Z"))).toBe(10);
   });
 });
+
+describe("isVisit, read from the appointment rather than from its status alone", () => {
+  const PAST = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const FUTURE = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  it("counts a past appointment nobody closed", () => {
+    // 13,205 of these: imported from Salesforce as "Confirmed" and left there.
+    // Tahniya's header read "1 Visits" against seven attended appointments.
+    expect(isVisit("Confirmed", PAST)).toBe(true);
+    expect(isVisit("Reserved", PAST)).toBe(true);
+  });
+
+  it("still does not count a patient who did not come", () => {
+    expect(isVisit("Cancelled", PAST)).toBe(false);
+    expect(isVisit("No Show", PAST)).toBe(false);
+  });
+
+  it("still does not count a booking that has not happened", () => {
+    expect(isVisit("Confirmed", FUTURE)).toBe(false);
+    expect(isVisit("Reserved", FUTURE)).toBe(false);
+  });
+
+  it("counts an appointment marked attended ahead of time, as it always did", () => {
+    expect(isVisit("Completed", FUTURE)).toBe(true);
+  });
+
+  it("falls back to the status when there is no date", () => {
+    expect(isVisit("Confirmed")).toBe(false);
+    expect(isVisit("Completed")).toBe(true);
+    expect(isVisit("Confirmed", "not a date")).toBe(false);
+  });
+});

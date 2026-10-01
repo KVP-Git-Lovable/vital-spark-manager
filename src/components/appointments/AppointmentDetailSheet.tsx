@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { DateInput } from "@/components/shared/DateInput";
 import { withDrPrefix } from "@/lib/staffName";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
+import { rescheduleVerdict, rescheduleWarning } from "@/lib/appointmentReschedule";
 import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
 import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon, ClipboardCheck, StickyNote } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -855,6 +856,64 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     onError: (e: Error) => toast.error(e.message),
   });
 
+  /**
+   * What already happened at this appointment.
+   *
+   * Both lists are loaded for the patient, so the rows belonging to this visit
+   * are the ones naming it.
+   */
+  const visitEvidence = useMemo(
+    () => ({
+      hasInvoice: (invoices as { appointment_id?: string | null }[]).some((i) => i.appointment_id === appointmentId),
+      hasProcedure: (previousProcedures as { appointment_id?: string | null }[]).some(
+        (p) => p.appointment_id === appointmentId,
+      ),
+    }),
+    [invoices, previousProcedures, appointmentId],
+  );
+
+  const [moveVisitOpen, setMoveVisitOpen] = useState(false);
+
+  /**
+   * Save, unless saving would move a visit that already happened onto another
+   * day. Tahniya's 25 September visit was overwritten that way, and her bill
+   * went with it - see appointmentReschedule.ts.
+   */
+  const saveChanges = () => {
+    if (rescheduleVerdict(appointment, editStartTime, visitEvidence) === "confirm") {
+      setMoveVisitOpen(true);
+      return;
+    }
+    updateMutation.mutate();
+  };
+
+  /** The answer the clinic almost always wants: keep the visit, book the new date. */
+  const bookInsteadMutation = useMutation({
+    mutationFn: async () => {
+      if (!appointment?.patient_id) throw new Error("This appointment has no patient on it");
+      const { error } = await supabase.from("appointments").insert({
+        patient_id: appointment.patient_id,
+        patient_name: appointment.patient_name ?? null,
+        staff_id: editStaffId || appointment.staff_id || null,
+        service: editService || appointment.service || null,
+        reason_for_consultation: editInvestigation.trim() || null,
+        start_time: new Date(editStartTime).toISOString(),
+        end_time: new Date(editEndTime).toISOString(),
+        status: "Reserved",
+        problem_area_ids: editProblemAreas,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["patient-appointments", appointment?.patient_id] });
+      queryClient.invalidateQueries({ queryKey: ["patient-previous-appointments", appointment?.patient_id] });
+      setMoveVisitOpen(false);
+      toast.success("New appointment booked - the earlier visit is unchanged");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async () => {
       const error: any = await moveToTrash("appointments", appointmentId!).then(() => null).catch((e: any) => e);
@@ -1235,8 +1294,49 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                     {appointment.is_recurring && <Badge variant="outline" className="text-xs">Recurring</Badge>}
                   </div>
 
+                  {/* Moving a visit that already happened writes next week's
+                      booking over last week's record, and its bill goes with it.
+                      Offered the other way round: booking is the default. */}
+                  <AlertDialog open={moveVisitOpen} onOpenChange={setMoveVisitOpen}>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Book a new appointment instead?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {appointment.start_time
+                            ? `${patientName} was seen on ${format(new Date(appointment.start_time), "dd MMM yyyy")}. `
+                            : ""}
+                          {rescheduleWarning(visitEvidence)} Changing the date to{" "}
+                          {editStartTime ? format(new Date(editStartTime), "dd MMM yyyy") : "the new date"} removes that
+                          visit from the patient's history and takes the bill with it.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={bookInsteadMutation.isPending}>Cancel</AlertDialogCancel>
+                        <Button
+                          variant="outline"
+                          disabled={bookInsteadMutation.isPending || updateMutation.isPending}
+                          onClick={() => {
+                            setMoveVisitOpen(false);
+                            updateMutation.mutate();
+                          }}
+                        >
+                          Move it anyway
+                        </Button>
+                        <AlertDialogAction
+                          disabled={bookInsteadMutation.isPending}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            bookInsteadMutation.mutate();
+                          }}
+                        >
+                          {bookInsteadMutation.isPending ? "Booking..." : "Book a new appointment"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+
                   <div className="flex gap-2 pt-4 border-t">
-                    <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending || editAppointmentId !== appointmentId} className="flex-1 gap-2">
+                    <Button onClick={saveChanges} disabled={updateMutation.isPending || editAppointmentId !== appointmentId} className="flex-1 gap-2">
                       <Save className="h-4 w-4" />
                       {updateMutation.isPending ? "Saving..." : "Save Changes"}
                     </Button>

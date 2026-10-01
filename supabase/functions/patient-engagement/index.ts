@@ -1,9 +1,24 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // What counts as a visit: an appointment the patient turned up to. Mirrors
-// VISIT_STATUSES in src/lib/visitStats.ts - Deno cannot import from the browser
-// bundle, so the list is repeated here on purpose. Keep the two in step.
+// isVisit in src/lib/visitStats.ts - Deno cannot import from the browser
+// bundle, so the rule is repeated here on purpose. Keep the two in step.
+//
+// Status alone was not enough. 13,205 past appointments still read "Confirmed"
+// - Salesforce's word for booked, which nobody closes afterwards - so a patient
+// with seven attended visits and Rs 21,500 billed had a header reading
+// "1 Visits, Last Visit Feb 16" beside her own list of all seven.
 const VISIT_STATUSES = ["Completed", "Checked-in", "In Progress"];
+const NON_VISIT_STATUSES = ["Cancelled", "No Show"];
+
+/** Attended: said so, or it is in the past and they were not turned away. */
+const isVisit = (apt: { status?: string | null; start_time?: string | null }): boolean => {
+  if (VISIT_STATUSES.includes(String(apt?.status ?? ""))) return true;
+  if (!apt?.start_time) return false;
+  const when = new Date(apt.start_time).getTime();
+  if (Number.isNaN(when) || when >= Date.now()) return false;
+  return !NON_VISIT_STATUSES.includes(String(apt.status ?? ""));
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,13 +66,13 @@ Deno.serve(async (req) => {
 
       // --- Visit Frequency (30%) ---
       const totalApts = patientApts.length;
-      const completedApts = patientApts.filter((a) => VISIT_STATUSES.includes(a.status)).length;
+      const completedApts = patientApts.filter(isVisit).length;
       // Attended appointments only. This took the newest of ALL of them, so a
       // booking still in the future became the patient's "last visit" and
       // days-since came out negative - one patient page read "-32". lastVisitDate
       // below already filtered; these two disagreed on the same record.
       const aptDates = patientApts
-        .filter((a) => VISIT_STATUSES.includes(a.status))
+        .filter(isVisit)
         .map((a) => new Date(a.start_time).getTime())
         .sort((a, b) => b - a);
       const lastVisitMs = aptDates.length > 0 ? aptDates[0] : 0;
@@ -184,7 +199,7 @@ Deno.serve(async (req) => {
           daysSinceLastVisit: Math.round(daysSinceLastVisit),
           lastVisitDate: (() => {
             const completedDates = patientApts
-              .filter((a) => VISIT_STATUSES.includes(a.status))
+              .filter(isVisit)
               .map((a) => a.start_time)
               .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
             return completedDates.length > 0 ? completedDates[0] : null;

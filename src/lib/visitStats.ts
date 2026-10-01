@@ -14,8 +14,34 @@ import { differenceInDays } from "date-fns";
  */
 export const VISIT_STATUSES = ["Completed", "Checked-in", "In Progress"] as const;
 
-export function isVisit(status: string | null | undefined): boolean {
+/** A patient who did not come. Everything else in the past, they came. */
+const NON_VISIT_STATUSES = ["Cancelled", "No Show"] as const;
+
+export function isVisitStatus(status: string | null | undefined): boolean {
   return (VISIT_STATUSES as readonly string[]).includes(String(status ?? ""));
+}
+
+/**
+ * A visit, counted from the appointment rather than from whether anyone
+ * remembered to close it.
+ *
+ * Status alone was not enough. 13,205 past appointments still read "Confirmed"
+ * - Salesforce's word for booked, and nobody marks them Completed afterwards -
+ * so a patient with seven visits and ₹21,500 billed had a header saying
+ * "1 Visits, Last Visit Feb 16" while her own Appts tab listed all seven. The
+ * number the clinic could see was wrong for most of the patients they imported.
+ *
+ * So an appointment in the past counts as a visit unless it was cancelled or
+ * marked a no-show. A booking still to come is not a visit, however it is
+ * marked - that part was already right and stays.
+ */
+export function isVisit(status: string | null | undefined, startTime?: string | Date | null): boolean {
+  if (isVisitStatus(status)) return true;
+  if (!startTime) return false;
+  const when = startTime instanceof Date ? startTime : new Date(startTime);
+  if (Number.isNaN(when.getTime())) return false;
+  if (when.getTime() >= Date.now()) return false;
+  return !(NON_VISIT_STATUSES as readonly string[]).includes(String(status ?? ""));
 }
 
 /**

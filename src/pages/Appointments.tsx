@@ -28,6 +28,12 @@ import { appointmentInvoiceMap } from "@/lib/appointmentInvoiceMap";
 import { billCellState } from "@/lib/billCellState";
 import { billedPatientDays, patientDayKey, type BilledDayRow } from "@/lib/billedPatientDays";
 import { withUnlinkedBills, type UnlinkedBillRow, type VisitRow } from "@/lib/unlinkedVisitBills";
+import {
+  rescheduleVerdict,
+  rescheduleWarning,
+  type BookableAppointment,
+  type VisitEvidence,
+} from "@/lib/appointmentReschedule";
 import { formatMoneyExact } from "@/lib/currency";
 import { fetchInvoicesByAppointmentIds, invoiceMapByAppointment } from "@/lib/invoicesForAppointments";
 import { assertWrote } from "@/lib/rowAccess";
@@ -1239,7 +1245,10 @@ const Appointments = () => {
     if (editValues.status) updates.status = editValues.status;
     if (editValues.start_time) updates.start_time = new Date(editValues.start_time).toISOString();
     if (editValues.end_time) updates.end_time = new Date(editValues.end_time).toISOString();
-    inlineUpdateMutation.mutate({ id: editingRow, ...updates });
+    const row = editingRow;
+    const apply = () => inlineUpdateMutation.mutate({ id: row, ...updates });
+    if (updates.start_time) void guardVisitMove(row, updates.start_time, apply);
+    else apply();
     setEditingRow(null);
     setEditValues({});
   };
@@ -1531,6 +1540,74 @@ const Appointments = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  /**
+   * Moving a visit that already happened is not a reschedule.
+   *
+   * Tahniya's 25 September visit was overwritten by her next booking and her
+   * ₹3,000 bill went with it. Every path that changes an appointment's date
+   * goes through this first; it only interrupts when the appointment is in the
+   * past and something happened at it. See appointmentReschedule.ts.
+   */
+  const [visitMovePrompt, setVisitMovePrompt] = useState<{
+    apt: BookableAppointment;
+    newStart: string;
+    evidence: VisitEvidence;
+    proceed: () => void;
+  } | null>(null);
+
+  const appointmentById = (id: string): BookableAppointment | undefined =>
+    (visitsOnScreen as BookableAppointment[]).find((a) => a.id === id);
+
+  const guardVisitMove = async (id: string, newStart: string, proceed: () => void) => {
+    const apt = appointmentById(id);
+    // Nothing to protect: the appointment has not happened yet.
+    if (!apt?.start_time || new Date(apt.start_time).getTime() >= Date.now()) {
+      proceed();
+      return;
+    }
+    const hasInvoice = billInvoiceByAppointmentId.has(id);
+    let hasProcedure = false;
+    if (!hasInvoice) {
+      // One row, and only for an appointment already in the past.
+      const { data } = await supabase.from("procedures").select("id").eq("appointment_id", id).limit(1);
+      hasProcedure = (data?.length ?? 0) > 0;
+    }
+    const evidence = { hasInvoice, hasProcedure };
+    if (rescheduleVerdict(apt, newStart, evidence) !== "confirm") {
+      proceed();
+      return;
+    }
+    setVisitMovePrompt({ apt, newStart, evidence, proceed });
+  };
+
+  /** Keep the visit, put the new date on a new appointment. */
+  const bookInsteadMutation = useMutation({
+    mutationFn: async () => {
+      const prompt = visitMovePrompt;
+      if (!prompt) return;
+      const start = new Date(prompt.newStart);
+      const original = new Date(prompt.apt.start_time);
+      const originalEnd = prompt.apt.end_time ? new Date(prompt.apt.end_time) : null;
+      const durationMs = originalEnd ? originalEnd.getTime() - original.getTime() : 15 * 60 * 1000;
+      const { error } = await supabase.from("appointments").insert({
+        patient_id: prompt.apt.patient_id,
+        patient_name: prompt.apt.patient_name ?? null,
+        staff_id: prompt.apt.staff_id ?? null,
+        service: prompt.apt.service ?? null,
+        start_time: start.toISOString(),
+        end_time: new Date(start.getTime() + durationMs).toISOString(),
+        status: "Reserved",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      setVisitMovePrompt(null);
+      toast.success("New appointment booked - the earlier visit is unchanged");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const rescheduleAppointment = useMutation({
     mutationFn: async ({ id, newStart, newEnd }: { id: string; newStart: string; newEnd: string }) => {
       const { data: written, error } = await supabase
@@ -1715,7 +1792,9 @@ const Appointments = () => {
       dragRef.current = null;
       return;
     }
-    rescheduleAppointment.mutate({ id: aptId, newStart: newStart.toISOString(), newEnd: newEnd.toISOString() });
+    void guardVisitMove(aptId, newStart.toISOString(), () =>
+      rescheduleAppointment.mutate({ id: aptId, newStart: newStart.toISOString(), newEnd: newEnd.toISOString() }),
+    );
     dragRef.current = null;
   };
 
@@ -1734,7 +1813,9 @@ const Appointments = () => {
       dragRef.current = null;
       return;
     }
-    rescheduleAppointment.mutate({ id: aptId, newStart: newStart.toISOString(), newEnd: newEnd.toISOString() });
+    void guardVisitMove(aptId, newStart.toISOString(), () =>
+      rescheduleAppointment.mutate({ id: aptId, newStart: newStart.toISOString(), newEnd: newEnd.toISOString() }),
+    );
     dragRef.current = null;
   };
 
@@ -3261,6 +3342,47 @@ const Appointments = () => {
         fields={APPOINTMENT_VIEW_FIELDS}
         defaultColumns={DEFAULT_APPOINTMENT_VIEW_COLUMNS}
       />
+
+      {/* Changing the date of a visit that already happened overwrites it, and
+          the bill raised that day goes with it. Booking is offered first. */}
+      <AlertDialog open={!!visitMovePrompt} onOpenChange={(o) => { if (!o) setVisitMovePrompt(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Book a new appointment instead?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {visitMovePrompt?.apt?.patient_name || "This patient"} was seen on{" "}
+              {visitMovePrompt?.apt?.start_time
+                ? format(new Date(visitMovePrompt.apt.start_time), "dd MMM yyyy")
+                : "that day"}
+              . {visitMovePrompt ? rescheduleWarning(visitMovePrompt.evidence) : ""} Changing the date to{" "}
+              {visitMovePrompt?.newStart ? format(new Date(visitMovePrompt.newStart), "dd MMM yyyy") : "the new date"}{" "}
+              removes that visit from the patient's history and takes the bill with it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bookInsteadMutation.isPending}>Cancel</AlertDialogCancel>
+            <Button
+              variant="outline"
+              disabled={bookInsteadMutation.isPending}
+              onClick={() => {
+                visitMovePrompt?.proceed();
+                setVisitMovePrompt(null);
+              }}
+            >
+              Move it anyway
+            </Button>
+            <AlertDialogAction
+              disabled={bookInsteadMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                bookInsteadMutation.mutate();
+              }}
+            >
+              {bookInsteadMutation.isPending ? "Booking..." : "Book a new appointment"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteViewTarget} onOpenChange={(o) => { if (!o) setDeleteViewTarget(null); }}>
         <AlertDialogContent>

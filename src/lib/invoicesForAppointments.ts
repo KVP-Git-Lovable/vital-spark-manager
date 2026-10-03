@@ -57,13 +57,75 @@ export async function fetchInvoicesByAppointmentIds<T>(
   return results.flat();
 }
 
-/** appointment_id -> invoice, for the row cells and the view-filter engine. */
-export function invoiceMapByAppointment<T extends { appointment_id?: string | null }>(
-  invoices: T[],
-): Map<string, T> {
-  const map = new Map<string, T>();
+/** A bill the clinic no longer stands behind. Not money this visit was charged. */
+const VOID_STATUSES = ["Cancelled", "Merged"];
+
+export interface VisitBill {
+  id?: string;
+  appointment_id?: string | null;
+  patient_id?: string | null;
+  total_amount?: number | string | null;
+  paid_amount?: number | string | null;
+  payment_mode?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+}
+
+/** What a visit was billed: the live bills, their total, and each of them. */
+export interface VisitBilling extends VisitBill {
+  /** Every live bill for this visit, newest first. Usually one. */
+  bills: VisitBill[];
+}
+
+const amount = (value: number | string | null | undefined): number => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+};
+
+/**
+ * appointment_id -> what that visit was billed, for the row cells and the
+ * view-filter engine.
+ *
+ * Two things this has to get right, both reported by the clinic.
+ *
+ * A **cancelled** bill is not what the visit was charged. Aneesh Kumar's ₹850
+ * was cancelled as an incorrect amount and replaced by ₹2,500 nine minutes
+ * later; the list showed the ₹850, because this used to keep whichever row came
+ * back last and the query is not ordered. Nothing else in the app counts them -
+ * not the reports, not the invoice roll-up.
+ *
+ * And a visit can carry **more than one** live bill: 883 of them do, the
+ * consultation billed apart from the treatment. Overwriting meant Shruthi's
+ * 12 September visit read ₹1,250 or ₹18,000 depending on the order the rows
+ * arrived, for a visit billed ₹19,250. They are kept together now, and the
+ * clinic asked to see both.
+ *
+ * The value is still one object, so every caller keeps working: the totals are
+ * what sorting, filtering and export read, and `bills` is what the cell shows.
+ */
+export function invoiceMapByAppointment<T extends VisitBill>(invoices: T[]): Map<string, VisitBilling> {
+  const byAppointment = new Map<string, T[]>();
   for (const inv of invoices) {
-    if (inv?.appointment_id) map.set(inv.appointment_id, inv);
+    if (!inv?.appointment_id) continue;
+    if (VOID_STATUSES.includes(String(inv.status ?? ""))) continue;
+    const list = byAppointment.get(inv.appointment_id);
+    if (list) list.push(inv);
+    else byAppointment.set(inv.appointment_id, [inv]);
+  }
+
+  const map = new Map<string, VisitBilling>();
+  for (const [appointmentId, found] of byAppointment) {
+    const bills = [...found].sort(
+      (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
+    );
+    const modes = Array.from(new Set(bills.map((b) => (b.payment_mode || "").trim()).filter(Boolean)));
+    map.set(appointmentId, {
+      ...bills[0],
+      total_amount: bills.reduce((sum, b) => sum + amount(b.total_amount), 0),
+      paid_amount: bills.reduce((sum, b) => sum + amount(b.paid_amount), 0),
+      payment_mode: modes.join(", "),
+      bills,
+    });
   }
   return map;
 }

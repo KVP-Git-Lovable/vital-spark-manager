@@ -57,3 +57,17 @@ describe("withUnlinkedBills", () => {
     expect(withUnlinkedBills(linked, [], [VISIT])).toBe(linked);
   });
 });
+
+describe("withUnlinkedBills and a cancelled bill", () => {
+  const CANCELLED = { ...BILL, id: "INV-CANCELLED", status: "Cancelled" };
+
+  it("never claims one for a visit", () => {
+    expect(withUnlinkedBills(new Map(), [CANCELLED], [VISIT]).size).toBe(0);
+  });
+
+  it("does not let one make the day look ambiguous", () => {
+    // The live bill is still the only one that counts, so it is still claimed.
+    const merged = withUnlinkedBills(new Map(), [CANCELLED, BILL], [VISIT]);
+    expect(merged.get(VISIT.id)).toBe(BILL);
+  });
+});

@@ -27,7 +27,7 @@ import { viewDatePreset } from "@/lib/viewDatePreset";
 import { appointmentInvoiceMap } from "@/lib/appointmentInvoiceMap";
 import { billCellState } from "@/lib/billCellState";
 import { billedPatientDays, patientDayKey, type BilledDayRow } from "@/lib/billedPatientDays";
-import { withUnlinkedBills, type UnlinkedBillRow, type VisitRow } from "@/lib/unlinkedVisitBills";
+import { withUnlinkedBills, type VisitRow } from "@/lib/unlinkedVisitBills";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import {
   rescheduleVerdict,
@@ -36,7 +36,12 @@ import {
   type VisitEvidence,
 } from "@/lib/appointmentReschedule";
 import { formatMoneyExact } from "@/lib/currency";
-import { fetchInvoicesByAppointmentIds, invoiceMapByAppointment } from "@/lib/invoicesForAppointments";
+import {
+  fetchInvoicesByAppointmentIds,
+  invoiceMapByAppointment,
+  type VisitBill,
+  type VisitBilling,
+} from "@/lib/invoicesForAppointments";
 import { assertWrote } from "@/lib/rowAccess";
 import { joinDateTime, hasIncompleteDateTime } from "@/lib/inlineTimeEdit";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, ClipboardList, Pin, Printer, Trash2 } from "lucide-react";
@@ -966,7 +971,14 @@ const Appointments = () => {
   });
 
   const billInvoiceByAppointmentId = useMemo(
-    () => withUnlinkedBills(linkedInvoiceByAppointmentId, unlinkedBills as UnlinkedBillRow[], visitsOnScreen),
+    () =>
+      withUnlinkedBills(
+        linkedInvoiceByAppointmentId,
+        // In the same shape the linked map holds, so a cell cannot tell where
+        // the bill was found: one bill, and it is its own list.
+        (unlinkedBills as VisitBill[]).map((bill) => ({ ...bill, bills: [bill] })),
+        visitsOnScreen,
+      ),
     [linkedInvoiceByAppointmentId, unlinkedBills, visitsOnScreen],
   );
 
@@ -991,7 +1003,7 @@ const Appointments = () => {
   // day whose takings actually reconciled with Salesforce to the paise. Say
   // which it is - and never claim "No bill" when the figure is simply unknown.
   const renderBillCell = (
-    invoice: { total_amount?: number | string | null } | undefined,
+    invoice: VisitBilling | undefined,
     apt?: { patient_id?: string | null; start_time?: string | null },
     emphasise = false,
   ) => {
@@ -1002,8 +1014,22 @@ const Appointments = () => {
       failed: billLookupFailed,
       billedElsewhere: !!key && billedOnAnotherVisit.has(key),
     })) {
-      case "amount":
+      case "amount": {
+        // A visit can carry more than one bill - the consultation charged apart
+        // from the treatment, on 883 of them - and the clinic asked to see each.
+        // One bill, which is almost every visit, renders exactly as before.
+        const bills = invoice.bills ?? [];
+        if (bills.length > 1) {
+          return (
+            <span className={cn("flex flex-col leading-tight", emphasise && "font-medium")}>
+              {bills.map((bill, i) => (
+                <span key={bill.id ?? i}>{formatMoneyExact(bill.total_amount)}</span>
+              ))}
+            </span>
+          );
+        }
         return <span className={emphasise ? "font-medium" : undefined}>{formatMoneyExact(invoice.total_amount)}</span>;
+      }
       case "failed":
         return <span className="text-destructive" title="The bill could not be loaded - this is not the same as there being none">Unavailable</span>;
       case "loading":
@@ -2959,7 +2985,21 @@ const Appointments = () => {
                                   </td>
                                 )}
                                 {shouldShowColumn("payment_mode") && (
-                                  <td className="p-3 text-xs">{invoice?.payment_mode ? <Badge variant="outline" className="text-xs">{invoice.payment_mode}</Badge> : <span className="text-muted-foreground">—</span>}</td>
+                                  <td className="p-3 text-xs">
+                                    {(invoice?.bills ?? []).length > 1 ? (
+                                      <span className="flex flex-col items-start gap-0.5">
+                                        {invoice!.bills.map((bill, i) => (
+                                          <Badge key={bill.id ?? i} variant="outline" className="text-xs">
+                                            {bill.payment_mode || "—"}
+                                          </Badge>
+                                        ))}
+                                      </span>
+                                    ) : invoice?.payment_mode ? (
+                                      <Badge variant="outline" className="text-xs">{invoice.payment_mode}</Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground">—</span>
+                                    )}
+                                  </td>
                                 )}
                                 {shouldShowColumn("bill") && (
                                   <td className="p-3 text-xs">{renderBillCell(invoice, apt, true)}</td>

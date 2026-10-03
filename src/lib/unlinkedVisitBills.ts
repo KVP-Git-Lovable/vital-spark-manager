@@ -20,9 +20,10 @@
 import { patientDayKey } from "@/lib/billedPatientDays";
 
 export interface UnlinkedBillRow {
-  id: string;
+  id?: string;
   patient_id?: string | null;
   created_at?: string | null;
+  status?: string | null;
 }
 
 export interface VisitRow {
@@ -41,6 +42,9 @@ export function withUnlinkedBills<T extends UnlinkedBillRow>(
   bills: T[],
   visits: VisitRow[],
 ): Map<string, T> {
+  // A cancelled bill is not what a visit was charged, so it can neither be
+  // claimed by a visit nor make the day look ambiguous enough to claim nothing.
+  bills = bills.filter((b) => !["Cancelled", "Merged"].includes(String(b?.status ?? "")));
   if (!bills.length) return linked;
 
   // One entry per visit, however many of the page's lists it appears in.

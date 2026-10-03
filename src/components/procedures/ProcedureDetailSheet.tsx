@@ -5,7 +5,7 @@ import { usePharmaLookup } from "@/hooks/usePharmaLookup";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { renderPdfToImages } from "@/lib/renderPdf";
 import { isConsultationService } from "@/lib/consultationLine";
-import { isRollUpOf, nextRollUpValue } from "@/lib/procedureRollup";
+import { isRollUpOf, nextRollUpValue, parentHoldsOwnText as holdsOwnText } from "@/lib/procedureRollup";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
 
 import { useNavigate } from "react-router-dom";
@@ -155,6 +155,18 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [editAssistedByIds, setEditAssistedByIds] = useState<string[]>([]);
   const [editServiceLines, setEditServiceLines] = useState<ServiceLineRow[]>([]);
   const [servicesInitialized, setServicesInitialized] = useState(false);
+  /**
+   * Whether this visit's Special Instructions hold anything of their own.
+   *
+   * Decided once, from the lines as the visit was opened, and left alone while
+   * the doctor works. It used to be recomputed from the lines on every
+   * keystroke: typing a recommendation onto a service made the stored parent
+   * text stop matching the lines, so a Special Instructions box the doctor had
+   * never seen appeared mid-sentence, already filled with words they had not
+   * typed into it. The box's own save rule compares against these same opening
+   * lines, so the two now agree.
+   */
+  const [parentHoldsOwnText, setParentHoldsOwnText] = useState(false);
   const [editPrescriptions, setEditPrescriptions] = useState<PrescriptionRow[]>([]);
   const [attachmentNotes, setAttachmentNotes] = useState("");
   // Moving from one visit to another without closing the sheet kept the
@@ -165,6 +177,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     setLoadedFor(procedureId);
     setInitialized(false);
     setServicesInitialized(false);
+    setParentHoldsOwnText(false);
     setEditServiceLines([]);
     setEditPrescriptions([]);
     setMedical({});
@@ -525,6 +538,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     // against it to tell "the parent is just these lines" from "the parent
     // holds something of its own".
     originalServiceLinesRef.current = rows;
+    setParentHoldsOwnText(holdsOwnText(procedure.recommendations ?? null, rows, "recommendations"));
     setServicesInitialized(true);
   }
 
@@ -589,6 +603,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const handleClose = () => {
     setInitialized(false);
     setServicesInitialized(false);
+    setParentHoldsOwnText(false);
     setEditServiceLines([]);
     setEditPrescriptions([]);
     setAttachmentNotes("");
@@ -1309,11 +1324,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     services it never matched and the doctor was shown her own
                     recommendation twice, the second time under a name she had
                     not typed it into. */}
-                {!isRollUpOf(
-                  editRecommendations,
-                  editServiceLines.filter((l) => !l._deleted && (l.service_name || "").trim()),
-                  "recommendations",
-                ) && (
+                {parentHoldsOwnText && (
                   <div className="rounded-xl border bg-card p-4 shadow-sm">
                     <Label className="text-base font-display font-semibold flex items-center gap-2 mb-3">
                       <ClipboardList className="h-4 w-4" /> Special Instructions

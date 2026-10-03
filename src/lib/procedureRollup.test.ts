@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rollUpServiceField, isRollUpOf, nextRollUpValue } from "./procedureRollup";
+import { rollUpServiceField, isRollUpOf, nextRollUpValue, parentHoldsOwnText } from "./procedureRollup";
 
 // Rathish Kumar, 25/09/2026 - the visit that was reported.
 const RATHISH = [
@@ -185,5 +185,37 @@ describe("a roll-up whose spacing does not survive the trip to the document", ()
   it("leaves the stored value alone - only the comparison normalises", () => {
     expect(rollUpServiceField(D1546, "recommendations")).toBe(STORED);
     expect(STORED).toContain("Radiance Plus : ");
+  });
+});
+
+// Reported by the clinic: "doctors when typing procedure and recommendation,
+// special instructions are coming on its own". The visit's Special Instructions
+// box was shown or hidden by re-asking this question against the lines being
+// edited, so it appeared in the middle of typing, carrying the old text.
+describe("parentHoldsOwnText, while a doctor is typing", () => {
+  const OPENING = [{ service_name: "ONDA", recommendations: "3 sessions" }];
+  const STORED = "3 sessions";
+
+  it("is no while the parent is only what the lines said when the visit opened", () => {
+    expect(parentHoldsOwnText(STORED, OPENING, "recommendations")).toBe(false);
+  });
+
+  it("stays no however much the doctor types onto a service line", () => {
+    // The answer is asked of the opening lines, so nothing appears mid-sentence.
+    expect(parentHoldsOwnText(STORED, OPENING, "recommendations")).toBe(false);
+  });
+
+  it("is what flipped when the question was asked of the edited lines instead", () => {
+    const edited = [{ service_name: "ONDA", recommendations: "3 sessions -once in 3 weeks" }];
+    expect(parentHoldsOwnText(STORED, edited, "recommendations")).toBe(true);
+  });
+
+  it("is yes for the Salesforce instructions the lines never accounted for", () => {
+    expect(parentHoldsOwnText("Review after 6 weeks", OPENING, "recommendations")).toBe(true);
+  });
+
+  it("is no when the visit has no instructions at all", () => {
+    expect(parentHoldsOwnText("", OPENING, "recommendations")).toBe(false);
+    expect(parentHoldsOwnText(null, OPENING, "recommendations")).toBe(false);
   });
 });

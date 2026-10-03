@@ -67,6 +67,25 @@ export const isRollUpOf = (stored: string | null | undefined, lines: RollUpLine[
 };
 
 /**
+ * Does this visit's parent text hold anything of its own?
+ *
+ * Judged against the service lines **as the visit was opened**, never against
+ * the lines as they are being typed. A doctor adding a recommendation to a
+ * service makes the stored parent text stop matching the lines, and a screen
+ * that asks this question again on every keystroke concludes, mid-sentence,
+ * that the parent is now something of its own - so a Special Instructions box
+ * appears by itself, already filled with words the doctor never typed into it.
+ *
+ * nextRollUpValue decides the same way on save, so what is shown and what is
+ * written cannot disagree.
+ */
+export const parentHoldsOwnText = (
+  stored: string | null | undefined,
+  openingLines: RollUpLine[],
+  field: RollUpField,
+): boolean => !isRollUpOf(stored, openingLines, field);
+
+/**
  * What to write to the parent row on save.
  *
  * Re-roll it from the lines only where the lines account for what is stored -

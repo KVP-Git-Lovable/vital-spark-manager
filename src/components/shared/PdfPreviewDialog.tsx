@@ -35,14 +35,22 @@ export interface PdfPreviewDialogProps {
   url?: string | null;
   /** A document we built ourselves, shown when there is no PDF to point at. */
   html?: string | null;
+  /** A hard failure: replaces the document, because there is none to show. */
   error?: string | null;
+  /**
+   * Shown above a document that IS there - the fallback copy, with the reason
+   * the real one could not be reached. The error slot cannot carry this: it
+   * takes the content's place and hides Print, and the clinic still has a
+   * patient waiting for a bill.
+   */
+  notice?: string | null;
   onRetry?: () => void;
   onDownload?: () => void;
   downloading?: boolean;
 }
 
 export function PdfPreviewDialog({
-  open, onClose, title, preparing, pages, url, html, error, onRetry, onDownload, downloading,
+  open, onClose, title, preparing, pages, url, html, error, notice, onRetry, onDownload, downloading,
 }: PdfPreviewDialogProps) {
   const printFrame = useRef<HTMLIFrameElement | null>(null);
 
@@ -79,6 +87,12 @@ export function PdfPreviewDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
+
+        {notice && !error && (
+          <p className="text-xs text-amber-700 dark:text-amber-500 bg-amber-500/10 rounded-md px-3 py-2">
+            {notice}
+          </p>
+        )}
 
         <div
           className="bg-muted/40 rounded-lg overflow-hidden flex items-center justify-center"

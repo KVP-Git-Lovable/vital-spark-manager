@@ -1,5 +1,6 @@
 import { formatMoney, formatMoneyPrecise } from "@/lib/currency";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { waitForInvoicePdf } from "@/lib/invoicePdfWait";
 import { useUrlPanel } from "@/hooks/useUrlPanel";
 import { viewDatePreset } from "@/lib/viewDatePreset";
 import { dateRangeFor } from "@/lib/listViews/engine";
@@ -341,6 +342,7 @@ const Billing = () => {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfHtml, setPdfHtml] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfNotice, setPdfNotice] = useState<string | null>(null);
   const [pdfDownloading, setPdfDownloading] = useState(false);
   // Only what the dialog needs: the number for its title, the id to download with.
   const [pdfInvoice, setPdfInvoice] = useState<{ id: string; invoice_number?: string | null } | null>(null);
@@ -356,19 +358,45 @@ const Billing = () => {
     pdfBytes.current = null;
     setPdfHtml(null);
     setPdfError(null);
+    setPdfNotice(null);
     setPdfOpen(true);
+    // Everything the generator writes from here on belongs to this print.
+    const askedAt = new Date();
     try {
-      const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
-        body: { invoiceId: inv.id, wait: true },
-        timeout: 45000,
-      });
-      if (error) {
-        throw new Error(
-          await edgeFunctionErrorMessage(error, "The invoice PDF could not be prepared."),
-        );
+      let url: string | undefined;
+      let reason: string | null = null;
+      try {
+        const { data, error } = await supabase.functions.invoke("generate-invoice-pdf", {
+          body: { invoiceId: inv.id, wait: true },
+        });
+        if (error) {
+          throw new Error(
+            await edgeFunctionErrorMessage(error, "The invoice PDF could not be prepared."),
+          );
+        }
+        url = (data as { url?: string } | null)?.url;
+        if (!url) throw new Error("The invoice PDF was prepared but its address came back empty.");
+      } catch (callFailed) {
+        // The generator is slow under load and usually finishes anyway - on
+        // 3 October one invoice's PDF landed 82 minutes after the bill. Rather
+        // than drop straight to the fallback template, wait a little and take
+        // the document it writes. Only one written after we asked is accepted,
+        // so an older PDF from before an edit can never stand in.
+        reason = callFailed instanceof Error ? callFailed.message : String(callFailed);
+        url =
+          (await waitForInvoicePdf({
+            askedAt,
+            read: async () => {
+              const { data } = await supabase
+                .from("invoices")
+                .select("pdf_url, updated_at")
+                .eq("id", inv.id)
+                .maybeSingle();
+              return data ?? null;
+            },
+          })) ?? undefined;
+        if (!url) throw new Error(reason);
       }
-      const url = (data as { url?: string } | null)?.url;
-      if (!url) throw new Error("PDF url missing");
       const stamped = `${url}?t=${Date.now()}`;
       setPdfUrl(stamped);
       // Fetched as bytes and drawn, rather than handed to the browser to
@@ -383,6 +411,14 @@ const Billing = () => {
       // Only when the real invoice cannot be built or drawn. This template is
       // not the clinic's invoice and must never stand in for it silently
       // while the proper one is available.
+      //
+      // The reason is shown, not only logged. It used to go to the console and
+      // a toast that named nothing, so every report of this was a fresh guess
+      // at which of the four steps had failed.
+      const reason = e instanceof Error ? e.message : String(e);
+      // A notice, not an error: the fallback copy is still shown and still
+      // prints, because there is a patient at the desk waiting for a bill.
+      setPdfNotice(`${reason} Showing the plain printable copy instead.`);
       toast.message("The invoice PDF could not be shown - showing the plain printable copy");
       setPdfHtml(invoicePrintableHtml(inv));
     }
@@ -4210,13 +4246,14 @@ const Billing = () => {
 
       <PdfPreviewDialog
         open={pdfOpen}
-        onClose={() => { setPdfOpen(false); setPdfUrl(null); setPdfHtml(null); setPdfError(null); }}
+        onClose={() => { setPdfOpen(false); setPdfUrl(null); setPdfHtml(null); setPdfError(null); setPdfNotice(null); }}
         title={pdfInvoice?.invoice_number ? `Invoice ${pdfInvoice.invoice_number}` : "Invoice"}
         preparing="Preparing the invoice…"
         pages={pdfPages}
         url={pdfUrl}
         html={pdfHtml}
         error={pdfError}
+        notice={pdfNotice}
         onDownload={downloadInvoicePDF}
         downloading={pdfDownloading}
         onRetry={() => pdfInvoice && openInvoicePDF(pdfInvoice)}

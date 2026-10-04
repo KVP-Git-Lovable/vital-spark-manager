@@ -10,9 +10,19 @@ function fmtINR(n: number) {
   return `INR ${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// Extra characters Helvetica (WinAnsi / cp1252) can print beyond Latin-1.
+const WINANSI_EXTRA = new Set("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ");
+
 function sanitize(s: any): string {
-  // Strip only control characters that WinAnsi cannot encode; preserve spaces.
-  return String(s ?? "").replace(/[\u0000-\u001F\u007F]+/g, " ");
+  // Control characters become spaces; invisible copy-paste marks (bidi,
+  // zero-width, BOM) are dropped; anything else the font cannot encode
+  // (emoji, Indic script) is dropped so one stray character never fails the PDF.
+  return String(s ?? "")
+    .replace(/[\u0000-\u001F\u007F]+/g, " ")
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, "")
+    .replace(/\u20B9/g, "Rs.")
+    .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ")
+    .replace(/[^\u0020-\u007E\u00A1-\u00FF]/gu, (ch) => (WINANSI_EXTRA.has(ch) ? ch : ""));
 }
 
 function pct(n: any) {

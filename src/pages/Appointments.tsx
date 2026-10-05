@@ -273,6 +273,7 @@ const Appointments = () => {
     deleteView,
     pinDefault,
     updateStandardColumns,
+    viewsReady,
   } = useModuleListViews("appointments", "Appointments", DEFAULT_APPOINTMENT_VIEW_COLUMNS);
   const [viewEditorOpen, setViewEditorOpen] = useState(false);
   const [editingView, setEditingView] = useState<ListView | null>(null);
@@ -777,7 +778,14 @@ const Appointments = () => {
     // Day/Week/Month views only - the List view uses the server-paginated
     // query below instead of pulling the full date range into memory
     // (unless a saved view's client-side filters are active).
-    enabled: view !== "table" || viewHasFilters,
+    //
+    // And never before the remembered view has been restored. Until then
+    // activeView is "All Appointments", which bounds nothing, so this fetched
+    // the oldest rows in the table and the view's own conditions filtered them
+    // to nothing - "Todays Appointments" read "0 items" every time the clinic
+    // left the page and came back, and the wrong answer sat in the query cache
+    // ready to be served instantly the next time.
+    enabled: viewsReady && (view !== "table" || viewHasFilters),
   });
 
   const sortedFilterDoctors = useMemo(() => Array.from(filterDoctors).sort(), [filterDoctors]);
@@ -813,7 +821,7 @@ const Appointments = () => {
         sortDirection,
       }),
     placeholderData: keepPreviousData,
-    enabled: view === "table" && !viewHasFilters,
+    enabled: viewsReady && view === "table" && !viewHasFilters,
   });
 
   // Reset to page 1 whenever any input that reshapes the result set changes
@@ -1123,7 +1131,10 @@ const Appointments = () => {
   // so slice it locally and report its true size.
   const apptTotal = viewHasFilters ? filteredAppointments.length : (apptPageData?.total ?? 0);
   // Which fetch backs that count depends on the view, same as the rows.
-  const apptPageLoading = viewHasFilters ? apptBulkFetching : apptPageFetching;
+  // Waiting for the remembered view counts as loading. A disabled query reports
+  // isLoading false, so without this the table said "No appointments found"
+  // while it was still working out which appointments to ask for.
+  const apptPageLoading = !viewsReady || (viewHasFilters ? apptBulkFetching : apptPageFetching);
   // Server-side totals are planner estimates, so "is there a next page" comes
   // from the probe row the fetcher reports, never from apptTotal.
   const apptHasMore = viewHasFilters
@@ -3113,7 +3124,11 @@ const Appointments = () => {
                       );
                     })()}
                     {visibleTableRows.length === 0 && (
-                      <tr><td colSpan={visibleColumnWidths.length + 1} className="p-8 text-center text-muted-foreground">No appointments found</td></tr>
+                      <tr>
+                        <td colSpan={visibleColumnWidths.length + 1} className="p-8 text-center text-muted-foreground">
+                          {apptPageLoading ? "Loading…" : "No appointments found"}
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>

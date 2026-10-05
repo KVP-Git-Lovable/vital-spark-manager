@@ -6,11 +6,12 @@ import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { renderPdfToImages } from "@/lib/renderPdf";
 import { isConsultationService } from "@/lib/consultationLine";
 import { isRollUpOf, nextRollUpValue, parentHoldsOwnText as holdsOwnText } from "@/lib/procedureRollup";
+import { assertWrote } from "@/lib/rowAccess";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
 
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList, StickyNote, Eye, FileText } from "lucide-react";
+import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList, StickyNote, Eye, FileText, CalendarClock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -738,6 +739,69 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     onError: (e: Error) => toast.error(e.message),
   });
 
+  /**
+   * The follow-up visits this prescription booked.
+   *
+   * The prescription form creates them - "Next Appointment Date", or one per
+   * recurring visit - as ordinary Reserved appointments. Coming back to edit the
+   * prescription a doctor could change everything on it except those dates, and
+   * there was nowhere on this screen to change them: the only way was to leave,
+   * find the appointment on the Appointments page, and edit it there.
+   *
+   * Upcoming and not cancelled, so nothing that has already happened can be
+   * moved from here - that is the one case the Appointments page deliberately
+   * asks about before allowing (see appointmentReschedule.ts), and this screen
+   * has no business doing it quietly.
+   */
+  const { data: upcomingAppointments = [] } = useQuery({
+    queryKey: ["procedure-followup-appointments", procedure?.patient_id],
+    enabled: !!procedure?.patient_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("id, service, start_time, end_time, status, visit_status")
+        .eq("patient_id", procedure!.patient_id!)
+        .gt("start_time", new Date().toISOString())
+        .neq("status", "Cancelled")
+        .order("start_time");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const [followUpEdits, setFollowUpEdits] = useState<Record<string, string>>({});
+
+  const moveFollowUp = useMutation({
+    mutationFn: async ({ id, when }: { id: string; when: string }) => {
+      const appointment = upcomingAppointments.find((a) => a.id === id);
+      const start = new Date(when);
+      if (Number.isNaN(start.getTime())) throw new Error("Pick a date and time");
+      // The visit keeps the length it was booked with.
+      const originalStart = appointment?.start_time ? new Date(appointment.start_time) : null;
+      const originalEnd = appointment?.end_time ? new Date(appointment.end_time) : null;
+      const durationMs =
+        originalStart && originalEnd ? originalEnd.getTime() - originalStart.getTime() : 30 * 60 * 1000;
+      const { data: written, error } = await supabase
+        .from("appointments")
+        .update({ start_time: start.toISOString(), end_time: new Date(start.getTime() + durationMs).toISOString() })
+        .eq("id", id)
+        .select("id");
+      if (error) throw error;
+      assertWrote(written);
+    },
+    onSuccess: (_data, { id }) => {
+      setFollowUpEdits((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ["procedure-followup-appointments", procedure?.patient_id] });
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success("Follow-up appointment moved");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async () => {
       await supabase.from("prescriptions").delete().eq("procedure_id", procedureId!);
@@ -1335,6 +1399,53 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                       onChange={(e) => setEditRecommendations(e.target.value)}
                       placeholder="Instructions for this visit"
                     />
+                  </div>
+                )}
+
+                {/* Follow-up appointments booked by this prescription */}
+                {upcomingAppointments.length > 0 && (
+                  <div className="rounded-xl border bg-card p-4 shadow-sm">
+                    <Label className="text-base font-display font-semibold flex items-center gap-2 mb-1">
+                      <CalendarClock className="h-4 w-4" /> Follow-up appointments
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      The visits booked from this prescription. Change a date here rather than hunting for it on the
+                      Appointments page.
+                    </p>
+                    <div className="space-y-3">
+                      {upcomingAppointments.map((apt) => {
+                        const current = format(new Date(apt.start_time), "yyyy-MM-dd'T'HH:mm");
+                        const edited = followUpEdits[apt.id] ?? current;
+                        const changed = edited !== current;
+                        return (
+                          <div key={apt.id} className="flex flex-wrap items-end gap-2">
+                            <div className="min-w-[220px] flex-1">
+                              <Label className="text-xs text-muted-foreground">
+                                {apt.service || "Follow-up"}
+                                {apt.visit_status ? ` · ${apt.visit_status}` : ""}
+                              </Label>
+                              <Input
+                                type="datetime-local"
+                                className="mt-1 bg-background"
+                                value={edited}
+                                onChange={(e) =>
+                                  setFollowUpEdits((prev) => ({ ...prev, [apt.id]: e.target.value }))
+                                }
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={changed ? "default" : "outline"}
+                              disabled={!changed || moveFollowUp.isPending}
+                              onClick={() => moveFollowUp.mutate({ id: apt.id, when: edited })}
+                            >
+                              {moveFollowUp.isPending ? "Saving…" : "Save date"}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 

@@ -226,6 +226,16 @@ export function useModuleListViews(section: string, objectLabel: string, default
     updateStandardColumns,
 
     loading,
+    /**
+     * The remembered view has been restored (or settled on a default).
+     *
+     * Until this is true `activeView` is whatever standard view happens to be
+     * first - "All Appointments" - which says nothing about dates. A screen that
+     * fetches on that answer fetches the wrong window, and the saved view's own
+     * conditions then filter the result to nothing: "Todays Appointments" read
+     * "0 items" every time the clinic left the page and came back.
+     */
+    viewsReady: initialised,
     userId,
     activeView,
     activeViewId,

@@ -115,8 +115,12 @@ export default function DashboardExplore() {
     [staffList]
   );
 
-  // Primary-concern names, needed when the drill-down came from the
-  // "Revenue by Primary Concern" chart (concerns live on the appointment).
+  // Primary-concern names, for a drill-down opened with ?problem_area=.
+  //
+  // The dashboard chart that used to send people here is gone - it was one
+  // "Unspecified" bar, the concern being filled on 7 of 56,763 appointments -
+  // but the filter still answers an old bookmark, and unpicking it from the
+  // invoice fetch below would be a change with no one asking for it.
   const { data: problemAreas = [] } = useQuery({
     queryKey: ["explore-problem-areas"],
     enabled: kind === "invoices",

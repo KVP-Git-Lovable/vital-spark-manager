@@ -21,6 +21,7 @@ import {
   eachHourOfInterval, eachWeekOfInterval, differenceInDays,
 } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { npsBreakdown } from "@/lib/feedbackScores";
 import { useMoneyFormat } from "@/lib/currency";
 import { formatMoneyCompact } from "@/lib/currency";
 import { kpiColumnClass } from "@/lib/kpiGrid";
@@ -184,6 +185,23 @@ const Index = () => {
         .limit(DASH_ROW_CAP);
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Patient feedback over the same window as every other card. It replaced
+  // Revenue by Primary Concern, which was one "Unspecified" bar and always
+  // would be: the concern is filled on 7 of 56,763 appointments.
+  const { data: feedback = [] } = useQuery({
+    queryKey: ["dashboard-feedback", startISO, endISO],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("patient_feedback")
+        .select("nps_score, service_rating")
+        .gte("created_at", startISO)
+        .lte("created_at", endISO)
+        .limit(DASH_ROW_CAP);
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -373,11 +391,6 @@ const Index = () => {
       .map((name) => ({ name, paid: drBillPaid[name] || 0, invoiced: drBillInvoiced[name] || 0 }))
       .sort((a, b) => b.invoiced - a.invoiced)
       .slice(0, 10);
-    const revenueByProblemArea = Object.entries(areaRevenue)
-      .map(([name, value]) => ({ name, value: Math.round(value) }))
-      .filter((d) => d.value > 0)
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
     const revenueByPaymentMode = Object.entries(modeRevenue)
       .map(([name, value]) => ({ name, value: Math.round(value) }))
       .filter((d) => d.value > 0)
@@ -442,8 +455,12 @@ const Index = () => {
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
 
-    return { appointmentStatus, appointmentsByDr, revenueByDr, revenueByProblemArea, revenueByPaymentMode, revenueByDate, revenueByService, appointmentsByDate };
+    return { appointmentStatus, appointmentsByDr, revenueByDr, revenueByPaymentMode, revenueByDate, revenueByService, appointmentsByDate };
   }, [filtered, filteredInvoices, start, end]);
+
+  // The same npsBreakdown the Patient Feedback report reads, so the card and the
+  // report cannot disagree about who counts as a promoter.
+  const feedbackSummary = useMemo(() => npsBreakdown(feedback as { nps_score?: number | null; service_rating?: number | null }[]), [feedback]);
 
   // Stat card values
   const paidRevenue = filteredInvoices.reduce((s, inv: any) => s + Number(inv.paid_amount || 0), 0);
@@ -494,8 +511,16 @@ const Index = () => {
         return openDrill("appointments", `Appointment Trend — Completed${suffix}`, { status: "Completed" });
       case "revenue_by_service":
         return openDrill("invoices", `Revenue by Service${suffix}`, key && key !== "Unspecified" ? { service: key } : {});
-      case "revenue_by_problem_area":
-        return openDrill("invoices", `Revenue by Primary Concern${suffix}`, key ? { problem_area: key } : {});
+      case "patient_feedback": {
+        // The report already lists every response with the patient, the score
+        // and the comment, and already filters by NPS group - so the card sends
+        // the band and the dashboard's own dates rather than growing a second
+        // list of its own.
+        const params = new URLSearchParams({ from: format(start, "yyyy-MM-dd"), to: format(end, "yyyy-MM-dd") });
+        const band = (key || "").split(" ")[0];
+        if (band) params.set("nps_category", band);
+        return navigate(`/reports/patient_feedback?${params.toString()}`);
+      }
       case "revenue_by_payment_mode":
         return openDrill("invoices", `Revenue by Payment Mode${suffix}`, key ? { payment_mode: key } : {});
       default:
@@ -634,7 +659,8 @@ const Index = () => {
 
       {(shows("charts") || shows("revenue_by_service") || shows("appointment_trend")) && (
         <DashboardCharts
-          data={shows("charts") ? chartData : ({ ...chartData, appointmentStatus: [], appointmentsByDr: [], revenueByDr: [], revenueByProblemArea: [], revenueByPaymentMode: [], revenueByDate: [] } as any)}
+          feedback={feedbackSummary}
+          data={shows("charts") ? chartData : ({ ...chartData, appointmentStatus: [], appointmentsByDr: [], revenueByDr: [], revenueByPaymentMode: [], revenueByDate: [] } as any)}
           onChartClick={handleChartClick}
           showRevenueByService={shows("revenue_by_service")}
           showAppointmentTrend={shows("appointment_trend")}

@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMoneyFormat } from "@/lib/currency";
+import type { NpsBreakdown } from "@/lib/feedbackScores";
 import {
   BAR_LABEL_CHARS,
   BAR_LABEL_GUTTER,
@@ -52,7 +53,6 @@ interface ChartData {
   appointmentStatus: NameValue[];
   appointmentsByDr: NameValue[];
   revenueByDr: { name: string; paid: number; invoiced: number }[];
-  revenueByProblemArea: NameValue[];
   revenueByPaymentMode: NameValue[];
   revenueByDate: { date: string; paid: number; invoiced: number }[];
   revenueByService?: NameValue[];
@@ -61,6 +61,8 @@ interface ChartData {
 
 interface Props {
   data: ChartData;
+  /** Patient feedback over the same window, from npsBreakdown. */
+  feedback?: NpsBreakdown;
   onChartClick: (type: string, key?: string) => void;
   showRevenueByService?: boolean;
   showAppointmentTrend?: boolean;
@@ -232,7 +234,7 @@ function HorizontalBarCard({
   );
 }
 
-export function DashboardCharts({ data, onChartClick, showRevenueByService, showAppointmentTrend, loading }: Props) {
+export function DashboardCharts({ data, feedback, onChartClick, showRevenueByService, showAppointmentTrend, loading }: Props) {
   const isMobile = useIsMobile();
   const { formatMoney, formatNumber } = useMoneyFormat();
   const money = (v: number, n: string) => [formatMoney(Number(v)), n] as [string, string];
@@ -391,21 +393,37 @@ export function DashboardCharts({ data, onChartClick, showRevenueByService, show
     </ChartCard>
   );
 
-  // Row 4 — Revenue by Primary Concern
-  if (show(data.revenueByProblemArea.length === 0))
+  // Row 4 — Patient Feedback
+  //
+  // This card used to be "Revenue by Primary Concern", which was one
+  // "Unspecified" bar and always would be: the concern is filled on 7 of 56,763
+  // appointments. Feedback is the opposite - every response carries a score, and
+  // the clinic collected 224 in its first twelve days.
+  const npsBands = feedback
+    ? [
+        { name: `Promoters (9-10)`, value: feedback.promoters },
+        { name: `Passives (7-8)`, value: feedback.passives },
+        { name: `Detractors (0-6)`, value: feedback.detractors },
+      ].filter((b) => b.value > 0)
+    : [];
+  if (show(npsBands.length === 0))
   cards.push(
     <HorizontalBarCard
-      key="revenue_by_problem_area"
-      title="Revenue by Primary Concern (₹)"
+      key="patient_feedback"
+      title={
+        feedback && feedback.nps !== null
+          ? `Patient Feedback — NPS ${feedback.nps} (${feedback.responses} responses · ${feedback.averageRating ?? "—"}★)`
+          : "Patient Feedback"
+      }
       delay={nextDelay()}
       loading={loading}
-      data={data.revenueByProblemArea}
-      barName="Paid"
-      chartKey="revenue_by_problem_area"
+      data={npsBands}
+      barName="Patients"
+      chartKey="patient_feedback"
       onChartClick={onChartClick}
       isMobile={isMobile}
       formatTick={formatNumber}
-      tooltipFormatter={money}
+      tooltipFormatter={(v: number, name: string) => [`${v} patient(s)`, name] as [string, string]}
     />
   );
 

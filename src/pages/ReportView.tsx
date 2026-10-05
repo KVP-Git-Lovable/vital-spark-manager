@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMoneyFormat } from "@/lib/currency";
 import { ReportFilterBar, type FilterState } from "@/components/reports/ReportFilterBar";
 import { DEFAULT_REPORT_PRESET, getReportDateRange, loadReportPin } from "@/lib/reportDateRange";
+import { reportFiltersFromUrl } from "@/lib/reportUrlFilters";
 import { SortableDataTable } from "@/components/reports/SortableDataTable";
 import { ReportChart } from "@/components/reports/ReportChart";
 import { downloadReportPdf } from "@/lib/reportPdf";
@@ -54,8 +55,17 @@ const ReportView = () => {
   const dayOnly = reportPeriodLimit === "day";
 
   const [filterState, setFilterState] = useState<FilterState>(() => {
+    // A link can open the report already filtered - the dashboard's feedback
+    // card sends the NPS band and its own dates. Narrow on purpose: see
+    // reportUrlFilters.ts.
+    const fromUrl = reportFiltersFromUrl(new URLSearchParams(window.location.search), report?.filters ?? []);
     if (reportPeriodLimit === "day") {
-      return { search: "", dateFrom: startOfToday(), dateTo: startOfToday(), selects: {} };
+      return {
+        search: "",
+        dateFrom: startOfToday(),
+        dateTo: startOfToday(),
+        selects: fromUrl?.selects ?? {},
+      };
     }
     // Reports start on the pinned period (current month by default) so a first run
     // never scans the whole history.
@@ -69,9 +79,12 @@ const ReportView = () => {
       customEnd: pin?.customEnd,
       dateFrom: start,
       dateTo: end,
+      // A link beats the pinned period it was opened from.
+      ...fromUrl,
       selects: {
         ...(pin?.doctor ? { doctor: pin.doctor } : {}),
         ...(pin?.service ? { service: pin.service } : {}),
+        ...(fromUrl?.selects ?? {}),
       },
     };
   });

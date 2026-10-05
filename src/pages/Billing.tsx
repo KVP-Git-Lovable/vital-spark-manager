@@ -2,6 +2,7 @@ import { formatMoney, formatMoneyPrecise } from "@/lib/currency";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { waitForInvoicePdf } from "@/lib/invoicePdfWait";
 import { paymentModeForSplits, splitProblem, splitTotal, splitsFromInvoice } from "@/lib/paymentSplits";
+import { visitLabel } from "@/lib/visitLabel";
 import { useUrlPanel } from "@/hooks/useUrlPanel";
 import { viewDatePreset } from "@/lib/viewDatePreset";
 import { dateRangeFor } from "@/lib/listViews/engine";
@@ -720,7 +721,10 @@ const Billing = () => {
       .from("appointments")
       // staff_id is what separates two visits on one day when the bill has to
       // choose between them - see pickAppointmentForInvoice.
-      .select("id, service, start_time, status, staff_id")
+      // reason_for_consultation too: it is the "Investigation" the appointments
+      // list labels a visit by, and every appointment booked in this app leaves
+      // `service` empty - see visitLabel.ts.
+      .select("id, service, reason_for_consultation, start_time, status, staff_id")
       .eq("patient_id", id)
       .order("start_time", { ascending: false })
       .limit(200);
@@ -729,7 +733,11 @@ const Billing = () => {
   };
 
   /** The picker needs the display fields as well as what the guess reads. */
-  type PickerAppointment = LinkableAppointment & { service?: string | null; status?: string | null };
+  type PickerAppointment = LinkableAppointment & {
+    service?: string | null;
+    reason_for_consultation?: string | null;
+    status?: string | null;
+  };
 
   const linkPatientId = (viewInvoice as any)?.patient_id || null;
   const { data: patientAppointments = [] } = useQuery({
@@ -3045,18 +3053,42 @@ const Billing = () => {
                       <SelectItem value="none">Not linked</SelectItem>
                       {(createPatientAppointments as PickerAppointment[]).map((a) => (
                         <SelectItem key={a.id} value={a.id}>
-                          {format(new Date(a.start_time), "dd MMM yyyy, h:mm a")} · {a.service || "Visit"}{a.status ? ` · ${a.status}` : ""}
+                          {format(new Date(a.start_time), "dd MMM yyyy, h:mm a")} · {visitLabel(a)}{a.status ? ` · ${a.status}` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    {effectiveLinkAppointmentId
-                      ? "This bill will show against that appointment in the appointments list."
-                      : (createPatientAppointments as PickerAppointment[]).length
-                        ? "Not linked. Pick the visit this bill is for, so the appointments list shows it against the right one."
-                        : "This patient has no appointments to link to."}
-                  </p>
+                  {(() => {
+                    // The mistake this is here to catch: Vaishnavi's 5 October
+                    // bill went onto her 13 June visit, 114 days away, because
+                    // that was the only row in this list that named the
+                    // treatment. It warns rather than blocks - billing a visit a
+                    // day late is ordinary.
+                    const picked = (createPatientAppointments as PickerAppointment[]).find(
+                      (a) => a.id === effectiveLinkAppointmentId,
+                    );
+                    const otherDay =
+                      picked?.start_time &&
+                      invoiceDate &&
+                      !isSameDay(new Date(picked.start_time), invoiceDate);
+                    if (otherDay) {
+                      return (
+                        <p className="text-[11px] text-amber-700 dark:text-amber-500 mt-1">
+                          This bill is dated {format(invoiceDate, "dd MMM yyyy")} — the visit you have picked is{" "}
+                          {format(new Date(picked!.start_time as string), "dd MMM yyyy")}. Check it is the right one.
+                        </p>
+                      );
+                    }
+                    return (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {effectiveLinkAppointmentId
+                          ? "This bill will show against that appointment in the appointments list."
+                          : (createPatientAppointments as PickerAppointment[]).length
+                            ? "Not linked. Pick the visit this bill is for, so the appointments list shows it against the right one."
+                            : "This patient has no appointments to link to."}
+                      </p>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -4072,7 +4104,7 @@ const Billing = () => {
                         <SelectItem value="none">Not linked</SelectItem>
                         {(patientAppointments as any[]).map((a: any) => (
                           <SelectItem key={a.id} value={a.id}>
-                            {format(new Date(a.start_time), "dd MMM yyyy, h:mm a")} · {a.service || "Visit"}{a.status ? ` · ${a.status}` : ""}
+                            {format(new Date(a.start_time), "dd MMM yyyy, h:mm a")} · {visitLabel(a)}{a.status ? ` · ${a.status}` : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>

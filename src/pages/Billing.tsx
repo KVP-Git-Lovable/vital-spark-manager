@@ -1,6 +1,7 @@
 import { formatMoney, formatMoneyPrecise } from "@/lib/currency";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { waitForInvoicePdf } from "@/lib/invoicePdfWait";
+import { paymentModeForSplits, splitProblem, splitTotal, splitsFromInvoice } from "@/lib/paymentSplits";
 import { useUrlPanel } from "@/hooks/useUrlPanel";
 import { viewDatePreset } from "@/lib/viewDatePreset";
 import { dateRangeFor } from "@/lib/listViews/engine";
@@ -36,6 +37,9 @@ import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/s
 import { BILLING_VIEW_FIELDS, DEFAULT_BILLING_VIEW_COLUMNS } from "@/lib/listViews/billingFields";
 
 // Lazy: pulls in recharts, kept out of the main bundle until a user actually opens Charts.
+/** The ways the clinic takes money. "Split" is derived, never chosen here. */
+const PAYMENT_MODES = ["Cash", "Card", "UPI", "Cheque", "Bank Transfer"] as const;
+
 const ViewChartsPanel = lazy(() => import("@/components/listViews/ViewChartsPanel"));
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { Input } from "@/components/ui/input";
@@ -1840,18 +1844,9 @@ const Billing = () => {
         else if (paidAmount > 0) status = "Partial";
 
         const splitsActive = splits.length > 0;
-        const splitTotal = splits.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-        if (splitsActive) {
-          if (splits.some((r) => !r.mode || !(Number(r.amount) > 0))) {
-            throw new Error("Each split row needs a payment mode and amount");
-          }
-          if (Math.round(splitTotal * 100) !== Math.round(paidAmount * 100)) {
-            throw new Error("Split amounts must equal paid amount");
-          }
-        }
-        const effectivePaymentMode = splitsActive
-          ? (splits.length === 1 ? splits[0].mode : "Split")
-          : paymentMode;
+        const problem = splitProblem(splits, paidAmount);
+        if (problem) throw new Error(problem);
+        const effectivePaymentMode = paymentModeForSplits(splits, paymentMode);
 
         const { data: insertedInv, error } = await supabase.from("invoices").insert({
           invoice_number: invoiceNumbers[0],
@@ -2189,7 +2184,12 @@ const Billing = () => {
   const updateInvoice = useMutation({
     mutationFn: async () => {
       if (!viewInvoice) return;
-      const newPaid = Number(editData.paid_amount);
+      // While rows are active they ARE the payment, so the paid amount is their
+      // total - the create form does the same, and a figure that disagreed with
+      // the rows beneath it would be the fault this is here to end.
+      const newPaid = splits.length > 0 ? splitTotal(splits) : Number(editData.paid_amount);
+      const problem = splitProblem(splits, newPaid);
+      if (problem) throw new Error(problem);
 
       // What the form now holds. Built by the same snapshot the create path
       // writes, so an edited invoice is shaped exactly like a new one.
@@ -2221,7 +2221,11 @@ const Billing = () => {
         doctor_id: editData.doctor_id || null,
         total_amount: newTotal,
         paid_amount: newPaid,
-        payment_mode: editData.payment_mode,
+        // Derived from the rows, the same way a new bill derives it, so an
+        // edited invoice is shaped like one that was just created - and the
+        // mode can never say "Cash" above two payments that say otherwise.
+        payment_mode: paymentModeForSplits(splits, editData.payment_mode),
+        payment_splits: splits.length > 0 ? splits : null,
         payment_type: editData.payment_type,
         notes: editData.notes || null,
         appointment_id: editData.appointment_id || null,
@@ -2455,8 +2459,12 @@ const Billing = () => {
   const inventoryRow = (id: string): { id: string; quantity: number } | undefined =>
     (pharmaInventory as { id: string; quantity: number }[]).find((r) => r.id === id);
 
-  const startEditingInvoice = (inv: { line_items?: unknown }) => {
+  const startEditingInvoice = (inv: { line_items?: unknown; payment_splits?: unknown }) => {
     const seeded = seedInvoiceLines(inv?.line_items);
+    // The split rows this bill was actually paid with. Cleared when it has none,
+    // because `splits` is shared with the create form - the rows left over from
+    // the last bill someone raised would otherwise turn up on this one.
+    setSplits(splitsFromInvoice(inv?.payment_splits));
     setServiceInputs(seeded.services.length ? seeded.services : [{ name: "", price: 0, hsn: "", gst: 0 }]);
     setPharmaItems(
       seeded.products.map((p) => ({
@@ -2520,6 +2528,98 @@ const Billing = () => {
   const pagedInvoices = needsClientRows
     ? viewFiltered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
     : invoices;
+
+  /**
+   * The Payment Mode control, for both forms.
+   *
+   * Edit Invoice used to carry its own, offering a mode list with no "Split" in
+   * it - so a split bill opened with the box blank and no way to change either
+   * amount. Rendered from one place now, the way the Services and Pharmacy
+   * blocks below already are, so the two cannot drift apart again.
+   *
+   * `mode`/`onMode` differ between the forms (paymentMode here,
+   * editData.payment_mode there); the split rows are the shared `splits` state.
+   */
+  const renderPaymentMode = (mode: string, onMode: (v: string) => void, allowSplit: boolean) => (
+    <div>
+      <div className="flex items-center justify-between">
+        <Label>Payment Mode</Label>
+        {allowSplit && (
+          splits.length === 0 ? (
+            <button
+              type="button"
+              className="text-xs text-primary hover:underline"
+              onClick={() => setSplits([{ mode: mode || "Cash", amount: 0 }, { mode: "UPI", amount: 0 }])}
+            >
+              + Split Payment
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:underline"
+              onClick={() => setSplits([])}
+            >
+              Use single mode
+            </button>
+          )
+        )}
+      </div>
+      {splits.length === 0 ? (
+        <Select value={mode} onValueChange={onMode}>
+          <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {PAYMENT_MODES.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      ) : (
+        <div className="mt-1.5 space-y-2">
+          {splits.map((row, idx) => (
+            <div key={idx} className="flex gap-2 items-center">
+              <Select
+                value={row.mode}
+                onValueChange={(v) => setSplits(splits.map((r, i) => (i === idx ? { ...r, mode: v } : r)))}
+              >
+                <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_MODES.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Input
+                type="number"
+                placeholder="Amount"
+                className="w-28"
+                value={row.amount || ""}
+                onChange={(e) =>
+                  setSplits(splits.map((r, i) => (i === idx ? { ...r, amount: parseFloat(e.target.value) || 0 } : r)))
+                }
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => setSplits(splits.filter((_, i) => i !== idx))}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          {splits.length < 3 && (
+            <button
+              type="button"
+              className="text-xs text-primary hover:underline"
+              onClick={() => setSplits([...splits, { mode: "Cash", amount: 0 }])}
+            >
+              + Add row
+            </button>
+          )}
+          <div className="text-xs text-muted-foreground">
+            Split total {formatMoney(splitTotalAmount)} — auto-applied as Paid Amount
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   // Hoisted so Edit Invoice renders the same Services and Pharmacy blocks the
   // create form does, rather than a second, thinner form that could drift
@@ -2978,82 +3078,7 @@ const Billing = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label>Payment Mode</Label>
-                    {paymentType === "One-time" && (
-                      splits.length === 0 ? (
-                        <button
-                          type="button"
-                          className="text-xs text-primary hover:underline"
-                          onClick={() => setSplits([{ mode: "Cash", amount: paidAmount || 0 }, { mode: "UPI", amount: 0 }])}
-                        >
-                          + Split Payment
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="text-xs text-muted-foreground hover:underline"
-                          onClick={() => setSplits([])}
-                        >
-                          Use single mode
-                        </button>
-                      )
-                    )}
-                  </div>
-                  {splits.length === 0 ? (
-                    <Select value={paymentMode} onValueChange={setPaymentMode}>
-                      <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {["Cash", "Card", "UPI", "Cheque", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="mt-1.5 space-y-2">
-                      {splits.map((row, idx) => (
-                        <div key={idx} className="flex gap-2 items-center">
-                          <Select
-                            value={row.mode}
-                            onValueChange={(v) => setSplits(splits.map((r, i) => i === idx ? { ...r, mode: v } : r))}
-                          >
-                            <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {["Cash", "Card", "UPI", "Cheque", "Bank Transfer"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          <Input
-                            type="number"
-                            placeholder="Amount"
-                            className="w-28"
-                            value={row.amount || ""}
-                            onChange={(e) => setSplits(splits.map((r, i) => i === idx ? { ...r, amount: parseFloat(e.target.value) || 0 } : r))}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-9 w-9 shrink-0"
-                            onClick={() => setSplits(splits.filter((_, i) => i !== idx))}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                      {splits.length < 3 && (
-                        <button
-                          type="button"
-                          className="text-xs text-primary hover:underline"
-                          onClick={() => setSplits([...splits, { mode: "Cash", amount: 0 }])}
-                        >
-                          + Add row
-                        </button>
-                      )}
-                      <div className="text-xs text-muted-foreground">
-                        Split total {formatMoney(splitTotalAmount)} — auto-applied as Paid Amount
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {renderPaymentMode(paymentMode, setPaymentMode, true)}
               </div>
 
               {/* Tax is auto-applied per item from Tax Master mappings — no manual selector */}
@@ -3999,7 +4024,13 @@ const Billing = () => {
                 </div>
                 <div>
                   <Label>Paid Amount (₹)</Label>
-                  <Input type="number" className="mt-1.5" value={numVal(editData.paid_amount)} onChange={(e) => setEditData({ ...editData, paid_amount: parseFloat(e.target.value) || 0 })} />
+                  <Input
+                    type="number"
+                    className={`mt-1.5 ${splits.length > 0 ? "bg-muted" : ""}`}
+                    value={splits.length > 0 ? numVal(splitTotalAmount) : numVal(editData.paid_amount)}
+                    readOnly={splits.length > 0}
+                    onChange={(e) => setEditData({ ...editData, paid_amount: parseFloat(e.target.value) || 0 })}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -4012,15 +4043,11 @@ const Billing = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>Payment Mode</Label>
-                  <Select value={editData.payment_mode} onValueChange={(v) => setEditData({ ...editData, payment_mode: v })}>
-                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["Cash", "Card", "UPI", "Cheque", "Bank Transfer"].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {renderPaymentMode(
+                  editData.payment_mode,
+                  (v) => setEditData({ ...editData, payment_mode: v }),
+                  editData.payment_type === "One-time",
+                )}
               </div>
               <div>
                 <Label>Notes</Label>

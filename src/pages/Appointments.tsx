@@ -47,7 +47,6 @@ import { joinDateTime, hasIncompleteDateTime } from "@/lib/inlineTimeEdit";
 import { ChevronLeft, ChevronRight, Plus, Clock, Repeat, CalendarIcon, List, Phone, Search, Filter, GripVertical, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check as CheckIcon, X, AlertCircle, ClipboardCheck, ClipboardList, Pin, Printer, Trash2 } from "lucide-react";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
 import { moveToTrash } from "@/lib/trash";
-import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -2008,7 +2007,6 @@ const Appointments = () => {
           >
             <Printer className="h-4 w-4" />
           </Button>
-          <SalesforceSyncButton />
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setLockPatient(false); }}>
             <DialogTrigger asChild>
               <Button className="gap-2 h-8 md:h-9 text-xs md:text-sm"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">New</span> Appt</Button>

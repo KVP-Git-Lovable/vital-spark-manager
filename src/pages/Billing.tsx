@@ -46,7 +46,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { motion } from "framer-motion";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
 import {
   Dialog,
   DialogContent,
@@ -2829,7 +2828,6 @@ const Billing = () => {
           <p className="page-subtitle">Manage invoices and payments</p>
         </div>
         <div className="flex gap-2 w-fit flex-wrap">
-          <SalesforceSyncButton />
           {/*
             Every time staff open this dialog themselves, it starts empty.
 

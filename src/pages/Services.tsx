@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { numVal } from "@/lib/numberInput";
 import { applyMedicineDefaults } from "@/lib/medicineDefaults";
 import { usePharmaLookup } from "@/hooks/usePharmaLookup";
-import { Plus, Search, Edit2, Trash2, Clock, IndianRupee, Pill, Sparkles, Loader2, Wrench, Cloud } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, Clock, IndianRupee, Pill, Sparkles, Loader2, Wrench } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -297,118 +297,6 @@ const Services = () => {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const syncSalesforceeMutation = useMutation({
-    mutationFn: async () => {
-      // Call Edge Function to fetch from Salesforce
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-salesforce-services`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to fetch from Salesforce");
-      }
-
-      const data = await response.json();
-      const sfServices = data.services || [];
-
-      // Re-fetch fresh rather than trusting the (possibly stale) query-cache
-      // `services` value, so this never races the initial page load.
-      const { data: existing, error: fetchErr } = await supabase.from("services").select("*");
-      if (fetchErr) throw fetchErr;
-      const existingByNorm = new Map((existing || []).map((s: any) => [normalizeName(s.name), s]));
-
-      const toInsert: any[] = [];
-      const toUpdate: { id: string; patch: Record<string, any> }[] = [];
-      const conflicts: string[] = [];
-      let unchangedCount = 0;
-
-      for (const sf of sfServices) {
-        const recs = sf.Recommendations__c
-          ? sf.Recommendations__c.split("\n").filter((r: string) => r.trim())
-          : [];
-        const match = existingByNorm.get(normalizeName(sf.Name));
-
-        if (!match) {
-          toInsert.push({
-            name: sf.Name,
-            category: sf.Category__c || "General",
-            price: sf.Cost__c || 0,
-            duration: sf.Duration__c || 30,
-            procedure_notes: sf.Procedure_Notes__c || null,
-            recommendations: recs,
-            salesforce_id: sf.Id,
-          });
-          continue;
-        }
-
-        // Only fill in currently-empty fields - never overwrite a value a
-        // staff member may have edited in-app after the row was created.
-        const patch: Record<string, any> = {};
-        if (!match.procedure_notes && sf.Procedure_Notes__c) patch.procedure_notes = sf.Procedure_Notes__c;
-        if ((!match.recommendations || match.recommendations.length === 0) && recs.length > 0) {
-          patch.recommendations = recs;
-        }
-        if (!match.salesforce_id) {
-          patch.salesforce_id = sf.Id;
-        } else if (match.salesforce_id !== sf.Id) {
-          conflicts.push(sf.Name);
-        }
-
-        if (Object.keys(patch).length > 0) toUpdate.push({ id: match.id, patch });
-        else unchangedCount++;
-      }
-
-      if (toInsert.length > 0) {
-        const { error } = await supabase.from("services").upsert(toInsert, { onConflict: "salesforce_id" });
-        if (error) throw error;
-      }
-
-      let updateErrors = 0;
-      for (const { id, patch } of toUpdate) {
-        const { error } = await supabase.from("services").update(patch as any).eq("id", id);
-        if (error) updateErrors++;
-      }
-      if (updateErrors > 0 && updateErrors === toUpdate.length) {
-        throw new Error(`Failed to update ${updateErrors} service(s)`);
-      }
-
-      return {
-        total: sfServices.length,
-        insertedCount: toInsert.length,
-        updatedCount: toUpdate.length - updateErrors,
-        unchangedCount,
-        conflictCount: conflicts.length,
-        stats: data.stats as
-          | { from_template: number; from_visits: number; no_content: number }
-          | undefined,
-      };
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["services"] });
-      toast.success(
-        `Synced from Salesforce: ${data.insertedCount} new, ${data.updatedCount} updated, ${data.unchangedCount} already up to date` +
-        (data.conflictCount ? `, ${data.conflictCount} skipped (salesforce_id conflict)` : ""),
-        data.stats
-          ? {
-              description:
-                `Notes: ${data.stats.from_template} from Salesforce service templates, ` +
-                `${data.stats.from_visits} derived from past visits, ` +
-                `${data.stats.no_content} with no content in Salesforce.`,
-            }
-          : undefined
-      );
-    },
-
-    onError: (err: Error) => toast.error(err.message),
-  });
 
   const resetForm = () => {
     setName("");
@@ -483,10 +371,6 @@ const Services = () => {
           <p className="page-subtitle">Manage clinic services, medicines and recommendations</p>
         </div>
         <div className="flex gap-2 w-fit">
-        <Button variant="outline" className="gap-2" onClick={() => syncSalesforceeMutation.mutate()} disabled={syncSalesforceeMutation.isPending || isLoading}>
-          {syncSalesforceeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
-          {syncSalesforceeMutation.isPending ? "Syncing..." : "Sync from Salesforce"}
-        </Button>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" className="gap-2 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive" disabled={services.length === 0 || deleteAllMutation.isPending}>

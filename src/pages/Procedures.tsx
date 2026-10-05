@@ -40,7 +40,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
 import { withDrPrefix } from "@/lib/staffName";
 import { procedureDateLabel } from "@/lib/procedureDate";
 
@@ -204,7 +203,6 @@ const Procedures = () => {
           <p className="page-subtitle">Record consultations & prescriptions</p>
         </div>
         <div className="flex gap-2 w-fit flex-wrap">
-          <SalesforceSyncButton />
           <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4" />
             Import Prescriptions

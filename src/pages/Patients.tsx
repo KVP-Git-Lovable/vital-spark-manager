@@ -20,7 +20,6 @@ import { ALL_VIEW_ID, RECENT_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@
 import { getRecentlyViewed, markRecentlyViewed } from "@/lib/recentlyViewed";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
 import { moveToTrash } from "@/lib/trash";
-import { SalesforceSyncButton } from "@/components/salesforce/SalesforceSyncButton";
 
 
 import {
@@ -560,7 +559,6 @@ const Patients = () => {
               Delete ({selectedIds.size})
             </Button>
           )}
-          <SalesforceSyncButton />
           <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4" />
             Import Patients

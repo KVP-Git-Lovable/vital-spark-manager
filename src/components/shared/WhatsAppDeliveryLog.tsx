@@ -5,6 +5,7 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { format } from "date-fns";
 import { RefreshCw, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -91,6 +92,18 @@ export function WhatsAppDeliveryLog({ patientId }: { patientId?: string }) {
         </div>
       </CardHeader>
       <CardContent>
+        {/* Without this the screen reads as a live feed: it is headed
+            "WhatsApp confirmations", it lists messages, and it has a Refresh
+            button, so the clinic quite reasonably asked why messages were still
+            going out three days after they were switched off. They were not -
+            these are the ones sent before. Read from the same constant the
+            sending code reads, so the two cannot disagree. */}
+        {!APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED && (
+          <p className="mb-3 text-xs text-amber-700 dark:text-amber-500 bg-amber-500/10 rounded-md px-3 py-2">
+            Appointment confirmations are switched off. Nothing new is being sent — these are the
+            messages sent before.
+          </p>
+        )}
         {isLoading ? (
           <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
         ) : rows.length === 0 ? (

@@ -21,6 +21,8 @@ interface Props {
   onDisplayChange: (d: ListDisplayMode) => void;
   onKanbanSettings: () => void;
   count: number;
+  /** True while the rows behind `count` are still being fetched. */
+  countLoading?: boolean;
   search: string;
   onSearchChange: (v: string) => void;
   chartsOpen?: boolean;

@@ -41,7 +41,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAll } from "@/lib/supabasePaginate";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { CameraCapture } from "@/components/shared/CameraCapture";
@@ -50,14 +49,13 @@ import { EngagementBadge } from "@/components/patients/EngagementBadge";
 import { PatientAvatar } from "@/components/patients/PatientAvatar";
 import { usePatientAvatars } from "@/hooks/usePatientAvatars";
 import { useEngagementScores } from "@/hooks/useEngagementScores";
-import { buildOrFilter, buildFuzzyOrFilter, buildTokenFilters, fuzzyRank } from "@/lib/fuzzySearch";
-import type { Tables } from "@/integrations/supabase/types";
 import { QueryTimeoutNotice } from "@/components/shared/QueryTimeoutNotice";
-
-
-type Patient = Tables<"patients">;
-
-const PAGE_SIZE = 50;
+import {
+  fetchPatientsPage,
+  fetchAllPatients,
+  PATIENTS_PAGE_SIZE as PAGE_SIZE,
+  type Patient,
+} from "@/lib/patientsPage";
 
 const PATIENT_FIELDS = [
   { value: "name", label: "Patient Name" },
@@ -83,200 +81,6 @@ const PICKLIST_OPTIONS: Record<string, { value: string; label: string }[]> = {
   engagement_tier: ENGAGEMENT_TIER_OPTIONS,
 };
 
-interface PatientsPage {
-  rows: Patient[];
-  total: number;
-  /** True when a further page of matches exists. */
-  hasMore: boolean;
-  /** False when `total` is a planner estimate rather than a real count. */
-  exactTotal: boolean;
-}
-
-const fetchPatientsPage = async (
-  page: number,
-  search: string
-): Promise<PatientsPage> => {
-  const fromIdx = (page - 1) * PAGE_SIZE;
-  // One row past the page: its presence is how we know a next page exists,
-  // without paying for an exact count.
-  const toIdx = fromIdx + PAGE_SIZE;
-  const term = search.trim();
-  // alternate_phone too: a patient who gave the clinic both an Indian and an
-  // international number is searched for by whichever one the caller used.
-  const cols = ["first_name", "last_name", "email", "phone", "alternate_phone"];
-
-  // Exact counts over 23k+ patients combined with leading-wildcard ILIKE are what
-  // was getting cancelled by the database, so counts stay approximate and the
-  // pager is driven by the probe row instead.
-  const pageOf = (rows: Patient[] | null | undefined): PatientsPage => {
-    const all = (rows as Patient[]) || [];
-    const hasMore = all.length > PAGE_SIZE;
-    const visible = all.slice(0, PAGE_SIZE);
-    return {
-      rows: visible,
-      total: fromIdx + visible.length,
-      hasMore,
-      exactTotal: !hasMore,
-    };
-  };
-
-  let q = supabase
-    .from("patients")
-    .select("*", { count: term ? "estimated" : "planned" })
-    .order("last_visit_date", { ascending: false, nullsFirst: false })
-    .range(fromIdx, toIdx);
-
-  if (term) {
-    const tokens = term.split(/\s+/).filter(Boolean);
-
-    // For 2+ token searches, try exact match first (first_name + last_name)
-    if (tokens.length >= 2) {
-      const [firstName, ...rest] = tokens;
-      const lastName = rest.join(" ");
-
-      // Step 1: Exact match (case-insensitive but whole word)
-      const { data: exactMatch } = await supabase
-        .from("patients")
-        .select("*")
-        .ilike("first_name", firstName)
-        .ilike("last_name", lastName)
-        .order("last_visit_date", { ascending: false, nullsFirst: false })
-        .range(fromIdx, toIdx);
-
-      if (exactMatch && exactMatch.length > 0) {
-        return pageOf(exactMatch as Patient[]);
-      }
-
-      // Step 2: Prefix match (first_name starts with token AND last_name starts with lastName)
-      const { data: prefixMatch } = await supabase
-        .from("patients")
-        .select("*")
-        .ilike("first_name", `${firstName}%`)
-        .ilike("last_name", `${lastName}%`)
-        .order("last_visit_date", { ascending: false, nullsFirst: false })
-        .range(fromIdx, toIdx);
-
-      if (prefixMatch && prefixMatch.length > 0) {
-        return pageOf(prefixMatch as Patient[]);
-      }
-    } else if (tokens.length === 1) {
-      // Single word: try exact match first
-      const token = tokens[0];
-
-      // Step 1: Exact match
-      const { data: exactMatch } = await supabase
-        .from("patients")
-        .select("*")
-        .or(`first_name.ilike.${token},last_name.ilike.${token}`)
-        .order("last_visit_date", { ascending: false, nullsFirst: false })
-        .range(fromIdx, toIdx);
-
-      if (exactMatch && exactMatch.length > 0) {
-        return pageOf(exactMatch as Patient[]);
-      }
-
-      // Step 2: Prefix match (starts with the term). Paged like the others, so
-      // a common first name is not capped at a single page of results.
-      const { data: prefixMatch } = await supabase
-        .from("patients")
-        .select("*")
-        .or(`first_name.ilike.${token}%,last_name.ilike.${token}%`)
-        .order("last_visit_date", { ascending: false, nullsFirst: false })
-        .range(fromIdx, toIdx);
-
-      if (prefixMatch && prefixMatch.length > 0) {
-        return pageOf(prefixMatch as Patient[]);
-      }
-    }
-
-    // Every word must appear somewhere on the record - separate .or() calls are
-    // ANDed by PostgREST - so "nisha rai" no longer returns every Rai. Nothing
-    // is lost when a strict match finds nobody: the typo-tolerant fallback below
-    // still runs on an empty result.
-    const tokenFilters = buildTokenFilters(term, cols);
-    for (const f of tokenFilters) q = q.or(f);
-  }
-
-  const { data, error, count } = await q;
-  if (error) throw error;
-
-  // Typo-tolerant fallback: nothing matched literally, so pull a loose candidate
-  // set (matching the first few letters) and rank it by fuzzy similarity.
-  if (term && (data?.length ?? 0) === 0) {
-    const looseOr = buildFuzzyOrFilter(term, ["first_name", "last_name"]);
-    if (looseOr) {
-      const { data: loose } = await supabase
-        .from("patients")
-        .select("*")
-        .or(looseOr)
-        .limit(300);
-      const ranked = fuzzyRank(
-        (loose as Patient[]) || [],
-        term,
-        (p) => `${p.first_name || ""} ${p.last_name || ""} ${p.phone || ""} ${p.email || ""}`,
-        0.55
-      );
-      return {
-        rows: ranked.slice(fromIdx, fromIdx + PAGE_SIZE),
-        total: ranked.length,
-        hasMore: ranked.length > fromIdx + PAGE_SIZE,
-        exactTotal: true,
-      };
-    }
-  }
-  const fetched = (data as Patient[]) || [];
-  const hasMore = fetched.length > PAGE_SIZE;
-  const visible = fetched.slice(0, PAGE_SIZE);
-  return {
-    rows: visible,
-    // A search count is a planner estimate; an unfiltered list keeps the
-    // planned table total, which is accurate enough for "of N".
-    total: term ? Math.max(count ?? 0, fromIdx + visible.length) : count ?? visible.length,
-    hasMore,
-    exactTotal: !term || !hasMore,
-  };
-};
-
-
-/**
- * Every patient a saved view might match.
- *
- * Saved views filter and count in the browser (`applyFilters` over `viewRows`),
- * so whatever this returns IS the view - anything it does not fetch cannot be
- * matched, and the "N items" count is the count of what it fetched.
- *
- * This used to take `.limit(2000)`. With the list ordered by last visit, that
- * meant every custom view silently saw only the 2,000 most recently seen
- * patients out of ~27,000: a "lifetime value over 2k" view reported 573, having
- * never looked at the other 25,000. A recall or marketing list built from it
- * would have missed most of the clinic's patients without saying so.
- *
- * So it pages through all of them instead, via the helper written for exactly
- * this (`fetchAll` bypasses PostgREST's 1,000-row cap). That is ~27 requests
- * and a few seconds on a cold view; the list already shows a loading state, and
- * a filter that quietly ignores 92% of the patients is the worse trade.
- */
-const fetchAllPatients = async (search: string): Promise<Patient[]> => {
-  const term = search.trim();
-  return fetchAll<Patient>((from, to) => {
-    let q = supabase
-      .from("patients")
-      .select("*")
-      .order("last_visit_date", { ascending: false, nullsFirst: false })
-      // last_visit_date is not unique - 8,000 patients share a null alone - and
-      // .range() paging over a non-unique order can skip or repeat rows between
-      // pages. id breaks the tie so every page is deterministic.
-      .order("id", { ascending: true })
-      .range(from, to);
-    if (term) {
-      for (const f of buildTokenFilters(term, ["first_name", "last_name", "email", "phone"])) {
-        q = q.or(f);
-      }
-    }
-    return q;
-  });
-};
-
 const Patients = () => {
 
   const patientsTableRef = useStackedTable<HTMLTableElement>();
@@ -292,7 +96,12 @@ const Patients = () => {
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Seeded from ?q= as well: otherwise arriving from global search fires an
+  // unfiltered query first, and its count flashes in the header before the
+  // search's own count replaces it 300ms later.
+  const [debouncedSearch, setDebouncedSearch] = useState(
+    () => new URLSearchParams(window.location.search).get("q") || ""
+  );
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingView, setEditingView] = useState<ListView | null>(null);
   const [display, setDisplay] = useState<ListDisplayMode>("table");
@@ -329,7 +138,7 @@ const Patients = () => {
   const isRecentView = activeView?.id === RECENT_VIEW_ID;
   const needsClientRows = !isAllView || display === "kanban" || display === "split";
 
-  const { data, isLoading, isFetching, refetch, error: pageError } = useQuery({
+  const { data, isLoading, isFetching, isPlaceholderData, refetch, error: pageError } = useQuery({
     queryKey: ["patients", page, debouncedSearch],
     queryFn: () => fetchPatientsPage(page, debouncedSearch),
     placeholderData: keepPreviousData,
@@ -340,6 +149,7 @@ const Patients = () => {
     data: allPatients = [],
     isLoading: viewLoading,
     isFetching: viewFetching,
+    isPlaceholderData: viewIsPlaceholder,
     refetch: refetchAll,
     error: allError,
   } = useQuery({
@@ -377,15 +187,23 @@ const Patients = () => {
     : data?.rows ?? [];
   const total = needsClientRows ? viewRows.length : data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  // Server-paged results carry an approximate total, so the page number must
-  // not be clamped against it and "Next" follows the probe row instead.
-  const currentPage = needsClientRows ? Math.min(page, totalPages) : page;
-  const exactTotal = needsClientRows ? true : data?.exactTotal ?? true;
+  // Both totals are real counts now, so the page number can be clamped against
+  // them on either path. "Next" still follows the probe row, which came back in
+  // the same snapshot as the rows - deriving it from the count instead would
+  // offer a next page that a concurrent delete had already emptied.
+  const currentPage = Math.min(page, totalPages);
   const hasMore = needsClientRows
     ? currentPage * PAGE_SIZE < total
     : data?.hasMore ?? false;
   const loading = needsClientRows ? viewLoading : isLoading;
   const fetching = needsClientRows ? viewFetching : isFetching;
+  // keepPreviousData keeps the last search's payload on screen while the next
+  // one loads. Showing its count as though it answered what was just typed is
+  // how a stale number gets believed, so say nothing until the payload is for
+  // the search in the box. Turning a page within one search keeps its count.
+  const countLoading = needsClientRows
+    ? viewLoading || viewIsPlaceholder
+    : isLoading || (isPlaceholderData && data?.term !== debouncedSearch.trim());
   const reloadPatients = () => (needsClientRows ? refetchAll() : refetch());
   const listError = needsClientRows ? allError : pageError;
 
@@ -587,6 +405,7 @@ const Patients = () => {
           display={display}
           onDisplayChange={setDisplay}
           count={total}
+          countLoading={countLoading}
           search={search}
           onSearchChange={(v) => { setSearch(v); setPage(1); }}
           chartsOpen={chartsOpen}
@@ -771,10 +590,8 @@ const Patients = () => {
         <div className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
           <span>
             {isBoard
-              ? `Showing ${total.toLocaleString()} records`
-              : exactTotal
-                ? `Showing ${paged.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–${(currentPage - 1) * PAGE_SIZE + paged.length} of ${total.toLocaleString()}`
-                : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${(currentPage - 1) * PAGE_SIZE + paged.length}`}
+              ? `Showing ${total.toLocaleString("en-IN")} records`
+              : `Showing ${paged.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–${(currentPage - 1) * PAGE_SIZE + paged.length} of ${total.toLocaleString("en-IN")}`}
             {fetching && !loading ? " · loading…" : ""}
           </span>
           {!isBoard && (hasMore || currentPage > 1) && (
@@ -788,7 +605,7 @@ const Patients = () => {
                 Previous
               </Button>
               <span className="text-xs">
-                {exactTotal ? `Page ${currentPage} of ${totalPages}` : `Page ${currentPage}`}
+                {`Page ${currentPage} of ${totalPages}`}
               </span>
               <Button
                 variant="outline"

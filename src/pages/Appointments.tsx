@@ -1134,8 +1134,8 @@ const Appointments = () => {
   // isLoading false, so without this the table said "No appointments found"
   // while it was still working out which appointments to ask for.
   const apptPageLoading = !viewsReady || (viewHasFilters ? apptBulkFetching : apptPageFetching);
-  // Server-side totals are planner estimates, so "is there a next page" comes
-  // from the probe row the fetcher reports, never from apptTotal.
+  // "Is there a next page" comes from the probe row the fetcher reports, which
+  // arrived in the same snapshot as the rows, never from apptTotal.
   const apptHasMore = viewHasFilters
     ? apptPage * APPT_PAGE_SIZE < filteredAppointments.length
     : (apptPageData?.hasMore ?? false);

@@ -22,8 +22,8 @@ export interface AppointmentsPageResult {
   total: number;
   /**
    * True when at least one more row exists after this page. Derived by asking
-   * for one row beyond the page, so paging stays correct even though `total`
-   * is a planner estimate rather than an exact count.
+   * for one row beyond the page, so it comes back in the same snapshot as the
+   * rows rather than being inferred from the count.
    */
   hasMore: boolean;
 }
@@ -47,15 +47,16 @@ export async function fetchAppointmentsPage({
   sortDirection,
 }: FetchAppointmentsPageParams): Promise<AppointmentsPageResult> {
   const ascending = sortDirection === "asc";
-  // An exact count re-scans every matching appointment on each page turn, which is
-  // what the database was cancelling on 56k+ rows. "planned"/"estimated" answers
-  // from statistics instead; the page of rows itself is unaffected.
-  const countMode = dateRange || doctorIds.length > 0 || status !== "all" || visitStatus !== "all" || search.trim()
-    ? "estimated"
-    : "planned";
+  // A real count. This asked for "planned"/"estimated" back when exact counts
+  // over 56k appointments were being cancelled - but those answer from
+  // Postgres's table statistics, which read 56,530 against 56,776 real rows and
+  // drift after every bulk change, so the All view disagreed with every saved
+  // view. Measured on the live data: counting every appointment is 13ms, 16ms
+  // with the two left joins embedded here, and under a millisecond for the
+  // date-bounded views the clinic actually works in all day.
   let q = supabase
     .from("appointments")
-    .select("*, patients(first_name, last_name, phone, gender), staff(first_name, last_name)", { count: countMode });
+    .select("*, patients(first_name, last_name, phone, gender), staff(first_name, last_name)", { count: "exact" });
 
 
   if (dateRange) {
@@ -129,7 +130,7 @@ export async function fetchAppointmentsPage({
 
   const from = (page - 1) * pageSize;
   // One row past the page: its presence is what tells the caller a next page
-  // exists. The estimated count cannot be trusted for that.
+  // exists, from the same snapshot as the rows.
   const to = from + pageSize;
   const { data, error, count } = await q.range(from, to);
   if (error) throw error;

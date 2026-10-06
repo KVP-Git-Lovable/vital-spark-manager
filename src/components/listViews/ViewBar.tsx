@@ -197,7 +197,7 @@ export default function ViewBar({
             empty", which is exactly how the clinic reported it. Say nothing
             until there is something true to say. */}
         <span className="shrink-0 text-xs text-muted-foreground">
-          {countLoading ? "Loading…" : `${count} items`}
+          {countLoading ? "Loading…" : `${count.toLocaleString("en-IN")} items`}
         </span>
         {isStandard && (
           <Badge variant="secondary" className="shrink-0 gap-1 text-[10px]">

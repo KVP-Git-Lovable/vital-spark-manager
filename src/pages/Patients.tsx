@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Trash2, Upload } from "lucide-react";
+import { Search, Plus, MoreHorizontal, Phone, Mail, Filter, Loader2, Camera, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,7 +44,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { CameraCapture } from "@/components/shared/CameraCapture";
-import { ImportPatientsDialog } from "@/components/patients/ImportPatientsDialog";
 import { EngagementBadge } from "@/components/patients/EngagementBadge";
 import { PatientAvatar } from "@/components/patients/PatientAvatar";
 import { usePatientAvatars } from "@/hooks/usePatientAvatars";
@@ -94,7 +93,6 @@ const Patients = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deletePatient, setDeletePatient] = useState<Patient | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   const [page, setPage] = useState(1);
   // Seeded from ?q= as well: otherwise arriving from global search fires an
   // unfiltered query first, and its count flashes in the header before the
@@ -377,10 +375,6 @@ const Patients = () => {
               Delete ({selectedIds.size})
             </Button>
           )}
-          <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4" />
-            Import Patients
-          </Button>
           <Button className="gap-2 w-fit" onClick={openAdd}>
             <Plus className="h-4 w-4" />
             Add Patient
@@ -661,12 +655,6 @@ const Patients = () => {
           reloadPatients();
           if (saved?.created) navigate(`/patients/${saved.id}`);
         }}
-      />
-
-      <ImportPatientsDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        onSuccess={() => reloadPatients()}
       />
 
       {cameraPatient && (

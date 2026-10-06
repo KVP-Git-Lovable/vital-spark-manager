@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Plus, Camera, Upload } from "lucide-react";
+import { Plus, Camera } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,6 @@ import { CameraCapture } from "@/components/shared/CameraCapture";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { useUrlPanel } from "@/hooks/useUrlPanel";
-import { ImportProceduresDialog } from "@/components/procedures/ImportProceduresDialog";
 import { useModuleListViews } from "@/hooks/useModuleListViews";
 import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
@@ -67,7 +66,6 @@ const Procedures = () => {
   // Seeded from ?q= so global search can hand a term to this list view
   const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [createOpen, setCreateOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   // Two-way now. It was seeded from ?id= but never wrote back, so opening a
   // record left no history entry and Back walked out of the list.
   const { openId: selectedId, open: openProcedure, close: closeProcedure } = useUrlPanel("id");
@@ -203,10 +201,6 @@ const Procedures = () => {
           <p className="page-subtitle">Record consultations & prescriptions</p>
         </div>
         <div className="flex gap-2 w-fit flex-wrap">
-          <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4" />
-            Import Prescriptions
-          </Button>
           <Button className="gap-2" onClick={() => navigate("/procedures/new")}>
             <Plus className="h-4 w-4" />
             New Prescription
@@ -385,12 +379,6 @@ const Procedures = () => {
       {createOpen && (
         <ProcedureFormDialog open={createOpen} onOpenChange={setCreateOpen} />
       )}
-
-      <ImportProceduresDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["procedures"] })}
-      />
 
       <ProcedureDetailSheet
         procedureId={selectedId}

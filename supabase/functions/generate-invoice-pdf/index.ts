@@ -1,3 +1,4 @@
+import { reconcileLineTax, storedTaxOf, taxTotalRows } from "./invoiceTaxRows.ts";
 import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "https://esm.sh/pdf-lib@1.17.1";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -337,12 +338,24 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
     // printed total past what was actually billed.
     const sumCharges = lineItems.reduce((s, r) => s + r.amount, 0);
     const invTotal = Number(inv.total_amount) || 0;
+    const storedTax = storedTaxOf(inv);
     if (sumCharges === 0 && invTotal > 0 && lineItems.length > 0) {
+      // The bill's own GST, not its tax_rate: that column stopped being written
+      // when bills moved to per-line GST, so `Number(inv.tax_rate) || 0` is 0 on
+      // every bill raised since - which left the base at the tax-INCLUSIVE
+      // total and then added tax on top of it, printing an Amount larger than
+      // the Total Billed underneath it.
       const gstRate = Number(inv.tax_rate) || 0;
-      const base = gstRate > 0 ? invTotal / (1 + gstRate / 100) : invTotal;
+      const base = storedTax > 0 ? invTotal - storedTax
+        : gstRate > 0 ? invTotal / (1 + gstRate / 100)
+        : invTotal;
       const per = base / lineItems.length;
       lineItems = lineItems.map((r) => makeRow(r.name, r.qty, per / (r.qty || 1), r.hsn, gstRate));
     }
+
+    // Scaled to the GST the bill actually carries - see invoiceTaxRows.ts
+    // beside this file for why, and the app's own suite for the tests.
+    lineItems = reconcileLineTax(lineItems, storedTax, sameState);
 
     // ---- PDF ----
     const pdfDoc = await PDFDocument.create();
@@ -554,6 +567,14 @@ async function buildInvoicePdf(supabase: any, inv: any): Promise<{ url: string; 
       y -= rowH;
     };
 
+
+    // The GST the bill carries, spelled out: a tax invoice that prints a GST %
+    // against every line and then no tax anywhere in its totals is not a tax
+    // invoice, and the same bill on screen has been showing CGST and SGST all
+    // along. Same stored figures, so the two documents say the same thing.
+    for (const row of taxTotalRows(inv, sameState, lineItems.reduce((s, r) => s + r.taxAmount, 0))) {
+      drawTotalsRow(row.label, fmtINR(row.value));
+    }
 
     const balanceDue = Number(inv.total_amount || 0) - Number(inv.paid_amount || 0);
     drawTotalsRow("Total Billed", fmtINR(Number(inv.total_amount || 0)));

@@ -106,6 +106,11 @@ import { MicButton } from "@/components/shared/MicButton";
 import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { QueryTimeoutNotice } from "@/components/shared/QueryTimeoutNotice";
+import {
+  appointmentPatientName,
+  appointmentPatientInitials,
+  appointmentPatientHaystack,
+} from "@/lib/appointmentPatientName";
 
 
 // Lazy: pulls in recharts, kept out of the main bundle until a user actually opens Charts.
@@ -581,7 +586,7 @@ const Appointments = () => {
     if (field === "status") {
       updates.__notify = {
         phone: apt.patients?.phone || "",
-        patientName: apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : ""),
+        patientName: appointmentPatientName(apt, ""),
         prevStatus: apt.status,
         newStatus: value,
         startTime: apt.start_time,
@@ -1068,7 +1073,7 @@ const Appointments = () => {
       id: apt.id,
       start_time: apt.start_time,
       time: format(new Date(apt.start_time), "h:mm a"),
-      patient: apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : ""),
+      patient: appointmentPatientName(apt, ""),
       phone: apt.patients?.phone || "",
       service: apt.service || "",
       doctor: apt.staff_id || "",
@@ -1097,7 +1102,7 @@ const Appointments = () => {
     if (filterVisitStatus !== "all" && (apt.visit_status || "") !== filterVisitStatus) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      const name = apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "");
+      const name = appointmentPatientHaystack(apt);
       const d = new Date(apt.start_time);
       const dateTokens = [
         format(d, "MMM d, yyyy"),
@@ -1785,7 +1790,7 @@ const Appointments = () => {
     return sortAppointments(visibleTableRows as SortRow[], sortColumn, sortDirection, {
       invoiceFor: (id: string) => billInvoiceByAppointmentId.get(id),
       patientName: (apt: SortRow) =>
-        apt.patient_name || [apt.patients?.first_name, apt.patients?.last_name].filter(Boolean).join(" "),
+        appointmentPatientName(apt, ""),
       phone: (apt: SortRow) => apt.patients?.phone || "",
       doctorName: (apt: SortRow) => getDoctorName(apt),
       investigation: (apt: SortRow) => investigationText(apt, ""),
@@ -1945,7 +1950,7 @@ const Appointments = () => {
       onMouseDown={(e) => { e.stopPropagation(); }}
       onClick={(e) => { e.stopPropagation(); openAppointment(apt.id); }}
     >
-      <p className="font-medium truncate">{apt.patient_name || apt.patients?.first_name || "—"}</p>
+      <p className="font-medium truncate">{appointmentPatientName(apt)}</p>
       {!compact && <p className="opacity-70 truncate">{apt.service}</p>}
       {getDoctorName(apt) && (
         <p className={cn("truncate", compact ? "opacity-70" : "opacity-70 mt-0.5")}>
@@ -2849,7 +2854,7 @@ const Appointments = () => {
                                       <div className="min-w-[9rem]">
                                         <span className="text-[11px] text-muted-foreground">Patient</span>
                                         <p className="text-sm font-medium leading-tight">
-                                          {apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}
+                                          {appointmentPatientName(apt)}
                                         </p>
                                         <p className="text-xs text-muted-foreground leading-tight">{patientPhone || "—"}</p>
                                       </div>
@@ -2969,12 +2974,12 @@ const Appointments = () => {
                                   <td className="p-3 font-medium">
                                     <div className="flex items-center gap-2.5 min-w-0">
                                       <PatientAvatar
-                                        firstName={apt.patients?.first_name || (apt.patient_name || "").split(" ")[0]}
-                                        lastName={apt.patients?.last_name || (apt.patient_name || "").split(" ").slice(1).join(" ")}
+                                        firstName={appointmentPatientInitials(apt).firstName}
+                                        lastName={appointmentPatientInitials(apt).lastName}
                                         photoUrl={apt.patient_id ? appointmentAvatars[apt.patient_id] : undefined}
                                         className="h-8 w-8"
                                       />
-                                      <span className="truncate">{apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "—")}</span>
+                                      <span className="truncate">{appointmentPatientName(apt)}</span>
                                     </div>
                                   </td>
                                 )}
@@ -3104,7 +3109,7 @@ const Appointments = () => {
                                       title="Delete appointment"
                                       onClick={() => setDeleteTarget({
                                         id: apt.id,
-                                        label: `${apt.patient_name || (apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : "Appointment")} — ${format(new Date(apt.start_time), "MMM d, h:mm a")}`,
+                                        label: `${appointmentPatientName(apt, "Appointment")} — ${format(new Date(apt.start_time), "MMM d, h:mm a")}`,
                                         fromSalesforce: !!apt.sf_id,
                                       })}
                                     >
@@ -3407,7 +3412,7 @@ const Appointments = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Book a new appointment instead?</AlertDialogTitle>
             <AlertDialogDescription>
-              {visitMovePrompt?.apt?.patient_name || "This patient"} was seen on{" "}
+              {appointmentPatientName(visitMovePrompt?.apt, "This patient")} was seen on{" "}
               {visitMovePrompt?.apt?.start_time
                 ? format(new Date(visitMovePrompt.apt.start_time), "dd MMM yyyy")
                 : "that day"}

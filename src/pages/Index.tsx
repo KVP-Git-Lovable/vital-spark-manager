@@ -25,6 +25,7 @@ import { npsBreakdown } from "@/lib/feedbackScores";
 import { useMoneyFormat } from "@/lib/currency";
 import { formatMoneyCompact } from "@/lib/currency";
 import { kpiColumnClass } from "@/lib/kpiGrid";
+import { appointmentPatientName, appointmentPatientInitialsText } from "@/lib/appointmentPatientName";
 
 
 // Data-heavy panels are capped so a large date range can never turn into a
@@ -689,10 +690,10 @@ const Index = () => {
                 <div key={apt.id} className="flex items-center justify-between p-3 md:p-4 hover:bg-muted/50 transition-colors gap-2 cursor-pointer" onClick={() => navigate("/appointments")}>
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-semibold text-xs shrink-0">
-                      {apt.patients ? `${apt.patients.first_name[0]}${apt.patients.last_name[0]}` : apt.patient_name?.[0] || "?"}
+                      {appointmentPatientInitialsText(apt)}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{apt.patients ? `${apt.patients.first_name} ${apt.patients.last_name}` : apt.patient_name || "Walk-in"}</p>
+                      <p className="font-medium text-sm truncate">{appointmentPatientName(apt, "Walk-in")}</p>
                       <p className="text-xs text-muted-foreground truncate">{apt.service}</p>
                     </div>
                   </div>

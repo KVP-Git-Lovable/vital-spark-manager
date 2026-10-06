@@ -18,6 +18,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
+import { rawPatientName } from "@/lib/patientName";
 
 const ProblemAreas = () => {
   const queryClient = useQueryClient();
@@ -84,7 +85,7 @@ const ProblemAreas = () => {
         const patient = patients?.find((pt) => pt.id === p.patient_id);
         return {
           ...p,
-          patient_name: patient ? `${patient.first_name} ${patient.last_name}` : p.patient_name,
+          patient_name: rawPatientName(patient) || p.patient_name,
           phone: patient?.phone || "—",
           status: patient?.status || "Active",
         };

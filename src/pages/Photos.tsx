@@ -42,6 +42,7 @@ import ViewFiltersPanel from "@/components/listViews/ViewFiltersPanel";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
 import { PHOTO_VIEW_FIELDS, DEFAULT_PHOTO_VIEW_COLUMNS } from "@/lib/listViews/photoFields";
+import { appointmentPatientName } from "@/lib/appointmentPatientName";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -133,7 +134,10 @@ const Photos = () => {
   const { data: appointments = [] } = useQuery({
     queryKey: ["appointments-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("appointments").select("id, patient_name, service, start_time").order("start_time", { ascending: false }).limit(50);
+      // Joined, because this picker decides whose record a clinical photo is
+      // filed against - the one place a name taken at booking must not stand in
+      // for the patient the appointment belongs to.
+      const { data, error } = await supabase.from("appointments").select("id, patient_name, service, start_time, patients(first_name, last_name)").order("start_time", { ascending: false }).limit(50);
       if (error) throw error;
       return data;
     },
@@ -318,7 +322,7 @@ const Photos = () => {
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="Optional" /></SelectTrigger>
                   <SelectContent>
                     {appointments.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{a.patient_name} — {a.service}</SelectItem>
+                      <SelectItem key={a.id} value={a.id}>{appointmentPatientName(a, "Appointment")} — {a.service}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

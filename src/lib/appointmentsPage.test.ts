@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 interface Call {
   selectOptions: unknown;
+  or: string[];
   range?: [number, number];
 }
 
@@ -20,7 +21,7 @@ let serverCount = 0;
 
 vi.mock("@/integrations/supabase/client", () => {
   const makeQuery = () => {
-    const record: Call = { selectOptions: undefined };
+    const record: Call = { selectOptions: undefined, or: [] };
     calls.push(record);
     const q: Record<string, unknown> = {
       select: (_cols: string, opts?: unknown) => {
@@ -36,7 +37,11 @@ vi.mock("@/integrations/supabase/client", () => {
         });
       },
     };
-    for (const m of ["order", "gte", "lte", "in", "eq", "or", "not", "is", "limit", "ilike"]) {
+    q.or = (filter: string) => {
+      record.or.push(filter);
+      return q;
+    };
+    for (const m of ["order", "gte", "lte", "in", "eq", "not", "is", "limit", "ilike"]) {
       q[m] = () => q;
     }
     return q;
@@ -100,5 +105,17 @@ describe("fetchAppointmentsPage", () => {
     rowCount = 50;
     serverCount = 56776;
     expect((await fetchAppointmentsPage(base)).hasMore).toBe(false);
+  });
+});
+
+describe("searching appointments by patient name", () => {
+  it("keeps searching the stored copy of the name", async () => {
+    // The screens show the joined patient record now, but PostgREST cannot
+    // filter top-level rows by a joined column - so the search has to keep
+    // asking about appointments.patient_name. Removing it would make the
+    // search box stop finding people by name altogether.
+    await fetchAppointmentsPage({ ...base, search: "baazi" });
+    const filters = calls.flatMap((c) => c.or).join(" ");
+    expect(filters).toContain("patient_name.ilike.%baazi%");
   });
 });

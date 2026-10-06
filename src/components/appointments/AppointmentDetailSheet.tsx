@@ -65,6 +65,7 @@ import { npsCategory, ratingLabel } from "@/lib/feedbackScores";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
 import { investigationText } from "@/lib/investigationText";
 import { displayDate } from "@/lib/dateInput";
+import { appointmentPatientName } from "@/lib/appointmentPatientName";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -1020,9 +1021,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     }
   };
 
-  const patientName = appointment?.patients
-    ? `${appointment.patients.first_name} ${appointment.patients.last_name}`
-    : appointment?.patient_name || "Unknown";
+  const patientName = appointmentPatientName(appointment, "Unknown");
 
   const patientPhone = appointment?.patients?.phone || "";
   const patientId = appointment?.patients?.id || appointment?.patient_id;
@@ -1101,7 +1100,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       objectType="appointments"
                       objectLabel="Appointment"
                       recordId={appointment.id}
-                      recordLabel={appointment.patient_name || "Appointment"}
+                      recordLabel={appointmentPatientName(appointment, "Appointment")}
                       ownerId={appointment.owner_id}
                       link="/appointments"
                       onChanged={() => queryClient.invalidateQueries({ queryKey: ["appointment-detail", appointmentId] })}
@@ -1374,7 +1373,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       owner={{
                         objectType: "appointments",
                         objectLabel: "Appointment",
-                        recordLabel: appointment.patient_name || "Appointment",
+                        recordLabel: appointmentPatientName(appointment, "Appointment"),
                         link: `/appointments`,
                         onChanged: () => queryClient.invalidateQueries({ queryKey: ["appointment-detail", appointmentId] }),
                       }}

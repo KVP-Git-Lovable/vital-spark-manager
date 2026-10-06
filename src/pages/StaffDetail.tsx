@@ -23,6 +23,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { motion } from "framer-motion";
 import StaffPerformanceCharts from "@/components/staff/StaffPerformanceCharts";
 import { procedureDateLabel } from "@/lib/procedureDate";
+import { appointmentPatientName } from "@/lib/appointmentPatientName";
 
 const StaffDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -109,7 +110,9 @@ const AppointmentsTab = ({ staffId }: { staffId: string }) => {
   const { data: appointments = [] } = useQuery({
     queryKey: ["staff-appointments", staffId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("appointments").select("*").eq("staff_id", staffId).order("start_time", { ascending: false }).limit(50);
+      // With the patient joined, this worklist names whoever the visit is filed
+      // under, like every other screen - not a copy of a name taken at booking.
+      const { data, error } = await supabase.from("appointments").select("*, patients(first_name, last_name)").eq("staff_id", staffId).order("start_time", { ascending: false }).limit(50);
       if (error) throw error;
       return data;
     },
@@ -133,7 +136,7 @@ const AppointmentsTab = ({ staffId }: { staffId: string }) => {
               {appointments.map((a: any) => (
                 <TableRow key={a.id}>
                   <TableCell className="text-sm">{format(new Date(a.start_time), "dd MMM yyyy, hh:mm a")}</TableCell>
-                  <TableCell>{a.patient_name || "—"}</TableCell>
+                  <TableCell>{appointmentPatientName(a)}</TableCell>
                   <TableCell>{a.service}</TableCell>
                   <TableCell><Badge variant={a.status === "Completed" ? "default" : "secondary"}>{a.status}</Badge></TableCell>
                 </TableRow>

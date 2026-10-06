@@ -3,6 +3,7 @@ import { reserveTab, type PendingTab } from "./newTab";
 import { fetchAppointmentsPage, type FetchAppointmentsPageParams } from "@/lib/appointmentsPage";
 import { displayDate } from "@/lib/dateInput";
 import { investigationText } from "@/lib/investigationText";
+import { appointmentPatientName } from "@/lib/appointmentPatientName";
 
 const esc = (v: any) =>
   String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
@@ -55,7 +56,7 @@ export async function printAppointments(
   const body = rows
     .map((a, i) => {
       const p = a.patients;
-      const name = p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() : a.patient_name || "—";
+      const name = appointmentPatientName(a);
       // Same column order as the list on screen, so a printed sheet can be read
       // alongside it. Date is dd/MM/yyyy via the app's own displayDate, and the
       // start time only - the end time is recorded but not printed.

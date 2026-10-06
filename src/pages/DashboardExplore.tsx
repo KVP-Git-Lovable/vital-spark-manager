@@ -18,6 +18,7 @@ import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer,
   Tooltip, XAxis, YAxis, Line, LineChart,
 } from "recharts";
+import { appointmentPatientName } from "@/lib/appointmentPatientName";
 
 type Kind = "appointments" | "invoices" | "patients";
 
@@ -181,7 +182,7 @@ export default function DashboardExplore() {
         return {
           id: r.id,
           _staffId: r.staff_id,
-          patient: r.patients ? `${r.patients.first_name} ${r.patients.last_name}` : r.patient_name || "Walk-in",
+          patient: appointmentPatientName(r, "Walk-in"),
           phone: r.patients?.phone || r.patient_phone || "",
           service: r.service || "",
           doctor: r.staff_id ? staffName.get(r.staff_id) || "Unassigned" : "Unassigned",

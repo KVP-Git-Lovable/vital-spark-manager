@@ -517,7 +517,12 @@ const Index = () => {
         // the band and the dashboard's own dates rather than growing a second
         // list of its own.
         const params = new URLSearchParams({ from: format(start, "yyyy-MM-dd"), to: format(end, "yyyy-MM-dd") });
-        const band = (key || "").split(" ")[0];
+        // The chart's bars read "Promoters (9-10)" etc, but the report's
+        // nps_category filter holds the singular bands npsCategory() returns -
+        // "Detractors" would match nothing and show an empty report.
+        const band = { Promoters: "Promoter", Passives: "Passive", Detractors: "Detractor" }[
+          (key || "").split(" ")[0]
+        ];
         if (band) params.set("nps_category", band);
         return navigate(`/reports/patient_feedback?${params.toString()}`);
       }

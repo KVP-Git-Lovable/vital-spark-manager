@@ -236,7 +236,7 @@ describe("report PDF", () => {
     expect(text.some((t) => /^120 record\(s\) - generated \d{2} \w{3} \d{4} \d{1,2}:\d{2} [AP]M$/.test(t))).toBe(true);
     expect(text).toContain("Total (Rs)");
     expect(text).toContain("1,234");       // Indian grouping, no symbol
-    expect(text).toContain("11 Sep 2026"); // dates formatted, not raw ISO
+    expect(text).toContain("11/09/2026"); // dates formatted, not raw ISO
     expect(text).toContain("Rs 3.34 L");   // summary symbol swapped, not dropped
 
     // Every row made it in, across pages - not just the 50 shown on screen.

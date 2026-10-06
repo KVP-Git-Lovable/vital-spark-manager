@@ -9,9 +9,10 @@ import { useMoneyFormat } from "@/lib/currency";
 import { ReportFilterBar, type FilterState } from "@/components/reports/ReportFilterBar";
 import { DEFAULT_REPORT_PRESET, getReportDateRange, loadReportPin } from "@/lib/reportDateRange";
 import { reportFiltersFromUrl } from "@/lib/reportUrlFilters";
+import type { ReportColumn } from "@/lib/reportsCatalog";
 import { SortableDataTable } from "@/components/reports/SortableDataTable";
 import { ReportChart } from "@/components/reports/ReportChart";
-import { downloadReportPdf } from "@/lib/reportPdf";
+import { downloadReportPdf, reportCellCsv, reportColumnHeader } from "@/lib/reportPdf";
 import { toast } from "sonner";
 import NotFound from "./NotFound";
 import { endOfDay } from "date-fns";
@@ -22,18 +23,10 @@ function startOfToday(): Date {
   return d;
 }
 
-function toCSV(columns: { key: string; label: string; accessor?: (r: any) => any }[], rows: any[]) {
-  const header = columns.map((c) => `"${c.label}"`).join(",");
+function toCSV(columns: ReportColumn[], rows: any[]) {
+  const header = columns.map((c) => `"${reportColumnHeader(c)}"`).join(",");
   const body = rows
-    .map((r) =>
-      columns
-        .map((c) => {
-          const v = c.accessor ? c.accessor(r) : r[c.key];
-          if (v == null) return "";
-          return `"${String(v).replace(/"/g, '""')}"`;
-        })
-        .join(","),
-    )
+    .map((r) => columns.map((c) => `"${reportCellCsv(c, r).replace(/"/g, '""')}"`).join(","))
     .join("\n");
   return `${header}\n${body}`;
 }
@@ -234,7 +227,10 @@ const ReportView = () => {
   const downloadCsv = async () => {
     const rows = await rowsForExport();
     const csv = toCSV(report.columns, rows);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    // The byte order mark is what tells Excel the file is UTF-8. Without it
+    // Excel reads a downloaded .csv in the machine's own codepage, so a split
+    // payment's rupee sign arrived as "Card â‚¹13,450 + UPI â‚¹500".
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

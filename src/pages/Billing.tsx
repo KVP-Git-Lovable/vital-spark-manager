@@ -2410,19 +2410,23 @@ const Billing = () => {
     const headers = ["Invoice", "Date", "Patient", "Doctor", "Services", "Type", "Mode", "Total", "Paid", "Balance", "Status"];
     const rows = exportSet.map((inv: any) => [
       inv.invoice_number,
-      format(new Date(inv.created_at), "yyyy-MM-dd"),
+      displayDate(inv.created_at),
       getPatientName(inv, patientById),
       getDrName(inv, staffById),
       displayServices(inv).join("; "),
       inv.payment_type,
-      inv.payment_mode || "",
+      // The named instruments, not the bare word "Split", which told a reader
+      // nothing about what was actually taken.
+      paymentModeLabel(inv),
       Number(inv.total_amount),
       Number(inv.paid_amount),
       Number(inv.total_amount) - Number(inv.paid_amount),
       inv.status,
     ]);
     const csv = [headers, ...rows].map(r => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+    // The byte order mark is what tells Excel the file is UTF-8; without it a
+    // rupee sign or an accented name arrives as mojibake.
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

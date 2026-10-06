@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { ALL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
-import { amountBeforeGst, gstRateLabel } from "@/lib/invoiceGst";
+import { amountBeforeGst, gstAmount, gstRateLabel } from "@/lib/invoiceGst";
 import { formatMoneyExact } from "@/lib/currency";
 import { collectionCards, modesOf, paymentModeLabel, PAYMENT_BUCKETS } from "@/lib/paymentModes";
 import { npsBreakdown, npsCategory, ratingLabel } from "@/lib/feedbackScores";
@@ -179,17 +179,23 @@ const CAMPAIGN_STATUS = ["Planning", "Active", "Completed"];
 
 /**
  * The money columns for a report whose rows are invoices: what was charged
- * before GST, the rate the bill carries, and the total after it.
+ * before GST, the rate or rates it was charged at, the GST itself, and the
+ * total after it.
  *
  * One definition, used by every invoice report - Invoices & Revenue, Cancelled
- * Bills, and any added later - so the three never drift apart or get left off a
- * new one. Total keeps the total_amount key it always had, so sorting, the
- * summary cards and the revenue chart are untouched: nothing here changes a
- * figure, it only shows what the figure is made of.
+ * Bills, and any added later - so they never drift apart or get left off a new
+ * one. Total keeps the total_amount key it always had, so sorting, the summary
+ * cards and the revenue chart are untouched: nothing here changes a figure, it
+ * only shows what the figure is made of.
+ *
+ * GST is shown as an amount as well as a rate, because a mixed bill has no one
+ * rate and "Amount x rate" was never going to come back to Total on one. With
+ * the amount there, Amount + GST = Total on every row, whatever the rates were.
  */
 export const INVOICE_MONEY_COLUMNS: ReportColumn[] = [
   { key: "amount_before_gst", label: "Amount", sortable: true, type: "currency", accessor: (r) => amountBeforeGst(r) },
   { key: "gst_rate", label: "GST %", sortable: true, accessor: (r) => gstRateLabel(r) },
+  { key: "gst_amount", label: "GST", sortable: true, type: "currency", accessor: (r) => gstAmount(r) },
   { key: "total_amount", label: "Total", sortable: true, type: "currency" },
 ];
 

@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { formatAmountExact, formatNumber } from "@/lib/currency";
 import { REPORT_DATE_RANGE_OPTIONS } from "@/lib/reportDateRange";
+import { displayDate } from "@/lib/dateInput";
 import type { ReportColumn, ReportConfig, ReportSummaryCard } from "@/lib/reportsCatalog";
 import type { FilterState } from "@/components/reports/ReportFilterBar";
 import bundledLogo from "@/assets/skin-clinic-logo.png";
@@ -44,6 +45,30 @@ function cellValue(col: ReportColumn, row: ReportRow) {
 export function reportCellText(col: ReportColumn, row: ReportRow): string {
   const v = cellValue(col, row);
   if (v === null || v === undefined || v === "") return "-";
+  return formatCell(col, v);
+}
+
+/**
+ * The same cell for the CSV download.
+ *
+ * The download used to write whatever the row held, so a date column that read
+ * "05/10/2026" on screen and in the printed report arrived in Excel as
+ * "2026-10-05T14:20:43.29+00:00" - a timestamp nobody asked for, in a format
+ * Excel will not treat as a date. One formatter for all three now. An empty
+ * cell stays empty rather than becoming a dash, because a spreadsheet counts
+ * and filters on blanks.
+ */
+export function reportCellCsv(col: ReportColumn, row: ReportRow): string {
+  const v = cellValue(col, row);
+  if (v === null || v === undefined || v === "") return "";
+  // Money goes out as a bare number. Grouped into "1,66,322.50" it would land
+  // in Excel as text, and a column of text cannot be summed - which is the one
+  // thing a finance export exists for.
+  if (col.type === "currency" || col.type === "number") return String(Number(v));
+  return formatCell(col, v);
+}
+
+function formatCell(col: ReportColumn, v: unknown): string {
   switch (col.type) {
     // Money is the figure someone totals by hand against a bank statement, so
     // it never abbreviates and never loses its paise. Sending it through
@@ -56,10 +81,11 @@ export function reportCellText(col: ReportColumn, row: ReportRow): string {
     // A count has no paise and should not grow any.
     case "number":
       return formatNumber(Number(v));
+    // dd/MM/yyyy, the one date format the rest of the app settled on.
     case "date":
-      try { return format(new Date(v), "dd MMM yyyy"); } catch { return String(v); }
+      return displayDate(v as string) || String(v);
     case "datetime":
-      try { return format(new Date(v), "dd MMM yyyy h:mm a"); } catch { return String(v); }
+      try { return `${displayDate(v as string)} ${format(new Date(v as string), "h:mm a")}`.trim(); } catch { return String(v); }
     default:
       return String(v);
   }

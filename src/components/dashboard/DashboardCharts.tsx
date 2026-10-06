@@ -222,9 +222,15 @@ function HorizontalBarCard({
             name={barName}
             radius={[0, 4, 4, 0]}
             maxBarSize={22}
-            // The bar's own category sits on payload.name; e.name is the Bar's
-            // series name ("Patients"), which no drill-down can route on.
-            onClick={(e: any) => onChartClick(chartKey, e?.payload?.name ?? e?.name)}
+            // recharts hands the bar's own category on data.payload.name;
+            // data.name is the series name ("Patients"), which no drill-down
+            // can route on. The click must also not bubble - the card itself
+            // is clickable and would overwrite this navigation with a
+            // keyless one, opening the report without the band.
+            onClick={(data: any, _index: number, event: any) => {
+              event?.stopPropagation?.();
+              onChartClick(chartKey, data?.payload?.name ?? data?.name);
+            }}
           >
             {data.map((_, i) => (
               <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />

@@ -222,7 +222,9 @@ function HorizontalBarCard({
             name={barName}
             radius={[0, 4, 4, 0]}
             maxBarSize={22}
-            onClick={(e: any) => onChartClick(chartKey, e?.name)}
+            // The bar's own category sits on payload.name; e.name is the Bar's
+            // series name ("Patients"), which no drill-down can route on.
+            onClick={(e: any) => onChartClick(chartKey, e?.payload?.name ?? e?.name)}
           >
             {data.map((_, i) => (
               <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />

@@ -24,6 +24,7 @@ import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/s
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
 import { resolveViewSort } from "@/lib/listViews/viewSort";
 import { viewDatePreset } from "@/lib/viewDatePreset";
+import { activeAppointmentFilters, emptyAppointmentsMessage } from "@/lib/activeAppointmentFilters";
 import { appointmentInvoiceMap } from "@/lib/appointmentInvoiceMap";
 import { billCellState } from "@/lib/billCellState";
 import { billedPatientDays, patientDayKey, type BilledDayRow } from "@/lib/billedPatientDays";
@@ -439,6 +440,35 @@ const Appointments = () => {
     [selectView, allViews],
   );
 
+  // Remembering a view has to mean the same as picking one.
+  //
+  // selectViewAndDate above copies a view's own date onto the chips, but only
+  // when somebody clicks. The active view is restored from the browser on every
+  // load, and so are the chips - independently - so the two could disagree from
+  // the first render and nothing ever reconciled them. A date pinned weeks ago
+  // then bounded the fetch while the view still filtered client-side to today:
+  // "Todays Appointments" read 0 items over a day with 43 appointments in it,
+  // every single visit, and the filter panel it came from is closed by default.
+  //
+  // Once, on the restore. A chip the user picks afterwards still wins.
+  const dateRestoredRef = useRef(false);
+  useEffect(() => {
+    if (!viewsReady || dateRestoredRef.current) return;
+    dateRestoredRef.current = true;
+    const fromView = viewDatePreset(activeView?.filters);
+    if (!fromView) return;
+    setDatePreset(fromView.preset);
+    if (fromView.preset === "specific") setSpecificDate(fromView.specificDate);
+    if (fromView.preset === "range") {
+      setRangeFrom(fromView.rangeFrom);
+      setRangeTo(fromView.rangeTo);
+    }
+    // Deliberately once, on the restore: activeView?.filters is read inside but
+    // must not re-trigger this, or a later edit to the view would yank the
+    // chips out from under whatever the user had since chosen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewsReady, activeView?.id]);
+
   // Inline edit state
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<any>({});
@@ -793,6 +823,40 @@ const Appointments = () => {
   });
 
   const sortedFilterDoctors = useMemo(() => Array.from(filterDoctors).sort(), [filterDoctors]);
+
+  const doctorNameById = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const doctor of doctorsList as { id?: string; first_name?: string; last_name?: string }[]) {
+      if (doctor?.id) names.set(doctor.id, `${doctor.first_name ?? ""} ${doctor.last_name ?? ""}`.trim());
+    }
+    return names;
+  }, [doctorsList]);
+
+  // What the empty row has to own up to. Named filters only - a list showing
+  // everything has nothing to explain.
+  const narrowedBy = useMemo(
+    () =>
+      activeAppointmentFilters({
+        datePreset,
+        datePresetLabel: (key) => DATE_PRESETS.find((p) => p.key === key)?.label,
+        doctorNames: Array.from(filterDoctors).map((id) => doctorNameById.get(id) || "Doctor"),
+        status: filterStatus,
+        visitStatus: filterVisitStatus,
+        search: debouncedSearchQuery,
+      }),
+    [datePreset, filterDoctors, doctorNameById, filterStatus, filterVisitStatus, debouncedSearchQuery],
+  );
+
+  const clearListFilters = useCallback(() => {
+    setSearchQuery("");
+    setFilterDoctors(new Set());
+    setFilterStatus("all");
+    setFilterVisitStatus("all");
+    setDatePreset("all");
+    setSpecificDate(undefined);
+    setRangeFrom(undefined);
+    setRangeTo(undefined);
+  }, []);
 
   const apptPageQueryKey = [
     "appointments",
@@ -1998,7 +2062,7 @@ const Appointments = () => {
             onClick={() => setShowFilters(!showFilters)}
           >
             <Filter className="h-4 w-4" />
-            {(searchQuery || filterDoctors.size > 0 || datePreset !== "this_week" || filterStatus !== "all" || filterVisitStatus !== "all") && (
+            {narrowedBy.length > 0 && (
               <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary" />
             )}
           </Button>
@@ -2607,7 +2671,7 @@ const Appointments = () => {
               </>
             )}
 
-            {(searchQuery || filterDoctors.size > 0 || datePreset !== "this_week" || filterStatus !== "all" || filterVisitStatus !== "all") && (
+            {narrowedBy.length > 0 && (
               <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(""); setFilterDoctors(new Set()); setFilterStatus("all"); setFilterVisitStatus("all"); setDatePreset("all"); setSpecificDate(undefined); setRangeFrom(undefined); setRangeTo(undefined); }}>Clear filters</Button>
             )}
             <span className="text-xs text-muted-foreground ml-auto">{(view === "table" ? apptTotal : filteredAppointments.length).toLocaleString()} appointment{(view === "table" ? apptTotal : filteredAppointments.length) !== 1 ? "s" : ""}</span>
@@ -3129,7 +3193,21 @@ const Appointments = () => {
                     {visibleTableRows.length === 0 && (
                       <tr>
                         <td colSpan={visibleColumnWidths.length + 1} className="p-8 text-center text-muted-foreground">
-                          {apptPageLoading ? "Loading…" : "No appointments found"}
+                          {apptPageLoading ? "Loading…" : (
+                            <>
+                              {emptyAppointmentsMessage(narrowedBy)}
+                              {narrowedBy.length > 0 && (
+                                <Button
+                                  variant="link"
+                                  size="sm"
+                                  className="h-auto p-0 ml-2 text-xs"
+                                  onClick={clearListFilters}
+                                >
+                                  Clear filters
+                                </Button>
+                              )}
+                            </>
+                          )}
                         </td>
                       </tr>
                     )}

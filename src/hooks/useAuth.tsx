@@ -312,6 +312,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    // Clinic machines are shared, and the per-list preferences below are kept
+    // per browser rather than per user. Left behind, one person's remembered
+    // view and pinned filters became the next person's - which is how a login
+    // that had never chosen "Todays Appointments" landed on it, filtered to a
+    // date somebody else had pinned, and read 0 items. Signing out forgets
+    // them; nothing stored on the server is touched.
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.endsWith(".activeListView") || key.endsWith(".pinnedFilters")) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch {
+      // Private windows and blocked site data: nothing to forget.
+    }
     setSession(null);
     setUser(null);
     setPatientId(null);

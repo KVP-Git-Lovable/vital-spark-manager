@@ -739,61 +739,20 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                 <ChevronDown className="h-4 w-4 transition-transform" />
               </CollapsibleTrigger>
               <CollapsibleContent className="p-3 space-y-4 border-t">
+                {/* Address, State, Pincode and the two Emergency Contact boxes
+                    are gone: the clinic does not collect them, and State,
+                    Pincode and Emergency Contact were empty on all 27,281
+                    patients. They stay in the payloads above and below, so an
+                    edit here cannot blank the 4,113 addresses already stored -
+                    the fields came off the screen, not out of the record.
+                    City stays because it was not on the list. */}
                 <div>
-                  <Label>Address</Label>
-                  <Textarea
-                    value={form.address || ""}
-                    onChange={(e) => updateField("address", e.target.value)}
-                    placeholder="Street address"
+                  <Label>City</Label>
+                  <Input
+                    value={form.city || ""}
+                    onChange={(e) => updateField("city", e.target.value)}
                     className="mt-1.5"
-                    rows={2}
                   />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    {/* City had no input here at all, though it is in the saved
-                        payload and editable on the patient's Details tab. */}
-                    <Label>City</Label>
-                    <Input
-                      value={form.city || ""}
-                      onChange={(e) => updateField("city", e.target.value)}
-                      className="mt-1.5"
-                    />
-                  </div>
-                  <div>
-                    <Label>State</Label>
-                    <Input
-                      value={form.state || ""}
-                      onChange={(e) => updateField("state", e.target.value)}
-                      className="mt-1.5"
-                    />
-                  </div>
-                  <div>
-                    <Label>Pincode</Label>
-                    <Input
-                      value={form.pincode || ""}
-                      onChange={(e) => updateField("pincode", e.target.value)}
-                      className="mt-1.5"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Emergency Contact Name</Label>
-                    <Input
-                      value={form.emergency_contact_name || ""}
-                      onChange={(e) => updateField("emergency_contact_name", e.target.value)}
-                      className="mt-1.5"
-                    />
-                  </div>
-                  <div>
-                    <Label>Emergency Contact Phone</Label>
-                    <Input
-                      value={form.emergency_contact_phone || ""}
-                      onChange={(e) => updateField("emergency_contact_phone", e.target.value)}
-                      className="mt-1.5"
-                    />
-                  </div>
                 </div>
               </CollapsibleContent>
             </Collapsible>

@@ -1003,7 +1003,13 @@ const PatientDetail = () => {
                     </div>
                   </div>
 
-                  {/* Address */}
+                  {/* Address, minus the boxes nobody ever filled.
+                      State and Pincode were empty on all 27,281 patients, and
+                      the Emergency Contact card - a name and a phone - on all
+                      but one, so taking them away removes clutter and no
+                      information. Address and City stay: 4,113 patients have an
+                      address, and it has to remain readable and correctable.
+                      Both columns are untouched in the database. */}
                   <div className="stat-card p-4">
                     <SectionTitle>Address</SectionTitle>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1011,17 +1017,6 @@ const PatientDetail = () => {
                         <TextareaField label="Address" value={d.address} field="address" />
                       </div>
                       <Field label="City" value={d.city} field="city" />
-                      <Field label="State" value={d.state} field="state" />
-                      <Field label="Pincode" value={d.pincode} field="pincode" />
-                    </div>
-                  </div>
-
-                  {/* Emergency */}
-                  <div className="stat-card p-4">
-                    <SectionTitle>Emergency Contact</SectionTitle>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Contact Name" value={d.emergency_contact_name} field="emergency_contact_name" />
-                      <Field label="Contact Phone" value={d.emergency_contact_phone} field="emergency_contact_phone" />
                     </div>
                   </div>
 

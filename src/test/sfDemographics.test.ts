@@ -4,6 +4,7 @@ import {
   normaliseDob,
   normaliseEmail,
   normaliseSex,
+  normaliseSource,
 } from "../../supabase/functions/sf-import-demographics/demographics";
 
 /**
@@ -84,5 +85,73 @@ describe("normaliseDob", () => {
     expect(normaliseDob("31/07/1982", today)).toBeNull();
     expect(normaliseDob("", today)).toBeNull();
     expect(normaliseDob(null, today)).toBeNull();
+  });
+});
+
+describe("normaliseSource", () => {
+  it("maps the choices the app's own form offers", () => {
+    expect(normaliseSource("Walk-in")).toBe("Walk-in");
+    expect(normaliseSource("walk in")).toBe("Walk-in");
+    expect(normaliseSource("ADVERTISEMENT")).toBe("Advertisement");
+    expect(normaliseSource(" Dr referral ")).toBe("Dr. referral");
+    expect(normaliseSource("Referred by Patient")).toBe("Referred by Patient");
+    expect(normaliseSource("campaign")).toBe("Campaign");
+    expect(normaliseSource("Others")).toBe("Other");
+  });
+
+  it("keeps the spellings already in this database, rather than renaming them", () => {
+    // 4,322 patients are "Social media", 195 "Reference - other patients", 84
+    // "Reference - other Dr". The clinic has been reading those words for
+    // months and their reports group by them.
+    expect(normaliseSource("Social media")).toBe("Social media");
+    expect(normaliseSource("instagram")).toBe("Social media");
+    expect(normaliseSource("Reference - other patients")).toBe("Reference - other patients");
+    expect(normaliseSource("reference-other dr")).toBe("Reference - other Dr");
+  });
+
+  it("reads through the case and double spacing free text arrives in", () => {
+    expect(normaliseSource("Walk-In")).toBe("Walk-in");
+    expect(normaliseSource("social  media")).toBe("Social media");
+    // Collapsing runs of space is as far as it goes - "walk - in" is a spelling
+    // nobody has used, and guessing at it is how a wrong category gets written.
+    expect(normaliseSource("  walk   -   in  ")).toBeNull();
+  });
+
+  it("never returns the word this whole change exists to remove", () => {
+    expect(normaliseSource("salesforce")).toBeNull();
+    expect(normaliseSource("Salesforce")).toBeNull();
+  });
+
+  it("refuses filler, which means nobody recorded a source", () => {
+    for (const filler of ["NA", "n/a", "nil", "none", "-", ".", "unknown", "not specified", "test"]) {
+      expect(normaliseSource(filler)).toBeNull();
+    }
+  });
+
+  it("refuses a value it does not recognise instead of inventing a category", () => {
+    // Reported by the dry run as unmappedSource, so it is mapped deliberately.
+    expect(normaliseSource("Hospital tie-up")).toBeNull();
+    expect(normaliseSource("Google")).toBeNull();
+    expect(normaliseSource("")).toBeNull();
+    expect(normaliseSource(null)).toBeNull();
+    expect(normaliseSource(undefined)).toBeNull();
+  });
+
+  it("only ever returns something the Source column already holds somewhere", () => {
+    // A value off this list renders blank in the Select and reads as no source
+    // at all, so an import must not create one.
+    const live = new Set([
+      "Walk-in", "Advertisement", "Dr. referral", "Referred by Patient", "Campaign", "Other",
+      "Social media", "Reference - other patients", "Reference - other Dr", "Other Dr. referral",
+    ]);
+    const samples = [
+      "walk-in", "walkin", "advertising", "ad", "doctor referral", "patient referral",
+      "others", "facebook", "socialmedia", "reference-other patients", "other dr. referral",
+    ];
+    for (const raw of samples) {
+      const out = normaliseSource(raw);
+      expect(out).not.toBeNull();
+      expect(live.has(out!)).toBe(true);
+    }
   });
 });

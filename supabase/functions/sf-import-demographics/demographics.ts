@@ -74,3 +74,64 @@ export function normaliseDob(raw: string | null | undefined, today: Date = new D
   if (when.getTime() > today.getTime()) return null;
   return v;
 }
+
+/**
+ * Where the patient came from, as one of the choices this app offers - or null.
+ *
+ * 9,866 patients carry the literal word "salesforce" in this column. That is not
+ * a source, it is the stamp sf-import-clinical puts on a patient it creates
+ * (index.ts:322), and Salesforce's own Patient_source__c was never asked for.
+ *
+ * The clinic's own list is Walk-in, Advertisement, Dr. referral, Referred by
+ * Patient, Campaign, Other (src/lib/patientSourceOptions.ts), and the live data
+ * carries older spellings beside it - "Social media", "Reference - other
+ * patients", "Reference - other Dr". Both are recognised, because a value
+ * already in this database is one the clinic has been reading for months and
+ * renaming it would quietly change what their own reports count.
+ *
+ * Anything else returns null and is counted, not guessed at. A source nobody
+ * chose is worse than a blank: the blank is a gap somebody fills, while a wrong
+ * category goes into a marketing report and is believed.
+ */
+const SOURCE_MAP: Record<string, string> = {
+  // The app's own list.
+  "walk-in": "Walk-in",
+  "walk in": "Walk-in",
+  "walkin": "Walk-in",
+  "advertisement": "Advertisement",
+  "advertising": "Advertisement",
+  "ad": "Advertisement",
+  "dr. referral": "Dr. referral",
+  "dr referral": "Dr. referral",
+  "doctor referral": "Dr. referral",
+  "referred by patient": "Referred by Patient",
+  "patient referral": "Referred by Patient",
+  "campaign": "Campaign",
+  "other": "Other",
+  "others": "Other",
+  // Spellings already in this database, kept as they are.
+  "social media": "Social media",
+  "socialmedia": "Social media",
+  "instagram": "Social media",
+  "facebook": "Social media",
+  "reference - other patients": "Reference - other patients",
+  "reference-other patients": "Reference - other patients",
+  "reference - other dr": "Reference - other Dr",
+  "reference-other dr": "Reference - other Dr",
+  "other dr. referral": "Other Dr. referral",
+};
+
+/** Filler that means "nobody recorded a source", not a source. */
+const SOURCE_PLACEHOLDERS = new Set([
+  "na", "n/a", "nil", "none", "no", "-", "--", ".", "not available", "unknown",
+  "not specified", "unspecified", "test",
+  // The stamp this whole change exists to stop. If Salesforce ever holds it,
+  // it means no more here than it does there.
+  "salesforce",
+]);
+
+export function normaliseSource(raw: string | null | undefined): string | null {
+  const v = String(raw ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!v || SOURCE_PLACEHOLDERS.has(v)) return null;
+  return SOURCE_MAP[v] ?? null;
+}

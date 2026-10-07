@@ -319,7 +319,14 @@ async function fetchRecentTargets(
             last_name: parts.slice(1).join(" ") || "",
             phone: phone || null,
             sf_id: sp.Id,
-            source: "salesforce",
+            // Not "salesforce". That is not where the patient came from - it is
+            // where this row came from, and sf_id already records that. The word
+            // reached 9,866 patients' Source column and read as fact in the app
+            // and in every report that groups by source. Salesforce's own
+            // Patient_source__c is what belongs here, and sf-import-demographics
+            // now fetches it; until it does, a blank is a visible gap somebody
+            // can fill, which a wrong category is not.
+            source: null,
           })
           .select("id")
           .single();

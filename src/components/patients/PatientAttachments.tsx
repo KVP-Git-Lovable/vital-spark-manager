@@ -13,7 +13,6 @@ import { CameraDialog } from "@/components/shared/CameraDialog";
 import { displayDate } from "@/lib/dateInput";
 import { attachmentStoragePath } from "@/lib/attachmentPath";
 import { uploadFailureMessage, uploadSuccessMessage, type FailedUpload } from "@/lib/uploadSummary";
-import { isConsultationService } from "@/lib/consultationLine";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -44,7 +43,6 @@ export interface PatientAttachment {
   document_type: string | null;
   notes: string | null;
   created_at: string;
-  procedures?: { service_name: string | null } | null;
 }
 
 const DOCUMENT_TYPES = [
@@ -85,7 +83,8 @@ export function PatientAttachments({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("procedure_attachments")
-        .select("*, procedures(service_name)")
+        // The joined service is no longer read - see the list below.
+        .select("*")
         .eq("patient_id", patientId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -234,16 +233,25 @@ export function PatientAttachments({
                         {att.document_type && (
                           <Badge variant="default" className="text-[10px]">{att.document_type}</Badge>
                         )}
-                        {/* The visit's service, but only when it names a real
-                            treatment. An attachment is filed against the
-                            patient's current prescription, and on most visits
-                            that reads "Consultation" - which is not a service,
-                            it means the patient was seen, so it said nothing
-                            beside a lab report. Same rule as the prescription
-                            screens and the printed document. */}
-                        {att.procedures?.service_name && !isConsultationService(att.procedures.service_name) && (
-                          <Badge variant="secondary" className="text-[10px]">{att.procedures.service_name}</Badge>
-                        )}
+                        {/* No visit label here. This used to show the service
+                            of the prescription the file is filed against, with
+                            the bare word "Consultation" filtered out. That
+                            filter was a list of bad names, and the names kept
+                            changing: a lab report came back badged "New
+                            Consult".
+
+                            The column cannot be made to behave, because it does
+                            not hold a service. Of 147 attachments carrying one,
+                            20 name something in the Service Master; the rest
+                            are the visit's own text - "Old Consult", "Review",
+                            "New Consult + 1rx Scalp Injection", and histories
+                            like "2rx Axillary fat reduction + 5rx Exion
+                            submentum last session on 18/07/2025". None of that
+                            says anything useful beside a lab report.
+
+                            What identifies the file is its type and its date,
+                            and both are still here. The visit it belongs to is
+                            still recorded - this is the label, not the link. */}
                         <span className="text-xs text-muted-foreground">{displayDate(att.created_at)}</span>
                       </div>
                       {att.notes && <p className="text-xs text-muted-foreground mt-1">{att.notes}</p>}

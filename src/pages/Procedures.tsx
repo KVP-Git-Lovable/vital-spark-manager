@@ -74,9 +74,12 @@ const Procedures = () => {
   const rowRefs = useRef<Record<string, HTMLTableRowElement | HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
 
+  // "procedures" is the section key - it names the saved views in the database
+  // and the column layouts in the browser, so it stays. Only the label, which
+  // the dropdown prints as "All Prescriptions", follows the module's name.
   const {
     allViews, userId: viewsUserId, activeView, selectView, saveView, saveCharts, deleteView, pinDefault, updateStandardColumns,
-  } = useModuleListViews("procedures", "Procedures", DEFAULT_PROCEDURE_VIEW_COLUMNS);
+  } = useModuleListViews("procedures", "Prescriptions", DEFAULT_PROCEDURE_VIEW_COLUMNS);
   const [viewEditorOpen, setViewEditorOpen] = useState(false);
   const [editingView, setEditingView] = useState<ListView | null>(null);
   const [deleteViewTarget, setDeleteViewTarget] = useState<ListView | null>(null);
@@ -428,7 +431,7 @@ const Procedures = () => {
       <FieldsDisplayDialog
         open={viewFieldsOpen}
         onOpenChange={setViewFieldsOpen}
-        viewName={activeView?.name ?? "All Procedures"}
+        viewName={activeView?.name ?? "All Prescriptions"}
         columns={displayColumns}
         onSave={(cols) => {
           if (!activeView) return;

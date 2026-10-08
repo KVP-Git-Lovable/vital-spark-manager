@@ -65,6 +65,56 @@ describe("Invoices & Revenue summary", () => {
 });
 
 describe("Invoices & Revenue columns", () => {
+  it("is the twelve columns the clinic asked for, in that order", async () => {
+    const report = await invoicesReport();
+    expect(report.columns.map((c) => c.key)).toEqual([
+      "created_at",
+      "invoice_number",
+      "patient_name",
+      "service",
+      "doctor_name",
+      "payment_mode",
+      "total_amount",
+      "gst_rate",
+      "gst_amount",
+      "amount_before_gst",
+      "material_percent_label",
+      "material_cost_total",
+    ]);
+  });
+
+  it("no longer carries Paid or Status as columns", async () => {
+    // Dropped at the clinic's request. The Status filter and the collection
+    // cards read the row rather than the column list, so both still work.
+    const report = await invoicesReport();
+    const keys = report.columns.map((c) => c.key);
+    expect(keys).not.toContain("paid_amount");
+    expect(keys).not.toContain("status");
+    expect(report.filters.some((f) => f.key === "status")).toBe(true);
+  });
+
+  it("does not promise paid and pending amounts it no longer shows", async () => {
+    // The description is printed on the PDF.
+    const report = await invoicesReport();
+    expect(report.description).not.toMatch(/pending/i);
+  });
+
+  it("names the services from the billed lines the material figures come from", async () => {
+    const report = await invoicesReport();
+    const column = report.columns.find((c) => c.key === "service")!;
+    expect(column.accessor!({ line_items: [{ name: "Laser toning" }, { name: "Peel" }] })).toBe(
+      "Laser toning, Peel",
+    );
+  });
+
+  it("leaves the money keys alone, so the summary and the chart do not move", async () => {
+    const report = await invoicesReport();
+    const total = report.columns.find((c) => c.key === "total_amount")!;
+    expect(total.type).toBe("currency");
+    expect(total.accessor).toBeUndefined();
+    expect(report.chart?.build).toBeTypeOf("function");
+  });
+
   it("shows the doctor where the cancellation reason used to be", async () => {
     const report = await invoicesReport();
     const keys = report.columns.map((c) => c.key);

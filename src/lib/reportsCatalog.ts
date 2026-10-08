@@ -2,6 +2,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { ALL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { amountBeforeGst, gstAmount, gstRateLabel } from "@/lib/invoiceGst";
+import {
+  attachMaterialCost,
+  invoiceServiceLabel,
+  type MaterialCostLine,
+} from "@/lib/invoiceReportRows";
 import { formatMoneyExact } from "@/lib/currency";
 import { collectionCards, modesOf, paymentModeLabel, PAYMENT_BUCKETS } from "@/lib/paymentModes";
 import { npsBreakdown, npsCategory, ratingLabel } from "@/lib/feedbackScores";
@@ -384,15 +389,23 @@ export const REPORTS: ReportConfig[] = [
   {
     key: "invoices",
     title: "Invoices & Revenue",
-    description: "All invoices with paid and pending amounts.",
+    description:
+      "Every invoice with the GST charged on it and the material cost to deduct from it.",
     category: "Finance",
     defaultSort: { key: "created_at", dir: "desc" },
+    // The order the clinic reads them in: what the visit was, then what it came
+    // to, then what to take off it. Paid and Status were dropped from the
+    // columns at their request; the Status filter and the collection cards
+    // below read the row itself, so both still work.
+    //
+    // The keys are the ones these figures always had, so sorting, the summary
+    // and the revenue chart are untouched - only the labels and the order
+    // changed, and the money is the same money.
     columns: [
+      { key: "created_at", label: "Date", sortable: true, type: "date" },
       { key: "invoice_number", label: "Invoice #", sortable: true },
       { key: "patient_name", label: "Patient", sortable: true },
-      ...INVOICE_MONEY_COLUMNS,
-      { key: "paid_amount", label: "Paid", sortable: true, type: "currency" },
-      { key: "status", label: "Status", sortable: true, type: "badge" },
+      { key: "service", label: "Service", sortable: true, accessor: (r) => invoiceServiceLabel(r) },
       // The invoice's own doctor where it has one, otherwise the doctor recorded
       // on the appointment it was raised from - Salesforce history carries the
       // name but no staff record, and a blank column is not a report.
@@ -411,7 +424,16 @@ export const REPORTS: ReportConfig[] = [
         // named the instruments.
         accessor: (r) => paymentModeLabel(r),
       },
-      { key: "created_at", label: "Date", sortable: true, type: "date" },
+      { key: "total_amount", label: "Total with GST", sortable: true, type: "currency" },
+      { key: "gst_rate", label: "GST %", sortable: true, accessor: (r) => gstRateLabel(r) },
+      { key: "gst_amount", label: "GST", sortable: true, type: "currency", accessor: (r) => gstAmount(r) },
+      { key: "amount_before_gst", label: "Amount before GST", sortable: true, type: "currency", accessor: (r) => amountBeforeGst(r) },
+      // Blank, not 0.00, where no percentage was ever recorded - which is most
+      // bills, because the percentage is matched by service name against the
+      // Service Master. Both figures come from material_cost_lines, the same
+      // view the Material Cost report reads, so the two can never disagree.
+      { key: "material_percent_label", label: "Material %", sortable: true },
+      { key: "material_cost_total", label: "Consumable Deduction", sortable: true, type: "currency" },
     ],
     filters: [
       { key: "dateRange", label: "Invoice Date", type: "dateRange", serverDateField: "created_at" },
@@ -438,21 +460,39 @@ export const REPORTS: ReportConfig[] = [
     ],
     searchFields: ["invoice_number", "patient_name"],
     rowHref: () => `/billing`,
-    fetcher: async ({ from, to }) =>
-      fetchAll((s, e) => {
-        let q = supabase
-          .from("invoices")
-          .select("*, doctor:doctor_id(first_name, last_name), appointment:appointment_id(doctor_name)")
-          // A cancelled bill is money the clinic never took, so it must not reach
-          // this report at all - not the rows, and so not Total Billed, the
-          // collection cards or the revenue chart, which are all derived from them.
-          .neq("status", "Cancelled")
-          .order("created_at", { ascending: false })
-          .range(s, e);
-        if (from) q = q.gte("created_at", from);
-        if (to) q = q.lte("created_at", to);
-        return q;
-      }),
+    fetcher: async ({ from, to }) => {
+      const [rows, materialLines] = await Promise.all([
+        fetchAll((s, e) => {
+          let q = supabase
+            .from("invoices")
+            .select("*, doctor:doctor_id(first_name, last_name), appointment:appointment_id(doctor_name)")
+            // A cancelled bill is money the clinic never took, so it must not reach
+            // this report at all - not the rows, and so not Total Billed, the
+            // collection cards or the revenue chart, which are all derived from them.
+            .neq("status", "Cancelled")
+            .order("created_at", { ascending: false })
+            .range(s, e);
+          if (from) q = q.gte("created_at", from);
+          if (to) q = q.lte("created_at", to);
+          return q;
+        }),
+        // Only the lines that carry a percentage. A line at 0 deducts nothing
+        // and would only put a 0 in a column that means "nobody said" when it
+        // is blank. The view excludes cancelled bills too, so the two agree.
+        fetchAll((s, e) => {
+          let q = supabase
+            .from("material_cost_lines")
+            .select("invoice_id, material_percent, material_cost")
+            .gt("material_percent", 0)
+            .order("created_at", { ascending: false })
+            .range(s, e);
+          if (from) q = q.gte("created_at", from);
+          if (to) q = q.lte("created_at", to);
+          return q;
+        }),
+      ]);
+      return attachMaterialCost(rows as { id?: string | null }[], materialLines as MaterialCostLine[]);
+    },
     // Collections split by instrument rather than one "Collected" lump: the
     // front desk reconciles the UPI takings against the bank, the cash against
     // the drawer, and could do neither from a single figure. Only the

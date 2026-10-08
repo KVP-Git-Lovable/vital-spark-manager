@@ -61,10 +61,17 @@ export function reportCellText(col: ReportColumn, row: ReportRow): string {
 export function reportCellCsv(col: ReportColumn, row: ReportRow): string {
   const v = cellValue(col, row);
   if (v === null || v === undefined || v === "") return "";
-  // Money goes out as a bare number. Grouped into "1,66,322.50" it would land
-  // in Excel as text, and a column of text cannot be summed - which is the one
-  // thing a finance export exists for.
-  if (col.type === "currency" || col.type === "number") return String(Number(v));
+  // Money goes out as a bare number, to two decimals. Grouped into
+  // "1,66,322.50" it would land in Excel as text, and a column of text cannot
+  // be summed - which is the one thing a finance export exists for. But bare
+  // used to mean every digit JavaScript holds: a Rs 1,000 bill charged
+  // inclusive of 5% GST is 1000/1.05, which does not divide evenly, and
+  // B-49052 exported its GST as 47.61904762 against 952.3809524. Two decimals
+  // is what the same figure reads as on screen and in the printed report, and
+  // 47.62 + 952.38 still comes back to the 1000.00 on the bill.
+  if (col.type === "currency") return Number(v).toFixed(2);
+  // A count has no paise and must not grow any - "5.00" of something.
+  if (col.type === "number") return String(Number(v));
   return formatCell(col, v);
 }
 

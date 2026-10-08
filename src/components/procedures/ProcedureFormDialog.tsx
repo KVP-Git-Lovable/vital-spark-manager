@@ -39,8 +39,7 @@ import { usePharmaLookup } from "@/hooks/usePharmaLookup";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { type ServiceOption } from "@/lib/servicePicker";
-import { isPlaceholderVisitService } from "@/lib/consultationLine";
-import { looksLikeInvestigation } from "@/lib/investigationAsService";
+import { blankServiceLine } from "@/lib/procedureFormSeed";
 import { patientIdentityLine } from "@/lib/patientIdentity";
 
 import {
@@ -106,9 +105,9 @@ interface ProcedureFormDialogProps {
   defaultPatientId?: string;
   defaultAppointmentId?: string;
   defaultStaffId?: string | null;
-  defaultServiceName?: string;
-  /** The visit's Investigation, so its text is not mistaken for a service. */
-  defaultInvestigation?: string | null;
+  // No defaultServiceName / defaultInvestigation: see procedureFormSeed.ts.
+  // The form takes no service from anybody, and leaving the props off is what
+  // stops the next caller offering one.
   defaultProblemAreaIds?: string[];
   /** Render inline (full page) instead of inside a modal dialog */
   asPage?: boolean;
@@ -117,7 +116,7 @@ interface ProcedureFormDialogProps {
 
 export function ProcedureFormDialog({
   open, onOpenChange,
-  defaultPatientId, defaultAppointmentId, defaultStaffId, defaultServiceName, defaultInvestigation, defaultProblemAreaIds,
+  defaultPatientId, defaultAppointmentId, defaultStaffId, defaultProblemAreaIds,
   asPage = false, onSaved,
 }: ProcedureFormDialogProps) {
   const queryClient = useQueryClient();
@@ -129,33 +128,8 @@ export function ProcedureFormDialog({
   const [medicalDirty, setMedicalDirty] = useState(false);
   const [appointmentId] = useState(defaultAppointmentId || "");
 
-  // "Consultation", "New Consult", "Old Consult" and the rest are what an
-  // appointment carries when nobody recorded any work - the Service Master has
-  // no row for any of them, so they could never match and just sat in the box
-  // as text nobody chose.
-  //
-  // Filtered here rather than in the callers because there are three ways into
-  // this form - the appointments list, the appointment sheet, and a ?service=
-  // URL on /procedures/new - and only one of them was filtering. Doing it at
-  // the one place the form receives the name covers all three, a stale URL, and
-  // anything added later.
-  const seedServiceName = isPlaceholderVisitService(defaultServiceName) ? "" : (defaultServiceName || "");
-
-  // What the box opens with, before the Service Master has loaded.
-  //
-  // A great many appointments carry the visit's Investigation in their service
-  // column - a history of past sessions, not a treatment - and showing it here
-  // is the investigation doctors reported seeing in the Services list. So text
-  // that appears inside the visit's Investigation is not written into the box
-  // on sight. A real service is not lost by this: the auto-match below fills
-  // the line from the Service Master the moment it loads, with the service's
-  // id, notes and price, which is better than the bare text ever was.
-  const seedIsInvestigation = looksLikeInvestigation(seedServiceName, defaultInvestigation);
-  const initialServiceName = seedIsInvestigation ? "" : seedServiceName;
-
-  const [serviceLines, setServiceLines] = useState<ServiceLine[]>([
-    { key: `svc-${Date.now()}`, service_id: "", name: initialServiceName, procedure_notes: "", recommendations: "", material_percent: "", price: 0 },
-  ]);
+  // One empty line, whatever the visit was booked as. See procedureFormSeed.ts.
+  const [serviceLines, setServiceLines] = useState<ServiceLine[]>([blankServiceLine()]);
 
   const [nextAppointmentAt, setNextAppointmentAt] = useState("");
   const [visitType, setVisitType] = useState<"Single" | "Recurring">("Single");
@@ -167,7 +141,6 @@ export function ProcedureFormDialog({
   // Notes typed before the procedure exists. procedure_sticky_notes.procedure_id is NOT NULL,
   // so these are buffered here and flushed once the procedure row has an id.
   const [draftNotes, setDraftNotes] = useState<DraftNote[]>([]);
-  const [autoFilled, setAutoFilled] = useState(false);
 
   // Unified AI bar state
   const [dictation, setDictation] = useState("");
@@ -579,10 +552,7 @@ export function ProcedureFormDialog({
   });
 
   const addServiceLine = () =>
-    setServiceLines((prev) => [
-      ...prev,
-      { key: `svc-${Date.now()}-${prev.length}`, service_id: "", name: "", procedure_notes: "", recommendations: "", material_percent: "", price: 0 },
-    ]);
+    setServiceLines((prev) => [...prev, blankServiceLine(`svc-${Date.now()}-${prev.length}`)]);
 
   /**
    * Whether each service line's picker is open, keyed by the line's own key.
@@ -669,7 +639,6 @@ export function ProcedureFormDialog({
         return next;
       });
     }
-    setAutoFilled(true);
     toast.info("Procedure & recommendations auto-filled from Service Master — you can edit them.");
   };
 
@@ -687,16 +656,6 @@ export function ProcedureFormDialog({
     const svc = services.find((s: any) => s.id === svcId);
     if (svc) await applyServiceData(svc, svcId, lineKey);
   };
-
-  // Auto-match the seeded service on first load. A placeholder never reaches
-  // here, so a per-doctor "CONSULTATION - DR ..." - which is a real billed
-  // service - still matches and still fills in its price.
-  if (seedServiceName && services.length > 0 && !autoFilled && !serviceLines[0]?.service_id) {
-    const match = services.find((s: any) => s.name === seedServiceName);
-    if (match) {
-      applyServiceData(match, match.id, serviceLines[0].key);
-    }
-  }
 
 
   // A ref, not a plain local: a re-render between mutationFn and onSuccess would

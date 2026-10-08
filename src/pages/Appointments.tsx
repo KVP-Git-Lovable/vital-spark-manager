@@ -1,7 +1,6 @@
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { resizeColumn, mergeSavedWidths, type ColumnWidth } from "@/lib/columnWidths";
 import { isPageSortedColumn, sortAppointments } from "@/lib/appointmentSort";
-import { isPlaceholderVisitService } from "@/lib/consultationLine";
 import { usualDoctorId, type PastVisit } from "@/lib/usualDoctor";
 import { appointmentDeleteNote } from "@/lib/appointmentDeleteNote";
 import { displayDate } from "@/lib/dateInput";
@@ -3148,19 +3147,8 @@ const Appointments = () => {
                                         params.set("appointment_id", apt.id);
                                         if (apt.patient_id) params.set("patient_id", apt.patient_id);
                                         if (apt.staff_id) params.set("staff_id", apt.staff_id);
-                                        // "Consultation" and its cousins ("New Consult", "Old
-                                        // Consult", "consult") are what an appointment carries when
-                                        // nobody recorded any work, not a service anyone picked, and
-                                        // the Service Master has no row for any of them - so they
-                                        // arrived pre-filled in a box they could never match. A visit
-                                        // that really is just a consultation opens with the service
-                                        // empty, which is what saving already records.
-                                        //
-                                        // The form filters this too, so a stale URL is safe; keeping
-                                        // it out of the URL as well keeps the two consistent.
-                                        if (apt.service && !isPlaceholderVisitService(apt.service)) {
-                                          params.set("service", apt.service);
-                                        }
+                                        // No service in the URL: the form takes none from anybody
+                                        // and opens with an empty line. See procedureFormSeed.ts.
                                         routerNavigate(`/procedures/new?${params.toString()}`);
                                       }}
                                     >

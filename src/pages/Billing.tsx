@@ -9,8 +9,7 @@ import { dateRangeFor } from "@/lib/listViews/engine";
 import { seedInvoiceLines } from "@/lib/invoiceEditSeed";
 import type { Json } from "@/integrations/supabase/types";
 import { stockDelta } from "@/lib/pharmaStockDelta";
-import { isConsultationService } from "@/lib/consultationLine";
-import { resolveServiceFromMaster } from "@/lib/serviceMatch";
+import { readBillingPrefill } from "@/lib/billingPrefill";
 import { pickAppointmentForInvoice, doctorForInvoice, type LinkableAppointment } from "@/lib/appointmentForInvoice";
 import { resolveInvoiceAppointmentId } from "@/lib/invoiceAppointmentLink";
 import { paymentModeLabel } from "@/lib/paymentModes";
@@ -812,7 +811,7 @@ const Billing = () => {
     },
   });
 
-  const { data: hsnTaxes = [], isSuccess: hsnMasterLoaded } = useQuery({
+  const { data: hsnTaxes = [] } = useQuery({
     queryKey: ["hsn-tax-active"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1014,17 +1013,17 @@ const Billing = () => {
       // this the new bill inherits the previous one's lines.
       resetForm();
       if (prefillPatient) setPatientId(prefillPatient);
-      if (prefillService) {
-        const svc = (serviceMaster as any[]).find((s: any) => s?.name === prefillService);
-        setServiceInputs([{ name: prefillService, price: Number(svc?.price) || 0, hsn: liveHsn(svc?.hsn_code, activeCodes), gst: Number(svc?.gst_percent) || 0, service_id: svc?.id }]);
-      }
+      // The booked service is deliberately not put on the bill - see
+      // billingPrefill.ts. Answering the prompt opens the form on the right
+      // patient; what gets charged is typed here.
+
       // Payment Type stays at its "One-time" default here - a visit being
       // recurring doesn't imply the bill should be split into installments;
       // staff picks "Recurring" (installment plan) explicitly when needed.
       setOpen(true);
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams, serviceMaster, resetForm]);
+  }, [searchParams, resetForm]);
 
   // Open a specific invoice via ?viewInvoice=<id> (e.g. from Patient detail).
   // Default (server-paginated) mode only holds one page of invoices in
@@ -1055,14 +1054,14 @@ const Billing = () => {
     };
   }, [searchParams, invoices]);
 
-  // Pre-fill the Create Invoice form from an appointment ("New Bill" flow).
-  // Payload is stashed in sessionStorage to avoid huge URLs.
-  const [pendingPrefill, setPendingPrefill] = useState<any | null>(null);
+  // Open the Create Invoice form on the right patient and the right visit
+  // ("New Bill" / "Create Invoice" flow). Payload is stashed in sessionStorage
+  // to avoid huge URLs.
   useEffect(() => {
     if (searchParams.get("newInvoice") !== "1") return;
-    const raw = sessionStorage.getItem("billing_prefill");
-    let payload: any = null;
-    if (raw) { try { payload = JSON.parse(raw); } catch { payload = null; } }
+    // Only the patient, the doctor and the visit - never a line item. The rule
+    // and the reasoning are in billingPrefill.ts.
+    const payload = readBillingPrefill(sessionStorage.getItem("billing_prefill"));
     sessionStorage.removeItem("billing_prefill");
 
     // Same reason as the route above: empty the form first, then fill it from
@@ -1074,10 +1073,10 @@ const Billing = () => {
     // effect at the top of this file set. Without this the form opened empty and
     // a bill could be saved with no patient at all - INV-49169 was exactly that.
     const queryPatientId = searchParams.get("patientId");
-    if (payload?.patientId) setPatientId(payload.patientId);
+    if (payload.patientId) setPatientId(payload.patientId);
     else if (queryPatientId) setPatientId(queryPatientId);
-    if (payload?.doctorId) setDoctorId(payload.doctorId);
-    if (payload?.appointmentId) {
+    if (payload.doctorId) setDoctorId(payload.doctorId);
+    if (payload.appointmentId) {
       setSourceAppointmentId(payload.appointmentId);
       // Show it in the picker too, so the form states which visit it will bill
       // rather than linking silently.
@@ -1088,7 +1087,6 @@ const Billing = () => {
     // source procedure/appointment is a recurring visit - visit cadence and
     // billing plan are independent; staff picks "Recurring" (installment
     // plan) explicitly, e.g. for a high-value package split into payments.
-    setPendingPrefill(payload || {});
     setInvoiceDate(new Date());
     setOpen(true);
     setSearchParams({}, { replace: true });
@@ -1103,56 +1101,6 @@ const Billing = () => {
     const fromVisit = doctorForInvoice(createPatientAppointments as LinkableAppointment[], invoiceDate);
     if (fromVisit) setDoctorId(fromVisit);
   }, [open, patientId, doctorId, createPatientAppointments, invoiceDate]);
-
-  // Resolve prefilled service / product lines once the master lists have loaded,
-  // so price + HSN are auto-filled from Service Master.
-  useEffect(() => {
-    const payload = pendingPrefill;
-    if (!payload) return;
-    if ((serviceMaster as any[]).length === 0) return; // masters still loading
-    // Wait for the Tax Master too, not just the Service Master: liveHsn() can
-    // only tell a retired code from a current one once it has the active list,
-    // and prefilling before then would put a retired code on the line.
-    // Gated on the query having resolved rather than on row count, so a clinic
-    // with no active codes at all still gets its prefill.
-    if (!hsnMasterLoaded) return;
-
-    const names: string[] = Array.isArray(payload?.services) ? payload.services.filter(Boolean) : [];
-    if (names.length) {
-      // A bare "Consultation" resolves to nothing and is not billed as a line
-      // (resolveServiceFromMaster), so a consultation-only visit prefills no
-      // services at all rather than one doctor's consultation chosen for
-      // everybody. Fall back to a single blank row so the form is usable.
-      const rows = names
-        .filter((n) => !isConsultationService(n))
-        .map((n: string) => {
-          const svc = resolveServiceFromMaster(n, serviceMaster as any[]);
-          return {
-            name: svc?.name || n,
-            price: Number(svc?.price) || 0,
-            hsn: liveHsn(svc?.hsn_code, activeCodes),
-            gst: Number(svc?.gst_percent) || 0,
-            service_id: svc?.id,
-          };
-        });
-      setServiceInputs(rows.length ? rows : [{ name: "", price: 0, hsn: "", gst: 0 }]);
-    }
-
-    // A prescribed medicine is not a sale. The visit's medicines used to be
-    // carried in here and resolved against pharmacy stock; one the clinic does
-    // not stock cannot be priced, so it arrived as a free-text line at Rs 0 and
-    // the biller deleted it on every bill. The patient may buy it outside, or
-    // not at all, so the Pharmacy section now opens empty and whoever bills
-    // adds what was actually sold. The visit's services still prefill above -
-    // those are what the clinic charged for.
-    //
-    // Decided here rather than in the two screens that stash the payload, so a
-    // new route into billing cannot reintroduce it. The payload may still carry
-    // products; billing does not act on them.
-
-    setPendingPrefill(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingPrefill, serviceMaster, pharmaInventory, pharmaProducts]);
 
   // Doctor/service filter dropdown options - sourced from the doctors/
   // services master lists (already fetched regardless) rather than scanned

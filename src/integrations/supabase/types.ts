@@ -1527,6 +1527,33 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_line_name_corrections: {
+        Row: {
+          corrected_at: string
+          invoice_id: string
+          invoice_number: string | null
+          now: string | null
+          position: number
+          was: string | null
+        }
+        Insert: {
+          corrected_at?: string
+          invoice_id: string
+          invoice_number?: string | null
+          now?: string | null
+          position: number
+          was?: string | null
+        }
+        Update: {
+          corrected_at?: string
+          invoice_id?: string
+          invoice_number?: string | null
+          now?: string | null
+          position?: number
+          was?: string | null
+        }
+        Relationships: []
+      }
       invoice_name_backup_20260923: {
         Row: {
           captured_at: string | null
@@ -1596,6 +1623,72 @@ export type Database = {
           id?: string
           line_items?: Json | null
           services?: string[] | null
+        }
+        Relationships: []
+      }
+      invoice_tax_backup_20261009: {
+        Row: {
+          captured_at: string | null
+          cgst_amount: number | null
+          id: string | null
+          igst_amount: number | null
+          invoice_number: string | null
+          line_items: Json | null
+          sgst_amount: number | null
+          tax_amount: number | null
+          tax_rate: number | null
+          total_amount: number | null
+        }
+        Insert: {
+          captured_at?: string | null
+          cgst_amount?: number | null
+          id?: string | null
+          igst_amount?: number | null
+          invoice_number?: string | null
+          line_items?: Json | null
+          sgst_amount?: number | null
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total_amount?: number | null
+        }
+        Update: {
+          captured_at?: string | null
+          cgst_amount?: number | null
+          id?: string | null
+          igst_amount?: number | null
+          invoice_number?: string | null
+          line_items?: Json | null
+          sgst_amount?: number | null
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total_amount?: number | null
+        }
+        Relationships: []
+      }
+      invoice_tax_corrections: {
+        Row: {
+          corrected_at: string
+          invoice_id: string
+          invoice_number: string | null
+          now_tax: number | null
+          reason: string | null
+          was_tax: number | null
+        }
+        Insert: {
+          corrected_at?: string
+          invoice_id: string
+          invoice_number?: string | null
+          now_tax?: number | null
+          reason?: string | null
+          was_tax?: number | null
+        }
+        Update: {
+          corrected_at?: string
+          invoice_id?: string
+          invoice_number?: string | null
+          now_tax?: number | null
+          reason?: string | null
+          was_tax?: number | null
         }
         Relationships: []
       }
@@ -2183,6 +2276,60 @@ export type Database = {
           },
         ]
       }
+      patient_dob_backup_20261007: {
+        Row: {
+          captured_at: string | null
+          date_of_birth: string | null
+          first_name: string | null
+          id: string | null
+          last_name: string | null
+          phone: string | null
+          sf_id: string | null
+        }
+        Insert: {
+          captured_at?: string | null
+          date_of_birth?: string | null
+          first_name?: string | null
+          id?: string | null
+          last_name?: string | null
+          phone?: string | null
+          sf_id?: string | null
+        }
+        Update: {
+          captured_at?: string | null
+          date_of_birth?: string | null
+          first_name?: string | null
+          id?: string | null
+          last_name?: string | null
+          phone?: string | null
+          sf_id?: string | null
+        }
+        Relationships: []
+      }
+      patient_dob_corrections: {
+        Row: {
+          corrected_at: string
+          now: string | null
+          patient_id: string
+          sf_id: string | null
+          was: string | null
+        }
+        Insert: {
+          corrected_at?: string
+          now?: string | null
+          patient_id: string
+          sf_id?: string | null
+          was?: string | null
+        }
+        Update: {
+          corrected_at?: string
+          now?: string | null
+          patient_id?: string
+          sf_id?: string | null
+          was?: string | null
+        }
+        Relationships: []
+      }
       patient_family_members: {
         Row: {
           city: string | null
@@ -2283,6 +2430,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      patient_name_backup_20261006: {
+        Row: {
+          backed_up_at: string
+          patient_id: string | null
+          previous_patient_name: string | null
+          record_id: string
+          record_kind: string
+        }
+        Insert: {
+          backed_up_at?: string
+          patient_id?: string | null
+          previous_patient_name?: string | null
+          record_id: string
+          record_kind: string
+        }
+        Update: {
+          backed_up_at?: string
+          patient_id?: string | null
+          previous_patient_name?: string | null
+          record_id?: string
+          record_kind?: string
+        }
+        Relationships: []
       }
       patient_pharma_requests: {
         Row: {
@@ -2471,6 +2642,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      patient_source_backup_20261007: {
+        Row: {
+          captured_at: string | null
+          first_name: string | null
+          id: string | null
+          last_name: string | null
+          phone: string | null
+          sf_id: string | null
+          source: string | null
+        }
+        Insert: {
+          captured_at?: string | null
+          first_name?: string | null
+          id?: string | null
+          last_name?: string | null
+          phone?: string | null
+          sf_id?: string | null
+          source?: string | null
+        }
+        Update: {
+          captured_at?: string | null
+          first_name?: string | null
+          id?: string | null
+          last_name?: string | null
+          phone?: string | null
+          sf_id?: string | null
+          source?: string | null
+        }
+        Relationships: []
+      }
+      patient_source_corrections: {
+        Row: {
+          corrected_at: string
+          now: string | null
+          patient_id: string
+          sf_id: string | null
+          was: string | null
+        }
+        Insert: {
+          corrected_at?: string
+          now?: string | null
+          patient_id: string
+          sf_id?: string | null
+          was?: string | null
+        }
+        Update: {
+          corrected_at?: string
+          now?: string | null
+          patient_id?: string
+          sf_id?: string | null
+          was?: string | null
+        }
+        Relationships: []
       }
       patient_sync_marker_backup_20260923: {
         Row: {
@@ -6147,6 +6372,7 @@ export type Database = {
         Args: { _object_type: string; _reason: string; _sf_id: string }
         Returns: undefined
       }
+      sf_patient_source_or_null: { Args: { _raw: string }; Returns: string }
       sf_set_patient_demographics_bulk: {
         Args: { payload: Json }
         Returns: number

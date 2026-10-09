@@ -96,7 +96,7 @@ import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
 import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { invoiceFormHasContent } from "@/lib/invoiceFormState";
+import { invoiceCanBeSaved, invoiceFormHasContent } from "@/lib/invoiceFormState";
 import { allocateInvoiceNumbers } from "@/lib/invoiceNumber";
 import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -2148,6 +2148,13 @@ const Billing = () => {
       const newPaid = splits.length > 0 ? splitTotal(splits) : Number(editData.paid_amount);
       const problem = splitProblem(splits, newPaid);
       if (problem) throw new Error(problem);
+      // A saved bill must keep its patient. Clearing the picker here would
+      // write patient_id null and the bill would vanish from that patient's
+      // Invoices tab while still showing in Billing - the fault this change
+      // exists to end.
+      if (!String(editData.patient_id ?? "").trim()) {
+        throw new Error("Choose the patient this bill belongs to before saving.");
+      }
 
       // What the form now holds. Built by the same snapshot the create path
       // writes, so an edited invoice is shaped exactly like a new one.
@@ -2271,10 +2278,14 @@ const Billing = () => {
     const hasServices = serviceInputs.some(s => s.name.trim());
     const hasPharma = pharmaItems.some(i => i.product_id && i.quantity > 0 && i.unit_price > 0);
     const hasLineItems = hasServices || hasPharma;
-    if (!hasLineItems) return false;
-    if (paymentType === "Staged") return stages.some((s) => s.amount > 0);
-    if (paymentType === "Recurring") return recurringCount > 0 && recurringAmount > 0;
-    return (servicesSubtotal + pharmaSubtotal) > 0;
+    const amountIsPositive =
+      paymentType === "Staged" ? stages.some((s) => s.amount > 0)
+      : paymentType === "Recurring" ? recurringCount > 0 && recurringAmount > 0
+      : (servicesSubtotal + pharmaSubtotal) > 0;
+    // The patient is part of being saveable. Without this, Save was live with
+    // the patient box empty and the bill went in unlinked - see
+    // invoiceFormState.ts.
+    return invoiceCanBeSaved({ patientId, hasLineItems, amountIsPositive });
   };
 
   // All-time totals, independent of pagination/filters/search - fetched
@@ -2995,7 +3006,7 @@ const Billing = () => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label>Patient</Label>
+                  <Label>Patient <span className="text-destructive">*</span></Label>
                   <PatientCombobox
                     value={patientId}
                     onValueChange={setPatientId}
@@ -4004,7 +4015,7 @@ const Billing = () => {
                   it needs correcting - and the doctor was not on the form at all. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label>Patient</Label>
+                  <Label>Patient <span className="text-destructive">*</span></Label>
                   <PatientCombobox
                     value={editData.patient_id || ""}
                     onValueChange={(v) => {

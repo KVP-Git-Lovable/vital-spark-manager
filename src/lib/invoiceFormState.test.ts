@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { invoiceFormHasContent } from "./invoiceFormState";
+import { invoiceCanBeSaved, invoiceFormHasContent } from "./invoiceFormState";
 
 // The shape Billing's create form is reset to: one blank service line.
 const blank = { serviceInputs: [{ name: "", price: 0 }], pharmaItemCount: 0, paidAmount: 0, notes: "" };
@@ -49,5 +49,27 @@ describe("invoiceFormHasContent", () => {
   it("survives malformed rows rather than throwing", () => {
     expect(invoiceFormHasContent({ serviceInputs: [null as never, undefined as never] })).toBe(false);
     expect(invoiceFormHasContent({ paidAmount: Number.NaN, pharmaItemCount: Number.NaN })).toBe(false);
+  });
+});
+
+describe("invoiceCanBeSaved", () => {
+  const billed = { hasLineItems: true, amountIsPositive: true };
+
+  it("refuses a bill with no patient, however complete it otherwise is", () => {
+    // INV-49097 and INV-49323 went in this way: services, an amount, and no
+    // patient. Both showed in Billing and on neither patient's Invoices tab.
+    expect(invoiceCanBeSaved({ ...billed, patientId: "" })).toBe(false);
+    expect(invoiceCanBeSaved({ ...billed, patientId: null })).toBe(false);
+    expect(invoiceCanBeSaved({ ...billed, patientId: undefined })).toBe(false);
+    expect(invoiceCanBeSaved({ ...billed, patientId: "   " })).toBe(false);
+  });
+
+  it("allows it once the patient is chosen", () => {
+    expect(invoiceCanBeSaved({ ...billed, patientId: "pat-1" })).toBe(true);
+  });
+
+  it("still refuses an empty bill, patient or not", () => {
+    expect(invoiceCanBeSaved({ patientId: "pat-1", hasLineItems: false, amountIsPositive: true })).toBe(false);
+    expect(invoiceCanBeSaved({ patientId: "pat-1", hasLineItems: true, amountIsPositive: false })).toBe(false);
   });
 });

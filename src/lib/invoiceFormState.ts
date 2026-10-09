@@ -29,3 +29,26 @@ export const invoiceFormHasContent = (form: InvoiceFormSnapshot): boolean => {
   if ((form.notes ?? "").trim() !== "") return true;
   return false;
 };
+
+/**
+ * Is this bill ready to be saved?
+ *
+ * A bill belongs to a patient. The create guard used to ask only for line
+ * items and a positive amount, so Save was enabled with the patient box empty
+ * and the bill was stored with no link - present in Billing, which lists every
+ * invoice, and invisible on the patient's own Invoices tab, which lists by the
+ * link. Two bills went that way, INV-49097 at Rs 23,425 and INV-49323 at
+ * Rs 2,000.
+ *
+ * It had been seen once before and fixed by restoring the patient on one route
+ * into the form, which is why the second one still happened three weeks later.
+ * The route is not the thing to guard; the save is.
+ */
+export interface InvoiceSaveable {
+  patientId?: string | null;
+  hasLineItems: boolean;
+  amountIsPositive: boolean;
+}
+
+export const invoiceCanBeSaved = (bill: InvoiceSaveable): boolean =>
+  (bill.patientId ?? "").trim() !== "" && bill.hasLineItems && bill.amountIsPositive;

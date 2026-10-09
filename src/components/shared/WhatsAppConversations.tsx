@@ -97,6 +97,7 @@ export function WhatsAppConversations() {
 
   const conversations = useInfiniteQuery({
     queryKey: ["whatsapp-conversations", deferredSearch, matchingPatientIds.join(","), rangeKey],
+    enabled: deferredSearch.length === 0 || matchingPatients.isSuccess,
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       const from = pageParam * LIST_PAGE_SIZE;

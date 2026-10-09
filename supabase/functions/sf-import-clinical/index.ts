@@ -22,6 +22,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { procedureServiceName, awaitingRealService, investigationAddsDetail, NO_SERVICE_RECORDED } from "./serviceName.ts";
 import { procedureDate } from "./procedureDate.ts";
 import { hsnForRate } from "./hsnForRate.ts";
+import { billingTax } from "./billingTax.ts";
 import { isPureConsultation, billLineName } from "./consultation.ts";
 import { recentTargetQueries, mergePatientIds } from "./recentTargets.ts";
 import { describeSfFailure } from "./sfError.ts";
@@ -690,25 +691,30 @@ async function syncPatient(
     const consultationOnly = !services.length && isPureConsultation(investigation);
     const taxRate = consultationOnly ? 0 : Number(b.GST__c || 0);
     // Billing__c has no per-line item breakdown (Procedure_Type__c etc. are
-    // just names, no price/HSN) and no separate CGST/SGST fields. total is
-    // tax-INCLUSIVE (it's what total_amount/paid_amount store directly), so
-    // the pre-tax base must come from the GST rate algebraically
-    // (base * (1+rate/100) = total) rather than by subtracting
-    // Total_Tax_Applicable__c, which Salesforce doesn't always populate even
-    // when GST__c (the rate) is set - subtracting a missing/zero tax figure
-    // would leave line_items.price at the full total, then applying gst on
-    // top of that later (client/PDF) would double-count the tax. Derive tax
-    // amount the same way when SF didn't supply one, and split it 50/50 as
-    // CGST+SGST (this clinic's own convention for GST elsewhere - see
-    // tax_master) rather than leaving no per-tax-head breakdown.
-    const explicitTax = Number(b.Total_Tax_Applicable__c || 0);
-    const base = taxRate > 0 ? total / (1 + taxRate / 100) : Math.max(total - explicitTax, 0);
-    const taxAmount = taxRate > 0 ? total - base : explicitTax;
-    // HSN comes from the rate, via the clinic's Tax Master - see hsnForRate.ts.
-    // Billing__c carries no HSN of its own, and this used to be hardcoded "",
-    // which is why the HSN column printed blank on every bill.
-    const hsn = hsnForRate(taxRate, b.CreatedDate);
-    const lineItems = names.map((name: string) => ({ name, qty: 1, price: base / names.length, hsn, gst: taxRate }));
+    // just names, no price/HSN) and no separate CGST/SGST fields, and `total`
+    // is tax-INCLUSIVE - it is what total_amount/paid_amount store directly.
+    //
+    // The tax is whatever Salesforce recorded, and only worked out from the
+    // rate when it recorded nothing. This used to believe the rate over the
+    // amount, on the grounds that Total_Tax_Applicable__c was not always
+    // populated; it is, and the exception cost two bills - B-49050 and
+    // B-49052, each a medical treatment with a 5% header and 0% on every
+    // line. See billingTax.ts.
+    //
+    // The tax is split 50/50 as CGST+SGST, this clinic's own convention
+    // elsewhere (see tax_master), rather than left with no per-head breakdown.
+    const { base, tax: taxAmount, rate: effectiveRate } = billingTax({
+      total,
+      rate: taxRate,
+      headerTax: consultationOnly ? 0 : b.Total_Tax_Applicable__c,
+      lineTax: null,
+    });
+    // HSN comes from the rate the tax actually came to, via the clinic's Tax
+    // Master - see hsnForRate.ts. Billing__c carries no HSN of its own, and
+    // this used to be hardcoded "", which is why the HSN column printed blank
+    // on every bill.
+    const hsn = hsnForRate(effectiveRate, b.CreatedDate);
+    const lineItems = names.map((name: string) => ({ name, qty: 1, price: base / names.length, hsn, gst: effectiveRate }));
 
     return {
       invoice_number: b.Name,
@@ -721,7 +727,9 @@ async function syncPatient(
       status: total > 0 ? "Paid" : "Pending",
       payment_type: "One-time",
       payment_mode: b.Payment_Mode__c || "Cash",
-      tax_rate: taxRate,
+      // The rate the tax came to, not the header's - a 5% stamp over a nil
+      // tax is what put GST on two exempt medical treatments.
+      tax_rate: effectiveRate,
       tax_amount: taxAmount,
       cgst_amount: taxAmount / 2,
       sgst_amount: taxAmount / 2,

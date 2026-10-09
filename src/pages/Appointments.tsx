@@ -344,9 +344,37 @@ const Appointments = () => {
 
   const persistPinned = (next: Record<string, any>) => {
     setPinnedFilters(next);
-    if (Object.keys(next).length) localStorage.setItem(PINNED_FILTERS_KEY, JSON.stringify(next));
-    else localStorage.removeItem(PINNED_FILTERS_KEY);
+    // Stamped with whose they are. The key has no user in it and the front
+    // desk machine is shared, so one person's pinned doctor was restored for
+    // the next - and under a doctor's own-records scope a pin naming somebody
+    // else intersects with what they may see and comes back empty.
+    if (Object.keys(next).length) {
+      localStorage.setItem(PINNED_FILTERS_KEY, JSON.stringify({ ...next, owner: viewsUserId ?? next.owner }));
+    } else {
+      localStorage.removeItem(PINNED_FILTERS_KEY);
+    }
   };
+
+  // Pinned filters left by somebody else are dropped once we know who is
+  // signed in. Done here rather than in the state initialisers above, which
+  // run before the session is known and must stay synchronous - a view that
+  // waits for auth to decide its filters is the race 355ba59 fixed.
+  const pinnedOwnerChecked = useRef(false);
+  useEffect(() => {
+    if (!viewsUserId || pinnedOwnerChecked.current) return;
+    pinnedOwnerChecked.current = true;
+    const owner = pinnedFilters.owner;
+    if (!owner || owner === viewsUserId) return;
+    persistPinned({});
+    setFilterDoctors(new Set());
+    setFilterStatus("all");
+    setFilterVisitStatus("all");
+    setDatePreset("all");
+    setSpecificDate(undefined);
+    setRangeFrom(undefined);
+    setRangeTo(undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewsUserId]);
 
   const togglePin = (key: string, value: any) => {
     const next = { ...pinnedFilters };
@@ -798,7 +826,13 @@ const Appointments = () => {
         let q = supabase
           .from("appointments")
           .select("*, patients(first_name, last_name, phone, gender)")
-          .order("start_time")
+          // Newest first. Where a view's date operator has no chip equivalent
+          // (last_n_days, before, after, two date conditions, match "any"),
+          // appointmentsDateRange is null and this walks the whole table to
+          // the memory cap - ascending, that was the OLDEST ten thousand of
+          // fifty-six thousand, which the view's own conditions then filtered
+          // to nothing. A second route to the same empty list.
+          .order("start_time", { ascending: false })
           .range(from, to);
         if (appointmentsDateRange) {
           q = q
@@ -836,6 +870,10 @@ const Appointments = () => {
   const narrowedBy = useMemo(
     () =>
       activeAppointmentFilters({
+        // The saved view narrows the list too, and its conditions appear on no
+        // chip. Without this an empty list read "No appointments found" while
+        // a view was filtering it - which is this fault one level up.
+        viewName: viewHasFilters ? activeView?.name : undefined,
         datePreset,
         datePresetLabel: (key) => DATE_PRESETS.find((p) => p.key === key)?.label,
         doctorNames: Array.from(filterDoctors).map((id) => doctorNameById.get(id) || "Doctor"),
@@ -843,7 +881,7 @@ const Appointments = () => {
         visitStatus: filterVisitStatus,
         search: debouncedSearchQuery,
       }),
-    [datePreset, filterDoctors, doctorNameById, filterStatus, filterVisitStatus, debouncedSearchQuery],
+    [viewHasFilters, activeView?.name, datePreset, filterDoctors, doctorNameById, filterStatus, filterVisitStatus, debouncedSearchQuery],
   );
 
   const clearListFilters = useCallback(() => {
@@ -855,7 +893,11 @@ const Appointments = () => {
     setSpecificDate(undefined);
     setRangeFrom(undefined);
     setRangeTo(undefined);
-  }, []);
+    // And the saved view, which narrows the list as much as any chip. Clearing
+    // only the chips left the list just as empty with nothing left to explain
+    // it - an explained empty list became an unexplained one.
+    selectView(null);
+  }, [selectView]);
 
   const apptPageQueryKey = [
     "appointments",
@@ -1833,8 +1875,8 @@ const Appointments = () => {
    * usually hands `visibleTableRows` straight back. Two cases need doing here:
    * Bill Amount and Payment Mode, whose values are looked up per page and so
    * have nothing on `appointments` to order by; and a saved view carrying
-   * filter conditions, which abandons server paging for a bulk query fixed to
-   * start_time ascending - every header on such a view was inert until now.
+   * filter conditions, which abandons server paging for a bulk query with a
+   * fixed order - every header on such a view was inert until now.
    */
   const sortedTableRows = useMemo(() => {
     const needsClientSort = viewHasFilters || isPageSortedColumn(sortColumn);

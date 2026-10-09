@@ -66,6 +66,32 @@ describe("activeAppointmentFilters", () => {
   });
 });
 
+describe("a saved view's own conditions", () => {
+  it("names the view, which the chip row never showed", () => {
+    // "Todays Appointments Dr Punya" filters by date and doctor in the view
+    // itself. The list came back empty under a bare "No appointments found".
+    expect(
+      activeAppointmentFilters({ viewName: "Todays Appointments Dr Punya", datePreset: "all" })
+    ).toEqual(["Todays Appointments Dr Punya"]);
+  });
+
+  it("names it first, ahead of the chips", () => {
+    expect(
+      activeAppointmentFilters({
+        viewName: "Todays Appointments Dr Punya",
+        datePreset: "today",
+        datePresetLabel: label,
+        status: "Confirmed",
+      })
+    ).toEqual(["Todays Appointments Dr Punya", "Today", "Confirmed"]);
+  });
+
+  it("says nothing for a view with no conditions of its own", () => {
+    expect(activeAppointmentFilters({ viewName: "", datePreset: "all" })).toEqual([]);
+    expect(activeAppointmentFilters({ datePreset: "all" })).toEqual([]);
+  });
+});
+
 describe("emptyAppointmentsMessage", () => {
   it("stays the plain line when nothing is filtering", () => {
     expect(emptyAppointmentsMessage([])).toBe("No appointments found");

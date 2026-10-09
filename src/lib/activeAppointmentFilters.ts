@@ -14,6 +14,15 @@
  */
 
 export interface AppointmentFilterState {
+  /**
+   * The saved view's name, when that view carries conditions of its own.
+   *
+   * Without it an empty list read "No appointments found" while a view was
+   * quietly filtering it - the same fault as the hidden chips, one level up.
+   * A saved view's conditions are not shown on the chip row at all, so the
+   * name is the only thing that can account for them.
+   */
+  viewName?: string;
   datePreset: string;
   /** Labels for the date presets, so the empty row and the panel cannot drift. */
   datePresetLabel?: (key: string) => string | undefined;
@@ -33,6 +42,9 @@ const named = (value: string | null | undefined): string => (value ?? "").trim()
  */
 export function activeAppointmentFilters(state: AppointmentFilterState): string[] {
   const labels: string[] = [];
+
+  const view = named(state.viewName);
+  if (view) labels.push(view);
 
   const preset = named(state.datePreset);
   if (preset && preset !== "all") {

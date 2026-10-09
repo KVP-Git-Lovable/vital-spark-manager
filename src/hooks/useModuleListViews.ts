@@ -3,11 +3,12 @@
 // lowercase+underscores at the DB level - see
 // supabase/migrations/20260829044228_*.sql), same view shape - the only
 // per-module input is a `defaultColumns` fallback for new/standard views.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ListView } from "@/lib/listViews/engine";
-import { ALL_VIEW_ID, buildStandardViews, isStandardViewId, setStandardColumns } from "@/lib/listViews/standardViews";
+import { ALL_VIEW_ID, buildStandardViews, setStandardColumns } from "@/lib/listViews/standardViews";
+import { activeViewKey, pickActiveView } from "@/lib/listViews/pickActiveView";
 import { NOT_YOURS_MESSAGE } from "@/lib/rowAccess";
 
 function normalize(row: any, defaultColumns: string[]): ListView {
@@ -36,7 +37,10 @@ function normalize(row: any, defaultColumns: string[]): ListView {
 }
 
 export function useModuleListViews(section: string, objectLabel: string, defaultColumns: string[]) {
-  const storageKey = `${section}.activeListView`;
+  // Per user, not per browser - see pickActiveView.ts. A ref because the user
+  // id arrives with the first load and selectView must write the same key the
+  // restore read.
+  const storageKeyRef = useRef(activeViewKey(section));
 
   const [views, setViews] = useState<ListView[]>([]);
   const [standardViews, setStandardViews] = useState<ListView[]>(() => buildStandardViews(section, objectLabel, defaultColumns));
@@ -70,23 +74,11 @@ export function useModuleListViews(section: string, objectLabel: string, default
       if (initialised) return;
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
-      const stored = localStorage.getItem(storageKey);
-      if (isStandardViewId(stored)) {
-        setActiveViewId(stored);
-      } else if (stored && list.some((v) => v.id === stored)) {
-        setActiveViewId(stored);
-      } else {
-        // A remembered id that no longer resolves is forgotten rather than kept
-        // for ever. Clinic machines are shared, so the id was often another
-        // user's private view - it could never resolve for this one, and the
-        // page silently fell back on every single load.
-        if (stored) localStorage.removeItem(storageKey);
-        // Only this user's own pinned default. The fallback used to search
-        // every visible view, so a colleague's pinned view - shared with
-        // everyone - quietly became your landing view.
-        const pinned = list.find((v) => v.is_default && v.owner_id === uid);
-        setActiveViewId(pinned ? pinned.id : ALL_VIEW_ID);
-      }
+      storageKeyRef.current = activeViewKey(section, uid);
+      const stored = localStorage.getItem(storageKeyRef.current);
+      const choice = pickActiveView({ stored, views: list, userId: uid });
+      if (choice.forget) localStorage.removeItem(storageKeyRef.current);
+      setActiveViewId(choice.id);
       setInitialised(true);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,9 +87,8 @@ export function useModuleListViews(section: string, objectLabel: string, default
   const selectView = useCallback((id: string | null) => {
     const next = id ?? ALL_VIEW_ID;
     setActiveViewId(next);
-    localStorage.setItem(storageKey, next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey]);
+    localStorage.setItem(storageKeyRef.current, next);
+  }, []);
 
   const allViews = useMemo(() => [...standardViews, ...views], [standardViews, views]);
 
@@ -208,15 +199,24 @@ export function useModuleListViews(section: string, objectLabel: string, default
       if (view && !view.is_standard && view.owner_id === uid) {
         const { error } = await supabase.from("list_views").update({ is_default: true }).eq("id", view.id);
         if (error) return toast.error(error.message);
+        // Pinning is also a choice. Without this it wrote is_default and
+        // nothing else, so the next visit restored whatever was last clicked
+        // and the pin was ignored for ever - the fault this fixes.
+        selectView(view.id);
         toast.success(`"${view.name}" pinned as default`);
       } else if (view && !view.is_standard) {
-        toast.error("You can only pin views you own");
+        // It already cleared the old default above, so say so rather than
+        // leaving them to find out.
+        toast.error("You can only pin a view you created. Your default has been cleared.");
       } else {
+        // A standard view has no database row to flag, so the pin is the
+        // remembered choice and nothing else.
+        selectView(view ? view.id : ALL_VIEW_ID);
         toast.success(`"${view?.name ?? `All ${objectLabel}`}" pinned as default`);
       }
       await load();
     },
-    [section, load, objectLabel]
+    [section, load, objectLabel, selectView]
   );
 
   return {

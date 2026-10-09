@@ -42,9 +42,9 @@ function cellValue(col: ReportColumn, row: ReportRow) {
  * the table on screen never disagree. col.render returns a ReactNode and cannot be
  * used here, so those columns fall through to the raw value.
  */
-export function reportCellText(col: ReportColumn, row: ReportRow): string {
+export function reportCellText(col: ReportColumn, row: ReportRow, empty = "-"): string {
   const v = cellValue(col, row);
-  if (v === null || v === undefined || v === "") return "-";
+  if (v === null || v === undefined || v === "") return empty;
   return formatCell(col, v);
 }
 
@@ -98,6 +98,18 @@ function formatCell(col: ReportColumn, v: unknown): string {
   }
 }
 
+/**
+ * The columns as an export row should be read.
+ *
+ * A report that builds its own export rows has already resolved them - the
+ * service is that line's service, the GST is that line's GST - so the columns'
+ * accessors, which expect a whole invoice, must not run again. The heading and
+ * the type stay, so the figures format and align exactly as they do today.
+ */
+export function exportColumns(columns: ReportColumn[]): ReportColumn[] {
+  return columns.map(({ key, label, type }) => ({ key, label, type }));
+}
+
 /** Currency columns say which currency, since the values carry no symbol. */
 export function reportColumnHeader(col: ReportColumn): string {
   return col.type === "currency" ? `${col.label} (Rs)` : col.label;
@@ -144,6 +156,25 @@ export function pdfHeadCells(columns: ReportColumn[]) {
     content: sanitize(reportColumnHeader(c)),
     styles: isNumeric(c) ? NUMERIC_STYLES : {},
   }));
+}
+
+/**
+ * The totals line, styled per cell for the same reason the head is: autoTable's
+ * `columnStyles` reaches the body only, so a figure set by it would sit under a
+ * heading it no longer lines up with.
+ *
+ * Empty reads as empty, not as the "-" a body cell shows: a dash under Patient
+ * on a totals line looks like a missing value rather than a column that has no
+ * total.
+ */
+export function pdfFootCells(columns: ReportColumn[], totals: ReportRow) {
+  return columns.map((c) => {
+    const v = cellValue(c, totals);
+    return {
+      content: v === null || v === undefined || v === "" ? "" : sanitize(formatCell(c, v)),
+      styles: isNumeric(c) ? NUMERIC_STYLES : {},
+    };
+  });
 }
 
 const presetLabel = (key?: string) =>
@@ -266,6 +297,17 @@ export interface ReportPdfArgs {
   summary: ReportSummaryCard[];
   filterState: FilterState;
   dayOnly: boolean;
+  /** A line under the columns that get added up. */
+  totals?: ReportRow | null;
+  /** What the document counts, when a row is not a record - a bill split
+   *  across its services is still one bill. */
+  recordCount?: number;
+  /**
+   * What an empty cell prints. A dash says "nothing was recorded", which is
+   * right on an ordinary row and wrong on the second line of a bill, where the
+   * date and the patient are blank because they are already on the line above.
+   */
+  emptyCell?: string;
 }
 
 /** Summary boxes per row before wrapping, so each stays wide enough to read. */
@@ -302,7 +344,7 @@ export function summaryBoxLayout(
 }
 
 /** Assemble the document. Split from the save so the output can be inspected in tests. */
-export async function buildReportPdf({ report, rows, summary, filterState, dayOnly }: ReportPdfArgs) {
+export async function buildReportPdf({ report, rows, summary, filterState, dayOnly, totals, recordCount, emptyCell }: ReportPdfArgs) {
   const [{ jsPDF }, { autoTable }, clinic, filterLine] = await Promise.all([
     import("jspdf"),
     import("jspdf-autotable"),
@@ -372,7 +414,7 @@ export async function buildReportPdf({ report, rows, summary, filterState, dayOn
     y += 12;
   }
   doc.text(
-    sanitize(`${rows.length.toLocaleString()} record(s)  -  generated ${format(new Date(), "dd MMM yyyy h:mm a")}`),
+    sanitize(`${(recordCount ?? rows.length).toLocaleString()} record(s)  -  generated ${format(new Date(), "dd MMM yyyy h:mm a")}`),
     margin,
     y,
   );
@@ -415,7 +457,12 @@ export async function buildReportPdf({ report, rows, summary, filterState, dayOn
     startY: y,
     margin: { left: margin, right: margin, bottom: 34 },
     head: [pdfHeadCells(report.columns)],
-    body: rows.map((r) => report.columns.map((c) => sanitize(reportCellText(c, r)))),
+    body: rows.map((r) => report.columns.map((c) => sanitize(reportCellText(c, r, emptyCell)))),
+    ...(totals ? { foot: [pdfFootCells(report.columns, totals)] } : {}),
+    // autoTable repeats the foot on every page by default, which would put a
+    // running total that is not running at the bottom of each one.
+    showFoot: "lastPage" as const,
+    footStyles: { fillColor: [237, 242, 241], textColor: 20, fontStyle: "bold" as const },
     styles: {
       fontSize: 8,
       cellPadding: 4,

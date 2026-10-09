@@ -7,6 +7,13 @@ import {
   invoiceServiceLabel,
   type MaterialCostLine,
 } from "@/lib/invoiceReportRows";
+import {
+  invoiceExportSheet,
+  invoiceExportTotals,
+  type HsnRates,
+  type InvoiceExportRow,
+  type MaterialLine,
+} from "@/lib/invoiceExportRows";
 import { formatMoneyExact } from "@/lib/currency";
 import { collectionCards, modesOf, paymentModeLabel, PAYMENT_BUCKETS } from "@/lib/paymentModes";
 import { npsBreakdown, npsCategory, ratingLabel } from "@/lib/feedbackScores";
@@ -83,6 +90,19 @@ export interface ReportConfig {
   rowHref?: (row: any) => string | null;
   fetcher: (params: { from?: string; to?: string }) => Promise<any[]>;
   summary?: (rows: any[]) => ReportSummaryCard[];
+  /**
+   * The rows as Excel and the PDF should show them, where that differs from the
+   * table. A report that sets this is saying its exported sheet is a different
+   * shape from its screen - the invoices report splits a bill across its
+   * services, which the table must not do because the summary cards and the
+   * chart count rows.
+   *
+   * Export rows carry plain values under the column keys; the columns'
+   * accessors are not called on them, because they are already resolved.
+   */
+  exportRows?: (rows: Record<string, unknown>[]) => Record<string, unknown>[];
+  /** A line under the columns that get added up, for the same two outputs. */
+  exportTotals?: (exportRows: Record<string, unknown>[]) => Record<string, unknown> | null;
   defaultSort?: { key: string; dir: "asc" | "desc" };
   chart?: {
     title: string;
@@ -433,7 +453,17 @@ export const REPORTS: ReportConfig[] = [
       // Service Master. Both figures come from material_cost_lines, the same
       // view the Material Cost report reads, so the two can never disagree.
       { key: "material_percent_label", label: "Material %", sortable: true },
-      { key: "material_cost_total", label: "Consumable Deduction", sortable: true, type: "currency" },
+      // What is left after the material comes off, not the material itself -
+      // the deduction was being read as the treatment's value. Where no
+      // percentage was ever recorded nothing is deducted, so it is the amount
+      // before GST unchanged.
+      {
+        key: "amount_after_deduction",
+        label: "Amount after Deduction",
+        sortable: true,
+        type: "currency",
+        accessor: (r) => amountBeforeGst(r) - Number(r.material_cost_total || 0),
+      },
     ],
     filters: [
       { key: "dateRange", label: "Invoice Date", type: "dateRange", serverDateField: "created_at" },
@@ -482,7 +512,9 @@ export const REPORTS: ReportConfig[] = [
         fetchAll((s, e) => {
           let q = supabase
             .from("material_cost_lines")
-            .select("invoice_id, material_percent, material_cost")
+            // service_name too: the exported sheet puts each line's own
+            // percentage against the service it belongs to.
+            .select("invoice_id, service_name, material_percent, material_cost")
             .gt("material_percent", 0)
             .order("created_at", { ascending: false })
             .range(s, e);
@@ -491,8 +523,44 @@ export const REPORTS: ReportConfig[] = [
           return q;
         }),
       ]);
-      return attachMaterialCost(rows as { id?: string | null }[], materialLines as MaterialCostLine[]);
+      // The Tax Master, carried on the rows rather than in a module-level
+      // cache: the exported sheet resolves each line's GST from its HSN, and a
+      // rate that depends on which page was opened first is not a report.
+      const { data: hsnRows } = await supabase
+        .from("hsn_tax_master")
+        .select("hsn_code, sgst, cgst, igst")
+        .eq("is_active", true);
+      const hsn_rates: HsnRates = {};
+      for (const h of (hsnRows ?? []) as Record<string, unknown>[]) {
+        hsn_rates[String(h.hsn_code ?? "").trim()] =
+          Number(h.sgst || 0) + Number(h.cgst || 0) + Number(h.igst || 0);
+      }
+
+      const linesByInvoice = new Map<string, MaterialLine[]>();
+      for (const line of (materialLines ?? []) as MaterialLine[]) {
+        const id = String(line?.invoice_id ?? "").trim();
+        if (!id) continue;
+        const found = linesByInvoice.get(id);
+        if (found) found.push(line);
+        else linesByInvoice.set(id, [line]);
+      }
+
+      return attachMaterialCost(rows as { id?: string | null }[], materialLines as MaterialCostLine[])
+        .map((r) => ({
+          ...r,
+          hsn_rates,
+          material_lines: linesByInvoice.get(String(r?.id ?? "").trim()) ?? [],
+        }));
     },
+    // Excel and the PDF only. The table keeps one row per invoice, because the
+    // Invoices count, Total Billed, the collection cards and the chart all
+    // reduce over the rows it holds.
+    exportRows: (rows) =>
+      invoiceExportSheet(rows, {
+        doctorName: (r) => invoiceDoctorName(r as InvoiceDoctorSource),
+        paymentMode: (r) => paymentModeLabel(r),
+      }) as unknown as Record<string, unknown>[],
+    exportTotals: (rows) => invoiceExportTotals(rows as unknown as InvoiceExportRow[]),
     // Collections split by instrument rather than one "Collected" lump: the
     // front desk reconciles the UPI takings against the bank, the cash against
     // the drawer, and could do neither from a single figure. Only the

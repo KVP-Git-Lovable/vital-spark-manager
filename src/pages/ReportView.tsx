@@ -12,7 +12,8 @@ import { reportFiltersFromUrl } from "@/lib/reportUrlFilters";
 import type { ReportColumn } from "@/lib/reportsCatalog";
 import { SortableDataTable } from "@/components/reports/SortableDataTable";
 import { ReportChart } from "@/components/reports/ReportChart";
-import { downloadReportPdf, reportCellCsv, reportColumnHeader } from "@/lib/reportPdf";
+import { downloadReportPdf, exportColumns } from "@/lib/reportPdf";
+import { toCSV } from "@/lib/reportCsv";
 import { toast } from "sonner";
 import NotFound from "./NotFound";
 import { endOfDay } from "date-fns";
@@ -21,14 +22,6 @@ function startOfToday(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
-}
-
-function toCSV(columns: ReportColumn[], rows: any[]) {
-  const header = columns.map((c) => `"${reportColumnHeader(c)}"`).join(",");
-  const body = rows
-    .map((r) => columns.map((c) => `"${reportCellCsv(c, r).replace(/"/g, '""')}"`).join(","))
-    .join("\n");
-  return `${header}\n${body}`;
 }
 
 const ReportView = () => {
@@ -224,9 +217,29 @@ const ReportView = () => {
     }
   };
 
-  const downloadCsv = async () => {
+  /**
+   * What the two exports actually write.
+   *
+   * A report may shape its own sheet - the invoices report splits a bill across
+   * its services and adds a totals line - and when it does, its rows are
+   * already resolved, so the columns are read plainly by key.
+   */
+  const exportSheet = async () => {
     const rows = await rowsForExport();
-    const csv = toCSV(report.columns, rows);
+    if (!report.exportRows) return { columns: report.columns, rows, totals: null, count: rows.length };
+    const shaped = report.exportRows(rows);
+    return {
+      columns: exportColumns(report.columns),
+      rows: shaped,
+      totals: report.exportTotals?.(shaped) ?? null,
+      // A bill split across its services is still one bill.
+      count: rows.length,
+    };
+  };
+
+  const downloadCsv = async () => {
+    const { columns, rows, totals } = await exportSheet();
+    const csv = toCSV(columns, rows, totals);
     // The byte order mark is what tells Excel the file is UTF-8. Without it
     // Excel reads a downloaded .csv in the machine's own codepage, so a split
     // payment's rupee sign arrived as "Card â‚¹13,450 + UPI â‚¹500".
@@ -242,8 +255,19 @@ const ReportView = () => {
   const downloadPdf = async () => {
     try {
       setExportingPdf(true);
-      const rows = await rowsForExport();
-      await downloadReportPdf({ report, rows, summary, filterState, dayOnly });
+      const { columns, rows, totals, count } = await exportSheet();
+      await downloadReportPdf({
+        report: { ...report, columns },
+        rows,
+        summary,
+        filterState,
+        dayOnly,
+        totals,
+        recordCount: count,
+        // A bill's second line is blank under Date and Patient because they
+        // are on the line above, not because nothing was recorded.
+        emptyCell: report.exportRows ? "" : undefined,
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not create the PDF");
     } finally {

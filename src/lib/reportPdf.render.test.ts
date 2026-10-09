@@ -117,6 +117,59 @@ function drawOps(bytes: Buffer) {
 }
 
 describe("report PDF", () => {
+  it("draws the totals line once, at the end, lined up under its figures", async () => {
+    const { buildReportPdf } = await import("./reportPdf");
+    const doc = await buildReportPdf({
+      report,
+      rows: rows.slice(0, 3),
+      summary: [],
+      filterState: { search: "", dateFrom: null, dateTo: null, datePreset: "all", selects: {} },
+      dayOnly: false,
+      totals: { invoice_number: "TOTAL", total_amount: 7404 },
+      recordCount: 3,
+    });
+
+    const buf = Buffer.from(doc.output("arraybuffer"));
+    const at = drawnTextAt(buf);
+    // Once: autoTable repeats a foot on every page unless told otherwise.
+    expect(at.filter((r) => r.text === "TOTAL")).toHaveLength(1);
+
+    const figure = at.find((r) => r.text === "7,404")!;
+    expect(figure).toBeTruthy();
+    // Under the rows, not among them. The page's origin is bottom-left, so
+    // further down the page is a smaller y.
+    const lastRow = at.find((r) => r.text === "INV-1002")!;
+    expect(figure.y).toBeLessThan(lastRow.y);
+
+    // Right-aligned to the same edge as the figures above it. columnStyles
+    // does not reach a foot row either, so this is what catches a totals line
+    // styled the wrong way.
+    const runs = drawnRuns(buf);
+    const foot = runs.find((r) => r.text === "7,404")!;
+    const body = runs.find((r) => r.text === "3,702")!;
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    const footRight = foot.x + doc.getTextWidth("7,404");
+    doc.setFont("helvetica", "normal");
+    const bodyRight = body.x + doc.getTextWidth("3,702");
+    expect(Math.abs(footRight - bodyRight)).toBeLessThan(1);
+
+    // The count is the records asked for, not the rows drawn.
+    expect(at.some((r) => /^3 record\(s\)/.test(r.text))).toBe(true);
+  });
+
+  it("draws no totals line when a report has none", async () => {
+    const { buildReportPdf } = await import("./reportPdf");
+    const doc = await buildReportPdf({
+      report,
+      rows: rows.slice(0, 3),
+      summary: [],
+      filterState: { search: "", dateFrom: null, dateTo: null, datePreset: "all", selects: {} },
+      dayOnly: false,
+    });
+    expect(drawnTextAt(Buffer.from(doc.output("arraybuffer"))).some((r) => r.text === "TOTAL")).toBe(false);
+  });
+
   it("draws the hint under the figure, inside its box", async () => {
     const { buildReportPdf, SUMMARY_BOX_HEIGHT, SUMMARY_BOX_HEIGHT_WITH_HINT } = await import("./reportPdf");
     const doc = await buildReportPdf({

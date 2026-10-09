@@ -79,8 +79,46 @@ describe("Invoices & Revenue columns", () => {
       "gst_amount",
       "amount_before_gst",
       "material_percent_label",
-      "material_cost_total",
+      "amount_after_deduction",
     ]);
+  });
+
+  it("shows what is left after the deduction, not the deduction", async () => {
+    const report = await invoicesReport();
+    const column = report.columns.find((c) => c.key === "amount_after_deduction")!;
+    expect(column.label).toBe("Amount after Deduction");
+    // 11,850 before GST, 550 of material.
+    expect(column.accessor!({ total_amount: 12380, tax_amount: 530, material_cost_total: 550 })).toBeCloseTo(11300, 2);
+    // Nothing recorded, so nothing is deducted.
+    expect(column.accessor!({ total_amount: 12380, tax_amount: 530, material_cost_total: null })).toBeCloseTo(11850, 2);
+  });
+
+  it("shapes its own sheet for Excel and the PDF, and only there", async () => {
+    const report = await invoicesReport();
+    expect(report.exportRows).toBeTypeOf("function");
+    expect(report.exportTotals).toBeTypeOf("function");
+    const sheet = report.exportRows!([
+      {
+        id: "inv-1",
+        created_at: "2026-09-30T10:00:00+00:00",
+        invoice_number: "INV-49503",
+        patient_name: "Jahnavi",
+        total_amount: 12380,
+        tax_amount: 530,
+        hsn_rates: { "999319": 0, "999722": 5 },
+        material_lines: [],
+        line_items: [
+          { name: "CONSULTATION- DR VINDHYA PAI", hsn: "999319", qty: 1, price: 1250 },
+          { name: "Underarms hair reduction", hsn: "999722", qty: 1, price: 3100 },
+          { name: "Full legs hair reduction", hsn: "999722", qty: 1, price: 7500 },
+        ],
+      },
+    ]);
+    expect(sheet).toHaveLength(3);
+    expect(sheet.map((r) => r.gst_rate)).toEqual(["0%", "5%", "5%"]);
+    const totals = report.exportTotals!(sheet);
+    expect(totals!.total_amount).toBeCloseTo(12380, 2);
+    expect(totals!.gst_amount).toBeCloseTo(530, 2);
   });
 
   it("no longer carries Paid or Status as columns", async () => {

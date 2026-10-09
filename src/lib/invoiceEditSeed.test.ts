@@ -76,3 +76,19 @@ describe("seedInvoiceLines", () => {
     expect(products[0].uom_factor).toBe(1);
   });
 });
+
+describe("a line that was typed by hand", () => {
+  it("comes back with no service id, which is why its name used to be read-only", () => {
+    // Billing's name box was gated on service_id === OTHERS_VALUE, and a
+    // stored line never carries that sentinel - only a real id or null. So an
+    // "Others" line the clinic typed themselves could not be corrected after
+    // the first save. The name is now an input on every row; this pins the
+    // shape that made the gate wrong.
+    const seeded = seedInvoiceLines([
+      { kind: "service", name: "GLUTATHIONE DRIP 2019", qty: 1, price: 4000, hsn: "999722", gst: 5, service_id: null },
+    ]);
+    expect(seeded.services).toHaveLength(1);
+    expect(seeded.services[0].name).toBe("GLUTATHIONE DRIP 2019");
+    expect(seeded.services[0].service_id).toBeUndefined();
+  });
+});

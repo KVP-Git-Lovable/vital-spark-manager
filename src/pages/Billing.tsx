@@ -10,6 +10,7 @@ import { seedInvoiceLines } from "@/lib/invoiceEditSeed";
 import type { Json } from "@/integrations/supabase/types";
 import { stockDelta } from "@/lib/pharmaStockDelta";
 import { readBillingPrefill } from "@/lib/billingPrefill";
+import { invoiceLineChanges } from "@/lib/invoiceLineChanges";
 import { pickAppointmentForInvoice, doctorForInvoice, type LinkableAppointment } from "@/lib/appointmentForInvoice";
 import { resolveInvoiceAppointmentId } from "@/lib/invoiceAppointmentLink";
 import { paymentModeLabel } from "@/lib/paymentModes";
@@ -83,6 +84,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
@@ -2150,24 +2152,37 @@ const Billing = () => {
       // What the form now holds. Built by the same snapshot the create path
       // writes, so an edited invoice is shaped exactly like a new one.
       const editedLines = lineItemsSnapshotFor(serviceInputs, pharmaItems);
-      const linesChanged = JSON.stringify(editedLines) !== editedLinesOriginal.current.lineItems;
+      // Renaming a line is not repricing it. Now that a name can be typed,
+      // correcting a spelling would otherwise re-resolve the GST from today's
+      // Tax Master and could flip a Paid invoice to Partial - see
+      // invoiceLineChanges.ts.
+      const changed = invoiceLineChanges(
+        JSON.parse(editedLinesOriginal.current.lineItems) as unknown[],
+        editedLines as unknown[],
+      );
 
       // Untouched lines are left completely alone. Recomputing on every save
       // would rewrite 46,936 imported invoices the first time anyone opened
       // one, and those already match Salesforce to the rupee.
-      const newTotal = linesChanged ? linesGrandTotal : Number(viewInvoice.total_amount);
+      const newTotal = changed.money ? linesGrandTotal : Number(viewInvoice.total_amount);
       let status = "Pending";
       if (newPaid >= newTotal && newTotal > 0) status = "Paid";
       else if (newPaid > 0) status = "Partial";
 
-      const billedChanges = linesChanged
+      const billedChanges = changed.lines
         ? {
             line_items: editedLines,
             services: serviceInputs.filter((s) => s.name.trim()).map((s) => s.name.trim()),
-            cgst_amount: lineTaxRows.reduce((sum, r) => sum + r.cgst, 0),
-            sgst_amount: lineTaxRows.reduce((sum, r) => sum + r.sgst, 0),
-            igst_amount: lineTaxRows.reduce((sum, r) => sum + r.igst, 0),
-            tax_amount: lineTaxTotal,
+            // Only when what was charged moved. A corrected name leaves the
+            // bill's own figures exactly as they were.
+            ...(changed.money
+              ? {
+                  cgst_amount: lineTaxRows.reduce((sum, r) => sum + r.cgst, 0),
+                  sgst_amount: lineTaxRows.reduce((sum, r) => sum + r.sgst, 0),
+                  igst_amount: lineTaxRows.reduce((sum, r) => sum + r.igst, 0),
+                  tax_amount: lineTaxTotal,
+                }
+              : {}),
           }
         : {};
 
@@ -2194,7 +2209,7 @@ const Billing = () => {
       // Stock follows the change: what was taken off the shelf when this
       // invoice was raised comes back, and what it now bills goes out. Rows
       // whose total did not move are not written at all.
-      if (linesChanged) {
+      if (changed.lines) {
         const delta = stockDelta(
           editedLinesOriginal.current.products,
           pharmaItems.map((p) => ({ inventory_id: p.inventory_id, quantity: p.quantity, uom_factor: p.uom_factor || 1 })),
@@ -2616,15 +2631,46 @@ const Billing = () => {
                 {serviceInputs.map((s, i) => (
                   <div key={i} className="mb-2">
                     <div className="flex gap-2 items-center">
+                      {/* The name is typed, not only picked. A billed line was
+                          read-only once saved: the one text box here appeared
+                          only for an "Others" row, and a row loaded from a
+                          saved bill never is one, so a name could not be
+                          corrected at all. The master list stays, on the
+                          chevron, and still fills price, HSN, GST and material
+                          % when a service is chosen. Typing makes the line a
+                          one-off - which 1,466 of the 1,480 names billed this
+                          year already are. */}
                       <Popover modal open={serviceSearchOpen === i} onOpenChange={(open) => setServiceSearchOpen(open ? i : null)}>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" role="combobox" className="w-full justify-between font-normal h-10">
-                            {s.service_id === OTHERS_VALUE
-                              ? (s.name || "Others (type manually)")
-                              : (s.name || <span className="text-muted-foreground">Select service...</span>)}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
+                        <PopoverAnchor asChild>
+                          <div className="relative w-full">
+                            <Input
+                              className="h-10 pr-9"
+                              placeholder="Service / procedure name"
+                              value={s.name}
+                              onChange={(e) =>
+                                updateServiceInput(i, {
+                                  name: e.target.value,
+                                  // Not the master's service any more, once the
+                                  // name is somebody's own.
+                                  ...(s.service_id && s.service_id !== OTHERS_VALUE
+                                    ? { service_id: undefined }
+                                    : {}),
+                                })
+                              }
+                            />
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                aria-label="Choose from Service Master"
+                                className="absolute right-0 top-0 h-10 w-9 px-0 text-muted-foreground hover:bg-transparent"
+                              >
+                                <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                          </div>
+                        </PopoverAnchor>
                         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                           <Command>
                             <CommandInput placeholder="Search services..." />
@@ -2685,14 +2731,6 @@ const Billing = () => {
                         <Button type="button" variant="ghost" size="sm" className="text-destructive text-xs shrink-0 w-8 px-0" onClick={() => removeServiceInput(i)}>✕</Button>
                       )}
                     </div>
-                    {s.service_id === OTHERS_VALUE && (
-                      <Input
-                        className="mt-1"
-                        placeholder="Service / procedure name"
-                        value={s.name}
-                        onChange={(e) => updateServiceInput(i, { name: e.target.value })}
-                      />
-                    )}
                     {/* Filled from the Service Master when a service is picked, typed in
                         for a one-off. Recorded on the line itself so a bill raised by
                         hand - which is most of them - carries its own figure rather than

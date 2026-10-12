@@ -63,3 +63,51 @@ export function summaryFromThread(row: ConversationThread): ConversationSummary 
     messageCount: row.message_count,
   };
 }
+
+/**
+ * A row of whatsapp_thread_messages: everything that passed between the clinic
+ * and one number, from both sides of the wire.
+ *
+ * whatsapp_conversations only holds what the webhook sees - the patient's reply
+ * and the bot's answer to it. The message the patient actually received first,
+ * the appointment confirmation or the invoice, is recorded in
+ * whatsapp_delivery_log when Twilio's send history is pulled in. A thread drawn
+ * from the conversation table alone therefore opens on the patient saying
+ * "Confirm" with nothing to confirm. The view puts both back in one timeline.
+ */
+export type ThreadMessage = {
+  id: string;
+  phone: string;
+  patient_id: string | null;
+  direction: string;
+  content: string;
+  created_at: string;
+  /** "reply" for a webhook message, "sent" for one from the delivery log. */
+  source: string;
+  /** Twilio's last word on a sent message; null for a webhook message. */
+  status: string | null;
+};
+
+/**
+ * What to say under a message the clinic sent.
+ *
+ * Only worth a word when the message did not simply arrive: a bubble on the
+ * screen that never reached the patient's phone would be a lie. "delivered"
+ * and "read" say themselves, so they say nothing.
+ */
+export function deliveryNote(message: Pick<ThreadMessage, "source" | "status">): string | null {
+  if (message.source !== "sent") return null;
+  switch (message.status) {
+    case "failed":
+      return "Failed";
+    case "undelivered":
+      return "Not delivered";
+    case "queued":
+    case "accepted":
+      return "Queued";
+    case "sent":
+      return "Sent, not yet delivered";
+    default:
+      return null;
+  }
+}

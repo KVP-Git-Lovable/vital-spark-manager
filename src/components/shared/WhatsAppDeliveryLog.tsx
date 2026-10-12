@@ -59,7 +59,10 @@ export function WhatsAppDeliveryLog({ patientId }: { patientId?: string }) {
 
   const sync = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("whatsapp-delivery-sync", { body: { days: 7 } });
+      // Six months, not a week: this is also what fills the conversation
+      // screen with the messages patients received, and the sync upserts by
+      // Twilio SID, so re-reading what we already hold costs nothing.
+      const { data, error } = await supabase.functions.invoke("whatsapp-delivery-sync", { body: { days: 180 } });
       if (error) {
         const details = error instanceof FunctionsHttpError ? await error.context.text() : error.message;
         throw new Error(details);

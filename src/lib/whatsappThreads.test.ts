@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { summaryFromThread, type ConversationThread } from "./whatsappThreads";
+import { deliveryNote, summaryFromThread, type ConversationThread } from "./whatsappThreads";
 
 const thread = (over: Partial<ConversationThread> = {}): ConversationThread => ({
   phone: "+919113984063",
@@ -51,5 +51,32 @@ describe("summaryFromThread", () => {
     const summary = summaryFromThread(thread({ last_content: null, last_direction: null }));
     expect(summary.content).toBe("");
     expect(summary.direction).toBe("");
+  });
+});
+
+describe("deliveryNote", () => {
+  it("says nothing about a reply or a bot answer", () => {
+    expect(deliveryNote({ source: "reply", status: null })).toBeNull();
+  });
+
+  it("says nothing about a message that arrived", () => {
+    expect(deliveryNote({ source: "sent", status: "delivered" })).toBeNull();
+    expect(deliveryNote({ source: "sent", status: "read" })).toBeNull();
+  });
+
+  it("marks a message the patient never received", () => {
+    expect(deliveryNote({ source: "sent", status: "failed" })).toBe("Failed");
+    expect(deliveryNote({ source: "sent", status: "undelivered" })).toBe("Not delivered");
+  });
+
+  it("marks one still on its way", () => {
+    expect(deliveryNote({ source: "sent", status: "queued" })).toBe("Queued");
+    expect(deliveryNote({ source: "sent", status: "accepted" })).toBe("Queued");
+    expect(deliveryNote({ source: "sent", status: "sent" })).toBe("Sent, not yet delivered");
+  });
+
+  it("stays quiet about a status it does not know", () => {
+    expect(deliveryNote({ source: "sent", status: "something_new" })).toBeNull();
+    expect(deliveryNote({ source: "sent", status: null })).toBeNull();
   });
 });

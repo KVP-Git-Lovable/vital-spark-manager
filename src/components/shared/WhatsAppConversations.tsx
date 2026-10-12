@@ -13,10 +13,12 @@ import { cn } from "@/lib/utils";
 import { getReportDateRange, REPORT_DATE_RANGE_OPTIONS } from "@/lib/reportDateRange";
 import { sanitizeTerm } from "@/lib/fuzzySearch";
 import {
+  deliveryNote,
   summaryFromThread,
   type ConversationMessage,
   type ConversationThread,
   type PatientJoin,
+  type ThreadMessage,
 } from "@/lib/whatsappThreads";
 
 /**
@@ -142,23 +144,24 @@ export function WhatsAppConversations() {
 
   const selectedSummary = summariesWithCounts.find((item) => item.phone === selectedPhone) ?? null;
 
-  // Not keyed on the date range: the thread is the conversation, all of it.
+  // Not keyed on the date range: the thread is the conversation, all of it -
+  // and read from whatsapp_thread_messages, so what the clinic sent sits in
+  // the timeline beside what the patient replied.
   const thread = useInfiniteQuery({
     queryKey: ["whatsapp-conversation-thread", selectedPhone],
     enabled: Boolean(selectedPhone),
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
-      if (!selectedPhone) return [] as ConversationMessage[];
+      if (!selectedPhone) return [] as ThreadMessage[];
       const from = pageParam * THREAD_PAGE_SIZE;
-      const query = supabase
-        .from("whatsapp_conversations")
-        .select("id, phone, patient_id, direction, content, created_at, patients(first_name, last_name)")
+      const { data, error } = await supabase
+        .from("whatsapp_thread_messages")
+        .select("id, phone, patient_id, direction, content, created_at, source, status")
         .eq("phone", selectedPhone)
         .order("created_at", { ascending: false })
         .range(from, from + THREAD_PAGE_SIZE - 1);
-      const { data, error } = await query;
       if (error) throw error;
-      return data as ConversationMessage[];
+      return (data ?? []) as ThreadMessage[];
     },
     getNextPageParam: (lastPage, pages) => lastPage.length === THREAD_PAGE_SIZE ? pages.length : undefined,
   });
@@ -319,13 +322,14 @@ export function WhatsAppConversations() {
                         <AlertCircle className="h-4 w-4" /> Could not load this conversation.
                       </div>
                     ) : threadMessages.length === 0 ? (
-                      <div className="py-12 text-center text-sm text-muted-foreground">This number has no messages in the selected date range.</div>
+                      <div className="py-12 text-center text-sm text-muted-foreground">No messages for this number yet.</div>
                     ) : (
                       <div className="space-y-3">
                         {threadMessages.map((message, index) => {
                           const previous = threadMessages[index - 1];
                           const showDay = !previous || dayLabel(previous.created_at) !== dayLabel(message.created_at);
                           const inbound = message.direction === "inbound";
+                          const note = deliveryNote(message);
                           return (
                             <Fragment key={message.id}>
                               {showDay && (
@@ -341,9 +345,10 @@ export function WhatsAppConversations() {
                                   inbound ? "bg-muted text-foreground" : "bg-primary text-primary-foreground",
                                 )}>
                                   <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                                  <time className={cn("mt-1 block text-[10px]", inbound ? "text-muted-foreground" : "text-primary-foreground/75")}>
-                                    {format(new Date(message.created_at), "hh:mm a")}
-                                  </time>
+                                  <div className={cn("mt-1 flex items-center gap-1.5 text-[10px]", inbound ? "text-muted-foreground" : "text-primary-foreground/75")}>
+                                    <time>{format(new Date(message.created_at), "hh:mm a")}</time>
+                                    {note && <span className="font-medium">· {note}</span>}
+                                  </div>
                                 </div>
                               </div>
                             </Fragment>

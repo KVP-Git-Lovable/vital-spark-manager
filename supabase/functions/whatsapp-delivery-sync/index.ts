@@ -1,7 +1,14 @@
-// Pulls appointment-confirmation WhatsApp messages from Twilio's send history
+// Pulls the WhatsApp messages the clinic has sent out of Twilio's send history
 // and records each one (with its latest delivery status) in
 // whatsapp_delivery_log, matched to the patient by phone number.
 // Safe to re-run: rows are upserted by Twilio message SID.
+//
+// It used to keep only appointment confirmations, which is why the patient's
+// conversation thread opened on them replying "Confirm" to nothing: the invoice,
+// the prescription and the survey they had received were never written down.
+// Everything the clinic sends is recorded now, tagged by what it is, and the
+// whole body is kept rather than the first 200 characters, because the
+// conversation screen shows these messages as the patient read them.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
@@ -9,9 +16,23 @@ import { z } from "npm:zod@3";
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-const Body = z.object({ days: z.number().int().min(1).max(90).optional() }).optional();
+const Body = z.object({
+  days: z.number().int().min(1).max(400).optional(),
+  // Walk further back in chunks: ask for the days BEFORE this instant. Twilio
+  // hands back the newest first, so a long backfill is several calls.
+  until: z.string().datetime().optional(),
+}).optional();
 
-const CONFIRMATION_MARK = "You have an appointment";
+/** What a sent message is, read off the template the clinic used. */
+function kindOf(body: string): string {
+  const b = body.toLowerCase();
+  if (b.includes("you have an appointment")) return "confirmation";
+  if (b.includes("rescheduled") || b.includes("has been moved")) return "reschedule";
+  if (b.includes("invoice") || b.includes("bill")) return "invoice";
+  if (b.includes("prescription")) return "prescription";
+  if (b.includes("survey") || b.includes("feedback")) return "survey";
+  return "message";
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -28,15 +49,18 @@ Deno.serve(async (req) => {
     const parsed = Body.safeParse(raw);
     if (!parsed.success) return json({ error: parsed.error.flatten() }, 400);
     const days = parsed.data?.days ?? 3;
+    const until = parsed.data?.until ? new Date(parsed.data.until) : null;
 
     const sid = Deno.env.get("TWILIO_ACCOUNT_SID");
     const tok = Deno.env.get("TWILIO_AUTH_TOKEN");
     if (!sid || !tok) return json({ error: "WhatsApp service not configured" }, 500);
     const auth = "Basic " + btoa(`${sid}:${tok}`);
 
-    const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    const anchor = until ? until.getTime() : Date.now();
+    const since = new Date(anchor - days * 86400000).toISOString().slice(0, 10);
     let next: string | null =
-      `/2010-04-01/Accounts/${sid}/Messages.json?PageSize=500&DateSent%3E=${since}`;
+      `/2010-04-01/Accounts/${sid}/Messages.json?PageSize=500&DateSent%3E=${since}` +
+      (until ? `&DateSent%3C=${until.toISOString().slice(0, 10)}` : "");
     const started = Date.now();
     const rows: any[] = [];
     while (next && Date.now() - started < 45000) {
@@ -49,12 +73,14 @@ Deno.serve(async (req) => {
       const page = JSON.parse(text);
       for (const m of page.messages || []) {
         if (m.direction === "inbound") continue;
-        if (!String(m.body || "").includes(CONFIRMATION_MARK)) continue;
+        // WhatsApp only - a plain SMS does not belong in a WhatsApp thread.
+        if (!String(m.to || "").startsWith("whatsapp:")) continue;
+        const body = String(m.body || "");
         rows.push({
           message_sid: m.sid,
           phone: String(m.to || "").replace(/^whatsapp:/, ""),
-          kind: "confirmation",
-          body_preview: String(m.body || "").slice(0, 200),
+          kind: kindOf(body),
+          body_preview: body.slice(0, 4000),
           status: m.status,
           error_code: m.error_code ? Number(m.error_code) : null,
           error_message: m.error_message || null,

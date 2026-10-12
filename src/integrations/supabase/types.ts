@@ -6335,15 +6335,20 @@ export type Database = {
           patient_id: string | null
           phone: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_conversations_patient_id_fkey"
-            columns: ["patient_id"]
-            isOneToOne: false
-            referencedRelation: "patients"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
+      }
+      whatsapp_thread_messages: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          direction: string | null
+          id: string | null
+          patient_id: string | null
+          phone: string | null
+          source: string | null
+          status: string | null
+        }
+        Relationships: []
       }
     }
     Functions: {

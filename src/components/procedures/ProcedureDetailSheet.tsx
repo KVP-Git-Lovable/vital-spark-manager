@@ -12,7 +12,7 @@ import { MAX_DATETIME, MIN_DATETIME } from "@/lib/dateInput";
 
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList, StickyNote, Eye, FileText, CalendarClock } from "lucide-react";
+import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList, StickyNote, Eye, FileText, CalendarClock, ExternalLink } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -958,7 +958,26 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                 <div className="flex items-start justify-between">
                   <div>
                     <Badge variant="outline" className="text-[10px] text-muted-foreground mb-1.5 font-normal">Procedure</Badge>
-                    <SheetTitle className="font-display text-lg">{patientName}</SheetTitle>
+                    {/* The name opens the patient's file, the way it does on
+                        an appointment: from a prescription the front desk
+                        would otherwise have to go back to Patients and
+                        search for someone whose record is right here. */}
+                    <SheetTitle className="font-display text-lg flex items-center gap-2">
+                      {procedure.patient_id ? (
+                        <>
+                          <button
+                            type="button"
+                            className="text-left underline-offset-2 transition-colors hover:text-primary hover:underline"
+                            onClick={() => navigate(`/patients/${procedure.patient_id}`)}
+                          >
+                            {patientName}
+                          </button>
+                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                        </>
+                      ) : (
+                        patientName
+                      )}
+                    </SheetTitle>
                     {/* Same line as the new-prescription form, from the same
                         function, so the two screens cannot disagree. */}
                     {patientIdentityLine(procedure?.patients) && (

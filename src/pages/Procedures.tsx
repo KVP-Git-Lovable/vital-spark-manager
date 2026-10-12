@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Plus, Camera } from "lucide-react";
 import { format } from "date-fns";
@@ -19,6 +19,8 @@ import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
 import FieldsDisplayDialog from "@/components/listViews/FieldsDisplayDialog";
 import ViewFiltersPanel from "@/components/listViews/ViewFiltersPanel";
+import { getReportDateRange } from "@/lib/reportDateRange";
+import { withinRange } from "@/lib/listDateFilter";
 import ListKanban from "@/components/listViews/ListKanban";
 import KanbanSettingsDialog from "@/components/listViews/KanbanSettingsDialog";
 import { applyFilters as applyListFilters, fieldDefIn, type ListDisplayMode, type ListView } from "@/lib/listViews/engine";
@@ -65,6 +67,18 @@ const Procedures = () => {
   const navigate = useNavigate();
   // Seeded from ?q= so global search can hand a term to this list view
   const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
+
+  // A period to look at, offered in the Filters panel. It belongs to the page
+  // rather than to the view, so it works on the standard views too - whose
+  // own filters are locked, which is why there was no way to ask for one
+  // day's visits at all. "all" is every visit, as before.
+  const [datePreset, setDatePreset] = useState("all");
+  const [dateStart, setDateStart] = useState("");
+  const [dateEnd, setDateEnd] = useState("");
+  const dateRange = useMemo(
+    () => getReportDateRange(datePreset, dateStart, dateEnd),
+    [datePreset, dateStart, dateEnd],
+  );
   const [createOpen, setCreateOpen] = useState(false);
   // Two-way now. It was seeded from ?id= but never wrote back, so opening a
   // record left no history entry and Back walked out of the list.
@@ -160,6 +174,7 @@ const Procedures = () => {
   }, [activeView?.id]);
 
   let filtered = procedures.filter((p: any) => {
+    if (!withinRange(p.procedure_date, dateRange)) return false;
     const name = `${p.patients?.first_name || ""} ${p.patients?.last_name || ""}`.toLowerCase();
     return name.includes(search.toLowerCase()) || p.service_name?.toLowerCase().includes(search.toLowerCase());
   });
@@ -252,6 +267,17 @@ const Procedures = () => {
                 onSave={(filters) => { if (activeView) saveView({ ...activeView, filters }); }}
                 onClose={() => setViewFiltersOpen(false)}
                 itemLabel="procedures"
+                dateFilter={{
+                  preset: datePreset,
+                  customStart: dateStart,
+                  customEnd: dateEnd,
+                  label: "Visit date",
+                  onChange: ({ preset, customStart, customEnd }) => {
+                    setDatePreset(preset);
+                    setDateStart(customStart);
+                    setDateEnd(customEnd);
+                  },
+                }}
               />
             ) : activeView && !activeView.is_standard ? (
               <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading charts…</div>}>

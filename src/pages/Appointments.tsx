@@ -1835,7 +1835,16 @@ const Appointments = () => {
   };
 
   const getApptsForDate = (date: Date) => {
-    return filteredAppointments.filter((a: any) => isSameDay(new Date(a.start_time), date));
+    // Oldest first. The rows arrive newest-first - that order is deliberate in
+    // the bulk query above, where ascending filled the memory cap with the
+    // oldest ten thousand appointments and the view's own conditions then
+    // filtered them to nothing. But a Month cell renders only its first three
+    // and buries the rest under "+N more", so newest-first there put the
+    // evening bookings in sight and the morning ones out of it. Sort here,
+    // where the day is read, and leave the fetch alone.
+    return filteredAppointments
+      .filter((a: any) => isSameDay(new Date(a.start_time), date))
+      .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
   };
 
   const getApptsForSlot = (date: Date, hour: number, minute: number) => {

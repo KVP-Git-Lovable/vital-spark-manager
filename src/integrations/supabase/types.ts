@@ -1605,6 +1605,36 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_patient_link_corrections: {
+        Row: {
+          corrected_at: string
+          invoice_id: string
+          invoice_number: string | null
+          name_on_bill: string | null
+          now_patient_id: string | null
+          reason: string | null
+          was_patient_id: string | null
+        }
+        Insert: {
+          corrected_at?: string
+          invoice_id: string
+          invoice_number?: string | null
+          name_on_bill?: string | null
+          now_patient_id?: string | null
+          reason?: string | null
+          was_patient_id?: string | null
+        }
+        Update: {
+          corrected_at?: string
+          invoice_id?: string
+          invoice_number?: string | null
+          name_on_bill?: string | null
+          now_patient_id?: string | null
+          reason?: string | null
+          was_patient_id?: string | null
+        }
+        Relationships: []
+      }
       invoice_service_name_backup_20260923: {
         Row: {
           captured_at: string

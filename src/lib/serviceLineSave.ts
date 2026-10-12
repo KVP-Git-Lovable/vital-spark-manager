@@ -29,17 +29,53 @@ const named = (line: SavedServiceLine) => (line.service_name || "").trim();
 /**
  * The name to store on the parent row.
  *
- * `storedName` is what the visit already carries, and is kept for a visit that
- * never had lines - a scanned or imported one, where it is the only record of
- * what was done.
+ * `showedServices` is whether the visit had services on it when it was opened
+ * - stored rows, or the line read off the parent for a scanned or imported
+ * visit. If it had none and none were added, `storedName` is kept: that name
+ * is the only record a scanned visit has of what was done.
+ *
+ * But if it showed one and the doctor removed it, the name goes. It used to
+ * survive, because only STORED rows counted as "had services" - so removing
+ * the service from an imported visit saved, and then the name on the parent
+ * row drew the line again on the next open. The clinic saw a service they had
+ * deleted come back, and the printed prescription still named it.
  */
 export function parentServiceName(
   keptLines: SavedServiceLine[],
-  hadStoredLines: boolean,
+  showedServices: boolean,
   storedName: string,
 ): string {
   if (keptLines.length) return keptLines.map((l) => named(l)).join(", ");
-  return hadStoredLines ? "" : storedName;
+  return showedServices ? "" : storedName;
+}
+
+/**
+ * The service lines a visit's own name stands for.
+ *
+ * A visit with no stored rows is shown a line read from the parent's
+ * service_name. That name can be a roll-up of several services, and folding
+ * the whole joined string into ONE line made its name literally
+ * "SPOT RESURFX, SPOT RESURFX, SPOT RESURFX" - which then got re-joined on
+ * save, and grew again every time. One line per service is what the name
+ * actually means.
+ *
+ * Repeats collapse. A name is a name: "EXION, EXION" is not two treatments,
+ * it is the same corruption one step earlier.
+ */
+export function namesFromParent(storedName: string | null | undefined): string[] {
+  const parts = String(storedName ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of parts) {
+    const key = part.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(part);
+  }
+  return out;
 }
 
 /**

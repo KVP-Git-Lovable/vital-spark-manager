@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parentServiceName, linesToWrite, matchStoredRows } from "./serviceLineSave";
+import { parentServiceName, linesToWrite, matchStoredRows, namesFromParent } from "./serviceLineSave";
 
 describe("parentServiceName", () => {
   it("is the roll-up of the services that remain", () => {
@@ -97,5 +97,41 @@ describe("matchStoredRows", () => {
 
   it("inserts everything when the visit holds nothing yet", () => {
     expect(matchStoredRows([{ service_name: "GFC" }], [])).toEqual([null]);
+  });
+});
+
+describe("namesFromParent", () => {
+  it("reads one service as one line", () => {
+    expect(namesFromParent("SPOT RESURFX")).toEqual(["SPOT RESURFX"]);
+  });
+
+  it("reads a roll-up as a line each", () => {
+    expect(namesFromParent("FILLERS, BOTOX")).toEqual(["FILLERS", "BOTOX"]);
+  });
+
+  it("collapses a name repeated by the fault this fixes", () => {
+    // "SPOT RESURFX, SPOT RESURFX, SPOT RESURFX" is one service written three
+    // times, not three treatments - the printed prescription named it thrice.
+    expect(namesFromParent("SPOT RESURFX, SPOT RESURFX, SPOT RESURFX")).toEqual(["SPOT RESURFX"]);
+    expect(namesFromParent("EXION, exion")).toEqual(["EXION"]);
+  });
+
+  it("answers nothing for a visit with no name at all", () => {
+    expect(namesFromParent("")).toEqual([]);
+    expect(namesFromParent(null)).toEqual([]);
+    expect(namesFromParent("  ,  ")).toEqual([]);
+  });
+});
+
+describe("parentServiceName, once a shown service is removed", () => {
+  it("clears the name the removed service came from", () => {
+    // The visit had no stored rows - its service was read off this very name.
+    // Keeping it meant the service the doctor deleted was drawn again on the
+    // next open, and went on printing.
+    expect(parentServiceName([], true, "SPOT RESURFX")).toBe("");
+  });
+
+  it("still keeps the name of a visit whose services were never touched", () => {
+    expect(parentServiceName([], false, "SPOT RESURFX")).toBe("SPOT RESURFX");
   });
 });

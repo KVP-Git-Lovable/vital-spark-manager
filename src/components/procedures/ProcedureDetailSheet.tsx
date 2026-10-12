@@ -46,7 +46,7 @@ import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { OTHERS_VALUE } from "@/lib/othersOption";
-import { parentServiceName, linesToWrite, matchStoredRows } from "@/lib/serviceLineSave";
+import { parentServiceName, linesToWrite, matchStoredRows, namesFromParent } from "@/lib/serviceLineSave";
 import { patientIdentityLine } from "@/lib/patientIdentity";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
@@ -532,22 +532,26 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
             s.material_percent === null || s.material_percent === undefined ? "" : String(s.material_percent),
           price: Number((servicesMaster as any[]).find((m: any) => m.id === s.service_id)?.price || 0),
         }))
-      : [
-          {
-            key: `svc-${Date.now()}`,
-            service_id: null,
-            service_name: procedure.service_name || "",
-            // A parent row whose service_name is a joined list already holds a
-            // roll-up of several services. Folding that back into one line and
-            // saving re-prefixes it - "FILLERS, BOTOX: FILLERS: 1v2" - and it
-            // compounds on every round trip. The text stays on the parent,
-            // where the save rule below now protects it.
-            procedure_notes: parentTextIsRollUp ? "" : procedure.procedure_notes || "",
-            recommendations: parentTextIsRollUp ? "" : procedure.recommendations || "",
-            material_percent: "",
-            price: 0,
-          },
-        ];
+      : // A visit with no stored rows is shown what its own name says. A name
+        // that is a roll-up means several services, so it becomes several
+        // lines - putting the whole joined string into one line made that
+        // line's name "SPOT RESURFX, SPOT RESURFX, SPOT RESURFX", which was
+        // re-joined on every save and grew each time.
+        (namesFromParent(procedure.service_name).length
+          ? namesFromParent(procedure.service_name)
+          : [""]
+        ).map((name, i) => ({
+          key: `svc-${Date.now()}-${i}`,
+          service_id: null,
+          service_name: name,
+          // The parent's notes belong to a single service. Where it names
+          // several, they stay on the parent - folding them into each line
+          // would repeat them and re-prefix on save.
+          procedure_notes: parentTextIsRollUp ? "" : procedure.procedure_notes || "",
+          recommendations: parentTextIsRollUp ? "" : procedure.recommendations || "",
+          material_percent: "",
+          price: 0,
+        }));
     setEditServiceLines(rows);
     hadStoredLinesRef.current = procedureServices.length > 0;
     // What the lines added up to when this visit was opened. The save compares
@@ -650,7 +654,15 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
       // Update procedure
       const { error } = await supabase.from("procedures").update({
-        service_name: parentServiceName(kept, hadStoredLinesRef.current, editServiceName),
+        // "Showed services when opened" - stored rows, or the line read off
+        // the parent. Removing that line is a decision, and the name on the
+        // parent has to follow it, or the next open draws the service again.
+        service_name: parentServiceName(
+          kept,
+          hadStoredLinesRef.current ||
+            originalServiceLinesRef.current.some((l) => (l.service_name || "").trim() !== ""),
+          editServiceName,
+        ),
         status: editStatus,
         staff_id: editStaffId && editStaffId.trim() ? editStaffId : null,
         procedure_notes: kept.length ? rolled("procedure_notes", editProcedureNotes) : editProcedureNotes,

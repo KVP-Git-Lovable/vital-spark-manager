@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/shared/DateInput";
+import { patientAgeLabel } from "@/lib/patientIdentity";
 import { Label } from "@/components/ui/label";
 import {
   ConsultationReasonPicker,
@@ -671,13 +672,29 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               <div>
                 <Label>Date of Birth</Label>
                 <DateInput
                   value={form.date_of_birth || ""}
                   onChange={(iso) => updateField("date_of_birth", iso)}
                   className="mt-1.5"
+                />
+              </div>
+              <div>
+                {/* Read, not asked for: the age the record will show, worked
+                    out by the same function as the patient page, so a year
+                    typed wrong is obvious here rather than three screens
+                    later. Nothing is stored - there is no age column. */}
+                <Label htmlFor="patient-age">Age</Label>
+                <Input
+                  id="patient-age"
+                  readOnly
+                  tabIndex={-1}
+                  aria-readonly="true"
+                  className="mt-1.5 bg-muted/50 text-muted-foreground"
+                  value={patientAgeLabel(form.date_of_birth)}
+                  placeholder="—"
                 />
               </div>
               <div>

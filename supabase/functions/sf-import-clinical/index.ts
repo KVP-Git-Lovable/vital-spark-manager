@@ -445,7 +445,7 @@ async function syncPatient(
     // Completed/No Show mean the visit actually happened (or was missed) -
     // never stamp either on an appointment whose start_time hasn't arrived
     // yet, no matter what Salesforce's own status field said.
-    const isFuture = new Date(start) > new Date();
+    const isFuture = !!start && new Date(start) > new Date();
     const statusMap: Record<string, string> = {
       Confirmed: "Confirmed", Completed: "Completed", "No Show": "No Show",
       Cancelled: "Cancelled", Scheduled: "Confirmed", Rescheduled: "Confirmed",

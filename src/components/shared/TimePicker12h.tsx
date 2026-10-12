@@ -1,6 +1,5 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { clearsWholeTime, hourAdvances } from "@/lib/timeSegments";
 
 interface TimePicker12hProps {
   /** 24hr "HH:mm" string (e.g. "14:30"), same shape <input type="time"> uses. */
@@ -68,53 +67,24 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
 
   const digits = (s: string) => s.replace(/\D/g, "").slice(0, 2);
 
-  // The two boxes are halves of one time. What each half is worth, when the
-  // whole time is really being cleared, and when the hour is finished, are in
-  // timeSegments.ts - this component only carries the focus and the drafts.
-  const minuteRef = useRef<HTMLInputElement>(null);
-  const hourRef = useRef<HTMLInputElement>(null);
-  // The first digit typed after arriving in a box replaces what is there,
-  // rather than being added to it. Selecting the text on focus was meant to
-  // do that, but a click puts the caret back on mouse-up and the selection is
-  // gone - so a 1 typed into an hour already reading 1 made 11, which is a
-  // finished hour, and the caret left for the minutes while the doctor was
-  // still typing 12. This does not depend on the selection surviving.
-  const hourFresh = useRef(false);
-  const minuteFresh = useRef(false);
-
-  /** What the other box is showing right now, as digits. */
-  const shownHour = hourDraft ?? (isSet ? String(hour12) : "");
-  const shownMinute = minuteDraft ?? (isSet ? String(minute).padStart(2, "0") : "");
-
   const onHourInput = (raw: string) => {
     const d = digits(raw);
     setHourDraft(d);
-    // Emptying one box is a half being retyped, not the time being removed.
-    // Clearing it used to take the minutes with it and leave a half-typed
-    // value that crashed the appointment screen.
-    if (clearsWholeTime(d, shownMinute)) {
-      onChange("");
+    if (d === "") {
+      onChange(""); // clearing the box clears the value (e.g. optional break times)
       return;
     }
-    if (d === "") return;
     const n = Number(d);
     if (n >= 1 && n <= 12) update({ hour12: n });
-    // A finished hour hands the caret to the minutes, so the time can be
-    // typed straight through without reaching for the mouse.
-    if (hourAdvances(d)) {
-      minuteRef.current?.focus();
-      minuteRef.current?.select();
-    }
   };
 
   const onMinuteInput = (raw: string) => {
     const d = digits(raw);
     setMinuteDraft(d);
-    if (clearsWholeTime(shownHour, d)) {
+    if (d === "") {
       onChange("");
       return;
     }
-    if (d === "") return;
     const n = Number(d);
     if (n >= 0 && n <= 59) update({ minute: n });
   };
@@ -140,82 +110,35 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
       )}
     >
       <input
-        ref={hourRef}
         type="text"
         inputMode="numeric"
         maxLength={2}
         aria-label="Hour"
-        value={shownHour}
+        value={hourDraft ?? (isSet ? String(hour12) : "")}
         placeholder="--"
         disabled={disabled}
         onChange={(e) => onHourInput(e.target.value)}
-        onFocus={(e) => {
-          hourFresh.current = true;
-          e.currentTarget.select();
-        }}
-        onMouseUp={(e) => e.preventDefault()}
-        onKeyDown={(e) => {
-          if (/^\d$/.test(e.key) && hourFresh.current) {
-            e.preventDefault();
-            hourFresh.current = false;
-            onHourInput(e.key);
-            // The digits were selected so the first keystroke would replace
-            // them. They still are - and a second digit typed over a
-            // selection replaces it too, which is why 12 could not be typed
-            // at all. Put the caret after the digit instead, so the next one
-            // lands beside it.
-            e.currentTarget.setSelectionRange(1, 1);
-            return;
-          }
-          hourFresh.current = false;
-        }}
+        onFocus={(e) => e.currentTarget.select()}
         onBlur={() => {
           if (hourDraft && hourDraft !== "") {
             const clamped = clampHour(Number(hourDraft));
             update({ hour12: clamped });
           }
-          // An empty draft falls back to the stored hour: leaving the field
-          // half typed must not leave a time that is half a time.
           setHourDraft(null);
         }}
         className="w-7 shrink-0 bg-transparent text-center outline-none"
       />
       <span className="text-muted-foreground">:</span>
       <input
-        ref={minuteRef}
         type="text"
         inputMode="numeric"
         maxLength={2}
         aria-label="Minute"
-        value={shownMinute}
+        value={minuteDraft ?? (isSet ? String(minute).padStart(2, "0") : "")}
         placeholder="--"
         disabled={disabled}
         onChange={(e) => onMinuteInput(e.target.value)}
-        onFocus={(e) => {
-          minuteFresh.current = true;
-          e.currentTarget.select();
-        }}
-        onMouseUp={(e) => e.preventDefault()}
-        onKeyDown={(e) => {
-          // Backspace in an empty minute box steps back to the hour, the way
-          // a field made of segments is expected to behave.
-          if (e.key === "Backspace" && shownMinute === "") {
-            e.preventDefault();
-            hourRef.current?.focus();
-            hourRef.current?.select();
-            return;
-          }
-          if (/^\d$/.test(e.key) && minuteFresh.current) {
-            e.preventDefault();
-            minuteFresh.current = false;
-            onMinuteInput(e.key);
-            // Same as the hour: leave the caret beside the digit, not a
-            // selection the next digit would replace.
-            e.currentTarget.setSelectionRange(1, 1);
-            return;
-          }
-          minuteFresh.current = false;
-        }}
+        onFocus={(e) => e.currentTarget.select()}
         onBlur={() => {
           if (minuteDraft && minuteDraft !== "") {
             const clamped = clampMinute(Number(minuteDraft));

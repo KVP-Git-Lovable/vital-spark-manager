@@ -46,7 +46,7 @@ import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { OTHERS_VALUE } from "@/lib/othersOption";
-import { parentServiceName, linesToWrite } from "@/lib/serviceLineSave";
+import { parentServiceName, linesToWrite, matchStoredRows } from "@/lib/serviceLineSave";
 import { patientIdentityLine } from "@/lib/patientIdentity";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
@@ -378,7 +378,15 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     enabled: !!procedureId,
   });
 
-  const { data: procedureServices = [], isLoading: procedureServicesLoading } = useQuery({
+  const {
+    data: procedureServices = [],
+    isLoading: procedureServicesLoading,
+    // isLoading is false the moment there is anything in the cache, even a
+    // list fetched before this visit's rows were written. Seeding from that
+    // is what invented a second copy of a service - so the seed waits for a
+    // fetch that has actually come back for THIS visit.
+    isFetching: procedureServicesFetching,
+  } = useQuery({
     queryKey: ["procedure-services", procedureId],
     queryFn: async () => {
       if (!procedureId) return [];
@@ -504,7 +512,13 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   // still fetching) gets mistaken for "no existing services" and a
   // duplicate id-less fallback line is fabricated from the parent
   // procedure's fields, which then inserts a second identical row on save.
-  if (procedure && initialized && !servicesInitialized && !procedureServicesLoading) {
+  if (
+    procedure &&
+    initialized &&
+    !servicesInitialized &&
+    !procedureServicesLoading &&
+    !procedureServicesFetching
+  ) {
     const parentTextIsRollUp = (procedure.service_name || "").includes(", ");
     const rows: ServiceLineRow[] = procedureServices.length
       ? procedureServices.map((s: any) => ({
@@ -671,8 +685,17 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       for (const l of editServiceLines.filter((x) => x.id && x._deleted)) {
         await supabase.from("procedure_services").delete().eq("id", l.id!);
       }
+      // What the visit actually holds right now, read fresh. A line invented
+      // from the parent row carries no id, and inserting it blindly is what
+      // stored the same service twice - see matchStoredRows.
+      const { data: storedRows } = await supabase
+        .from("procedure_services")
+        .select("id, service_name")
+        .eq("procedure_id", procedureId!);
+      const writeTo = matchStoredRows(toWrite, (storedRows || []) as { id: string; service_name: string | null }[]);
       for (const [i, l] of toWrite.entries()) {
-        if (l.id) {
+        const rowId = writeTo[i];
+        if (rowId) {
           await supabase.from("procedure_services").update({
             service_id: serviceIdForSave(l.service_id),
             service_name: l.service_name,
@@ -680,7 +703,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
             recommendations: l.recommendations || null,
             material_percent: l.material_percent.trim() === "" ? null : parseFloat(l.material_percent),
             sort_order: i,
-          }).eq("id", l.id);
+          }).eq("id", rowId);
         } else {
           await supabase.from("procedure_services").insert({
             procedure_id: procedureId!,
@@ -730,6 +753,9 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["procedures"] });
       queryClient.invalidateQueries({ queryKey: ["procedure-detail", procedureId] });
+      // Without this the next open reads a list fetched before these rows
+      // existed, decides the visit has no services, and invents them again.
+      queryClient.invalidateQueries({ queryKey: ["procedure-services", procedureId] });
       queryClient.invalidateQueries({ queryKey: ["procedure-prescriptions", procedureId] });
       queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
       queryClient.invalidateQueries({ queryKey: ["patient", procedure?.patient_id] });

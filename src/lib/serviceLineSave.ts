@@ -52,3 +52,54 @@ export function parentServiceName(
 export function linesToWrite<T extends SavedServiceLine>(onScreen: T[]): T[] {
   return onScreen.filter((line) => !!line.id || !!named(line));
 }
+
+/**
+ * Which stored row a line with no id of its own actually is.
+ *
+ * A doctor entered HYDRASIGNATURE once and the visit stored it twice. The
+ * screen seeds its lines from procedure_services, and when that query answers
+ * from a cache written before the row existed it looks like the visit has no
+ * services, so a line is made up from the parent row - with no id. Saving
+ * inserts it. Open the visit again, same stale answer, save again: a second
+ * identical row. Seven visits in the clinic ended up like that, one of them
+ * three times over, each copy seconds apart.
+ *
+ * The cache is fixed separately. This is the guard that does not depend on it:
+ * before writing, the save reads what the database actually holds, and a line
+ * with no id that names a service already stored updates that row rather than
+ * adding another. Only the first unclaimed row of that name is taken, so a
+ * doctor who genuinely lists the same service twice still gets two rows.
+ *
+ * Matching is by name because that is all an invented line has - it was built
+ * from the parent row, which carries no service id.
+ */
+
+export interface StoredServiceRow {
+  id: string;
+  service_name?: string | null;
+}
+
+/** The id to write a line back to, or null to insert it as a new row. */
+export function matchStoredRows<T extends SavedServiceLine>(
+  lines: T[],
+  stored: StoredServiceRow[],
+): (string | null)[] {
+  const key = (name: string | null | undefined) => (name || "").trim().toLowerCase();
+
+  // A row already claimed by a line that carries its id is not up for matching:
+  // that line is the one editing it.
+  const claimed = new Set(lines.map((l) => l.id).filter(Boolean) as string[]);
+  const free = stored.filter((row) => row.id && !claimed.has(row.id));
+
+  return lines.map((line) => {
+    if (line.id) return line.id;
+    const name = key(line.service_name);
+    if (!name) return null;
+    const hit = free.findIndex((row) => key(row.service_name) === name);
+    if (hit === -1) return null;
+    // Taken, so a second line of the same name inserts rather than overwriting
+    // the row the first one just claimed.
+    const [row] = free.splice(hit, 1);
+    return row.id;
+  });
+}

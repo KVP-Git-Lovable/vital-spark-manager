@@ -874,6 +874,9 @@ export function ProcedureFormDialog({
     },
     onSuccess: (proc: any) => {
       queryClient.invalidateQueries({ queryKey: ["procedures"] });
+      // The visit's service rows, so opening it next does not read a list
+      // fetched before they were written and invent them a second time.
+      queryClient.invalidateQueries({ queryKey: ["procedure-services"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
       queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
       if (nextAppointmentAt || (visitType === "Recurring" && recurringDates.some(Boolean))) {

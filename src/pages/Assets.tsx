@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
-import { Package, Plus, Search, Building2, AlertTriangle } from "lucide-react";
+import { Package, Plus, Search, Building2, AlertTriangle, Pencil } from "lucide-react";
 import { AssetFormDialog } from "@/components/assets/AssetFormDialog";
 import { VendorFormDialog } from "@/components/assets/VendorFormDialog";
 import { IssueFormDialog } from "@/components/assets/IssueFormDialog";
@@ -19,6 +19,9 @@ const Assets = () => {
   const [vendorFormOpen, setVendorFormOpen] = useState(false);
   const [issueFormOpen, setIssueFormOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
+  // The asset whose details are being corrected. Null means the form is
+  // adding a new one, which is all it could do before.
+  const [editingAsset, setEditingAsset] = useState<Record<string, unknown> | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
   const { data: assets = [] } = useQuery({
@@ -122,7 +125,7 @@ const Assets = () => {
 
         <TabsContent value="assets">
           <div className="flex justify-end mb-4">
-            <Button size="sm" className="gap-1.5" onClick={() => setAssetFormOpen(true)}>
+            <Button size="sm" className="gap-1.5" onClick={() => { setEditingAsset(null); setAssetFormOpen(true); }}>
               <Plus className="h-3.5 w-3.5" /> Add Asset
             </Button>
           </div>
@@ -197,11 +200,12 @@ const Assets = () => {
                   <th className="text-left text-xs font-medium text-muted-foreground p-4">Warranty</th>
                   <th className="text-left text-xs font-medium text-muted-foreground p-4">AMC</th>
                   <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
+                  <th className="w-12 p-4"><span className="sr-only">Edit</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {filteredAssets.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-muted-foreground text-sm">No assets found</td></tr>
+                  <tr><td colSpan={7} className="text-center py-8 text-muted-foreground text-sm">No assets found</td></tr>
                 ) : filteredAssets.map((asset: any) => (
                   <tr key={asset.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => { setSelectedAsset(asset); setDetailOpen(true); }}>
                     <td className="p-4">
@@ -226,6 +230,24 @@ const Assets = () => {
                     </td>
                     <td className="p-4">
                       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusColors[asset.status] || ""}`}>{asset.status}</span>
+                    </td>
+                    <td className="p-4">
+                      {/* Correcting what was typed in used to mean deleting the
+                          asset and adding it again. The row still opens the
+                          asset; this edits it without that detour. */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        aria-label={`Edit ${asset.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingAsset(asset);
+                          setAssetFormOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -368,11 +390,22 @@ const Assets = () => {
         </TabsContent>
       </Tabs>
 
-      <AssetFormDialog open={assetFormOpen} onOpenChange={setAssetFormOpen} vendors={vendors} />
+      <AssetFormDialog
+        open={assetFormOpen}
+        onOpenChange={(open) => { setAssetFormOpen(open); if (!open) setEditingAsset(null); }}
+        vendors={vendors}
+        asset={editingAsset}
+      />
       <VendorFormDialog open={vendorFormOpen} onOpenChange={setVendorFormOpen} />
       <IssueFormDialog open={issueFormOpen} onOpenChange={setIssueFormOpen} assets={assets} vendors={vendors} />
       {selectedAsset && (
-        <AssetDetailSheet open={detailOpen} onOpenChange={setDetailOpen} asset={selectedAsset} vendors={vendors} />
+        <AssetDetailSheet
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+          asset={selectedAsset}
+          vendors={vendors}
+          onEdit={() => { setEditingAsset(selectedAsset); setDetailOpen(false); setAssetFormOpen(true); }}
+        />
       )}
     </div>
   );

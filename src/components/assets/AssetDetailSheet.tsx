@@ -14,7 +14,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Package, AlertTriangle, Link2, Plus, Trash2, Shield, Wrench } from "lucide-react";
+import { Package, AlertTriangle, Link2, Plus, Trash2, Shield, Wrench, Pencil } from "lucide-react";
 import { IssueFormDialog } from "./IssueFormDialog";
 import { toast } from "sonner";
 
@@ -23,9 +23,11 @@ interface AssetDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   asset: any;
   vendors: any[];
+  /** Open this asset in the form to correct it. */
+  onEdit?: () => void;
 }
 
-export function AssetDetailSheet({ open, onOpenChange, asset, vendors }: AssetDetailSheetProps) {
+export function AssetDetailSheet({ open, onOpenChange, asset, vendors, onEdit }: AssetDetailSheetProps) {
   const queryClient = useQueryClient();
   const [issueFormOpen, setIssueFormOpen] = useState(false);
   const [linkServiceOpen, setLinkServiceOpen] = useState(false);
@@ -130,9 +132,16 @@ export function AssetDetailSheet({ open, onOpenChange, asset, vendors }: AssetDe
         <SheetContent className="w-screen max-w-none sm:max-w-none overflow-y-auto">
           <SheetHeader>
             <Badge variant="outline" className="text-[10px] text-muted-foreground w-fit font-normal">Asset</Badge>
-            <SheetTitle className="font-display flex items-center gap-2">
-              <Package className="h-5 w-5" /> {asset.name}
-            </SheetTitle>
+            <div className="flex items-start justify-between gap-2">
+              <SheetTitle className="font-display flex items-center gap-2">
+                <Package className="h-5 w-5" /> {asset.name}
+              </SheetTitle>
+              {onEdit && (
+                <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={onEdit}>
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </Button>
+              )}
+            </div>
           </SheetHeader>
 
           {/* Quick info badges */}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { displayDate } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote, Stethoscope } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -135,6 +135,18 @@ export function ProcedureFormDialog({
   const [visitType, setVisitType] = useState<"Single" | "Recurring">("Single");
   const [recurringCount, setRecurringCount] = useState(2);
   const [recurringDates, setRecurringDates] = useState<string[]>(["", ""]);
+  /**
+   * What the reserved visits are for, in the doctor's own words.
+   *
+   * A reserved appointment used to be created with no investigation at all -
+   * 56 of the 60 recurring visits in the clinic have none. The Investigation
+   * column falls back to the appointment's service when it is empty
+   * (investigationText.ts), and the service is copied from the procedure just
+   * written, so the next visit showed the last visit's treatment as its
+   * investigation. Typed here it wins over that fallback, because a recorded
+   * answer beats a guess.
+   */
+  const [followUpInvestigation, setFollowUpInvestigation] = useState("");
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
   const [stockMap, setStockMap] = useState<Record<string, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);
@@ -838,6 +850,11 @@ export function ProcedureFormDialog({
             start_time: start.toISOString(),
             end_time: end.toISOString(),
             status: "Reserved",
+            // Blank stays blank rather than becoming an empty string: the
+            // Investigation column treats an empty value as "nothing recorded"
+            // and falls through to the service, which is the behaviour this
+            // field exists to let the doctor override, not to fake.
+            reason_for_consultation: followUpInvestigation.trim() || null,
             visit_status: visitType === "Recurring" ? "Recurring visit" : "Follow-up visit",
             problem_area_ids: selectedProblemAreas.length ? selectedProblemAreas : null,
             source: "Procedure",
@@ -1505,6 +1522,28 @@ export function ProcedureFormDialog({
                 <p className="text-xs text-muted-foreground">
                   Each date creates a <span className="font-medium">Reserved</span> appointment. Dates left blank can be added later during billing.
                 </p>
+              </div>
+            )}
+
+            {/* One investigation for the visits being reserved, whether that is
+                a single follow-up or a whole recurring course. Outside the
+                branch above so both get it and the two cannot drift. */}
+            {(visitType === "Recurring" || nextAppointmentAt) && (
+              <div>
+                <Label className="flex items-center gap-2 text-sm">
+                  <Stethoscope className="h-4 w-4" /> Investigation for {visitType === "Recurring" ? "these visits" : "this visit"}
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  What the {visitType === "Recurring" ? "reserved visits are" : "visit is"} for. Left blank, the
+                  appointment shows this procedure&apos;s services instead.
+                </p>
+                <Textarea
+                  value={followUpInvestigation}
+                  onChange={(e) => setFollowUpInvestigation(e.target.value)}
+                  placeholder="e.g. 3rd of 6 laser toning sessions, review pigmentation"
+                  rows={2}
+                  className="mt-2 bg-background"
+                />
               </div>
             )}
           </div>

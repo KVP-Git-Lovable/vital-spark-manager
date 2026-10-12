@@ -404,7 +404,20 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
     : [{ service: procedure.service_name, notes: procedure.procedure_notes, recommendations: procedure.recommendations }]
   )
     .map((r) => ({ service: sanitize(r.service), notes: sanitize(r.notes), recommendations: sanitize(r.recommendations) }))
-    .filter((r) => r.service);
+    .filter((r) => r.service)
+    // One service, once. A visit holds a service a single time - the database
+    // enforces it now - but a prescription the clinic prints must not repeat a
+    // treatment even if a copy ever reaches it from somewhere else. Identical
+    // rows collapse; two rows that differ in what the doctor wrote both stay,
+    // because that is not a copy.
+    .filter((row, index, rows) =>
+      rows.findIndex(
+        (other) =>
+          other.service.trim().toLowerCase() === row.service.trim().toLowerCase() &&
+          other.notes === row.notes &&
+          other.recommendations === row.recommendations,
+      ) === index,
+    );
 
   const consultationRows = allServiceRows.filter((r) => isPlaceholderService(r.service));
   const visitNotesText = consultationRows

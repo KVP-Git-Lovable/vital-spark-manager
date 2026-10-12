@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { parentServiceName, linesToWrite, matchStoredRows, namesFromParent } from "./serviceLineSave";
+import {
+  parentServiceName,
+  linesToWrite,
+  matchStoredRows,
+  namesFromParent,
+  dedupeByName,
+} from "./serviceLineSave";
 
 describe("parentServiceName", () => {
   it("is the roll-up of the services that remain", () => {
@@ -133,5 +139,33 @@ describe("parentServiceName, once a shown service is removed", () => {
 
   it("still keeps the name of a visit whose services were never touched", () => {
     expect(parentServiceName([], false, "SPOT RESURFX")).toBe("SPOT RESURFX");
+  });
+});
+
+describe("dedupeByName", () => {
+  it("keeps the service the doctor entered, and drops the copy", () => {
+    expect(
+      dedupeByName([
+        { id: "a", service_name: "SCALP BOOSTER" },
+        { service_name: "SCALP BOOSTER" },
+      ]),
+    ).toEqual([{ id: "a", service_name: "SCALP BOOSTER" }]);
+  });
+
+  it("reads a name the same however it was typed or spaced", () => {
+    expect(dedupeByName([{ service_name: "EXION" }, { service_name: " exion " }])).toEqual([
+      { service_name: "EXION" },
+    ]);
+  });
+
+  it("leaves different services alone", () => {
+    const lines = [{ service_name: "FILLERS" }, { service_name: "BOTOX" }];
+    expect(dedupeByName(lines)).toEqual(lines);
+  });
+
+  it("does not treat two blank lines as the same service", () => {
+    // An empty line is a row waiting to be filled in, not a duplicate.
+    const lines = [{ service_name: "" }, { service_name: "" }];
+    expect(dedupeByName(lines)).toEqual(lines);
   });
 });

@@ -139,3 +139,29 @@ export function matchStoredRows<T extends SavedServiceLine>(
     return row.id;
   });
 }
+
+/**
+ * The same service, listed once.
+ *
+ * A visit holds a service once - the database enforces it now, and what the
+ * doctor entered once must read once on the screen and on the printed
+ * prescription. Every duplicate the clinic has reported was one entry stored
+ * twice, never two treatments.
+ *
+ * The first copy wins, because it is the one the doctor filled in: a second
+ * line of the same name has arrived from somewhere else - a list fetched
+ * before the first was written, a save that ran twice - and carries nothing
+ * the first does not.
+ */
+export function dedupeByName<T extends SavedServiceLine>(lines: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const line of lines) {
+    const key = named(line).toLowerCase();
+    // A line with no name yet is not a duplicate of anything.
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    out.push(line);
+  }
+  return out;
+}

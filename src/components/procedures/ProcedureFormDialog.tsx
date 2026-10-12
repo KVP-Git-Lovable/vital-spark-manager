@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { MAX_DATETIME, MIN_DATETIME, displayDate, isPlausibleIso } from "@/lib/dateInput";
+import { dedupeByName } from "@/lib/serviceLineSave";
 import { numVal } from "@/lib/numberInput";
 import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote, Stethoscope } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -713,7 +714,12 @@ export function ProcedureFormDialog({
       // consultation afterwards.
       //
       // Only new saves are affected: nothing already stored is rewritten.
-      const effectiveLines = serviceLines.filter((l) => (l.name || "").trim());
+      // One service, once. A visit holds a service a single time - the
+      // database enforces it - and what was entered once must read once on
+      // the prescription and on the printed document.
+      const effectiveLines = dedupeByName(
+        serviceLines.filter((l) => (l.name || "").trim()).map((l) => ({ ...l, service_name: l.name })),
+      );
       const combine = (field: "procedure_notes" | "recommendations") =>
         effectiveLines
           .filter((l) => (l[field] || "").trim())

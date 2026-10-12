@@ -46,7 +46,7 @@ import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { OTHERS_VALUE } from "@/lib/othersOption";
-import { parentServiceName, linesToWrite, matchStoredRows, namesFromParent } from "@/lib/serviceLineSave";
+import { parentServiceName, linesToWrite, matchStoredRows, namesFromParent, dedupeByName } from "@/lib/serviceLineSave";
 import { patientIdentityLine } from "@/lib/patientIdentity";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
@@ -636,7 +636,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     mutationFn: async () => {
       const onScreen = editServiceLines.filter((l) => !l._deleted);
       const kept = onScreen.filter((l) => (l.service_name || "").trim());
-      const toWrite = linesToWrite(onScreen);
+      // One service, once - on the screen, in the database and on the printed
+      // prescription. A second line of a name already on the visit is a copy
+      // that arrived from somewhere else, never a second treatment.
+      const toWrite = dedupeByName(linesToWrite(onScreen));
       const original = originalServiceLinesRef.current;
 
       // Write the roll-up only where the lines account for what is stored. An
@@ -717,7 +720,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
             sort_order: i,
           }).eq("id", rowId);
         } else {
-          await supabase.from("procedure_services").insert({
+          const { error: insErr } = await supabase.from("procedure_services").insert({
             procedure_id: procedureId!,
             service_id: serviceIdForSave(l.service_id),
             service_name: l.service_name,
@@ -726,6 +729,15 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
             material_percent: l.material_percent.trim() === "" ? null : parseFloat(l.material_percent),
             sort_order: i,
           });
+          // The database keeps a visit to one of each service. If a copy gets
+          // this far anyway - two saves racing, a page that has been open a
+          // while - say so in words rather than showing a constraint name.
+          if (insErr) {
+            if (insErr.code === "23505") {
+              throw new Error(`${l.service_name} is already on this visit.`);
+            }
+            throw insErr;
+          }
         }
       }
 

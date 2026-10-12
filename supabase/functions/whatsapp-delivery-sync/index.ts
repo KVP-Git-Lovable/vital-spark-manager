@@ -91,16 +91,40 @@ Deno.serve(async (req) => {
       next = page.next_page_uri || null;
     }
 
-    // Match phones to patients by last 10 digits.
+    // Match phones to patients by last 10 digits. A family shares one phone, so
+    // a number can belong to several patients - the message itself says which
+    // one it was for ("Hello Ms. Pallavi"), so read the name off the body
+    // before falling back to whoever was registered first.
+    type Candidate = { id: string; first_name: string | null; last_name: string | null };
     const last10s = [...new Set(rows.map((r) => r.phone.replace(/\D/g, "").slice(-10)).filter((p) => p.length === 10))];
-    const byPhone = new Map<string, string>();
+    const byPhone = new Map<string, Candidate[]>();
     for (let i = 0; i < last10s.length; i += 10) {
       await Promise.all(last10s.slice(i, i + 10).map(async (p) => {
-        const { data } = await admin.from("patients").select("id").ilike("phone", `%${p}`).limit(1);
-        if (data?.[0]) byPhone.set(p, data[0].id);
+        const { data } = await admin
+          .from("patients")
+          .select("id, first_name, last_name")
+          .ilike("phone", `%${p}`)
+          .order("created_at", { ascending: true })
+          .limit(10);
+        if (data?.length) byPhone.set(p, data as Candidate[]);
       }));
     }
-    for (const r of rows) r.patient_id = byPhone.get(r.phone.replace(/\D/g, "").slice(-10)) ?? null;
+    for (const r of rows) {
+      const candidates = byPhone.get(r.phone.replace(/\D/g, "").slice(-10)) ?? [];
+      if (candidates.length <= 1) {
+        r.patient_id = candidates[0]?.id ?? null;
+        continue;
+      }
+      const body = String(r.body_preview || "").toLowerCase();
+      const named = candidates.find((c) => {
+        const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim().toLowerCase();
+        return name.length >= 3 && body.includes(name);
+      }) ?? candidates.find((c) => {
+        const first = (c.first_name ?? "").trim().toLowerCase();
+        return first.length >= 3 && body.includes(first);
+      });
+      r.patient_id = (named ?? candidates[0]).id;
+    }
 
     for (let i = 0; i < rows.length; i += 500) {
       const { error } = await admin.from("whatsapp_delivery_log").upsert(rows.slice(i, i + 500), { onConflict: "message_sid" });

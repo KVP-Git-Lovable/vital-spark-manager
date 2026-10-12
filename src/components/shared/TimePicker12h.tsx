@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { clearsWholeTime, hourAdvances } from "@/lib/timeSegments";
 
 interface TimePicker12hProps {
   /** 24hr "HH:mm" string (e.g. "14:30"), same shape <input type="time"> uses. */
@@ -67,24 +68,45 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
 
   const digits = (s: string) => s.replace(/\D/g, "").slice(0, 2);
 
+  // The two boxes are halves of one time. What each half is worth, when the
+  // whole time is really being cleared, and when the hour is finished, are in
+  // timeSegments.ts - this component only carries the focus and the drafts.
+  const minuteRef = useRef<HTMLInputElement>(null);
+  const hourRef = useRef<HTMLInputElement>(null);
+
+  /** What the other box is showing right now, as digits. */
+  const shownHour = hourDraft ?? (isSet ? String(hour12) : "");
+  const shownMinute = minuteDraft ?? (isSet ? String(minute).padStart(2, "0") : "");
+
   const onHourInput = (raw: string) => {
     const d = digits(raw);
     setHourDraft(d);
-    if (d === "") {
-      onChange(""); // clearing the box clears the value (e.g. optional break times)
+    // Emptying one box is a half being retyped, not the time being removed.
+    // Clearing it used to take the minutes with it and leave a half-typed
+    // value that crashed the appointment screen.
+    if (clearsWholeTime(d, shownMinute)) {
+      onChange("");
       return;
     }
+    if (d === "") return;
     const n = Number(d);
     if (n >= 1 && n <= 12) update({ hour12: n });
+    // A finished hour hands the caret to the minutes, so the time can be
+    // typed straight through without reaching for the mouse.
+    if (hourAdvances(d)) {
+      minuteRef.current?.focus();
+      minuteRef.current?.select();
+    }
   };
 
   const onMinuteInput = (raw: string) => {
     const d = digits(raw);
     setMinuteDraft(d);
-    if (d === "") {
+    if (clearsWholeTime(shownHour, d)) {
       onChange("");
       return;
     }
+    if (d === "") return;
     const n = Number(d);
     if (n >= 0 && n <= 59) update({ minute: n });
   };
@@ -110,11 +132,12 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
       )}
     >
       <input
+        ref={hourRef}
         type="text"
         inputMode="numeric"
         maxLength={2}
         aria-label="Hour"
-        value={hourDraft ?? (isSet ? String(hour12) : "")}
+        value={shownHour}
         placeholder="--"
         disabled={disabled}
         onChange={(e) => onHourInput(e.target.value)}
@@ -124,21 +147,33 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
             const clamped = clampHour(Number(hourDraft));
             update({ hour12: clamped });
           }
+          // An empty draft falls back to the stored hour: leaving the field
+          // half typed must not leave a time that is half a time.
           setHourDraft(null);
         }}
         className="w-7 shrink-0 bg-transparent text-center outline-none"
       />
       <span className="text-muted-foreground">:</span>
       <input
+        ref={minuteRef}
         type="text"
         inputMode="numeric"
         maxLength={2}
         aria-label="Minute"
-        value={minuteDraft ?? (isSet ? String(minute).padStart(2, "0") : "")}
+        value={shownMinute}
         placeholder="--"
         disabled={disabled}
         onChange={(e) => onMinuteInput(e.target.value)}
         onFocus={(e) => e.currentTarget.select()}
+        // Backspace in an empty minute box steps back to the hour, the way a
+        // field made of segments is expected to behave.
+        onKeyDown={(e) => {
+          if (e.key === "Backspace" && shownMinute === "") {
+            e.preventDefault();
+            hourRef.current?.focus();
+            hourRef.current?.select();
+          }
+        }}
         onBlur={() => {
           if (minuteDraft && minuteDraft !== "") {
             const clamped = clampMinute(Number(minuteDraft));

@@ -1425,6 +1425,12 @@ const Appointments = () => {
       if (!startDate) throw new Error("Please select a date");
       const buildDateTime = (date: Date, time: string) => {
         const [h, m] = time.split(":").map(Number);
+        // A time left half typed gives NaN here, and setHours(NaN) makes a
+        // date that only fails later - inside toISOString(), as "Invalid time
+        // value". Say what is actually wrong instead.
+        if (Number.isNaN(h) || Number.isNaN(m)) {
+          throw new Error("Enter a start and end time before saving.");
+        }
         const dt = new Date(date);
         dt.setHours(h, m, 0, 0);
         return dt;

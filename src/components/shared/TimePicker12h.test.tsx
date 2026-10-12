@@ -50,4 +50,69 @@ describe("TimePicker12h", () => {
     expect(screen.getByRole("button", { name: "AM" }).className).toContain("bg-primary");
     expect((screen.getByLabelText("Hour") as HTMLInputElement).value).toBe("12");
   });
+
+  it("backspacing the hour leaves the minutes alone", () => {
+    // It used to clear the whole time, and the half-typed value it left
+    // behind - a date with nothing after the T - crashed the appointment
+    // screen with "Invalid time value".
+    const onChange = vi.fn();
+    render(<TimePicker12h value="11:30" onChange={onChange} />);
+
+    fireEvent.change(screen.getByLabelText("Hour"), { target: { value: "" } });
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("Minute") as HTMLInputElement).value).toBe("30");
+  });
+
+  it("clears the time only once both halves are empty", () => {
+    // An optional time - a clinic break - is still cleared this way: empty
+    // one box, then the other.
+    const onChange = vi.fn();
+    render(<TimePicker12h value="11:30" onChange={onChange} />);
+
+    fireEvent.change(screen.getByLabelText("Minute"), { target: { value: "" } });
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Hour"), { target: { value: "" } });
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("hands the caret to the minutes once the hour is finished", () => {
+    render(<TimePicker12h value="11:30" onChange={() => {}} />);
+    const hour = screen.getByLabelText("Hour");
+    const minute = screen.getByLabelText("Minute");
+
+    fireEvent.change(hour, { target: { value: "10" } });
+
+    expect(document.activeElement).toBe(minute);
+  });
+
+  it("hands it over on one digit when nothing could follow it", () => {
+    render(<TimePicker12h value="11:30" onChange={() => {}} />);
+    const minute = screen.getByLabelText("Minute");
+
+    fireEvent.change(screen.getByLabelText("Hour"), { target: { value: "3" } });
+
+    expect(document.activeElement).toBe(minute);
+  });
+
+  it("waits while the hour could still be the start of ten, eleven or twelve", () => {
+    render(<TimePicker12h value="11:30" onChange={() => {}} />);
+    const minute = screen.getByLabelText("Minute");
+
+    fireEvent.change(screen.getByLabelText("Hour"), { target: { value: "1" } });
+
+    expect(document.activeElement).not.toBe(minute);
+  });
+
+  it("steps back to the hour when the minute box is empty", () => {
+    render(<TimePicker12h value="11:30" onChange={() => {}} />);
+    const hour = screen.getByLabelText("Hour");
+    const minute = screen.getByLabelText("Minute");
+
+    fireEvent.change(minute, { target: { value: "" } });
+    fireEvent.keyDown(minute, { key: "Backspace" });
+
+    expect(document.activeElement).toBe(hour);
+  });
 });

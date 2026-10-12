@@ -773,6 +773,12 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       if (!appointmentId || editAppointmentId !== appointmentId) {
         throw new Error("Please wait for this appointment to finish loading");
       }
+      // A time being retyped is not a time. Without this the half-typed value
+      // reached toISOString(), which raises "Invalid time value" - a message
+      // that tells the front desk nothing about what to do.
+      if (Number.isNaN(new Date(editStartTime).getTime()) || Number.isNaN(new Date(editEndTime).getTime())) {
+        throw new Error("Enter a start and end time before saving.");
+      }
       const prevStatus = appointment?.status || null;
       const prevStaffId = appointment?.staff_id || null;
       const newStatus = editStatus;
@@ -893,6 +899,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const bookInsteadMutation = useMutation({
     mutationFn: async () => {
       if (!appointment?.patient_id) throw new Error("This appointment has no patient on it");
+      if (Number.isNaN(new Date(editStartTime).getTime()) || Number.isNaN(new Date(editEndTime).getTime())) {
+        throw new Error("Enter a start and end time before saving.");
+      }
       const { error } = await supabase.from("appointments").insert({
         patient_id: appointment.patient_id,
         patient_name: appointment.patient_name ?? null,
@@ -1306,7 +1315,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                             ? `${patientName} was seen on ${format(new Date(appointment.start_time), "dd MMM yyyy")}. `
                             : ""}
                           {rescheduleWarning(visitEvidence)} Changing the date to{" "}
-                          {editStartTime ? format(new Date(editStartTime), "dd MMM yyyy") : "the new date"} removes that
+                          {displayDate(editStartTime) || "the new date"} removes that
                           visit from the patient's history and takes the bill with it.
                         </AlertDialogDescription>
                       </AlertDialogHeader>

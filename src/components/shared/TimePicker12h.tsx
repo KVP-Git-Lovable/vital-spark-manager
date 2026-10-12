@@ -159,6 +159,12 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
             e.preventDefault();
             hourFresh.current = false;
             onHourInput(e.key);
+            // The digits were selected so the first keystroke would replace
+            // them. They still are - and a second digit typed over a
+            // selection replaces it too, which is why 12 could not be typed
+            // at all. Put the caret after the digit instead, so the next one
+            // lands beside it.
+            e.currentTarget.setSelectionRange(1, 1);
             return;
           }
           hourFresh.current = false;
@@ -203,6 +209,9 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
             e.preventDefault();
             minuteFresh.current = false;
             onMinuteInput(e.key);
+            // Same as the hour: leave the caret beside the digit, not a
+            // selection the next digit would replace.
+            e.currentTarget.setSelectionRange(1, 1);
             return;
           }
           minuteFresh.current = false;

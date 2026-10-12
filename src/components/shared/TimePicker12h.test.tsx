@@ -155,4 +155,18 @@ describe("TimePicker12h", () => {
 
     expect(minute.value).toBe("3");
   });
+
+  it("leaves the caret beside the first digit, so a second one can follow it", () => {
+    // The digits are selected when the box takes focus so the first keystroke
+    // replaces them. Leaving them selected meant the second digit replaced
+    // the first as well, and a two-digit hour could not be typed at all.
+    render(<TimePicker12h value="01:02" onChange={() => {}} />);
+    const hour = screen.getByLabelText("Hour") as HTMLInputElement;
+
+    fireEvent.focus(hour);
+    fireEvent.keyDown(hour, { key: "1" });
+
+    expect(hour.selectionStart).toBe(1);
+    expect(hour.selectionEnd).toBe(1);
+  });
 });

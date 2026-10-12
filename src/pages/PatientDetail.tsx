@@ -39,6 +39,7 @@ import { PhotoViewer } from "@/components/patients/PhotoViewer";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { AiRepository } from "@/components/shared/AiRepository";
 import { WhatsAppDeliveryLog } from "@/components/shared/WhatsAppDeliveryLog";
+import { patientAgeLabel } from "@/lib/patientIdentity";
 import { MessageCircle } from "lucide-react";
 import { CameraDialog } from "@/components/shared/CameraDialog";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
@@ -957,6 +958,28 @@ const PatientDetail = () => {
                       <Field label="First Name" value={d.first_name} field="first_name" />
                       <Field label="Last Name" value={d.last_name} field="last_name" />
                       <Field label="Date of Birth" value={d.date_of_birth} field="date_of_birth" type="date" />
+                      <div>
+                        {/* Read, never asked for. Worked out from the date of
+                            birth beside it by the same function as the header
+                            and the Add Patient form, so no two screens can
+                            disagree about how old somebody is. There is no age
+                            column - nothing is stored. */}
+                        <Label className="text-xs text-muted-foreground">Age</Label>
+                        {readOnly ? (
+                          <p className="text-sm mt-1">
+                            {patientAgeLabel(d.date_of_birth) || <span className="text-muted-foreground/50">—</span>}
+                          </p>
+                        ) : (
+                          <Input
+                            readOnly
+                            tabIndex={-1}
+                            aria-readonly="true"
+                            value={patientAgeLabel(d.date_of_birth)}
+                            placeholder="—"
+                            className="mt-1 h-8 text-sm bg-muted/50 text-muted-foreground"
+                          />
+                        )}
+                      </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Gender</Label>
                         {readOnly ? (

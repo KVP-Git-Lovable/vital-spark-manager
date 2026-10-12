@@ -142,6 +142,13 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
         disabled={disabled}
         onChange={(e) => onHourInput(e.target.value)}
         onFocus={(e) => e.currentTarget.select()}
+        // The focus handler selects the digits so typing replaces them, but a
+        // click puts the caret back on mouse-up and throws that selection
+        // away - so typing 1 into an hour already reading 1 made 11, and the
+        // caret jumped to the minutes while the doctor was still typing 12.
+        // Keeping the selection through the click is what makes a typed digit
+        // replace rather than append.
+        onMouseUp={(e) => e.preventDefault()}
         onBlur={() => {
           if (hourDraft && hourDraft !== "") {
             const clamped = clampHour(Number(hourDraft));
@@ -165,6 +172,13 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
         disabled={disabled}
         onChange={(e) => onMinuteInput(e.target.value)}
         onFocus={(e) => e.currentTarget.select()}
+        // The focus handler selects the digits so typing replaces them, but a
+        // click puts the caret back on mouse-up and throws that selection
+        // away - so typing 1 into an hour already reading 1 made 11, and the
+        // caret jumped to the minutes while the doctor was still typing 12.
+        // Keeping the selection through the click is what makes a typed digit
+        // replace rather than append.
+        onMouseUp={(e) => e.preventDefault()}
         // Backspace in an empty minute box steps back to the hour, the way a
         // field made of segments is expected to behave.
         onKeyDown={(e) => {

@@ -6324,6 +6324,27 @@ export type Database = {
           },
         ]
       }
+      whatsapp_conversation_threads: {
+        Row: {
+          first_name: string | null
+          last_at: string | null
+          last_content: string | null
+          last_direction: string | null
+          last_name: string | null
+          message_count: number | null
+          patient_id: string | null
+          phone: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversations_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       add_custom_field_column: {

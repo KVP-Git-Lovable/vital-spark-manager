@@ -1,5 +1,5 @@
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery, useQueries } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { format, isToday, isYesterday } from "date-fns";
 import { Link } from "react-router-dom";
 import { AlertCircle, Clock3, Loader2, Search } from "lucide-react";
@@ -12,23 +12,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { getReportDateRange, REPORT_DATE_RANGE_OPTIONS } from "@/lib/reportDateRange";
 import { sanitizeTerm } from "@/lib/fuzzySearch";
+import {
+  summaryFromThread,
+  type ConversationMessage,
+  type ConversationThread,
+  type PatientJoin,
+} from "@/lib/whatsappThreads";
 
-const LIST_PAGE_SIZE = 100;
+/**
+ * Conversations per page, not messages per page.
+ *
+ * The list used to be built by fetching the newest 100 MESSAGES and grouping
+ * them by number, so it showed whichever numbers happened to fall inside that
+ * window - 37 of the clinic's 154, and no way to reach the rest without
+ * loading every message, which is the bulk load this page is supposed to
+ * avoid. whatsapp_conversation_threads gives one row per number, so a page of
+ * the list is a page of conversations.
+ */
+const LIST_PAGE_SIZE = 50;
 const THREAD_PAGE_SIZE = 50;
-
-type PatientJoin = { first_name: string | null; last_name: string | null };
-
-type ConversationMessage = {
-  id: string;
-  phone: string;
-  patient_id: string | null;
-  direction: string;
-  content: string;
-  created_at: string;
-  patients: PatientJoin | PatientJoin[] | null;
-};
-
-type ConversationSummary = ConversationMessage & { messageCount?: number };
 
 function patientFrom(message: ConversationMessage): PatientJoin | null {
   if (Array.isArray(message.patients)) return message.patients[0] ?? null;
@@ -47,20 +49,24 @@ function dayLabel(value: string): string {
   return format(date, "dd MMM yyyy");
 }
 
-function applyDateRange<T>(query: T, start?: Date, end?: Date): T {
+function applyDateRange<T>(query: T, start?: Date, end?: Date, column = "created_at"): T {
   let next = query as T & {
     gte: (column: string, value: string) => T;
     lte: (column: string, value: string) => T;
   };
-  if (start) next = next.gte("created_at", start.toISOString()) as typeof next;
-  if (end) next = next.lte("created_at", end.toISOString()) as typeof next;
+  if (start) next = next.gte(column, start.toISOString()) as typeof next;
+  if (end) next = next.lte(column, end.toISOString()) as typeof next;
   return next as T;
 }
 
 export function WhatsAppConversations() {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search.trim());
-  const [preset, setPreset] = useState("this_month");
+  // The whole history, not the current month: this is a conversation
+  // inbox, not a report, and 103 of the clinic's 154 numbers last spoke
+  // before this month. The view costs one row per number, so All Time is
+  // cheap; the period picker beside it still narrows in one click.
+  const [preset, setPreset] = useState("all");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
@@ -102,11 +108,14 @@ export function WhatsAppConversations() {
     queryFn: async ({ pageParam }) => {
       const from = pageParam * LIST_PAGE_SIZE;
       let query = supabase
-        .from("whatsapp_conversations")
-        .select("id, phone, patient_id, direction, content, created_at, patients(first_name, last_name)")
-        .order("created_at", { ascending: false })
+        .from("whatsapp_conversation_threads")
+        .select("phone, last_at, message_count, last_content, last_direction, patient_id, first_name, last_name")
+        .order("last_at", { ascending: false })
         .range(from, from + LIST_PAGE_SIZE - 1);
-      query = applyDateRange(query, range.start, range.end);
+      // The range picks which conversations are listed, by when they last
+      // spoke. The thread itself is always shown whole - a date window that
+      // hides half a conversation is what this page was reported for.
+      query = applyDateRange(query, range.start, range.end, "last_at");
       if (deferredSearch) {
         const phoneTerm = sanitizeTerm(deferredSearch).replace(/\s+/g, "");
         const clauses = [`phone.ilike.%${phoneTerm}%`];
@@ -115,39 +124,14 @@ export function WhatsAppConversations() {
       }
       const { data, error } = await query;
       if (error) throw error;
-      return data as ConversationMessage[];
+      return (data ?? []) as ConversationThread[];
     },
     getNextPageParam: (lastPage, pages) => lastPage.length === LIST_PAGE_SIZE ? pages.length : undefined,
   });
 
-  const summaries = useMemo(() => {
-    const byPhone = new Map<string, ConversationSummary>();
-    for (const message of conversations.data?.pages.flat() ?? []) {
-      if (!byPhone.has(message.phone)) byPhone.set(message.phone, message);
-    }
-    return Array.from(byPhone.values());
-  }, [conversations.data]);
-
-  const countQueries = useQueries({
-    queries: summaries.map((summary) => ({
-      queryKey: ["whatsapp-conversation-count", summary.phone, rangeKey],
-      queryFn: async () => {
-        let query = supabase
-          .from("whatsapp_conversations")
-          .select("id", { count: "exact", head: true })
-          .eq("phone", summary.phone);
-        query = applyDateRange(query, range.start, range.end);
-        const { count, error } = await query;
-        if (error) throw error;
-        return count ?? 0;
-      },
-      staleTime: 60_000,
-    })),
-  });
-
   const summariesWithCounts = useMemo(
-    () => summaries.map((summary, index) => ({ ...summary, messageCount: countQueries[index]?.data })),
-    [summaries, countQueries],
+    () => (conversations.data?.pages.flat() ?? []).map(summaryFromThread),
+    [conversations.data],
   );
 
   useEffect(() => {
@@ -158,20 +142,20 @@ export function WhatsAppConversations() {
 
   const selectedSummary = summariesWithCounts.find((item) => item.phone === selectedPhone) ?? null;
 
+  // Not keyed on the date range: the thread is the conversation, all of it.
   const thread = useInfiniteQuery({
-    queryKey: ["whatsapp-conversation-thread", selectedPhone, rangeKey],
+    queryKey: ["whatsapp-conversation-thread", selectedPhone],
     enabled: Boolean(selectedPhone),
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       if (!selectedPhone) return [] as ConversationMessage[];
       const from = pageParam * THREAD_PAGE_SIZE;
-      let query = supabase
+      const query = supabase
         .from("whatsapp_conversations")
         .select("id, phone, patient_id, direction, content, created_at, patients(first_name, last_name)")
         .eq("phone", selectedPhone)
         .order("created_at", { ascending: false })
         .range(from, from + THREAD_PAGE_SIZE - 1);
-      query = applyDateRange(query, range.start, range.end);
       const { data, error } = await query;
       if (error) throw error;
       return data as ConversationMessage[];

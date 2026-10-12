@@ -8,6 +8,7 @@ import { isConsultationService } from "@/lib/consultationLine";
 import { isRollUpOf, nextRollUpValue, parentHoldsOwnText as holdsOwnText } from "@/lib/procedureRollup";
 import { assertWrote } from "@/lib/rowAccess";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
+import { MAX_DATETIME, MIN_DATETIME } from "@/lib/dateInput";
 
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -1426,6 +1427,8 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                               </Label>
                               <Input
                                 type="datetime-local"
+                                min={MIN_DATETIME}
+                                max={MAX_DATETIME}
                                 className="mt-1 bg-background"
                                 value={edited}
                                 onChange={(e) =>

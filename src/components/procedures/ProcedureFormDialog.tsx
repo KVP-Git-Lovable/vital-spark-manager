@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { displayDate } from "@/lib/dateInput";
+import { MAX_DATETIME, MIN_DATETIME, displayDate, isPlausibleIso } from "@/lib/dateInput";
 import { numVal } from "@/lib/numberInput";
 import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote, Stethoscope } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -838,6 +838,13 @@ export function ProcedureFormDialog({
             ? [nextAppointmentAt]
             : [];
       if (followUpDates.length > 0 && patientId) {
+        // A browser's min/max only discourages a bad year, it does not stop
+        // one reaching here - which is how an appointment came to be reserved
+        // in February of the year 268.
+        const wrongYear = followUpDates.find((d) => !isPlausibleIso(d));
+        if (wrongYear) {
+          throw new Error("Check the follow-up date - that year looks wrong.");
+        }
         const p = (patients as any[]).find((x) => x.id === patientId);
         const rows = followUpDates.map((d) => {
           const start = new Date(d);
@@ -1479,6 +1486,8 @@ export function ProcedureFormDialog({
                 </p>
                 <Input
                   type="datetime-local"
+                  min={MIN_DATETIME}
+                  max={MAX_DATETIME}
                   value={nextAppointmentAt}
                   onChange={(e) => setNextAppointmentAt(e.target.value)}
                   className="mt-2 bg-background"
@@ -1508,6 +1517,8 @@ export function ProcedureFormDialog({
                       <Label className="text-xs text-muted-foreground">Visit # {i + 1}</Label>
                       <Input
                         type="datetime-local"
+                        min={MIN_DATETIME}
+                        max={MAX_DATETIME}
                         value={recurringDates[i] || ""}
                         onChange={(e) => {
                           const next = [...recurringDates];

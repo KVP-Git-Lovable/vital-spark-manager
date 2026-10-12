@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { displayToIso, isoToDisplay, maskTyping, displayDate } from "./dateInput";
+import {
+  displayToIso,
+  isoToDisplay,
+  maskTyping,
+  displayDate,
+  isPlausibleIso,
+  MAX_DATETIME,
+  MIN_DATETIME,
+} from "./dateInput";
 
 describe("isoToDisplay", () => {
   it("turns a stored date into dd/MM/yyyy", () => {
@@ -99,5 +107,54 @@ describe("displayDate", () => {
     expect(displayDate(undefined)).toBe("");
     expect(displayDate("")).toBe("");
     expect(displayDate("not a date")).toBe("");
+  });
+});
+
+describe("a year that cannot be right", () => {
+  it("refuses the mistyped year that reserved an appointment in 0268", () => {
+    expect(displayToIso("01/02/0268")).toBeNull();
+  });
+
+  it("refuses a date of birth no patient could have", () => {
+    expect(displayToIso("10/08/1789")).toBeNull();
+    expect(displayToIso("09/12/0196")).toBeNull();
+  });
+
+  it("refuses a year too far ahead to mean anything", () => {
+    expect(displayToIso("01/02/2268")).toBeNull();
+  });
+
+  it("still takes the whole range a clinic actually uses", () => {
+    expect(displayToIso("01/01/1900")).toBe("1900-01-01");
+    expect(displayToIso("31/12/2100")).toBe("2100-12-31");
+    expect(displayToIso("19/09/2026")).toBe("2026-09-19");
+    expect(displayToIso("31/07/1982")).toBe("1982-07-31");
+  });
+
+  it("agrees with itself about what is plausible", () => {
+    expect(isPlausibleIso("2026-09-19")).toBe(true);
+    expect(isPlausibleIso("1900-01-01")).toBe(true);
+    expect(isPlausibleIso("2100-12-31")).toBe(true);
+    expect(isPlausibleIso("0268-02-01")).toBe(false);
+    expect(isPlausibleIso("2268-02-01")).toBe(false);
+  });
+
+  it("reads a date-and-time value by its date part, as the follow-up boxes hand it over", () => {
+    expect(isPlausibleIso("0268-02-01T09:36")).toBe(false);
+    expect(isPlausibleIso("2027-02-01T09:36")).toBe(true);
+  });
+
+  it("says nothing plausible about a missing or broken value", () => {
+    expect(isPlausibleIso(null)).toBe(false);
+    expect(isPlausibleIso(undefined)).toBe(false);
+    expect(isPlausibleIso("")).toBe(false);
+    expect(isPlausibleIso("not a date")).toBe(false);
+  });
+
+  it("bounds the native date-and-time boxes to the same window", () => {
+    expect(MIN_DATETIME).toBe("1900-01-01T00:00");
+    expect(MAX_DATETIME).toBe("2100-12-31T23:59");
+    expect(isPlausibleIso(MIN_DATETIME)).toBe(true);
+    expect(isPlausibleIso(MAX_DATETIME)).toBe(true);
   });
 });

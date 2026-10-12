@@ -115,4 +115,44 @@ describe("TimePicker12h", () => {
 
     expect(document.activeElement).toBe(hour);
   });
+
+  it("replaces the hour with the first digit typed, so 1 stays 1", () => {
+    // The clinic typed 1 on the way to 12 and the caret left for the minutes:
+    // the digit had been added to the 1 already there, making 11 - a finished
+    // hour. The first digit after arriving in the box replaces it.
+    const onChange = vi.fn();
+    render(<TimePicker12h value="01:02" onChange={onChange} />);
+    const hour = screen.getByLabelText("Hour") as HTMLInputElement;
+    const minute = screen.getByLabelText("Minute");
+
+    fireEvent.focus(hour);
+    fireEvent.keyDown(hour, { key: "1" });
+
+    expect(hour.value).toBe("1");
+    expect(document.activeElement).not.toBe(minute);
+  });
+
+  it("takes the second digit as the rest of the hour, and then moves on", () => {
+    const onChange = vi.fn();
+    render(<TimePicker12h value="01:02" onChange={onChange} />);
+    const hour = screen.getByLabelText("Hour") as HTMLInputElement;
+    const minute = screen.getByLabelText("Minute");
+
+    fireEvent.focus(hour);
+    fireEvent.keyDown(hour, { key: "1" });
+    fireEvent.change(hour, { target: { value: "12" } });
+
+    expect(onChange).toHaveBeenCalledWith("00:02");
+    expect(document.activeElement).toBe(minute);
+  });
+
+  it("replaces the minutes with the first digit typed there too", () => {
+    render(<TimePicker12h value="01:02" onChange={() => {}} />);
+    const minute = screen.getByLabelText("Minute") as HTMLInputElement;
+
+    fireEvent.focus(minute);
+    fireEvent.keyDown(minute, { key: "3" });
+
+    expect(minute.value).toBe("3");
+  });
 });

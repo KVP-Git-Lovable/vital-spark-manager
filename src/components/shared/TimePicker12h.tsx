@@ -73,6 +73,14 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
   // timeSegments.ts - this component only carries the focus and the drafts.
   const minuteRef = useRef<HTMLInputElement>(null);
   const hourRef = useRef<HTMLInputElement>(null);
+  // The first digit typed after arriving in a box replaces what is there,
+  // rather than being added to it. Selecting the text on focus was meant to
+  // do that, but a click puts the caret back on mouse-up and the selection is
+  // gone - so a 1 typed into an hour already reading 1 made 11, which is a
+  // finished hour, and the caret left for the minutes while the doctor was
+  // still typing 12. This does not depend on the selection surviving.
+  const hourFresh = useRef(false);
+  const minuteFresh = useRef(false);
 
   /** What the other box is showing right now, as digits. */
   const shownHour = hourDraft ?? (isSet ? String(hour12) : "");
@@ -141,14 +149,20 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
         placeholder="--"
         disabled={disabled}
         onChange={(e) => onHourInput(e.target.value)}
-        onFocus={(e) => e.currentTarget.select()}
-        // The focus handler selects the digits so typing replaces them, but a
-        // click puts the caret back on mouse-up and throws that selection
-        // away - so typing 1 into an hour already reading 1 made 11, and the
-        // caret jumped to the minutes while the doctor was still typing 12.
-        // Keeping the selection through the click is what makes a typed digit
-        // replace rather than append.
+        onFocus={(e) => {
+          hourFresh.current = true;
+          e.currentTarget.select();
+        }}
         onMouseUp={(e) => e.preventDefault()}
+        onKeyDown={(e) => {
+          if (/^\d$/.test(e.key) && hourFresh.current) {
+            e.preventDefault();
+            hourFresh.current = false;
+            onHourInput(e.key);
+            return;
+          }
+          hourFresh.current = false;
+        }}
         onBlur={() => {
           if (hourDraft && hourDraft !== "") {
             const clamped = clampHour(Number(hourDraft));
@@ -171,22 +185,27 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
         placeholder="--"
         disabled={disabled}
         onChange={(e) => onMinuteInput(e.target.value)}
-        onFocus={(e) => e.currentTarget.select()}
-        // The focus handler selects the digits so typing replaces them, but a
-        // click puts the caret back on mouse-up and throws that selection
-        // away - so typing 1 into an hour already reading 1 made 11, and the
-        // caret jumped to the minutes while the doctor was still typing 12.
-        // Keeping the selection through the click is what makes a typed digit
-        // replace rather than append.
+        onFocus={(e) => {
+          minuteFresh.current = true;
+          e.currentTarget.select();
+        }}
         onMouseUp={(e) => e.preventDefault()}
-        // Backspace in an empty minute box steps back to the hour, the way a
-        // field made of segments is expected to behave.
         onKeyDown={(e) => {
+          // Backspace in an empty minute box steps back to the hour, the way
+          // a field made of segments is expected to behave.
           if (e.key === "Backspace" && shownMinute === "") {
             e.preventDefault();
             hourRef.current?.focus();
             hourRef.current?.select();
+            return;
           }
+          if (/^\d$/.test(e.key) && minuteFresh.current) {
+            e.preventDefault();
+            minuteFresh.current = false;
+            onMinuteInput(e.key);
+            return;
+          }
+          minuteFresh.current = false;
         }}
         onBlur={() => {
           if (minuteDraft && minuteDraft !== "") {

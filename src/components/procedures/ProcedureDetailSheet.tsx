@@ -589,9 +589,28 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       { key: `svc-${Date.now()}-${prev.length}`, service_id: null, service_name: "", procedure_notes: "", recommendations: "", material_percent: "", price: 0 },
     ]);
   const removeLine = (key: string) =>
-    setEditServiceLines((prev) =>
-      prev.map((l) => (l.key === key ? { ...l, _deleted: true } : l)).filter((l) => l.id || !l._deleted),
-    );
+    setEditServiceLines((prev) => {
+      // A stored row is marked for deletion rather than dropped, so the save
+      // knows to delete it; one that was never stored simply goes.
+      const next = prev
+        .map((l) => (l.key === key ? { ...l, _deleted: true } : l))
+        .filter((l) => l.id || !l._deleted);
+      // Removing the only service leaves a blank line in its place rather
+      // than an empty section, so the right one can be picked straight away.
+      // The removed row is still in the list, marked, and is deleted on save.
+      if (!next.some((l) => !l._deleted)) {
+        next.push({
+          key: `svc-${Date.now()}`,
+          service_id: null,
+          service_name: "",
+          procedure_notes: "",
+          recommendations: "",
+          material_percent: "",
+          price: 0,
+        });
+      }
+      return next;
+    });
   const visibleLines = editServiceLines.filter((l) => !l._deleted);
   // A consultation is not a service (see consultationLine.ts), so it is not
   // listed as one - but it is where much of what the doctor wrote lives, so
@@ -1230,11 +1249,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     <div key={line.key} className="rounded-lg border bg-background p-3 space-y-2 shadow-sm transition-shadow hover:shadow-md">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-medium text-muted-foreground">Service {i + 1}</span>
-                        {serviceLines.length > 1 && (
-                          <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeLine(line.key)}>
-                            Remove
-                          </Button>
-                        )}
+                        {/* Offered on the first service too, as on the
+                            prescription form: a service entered by mistake
+                            should not have to be typed over. */}
+                        <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeLine(line.key)}>
+                          Remove
+                        </Button>
                       </div>
                       <ServicePicker
                         services={servicesMaster as ServiceOption[]}

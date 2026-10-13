@@ -592,7 +592,6 @@ export function ProcedureFormDialog({
 
   const removeServiceLine = (key: string) =>
     setServiceLines((prev) => {
-      if (prev.length === 1) return prev;
       // Drop the removed line's flag with it, so a later line reusing nothing
       // of its identity cannot inherit an open menu.
       setServiceMenuOpen((m) => {
@@ -600,6 +599,10 @@ export function ProcedureFormDialog({
         delete next[key];
         return next;
       });
+      // Removing the only service empties it rather than leaving the section
+      // with nothing in it: the form is back to how it opens, with one blank
+      // line ready for the right service.
+      if (prev.length === 1) return [blankServiceLine(`svc-${Date.now()}`)];
       return prev.filter((l) => l.key !== key);
     });
 
@@ -1233,11 +1236,12 @@ export function ProcedureFormDialog({
               <div key={line.key} className="rounded-lg border bg-background p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Service {i + 1}</span>
-                  {serviceLines.length > 1 && (
-                    <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeServiceLine(line.key)}>
-                      Remove
-                    </Button>
-                  )}
+                  {/* Offered on the first service too. A service picked by
+                      mistake had to be typed over, because Remove only
+                      appeared once a second service existed. */}
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => removeServiceLine(line.key)}>
+                    Remove
+                  </Button>
                 </div>
                 <ServicePicker
                   services={services as ServiceOption[]}

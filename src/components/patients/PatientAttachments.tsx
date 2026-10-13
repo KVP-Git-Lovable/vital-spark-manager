@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CameraDialog } from "@/components/shared/CameraDialog";
 import { displayDate } from "@/lib/dateInput";
 import { attachmentStoragePath } from "@/lib/attachmentPath";
+import { attachmentKind } from "@/lib/attachmentPreview";
 import { uploadFailureMessage, uploadSuccessMessage, type FailedUpload } from "@/lib/uploadSummary";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -77,6 +78,9 @@ export function PatientAttachments({
   const [docTypeDialogOpen, setDocTypeDialogOpen] = useState(false);
   const [selectedDocType, setSelectedDocType] = useState<string>("Prescription");
   const [viewing, setViewing] = useState<PatientAttachment | null>(null);
+  // A file that has moved in storage must show its icon rather than a broken
+  // image, the same way the photo grid handles one.
+  const [failedThumbnails, setFailedThumbnails] = useState<Set<string>>(new Set());
 
   const { data: attachments = [], refetch } = useQuery({
     queryKey: ["patient-attachments", patientId],
@@ -219,15 +223,55 @@ export function PatientAttachments({
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {filtered.map((att) => (
-              <div key={att.id} className="stat-card p-3 md:p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0">
+          // The same grid as the Photos tab beside it. These files are mostly
+          // photographs of consent forms and lab reports, and listing them
+          // behind one grey icon meant opening each in turn to find the one
+          // being looked for.
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+            {filtered.map((att) => {
+              const kind = attachmentKind(att.file_name, att.file_url);
+              const showImage = kind === "image" && !!att.file_url && !failedThumbnails.has(att.id);
+              return (
+              <div key={att.id} className="stat-card p-0 overflow-hidden">
+                <div className="relative">
+                  {/* A button, not a clickable panel: opening the file is an
+                      action, so it is reachable from the keyboard. It opens
+                      the same viewer the View button always did. */}
+                  <button
+                    type="button"
+                    onClick={() => setViewing(att)}
+                    aria-label={`View ${att.file_name || "attachment"}`}
+                    className="block w-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {showImage ? (
+                      <img
+                        src={att.file_url as string}
+                        alt=""
+                        loading="lazy"
+                        className="w-full h-32 md:h-40 object-cover transition-transform duration-200 hover:scale-[1.03]"
+                        onError={() => setFailedThumbnails((prev) => new Set(prev).add(att.id))}
+                      />
+                    ) : (
+                      <div className="w-full h-32 md:h-40 flex flex-col items-center justify-center gap-1 bg-muted text-muted-foreground">
+                        <FileText className="h-6 w-6" />
+                        <span className="text-[10px] uppercase tracking-wide">
+                          {kind === "pdf" ? "PDF" : "File"}
+                        </span>
+                      </div>
+                    )}
+                  </button>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 h-7 w-7 opacity-90"
+                    aria-label={`Delete ${att.file_name || "attachment"}`}
+                    onClick={(e) => { e.stopPropagation(); deleteAttachment(att); }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <div className="p-2 md:p-3">
+                  <div className="min-w-0">
                       <p className="font-medium text-sm truncate">{att.file_name}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         {att.document_type && (
@@ -254,25 +298,12 @@ export function PatientAttachments({
                             still recorded - this is the label, not the link. */}
                         <span className="text-xs text-muted-foreground">{displayDate(att.created_at)}</span>
                       </div>
-                      {att.notes && <p className="text-xs text-muted-foreground mt-1">{att.notes}</p>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setViewing(att)}>
-                      View
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => deleteAttachment(att)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                      {att.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{att.notes}</p>}
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </motion.div>
@@ -347,9 +378,11 @@ export function PatientAttachments({
           {viewing && (() => {
             const url: string = viewing.file_url || "";
             const name: string = viewing.file_name || url;
-            const lower = name.toLowerCase();
-            const isImage = /\.(jpe?g|png|gif|webp|bmp|heic|heif|svg)$/i.test(lower) || /\.(jpe?g|png|gif|webp|bmp)$/i.test(url.split("?")[0]);
-            const isPdf = /\.pdf$/i.test(lower) || /\.pdf(\?|$)/i.test(url);
+            // The same rule as the thumbnails, so the tile and the dialog
+            // cannot disagree about what a file is.
+            const kind = attachmentKind(viewing.file_name, url);
+            const isImage = kind === "image";
+            const isPdf = kind === "pdf";
             return (
               <div className="space-y-3">
                 <div className="bg-muted/40 rounded-lg overflow-hidden flex items-center justify-center" style={{ minHeight: 400 }}>

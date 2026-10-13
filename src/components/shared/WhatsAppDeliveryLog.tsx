@@ -44,9 +44,14 @@ export function WhatsAppDeliveryLog({ patientId }: { patientId?: string }) {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["whatsapp-delivery-log", patientId ?? "all", filter],
     queryFn: async () => {
+      // The sync now records everything the clinic sends (tagged `kind`) so the
+      // Conversations tab can show it. This card is only about appointment
+      // confirmations - without the filter, bot replies and invoices bury the
+      // confirmations that actually failed to arrive.
       let q = supabase
         .from("whatsapp_delivery_log")
         .select("message_sid, patient_id, phone, status, error_code, error_message, sent_at, patients(first_name, last_name)")
+        .eq("kind", "confirmation")
         .order("sent_at", { ascending: false })
         .limit(patientId ? 100 : 300);
       if (patientId) q = q.eq("patient_id", patientId);

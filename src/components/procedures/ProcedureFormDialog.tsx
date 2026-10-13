@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { MAX_DATETIME, MIN_DATETIME, displayDate, isPlausibleIso } from "@/lib/dateInput";
 import { dedupeByName } from "@/lib/serviceLineSave";
+import { reservedVisits } from "@/lib/reservedVisits";
 import { numVal } from "@/lib/numberInput";
 import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote, Stethoscope } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -147,7 +148,18 @@ export function ProcedureFormDialog({
    * investigation. Typed here it wins over that fallback, because a recorded
    * answer beats a guess.
    */
-  const [followUpInvestigation, setFollowUpInvestigation] = useState("");
+  // One investigation per reserved visit, indexed like recurringDates. A
+  // course's visits are not the same investigation - the second session and
+  // the review that follows it read differently on the appointment, in the
+  // Investigation column and in the patient's reminder.
+  const [followUpInvestigations, setFollowUpInvestigations] = useState<string[]>(["", ""]);
+  const setInvestigationAt = (index: number, text: string) =>
+    setFollowUpInvestigations((prev) => {
+      const next = [...prev];
+      while (next.length <= index) next.push("");
+      next[index] = text;
+      return next;
+    });
   const [prescriptions, setPrescriptions] = useState<PrescriptionInput[]>([]);
   const [stockMap, setStockMap] = useState<Record<string, StockInfo>>({});
   const [procedureAssets, setProcedureAssets] = useState<AssetInput[]>([]);
@@ -836,14 +848,15 @@ export function ProcedureFormDialog({
         if (medErr) throw medErr;
       }
 
-      // Follow-up appointment(s) picked by the doctor
-      const followUpDates =
+      // Follow-up appointment(s) picked by the doctor, each with the
+      // investigation written beside its own date - see reservedVisits for why
+      // the pairing happens before the undated visits are dropped.
+      const followUps =
         visitType === "Recurring"
-          ? recurringDates.filter(Boolean)
-          : nextAppointmentAt
-            ? [nextAppointmentAt]
-            : [];
-      if (followUpDates.length > 0 && patientId) {
+          ? reservedVisits(recurringDates, followUpInvestigations)
+          : reservedVisits([nextAppointmentAt], followUpInvestigations);
+      const followUpDates = followUps.map((v) => v.date);
+      if (followUps.length > 0 && patientId) {
         // A browser's min/max only discourages a bad year, it does not stop
         // one reaching here - which is how an appointment came to be reserved
         // in February of the year 268.
@@ -852,7 +865,7 @@ export function ProcedureFormDialog({
           throw new Error("Check the follow-up date - that year looks wrong.");
         }
         const p = (patients as any[]).find((x) => x.id === patientId);
-        const rows = followUpDates.map((d) => {
+        const rows = followUps.map(({ date: d, investigation }) => {
           const start = new Date(d);
           const end = new Date(start.getTime() + 30 * 60 * 1000);
           return {
@@ -867,7 +880,7 @@ export function ProcedureFormDialog({
             // Investigation column treats an empty value as "nothing recorded"
             // and falls through to the service, which is the behaviour this
             // field exists to let the doctor override, not to fake.
-            reason_for_consultation: followUpInvestigation.trim() || null,
+            reason_for_consultation: investigation || null,
             visit_status: visitType === "Recurring" ? "Recurring visit" : "Follow-up visit",
             problem_area_ids: selectedProblemAreas.length ? selectedProblemAreas : null,
             source: "Procedure",
@@ -977,6 +990,13 @@ export function ProcedureFormDialog({
     const c = Math.max(1, Math.min(24, n || 1));
     setRecurringCount(c);
     setRecurringDates((prev) => {
+      const next = [...prev];
+      while (next.length < c) next.push("");
+      return next.slice(0, c);
+    });
+    // The investigations are indexed by visit, so they grow and shrink with
+    // the dates or the two fall out of step.
+    setFollowUpInvestigations((prev) => {
       const next = [...prev];
       while (next.length < c) next.push("");
       return next.slice(0, c);
@@ -1522,7 +1542,7 @@ export function ProcedureFormDialog({
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {Array.from({ length: recurringCount }).map((_, i) => (
-                    <div key={i}>
+                    <div key={i} className="rounded-lg border bg-background/60 p-3">
                       <Label className="text-xs text-muted-foreground">Visit # {i + 1}</Label>
                       <Input
                         type="datetime-local"
@@ -1536,30 +1556,44 @@ export function ProcedureFormDialog({
                         }}
                         className="mt-1 bg-background"
                       />
+                      {/* This visit's own investigation. A course is not one
+                          investigation repeated - the third session and the
+                          review that follows it read differently on the
+                          appointment and in the patient's reminder. */}
+                      <Label className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Stethoscope className="h-3.5 w-3.5" /> Investigation
+                      </Label>
+                      <Textarea
+                        value={followUpInvestigations[i] || ""}
+                        onChange={(e) => setInvestigationAt(i, e.target.value)}
+                        placeholder="e.g. 3rd of 6 laser toning sessions"
+                        rows={2}
+                        className="mt-1 bg-background"
+                      />
                     </div>
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Each date creates a <span className="font-medium">Reserved</span> appointment. Dates left blank can be added later during billing.
+                  Left blank, an investigation shows this procedure&apos;s services instead.
                 </p>
               </div>
             )}
 
-            {/* One investigation for the visits being reserved, whether that is
-                a single follow-up or a whole recurring course. Outside the
-                branch above so both get it and the two cannot drift. */}
-            {(visitType === "Recurring" || nextAppointmentAt) && (
+            {/* A single follow-up is one visit, so it keeps one box. A
+                recurring course has one beside each of its dates above. */}
+            {visitType === "Single" && nextAppointmentAt && (
               <div>
                 <Label className="flex items-center gap-2 text-sm">
-                  <Stethoscope className="h-4 w-4" /> Investigation for {visitType === "Recurring" ? "these visits" : "this visit"}
+                  <Stethoscope className="h-4 w-4" /> Investigation for this visit
                 </Label>
                 <p className="text-xs text-muted-foreground mt-1">
-                  What the {visitType === "Recurring" ? "reserved visits are" : "visit is"} for. Left blank, the
-                  appointment shows this procedure&apos;s services instead.
+                  What the visit is for. Left blank, the appointment shows this
+                  procedure&apos;s services instead.
                 </p>
                 <Textarea
-                  value={followUpInvestigation}
-                  onChange={(e) => setFollowUpInvestigation(e.target.value)}
+                  value={followUpInvestigations[0] || ""}
+                  onChange={(e) => setInvestigationAt(0, e.target.value)}
                   placeholder="e.g. 3rd of 6 laser toning sessions, review pigmentation"
                   rows={2}
                   className="mt-2 bg-background"

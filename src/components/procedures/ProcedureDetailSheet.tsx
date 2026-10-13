@@ -52,6 +52,7 @@ import { ServicePicker } from "@/components/procedures/ServicePicker";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { type ServiceOption } from "@/lib/servicePicker";
 import { MEDICAL_FIELDS, SKIN_TYPE_OPTIONS } from "@/lib/medicalFields";
+import { capitaliseFirstWord } from "@/lib/sentenceCase";
 import { partitionVisitMedia } from "@/lib/visitMedia";
 import { parsePrescriptionText } from "@/lib/prescriptionText";
 import type { Tables } from "@/integrations/supabase/types";
@@ -1274,7 +1275,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                             </Button>
                           </div>
                         </div>
-                        <Textarea value={line.procedure_notes} onChange={(e) => updateLine(line.key, { procedure_notes: e.target.value })} className="mt-1" rows={3} />
+                        <Textarea value={line.procedure_notes} onChange={(e) => updateLine(line.key, { procedure_notes: capitaliseFirstWord(e.target.value) })} className="mt-1" rows={3} />
                       </div>
                       <div>
                         <div className="flex items-center justify-between">
@@ -1286,7 +1287,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                             </Button>
                           </div>
                         </div>
-                        <Textarea value={line.recommendations} onChange={(e) => updateLine(line.key, { recommendations: e.target.value })} className="mt-1" rows={3} />
+                        <Textarea value={line.recommendations} onChange={(e) => updateLine(line.key, { recommendations: capitaliseFirstWord(e.target.value) })} className="mt-1" rows={3} />
                       </div>
                     </div>
                   ))}
@@ -1318,7 +1319,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                               </Button>
                             </div>
                           </div>
-                          <Textarea value={line.procedure_notes} onChange={(e) => updateLine(line.key, { procedure_notes: e.target.value })} className="mt-1" rows={3} />
+                          <Textarea value={line.procedure_notes} onChange={(e) => updateLine(line.key, { procedure_notes: capitaliseFirstWord(e.target.value) })} className="mt-1" rows={3} />
                         </div>
                         <div>
                           <div className="flex items-center justify-between">
@@ -1330,7 +1331,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                               </Button>
                             </div>
                           </div>
-                          <Textarea value={line.recommendations} onChange={(e) => updateLine(line.key, { recommendations: e.target.value })} className="mt-1" rows={3} />
+                          <Textarea value={line.recommendations} onChange={(e) => updateLine(line.key, { recommendations: capitaliseFirstWord(e.target.value) })} className="mt-1" rows={3} />
                         </div>
                       </div>
                     ))}
@@ -1708,7 +1709,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                                   rows={3}
                                   className="mt-1 text-sm"
                                   value={medical[field] || ""}
-                                  onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
+                                  // Capitalised as typed, past the terms the
+                                  // clinic writes in lower case - the same
+                                  // rule as the prescription form.
+                                  onChange={(e) => { setMedical((m) => ({ ...m, [field]: capitaliseFirstWord(e.target.value) })); setMedicalDirty(true); }}
                                 />
                               )}
                             </div>

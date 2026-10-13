@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { MAX_DATETIME, MIN_DATETIME, displayDate, isPlausibleIso } from "@/lib/dateInput";
 import { dedupeByName } from "@/lib/serviceLineSave";
 import { reservedVisits } from "@/lib/reservedVisits";
+import { capitaliseFirstWord } from "@/lib/sentenceCase";
 import { numVal } from "@/lib/numberInput";
 import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote, Stethoscope } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -1055,7 +1056,11 @@ export function ProcedureFormDialog({
                   rows={3}
                   className={`mt-1 text-sm transition-all ${recentlyFilled[field] ? "ring-2 ring-primary/40" : ""} ${elaboratingMedical ? "opacity-60" : ""}`}
                   value={medical[field] || ""}
-                  onChange={(e) => { setMedical((m) => ({ ...m, [field]: e.target.value })); setMedicalDirty(true); }}
+                  // The first letter is capitalised as it is typed, unless the
+                  // word is one the clinic writes in lower case - see
+                  // sentenceCase.ts. Dictation and AI Elaborate set these
+                  // fields by their own paths and are untouched.
+                  onChange={(e) => { setMedical((m) => ({ ...m, [field]: capitaliseFirstWord(e.target.value) })); setMedicalDirty(true); }}
                 />
               </>
             )}
@@ -1268,7 +1273,7 @@ export function ProcedureFormDialog({
                     className={`mt-1 transition-all ${recentlyFilled.procedure_notes ? "ring-2 ring-primary/40" : ""} ${elaboratingAll ? "opacity-60" : ""}`}
                     placeholder="Details of the procedure performed..."
                     value={line.procedure_notes}
-                    onChange={(e) => updateServiceLine(line.key, { procedure_notes: e.target.value })}
+                    onChange={(e) => updateServiceLine(line.key, { procedure_notes: capitaliseFirstWord(e.target.value) })}
                   />
                 </div>
                 <div>
@@ -1287,7 +1292,7 @@ export function ProcedureFormDialog({
                     className={`mt-1 transition-all ${recentlyFilled.recommendations ? "ring-2 ring-primary/40" : ""} ${elaboratingAll ? "opacity-60" : ""}`}
                     placeholder="Post-procedure recommendations..."
                     value={line.recommendations}
-                    onChange={(e) => updateServiceLine(line.key, { recommendations: e.target.value })}
+                    onChange={(e) => updateServiceLine(line.key, { recommendations: capitaliseFirstWord(e.target.value) })}
                   />
                 </div>
               </div>
@@ -1394,7 +1399,7 @@ export function ProcedureFormDialog({
                     <div>
                       <label className="text-xs font-medium text-muted-foreground mb-1 block">Frequency</label>
                       <div className="relative">
-                        <Input placeholder="e.g. Twice a day" value={rx.frequency} onChange={(e) => updatePrescription(rx.key, "frequency", e.target.value)} className="pr-9" />
+                        <Input placeholder="e.g. Twice a day" value={rx.frequency} onChange={(e) => updatePrescription(rx.key, "frequency", capitaliseFirstWord(e.target.value))} className="pr-9" />
                         <div className="absolute right-1 top-1/2 -translate-y-1/2">
                           <MicButton value={rx.frequency} onChange={(v) => updatePrescription(rx.key, "frequency", v)} mode="replace" />
                         </div>
@@ -1403,7 +1408,7 @@ export function ProcedureFormDialog({
                     <div>
                       <label className="text-xs font-medium text-muted-foreground mb-1 block">Duration</label>
                       <div className="relative">
-                        <Input placeholder="e.g. 7 days" value={rx.duration} onChange={(e) => updatePrescription(rx.key, "duration", e.target.value)} className="pr-9" />
+                        <Input placeholder="e.g. 7 days" value={rx.duration} onChange={(e) => updatePrescription(rx.key, "duration", capitaliseFirstWord(e.target.value))} className="pr-9" />
                         <div className="absolute right-1 top-1/2 -translate-y-1/2">
                           <MicButton value={rx.duration} onChange={(v) => updatePrescription(rx.key, "duration", v)} mode="replace" />
                         </div>
@@ -1417,7 +1422,7 @@ export function ProcedureFormDialog({
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Special Instructions</label>
                     <div className="relative">
-                      <Input placeholder="e.g. Apply after cleansing" value={rx.instructions} onChange={(e) => updatePrescription(rx.key, "instructions", e.target.value)} className="pr-9" />
+                      <Input placeholder="e.g. Apply after cleansing" value={rx.instructions} onChange={(e) => updatePrescription(rx.key, "instructions", capitaliseFirstWord(e.target.value))} className="pr-9" />
                       <div className="absolute right-1 top-1/2 -translate-y-1/2">
                         <MicButton value={rx.instructions} onChange={(v) => updatePrescription(rx.key, "instructions", v)} />
                       </div>

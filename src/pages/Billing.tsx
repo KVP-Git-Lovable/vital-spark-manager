@@ -3579,6 +3579,9 @@ const Billing = () => {
                   onChange={(charts) => saveCharts(activeView.id, charts)}
                   onClose={() => setViewChartsOpen(false)}
                   fields={BILLING_VIEW_FIELDS}
+                  // A chart grouped by a picklist shows the names behind the
+                  // ids the column stores - the doctor field holds a staff id.
+                  optionsFor={viewOptionsFor}
                   itemLabel="Invoices"
                   defaultGroupField="status"
                 />

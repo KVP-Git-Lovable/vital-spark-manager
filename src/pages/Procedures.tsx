@@ -288,6 +288,9 @@ const Procedures = () => {
                   onChange={(charts) => saveCharts(activeView.id, charts)}
                   onClose={() => setViewChartsOpen(false)}
                   fields={PROCEDURE_VIEW_FIELDS}
+                  // A chart grouped by a picklist shows the names behind the
+                  // ids the column stores - the doctor field holds a staff id.
+                  optionsFor={viewOptionsFor}
                   itemLabel="Procedures"
                   defaultGroupField="status"
                 />

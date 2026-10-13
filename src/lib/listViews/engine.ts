@@ -319,20 +319,36 @@ export function formatCell(row: any, key: string, fields: FieldDef[], rawValue: 
 }
 
 /** Group + aggregate rows for a saved view chart. */
+/** A picklist's choices, as the filter panel already resolves them. */
+export type ChartOptionsFn = (source?: string) => { value: string; label: string }[];
+
+/** What a group with no value is called. A dash says nothing to a reader. */
+export const NO_VALUE_LABEL = "Not recorded";
+
 export function computeChartData(
   rows: any[],
   chart: ViewChart,
   fields: FieldDef[],
   rawValue: RawValueFn = defaultRawValue,
+  optionsFor?: ChartOptionsFn,
 ): { name: string; value: number }[] {
+  const def = fieldDefIn(fields, chart.group_field);
+  // A picklist stores an id - the doctor field holds a staff id - so a chart
+  // grouped by it was labelled with rows of "e82d048f-9a27-4e5b-...". The
+  // choices the filter panel offers are the same list, so the label comes
+  // from there; a value with no choice keeps whatever is stored, which is
+  // what a text field holds anyway.
+  const labels = new Map<string, string>();
+  if (def?.type === "picklist" && optionsFor) {
+    for (const option of optionsFor(def.optionsSource)) labels.set(option.value, option.label);
+  }
   const buckets = new Map<string, number[]>();
   for (const row of rows) {
     const raw = rawValue(row, chart.group_field);
     let key: string;
-    const def = fieldDefIn(fields, chart.group_field);
-    if (raw === null || raw === undefined || raw === "") key = "—";
+    if (raw === null || raw === undefined || raw === "") key = NO_VALUE_LABEL;
     else if (def?.type === "date") key = new Date(String(raw)).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
-    else key = String(raw);
+    else key = labels.get(String(raw)) ?? String(raw);
     const metric =
       chart.aggregate === "count"
         ? 1

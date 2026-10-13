@@ -92,7 +92,7 @@ const Procedures = () => {
   // and the column layouts in the browser, so it stays. Only the label, which
   // the dropdown prints as "All Prescriptions", follows the module's name.
   const {
-    allViews, userId: viewsUserId, activeView, selectView, saveView, saveCharts, deleteView, pinDefault, updateStandardColumns,
+    allViews, userId: viewsUserId, activeView, selectView, saveView, saveCharts, deleteView, pinDefault, unpinDefault, updateStandardColumns,
   } = useModuleListViews("procedures", "Prescriptions", DEFAULT_PROCEDURE_VIEW_COLUMNS);
   const [viewEditorOpen, setViewEditorOpen] = useState(false);
   const [editingView, setEditingView] = useState<ListView | null>(null);
@@ -236,6 +236,7 @@ const Procedures = () => {
           onEdit={(v) => { setEditingView(v); setViewEditorOpen(true); }}
           onDelete={(v) => setDeleteViewTarget(v)}
           onPin={pinDefault}
+          onUnpin={unpinDefault}
           onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
           onFields={() => setViewFieldsOpen(true)}
           onRefresh={() => queryClient.invalidateQueries({ queryKey: ["procedures"] })}

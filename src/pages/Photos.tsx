@@ -57,7 +57,7 @@ const Photos = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
-    allViews, userId: viewsUserId, activeView, selectView, saveView, deleteView, pinDefault,
+    allViews, userId: viewsUserId, activeView, selectView, saveView, deleteView, pinDefault, unpinDefault,
   } = useModuleListViews("photos", "Photos", DEFAULT_PHOTO_VIEW_COLUMNS);
   const [viewEditorOpen, setViewEditorOpen] = useState(false);
   const [editingView, setEditingView] = useState<ListView | null>(null);
@@ -381,6 +381,7 @@ const Photos = () => {
           onEdit={(v) => { setEditingView(v); setViewEditorOpen(true); }}
           onDelete={(v) => setDeleteViewTarget(v)}
           onPin={pinDefault}
+          onUnpin={unpinDefault}
           onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
           onRefresh={() => queryClient.invalidateQueries({ queryKey: ["patient-photos"] })}
           display="cards"

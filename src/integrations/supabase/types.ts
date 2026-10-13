@@ -2129,6 +2129,27 @@ export type Database = {
         }
         Relationships: []
       }
+      list_view_defaults: {
+        Row: {
+          section: string
+          updated_at: string
+          user_id: string
+          view_id: string
+        }
+        Insert: {
+          section: string
+          updated_at?: string
+          user_id: string
+          view_id: string
+        }
+        Update: {
+          section?: string
+          updated_at?: string
+          user_id?: string
+          view_id?: string
+        }
+        Relationships: []
+      }
       list_views: {
         Row: {
           charts: Json

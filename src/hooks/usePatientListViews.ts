@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DEFAULT_VIEW_COLUMNS, type ListView } from "@/lib/patientFields";
-import { ALL_VIEW_ID, buildStandardViews, isStandardViewId, setStandardColumns } from "@/lib/standardViews";
-
-const STORAGE_KEY = "patients.activeListView";
+import { ALL_VIEW_ID, buildStandardViews, setStandardColumns } from "@/lib/standardViews";
+import { activeViewKey, pickActiveView } from "@/lib/listViews/pickActiveView";
+import { readRemembered, writeRemembered } from "@/lib/listViews/rememberedView";
 
 
 function normalize(row: any): ListView {
@@ -27,51 +27,60 @@ function normalize(row: any): ListView {
     sort_dir: row.sort_direction === "asc" ? "asc" : "desc",
     visibility: (row.visibility ?? "private") as ListView["visibility"],
     shared_user_ids: row.shared_with ?? [],
-    is_default: !!row.is_default,
+    // "Pinned by me", filled in from list_view_defaults below - not the
+    // list_views column, which sits on a row the whole clinic may share.
+    is_default: false,
     charts: Array.isArray(row.charts) ? row.charts : [],
   };
 }
 
 
 export function usePatientListViews(section = "patients", objectLabel = "Patients") {
+  // Was one key for the whole machine, so the front desk restored whatever the
+  // last person had been looking at - see pickActiveView.ts.
+  const storageKeyRef = useRef(activeViewKey(section));
+
   const [views, setViews] = useState<ListView[]>([]);
   const [standardViews, setStandardViews] = useState<ListView[]>(() => buildStandardViews(section, objectLabel));
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | undefined>();
+  const [pinnedViewId, setPinnedViewId] = useState<string | null>(null);
   const [activeViewId, setActiveViewId] = useState<string | null>(ALL_VIEW_ID);
   const [initialised, setInitialised] = useState(false);
 
   const load = useCallback(async () => {
     const { data: auth } = await supabase.auth.getUser();
-    setUserId(auth.user?.id);
-    const { data, error } = await supabase
-      .from("list_views")
-      .select("*")
-      .eq("section", section)
-      .order("created_at", { ascending: false });
-    if (error) {
-      toast.error(error.message);
+    const uid = auth.user?.id;
+    setUserId(uid);
+    storageKeyRef.current = activeViewKey(section, uid);
+
+    const [viewsResult, pinResult] = await Promise.all([
+      supabase.from("list_views").select("*").eq("section", section).order("created_at", { ascending: false }),
+      uid
+        ? supabase.from("list_view_defaults").select("view_id").eq("section", section).eq("user_id", uid).maybeSingle()
+        : Promise.resolve({ data: null, error: null } as const),
+    ]);
+
+    if (viewsResult.error) {
+      toast.error(viewsResult.error.message);
       setLoading(false);
-      return [] as ListView[];
+      return { list: [] as ListView[], pinned: null as string | null };
     }
-    const list = (data || []).map(normalize);
+    const list = (viewsResult.data || []).map(normalize);
+    const pinned = (pinResult.data as { view_id?: string } | null)?.view_id ?? null;
     setViews(list);
+    setPinnedViewId(pinned);
     setLoading(false);
-    return list;
+    return { list, pinned };
   }, [section]);
 
   useEffect(() => {
-    load().then((list) => {
+    load().then(({ list, pinned }) => {
       if (initialised) return;
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (isStandardViewId(stored)) {
-        setActiveViewId(stored);
-      } else if (stored && list.some((v) => v.id === stored)) {
-        setActiveViewId(stored);
-      } else {
-        const pinned = list.find((v) => v.is_default);
-        setActiveViewId(pinned ? pinned.id : ALL_VIEW_ID);
-      }
+      const stored = readRemembered(storageKeyRef.current);
+      const choice = pickActiveView({ stored, pinned, views: list });
+      if (choice.forget) writeRemembered(storageKeyRef.current, null);
+      setActiveViewId(choice.id);
       setInitialised(true);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,10 +89,14 @@ export function usePatientListViews(section = "patients", objectLabel = "Patient
   const selectView = useCallback((id: string | null) => {
     const next = id ?? ALL_VIEW_ID;
     setActiveViewId(next);
-    localStorage.setItem(STORAGE_KEY, next);
+    writeRemembered(storageKeyRef.current, next);
   }, []);
 
-  const allViews = useMemo(() => [...standardViews, ...views], [standardViews, views]);
+  // `is_default` means "pinned by me" - see useModuleListViews.ts.
+  const allViews = useMemo(
+    () => [...standardViews, ...views].map((v) => ({ ...v, is_default: v.id === pinnedViewId })),
+    [standardViews, views, pinnedViewId]
+  );
 
   const activeView = useMemo(
     () => allViews.find((v) => v.id === activeViewId) ?? allViews[0] ?? null,
@@ -120,7 +133,6 @@ export function usePatientListViews(section = "patients", objectLabel = "Patient
         visibility: payload.visibility ?? "private",
         shared_with: payload.visibility === "selected" ? payload.shared_user_ids ?? [] : [],
         is_shared: (payload.visibility ?? "private") !== "private",
-        is_default: payload.is_default ?? false,
         charts: (payload.charts ?? []) as any,
       };
 
@@ -135,7 +147,11 @@ export function usePatientListViews(section = "patients", objectLabel = "Patient
         await load();
         selectView(payload.id);
       } else {
-        const { data, error } = await supabase.from("list_views").insert(record).select("id").single();
+        const { data, error } = await supabase
+          .from("list_views")
+          .insert({ ...record, is_default: false })
+          .select("id")
+          .single();
         if (error) return toast.error(error.message);
         toast.success("View created");
         await load();
@@ -173,25 +189,38 @@ export function usePatientListViews(section = "patients", objectLabel = "Patient
   );
 
 
+  /** Any view this person can see, including a colleague's shared one. */
   const pinDefault = useCallback(
-    async (view: ListView | null) => {
+    async (view: ListView) => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
-      if (!uid) return;
-      await supabase.from("list_views").update({ is_default: false }).eq("section", section).eq("user_id", uid);
-      if (view && !view.is_standard && view.owner_id === uid) {
-        const { error } = await supabase.from("list_views").update({ is_default: true }).eq("id", view.id);
-        if (error) return toast.error(error.message);
-        toast.success(`"${view.name}" pinned as default`);
-      } else if (view && !view.is_standard) {
-        toast.error("You can only pin views you own");
-      } else {
-        toast.success(`"${view?.name ?? "All Patients"}" pinned as default`);
-      }
-      await load();
+      if (!uid) return toast.error("You must be signed in to pin a view");
+      const { error } = await supabase
+        .from("list_view_defaults")
+        .upsert({ user_id: uid, section, view_id: view.id, updated_at: new Date().toISOString() },
+          { onConflict: "user_id,section" });
+      if (error) return toast.error(error.message);
+      setPinnedViewId(view.id);
+      // Switching to the view it just pinned is the caller's job - on
+      // Appointments that also moves the quick-date chips. See ViewBar.tsx.
+      toast.success(`"${view.name}" pinned as default`);
     },
-    [section, load]
+    [section]
   );
+
+  const unpinDefault = useCallback(async () => {
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth.user?.id;
+    if (!uid) return;
+    const { error } = await supabase
+      .from("list_view_defaults")
+      .delete()
+      .eq("user_id", uid)
+      .eq("section", section);
+    if (error) return toast.error(error.message);
+    setPinnedViewId(null);
+    toast.success("Default view cleared");
+  }, [section]);
 
   return {
     views,
@@ -203,12 +232,14 @@ export function usePatientListViews(section = "patients", objectLabel = "Patient
     userId,
     activeView,
     activeViewId,
+    pinnedViewId,
     selectView,
     saveView,
     saveCharts,
     deleteView,
 
     pinDefault,
+    unpinDefault,
     reload: load,
   };
 }

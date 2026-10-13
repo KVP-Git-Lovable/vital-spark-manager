@@ -2,40 +2,61 @@ import { describe, it, expect } from "vitest";
 import { activeViewKey, pickActiveView } from "./pickActiveView";
 import { ALL_VIEW_ID, RECENT_VIEW_ID } from "./standardViews";
 
-const ME = "user-punya";
-const views = [
-  { id: "v-mine", is_default: true, owner_id: ME },
-  { id: "v-theirs", is_default: true, owner_id: "user-suyog" },
-  { id: "v-plain", is_default: false, owner_id: ME },
-];
+const views = [{ id: "v-shared" }, { id: "v-mine" }, { id: "v-plain" }];
 
 describe("pickActiveView", () => {
-  it("opens on the view that was last chosen", () => {
-    expect(pickActiveView({ stored: "v-plain", views, userId: ME })).toEqual({ id: "v-plain", forget: false });
+  it("opens on the view that was last chosen in this session", () => {
+    expect(pickActiveView({ stored: "v-plain", pinned: "v-mine", views })).toEqual({
+      id: "v-plain",
+      forget: false,
+    });
   });
 
   it("opens on this user's pinned view when nothing was chosen", () => {
-    expect(pickActiveView({ stored: null, views, userId: ME })).toEqual({ id: "v-mine", forget: false });
+    expect(pickActiveView({ stored: null, pinned: "v-mine", views })).toEqual({
+      id: "v-mine",
+      forget: false,
+    });
   });
 
-  it("never lands on somebody else's pinned view", () => {
-    // Two views are pinned and visible - one is a colleague's, shared with
-    // everyone. Only your own counts.
-    expect(pickActiveView({ stored: null, views, userId: "user-nobody" }).id).toBe(ALL_VIEW_ID);
+  it("honours a pin on a view somebody else owns and shared", () => {
+    // The clinic's landing view was created by one person for all of them.
+    // Pinning it must work for everyone who can see it.
+    expect(pickActiveView({ stored: null, pinned: "v-shared", views }).id).toBe("v-shared");
   });
 
-  it("forgets a remembered view this user can no longer see", () => {
+  it("honours a pin on a standard view, which has no row of its own", () => {
+    expect(pickActiveView({ stored: null, pinned: RECENT_VIEW_ID, views }).id).toBe(RECENT_VIEW_ID);
+  });
+
+  it("falls back to All when the pinned view has been deleted", () => {
+    expect(pickActiveView({ stored: null, pinned: "v-gone", views })).toEqual({
+      id: ALL_VIEW_ID,
+      forget: false,
+    });
+  });
+
+  it("forgets a remembered view this user can no longer see, and uses the pin", () => {
     // A private view belonging to whoever used the machine last.
-    expect(pickActiveView({ stored: "v-gone", views, userId: ME })).toEqual({ id: "v-mine", forget: true });
+    expect(pickActiveView({ stored: "v-gone", pinned: "v-mine", views })).toEqual({
+      id: "v-mine",
+      forget: true,
+    });
   });
 
   it("keeps a standard view without needing it in the list", () => {
-    expect(pickActiveView({ stored: ALL_VIEW_ID, views, userId: ME })).toEqual({ id: ALL_VIEW_ID, forget: false });
-    expect(pickActiveView({ stored: RECENT_VIEW_ID, views, userId: ME }).id).toBe(RECENT_VIEW_ID);
+    expect(pickActiveView({ stored: ALL_VIEW_ID, pinned: "v-mine", views })).toEqual({
+      id: ALL_VIEW_ID,
+      forget: false,
+    });
+    expect(pickActiveView({ stored: RECENT_VIEW_ID, views }).id).toBe(RECENT_VIEW_ID);
   });
 
   it("falls back to All when there is nothing to go on", () => {
-    expect(pickActiveView({ stored: null, views: [], userId: ME })).toEqual({ id: ALL_VIEW_ID, forget: false });
+    expect(pickActiveView({ stored: null, pinned: null, views: [] })).toEqual({
+      id: ALL_VIEW_ID,
+      forget: false,
+    });
   });
 });
 

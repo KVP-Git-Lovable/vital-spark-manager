@@ -119,6 +119,7 @@ const Patients = () => {
     saveCharts,
     deleteView,
     pinDefault,
+    unpinDefault,
     updateStandardColumns,
   } = usePatientListViews("patients", "Patients");
 
@@ -392,6 +393,7 @@ const Patients = () => {
           onEdit={openEditView}
           onDelete={(v) => setDeleteViewTarget(v)}
           onPin={pinDefault}
+          onUnpin={unpinDefault}
           onClone={cloneView}
           onFields={() => setFieldsOpen(true)}
           onRefresh={() => reloadPatients()}

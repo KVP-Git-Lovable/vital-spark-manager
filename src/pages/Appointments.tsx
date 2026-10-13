@@ -275,7 +275,7 @@ const Appointments = () => {
     saveView,
     saveCharts,
     deleteView,
-    pinDefault,
+    pinDefault, unpinDefault,
     updateStandardColumns,
     viewsReady,
   } = useModuleListViews("appointments", "Appointments", DEFAULT_APPOINTMENT_VIEW_COLUMNS);
@@ -2577,6 +2577,7 @@ const Appointments = () => {
             onEdit={(v) => { setEditingView(v); setViewEditorOpen(true); }}
             onDelete={(v) => setDeleteViewTarget(v)}
             onPin={pinDefault}
+            onUnpin={unpinDefault}
             onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
             onFields={() => setViewFieldsOpen(true)}
             onRefresh={() => queryClient.invalidateQueries({ queryKey: ["appointments"] })}

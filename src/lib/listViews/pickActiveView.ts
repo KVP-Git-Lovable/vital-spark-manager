@@ -1,31 +1,44 @@
 /**
  * Which list view a module opens on.
  *
- * Pinning and remembering were two mechanisms and the wrong one won. Pinning
- * wrote is_default to the database; opening the page read the last view
- * clicked, out of the browser, and consulted the pin only when that was
- * missing or no longer resolved. Since the pin button deliberately does not
- * select the row it pins, a pinned view lost to any earlier click on every
- * remount - and the page remounts on every tab change. Reported three times.
+ * Two mechanisms, and for a long time the wrong one won. Pinning wrote
+ * is_default to the database; opening the page read the last view clicked, out
+ * of the browser, and consulted the pin only when that was missing. Since the
+ * pin button deliberately does not select the row it pins, a pinned view lost
+ * to any earlier click on every remount - and the page remounts on every tab
+ * change.
  *
- * The rule itself was never wrong, so it is kept and stated here instead of
- * being buried in an effect: the last thing the person did wins. What changed
- * is that pinning now counts as something they did, so it is remembered too.
+ * Worse, is_default was a single column on a row that may be shared with the
+ * whole clinic, so it was never one person's answer: the front desk opened the
+ * menu, found a colleague's pinned view already flagged, and pressed the pin -
+ * which the UI read as "unpin" and which moved them to All Appointments. The
+ * pin now lives in list_view_defaults, one row per person per module, and
+ * `pinned` here is that person's own.
+ *
+ * The rule, stated once rather than buried in an effect:
+ *
+ *   1. what you were last looking at in this session, if it still resolves;
+ *   2. otherwise your pin, which is why opening the app fresh lands there;
+ *   3. otherwise All.
+ *
+ * Step 1 is remembered per session (sessionStorage), not for ever: moving
+ * between modules and reloading the tab keeps your place, while opening the
+ * app tomorrow starts from the pin. A pin that always lost to a click made
+ * weeks earlier was not a pin.
  */
 
 import { ALL_VIEW_ID, isStandardViewId } from "./standardViews";
 
 export interface PickableView {
   id: string;
-  is_default?: boolean;
-  owner_id?: string;
 }
 
 export interface PickActiveView {
-  /** The remembered id for this user on this browser, if any. */
+  /** The id remembered for this session on this browser, if any. */
   stored?: string | null;
+  /** This user's own pinned view id, from list_view_defaults. */
+  pinned?: string | null;
   views: PickableView[];
-  userId?: string;
 }
 
 export interface ActiveViewChoice {
@@ -34,9 +47,11 @@ export interface ActiveViewChoice {
   forget: boolean;
 }
 
-export function pickActiveView({ stored, views, userId }: PickActiveView): ActiveViewChoice {
-  if (isStandardViewId(stored)) return { id: stored as string, forget: false };
-  if (stored && views.some((v) => v.id === stored)) return { id: stored, forget: false };
+const resolves = (id: string | null | undefined, views: PickableView[]): boolean =>
+  isStandardViewId(id) || (!!id && views.some((v) => v.id === id));
+
+export function pickActiveView({ stored, pinned, views }: PickActiveView): ActiveViewChoice {
+  if (resolves(stored, views)) return { id: stored as string, forget: false };
 
   // A remembered id that no longer resolves is forgotten rather than kept for
   // ever. Clinic machines are shared, so it was often another user's private
@@ -44,10 +59,12 @@ export function pickActiveView({ stored, views, userId }: PickActiveView): Activ
   // silently on every load.
   const forget = Boolean(stored);
 
-  // Only this user's own pin. Searching every visible view made a colleague's
-  // pinned view - shared with everyone - quietly become your landing view.
-  const pinned = views.find((v) => v.is_default && v.owner_id === userId);
-  return { id: pinned ? pinned.id : ALL_VIEW_ID, forget };
+  // A pin may name a view somebody else owns and shared, which is the usual
+  // case here: the clinic's landing view was created by one person for all of
+  // them. It may also name a deleted view, and then there is nothing to go to.
+  if (resolves(pinned, views)) return { id: pinned as string, forget };
+
+  return { id: ALL_VIEW_ID, forget };
 }
 
 /**

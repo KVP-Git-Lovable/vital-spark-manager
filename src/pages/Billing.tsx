@@ -313,7 +313,7 @@ const Billing = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const {
-    allViews, userId: viewsUserId, activeView, selectView, saveView, saveCharts, deleteView, pinDefault, updateStandardColumns,
+    allViews, userId: viewsUserId, activeView, selectView, saveView, saveCharts, deleteView, pinDefault, unpinDefault, updateStandardColumns,
   } = useModuleListViews("billing", "Invoices", DEFAULT_BILLING_VIEW_COLUMNS);
   const [viewEditorOpen, setViewEditorOpen] = useState(false);
   const [editingView, setEditingView] = useState<ListView | null>(null);
@@ -3538,6 +3538,7 @@ const Billing = () => {
           onEdit={(v) => { setEditingView(v); setViewEditorOpen(true); }}
           onDelete={(v) => setDeleteViewTarget(v)}
           onPin={pinDefault}
+          onUnpin={unpinDefault}
           onClone={(v) => { setEditingView({ ...v, id: undefined as any, name: `${v.name} (Copy)`, is_default: false }); setViewEditorOpen(true); }}
           onFields={() => setViewFieldsOpen(true)}
           onRefresh={invalidateInvoices}

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import type { ListView } from "@/lib/listViews/engine";
 import { ALL_VIEW_ID, buildStandardViews, setStandardColumns } from "@/lib/listViews/standardViews";
 import { activeViewKey, pickActiveView } from "@/lib/listViews/pickActiveView";
+import { readRemembered, writeRemembered } from "@/lib/listViews/rememberedView";
 import { NOT_YOURS_MESSAGE } from "@/lib/rowAccess";
 
 function normalize(row: any, defaultColumns: string[]): ListView {
@@ -31,7 +32,11 @@ function normalize(row: any, defaultColumns: string[]): ListView {
     sort_dir: row.sort_direction === "asc" ? "asc" : "desc",
     visibility: (row.visibility ?? "private") as ListView["visibility"],
     shared_user_ids: row.shared_with ?? [],
-    is_default: !!row.is_default,
+    // Whether THIS person pinned it - filled in by `allViews` below from
+    // list_view_defaults. The list_views.is_default column it used to come
+    // from sits on a row the whole clinic may share, so it could never answer
+    // that question. See pickActiveView.ts.
+    is_default: false,
     charts: Array.isArray(row.charts) ? row.charts : [],
   };
 }
@@ -46,38 +51,46 @@ export function useModuleListViews(section: string, objectLabel: string, default
   const [standardViews, setStandardViews] = useState<ListView[]>(() => buildStandardViews(section, objectLabel, defaultColumns));
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | undefined>();
+  const [pinnedViewId, setPinnedViewId] = useState<string | null>(null);
   const [activeViewId, setActiveViewId] = useState<string | null>(ALL_VIEW_ID);
   const [initialised, setInitialised] = useState(false);
 
   const load = useCallback(async () => {
     const { data: auth } = await supabase.auth.getUser();
-    setUserId(auth.user?.id);
-    const { data, error } = await supabase
-      .from("list_views")
-      .select("*")
-      .eq("section", section)
-      .order("created_at", { ascending: false });
-    if (error) {
-      toast.error(error.message);
+    const uid = auth.user?.id;
+    setUserId(uid);
+    // Set before anything can be remembered, so a click in the first moments
+    // after load is not written under the key with no user in it.
+    storageKeyRef.current = activeViewKey(section, uid);
+
+    const [viewsResult, pinResult] = await Promise.all([
+      supabase.from("list_views").select("*").eq("section", section).order("created_at", { ascending: false }),
+      uid
+        ? supabase.from("list_view_defaults").select("view_id").eq("section", section).eq("user_id", uid).maybeSingle()
+        : Promise.resolve({ data: null, error: null } as const),
+    ]);
+
+    if (viewsResult.error) {
+      toast.error(viewsResult.error.message);
       setLoading(false);
-      return [] as ListView[];
+      return { list: [] as ListView[], pinned: null as string | null };
     }
-    const list = (data || []).map((row) => normalize(row, defaultColumns));
+    const list = (viewsResult.data || []).map((row) => normalize(row, defaultColumns));
+    // A missing pin is not a failure worth a toast - most people have none.
+    const pinned = (pinResult.data as { view_id?: string } | null)?.view_id ?? null;
     setViews(list);
+    setPinnedViewId(pinned);
     setLoading(false);
-    return list;
+    return { list, pinned };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
 
   useEffect(() => {
-    load().then(async (list) => {
+    load().then(({ list, pinned }) => {
       if (initialised) return;
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
-      storageKeyRef.current = activeViewKey(section, uid);
-      const stored = localStorage.getItem(storageKeyRef.current);
-      const choice = pickActiveView({ stored, views: list, userId: uid });
-      if (choice.forget) localStorage.removeItem(storageKeyRef.current);
+      const stored = readRemembered(storageKeyRef.current);
+      const choice = pickActiveView({ stored, pinned, views: list });
+      if (choice.forget) writeRemembered(storageKeyRef.current, null);
       setActiveViewId(choice.id);
       setInitialised(true);
     });
@@ -87,10 +100,17 @@ export function useModuleListViews(section: string, objectLabel: string, default
   const selectView = useCallback((id: string | null) => {
     const next = id ?? ALL_VIEW_ID;
     setActiveViewId(next);
-    localStorage.setItem(storageKeyRef.current, next);
+    writeRemembered(storageKeyRef.current, next);
   }, []);
 
-  const allViews = useMemo(() => [...standardViews, ...views], [standardViews, views]);
+  const allViews = useMemo(
+    // `is_default` means "pinned by me" everywhere it is read - the pin icon,
+    // its title, the gear menu. Drawn from list_views.is_default it showed a
+    // colleague's pin on a shared view as though it were yours, and pressing
+    // it was read as an unpin.
+    () => [...standardViews, ...views].map((v) => ({ ...v, is_default: v.id === pinnedViewId })),
+    [standardViews, views, pinnedViewId]
+  );
 
   const activeView = useMemo(
     () => allViews.find((v) => v.id === activeViewId) ?? allViews[0] ?? null,
@@ -114,6 +134,10 @@ export function useModuleListViews(section: string, objectLabel: string, default
         toast.error("You must be signed in to save a view");
         return;
       }
+      // No is_default here. It is nobody's preference any more (that lives in
+      // list_view_defaults), and the editor only ever passed back whatever it
+      // was given, so writing it would overwrite the historical value with the
+      // client's "pinned by me" meaning.
       const record = {
         name: payload.name,
         section,
@@ -126,7 +150,6 @@ export function useModuleListViews(section: string, objectLabel: string, default
         visibility: payload.visibility ?? "private",
         shared_with: payload.visibility === "selected" ? payload.shared_user_ids ?? [] : [],
         is_shared: (payload.visibility ?? "private") !== "private",
-        is_default: payload.is_default ?? false,
         charts: (payload.charts ?? []) as any,
       };
 
@@ -146,7 +169,11 @@ export function useModuleListViews(section: string, objectLabel: string, default
         await load();
         selectView(payload.id);
       } else {
-        const { data, error } = await supabase.from("list_views").insert(record).select("id").single();
+        const { data, error } = await supabase
+          .from("list_views")
+          .insert({ ...record, is_default: false })
+          .select("id")
+          .single();
         if (error) return toast.error(error.message);
         toast.success("View created");
         await load();
@@ -190,34 +217,53 @@ export function useModuleListViews(section: string, objectLabel: string, default
     [load, selectView]
   );
 
+  /**
+   * Pin a view as where this person lands when they open the app.
+   *
+   * Any view they can see, their colleagues' shared ones and the standard ones
+   * included - the clinic's landing view was created by one person for all of
+   * them, and refusing to pin it was the whole complaint. The pin is a row of
+   * their own, so it cannot disturb anybody else's.
+   */
   const pinDefault = useCallback(
-    async (view: ListView | null) => {
+    async (view: ListView) => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
-      if (!uid) return;
-      await supabase.from("list_views").update({ is_default: false }).eq("section", section).eq("user_id", uid);
-      if (view && !view.is_standard && view.owner_id === uid) {
-        const { error } = await supabase.from("list_views").update({ is_default: true }).eq("id", view.id);
-        if (error) return toast.error(error.message);
-        // Pinning is also a choice. Without this it wrote is_default and
-        // nothing else, so the next visit restored whatever was last clicked
-        // and the pin was ignored for ever - the fault this fixes.
-        selectView(view.id);
-        toast.success(`"${view.name}" pinned as default`);
-      } else if (view && !view.is_standard) {
-        // It already cleared the old default above, so say so rather than
-        // leaving them to find out.
-        toast.error("You can only pin a view you created. Your default has been cleared.");
-      } else {
-        // A standard view has no database row to flag, so the pin is the
-        // remembered choice and nothing else.
-        selectView(view ? view.id : ALL_VIEW_ID);
-        toast.success(`"${view?.name ?? `All ${objectLabel}`}" pinned as default`);
-      }
-      await load();
+      if (!uid) return toast.error("You must be signed in to pin a view");
+      const { error } = await supabase
+        .from("list_view_defaults")
+        .upsert({ user_id: uid, section, view_id: view.id, updated_at: new Date().toISOString() },
+          { onConflict: "user_id,section" });
+      if (error) return toast.error(error.message);
+      setPinnedViewId(view.id);
+      // Switching to the view it just pinned is the caller's job - on
+      // Appointments that also moves the quick-date chips. See ViewBar.tsx.
+      toast.success(`"${view.name}" pinned as default`);
     },
-    [section, load, objectLabel, selectView]
+    [section]
   );
+
+  /**
+   * Clear it. Separate from pinDefault because passing it null used to mean
+   * both "unpin" and "pin a standard view", and the branch that handled both
+   * announced `"All ${objectLabel}" pinned as default` for an unpin - and
+   * moved the page there.
+   */
+  const unpinDefault = useCallback(async () => {
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth.user?.id;
+    if (!uid) return;
+    const { error } = await supabase
+      .from("list_view_defaults")
+      .delete()
+      .eq("user_id", uid)
+      .eq("section", section);
+    if (error) return toast.error(error.message);
+    setPinnedViewId(null);
+    // Deliberately no selectView: unpinning says nothing about what you want
+    // to be looking at right now.
+    toast.success("Default view cleared");
+  }, [section]);
 
   return {
     views,
@@ -239,12 +285,14 @@ export function useModuleListViews(section: string, objectLabel: string, default
     userId,
     activeView,
     activeViewId,
+    pinnedViewId,
     selectView,
     saveView,
     saveCharts,
     deleteView,
 
     pinDefault,
+    unpinDefault,
     reload: load,
   };
 }

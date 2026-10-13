@@ -29,7 +29,11 @@ interface Props {
   onNew: () => void;
   onEdit: (v: ListView) => void;
   onDelete: (v: ListView) => void;
-  onPin: (v: ListView | null) => void;
+  /** Pin this view as where you land when you open the app. */
+  onPin: (v: ListView) => void;
+  /** Clear your pin. Separate from onPin(null), which used to mean both this
+      and "pin a standard view" - and announced the wrong one. */
+  onUnpin: () => void;
   onClone: (v: ListView) => void;
   /** Omit to hide "Select Fields to Display" - for pages with no meaningful column set (e.g. Photos' fixed card layout). */
   onFields?: () => void;
@@ -70,6 +74,7 @@ export default function ViewBar({
   onEdit,
   onDelete,
   onPin,
+  onUnpin,
   onClone,
   onFields,
   onRefresh,
@@ -88,6 +93,31 @@ export default function ViewBar({
   displayModes,
   showDisplaySwitcher = true,
 }: Props) {
+  // `is_default` means "pinned by me" (see useModuleListViews.ts), so the
+  // filled pin is only ever your own.
+  const pinButton = (v: ListView) => (
+    <button
+      type="button"
+      title={v.is_default ? "Unpin this view" : "Pin as default view"}
+      aria-label={v.is_default ? `Unpin ${v.name}` : `Pin ${v.name} as default view`}
+      className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-primary"
+      onClick={(e) => {
+        // Without both of these the click would also select the view.
+        e.preventDefault();
+        e.stopPropagation();
+        if (v.is_default) return onUnpin();
+        // Through the page's own onSelect, not just onPin: on Appointments
+        // picking a view also moves the quick-date chips to the date that view
+        // filters on, and a pin that switched you there without them read
+        // "0 items" over a full day.
+        onSelect(v.id);
+        onPin(v);
+      }}
+    >
+      {v.is_default ? <PinOff className="h-3.5 w-3.5 text-primary" /> : <Pin className="h-3.5 w-3.5" />}
+    </button>
+  );
+
   const isStandard = !!activeView?.is_standard;
   const canManage = !!activeView && !isStandard && activeView.owner_id === currentUserId;
   const standardViews = views.filter((v) => v.is_standard);
@@ -112,6 +142,9 @@ export default function ViewBar({
             {standardViews.map((v) => (
               <DropdownMenuItem key={v.id} onClick={() => onSelect(v.id)} className="flex items-center gap-2">
                 <span className="flex-1 truncate">{v.name}</span>
+                {/* A standard view could not be pinned from here at all, and
+                    pinning it from the gear menu wrote nothing that lasted. */}
+                {pinButton(v)}
                 <Lock className="h-3 w-3 opacity-50" />
               </DropdownMenuItem>
             ))}
@@ -129,19 +162,7 @@ export default function ViewBar({
               return (
               <DropdownMenuItem key={v.id} onClick={() => onSelect(v.id)} className="flex items-center gap-1.5">
                 <span className="flex-1 truncate">{v.name}</span>
-                <button
-                  type="button"
-                  title={v.is_default ? "Unpin this view" : "Pin as default view"}
-                  aria-label={v.is_default ? "Unpin this view" : "Pin as default view"}
-                  className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-primary"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onPin(v.is_default ? null : v);
-                  }}
-                >
-                  {v.is_default ? <PinOff className="h-3.5 w-3.5 text-primary" /> : <Pin className="h-3.5 w-3.5" />}
-                </button>
+                {pinButton(v)}
                 {/* Only on views this person owns - the same rule canManage uses
                     for the gear menu. Someone else's shared view stays listed and
                     selectable, just not editable. */}
@@ -237,7 +258,12 @@ export default function ViewBar({
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
-              onClick={() => onPin(activeView?.is_default ? null : activeView)}
+              disabled={!activeView}
+              onClick={() => {
+                if (!activeView) return;
+                if (activeView.is_default) onUnpin();
+                else onPin(activeView);
+              }}
               className="gap-2"
             >
               {activeView?.is_default ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}

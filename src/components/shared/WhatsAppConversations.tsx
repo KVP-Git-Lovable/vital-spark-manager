@@ -1,17 +1,21 @@
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { format, isToday, isYesterday } from "date-fns";
 import { Link } from "react-router-dom";
-import { AlertCircle, Clock3, Loader2, Search } from "lucide-react";
+import { AlertCircle, Clock3, Loader2, Search, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { DateInput } from "@/components/shared/DateInput";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { getReportDateRange, REPORT_DATE_RANGE_OPTIONS } from "@/lib/reportDateRange";
 import { sanitizeTerm } from "@/lib/fuzzySearch";
+import { replyWindow } from "@/lib/whatsappReplyWindow";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import {
   deliveryNote,
   summaryFromThread,
@@ -176,6 +180,48 @@ export function WhatsAppConversations() {
       threadEndRef.current?.scrollIntoView({ block: "end" });
     }
   }, [selectedPhone, threadMessages.length, thread.data?.pages.length]);
+
+  // Replying. WhatsApp only delivers a freely typed message within 24 hours of
+  // the patient's last one, so the window is read from the thread itself - the
+  // most recent message that came IN - and the box says so when it has closed
+  // rather than letting the front desk type into a refusal.
+  const queryClient = useQueryClient();
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+  const lastInboundAt = useMemo(() => {
+    for (let i = threadMessages.length - 1; i >= 0; i -= 1) {
+      if (threadMessages[i].direction === "inbound") return threadMessages[i].created_at;
+    }
+    return null;
+  }, [threadMessages]);
+  const window24h = useMemo(() => replyWindow(lastInboundAt), [lastInboundAt]);
+
+  const sendReply = async () => {
+    const text = reply.trim();
+    if (!text || !selectedPhone || sending) return;
+    setSending(true);
+    try {
+      const { error } = await supabase.functions.invoke("whatsapp-send-reply", {
+        body: { phone: selectedPhone, message: text },
+      });
+      // supabase-js flattens every non-2xx to one sentence and drops the body,
+      // so the function's own words - the 24-hour refusal among them - are
+      // recovered rather than guessed at.
+      if (error) {
+        throw new Error(
+          await edgeFunctionErrorMessage(error, "The reply could not be sent. Please try again."),
+        );
+      }
+      setReply("");
+      await queryClient.invalidateQueries({ queryKey: ["whatsapp-conversation-thread", selectedPhone] });
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-conversations"] });
+      threadEndRef.current?.scrollIntoView({ block: "end" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "The reply could not be sent");
+    } finally {
+      setSending(false);
+    }
+  };
 
   const noMatches = Boolean(deferredSearch) && summariesWithCounts.length === 0;
 
@@ -357,6 +403,44 @@ export function WhatsAppConversations() {
                         <div ref={threadEndRef} />
                       </div>
                     )}
+                  </div>
+
+                  {/* The reply. Front desk read a patient asking a question and
+                      had to pick up a phone; this answers from the clinic's own
+                      number, and what is sent appears in the thread above. */}
+                  <div className="border-t bg-background p-3">
+                    <div className="flex items-end gap-2">
+                      <Textarea
+                        value={reply}
+                        onChange={(e) => setReply(e.target.value)}
+                        onKeyDown={(e) => {
+                          // Enter sends, as it does in every messaging app;
+                          // Shift+Enter is how a second line is written.
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            sendReply();
+                          }
+                        }}
+                        disabled={!window24h.open || sending}
+                        rows={2}
+                        placeholder={window24h.open ? "Write a reply…" : "Replies are closed for this number"}
+                        className="min-h-[44px] resize-none"
+                      />
+                      <Button
+                        size="icon"
+                        className="h-10 w-10 shrink-0"
+                        aria-label="Send reply"
+                        disabled={!window24h.open || sending || !reply.trim()}
+                        onClick={sendReply}
+                      >
+                        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                      {window24h.open
+                        ? "Sent from the clinic's WhatsApp number. Enter sends, Shift+Enter starts a new line."
+                        : window24h.note}
+                    </p>
                   </div>
                 </>
               )}

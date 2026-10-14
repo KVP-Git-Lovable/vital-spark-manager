@@ -10,6 +10,7 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useState, useCallback, useRef, useMemo, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useUrlPanel } from "@/hooks/useUrlPanel";
+import { shouldOpenNewAppointment } from "@/lib/openNewAppointment";
 import { useModuleListViews } from "@/hooks/useModuleListViews";
 import ViewBar from "@/components/listViews/ViewBar";
 import ViewEditorDialog, { type PickOption } from "@/components/listViews/ViewEditorDialog";
@@ -1609,12 +1610,13 @@ const Appointments = () => {
           });
       }
       // Survey: fill now (only for non-recurring single appointment)
-      if (
+      const surveyToFillNow = Boolean(
         data.fillNowSurveyTemplateId &&
         data.capturedPatientId &&
         data.newAppointmentId &&
         !data.wasRecurring
-      ) {
+      );
+      if (surveyToFillNow) {
         setPendingFillNow({
           templateId: data.fillNowSurveyTemplateId,
           appointmentId: data.newAppointmentId,
@@ -1623,6 +1625,16 @@ const Appointments = () => {
       }
       resetForm();
       setOpen(false);
+      // Show front desk what they just booked, so the time, the doctor and the
+      // service can be checked without hunting for the row. Not when something
+      // else is already opening over the page - see openNewAppointment.ts.
+      if (shouldOpenNewAppointment({
+        appointmentId: data.newAppointmentId,
+        wasRecurring: data.wasRecurring,
+        surveyToFillNow,
+      })) {
+        openAppointment(data.newAppointmentId as string);
+      }
       if (data.wasRecurring) {
         setLastCreatedPatientId(data.capturedPatientId);
         setLastCreatedService(data.capturedServiceName);

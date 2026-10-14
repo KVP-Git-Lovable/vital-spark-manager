@@ -46,9 +46,24 @@ export const invoiceFormHasContent = (form: InvoiceFormSnapshot): boolean => {
  */
 export interface InvoiceSaveable {
   patientId?: string | null;
+  /**
+   * Which of the front desk raised it. Required at the clinic's request: three
+   * people share the machine and the login, so a bill with nobody against it
+   * can never be traced back - and left optional it would be the busiest days,
+   * the ones worth tracing, that went unstamped.
+   *
+   * Required here rather than as a not null column: every invoice raised
+   * before this existed has no name on it, and the database cannot tell a new
+   * bill from an old one. Editing an old bill is not blocked for the same
+   * reason - see Billing.tsx - so this guards the creating, not the saving.
+   */
+  billedBy?: string | null;
   hasLineItems: boolean;
   amountIsPositive: boolean;
 }
 
 export const invoiceCanBeSaved = (bill: InvoiceSaveable): boolean =>
-  (bill.patientId ?? "").trim() !== "" && bill.hasLineItems && bill.amountIsPositive;
+  (bill.patientId ?? "").trim() !== "" &&
+  (bill.billedBy ?? "").trim() !== "" &&
+  bill.hasLineItems &&
+  bill.amountIsPositive;

@@ -53,7 +53,7 @@ describe("invoiceFormHasContent", () => {
 });
 
 describe("invoiceCanBeSaved", () => {
-  const billed = { hasLineItems: true, amountIsPositive: true };
+  const billed = { hasLineItems: true, amountIsPositive: true, billedBy: "Anusha" };
 
   it("refuses a bill with no patient, however complete it otherwise is", () => {
     // INV-49097 and INV-49323 went in this way: services, an amount, and no
@@ -66,6 +66,20 @@ describe("invoiceCanBeSaved", () => {
 
   it("allows it once the patient is chosen", () => {
     expect(invoiceCanBeSaved({ ...billed, patientId: "pat-1" })).toBe(true);
+  });
+
+  it("refuses a bill nobody has put their name to", () => {
+    // Three people share the billing machine and the login, so a bill with
+    // nobody against it cannot be traced back to whoever raised it.
+    const withPatient = { ...billed, patientId: "pat-1" };
+    expect(invoiceCanBeSaved({ ...withPatient, billedBy: "" })).toBe(false);
+    expect(invoiceCanBeSaved({ ...withPatient, billedBy: null })).toBe(false);
+    expect(invoiceCanBeSaved({ ...withPatient, billedBy: undefined })).toBe(false);
+    expect(invoiceCanBeSaved({ ...withPatient, billedBy: "   " })).toBe(false);
+  });
+
+  it("allows it once somebody has put their name to it", () => {
+    expect(invoiceCanBeSaved({ ...billed, patientId: "pat-1", billedBy: "Dorothy" })).toBe(true);
   });
 
   it("still refuses an empty bill, patient or not", () => {

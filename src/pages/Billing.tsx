@@ -2292,10 +2292,11 @@ const Billing = () => {
       paymentType === "Staged" ? stages.some((s) => s.amount > 0)
       : paymentType === "Recurring" ? recurringCount > 0 && recurringAmount > 0
       : (servicesSubtotal + pharmaSubtotal) > 0;
-    // The patient is part of being saveable. Without this, Save was live with
-    // the patient box empty and the bill went in unlinked - see
-    // invoiceFormState.ts.
-    return invoiceCanBeSaved({ patientId, hasLineItems, amountIsPositive });
+    // The patient and whoever raised it are both part of being saveable.
+    // Without the first, Save was live with the patient box empty and the bill
+    // went in unlinked - see invoiceFormState.ts, which also says why the name
+    // is required here rather than by the column.
+    return invoiceCanBeSaved({ patientId, billedBy, hasLineItems, amountIsPositive });
   };
 
   // All-time totals, independent of pagination/filters/search - fetched
@@ -3127,7 +3128,7 @@ const Billing = () => {
                 {/* Who raised it - for the clinic, not the patient. Deliberately
                     absent from the invoice, the PDF and the WhatsApp message. */}
                 <div>
-                  <Label>Billed By</Label>
+                  <Label>Billed By <span className="text-destructive">*</span></Label>
                   <Select value={billedBy || undefined} onValueChange={setBilledBy}>
                     <SelectTrigger className="mt-1.5"><SelectValue placeholder="Not recorded" /></SelectTrigger>
                     <SelectContent>

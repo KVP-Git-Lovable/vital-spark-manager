@@ -6275,6 +6275,45 @@ export type Database = {
           },
         ]
       }
+      whatsapp_delivery_log_backup_20261014: {
+        Row: {
+          body_preview: string | null
+          error_code: number | null
+          error_message: string | null
+          kind: string | null
+          message_sid: string | null
+          patient_id: string | null
+          phone: string | null
+          sent_at: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          body_preview?: string | null
+          error_code?: number | null
+          error_message?: string | null
+          kind?: string | null
+          message_sid?: string | null
+          patient_id?: string | null
+          phone?: string | null
+          sent_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          body_preview?: string | null
+          error_code?: number | null
+          error_message?: string | null
+          kind?: string | null
+          message_sid?: string | null
+          patient_id?: string | null
+          phone?: string | null
+          sent_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       working_hours: {
         Row: {
           break_end: string | null
@@ -6470,6 +6509,7 @@ export type Database = {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       trash_allowed_object: { Args: { _object_type: string }; Returns: boolean }
+      whatsapp_message_is_foreign: { Args: { body: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

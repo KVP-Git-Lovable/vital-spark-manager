@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { DateInput } from "@/components/shared/DateInput";
+import { ViewPrescriptionButton } from "@/components/prescriptions/ViewPrescriptionButton";
 import { withDrPrefix } from "@/lib/staffName";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
@@ -1509,7 +1510,12 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <p className="font-medium text-sm">{proc.service_name}</p>
-                                <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
+                                  {/* Reading one should not mean opening the
+                                      visit that wrote it. */}
+                                  <ViewPrescriptionButton procedureId={proc.id} />
+                                </div>
                               </div>
                               <p className="text-xs mt-1">
                                 <span className="font-medium text-foreground">{procedureDateLabel(proc, "dd/MM/yyyy")}</span>

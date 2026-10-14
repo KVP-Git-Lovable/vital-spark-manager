@@ -8,6 +8,7 @@ import { isConsultationService } from "@/lib/consultationLine";
 import { isRollUpOf, nextRollUpValue, parentHoldsOwnText as holdsOwnText } from "@/lib/procedureRollup";
 import { assertWrote } from "@/lib/rowAccess";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
+import { usePrescriptionPreview } from "@/hooks/usePrescriptionPreview";
 import { MAX_DATETIME, MIN_DATETIME } from "@/lib/dateInput";
 
 import { useNavigate } from "react-router-dom";
@@ -189,12 +190,15 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [uploading, setUploading] = useState(false);
   const [elaborating, setElaborating] = useState<null | string>(null);
 
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [previewingPdf, setPreviewingPdf] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewPages, setPreviewPages] = useState<string[] | null>(null);
-  const [previewFilename, setPreviewFilename] = useState("Prescription.pdf");
-  const prescriptionBytes = useRef<ArrayBuffer | null>(null);
+  // Building, drawing and saving the prescription now live in a hook, because
+  // the patient's Prescriptions tab and an appointment's Previous
+  // Prescriptions needed the same thing and copying it would have left three
+  // versions of the reasoning below to drift apart.
+  const prescriptionPdf = usePrescriptionPreview(procedureId);
+  const previewingPdf = prescriptionPdf.previewing;
+  const downloadingPdf = prescriptionPdf.downloading;
+  const handlePreviewPrescription = prescriptionPdf.preview;
+  const handleDownloadPrescription = prescriptionPdf.download;
   // The service lines as this visit was opened, so the save can tell a parent
   // value that is merely their roll-up from one holding something of its own.
   const originalServiceLinesRef = useRef<ServiceLineRow[]>([]);
@@ -202,118 +206,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   // Not the same as "the lines on screen": an imported visit is shown a line
   // read from its parent row, and that one was never stored.
   const hadStoredLinesRef = useRef(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
   const [sendingWa, setSendingWa] = useState(false);
-
-  // The builder answers in a couple of seconds. The bound belongs on the
-  // request itself, not on a race beside it: functions-js turns `timeout`
-  // into an AbortController, so the request is actually cancelled. A
-  // setTimeout racing outside it leaves the real request running, and is
-  // itself throttled once the tab goes to the background.
-  const PDF_TIMEOUT_MS = 45000;
-
-  const fetchPrescriptionPdf = async () => {
-    if (!procedureId) return null;
-    const { data, error } = await supabase.functions.invoke("generate-prescription-pdf", {
-      body: { procedureId },
-      timeout: PDF_TIMEOUT_MS,
-    });
-    // supabase-js flattens every non-2xx to "Edge Function returned a non-2xx
-    // status code" and drops the body. Recover what the function actually
-    // said, so a failure names itself instead of needing to be guessed at.
-    if (error) {
-      throw new Error(
-        await edgeFunctionErrorMessage(
-          error,
-          "The prescription could not be prepared. Please try again.",
-        ),
-      );
-    }
-    if (!data?.base64) throw new Error("No PDF returned");
-    const bin = atob(data.base64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return { bytes: bytes.buffer, filename: data.filename || "Prescription.pdf" };
-  };
-
-  const savePrescription = (bytes: ArrayBuffer, filename: string) => {
-    const objUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-    const a = document.createElement("a");
-    // <a download> saves rather than navigates, and navigating is what the
-    // clinic's extension blocks. This path worked throughout.
-    a.href = objUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(objUrl);
-  };
-
-  const handleDownloadPrescription = async () => {
-    // Already fetched to draw the preview - no need to build it twice.
-    if (prescriptionBytes.current) {
-      savePrescription(prescriptionBytes.current, previewFilename);
-      toast.success("Prescription downloaded");
-      return;
-    }
-    setDownloadingPdf(true);
-    try {
-      const pdf = await fetchPrescriptionPdf();
-      if (!pdf) return;
-      savePrescription(pdf.bytes, pdf.filename);
-      toast.success("Prescription downloaded");
-    } catch (e: any) {
-      toast.error(e.message || "Failed to generate prescription");
-    } finally {
-      setDownloadingPdf(false);
-    }
-  };
-
-  // Shown in the page rather than in a second tab.
-  //
-  // It used to open a tab and point it at the PDF. That made the preview
-  // depend on a browser pop-up permission, on a blank tab surviving the wait
-  // and on a blob URL navigating across contexts - and when any link in that
-  // chain did not complete, all the doctor had was a foreign tab reading
-  // "Preparing the prescription..." with nothing to act on. The app already
-  // previews PDFs inline for patient attachments; the same iframe works here
-  // and removes every one of those dependencies. Open in new tab is still a
-  // button inside the dialog, where clicking it is a fresh gesture and so is
-  // never blocked.
-  const handlePreviewPrescription = async () => {
-    setPreviewingPdf(true);
-    setPreviewError(null);
-    setPreviewPages(null);
-    prescriptionBytes.current = null;
-    setPreviewOpen(true);
-    try {
-      const pdf = await fetchPrescriptionPdf();
-      if (!pdf) {
-        setPreviewOpen(false);
-        return;
-      }
-      prescriptionBytes.current = pdf.bytes;
-      setPreviewFilename(pdf.filename);
-      // Drawn here rather than handed to the browser to open: showing a PDF
-      // any other way means loading a document, which is the thing being
-      // refused on the clinic's machines.
-      setPreviewPages(await renderPdfToImages(pdf.bytes));
-    } catch (e: any) {
-      const message = e?.message || "Failed to generate prescription";
-      // Stated where the doctor is looking, not only in a toast that fades.
-      setPreviewError(message);
-      toast.error(message);
-    } finally {
-      setPreviewingPdf(false);
-    }
-  };
-
-  const closePreview = () => {
-    setPreviewOpen(false);
-    setPreviewPages(null);
-    prescriptionBytes.current = null;
-    setPreviewError(null);
-  };
 
   const handleSendWhatsApp = async () => {
     if (!procedureId) return;
@@ -1763,12 +1656,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       </Sheet>
 
       <PdfPreviewDialog
-        open={previewOpen}
-        onClose={closePreview}
+        open={prescriptionPdf.open}
+        onClose={prescriptionPdf.close}
         title="Prescription preview"
         preparing="Preparing the prescription…"
-        pages={previewPages}
-        error={previewError}
+        pages={prescriptionPdf.pages}
+        error={prescriptionPdf.error}
         onRetry={handlePreviewPrescription}
         onDownload={handleDownloadPrescription}
         downloading={downloadingPdf}

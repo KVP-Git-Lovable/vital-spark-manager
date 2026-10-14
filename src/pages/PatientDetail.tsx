@@ -48,6 +48,7 @@ import { FamilyMembers } from "@/components/patients/FamilyMembers";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
+import { ViewPrescriptionButton } from "@/components/prescriptions/ViewPrescriptionButton";
 import { QuickAppointmentDialog } from "@/components/appointments/QuickAppointmentDialog";
 import { appointmentStatusClasses } from "@/lib/appointmentStatus";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
@@ -1460,6 +1461,7 @@ const PatientDetail = () => {
                     <div className="text-right shrink-0">
                       <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
                       <p className="text-xs text-muted-foreground mt-1">{procedureDateLabel(proc)}</p>
+                      <ViewPrescriptionButton procedureId={proc.id} className="mt-1" />
                     </div>
                   </div>
                 </div>
@@ -1474,11 +1476,12 @@ const PatientDetail = () => {
                     <th className="text-left text-xs font-medium text-muted-foreground p-4">Doctor</th>
                     <th className="text-left text-xs font-medium text-muted-foreground p-4">Diagnosis</th>
                     <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
+                    <th className="text-right text-xs font-medium text-muted-foreground p-4">Prescription</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {procedures.length === 0 ? (
-                    <tr><td colSpan={5} className="text-center py-8 text-muted-foreground text-sm">No prescriptions recorded</td></tr>
+                    <tr><td colSpan={6} className="text-center py-8 text-muted-foreground text-sm">No prescriptions recorded</td></tr>
                   ) : procedures.map((proc: any) => (
                     <tr key={proc.id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setSelectedProcedureId(proc.id)}>
                       <td className="p-4 text-sm">{procedureDateLabel(proc)}</td>
@@ -1486,6 +1489,9 @@ const PatientDetail = () => {
                       <td className="p-4 text-sm text-muted-foreground">{proc.staff ? withDrPrefix(`${proc.staff.first_name} ${proc.staff.last_name}`) : "—"}</td>
                       <td className="p-4 text-sm text-muted-foreground truncate max-w-[200px]">{proc.diagnosis || "—"}</td>
                       <td className="p-4"><Badge variant="secondary" className="text-xs">{proc.status}</Badge></td>
+                      {/* Reading one should not mean opening the visit that
+                          wrote it - see ViewPrescriptionButton. */}
+                      <td className="p-4 text-right"><ViewPrescriptionButton procedureId={proc.id} /></td>
                     </tr>
                   ))}
                 </tbody>

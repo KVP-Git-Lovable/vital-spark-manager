@@ -22,6 +22,9 @@ interface Props {
 export function ViewPrescriptionButton({ procedureId, variant = "icon", className }: Props) {
   const preview = usePrescriptionPreview(procedureId);
 
+  /** Shared by the three events a row can be opened by. */
+  const stopHere = (e: React.SyntheticEvent) => e.stopPropagation();
+
   const onClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -47,7 +50,16 @@ export function ViewPrescriptionButton({ procedureId, variant = "icon", classNam
       </Button>
 
       {/* Inside the button's own tree, so a list of twenty rows still has one
-          dialog open at a time - whichever was asked for. */}
+          dialog open at a time - whichever was asked for.
+
+          Wrapped because a React portal is not where it looks. Radix moves the
+          dialog to the end of the body, but events still travel up the REACT
+          tree, so closing it - the X, or a click on the backdrop - reached the
+          row this button sits in and opened the visit behind it. Reported as
+          "when we click on that close button or click somewhere outside it
+          takes to other page". The wrapper is the boundary: handlers inside the
+          dialog have already run by the time it stops them going further. */}
+      <span onClick={stopHere} onMouseDown={stopHere} onPointerDown={stopHere}>
       <PdfPreviewDialog
         open={preview.open}
         onClose={preview.close}
@@ -59,6 +71,7 @@ export function ViewPrescriptionButton({ procedureId, variant = "icon", classNam
         onDownload={preview.download}
         downloading={preview.downloading}
       />
+      </span>
     </>
   );
 }

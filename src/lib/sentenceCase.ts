@@ -48,15 +48,17 @@ export function capitaliseFirstWord(text: string, caret?: number | null): string
   while (index < text.length && !LETTER.test(text[index])) index += 1;
   if (index >= text.length) return text;
 
-  // Only touch the text when the doctor is typing at the very start of it.
-  // Changing the first letter while the caret sits mid-sentence makes React
-  // rewrite the field's value, which throws the caret to the end and garbles
-  // whatever is typed next. Mid-text edits are left exactly as typed.
-  if (caret != null && caret > index + 1) return text;
-
   // The word as typed, to the next space or line break.
   const rest = text.slice(index);
-  const word = (rest.split(/\s/, 1)[0] ?? "").toLowerCase();
+  const rawWord = rest.split(/\s/, 1)[0] ?? "";
+  const word = rawWord.toLowerCase();
+
+  // Changing the first letter makes React rewrite the field's value, which
+  // throws the caret to the end. That is harmless while the caret is already
+  // at the end (fresh typing, pasting) or on the first letter itself; it
+  // garbles the note only when the caret sits further into existing text, so
+  // only then is the text left exactly as typed.
+  if (caret != null && caret > index + 1 && caret < text.length) return text;
   if (LOWERCASE_TERMS.has(word)) return text;
   // A word still being typed waits. Capitalising the "p" of "pH" the moment it
   // is typed would make "PH" however carefully the doctor continues, so while

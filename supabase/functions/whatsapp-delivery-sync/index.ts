@@ -56,10 +56,29 @@ Deno.serve(async (req) => {
     if (!sid || !tok) return json({ error: "WhatsApp service not configured" }, 500);
     const auth = "Basic " + btoa(`${sid}:${tok}`);
 
+    // Only what the clinic itself sent.
+    //
+    // This asked Twilio for every message on the account and took the lot. The
+    // account is shared with other businesses, so a jewellery shop's Diwali
+    // campaign, a field-sales app's order confirmations and another bot's
+    // replies all landed in the clinic's delivery log and showed up in the
+    // conversation screen beside patients - 8,700 of 9,565 rows by the time it
+    // was noticed, carrying other companies' customers' phone numbers into a
+    // database they have no business being in.
+    //
+    // The sender is the one thing that distinguishes them, so it is asked for
+    // rather than filtered afterwards: a guess at the wording would let the
+    // next unfamiliar template straight back in.
+    const fromNumber = Deno.env.get("TWILIO_WHATSAPP_FROM");
+    if (!fromNumber) return json({ error: "WhatsApp sender not configured" }, 500);
+    const fromParam = encodeURIComponent(
+      fromNumber.startsWith("whatsapp:") ? fromNumber : `whatsapp:${fromNumber}`,
+    );
+
     const anchor = until ? until.getTime() : Date.now();
     const since = new Date(anchor - days * 86400000).toISOString().slice(0, 10);
     let next: string | null =
-      `/2010-04-01/Accounts/${sid}/Messages.json?PageSize=500&DateSent%3E=${since}` +
+      `/2010-04-01/Accounts/${sid}/Messages.json?PageSize=500&From=${fromParam}&DateSent%3E=${since}` +
       (until ? `&DateSent%3C=${until.toISOString().slice(0, 10)}` : "");
     const started = Date.now();
     const rows: any[] = [];
@@ -75,6 +94,12 @@ Deno.serve(async (req) => {
         if (m.direction === "inbound") continue;
         // WhatsApp only - a plain SMS does not belong in a WhatsApp thread.
         if (!String(m.to || "").startsWith("whatsapp:")) continue;
+        // Twilio's From filter is asked for above, but the answer is checked
+        // too: the businesses on this account may yet come to share a sender,
+        // and a page fetched from next_page_uri carries the query Twilio built,
+        // not the one written here.
+        const sentFrom = String(m.from || "").replace(/^whatsapp:/, "");
+        if (sentFrom && sentFrom !== fromNumber.replace(/^whatsapp:/, "")) continue;
         const body = String(m.body || "");
         rows.push({
           message_sid: m.sid,

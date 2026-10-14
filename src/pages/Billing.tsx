@@ -96,6 +96,7 @@ import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
 import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { BILLED_BY_OPTIONS, billedByLabel } from "@/lib/billedBy";
 import { invoiceCanBeSaved, invoiceFormHasContent } from "@/lib/invoiceFormState";
 import { allocateInvoiceNumbers } from "@/lib/invoiceNumber";
 import { cn } from "@/lib/utils";
@@ -526,6 +527,10 @@ const Billing = () => {
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentType, setPaymentType] = useState("One-time");
   const [paymentMode, setPaymentMode] = useState("Cash");
+  // Which of the three front desk staff raised the bill. Internal - see
+  // src/lib/billedBy.ts. Empty until somebody picks, so a bill nobody stamped
+  // says so rather than naming whoever happens to be first in the list.
+  const [billedBy, setBilledBy] = useState("");
   const [notes, setNotes] = useState("");
   // Split payment (Create Invoice — One-time only). Empty array = single mode flow.
   const [splits, setSplits] = useState<{ mode: string; amount: number }[]>([]);
@@ -969,6 +974,7 @@ const Billing = () => {
     setPaidAmount(0);
     setPaymentType("One-time");
     setPaymentMode("Cash");
+    setBilledBy("");
     setSplits([]);
     setNotes("");
     // tax is per-line, nothing to reset
@@ -1646,6 +1652,7 @@ const Billing = () => {
             status,
             payment_type: "Staged",
             payment_mode: paymentMode,
+            billed_by: billedBy || null,
             notes: `${stage.label}${notes ? ` — ${notes}` : ""}`,
             tax_id: null,
             tax_rate: null,
@@ -1773,6 +1780,7 @@ const Billing = () => {
             status,
             payment_type: "Recurring",
             payment_mode: paymentMode,
+            billed_by: billedBy || null,
             notes: `${chargedNow ? "Installment" : "Scheduled amount"} ${i + 1} of ${recurringCount} | Due: ${format(dueDate, "dd MMM yyyy")}${withPharma ? " | Includes pharmacy (paid in full)" : ""}${notes ? ` — ${notes}` : ""}`,
             tax_id: null,
             tax_rate: chargedNow ? null : Math.round(effRate * 100) / 100,
@@ -1820,6 +1828,7 @@ const Billing = () => {
           status,
           payment_type: "One-time",
           payment_mode: effectivePaymentMode,
+          billed_by: billedBy || null,
           payment_splits: splitsActive ? splits : null,
           notes: notes || null,
           tax_id: null,
@@ -2205,6 +2214,7 @@ const Billing = () => {
         payment_mode: paymentModeForSplits(splits, editData.payment_mode),
         payment_splits: splits.length > 0 ? splits : null,
         payment_type: editData.payment_type,
+        billed_by: editData.billed_by || null,
         notes: editData.notes || null,
         appointment_id: editData.appointment_id || null,
         status,
@@ -2428,6 +2438,8 @@ const Billing = () => {
       payment_type: inv.payment_type || "One-time",
       notes: inv.notes || "",
       appointment_id: inv.appointment_id || "",
+      // Carried into the form so saving an edit cannot blank it.
+      billed_by: inv.billed_by || "",
     });
   };
 
@@ -3112,6 +3124,17 @@ const Billing = () => {
                   </Select>
                 </div>
                 {renderPaymentMode(paymentMode, setPaymentMode, true)}
+                {/* Who raised it - for the clinic, not the patient. Deliberately
+                    absent from the invoice, the PDF and the WhatsApp message. */}
+                <div>
+                  <Label>Billed By</Label>
+                  <Select value={billedBy || undefined} onValueChange={setBilledBy}>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Not recorded" /></SelectTrigger>
+                    <SelectContent>
+                      {BILLED_BY_OPTIONS.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Tax is auto-applied per item from Tax Master mappings — no manual selector */}
@@ -3872,6 +3895,9 @@ const Billing = () => {
                       <span className="font-medium">{viewInvoice.payment_mode || "Cash"}</span>
                     )}
                   </div>
+                  {/* The clinic's own record of who raised it. It is not on the
+                      invoice the patient receives, nor in its PDF. */}
+                  <div><span className="text-muted-foreground text-xs block">Billed By</span><span className="font-medium">{billedByLabel(viewInvoice.billed_by)}</span></div>
                   <div><span className="text-muted-foreground text-xs block">Type</span><Badge variant="outline" className="text-xs mt-0.5">{viewInvoice.payment_type}</Badge></div>
                   <div><span className="text-muted-foreground text-xs block">Status</span><span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusStyles[viewInvoice.status] || ""}`}>{viewInvoice.status}</span></div>
                 </div>
@@ -4085,6 +4111,18 @@ const Billing = () => {
                   (v) => setEditData({ ...editData, payment_mode: v }),
                   editData.payment_type === "One-time",
                 )}
+                <div>
+                  <Label>Billed By</Label>
+                  <Select
+                    value={editData.billed_by || undefined}
+                    onValueChange={(v) => setEditData({ ...editData, billed_by: v })}
+                  >
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Not recorded" /></SelectTrigger>
+                    <SelectContent>
+                      {BILLED_BY_OPTIONS.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div>
                 <Label>Notes</Label>

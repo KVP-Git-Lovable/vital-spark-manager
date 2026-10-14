@@ -1295,7 +1295,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                             </Button>
                           </div>
                         </div>
-                        <Textarea value={line.procedure_notes} onChange={(e) => updateLine(line.key, { procedure_notes: capitaliseFirstWord(e.target.value) })} className="mt-1" rows={3} />
+                        <Textarea value={line.procedure_notes} onChange={(e) => updateLine(line.key, { procedure_notes: capitaliseFirstWord(e.target.value, e.target.selectionStart) })} className="mt-1" rows={3} />
                       </div>
                       <div>
                         <div className="flex items-center justify-between">
@@ -1307,7 +1307,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                             </Button>
                           </div>
                         </div>
-                        <Textarea value={line.recommendations} onChange={(e) => updateLine(line.key, { recommendations: capitaliseFirstWord(e.target.value) })} className="mt-1" rows={3} />
+                        <Textarea value={line.recommendations} onChange={(e) => updateLine(line.key, { recommendations: capitaliseFirstWord(e.target.value, e.target.selectionStart) })} className="mt-1" rows={3} />
                       </div>
                     </div>
                   ))}
@@ -1339,7 +1339,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                               </Button>
                             </div>
                           </div>
-                          <Textarea value={line.procedure_notes} onChange={(e) => updateLine(line.key, { procedure_notes: capitaliseFirstWord(e.target.value) })} className="mt-1" rows={3} />
+                          <Textarea value={line.procedure_notes} onChange={(e) => updateLine(line.key, { procedure_notes: capitaliseFirstWord(e.target.value, e.target.selectionStart) })} className="mt-1" rows={3} />
                         </div>
                         <div>
                           <div className="flex items-center justify-between">
@@ -1351,7 +1351,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                               </Button>
                             </div>
                           </div>
-                          <Textarea value={line.recommendations} onChange={(e) => updateLine(line.key, { recommendations: capitaliseFirstWord(e.target.value) })} className="mt-1" rows={3} />
+                          <Textarea value={line.recommendations} onChange={(e) => updateLine(line.key, { recommendations: capitaliseFirstWord(e.target.value, e.target.selectionStart) })} className="mt-1" rows={3} />
                         </div>
                       </div>
                     ))}
@@ -1732,7 +1732,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                                   // Capitalised as typed, past the terms the
                                   // clinic writes in lower case - the same
                                   // rule as the prescription form.
-                                  onChange={(e) => { setMedical((m) => ({ ...m, [field]: capitaliseFirstWord(e.target.value) })); setMedicalDirty(true); }}
+                                  onChange={(e) => { setMedical((m) => ({ ...m, [field]: capitaliseFirstWord(e.target.value, e.target.selectionStart) })); setMedicalDirty(true); }}
                                 />
                               )}
                             </div>

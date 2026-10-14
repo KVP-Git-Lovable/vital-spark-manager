@@ -41,12 +41,18 @@ const LETTER = /[a-z]/i;
  * handled. The word it begins is read to the next space, which is what decides
  * whether this is an ordinary word or one of the terms above.
  */
-export function capitaliseFirstWord(text: string): string {
+export function capitaliseFirstWord(text: string, caret?: number | null): string {
   if (!text) return text;
 
   let index = 0;
   while (index < text.length && !LETTER.test(text[index])) index += 1;
   if (index >= text.length) return text;
+
+  // Only touch the text when the doctor is typing at the very start of it.
+  // Changing the first letter while the caret sits mid-sentence makes React
+  // rewrite the field's value, which throws the caret to the end and garbles
+  // whatever is typed next. Mid-text edits are left exactly as typed.
+  if (caret != null && caret > index + 1) return text;
 
   // The word as typed, to the next space or line break.
   const rest = text.slice(index);

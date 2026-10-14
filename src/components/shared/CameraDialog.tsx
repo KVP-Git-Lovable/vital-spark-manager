@@ -8,10 +8,26 @@ interface CameraDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCapture: (file: File) => void;
+  /**
+   * Keep shooting without leaving the camera.
+   *
+   * On a phone each upload takes a few seconds, and the camera closed after
+   * every shot - so photographing four areas meant opening it, shooting,
+   * waiting and starting again, four times, with the patient sitting there.
+   * With this on, a shot joins a strip along the bottom, the view comes
+   * straight back, and Done hands the whole set over at once.
+   *
+   * Off by default: the other three screens that use this camera - patient
+   * attachments, the prescription scanner, the patient page - want exactly one
+   * picture, and nothing about them changes.
+   */
+  multiple?: boolean;
+  /** Called instead of onCapture when `multiple` is on. */
+  onCaptureMany?: (files: File[]) => void;
   title?: string;
 }
 
-export function CameraDialog({ open, onOpenChange, onCapture, title = "Take Photo" }: CameraDialogProps) {
+export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, onCaptureMany, title = "Take Photo" }: CameraDialogProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileFallbackRef = useRef<HTMLInputElement>(null);
@@ -21,6 +37,8 @@ export function CameraDialog({ open, onOpenChange, onCapture, title = "Take Phot
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  /** The shots taken so far in this session, when `multiple` is on. */
+  const [shots, setShots] = useState<{ file: File; url: string }[]>([]);
 
   const stopStream = () => {
     if (streamRef.current) {
@@ -66,6 +84,10 @@ export function CameraDialog({ open, onOpenChange, onCapture, title = "Take Phot
       setCapturedFile(null);
       setPreviewUrl(null);
       setError(null);
+      setShots((prev) => {
+        prev.forEach((s) => URL.revokeObjectURL(s.url));
+        return [];
+      });
     }
     return () => {
       if (!open) stopStream();
@@ -94,6 +116,12 @@ export function CameraDialog({ open, onOpenChange, onCapture, title = "Take Phot
       (blob) => {
         if (!blob) return;
         const file = new File([blob], `photo-${Date.now()}.jpg`, { type: "image/jpeg" });
+        if (multiple) {
+          // The stream is deliberately left running: stopping and restarting
+          // it between shots is the couple of seconds that made this slow.
+          setShots((prev) => [...prev, { file, url: URL.createObjectURL(blob) }]);
+          return;
+        }
         setCapturedFile(file);
         setPreviewUrl(URL.createObjectURL(blob));
         stopStream();
@@ -125,12 +153,28 @@ export function CameraDialog({ open, onOpenChange, onCapture, title = "Take Phot
   };
 
   const handleFallbackFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onCapture(file);
+    const files = Array.from(e.target.files ?? []);
+    if (files.length) {
+      if (multiple) onCaptureMany?.(files);
+      else onCapture(files[0]);
       onOpenChange(false);
     }
     e.target.value = "";
+  };
+
+  const removeShot = (index: number) =>
+    setShots((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(index, 1);
+      if (removed) URL.revokeObjectURL(removed.url);
+      return next;
+    });
+
+  const handleDone = () => {
+    if (!shots.length) return;
+    onCaptureMany?.(shots.map((s) => s.file));
+    // The urls are revoked by the close effect, after the files have gone.
+    onOpenChange(false);
   };
 
   return (
@@ -148,6 +192,7 @@ export function CameraDialog({ open, onOpenChange, onCapture, title = "Take Phot
                 ref={fileFallbackRef}
                 type="file"
                 accept="image/*"
+                multiple={multiple}
                 className="hidden"
                 onChange={handleFallbackFile}
               />
@@ -169,8 +214,46 @@ export function CameraDialog({ open, onOpenChange, onCapture, title = "Take Phot
           )}
           <canvas ref={canvasRef} className="hidden" />
         </div>
+
+        {/* What has been taken so far, so the doctor can see the set growing
+            and drop a bad shot before any of it is sent. */}
+        {multiple && shots.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto px-4 pt-3 pb-1">
+            {shots.map((shot, i) => (
+              <div key={shot.url} className="relative shrink-0">
+                <img src={shot.url} alt={`Photo ${i + 1}`} className="h-16 w-16 rounded-md object-cover border" />
+                <button
+                  type="button"
+                  aria-label={`Remove photo ${i + 1}`}
+                  className="absolute -top-1.5 -right-1.5 rounded-full bg-background border p-0.5 shadow-sm"
+                  onClick={() => removeShot(i)}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2 p-4 bg-card">
-          {previewUrl ? (
+          {multiple ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+                <X className="h-4 w-4 mr-1.5" /> Cancel
+              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon" onClick={handleSwitchCamera} disabled={!!error} title="Switch camera">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+                <Button size="lg" onClick={handleCapture} disabled={!!error || starting} className="rounded-full h-14 w-14 p-0" title="Take photo">
+                  <Camera className="h-6 w-6" />
+                </Button>
+                <Button size="sm" onClick={handleDone} disabled={shots.length === 0}>
+                  <Check className="h-4 w-4 mr-1.5" />
+                  Done{shots.length > 0 ? ` (${shots.length})` : ""}
+                </Button>
+              </div>
+            </>
+          ) : previewUrl ? (
             <>
               <Button variant="outline" size="sm" onClick={handleRetake}>
                 <RefreshCw className="h-4 w-4 mr-1.5" /> Retake

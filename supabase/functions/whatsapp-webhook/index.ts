@@ -180,11 +180,22 @@ const GREETING_RE = /^(hi+|hey+|hello+|helo+|yo|hola|namaste|namaskar|good\s*(mo
 const CLINIC_CALL_MESSAGE =
   "To modify or cancel your booking, please call us on +91 96201 23030 / +91 63607 53030.\nThe Skin Clinic, Mangalore";
 
-// Quick-reply buttons from the appointment confirmation template
+// Quick-reply buttons from the appointment confirmation template.
+//
+// Both wordings are listed. The template approved on 14 October 2026 labels its
+// buttons CONFIRM / RESCHEDULE / CANCEL; the one before it said "Confirm" /
+// "I need to modify" / "I want to cancel". Twilio cannot edit an approved
+// template, so every reword is a new one - and a patient who was sent the old
+// template yesterday can still tap its buttons today. Dropping a label here
+// would not error, it would quietly answer them with the wrong message.
+//
+// "reschedule" reports as "modify" because that is what the clinic does with
+// it: the reply asks them to call, and nothing downstream distinguishes the two.
 function detectButtonIntent(text: string): "modify" | "cancel" | "confirm" | null {
   const t = (text || "").toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
   if (!t) return null;
   if (t === "i need to modify" || t === "need to modify" || t === "modify") return "modify";
+  if (t === "reschedule" || t === "i need to reschedule" || t === "want to reschedule") return "modify";
   if (t === "i want to cancel" || t === "want to cancel" || t === "cancel") return "cancel";
   if (t === "confirm" || t === "i confirm" || t === "yes confirm") return "confirm";
   return null;

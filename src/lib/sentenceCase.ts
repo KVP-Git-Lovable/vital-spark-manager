@@ -55,10 +55,10 @@ export function capitaliseFirstWord(text: string, caret?: number | null): string
 
   // Changing the first letter makes React rewrite the field's value, which
   // throws the caret to the end. That is harmless while the caret is already
-  // at the end (fresh typing, pasting) or still inside the first word; it
+  // at the end (fresh typing, pasting) or on the first letter itself; it
   // garbles the note only when the caret sits further into existing text, so
   // only then is the text left exactly as typed.
-  if (caret != null && caret > index + rawWord.length && caret < text.length) return text;
+  if (caret != null && caret > index + 1 && caret < text.length) return text;
   if (LOWERCASE_TERMS.has(word)) return text;
   // A word still being typed waits. Capitalising the "p" of "pH" the moment it
   // is typed would make "PH" however carefully the doctor continues, so while

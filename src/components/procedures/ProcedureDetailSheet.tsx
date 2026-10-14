@@ -533,7 +533,16 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     })));
   }
 
-  const handleClose = () => {
+  /**
+   * Drop what is on screen so it is read from the database again.
+   *
+   * Used when the sheet closes, and after a save - where the screen now stays
+   * open. Re-reading rather than leaving the typed values in place is the
+   * point: the save normalises what it writes (a service named twice is one
+   * service, the roll-up is rebuilt), and the doctor should be looking at what
+   * was stored, not at what they typed a moment before it was tidied.
+   */
+  const resetEditState = () => {
     setInitialized(false);
     setServicesInitialized(false);
     setParentHoldsOwnText(false);
@@ -542,6 +551,10 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     setAttachmentNotes("");
     setMedical({});
     setMedicalDirty(false);
+  };
+
+  const handleClose = () => {
+    resetEditState();
     onClose();
   };
 
@@ -697,7 +710,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
       queryClient.invalidateQueries({ queryKey: ["patient", procedure?.patient_id] });
       const savedId = procedureId!;
-      handleClose();
+      // Saving used to close the sheet, which dropped the doctor back on the
+      // list - so checking what had just been written meant finding the row
+      // and opening it again. The visit stays open; only its contents are
+      // re-read, from the queries invalidated just above.
+      resetEditState();
+      toast.success("Prescription saved");
       onSaved?.(savedId);
     },
     onError: (e: Error) => toast.error(e.message),

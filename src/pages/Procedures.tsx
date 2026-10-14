@@ -104,26 +104,14 @@ const Procedures = () => {
   const [kanbanOpen, setKanbanOpen] = useState(false);
   const [kanban, setKanban] = useState(() => getKanbanConfig("procedures", ALL_VIEW_ID));
 
+  // Marks the row so it is easy to find once the visit is closed. The visit
+  // itself no longer closes on save, so there is nothing to scroll to yet and
+  // nothing to offer a way back into - it says "Prescription saved" where the
+  // doctor is looking, which is inside the visit.
   const handleProcedureSaved = useCallback((savedId: string) => {
     setHighlightedId(savedId);
-    // Scroll to the row after a short delay to let the sheet close
-    setTimeout(() => {
-      rowRefs.current[savedId]?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 300);
-    toast.success("Prescription saved", {
-      description: "View Record",
-      action: {
-        label: "View Record",
-        onClick: () => openProcedure(savedId),
-      },
-      duration: 6000,
-    });
-    // Clear highlight after 3 seconds
     setTimeout(() => setHighlightedId(null), 3000);
-    // openProcedure changes identity with the address, and the toast's action
-    // must open the record against the CURRENT one - a stale copy would put
-    // the panel on an address the user has since navigated away from.
-  }, [openProcedure]);
+  }, []);
 
   const { data: procedures = [], isLoading } = useQuery({
     queryKey: ["procedures"],

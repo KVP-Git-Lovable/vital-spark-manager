@@ -155,9 +155,17 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
   const handleFallbackFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (files.length) {
-      if (multiple) onCaptureMany?.(files);
-      else onCapture(files[0]);
-      onOpenChange(false);
+      if (multiple) {
+        // Joins the strip and the camera stays open, so a phone whose live
+        // camera will not start can still build a set - take one, take
+        // another, then Done. It used to hand back a single photo and close,
+        // which is why "capture multiple photos" was nowhere to be seen on a
+        // phone while it worked on the desktop.
+        setShots((prev) => [...prev, ...files.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
+      } else {
+        onCapture(files[0]);
+        onOpenChange(false);
+      }
     }
     e.target.value = "";
   };
@@ -188,6 +196,12 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
             <div className="text-center p-6 text-white space-y-3">
               <Camera className="h-10 w-10 mx-auto opacity-60" />
               <p className="text-sm">{error}</p>
+              {multiple && (
+                <p className="text-xs opacity-80">
+                  You can still take them one at a time from the phone&apos;s own camera — they will be
+                  collected here and sent together.
+                </p>
+              )}
               <input
                 ref={fileFallbackRef}
                 type="file"
@@ -236,23 +250,40 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
         )}
         <div className="flex items-center justify-between gap-2 p-4 bg-card">
           {multiple ? (
-            <>
-              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-                <X className="h-4 w-4 mr-1.5" /> Cancel
+            /* Three cells rather than one row: on a 320px phone the old row -
+               Cancel, switch, a 56px shutter and "Done (n)" - was wider than
+               the dialog, and justify-between pushed Done off the edge, which
+               is the one control the whole thing hangs on. The shutter stays
+               centred and the two ends shrink. */
+            <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <Button variant="ghost" size="sm" className="justify-self-start px-2" onClick={() => onOpenChange(false)}>
+                <X className="h-4 w-4 sm:mr-1.5" /> <span className="hidden sm:inline">Cancel</span>
               </Button>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" onClick={handleSwitchCamera} disabled={!!error} title="Switch camera">
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-                <Button size="lg" onClick={handleCapture} disabled={!!error || starting} className="rounded-full h-14 w-14 p-0" title="Take photo">
+                {!error && (
+                  <Button variant="outline" size="icon" onClick={handleSwitchCamera} title="Switch camera">
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button
+                  size="lg"
+                  onClick={handleCapture}
+                  disabled={!!error || starting}
+                  className="rounded-full h-14 w-14 p-0 shrink-0"
+                  title="Take photo"
+                  aria-label="Take photo"
+                >
                   <Camera className="h-6 w-6" />
                 </Button>
-                <Button size="sm" onClick={handleDone} disabled={shots.length === 0}>
-                  <Check className="h-4 w-4 mr-1.5" />
-                  Done{shots.length > 0 ? ` (${shots.length})` : ""}
-                </Button>
               </div>
-            </>
+              {/* Always here, counting, so it is clear more than one can be
+                  taken before anything is sent. */}
+              <Button size="sm" className="justify-self-end px-2.5" onClick={handleDone} disabled={shots.length === 0}>
+                <Check className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">Done</span>
+                <span className="ml-1">({shots.length})</span>
+              </Button>
+            </div>
           ) : previewUrl ? (
             <>
               <Button variant="outline" size="sm" onClick={handleRetake}>

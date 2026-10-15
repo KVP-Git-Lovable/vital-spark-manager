@@ -19,18 +19,24 @@ export interface ReplyWindow {
   note: string;
 }
 
-// Named as WhatsApp's rule, with something to do about it. The clinic asked
-// why they could not send a follow-up reminder, which a note that only says
-// "replies are closed" invites - it reads as a fault in the app rather than
-// the rule it is. Sending outside the window needs a template WhatsApp has
-// approved; until the clinic has one, the phone is the way.
+// Written for the front desk, who are the only people who ever read it.
+//
+// It first said "replies are closed", which reads as a fault in the app rather
+// than the rule it is, and the clinic asked why they could not send a follow-up
+// reminder. The answer names WhatsApp. The second attempt then gave the
+// clinic's own numbers to ring - advice for a patient, pointless for the staff
+// reading it, who are the clinic. What they can actually do is phone the
+// patient, whose number is at the top of the thread they are looking at.
+//
+// Sending outside the window needs a template WhatsApp has approved. When the
+// clinic has one, this note is where to say so.
 const SHUT =
-  "WhatsApp only delivers a typed message within 24 hours of the patient's last one, and they last wrote more than a day ago. " +
-  "They will be able to receive one again as soon as they message you. Until then, please call on +91 96201 23030 / +91 63607 53030.";
+  "WhatsApp only delivers a typed message within 24 hours of the patient's last one, and this patient last wrote more than a day ago. " +
+  "They can be messaged again as soon as they write in. Until then, please phone them instead.";
 
 const NEVER_WROTE =
   "This number has never written to the clinic, and WhatsApp only delivers a typed message within 24 hours of the patient's last one. " +
-  "Please call on +91 96201 23030 / +91 63607 53030.";
+  "Please phone the patient instead.";
 
 /**
  * Is the 24-hour window open, counted from the patient's last message in?

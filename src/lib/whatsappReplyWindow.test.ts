@@ -50,7 +50,18 @@ describe("what a closed window tells the clinic", () => {
     // rule it is and leave them a way to reach the patient.
     for (const note of [replyWindow(null, now).note, replyWindow(new Date("2026-10-10T12:00:00Z"), now).note]) {
       expect(note).toContain("WhatsApp only delivers");
-      expect(note).toContain("96201 23030");
+      expect(note).toContain("phone");
+    }
+  });
+
+  it("does not tell the clinic to ring itself", () => {
+    // This note is only ever read by the front desk. An earlier version gave
+    // the clinic's own numbers, which is advice for a patient and useless to
+    // the staff reading it - they are the clinic. The patient's number is at
+    // the top of the thread they are looking at.
+    for (const note of [replyWindow(null, now).note, replyWindow(new Date("2026-10-10T12:00:00Z"), now).note]) {
+      expect(note).not.toContain("96201 23030");
+      expect(note).not.toContain("63607 53030");
     }
   });
 

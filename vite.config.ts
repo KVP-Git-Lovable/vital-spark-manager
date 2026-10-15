@@ -35,10 +35,13 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallbackDenylist: [/^\/~oauth/],
-        // Take over open tabs as soon as the new worker activates. skipWaiting
-        // stays off deliberately - that is what keeps an update from imposing
-        // itself on someone mid-form - but once it has been applied there is no
-        // reason to make them navigate again before it takes effect.
+        // The new worker activates on its own. Without this, a phone running an
+        // old page bundle (whose old registration code never applies a waiting
+        // worker) stays stuck on that build for ever - even reinstalling the
+        // home-screen app keeps Chrome's site storage and the old worker. This
+        // does not reload anything: an open page keeps running until the next
+        // time it is opened or navigated, so no form is interrupted.
+        skipWaiting: true,
         clientsClaim: true,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [

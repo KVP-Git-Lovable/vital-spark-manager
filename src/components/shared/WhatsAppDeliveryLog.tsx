@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
@@ -6,6 +6,13 @@ import { format } from "date-fns";
 import { RefreshCw, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
+import {
+  AUTO_SYNC_DAYS,
+  CONVERSATION_POLL_MS,
+  STATUS_SYNC_MS,
+  lastUpdatedLabel,
+  shouldAutoSync,
+} from "@/lib/whatsappAutoSync";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +47,14 @@ type Filter = "all" | "problem";
 export function WhatsAppDeliveryLog({ patientId }: { patientId?: string }) {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<Filter>(patientId ? "all" : "problem");
+  // When Twilio was last asked, by anyone on this screen. Drives both the
+  // "Updated 3 min ago" line and the guard that stops the timer following a
+  // manual Refresh with an automatic one.
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+  const lastSyncedRef = useRef<number | null>(null);
+  // Re-rendered on a clock of its own, or the label would freeze at whatever
+  // it said when the last query happened to settle.
+  const [, setTick] = useState(0);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["whatsapp-delivery-log", patientId ?? "all", filter],
@@ -60,26 +75,67 @@ export function WhatsAppDeliveryLog({ patientId }: { patientId?: string }) {
       if (error) throw error;
       return data as any[];
     },
+    // Statuses another machine has already synced show up here without a
+    // click, and this costs one indexed read.
+    refetchInterval: CONVERSATION_POLL_MS,
+    refetchOnWindowFocus: true,
   });
 
+  const runSync = useCallback(async (days: number) => {
+    const { data, error } = await supabase.functions.invoke("whatsapp-delivery-sync", { body: { days } });
+    if (error) {
+      const details = error instanceof FunctionsHttpError ? await error.context.text() : error.message;
+      throw new Error(details);
+    }
+    lastSyncedRef.current = Date.now();
+    setLastSyncedAt(lastSyncedRef.current);
+    return data as { synced: number };
+  }, []);
+
+  /**
+   * Refresh status, pressed on purpose.
+   *
+   * Six months, not a week: this is also what fills the conversation screen
+   * with the messages patients received, and the sync upserts by Twilio SID,
+   * so re-reading what we already hold costs nothing but time. It is the
+   * exception now - the automatic one below keeps the page current.
+   */
   const sync = useMutation({
-    mutationFn: async () => {
-      // Six months, not a week: this is also what fills the conversation
-      // screen with the messages patients received, and the sync upserts by
-      // Twilio SID, so re-reading what we already hold costs nothing.
-      const { data, error } = await supabase.functions.invoke("whatsapp-delivery-sync", { body: { days: 180 } });
-      if (error) {
-        const details = error instanceof FunctionsHttpError ? await error.context.text() : error.message;
-        throw new Error(details);
-      }
-      return data as { synced: number };
-    },
+    mutationFn: () => runSync(180),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["whatsapp-delivery-log"] });
       toast.success("Delivery status updated");
     },
     onError: (e: Error) => toast.error(`Could not update: ${e.message}`),
   });
+
+  /**
+   * The same thing, quietly, over the couple of days where a status can still
+   * change. No toast: nobody asked for it, and an error every two minutes
+   * because the network dropped would be worse than a stale badge.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    const trySync = async () => {
+      if (document.hidden) return;
+      if (!shouldAutoSync(lastSyncedRef.current)) return;
+      try {
+        await runSync(AUTO_SYNC_DAYS);
+        if (!cancelled) qc.invalidateQueries({ queryKey: ["whatsapp-delivery-log"] });
+      } catch (e) {
+        console.error("Automatic WhatsApp status sync failed", e);
+      }
+    };
+    void trySync();
+    const timer = window.setInterval(trySync, STATUS_SYNC_MS);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [qc, runSync]);
+
+  // Keeps "Updated 3 min ago" honest while the page sits open.
+  useEffect(() => {
+    const timer = window.setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <Card>
@@ -93,6 +149,9 @@ export function WhatsAppDeliveryLog({ patientId }: { patientId?: string }) {
               <SelectItem value="problem">Not delivered / pending</SelectItem>
             </SelectContent>
           </Select>
+          {lastSyncedAt !== null && (
+            <span className="text-xs text-muted-foreground">{lastUpdatedLabel(lastSyncedAt)}</span>
+          )}
           <Button size="sm" variant="outline" onClick={() => sync.mutate()} disabled={sync.isPending}>
             {sync.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             <span className="ml-1">Refresh status</span>

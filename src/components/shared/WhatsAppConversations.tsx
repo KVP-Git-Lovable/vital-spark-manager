@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { getReportDateRange, REPORT_DATE_RANGE_OPTIONS } from "@/lib/reportDateRange";
 import { sanitizeTerm } from "@/lib/fuzzySearch";
 import { replyWindow } from "@/lib/whatsappReplyWindow";
+import { CONVERSATION_POLL_MS } from "@/lib/whatsappAutoSync";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import {
   deliveryNote,
@@ -133,6 +134,10 @@ export function WhatsAppConversations() {
       return (data ?? []) as ConversationThread[];
     },
     getNextPageParam: (lastPage, pages) => lastPage.length === LIST_PAGE_SIZE ? pages.length : undefined,
+    // So a thread moves to the top when the patient writes, without anyone
+    // pressing Refresh - see whatsappAutoSync.ts.
+    refetchInterval: CONVERSATION_POLL_MS,
+    refetchOnWindowFocus: true,
   });
 
   const summariesWithCounts = useMemo(
@@ -168,6 +173,12 @@ export function WhatsAppConversations() {
       return (data ?? []) as ThreadMessage[];
     },
     getNextPageParam: (lastPage, pages) => lastPage.length === THREAD_PAGE_SIZE ? pages.length : undefined,
+    // A patient's reply is in the database the moment they send it - the
+    // webhook writes it - so the open thread only ever needed to look again.
+    // React Query pauses this while the tab is hidden, so a screen left open
+    // overnight costs nothing.
+    refetchInterval: CONVERSATION_POLL_MS,
+    refetchOnWindowFocus: true,
   });
 
   const threadMessages = useMemo(

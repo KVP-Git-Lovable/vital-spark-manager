@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { QueryClient } from "@tanstack/react-query";
+import { knownProductIds, productIdForSave } from "@/lib/prescriptionProducts";
 
 /**
  * Merge AI-recommended product/service items with the template's product/service config
@@ -91,6 +92,18 @@ export async function approveSurveyResponse(
   // 2. Insert prescriptions
   let rxCount = 0;
   if (products.length > 0) {
+    // These ids come out of a JSON snapshot on the survey response, which no
+    // foreign key protects: a product deleted since the survey was filled in
+    // is still named there. Sending one rejects the whole approval on
+    // prescriptions_product_id_fkey, so they are checked against the
+    // catalogue first and the medicine kept by name - prescriptionProducts.ts.
+    const referenced = (products as { product_id?: string | null }[])
+      .map((p) => p.product_id)
+      .filter((id): id is string => Boolean(id));
+    const { data: live } = referenced.length > 0
+      ? await supabase.from("pharma_products").select("id").in("id", referenced)
+      : { data: [] as { id: string }[] };
+    const catalogue = knownProductIds(live as { id: string }[]);
     const rxEntries = products.map((p: any) => {
       const baseInstr = p.instructions || p.advice || "";
       const instructions = baseInstr
@@ -105,7 +118,7 @@ export async function approveSurveyResponse(
         duration: p.duration || null,
         quantity: p.quantity || 1,
         instructions,
-        product_id: p.product_id || null,
+        product_id: productIdForSave(p.product_id, catalogue),
       };
     });
     const { error: rxErr } = await supabase.from("prescriptions").insert(rxEntries);

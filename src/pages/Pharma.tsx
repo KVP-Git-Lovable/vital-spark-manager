@@ -38,6 +38,7 @@ import { getActiveBatchPrice } from "@/lib/productPricing";
 import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/components/pharma/UnitConversionsEditor";
 import { usePharmaProductUnits } from "@/hooks/usePharmaProductUnits";
 import { getUomOptions, getSaleUom, getPurchaseUom, findUom, toUomQty, toBaseQty, fmtQty, getBaseUnit } from "@/lib/uom";
+import { PHARMA_LOOKUP_KEY } from "@/lib/medicineDefaults";
 
 // ─── Form Defaults ────────────────────────────────
 const emptyProduct = { name: "", generic_name: "", category: "General", manufacturer: "", base_unit: "", purchase_unit: "", sale_unit: "", reorder_level: 10, vendor_ids: [] as string[], hsn_code: "", igst_percent: 0, cgst_percent: 0, gst_percent: 0, default_frequency: "", default_duration: "", default_instructions: "" };
@@ -297,6 +298,11 @@ const Pharma = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
       queryClient.invalidateQueries({ queryKey: ["pharma-product-units"] });
+      // The prescribing screens read the medicine list under their own key,
+      // and nothing used to refresh it - so a medicine added here did not
+      // appear in a procedure until the whole page was reloaded. That is why
+      // the clinic reported medicines "not coming" in a prescription.
+      queryClient.invalidateQueries({ queryKey: PHARMA_LOOKUP_KEY });
       toast.success("Product added");
       setProductForm({ ...emptyProduct });
       setProductUnitRows([]);
@@ -373,6 +379,7 @@ const Pharma = () => {
       queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
       queryClient.invalidateQueries({ queryKey: ["pharma-inventory"] });
       queryClient.invalidateQueries({ queryKey: ["pharma-product-units"] });
+      queryClient.invalidateQueries({ queryKey: PHARMA_LOOKUP_KEY });
       toast.success("All products deleted");
     },
     onError: (e: Error) => toast.error(e.message),

@@ -24,6 +24,7 @@ import { getUomOptions, getSaleUom, toUomQty, fmtQty, type UomOption } from "@/l
 import { getActiveBatchPrice } from "@/lib/productPricing";
 import { UnitConversionsEditor, syncProductUnits, type ConversionRow } from "@/components/pharma/UnitConversionsEditor";
 import { useProductUnits } from "@/hooks/usePharmaProductUnits";
+import { PHARMA_LOOKUP_KEY } from "@/lib/medicineDefaults";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -192,6 +193,9 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
       queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
       queryClient.invalidateQueries({ queryKey: ["pharma-product", productId] });
       queryClient.invalidateQueries({ queryKey: ["pharma-product-units"] });
+      // A renamed medicine, and its prescribing defaults, reach the procedure
+      // screens straight away rather than after a reload.
+      queryClient.invalidateQueries({ queryKey: PHARMA_LOOKUP_KEY });
       toast.success("Product updated");
       setIsEditing(false);
     },
@@ -205,6 +209,9 @@ export function ProductDetailSheet({ productId, onClose, onClone, onAddStock }: 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharma-products"] });
+      // Most important of the four: a deleted medicine left in an open
+      // prescribing list is an id the database will reject on save.
+      queryClient.invalidateQueries({ queryKey: PHARMA_LOOKUP_KEY });
       toast.success("Product deleted");
       onClose();
     },

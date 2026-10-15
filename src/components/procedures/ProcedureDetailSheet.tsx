@@ -50,6 +50,7 @@ import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { SurveyHistoryPanel } from "@/components/surveys/SurveyHistoryPanel";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { OTHERS_VALUE } from "@/lib/othersOption";
+import { droppedMedicineNotice, knownProductIds, losesCatalogueLink, productIdForSave } from "@/lib/prescriptionProducts";
 import { parentServiceName, linesToWrite, matchStoredRows, namesFromParent, dedupeByName } from "@/lib/serviceLineSave";
 import { patientIdentityLine } from "@/lib/patientIdentity";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
@@ -672,6 +673,15 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
 
 
       // Handle prescriptions: delete removed, update existing, insert new
+      //
+      // Every id is checked against the catalogue first. One that is no longer
+      // in it is dropped and the medicine kept by name, because sending it
+      // rejects the whole write on prescriptions_product_id_fkey - see
+      // prescriptionProducts.ts.
+      const catalogue = knownProductIds(products as { id: string }[]);
+      const droppedMedicines = editPrescriptions
+        .filter(rx => !rx._deleted && losesCatalogueLink(rx.product_id, catalogue))
+        .map(rx => rx.medicine_name);
       const existing = editPrescriptions.filter(rx => rx.id && !rx._deleted);
       const deleted = editPrescriptions.filter(rx => rx.id && rx._deleted);
       const newRx = editPrescriptions.filter(rx => !rx.id && !rx._deleted && (rx.medicine_name || (rx.product_id && rx.product_id !== OTHERS_VALUE)));
@@ -681,7 +691,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       }
       for (const rx of existing) {
         await supabase.from("prescriptions").update({
-          product_id: rx.product_id && rx.product_id !== OTHERS_VALUE ? rx.product_id : null,
+          product_id: productIdForSave(rx.product_id, catalogue),
           medicine_name: rx.medicine_name,
           dosage: rx.dosage,
           frequency: rx.frequency,
@@ -693,7 +703,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       if (newRx.length > 0) {
         await supabase.from("prescriptions").insert(newRx.map(rx => ({
           procedure_id: procedureId!,
-          product_id: rx.product_id && rx.product_id !== OTHERS_VALUE ? rx.product_id : null,
+          product_id: productIdForSave(rx.product_id, catalogue),
           medicine_name: rx.medicine_name,
           dosage: rx.dosage,
           frequency: rx.frequency,
@@ -702,6 +712,8 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
           quantity: rx.quantity,
         })));
       }
+      const droppedNotice = droppedMedicineNotice(droppedMedicines);
+      if (droppedNotice) toast.warning(droppedNotice);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["procedures"] });

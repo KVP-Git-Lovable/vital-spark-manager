@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { MicButton } from "@/components/shared/MicButton";
 import { OTHERS_VALUE } from "@/lib/othersOption";
+import { droppedMedicineNotice, knownProductIds, losesCatalogueLink, productIdForSave } from "@/lib/prescriptionProducts";
 import { applyMedicineDefaults } from "@/lib/medicineDefaults";
 import { usePharmaLookup } from "@/hooks/usePharmaLookup";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
@@ -745,6 +746,31 @@ export function ProcedureFormDialog({
           .map((l) => (effectiveLines.length > 1 ? `${l.name}: ${l[field]}` : l[field]))
           .join("\n\n");
 
+      // The medicines are built and checked here, before a single row is
+      // written. They used to be built last, after the procedure and its
+      // services were already in - so one medicine id the catalogue no longer
+      // had rejected the insert and left a saved visit with no medicines on
+      // it and a raw Postgres message on screen. An id that is not in the
+      // catalogue is dropped and the medicine saved by name instead; see
+      // prescriptionProducts.ts for why that loses nothing.
+      const catalogue = knownProductIds(products as { id: string }[]);
+      const droppedMedicines = prescriptions
+        .filter((rx) => losesCatalogueLink(rx.product_id, catalogue))
+        .map((rx) => rx.medicine_name);
+      const rxToSave = prescriptions
+        .map((rx) => ({
+          product_id: productIdForSave(rx.product_id, catalogue),
+          medicine_name: rx.medicine_name,
+          dosage: "",
+          frequency: rx.frequency,
+          duration: rx.duration,
+          instructions: rx.instructions,
+          quantity: rx.quantity,
+        }))
+        // A row with neither a catalogue medicine nor a typed name is an
+        // empty line the doctor never filled in.
+        .filter((row) => row.product_id || (row.medicine_name || "").trim());
+
       const { data: proc, error } = await supabase
         .from("procedures")
         .insert({
@@ -785,24 +811,13 @@ export function ProcedureFormDialog({
       if (svcErr) throw svcErr;
 
 
-      if (prescriptions.length > 0) {
-
-        const rxRows = prescriptions
-          .filter((rx) => rx.medicine_name || (rx.product_id && rx.product_id !== OTHERS_VALUE))
-          .map((rx) => ({
-            procedure_id: proc.id,
-            product_id: rx.product_id === OTHERS_VALUE ? null : (rx.product_id || null),
-            medicine_name: rx.medicine_name,
-            dosage: "",
-            frequency: rx.frequency,
-            duration: rx.duration,
-            instructions: rx.instructions,
-            quantity: rx.quantity,
-          }));
-        if (rxRows.length > 0) {
-          const { error: rxErr } = await supabase.from("prescriptions").insert(rxRows);
-          if (rxErr) throw rxErr;
-        }
+      if (rxToSave.length > 0) {
+        const { error: rxErr } = await supabase
+          .from("prescriptions")
+          .insert(rxToSave.map((row) => ({ ...row, procedure_id: proc.id })));
+        if (rxErr) throw rxErr;
+        const notice = droppedMedicineNotice(droppedMedicines);
+        if (notice) toast.warning(notice);
       }
 
       notesFlushFailedRef.current = false;

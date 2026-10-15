@@ -18,6 +18,14 @@ export interface PharmaLookupProduct extends MedicineDefaults {
 export function usePharmaLookup() {
   return useQuery({
     queryKey: PHARMA_LOOKUP_KEY,
+    // Always re-read when a prescribing screen opens. The app holds queries
+    // for a minute and does not refetch on window focus - deliberately, it is
+    // what stopped the whole page reloading itself - but that left this list
+    // as old as the tab when the medicine a doctor needs was added, or
+    // removed, on another machine. 256 rows of five columns is cheap enough to
+    // read on every open, and an id that has gone from the catalogue is
+    // rejected by the database on save.
+    refetchOnMount: "always",
     queryFn: async (): Promise<PharmaLookupProduct[]> => {
       const { data, error } = await supabase.from("pharma_products").select(PHARMA_LOOKUP_COLUMNS).order("name");
       if (error) throw error;

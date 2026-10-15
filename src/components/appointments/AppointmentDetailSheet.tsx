@@ -1769,12 +1769,18 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                 </TabsContent>
 
                 <TabsContent value="photos" className="p-6 space-y-4 mt-0">
-                  <div className="flex items-center justify-between">
+                  {/* Wraps, because the heading and three buttons are wider
+                      than a phone. Without this the row ran off the right edge
+                      and took the camera button with it, so the tab showed an
+                      empty-state line naming a button that was off-screen.
+                      PatientToolsBar beside this already wraps for the same
+                      reason. */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold font-display flex items-center gap-2">
                       <Camera className="h-4 w-4" /> Photos
                     </h3>
                     {appointment.patient_id && (
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {/* This tab had no way to attach a photo already on the
                             machine - only the camera. The appointment id is
                             passed so an attached photo lands under "This

@@ -67,6 +67,8 @@ export interface VisitBill {
   total_amount?: number | string | null;
   paid_amount?: number | string | null;
   payment_mode?: string | null;
+  /** The rows behind a "Split", so a list can name the modes - see paymentSplits.ts. */
+  payment_splits?: unknown;
   status?: string | null;
   created_at?: string | null;
 }

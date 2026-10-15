@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { paymentModeForSplits, splitProblem, splitTotal, splitsFromInvoice } from "./paymentSplits";
+import { paymentModeForSplits, splitProblem, splitTotal, splitsFromInvoice, paymentModeLabel } from "./paymentSplits";
 
 /** INV-49320, Basavaraju: ₹32,175 taken as ₹30,000 cash and ₹2,175 UPI. */
 const INV_49320 = [
@@ -65,5 +65,48 @@ describe("splitProblem", () => {
 
   it("has nothing to say about an invoice paid one way", () => {
     expect(splitProblem([], 5000)).toBeNull();
+  });
+});
+
+describe("paymentModeLabel", () => {
+  it("names the modes of a split rather than the word Split", () => {
+    // The appointments list showed only "Split", so a cash-and-card bill and a
+    // cash-and-UPI one looked identical without opening either.
+    expect(paymentModeLabel("Split", [
+      { mode: "Cash", amount: 30000 },
+      { mode: "UPI", amount: 2175 },
+    ])).toBe("Cash + UPI");
+  });
+
+  it("keeps the order the payments were taken in", () => {
+    expect(paymentModeLabel("Split", [
+      { mode: "UPI", amount: 500 },
+      { mode: "Card", amount: 500 },
+      { mode: "Cash", amount: 500 },
+    ])).toBe("UPI + Card + Cash");
+  });
+
+  it("names a mode used twice only once", () => {
+    expect(paymentModeLabel("Split", [
+      { mode: "Cash", amount: 100 },
+      { mode: "Cash", amount: 200 },
+      { mode: "UPI", amount: 300 },
+    ])).toBe("Cash + UPI");
+  });
+
+  it("leaves an ordinary bill exactly as it is", () => {
+    expect(paymentModeLabel("UPI", null)).toBe("UPI");
+    expect(paymentModeLabel("Cash", [])).toBe("Cash");
+    // One row is not a split - it is that payment.
+    expect(paymentModeLabel("Cash", [{ mode: "Cash", amount: 850 }])).toBe("Cash");
+  });
+
+  it("falls back to the stored word when the rows name nothing", () => {
+    expect(paymentModeLabel("Split", [{ mode: "", amount: 1 }, { mode: "  ", amount: 2 }])).toBe("Split");
+  });
+
+  it("is empty when there is no bill at all, so the cell can show a dash", () => {
+    expect(paymentModeLabel(null, null)).toBe("");
+    expect(paymentModeLabel("", null)).toBe("");
   });
 });

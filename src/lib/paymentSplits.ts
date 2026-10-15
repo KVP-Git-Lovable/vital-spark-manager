@@ -56,3 +56,33 @@ export function splitProblem(rows: PaymentSplit[], paidAmount: number): string |
   }
   return null;
 }
+
+/**
+ * What a list should show for a bill's payment mode.
+ *
+ * payment_mode stores the word "Split" so a bill paid two ways can say so in
+ * one word, which is right on the invoice itself - the rows are printed
+ * underneath it. In a list there is no underneath, so "Split" is all anybody
+ * sees, and the front desk cannot tell a cash-and-card bill from a cash-and-UPI
+ * one without opening it.
+ *
+ * So a list names the modes instead. Order is the order they were taken, and a
+ * mode used twice is named once - two cash rows and a UPI row is "Cash + UPI",
+ * not "Cash + Cash + UPI".
+ */
+export function paymentModeLabel(storedMode: string | null | undefined, stored: unknown): string {
+  const rows = splitsFromInvoice(stored);
+  if (rows.length < 2) return (storedMode ?? "").trim();
+
+  const seen = new Set<string>();
+  const modes: string[] = [];
+  for (const row of rows) {
+    const mode = row.mode.trim();
+    if (!mode || seen.has(mode.toLowerCase())) continue;
+    seen.add(mode.toLowerCase());
+    modes.push(mode);
+  }
+  // Rows with no mode on them at all: nothing truthful to name, so the stored
+  // word stands rather than an empty cell.
+  return modes.length > 0 ? modes.join(" + ") : (storedMode ?? "").trim();
+}

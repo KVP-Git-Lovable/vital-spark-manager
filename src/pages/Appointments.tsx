@@ -102,6 +102,7 @@ import { toast } from "sonner";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { fetchAppointmentsPage } from "@/lib/appointmentsPage";
 import { investigationText } from "@/lib/investigationText";
+import { paymentModeLabel } from "@/lib/paymentSplits";
 import { printAppointments } from "@/lib/printAppointments";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
@@ -990,7 +991,7 @@ const Appointments = () => {
   // [], so every bill cell silently rendered as a dash. See
   // fetchInvoicesByAppointmentIds for the rest of the reasoning.
   const INVOICE_COLUMNS =
-    "id, appointment_id, patient_id, created_at, total_amount, paid_amount, payment_mode, status";
+    "id, appointment_id, patient_id, created_at, total_amount, paid_amount, payment_mode, payment_splits, status";
   const fetchInvoiceChunk = async (ids: string[]) => {
     const { data, error } = await supabase
       .from("invoices")
@@ -3150,16 +3151,22 @@ const Appointments = () => {
                                 )}
                                 {shouldShowColumn("payment_mode") && (
                                   <td className="p-3 text-xs">
+                                    {/* A bill paid two ways names them - "Cash + UPI" - rather
+                                        than the word "Split", which is all this column could
+                                        say and told the front desk nothing. See
+                                        paymentSplits.ts. */}
                                     {(invoice?.bills ?? []).length > 1 ? (
                                       <span className="flex flex-col items-start gap-0.5">
                                         {invoice!.bills.map((bill, i) => (
                                           <Badge key={bill.id ?? i} variant="outline" className="text-xs">
-                                            {bill.payment_mode || "—"}
+                                            {paymentModeLabel(bill.payment_mode, bill.payment_splits) || "—"}
                                           </Badge>
                                         ))}
                                       </span>
                                     ) : invoice?.payment_mode ? (
-                                      <Badge variant="outline" className="text-xs">{invoice.payment_mode}</Badge>
+                                      <Badge variant="outline" className="text-xs">
+                                        {paymentModeLabel(invoice.payment_mode, invoice.payment_splits)}
+                                      </Badge>
                                     ) : (
                                       <span className="text-muted-foreground">—</span>
                                     )}

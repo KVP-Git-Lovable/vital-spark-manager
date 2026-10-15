@@ -1,5 +1,8 @@
 import { UPDATE_CHECK_INTERVAL_MS, shouldApplyOnReturn, updateActionFor } from "@/lib/pwaUpdate";
 
+/** Untouched this long, with nothing open or typed, is a safe moment to update. */
+const IDLE_APPLY_MS = 2 * 60 * 1000;
+
 const APP_SERVICE_WORKER_PATH = "/sw.js";
 
 const isPreviewHost = (hostname: string) =>
@@ -100,6 +103,23 @@ export const registerPwa = async () => {
       };
 
       setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
+
+      // A phone kept open in the foreground never "returns" to the app, so a
+      // waiting build also goes in once the page has been left untouched for
+      // a while with no dialog open and nothing typed - nobody is mid-form,
+      // and no popup is shown.
+      let lastActivity = Date.now();
+      const touch = () => { lastActivity = Date.now(); };
+      for (const evt of ["pointerdown", "keydown", "touchstart", "scroll", "input"]) {
+        window.addEventListener(evt, touch, { passive: true, capture: true });
+      }
+      setInterval(() => {
+        if (!updateWaiting || document.visibilityState !== "visible") return;
+        if (Date.now() - lastActivity < IDLE_APPLY_MS) return;
+        if (dialogIsOpen() || somethingIsTyped()) return;
+        updateWaiting = false;
+        void updateSW(true);
+      }, 30_000);
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden") {
           hiddenSince = Date.now();

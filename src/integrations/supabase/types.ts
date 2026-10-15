@@ -6187,24 +6187,6 @@ export type Database = {
         }
         Relationships: []
       }
-      whatsapp_thread_reads: {
-        Row: {
-          last_read_at: string
-          phone: string
-          user_id: string
-        }
-        Insert: {
-          last_read_at?: string
-          phone: string
-          user_id: string
-        }
-        Update: {
-          last_read_at?: string
-          phone?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       whatsapp_conversations: {
         Row: {
           content: string
@@ -6332,6 +6314,24 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_thread_reads: {
+        Row: {
+          last_read_at: string
+          phone: string
+          user_id: string
+        }
+        Insert: {
+          last_read_at?: string
+          phone: string
+          user_id: string
+        }
+        Update: {
+          last_read_at?: string
+          phone?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       working_hours: {
         Row: {
           break_end: string | null
@@ -6409,9 +6409,9 @@ export type Database = {
         Row: {
           first_name: string | null
           last_at: string | null
-          last_inbound_at: string | null
           last_content: string | null
           last_direction: string | null
+          last_inbound_at: string | null
           last_name: string | null
           message_count: number | null
           patient_id: string | null

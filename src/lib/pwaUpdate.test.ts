@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { updateActionFor, UPDATE_AT_LOAD_GRACE_MS, UPDATE_CHECK_INTERVAL_MS } from "./pwaUpdate";
+import { updateActionFor, UPDATE_AT_LOAD_GRACE_MS, UPDATE_CHECK_INTERVAL_MS, AWAY_MS, shouldApplyOnReturn } from "./pwaUpdate";
 
 describe("updateActionFor", () => {
   it("applies a build that was already waiting when the page loaded", () => {
@@ -27,5 +27,31 @@ describe("updateActionFor", () => {
   it("checks often enough that an all-day tab still finds an update", () => {
     expect(UPDATE_CHECK_INTERVAL_MS).toBeLessThanOrEqual(30 * 60 * 1000);
     expect(UPDATE_CHECK_INTERVAL_MS).toBeGreaterThan(0);
+  });
+});
+
+describe("shouldApplyOnReturn", () => {
+  const clean = { hiddenForMs: AWAY_MS, dialogOpen: false, hasTypedContent: false };
+
+  it("applies a waiting build when somebody comes back to a page they put down", () => {
+    // The case this exists for: a phone that is backgrounded for days and never
+    // closed, so nothing else ever applies the update.
+    expect(shouldApplyOnReturn(clean)).toBe(true);
+    expect(shouldApplyOnReturn({ ...clean, hiddenForMs: 10 * 60_000 })).toBe(true);
+  });
+
+  it("does not treat a glance at a notification as being away", () => {
+    expect(shouldApplyOnReturn({ ...clean, hiddenForMs: 0 })).toBe(false);
+    expect(shouldApplyOnReturn({ ...clean, hiddenForMs: AWAY_MS - 1 })).toBe(false);
+  });
+
+  it("never interrupts an open form", () => {
+    // What the clinic reported the first time round: the page vanishing
+    // mid-consultation.
+    expect(shouldApplyOnReturn({ ...clean, dialogOpen: true })).toBe(false);
+  });
+
+  it("never discards something half-typed", () => {
+    expect(shouldApplyOnReturn({ ...clean, hasTypedContent: true })).toBe(false);
   });
 });

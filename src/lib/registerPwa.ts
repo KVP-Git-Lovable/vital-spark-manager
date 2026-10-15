@@ -1,4 +1,4 @@
-import { UPDATE_CHECK_INTERVAL_MS, updateActionFor } from "@/lib/pwaUpdate";
+import { UPDATE_CHECK_INTERVAL_MS, shouldApplyOnReturn, updateActionFor } from "@/lib/pwaUpdate";
 
 const APP_SERVICE_WORKER_PATH = "/sw.js";
 
@@ -11,6 +11,28 @@ const isPreviewHost = (hostname: string) =>
   hostname.endsWith(".lovableproject-dev.com") ||
   hostname === "beta.lovable.dev" ||
   hostname.endsWith(".beta.lovable.dev");
+
+/**
+ * Whether anything on the page would be lost by reloading it.
+ *
+ * Read off the page rather than tracked, because every form in the app would
+ * otherwise have to remember to say so, and the one that forgot would be the
+ * one that lost somebody's work. Conservative by design: anything it is unsure
+ * about counts as busy, and the update simply waits longer.
+ */
+const dialogIsOpen = () => Boolean(document.querySelector('[role="dialog"]'));
+
+const somethingIsTyped = () => {
+  const fields = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea");
+  for (const field of fields) {
+    if (field.type === "hidden" || field.disabled || field.readOnly) continue;
+    if ((field.value ?? "").trim() !== "") return true;
+  }
+  for (const editable of document.querySelectorAll<HTMLElement>("[contenteditable='true']")) {
+    if ((editable.textContent ?? "").trim() !== "") return true;
+  }
+  return false;
+};
 
 const removeAppServiceWorker = async () => {
   if (!("serviceWorker" in navigator)) return;
@@ -51,8 +73,16 @@ export const registerPwa = async () => {
   //
   // So: a build already waiting when we register arrived with the page, before
   // anything was typed, and goes in silently - which is what makes a stale
-  // install recover on the next reload. One that turns up later waits to be
-  // asked, through a toast and a control in the header that does not disappear.
+  // install recover on the next reload. One that turns up later is held, and
+  // goes in the next time the app is picked back up with nothing in progress.
+  //
+  // That last part is what was missing. The clinic asked for the toast and the
+  // header button to go, which left a waiting build with nobody to apply it: a
+  // desktop recovered on the next reload, and a phone - backgrounded rather
+  // than closed - ran the same bundle for days. Three faults reported in a week
+  // were really that.
+  let updateWaiting = false;
+  let hiddenSince: number | null = null;
   const updateSW = registerSW({
     immediate: true,
 
@@ -71,7 +101,27 @@ export const registerPwa = async () => {
 
       setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
       document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") checkForUpdate();
+        if (document.visibilityState === "hidden") {
+          hiddenSince = Date.now();
+          return;
+        }
+        checkForUpdate();
+
+        // Coming back to a page somebody put down is the same safe moment as
+        // arriving at one: nothing typed, nothing half-finished. Without this
+        // a waiting build had nothing to apply it - the clinic had the toast
+        // and the header button removed - so a phone, which is backgrounded
+        // rather than closed, ran the same bundle for days. See pwaUpdate.ts.
+        const hiddenFor = hiddenSince === null ? 0 : Date.now() - hiddenSince;
+        hiddenSince = null;
+        if (!updateWaiting) return;
+        if (!shouldApplyOnReturn({
+          hiddenForMs: hiddenFor,
+          dialogOpen: dialogIsOpen(),
+          hasTypedContent: somethingIsTyped(),
+        })) return;
+        updateWaiting = false;
+        setTimeout(() => void updateSW(true), 0);
       });
     },
 
@@ -85,12 +135,16 @@ export const registerPwa = async () => {
         return;
       }
 
+      // Held, not dropped. The visibility handler above puts it in the next
+      // time the app is picked back up with nothing in progress.
+      updateWaiting = true;
+
       // Nothing is shown and nothing interrupts. A build that arrives while
-      // somebody is working simply waits: the next time the app is loaded it is
-      // already waiting, which lands inside the grace window above and is
-      // applied silently. The clinic asked for both the popup and the header
-      // button to go, so a reload is now the only thing that takes an update -
-      // and it always does.
+      // somebody is working waits for one of two safe moments: the app being
+      // loaded again, which lands inside the grace window above, or the person
+      // coming back to it after putting it down with nothing in progress. The
+      // second is what the visibility handler does - without it, a phone that
+      // is never closed had neither.
     },
   });
 };

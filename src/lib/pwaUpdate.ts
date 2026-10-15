@@ -28,3 +28,34 @@ export type UpdateAction = "apply" | "ask";
 
 export const updateActionFor = (msSinceRegistered: number): UpdateAction =>
   msSinceRegistered <= UPDATE_AT_LOAD_GRACE_MS ? "apply" : "ask";
+
+/**
+ * Coming back to the app after being away is also a fresh start.
+ *
+ * "ask" above has nobody to ask: the clinic had the toast and the header
+ * button removed after a build applied itself mid-consultation, so a build
+ * arriving while the app is open simply waits for the next load. On a desktop
+ * that is survivable - browsers get closed, pages get reloaded. On a phone the
+ * app is never closed, only backgrounded, so "ask" came to mean "never" on the
+ * device the clinic uses most. Three faults were reported in a week that were
+ * really one phone or one tab running last week's code.
+ *
+ * Returning to a page somebody put down is the same safe moment as arriving:
+ * nothing has been typed, nothing is half-finished. So the build goes in then,
+ * and only then.
+ */
+
+/** Hidden for less than this is a glance at a notification, not an absence. */
+export const AWAY_MS = 60_000;
+
+export interface ReturnContext {
+  /** How long the app was in the background. */
+  hiddenForMs: number;
+  /** A dialog is open - a form somebody is in the middle of. */
+  dialogOpen: boolean;
+  /** Something has been typed and not saved. */
+  hasTypedContent: boolean;
+}
+
+export const shouldApplyOnReturn = ({ hiddenForMs, dialogOpen, hasTypedContent }: ReturnContext): boolean =>
+  hiddenForMs >= AWAY_MS && !dialogOpen && !hasTypedContent;

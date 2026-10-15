@@ -46,7 +46,12 @@ type Filter = "all" | "problem";
 
 export function WhatsAppDeliveryLog({ patientId }: { patientId?: string }) {
   const qc = useQueryClient();
-  const [filter, setFilter] = useState<Filter>(patientId ? "all" : "problem");
+  // Everything, wherever this card is shown. It used to open the WhatsApp
+  // Delivery page narrowed to the failures, on the reasoning that the page
+  // exists to surface them - but a page that hides most of its rows until you
+  // change a dropdown reads as broken rather than filtered, and the clinic
+  // wants to see what went out. The dropdown still narrows it on demand.
+  const [filter, setFilter] = useState<Filter>("all");
   // When Twilio was last asked, by anyone on this screen. Drives both the
   // "Updated 3 min ago" line and the guard that stops the timer following a
   // manual Refresh with an automatic one.

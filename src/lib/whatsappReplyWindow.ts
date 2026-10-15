@@ -19,11 +19,18 @@ export interface ReplyWindow {
   note: string;
 }
 
+// Named as WhatsApp's rule, with something to do about it. The clinic asked
+// why they could not send a follow-up reminder, which a note that only says
+// "replies are closed" invites - it reads as a fault in the app rather than
+// the rule it is. Sending outside the window needs a template WhatsApp has
+// approved; until the clinic has one, the phone is the way.
 const SHUT =
-  "The patient last wrote more than 24 hours ago, so WhatsApp will not deliver a typed reply until they message again.";
+  "WhatsApp only delivers a typed message within 24 hours of the patient's last one, and they last wrote more than a day ago. " +
+  "They will be able to receive one again as soon as they message you. Until then, please call on +91 96201 23030 / +91 63607 53030.";
 
 const NEVER_WROTE =
-  "This number has never written in, so WhatsApp will not deliver a typed reply to it.";
+  "This number has never written to the clinic, and WhatsApp only delivers a typed message within 24 hours of the patient's last one. " +
+  "Please call on +91 96201 23030 / +91 63607 53030.";
 
 /**
  * Is the 24-hour window open, counted from the patient's last message in?

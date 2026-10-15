@@ -6187,6 +6187,24 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_thread_reads: {
+        Row: {
+          last_read_at: string
+          phone: string
+          user_id: string
+        }
+        Insert: {
+          last_read_at?: string
+          phone: string
+          user_id: string
+        }
+        Update: {
+          last_read_at?: string
+          phone?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_conversations: {
         Row: {
           content: string

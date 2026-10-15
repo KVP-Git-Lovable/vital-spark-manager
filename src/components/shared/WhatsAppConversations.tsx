@@ -1,5 +1,5 @@
-import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, isToday, isYesterday } from "date-fns";
 import { Link } from "react-router-dom";
 import { AlertCircle, Clock3, Loader2, Search, Send } from "lucide-react";
@@ -16,6 +16,7 @@ import { getReportDateRange, REPORT_DATE_RANGE_OPTIONS } from "@/lib/reportDateR
 import { sanitizeTerm } from "@/lib/fuzzySearch";
 import { replyWindow } from "@/lib/whatsappReplyWindow";
 import { CONVERSATION_POLL_MS } from "@/lib/whatsappAutoSync";
+import { isThreadUnread, unreadCount } from "@/lib/whatsappUnread";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import {
   deliveryNote,
@@ -66,7 +67,13 @@ function applyDateRange<T>(query: T, start?: Date, end?: Date, column = "created
   return next as T;
 }
 
-export function WhatsAppConversations() {
+interface WhatsAppConversationsProps {
+  /** Lets the page show the count beside its Conversations tab. */
+  onUnreadCountChange?: (count: number) => void;
+}
+
+export function WhatsAppConversations({ onUnreadCountChange }: WhatsAppConversationsProps = {}) {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search.trim());
   // The whole history, not the current month: this is a conversation
@@ -145,6 +152,62 @@ export function WhatsAppConversations() {
     [conversations.data],
   );
 
+  // When this person last opened each thread. One small indexed read on the
+  // same clock as the list, so a reply that lands lights up on its own.
+  const reads = useQuery({
+    queryKey: ["whatsapp-thread-reads"],
+    queryFn: async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) return {} as Record<string, string>;
+      const { data, error } = await supabase
+        .from("whatsapp_thread_reads")
+        .select("phone, last_read_at")
+        .eq("user_id", uid);
+      if (error) throw error;
+      const byPhone: Record<string, string> = {};
+      for (const row of data ?? []) byPhone[row.phone] = row.last_read_at;
+      return byPhone;
+    },
+    refetchInterval: CONVERSATION_POLL_MS,
+    refetchOnWindowFocus: true,
+  });
+  const readsByPhone = reads.data ?? {};
+
+  const unreadThreads = useMemo(
+    () => summariesWithCounts.map((summary) => ({
+      phone: summary.phone,
+      last_at: summary.created_at,
+      last_direction: summary.direction,
+    })),
+    [summariesWithCounts],
+  );
+  const unread = unreadCount(unreadThreads, readsByPhone);
+  useEffect(() => { onUnreadCountChange?.(unread); }, [unread, onUnreadCountChange]);
+
+  /**
+   * Opening a thread is reading it.
+   *
+   * Written before the list refetches rather than after, so the dot clears the
+   * moment it is clicked - waiting twenty seconds for the next poll to agree
+   * would have the clinic clicking twice.
+   */
+  const markRead = useCallback(async (phone: string) => {
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth.user?.id;
+    if (!uid) return;
+    queryClient.setQueryData(["whatsapp-thread-reads"], (prev: Record<string, string> | undefined) => ({
+      ...(prev ?? {}),
+      [phone]: new Date().toISOString(),
+    }));
+    const { error } = await supabase
+      .from("whatsapp_thread_reads")
+      .upsert({ user_id: uid, phone, last_read_at: new Date().toISOString() }, { onConflict: "user_id,phone" });
+    // A mark that failed to save is not worth interrupting anyone over - the
+    // next open writes it again - but it should not vanish silently either.
+    if (error) console.error("Could not mark the conversation read", error);
+  }, [queryClient]);
+
   useEffect(() => {
     if (!selectedPhone || !summariesWithCounts.some((item) => item.phone === selectedPhone)) {
       setSelectedPhone(summariesWithCounts[0]?.phone ?? null);
@@ -196,7 +259,6 @@ export function WhatsAppConversations() {
   // the patient's last one, so the window is read from the thread itself - the
   // most recent message that came IN - and the box says so when it has closed
   // rather than letting the front desk type into a refusal.
-  const queryClient = useQueryClient();
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const lastInboundAt = useMemo(() => {
@@ -300,30 +362,49 @@ export function WhatsAppConversations() {
                 ) : (
                   summariesWithCounts.map((summary) => {
                     const name = patientName(summary);
-                    const waiting = summary.direction === "inbound";
+                    const isUnread = isThreadUnread(
+                      { phone: summary.phone, last_at: summary.created_at, last_direction: summary.direction },
+                      readsByPhone[summary.phone],
+                    );
                     return (
                       <button
                         key={summary.phone}
                         type="button"
-                        onClick={() => setSelectedPhone(summary.phone)}
+                        onClick={() => { setSelectedPhone(summary.phone); void markRead(summary.phone); }}
                         className={cn(
                           "w-full border-b px-4 py-3 text-left transition-colors hover:bg-muted/50",
                           selectedPhone === summary.phone && "bg-primary/10",
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{name || summary.phone}</p>
-                            {name && <p className="truncate text-xs text-muted-foreground">{summary.phone}</p>}
+                          <div className="flex min-w-0 items-start gap-2">
+                            {/* The mark front desk asked for: a thread the
+                                patient has written to since anyone here last
+                                opened it. An outbound last message never
+                                carries one, which is what the old "Waiting"
+                                chip could not tell apart. */}
+                            <span
+                              aria-label={isUnread ? "Unread reply" : undefined}
+                              className={cn(
+                                "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                                isUnread ? "bg-success" : "bg-transparent",
+                              )}
+                            />
+                            <div className="min-w-0">
+                              <p className={cn("truncate text-sm", isUnread ? "font-semibold" : "font-medium")}>
+                                {name || summary.phone}
+                              </p>
+                              {name && <p className="truncate text-xs text-muted-foreground">{summary.phone}</p>}
+                            </div>
                           </div>
                           <time className="shrink-0 text-[11px] text-muted-foreground">{format(new Date(summary.created_at), "dd MMM, hh:mm a")}</time>
                         </div>
                         <p className="mt-1 truncate text-xs text-muted-foreground">{summary.content}</p>
                         <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                           <span>{summary.messageCount ?? "…"} messages</span>
-                          {waiting && (
-                            <span className="inline-flex items-center gap-1 font-medium text-warning">
-                              <Clock3 className="h-3 w-3" /> Waiting
+                          {isUnread && (
+                            <span className="inline-flex items-center gap-1 font-medium text-success">
+                              <Clock3 className="h-3 w-3" /> New reply
                             </span>
                           )}
                         </div>

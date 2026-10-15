@@ -16,7 +16,7 @@ import { getReportDateRange, REPORT_DATE_RANGE_OPTIONS } from "@/lib/reportDateR
 import { sanitizeTerm } from "@/lib/fuzzySearch";
 import { replyWindow } from "@/lib/whatsappReplyWindow";
 import { CONVERSATION_POLL_MS } from "@/lib/whatsappAutoSync";
-import { isThreadUnread, unreadCount } from "@/lib/whatsappUnread";
+import { isThreadUnread, unreadCount, READ_BASELINE_PHONE } from "@/lib/whatsappUnread";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import {
   deliveryNote,
@@ -123,7 +123,7 @@ export function WhatsAppConversations({ onUnreadCountChange }: WhatsAppConversat
       const from = pageParam * LIST_PAGE_SIZE;
       let query = supabase
         .from("whatsapp_conversation_threads")
-        .select("phone, last_at, message_count, last_content, last_direction, patient_id, first_name, last_name")
+        .select("phone, last_at, last_inbound_at, message_count, last_content, last_direction, patient_id, first_name, last_name")
         .order("last_at", { ascending: false })
         .range(from, from + LIST_PAGE_SIZE - 1);
       // The range picks which conversations are listed, by when they last
@@ -167,22 +167,37 @@ export function WhatsAppConversations({ onUnreadCountChange }: WhatsAppConversat
       if (error) throw error;
       const byPhone: Record<string, string> = {};
       for (const row of data ?? []) byPhone[row.phone] = row.last_read_at;
+
+      // The first time somebody opens this page, everything older than now
+      // counts as seen. Without it the mark arrives on all 178 threads a
+      // patient has ever written to, which can only be cleared by opening all
+      // 178 - the very thing it exists to save.
+      if (Object.keys(byPhone).length === 0) {
+        const baseline = new Date().toISOString();
+        const { error: seedError } = await supabase
+          .from("whatsapp_thread_reads")
+          .upsert({ user_id: uid, phone: READ_BASELINE_PHONE, last_read_at: baseline }, { onConflict: "user_id,phone" });
+        if (seedError) console.error("Could not record the unread baseline", seedError);
+        else byPhone[READ_BASELINE_PHONE] = baseline;
+      }
       return byPhone;
     },
     refetchInterval: CONVERSATION_POLL_MS,
     refetchOnWindowFocus: true,
   });
-  const readsByPhone = reads.data ?? {};
+  const readMarks = useMemo(() => {
+    const byPhone = reads.data ?? {};
+    return { byPhone, baseline: byPhone[READ_BASELINE_PHONE] ?? null };
+  }, [reads.data]);
 
   const unreadThreads = useMemo(
     () => summariesWithCounts.map((summary) => ({
       phone: summary.phone,
-      last_at: summary.created_at,
-      last_direction: summary.direction,
+      last_inbound_at: summary.lastInboundAt ?? null,
     })),
     [summariesWithCounts],
   );
-  const unread = unreadCount(unreadThreads, readsByPhone);
+  const unread = unreadCount(unreadThreads, readMarks);
   useEffect(() => { onUnreadCountChange?.(unread); }, [unread, onUnreadCountChange]);
 
   /**
@@ -363,8 +378,8 @@ export function WhatsAppConversations({ onUnreadCountChange }: WhatsAppConversat
                   summariesWithCounts.map((summary) => {
                     const name = patientName(summary);
                     const isUnread = isThreadUnread(
-                      { phone: summary.phone, last_at: summary.created_at, last_direction: summary.direction },
-                      readsByPhone[summary.phone],
+                      { phone: summary.phone, last_inbound_at: summary.lastInboundAt ?? null },
+                      readMarks,
                     );
                     return (
                       <button

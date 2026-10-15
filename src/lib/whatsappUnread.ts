@@ -1,46 +1,52 @@
 /**
  * Which conversations have something the clinic has not read.
  *
- * The list already showed a "Waiting" chip whenever the last message came in,
- * which front desk reasonably read as "unread" - and it is not. It stayed on a
- * thread somebody had answered by phone an hour earlier, and said nothing
- * about what had arrived since. So they opened every conversation to find out
- * whether a patient had replied.
+ * Counted from the patient's own last message, not the thread's.
  *
- * Unread is about two things together: the last word was the patient's, and it
- * arrived after this person last opened the thread.
+ * The first version of this asked whether the thread's last message came in,
+ * and could never fire: whatsapp-webhook answers every patient message
+ * automatically, so all 346 threads end with the clinic's own reply. The bot
+ * replying is not a person reading - and the case that matters looks exactly
+ * like the one that failed, with the patient writing "I need to modify" and the
+ * bot answering "please call us" while somebody still has to act on it.
+ *
+ * The baseline exists for the first time somebody opens the page. Without it
+ * the feature arrives as a mark on every thread a patient has ever written to -
+ * 178 of them - which is noise that can only be cleared by opening all 178,
+ * the very thing it is meant to save.
  */
+
+/** The read row that means "everything up to here had been seen". */
+export const READ_BASELINE_PHONE = "*";
 
 export interface UnreadThread {
   phone: string;
-  /** When the most recent message in the thread arrived. */
-  last_at: string;
-  /** "inbound" when the patient wrote it. */
-  last_direction?: string | null;
+  /** When the patient last wrote, or null if they never have. */
+  last_inbound_at?: string | null;
 }
 
-/**
- * @param lastReadAt when this person last opened the thread, or null if never.
- */
-export function isThreadUnread(thread: UnreadThread, lastReadAt: string | null | undefined): boolean {
-  // The clinic's own reply is never unread, whoever sent it and whenever.
-  if ((thread.last_direction ?? "").toLowerCase() !== "inbound") return false;
+export interface ReadMarks {
+  /** When this person last opened each thread. */
+  byPhone: Record<string, string | undefined>;
+  /** When they first used the page, for threads they have never opened. */
+  baseline?: string | null;
+}
 
-  const arrived = Date.parse(thread.last_at ?? "");
-  // An unparseable date is not worth a mark nobody can clear.
-  if (Number.isNaN(arrived)) return false;
+export function isThreadUnread(thread: UnreadThread, reads: ReadMarks): boolean {
+  const wrote = Date.parse(thread.last_inbound_at ?? "");
+  // Never written in, or a date nothing can read: not a mark anyone could clear.
+  if (Number.isNaN(wrote)) return false;
 
-  if (!lastReadAt) return true;
-  const read = Date.parse(lastReadAt);
+  const seen = reads.byPhone[thread.phone] ?? reads.baseline ?? null;
+  if (!seen) return true;
+
+  const read = Date.parse(seen);
   if (Number.isNaN(read)) return true;
 
-  return arrived > read;
+  return wrote > read;
 }
 
 /** For the count beside the Conversations tab. */
-export function unreadCount(
-  threads: UnreadThread[],
-  readsByPhone: Record<string, string | undefined>,
-): number {
-  return threads.reduce((n, thread) => (isThreadUnread(thread, readsByPhone[thread.phone]) ? n + 1 : n), 0);
+export function unreadCount(threads: UnreadThread[], reads: ReadMarks): number {
+  return threads.reduce((n, thread) => (isThreadUnread(thread, reads) ? n + 1 : n), 0);
 }

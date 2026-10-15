@@ -26,12 +26,18 @@ export type ConversationMessage = {
 };
 
 /** A list row: the conversation's last message, plus how long it runs. */
-export type ConversationSummary = ConversationMessage & { messageCount?: number };
+export type ConversationSummary = ConversationMessage & {
+  messageCount?: number;
+  /** Carried through for the unread mark - see whatsappUnread.ts. */
+  lastInboundAt?: string | null;
+};
 
 /** One row of the whatsapp_conversation_threads view. */
 export type ConversationThread = {
   phone: string;
   last_at: string;
+  /** When the PATIENT last wrote - what the unread mark counts from. */
+  last_inbound_at: string | null;
   message_count: number;
   last_content: string | null;
   last_direction: string | null;
@@ -61,6 +67,7 @@ export function summaryFromThread(row: ConversationThread): ConversationSummary 
         ? { first_name: row.first_name, last_name: row.last_name }
         : null,
     messageCount: row.message_count,
+    lastInboundAt: row.last_inbound_at,
   };
 }
 

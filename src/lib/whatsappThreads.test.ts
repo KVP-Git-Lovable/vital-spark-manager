@@ -4,6 +4,7 @@ import { deliveryNote, summaryFromThread, type ConversationThread } from "./what
 const thread = (over: Partial<ConversationThread> = {}): ConversationThread => ({
   phone: "+919113984063",
   last_at: "2026-05-01T10:30:00.000Z",
+  last_inbound_at: null,
   message_count: 2,
   last_content: "Your appointment is confirmed.",
   last_direction: "outbound",
@@ -78,5 +79,18 @@ describe("deliveryNote", () => {
   it("stays quiet about a status it does not know", () => {
     expect(deliveryNote({ source: "sent", status: "something_new" })).toBeNull();
     expect(deliveryNote({ source: "sent", status: null })).toBeNull();
+  });
+});
+
+describe("the patient's own last message", () => {
+  it("is carried onto the list row, for the unread mark", () => {
+    // The thread's last message is almost always the bot's automatic reply,
+    // so the mark counts from this instead - see whatsappUnread.ts.
+    expect(summaryFromThread(thread({ last_inbound_at: "2026-05-01T10:29:00.000Z" })).lastInboundAt)
+      .toBe("2026-05-01T10:29:00.000Z");
+  });
+
+  it("is null for a number the clinic has only ever messaged", () => {
+    expect(summaryFromThread(thread()).lastInboundAt).toBeNull();
   });
 });

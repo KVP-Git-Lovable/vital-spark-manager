@@ -6409,6 +6409,7 @@ export type Database = {
         Row: {
           first_name: string | null
           last_at: string | null
+          last_inbound_at: string | null
           last_content: string | null
           last_direction: string | null
           last_name: string | null

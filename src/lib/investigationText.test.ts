@@ -34,3 +34,30 @@ describe("investigationText", () => {
     expect(investigationText(undefined)).toBe("");
   });
 });
+
+describe("a visit this app booked", () => {
+  it("shows blank when the doctor left it blank", () => {
+    // 64 of the 69 visits booked from a prescription had no investigation, and
+    // every one of them showed the service instead - which reads as the app
+    // making one up.
+    expect(investigationText({ reason_for_consultation: null, service: "Laser Toning", source: "Procedure" }, "—")).toBe("—");
+    expect(investigationText({ reason_for_consultation: "   ", service: "Laser Toning", source: "Procedure" }, "—")).toBe("—");
+  });
+
+  it("does not announce 'Follow Up' for a visit nobody described", () => {
+    // The booking writes "Follow Up" as the service when the prescription has
+    // no service lines.
+    expect(investigationText({ reason_for_consultation: null, service: "Follow Up", source: "Procedure" }, "—")).toBe("—");
+  });
+
+  it("still shows what the doctor did write", () => {
+    expect(investigationText({ reason_for_consultation: "3rd of 6 sessions", service: "Follow Up", source: "Procedure" })).toBe("3rd of 6 sessions");
+  });
+
+  it("leaves imported records exactly as they were", () => {
+    // 6,221 Salesforce visits have no investigation and rely on the service.
+    expect(investigationText({ reason_for_consultation: null, service: "TATTOO REMOVAL", source: "salesforce" })).toBe("TATTOO REMOVAL");
+    // And a row whose source was never fetched must not change either.
+    expect(investigationText({ reason_for_consultation: null, service: "TATTOO REMOVAL" })).toBe("TATTOO REMOVAL");
+  });
+});

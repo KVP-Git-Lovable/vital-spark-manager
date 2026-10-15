@@ -2,9 +2,12 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { MAX_DATETIME, MIN_DATETIME, displayDate, isPlausibleIso } from "@/lib/dateInput";
 import { dedupeByName } from "@/lib/serviceLineSave";
 import { reservedVisits } from "@/lib/reservedVisits";
+import { clearVisitAt, joinVisitDateTime, removeVisitAt, splitVisitDateTime } from "@/lib/recurringVisits";
+import { DateInput } from "@/components/shared/DateInput";
+import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { capitaliseFirstWord } from "@/lib/sentenceCase";
 import { numVal } from "@/lib/numberInput";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote, Stethoscope } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote, Stethoscope, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -1550,21 +1553,80 @@ export function ProcedureFormDialog({
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {Array.from({ length: recurringCount }).map((_, i) => (
+                  {Array.from({ length: recurringCount }).map((_, i) => {
+                    const { date: visitDate, time: visitTime } = splitVisitDateTime(recurringDates[i]);
+                    const hasSomething = Boolean(visitDate || (followUpInvestigations[i] || "").trim());
+                    const setVisit = (date: string, time: string) => {
+                      const next = [...recurringDates];
+                      next[i] = joinVisitDateTime(date, time);
+                      setRecurringDates(next);
+                    };
+                    return (
                     <div key={i} className="rounded-lg border bg-background/60 p-3">
-                      <Label className="text-xs text-muted-foreground">Visit # {i + 1}</Label>
-                      <Input
-                        type="datetime-local"
-                        min={MIN_DATETIME}
-                        max={MAX_DATETIME}
-                        value={recurringDates[i] || ""}
-                        onChange={(e) => {
-                          const next = [...recurringDates];
-                          next[i] = e.target.value;
-                          setRecurringDates(next);
-                        }}
-                        className="mt-1 bg-background"
-                      />
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-xs text-muted-foreground">Visit # {i + 1}</Label>
+                        <div className="flex items-center gap-1">
+                          {hasSomething && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-[11px]"
+                              onClick={() => {
+                                const next = clearVisitAt(
+                                  { dates: recurringDates, investigations: followUpInvestigations },
+                                  i,
+                                );
+                                setRecurringDates(next.dates);
+                                setFollowUpInvestigations(next.investigations);
+                              }}
+                            >
+                              Clear
+                            </Button>
+                          )}
+                          {recurringCount > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                              title="Remove this visit"
+                              aria-label={`Remove visit ${i + 1}`}
+                              onClick={() => {
+                                // Both lists spliced together, or the visit
+                                // below inherits this one's investigation.
+                                const next = removeVisitAt(
+                                  { dates: recurringDates, investigations: followUpInvestigations },
+                                  i,
+                                );
+                                setRecurringDates(next.dates);
+                                setFollowUpInvestigations(next.investigations);
+                                setRecurringCount(next.dates.length);
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      {/* A date box and a 12-hour clock rather than
+                          datetime-local, which renders in whatever format the
+                          browser's locale picks - 24-hour on the clinic's
+                          machines. Same two controls the Appointments page
+                          books with. */}
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <DateInput
+                          value={visitDate}
+                          onChange={(iso) => setVisit(iso, visitTime)}
+                          withCalendar
+                          className="w-[150px]"
+                        />
+                        <TimePicker12h
+                          value={visitTime}
+                          onChange={(next) => setVisit(visitDate, next)}
+                          compact
+                        />
+                      </div>
                       {/* This visit's own investigation. A course is not one
                           investigation repeated - the third session and the
                           review that follows it read differently on the
@@ -1580,11 +1642,12 @@ export function ProcedureFormDialog({
                         className="mt-1 bg-background"
                       />
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Each date creates a <span className="font-medium">Reserved</span> appointment. Dates left blank can be added later during billing.
-                  Left blank, an investigation shows this procedure&apos;s services instead.
+                  An investigation left blank stays blank on the appointment.
                 </p>
               </div>
             )}

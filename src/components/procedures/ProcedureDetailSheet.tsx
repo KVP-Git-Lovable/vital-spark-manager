@@ -7,13 +7,16 @@ import { renderPdfToImages } from "@/lib/renderPdf";
 import { isConsultationService } from "@/lib/consultationLine";
 import { isRollUpOf, nextRollUpValue, parentHoldsOwnText as holdsOwnText } from "@/lib/procedureRollup";
 import { assertWrote } from "@/lib/rowAccess";
+import { joinVisitDateTime, splitVisitDateTime } from "@/lib/recurringVisits";
+import { DateInput } from "@/components/shared/DateInput";
+import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
 import { usePrescriptionPreview } from "@/hooks/usePrescriptionPreview";
 import { MAX_DATETIME, MIN_DATETIME } from "@/lib/dateInput";
 
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList, StickyNote, Eye, FileText, CalendarClock, ExternalLink } from "lucide-react";
+import { Save, Trash2, Pill, Camera, Plus, Paperclip, X, Sparkles, Loader2, Download, MessageCircle, Repeat, Receipt, HeartPulse, ClipboardList, StickyNote, Eye, FileText, CalendarClock, ExternalLink, Stethoscope } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -741,7 +744,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
-        .select("id, service, start_time, end_time, status, visit_status")
+        .select("id, service, start_time, end_time, status, visit_status, reason_for_consultation")
         .eq("patient_id", procedure!.patient_id!)
         .gt("start_time", new Date().toISOString())
         .neq("status", "Cancelled")
@@ -752,6 +755,49 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   });
 
   const [followUpEdits, setFollowUpEdits] = useState<Record<string, string>>({});
+  // What each booked visit is for. Editable here for the same reason the date
+  // is: the only other way to correct it was to leave, find the appointment on
+  // the Appointments page and edit it there.
+  const [followUpReasons, setFollowUpReasons] = useState<Record<string, string>>({});
+
+  const saveFollowUpReason = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      // Blank is stored as null, not "": the Investigation column treats an
+      // empty value as nothing recorded, and on a visit this app booked that
+      // now shows as blank rather than falling through to the service.
+      const { data: written, error } = await supabase
+        .from("appointments")
+        .update({ reason_for_consultation: reason.trim() || null })
+        .eq("id", id)
+        .select("id");
+      if (error) throw error;
+      assertWrote(written);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["procedure-followup-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success("Investigation updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  /**
+   * Remove a visit this prescription booked.
+   *
+   * To the trash rather than deleted outright, like every other record on this
+   * screen - a visit removed by mistake is one the patient still turns up for.
+   */
+  const removeFollowUp = useMutation({
+    mutationFn: async ({ id, label }: { id: string; label: string }) => {
+      await moveToTrash("appointments", id, label);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["procedure-followup-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success("Visit removed");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const moveFollowUp = useMutation({
     mutationFn: async ({ id, when }: { id: string; when: string }) => {
@@ -1411,41 +1457,83 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                       <CalendarClock className="h-4 w-4" /> Follow-up appointments
                     </Label>
                     <p className="text-xs text-muted-foreground mb-3">
-                      The visits booked from this prescription. Change a date here rather than hunting for it on the
-                      Appointments page.
+                      The visits booked from this prescription. Change the date, say what the visit is for, or
+                      remove it - without hunting for it on the Appointments page.
                     </p>
                     <div className="space-y-3">
                       {upcomingAppointments.map((apt) => {
                         const current = format(new Date(apt.start_time), "yyyy-MM-dd'T'HH:mm");
                         const edited = followUpEdits[apt.id] ?? current;
                         const changed = edited !== current;
+                        const { date: aptDate, time: aptTime } = splitVisitDateTime(edited);
+                        const setWhen = (date: string, time: string) =>
+                          setFollowUpEdits((prev) => ({ ...prev, [apt.id]: joinVisitDateTime(date, time) }));
+                        const storedReason = (apt as any).reason_for_consultation ?? "";
+                        const reason = followUpReasons[apt.id] ?? storedReason;
+                        const reasonChanged = reason.trim() !== String(storedReason ?? "").trim();
                         return (
-                          <div key={apt.id} className="flex flex-wrap items-end gap-2">
-                            <div className="min-w-[220px] flex-1">
+                          <div key={apt.id} className="rounded-lg border bg-background/60 p-3 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
                               <Label className="text-xs text-muted-foreground">
                                 {apt.service || "Follow-up"}
                                 {apt.visit_status ? ` · ${apt.visit_status}` : ""}
                               </Label>
-                              <Input
-                                type="datetime-local"
-                                min={MIN_DATETIME}
-                                max={MAX_DATETIME}
-                                className="mt-1 bg-background"
-                                value={edited}
-                                onChange={(e) =>
-                                  setFollowUpEdits((prev) => ({ ...prev, [apt.id]: e.target.value }))
-                                }
-                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                title="Remove this visit"
+                                aria-label="Remove this visit"
+                                disabled={removeFollowUp.isPending}
+                                onClick={() => removeFollowUp.mutate({
+                                  id: apt.id,
+                                  label: `${apt.service || "Follow-up"} · ${format(new Date(apt.start_time), "dd/MM/yyyy")}`,
+                                })}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant={changed ? "default" : "outline"}
-                              disabled={!changed || moveFollowUp.isPending}
-                              onClick={() => moveFollowUp.mutate({ id: apt.id, when: edited })}
-                            >
-                              {moveFollowUp.isPending ? "Saving…" : "Save date"}
-                            </Button>
+                            {/* A date box and a 12-hour clock, as the
+                                Appointments page books with - datetime-local
+                                renders in whatever the browser's locale picks,
+                                which is 24-hour here. */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <DateInput value={aptDate} onChange={(iso) => setWhen(iso, aptTime)} withCalendar className="w-[150px]" />
+                              <TimePicker12h value={aptTime} onChange={(next) => setWhen(aptDate, next)} compact />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={changed ? "default" : "outline"}
+                                disabled={!changed || moveFollowUp.isPending}
+                                onClick={() => moveFollowUp.mutate({ id: apt.id, when: edited })}
+                              >
+                                {moveFollowUp.isPending ? "Saving…" : "Save date"}
+                              </Button>
+                            </div>
+                            <div>
+                              <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Stethoscope className="h-3.5 w-3.5" /> Investigation
+                              </Label>
+                              <div className="mt-1 flex items-start gap-2">
+                                <Textarea
+                                  value={reason}
+                                  onChange={(e) => setFollowUpReasons((prev) => ({ ...prev, [apt.id]: e.target.value }))}
+                                  placeholder="What this visit is for — left blank, it stays blank"
+                                  rows={2}
+                                  className="bg-background"
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={reasonChanged ? "default" : "outline"}
+                                  disabled={!reasonChanged || saveFollowUpReason.isPending}
+                                  onClick={() => saveFollowUpReason.mutate({ id: apt.id, reason })}
+                                >
+                                  {saveFollowUpReason.isPending ? "Saving…" : "Save"}
+                                </Button>
+                              </div>
+                            </div>
                           </div>
                         );
                       })}

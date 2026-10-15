@@ -4,6 +4,8 @@ import { ViewPrescriptionButton } from "@/components/prescriptions/ViewPrescript
 import { withDrPrefix } from "@/lib/staffName";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
+import { confirmationSendPlan } from "@/lib/confirmationSend";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { rescheduleVerdict, rescheduleWarning } from "@/lib/appointmentReschedule";
 import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
 import { X, Save, Trash2, Plus, Camera, Eye, FileText, Pill, IndianRupee, Image as ImageIcon, ScanEye, Phone, ExternalLink, AlertTriangle, CalendarClock, Check, Star, MessageSquare, CalendarIcon, ClipboardCheck, StickyNote } from "lucide-react";
@@ -846,8 +848,12 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                 patientGender: (appointment as any)?.patients?.gender || null,
               },
             });
-            if (nErr) { console.error("[appt-notify] update error", nErr); toast.error("WhatsApp notification failed"); }
-            else toast.success("WhatsApp notification sent");
+            if (nErr) {
+              // The reason, not just "failed" - a template mismatch, a number
+              // not on WhatsApp and a daily limit all read the same otherwise.
+              console.error("[appt-notify] update error", nErr);
+              toast.error(await edgeFunctionErrorMessage(nErr, "The WhatsApp confirmation could not be sent."));
+            } else toast.success("WhatsApp notification sent");
           } else {
             console.log("[appt-notify] status not Confirmed/Cancelled or unchanged — skipping notification");
           }
@@ -1034,6 +1040,58 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const patientName = appointmentPatientName(appointment, "Unknown");
 
   const patientPhone = appointment?.patients?.phone || "";
+
+  /**
+   * Send the confirmation again, by hand.
+   *
+   * A confirmation can be missed - a browser running an older build, a Twilio
+   * refusal, a number added to the record after the booking - and until this
+   * existed the only way to get one out was to re-book the patient. Asks
+   * first, because it reaches a real person.
+   */
+  const [resendingConfirmation, setResendingConfirmation] = useState(false);
+  const resendConfirmation = async () => {
+    const plan = confirmationSendPlan({ status: "Confirmed", phone: patientPhone, patientName });
+    if (!plan.send) {
+      toast.warning(plan.skippedBecause ?? "This appointment cannot be confirmed by WhatsApp.");
+      return;
+    }
+    if (!window.confirm(`Send the appointment confirmation to ${patientName} on ${patientPhone}?`)) return;
+    setResendingConfirmation(true);
+    try {
+      const start = new Date(appointment!.start_time);
+      const { error } = await supabase.functions.invoke("send-appointment-whatsapp", {
+        body: {
+          phone: patientPhone,
+          patientName,
+          appointmentDate: format(start, "dd MMM yyyy"),
+          appointmentTime: format(start, "hh:mm a"),
+          serviceName: appointment!.service || "-",
+          patientGender: (appointment as any)?.patients?.gender || null,
+        },
+      });
+      if (error) throw new Error(await edgeFunctionErrorMessage(error, "The WhatsApp confirmation could not be sent."));
+      toast.success("WhatsApp confirmation sent");
+    } catch (e: any) {
+      toast.error(e?.message || "The WhatsApp confirmation could not be sent.");
+    } finally {
+      setResendingConfirmation(false);
+    }
+  };
+
+  const sendConfirmationButton = patientPhone ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="mt-2 h-7 gap-1.5 text-xs"
+      disabled={resendingConfirmation}
+      onClick={resendConfirmation}
+    >
+      <MessageSquare className="h-3 w-3" />
+      {resendingConfirmation ? "Sending…" : "Send confirmation"}
+    </Button>
+  ) : null;
   const patientId = appointment?.patients?.id || appointment?.patient_id;
 
   // While this appointment is open, every other page offers one tap back to it.
@@ -1099,6 +1157,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         <Phone className="h-3 w-3" /> {patientPhone}
                       </p>
                     )}
+                    {sendConfirmationButton}
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     {(() => {
@@ -1157,6 +1216,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         <Phone className="h-3 w-3" /> {patientPhone}
                       </p>
                     )}
+                    {sendConfirmationButton}
                   </div>
                   <div>
                     <Label>Investigation</Label>

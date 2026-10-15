@@ -30,6 +30,8 @@ import { billCellState } from "@/lib/billCellState";
 import { billedPatientDays, patientDayKey, type BilledDayRow } from "@/lib/billedPatientDays";
 import { withUnlinkedBills, type VisitRow } from "@/lib/unlinkedVisitBills";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
+import { confirmationSendPlan } from "@/lib/confirmationSend";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import {
   rescheduleVerdict,
   rescheduleWarning,
@@ -1532,10 +1534,17 @@ const Appointments = () => {
       // Only a Confirmed appointment is worth messaging a patient about. Bookings
       // default to Reserved, which is a provisional hold - confirming it later goes
       // through the status-change path below, which sends the same template.
-      if (
-        APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED &&
-        data.phone && data.patientName && data.firstStartDT && data.capturedStatus === "Confirmed"
-      ) {
+      //
+      // A skipped send now says why. It used to say nothing at all, which is how
+      // the clinic came to report "confirmations do not reach patients" with
+      // nothing on screen to show which bookings had been missed.
+      const sendPlan = confirmationSendPlan({
+        status: data.capturedStatus,
+        phone: data.phone,
+        patientName: data.patientName,
+      });
+      if (sendPlan.skippedBecause) toast.warning(sendPlan.skippedBecause);
+      if (sendPlan.send && data.firstStartDT) {
         if (data.wasRecurring && data.recurrenceEndDate) {
           supabase.functions
             .invoke("send-recurring-appointment-whatsapp", {
@@ -1549,9 +1558,10 @@ const Appointments = () => {
                 endDate: format(data.recurrenceEndDate, "dd MMM yyyy"),
               },
             })
-            .then(({ error }) => {
+            .then(async ({ error }) => {
               if (error) {
                 console.error("Recurring WhatsApp send failed:", error);
+                toast.error(await edgeFunctionErrorMessage(error, "The WhatsApp confirmation could not be sent."));
               } else {
                 toast.success("WhatsApp confirmation sent");
               }
@@ -1568,9 +1578,13 @@ const Appointments = () => {
                 patientGender: data.patientGender,
               },
             })
-            .then(({ error }) => {
+            .then(async ({ error }) => {
               if (error) {
+                // Said out loud, not only to the console. A confirmation that
+                // silently fails is one the patient never hears about and the
+                // front desk never knows to re-send.
                 console.error("WhatsApp send failed:", error);
+                toast.error(await edgeFunctionErrorMessage(error, "The WhatsApp confirmation could not be sent."));
               } else {
                 toast.success("WhatsApp confirmation sent");
               }

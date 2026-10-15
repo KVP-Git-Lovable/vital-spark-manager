@@ -41,7 +41,7 @@ import { AiRepository } from "@/components/shared/AiRepository";
 import { WhatsAppDeliveryLog } from "@/components/shared/WhatsAppDeliveryLog";
 import { patientAgeLabel } from "@/lib/patientIdentity";
 import { MessageCircle } from "lucide-react";
-import { CameraDialog } from "@/components/shared/CameraDialog";
+import { CameraCapture } from "@/components/shared/CameraCapture";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
 import { PatientAttachments } from "@/components/patients/PatientAttachments";
 import { FamilyMembers } from "@/components/patients/FamilyMembers";
@@ -239,8 +239,6 @@ const PatientDetail = () => {
   const [surveyFillOpen, setSurveyFillOpen] = useState(false);
   const [addSurveyMode, setAddSurveyMode] = useState<"choice" | "fill" | "assign" | null>(null);
   const [assigning, setAssigning] = useState(false);
-  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
 
   const { data: patient, isLoading } = useQuery({
@@ -598,31 +596,6 @@ const PatientDetail = () => {
       queryClient.invalidateQueries({ queryKey: ["patient-procedures", id] });
     } catch (e: any) {
       toast.error(e.message || "Failed to update status");
-    }
-  };
-
-  const savePhotoFile = async (file: File) => {
-    if (!file || !id) return;
-    setUploadingPhoto(true);
-    try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const fileName = `${id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("patient-photos").upload(fileName, file);
-      if (uploadError) throw uploadError;
-      const photoUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${fileName}`;
-      const { error } = await supabase.from("patient_photos").insert({
-        patient_id: id,
-        photo_url: photoUrl,
-        notes: null,
-      } as any);
-      if (error) throw error;
-      toast.success("Photo uploaded");
-      queryClient.invalidateQueries({ queryKey: ["patient-photos", id] });
-      setPendingPhotoFile(null);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to upload photo");
-    } finally {
-      setUploadingPhoto(false);
     }
   };
 
@@ -1377,7 +1350,6 @@ const PatientDetail = () => {
               <Button
                 size="sm"
                 className="gap-1.5 h-8 text-xs"
-                disabled={uploadingPhoto}
                 onClick={() => setCameraOpen(true)}
               >
                 <Plus className="h-3.5 w-3.5" /> Take Photo
@@ -1858,11 +1830,17 @@ const PatientDetail = () => {
       </Tabs>
 
 
-      <CameraDialog
+      {/* The shared capture dialog, which takes several photos before sending
+          any of them. This page used to open the bare camera and upload one
+          file through its own copy of the upload - which is why "take several
+          photos" landed everywhere except here, the one place the clinic
+          actually uses. */}
+      <CameraCapture
         open={cameraOpen}
         onOpenChange={setCameraOpen}
-        title="Take Patient Photo"
-        onCapture={(file) => savePhotoFile(file)}
+        patientId={id!}
+        patientName={`${patient.first_name} ${patient.last_name || ""}`.trim()}
+        context="patient"
       />
       <PhotoViewer
         photos={photos}

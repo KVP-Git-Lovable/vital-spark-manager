@@ -25,3 +25,33 @@ so the GitHub sync has not deployed them:
 Confirmed deployed and answering: sf-import-clinical, patient-engagement.
 sf-import-clinical also changed in 55e438d (prescriptions now take the date
 of the visit they are linked to) and needs that version deployed.
+
+---
+
+Touched 2026-10-16 to force a pull of the current GitHub main.
+
+The Communications Center lands with twelve new edge functions. Every one of
+them answered 404 from the functions gateway before this merge, which is the
+expected state for code that has only ever lived on a branch - but it is also
+exactly what the 2026-09-21 entry below describes for functions that were
+already on main and still had not deployed, so the two cases look identical
+from outside. These are the twelve to check:
+
+  comms-journey-actions          comms-whatsapp-config
+  comms-mailchimp-api            comms-whatsapp-status-webhook
+  comms-mailchimp-webhook        comms-whatsapp-templates
+  comms-process-journeys         meta-api
+  comms-twilio-balance           meta-oauth-callback
+  meta-oauth-start               meta-token-refresh
+
+A 404 after the build means the sync skipped it. 401 is the healthy answer for
+the JWT-protected ones: the function is live and refusing an unauthenticated
+call. Only three are reachable from the UI today - comms-whatsapp-templates,
+comms-whatsapp-config and comms-twilio-balance - so those are the ones a 404
+would actually be visible on, as an error in place of data on the WhatsApp
+Templates and Config pages and in the wallet balance card.
+
+supabase/config.toml also gains verify_jwt = false for five of them
+(the two webhooks, the Meta OAuth callback and the two cron entry points);
+worth confirming that came across too, since a webhook that silently keeps
+JWT verification fails closed and looks like Twilio or Mailchimp being quiet.

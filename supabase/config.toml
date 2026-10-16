@@ -72,3 +72,27 @@ verify_jwt = true
 
 [functions.sf-backfill-billing-lines]
 verify_jwt = true
+
+# Communications Center. These five are called by something that cannot present a
+# Supabase JWT, so the platform check is turned off and each function authenticates
+# the caller itself.
+[functions.comms-mailchimp-webhook]
+# Mailchimp posts list events with no Authorization header; the function matches
+# ?key= against comms_mailchimp_connection.webhook_secret instead.
+verify_jwt = false
+
+[functions.comms-whatsapp-status-webhook]
+# Twilio delivery/read callbacks carry no JWT.
+verify_jwt = false
+
+[functions.meta-oauth-callback]
+# Facebook redirects the browser here; the signed state carries the trust.
+verify_jwt = false
+
+[functions.comms-process-journeys]
+# Driven by cron: the Bearer is LOVABLE_CRON_SECRET, not a JWT (see _shared/cron-auth.ts).
+verify_jwt = false
+
+[functions.meta-token-refresh]
+# Driven by cron, same cron-secret Bearer.
+verify_jwt = false

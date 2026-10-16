@@ -34,6 +34,7 @@ import {
   Phone,
   Mail,
   Target,
+  Workflow,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -88,6 +89,7 @@ const communicationsItems = [
   { title: "WhatsApp", url: "/communications/whatsapp", icon: MessageCircle },
   { title: "Voice", url: "/communications/voice", icon: Phone },
   { title: "Email", url: "/communications/email", icon: Mail },
+  { title: "Journey Builder", url: "/communications/journeys", icon: Workflow },
   { title: "Calendar", url: "/communications/calendar", icon: CalendarDays },
 ];
 

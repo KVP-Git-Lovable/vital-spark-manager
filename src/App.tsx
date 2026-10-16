@@ -57,6 +57,10 @@ const WhatsAppConversations = lazyWithReload(() => import("./pages/communication
 const VoiceCenter = lazyWithReload(() => import("./pages/communications/VoiceCenter"));
 const EmailCenter = lazyWithReload(() => import("./pages/communications/EmailCenter"));
 const CommunicationsCalendar = lazyWithReload(() => import("./pages/communications/CommunicationsCalendar"));
+const JourneyBuilder = lazyWithReload(() => import("./pages/communications/JourneyBuilder"));
+const JourneyCanvas = lazyWithReload(() => import("./pages/communications/JourneyCanvas"));
+const JourneyAnalytics = lazyWithReload(() => import("./pages/communications/JourneyAnalytics"));
+const JourneyFailures = lazyWithReload(() => import("./pages/communications/JourneyFailures"));
 const OAuthResult = lazyWithReload(() => import("./pages/auth/OAuthResult"));
 const Campaigns = lazyWithReload(() => import("./pages/Campaigns"));
 const CampaignDetail = lazyWithReload(() => import("./pages/CampaignDetail"));
@@ -265,6 +269,10 @@ const App = () => (
                     <Route path="/communications/voice" element={<ProtectedRoute moduleKey="communications"><VoiceCenter /></ProtectedRoute>} />
                     <Route path="/communications/email" element={<ProtectedRoute moduleKey="communications"><EmailCenter /></ProtectedRoute>} />
                     <Route path="/communications/calendar" element={<ProtectedRoute moduleKey="communications"><CommunicationsCalendar /></ProtectedRoute>} />
+                    <Route path="/communications/journeys" element={<ProtectedRoute moduleKey="communications"><JourneyBuilder /></ProtectedRoute>} />
+                    <Route path="/communications/journeys/:id/analytics" element={<ProtectedRoute moduleKey="communications"><JourneyAnalytics /></ProtectedRoute>} />
+                    <Route path="/communications/journeys/:id/failures" element={<ProtectedRoute moduleKey="communications"><JourneyFailures /></ProtectedRoute>} />
+                    <Route path="/communications/journeys/:id" element={<ProtectedRoute moduleKey="communications"><JourneyCanvas /></ProtectedRoute>} />
                     <Route path="/campaigns" element={<ProtectedRoute moduleKey="campaigns"><Campaigns /></ProtectedRoute>} />
                     <Route path="/campaigns/:id" element={<ProtectedRoute moduleKey="campaigns"><CampaignDetail /></ProtectedRoute>} />
                     <Route path="/procedures" element={<ProtectedRoute moduleKey="procedures"><Procedures /></ProtectedRoute>} />

@@ -49,6 +49,7 @@ const Expenses = lazyWithReload(() => import("./pages/Expenses"));
 const StaffManagement = lazyWithReload(() => import("./pages/StaffManagement"));
 const StaffDetail = lazyWithReload(() => import("./pages/StaffDetail"));
 const WhatsAppLog = lazyWithReload(() => import("./pages/WhatsAppLog"));
+const Leads = lazyWithReload(() => import("./pages/Leads"));
 const WhatsAppCenter = lazyWithReload(() => import("./pages/communications/WhatsAppCenter"));
 const WhatsAppTemplates = lazyWithReload(() => import("./pages/communications/WhatsAppTemplates"));
 const WhatsAppConfig = lazyWithReload(() => import("./pages/communications/WhatsAppConfig"));
@@ -256,6 +257,7 @@ const App = () => (
                     <Route path="/dashboards/:id" element={<ProtectedRoute moduleKey="dashboards"><DashboardView /></ProtectedRoute>} />
                     <Route path="/dashboard-explore" element={<ProtectedRoute moduleKey="dashboard"><DashboardExplore /></ProtectedRoute>} />
                     <Route path="/whatsapp-log" element={<ProtectedRoute moduleKey="campaigns"><WhatsAppLog /></ProtectedRoute>} />
+                    <Route path="/leads" element={<ProtectedRoute moduleKey="leads"><Leads /></ProtectedRoute>} />
                     <Route path="/communications/whatsapp" element={<ProtectedRoute moduleKey="communications"><WhatsAppCenter /></ProtectedRoute>} />
                     <Route path="/communications/whatsapp/templates" element={<ProtectedRoute moduleKey="communications"><WhatsAppTemplates /></ProtectedRoute>} />
                     <Route path="/communications/whatsapp/config" element={<ProtectedRoute moduleKey="communications"><WhatsAppConfig /></ProtectedRoute>} />

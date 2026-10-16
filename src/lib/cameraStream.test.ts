@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cameraConstraints, IDEAL_HEIGHT, IDEAL_WIDTH } from "./cameraStream";
+import { cameraConstraints, frameAspectRatio, IDEAL_HEIGHT, IDEAL_WIDTH } from "./cameraStream";
 
 const video = (mode: "environment" | "user") =>
   cameraConstraints(mode).video as MediaTrackConstraints;
@@ -26,5 +26,27 @@ describe("cameraConstraints", () => {
   it("never asks for a microphone", () => {
     expect(cameraConstraints("environment").audio).toBe(false);
     expect(cameraConstraints("user").audio).toBe(false);
+  });
+});
+
+describe("frameAspectRatio", () => {
+  it("is the stream's own shape, landscape on a desktop webcam", () => {
+    expect(frameAspectRatio(1920, 1080)).toBeCloseTo(16 / 9);
+  });
+
+  it("and portrait on a phone held upright - the case that showed as a narrow strip", () => {
+    expect(frameAspectRatio(1080, 1920)).toBeCloseTo(9 / 16);
+  });
+
+  it("is null before the video has any metadata, rather than dividing by zero", () => {
+    expect(frameAspectRatio(0, 0)).toBeNull();
+    expect(frameAspectRatio(1920, 0)).toBeNull();
+    expect(frameAspectRatio(0, 1080)).toBeNull();
+  });
+
+  it("is null for sizes no camera should report", () => {
+    expect(frameAspectRatio(-1920, 1080)).toBeNull();
+    expect(frameAspectRatio(Number.NaN, 1080)).toBeNull();
+    expect(frameAspectRatio(Number.POSITIVE_INFINITY, 1080)).toBeNull();
   });
 });

@@ -19,6 +19,25 @@ export const IDEAL_HEIGHT = 1080;
 
 export type CameraFacing = "environment" | "user";
 
+/**
+ * The shape of the picture the camera is actually sending.
+ *
+ * The frame around the live view used to be a fixed shape, and a fixed shape
+ * is wrong on one device or the other: a 4:3 box cut the sides off a desktop
+ * webcam, and replacing it with a 16:9 box left a phone held upright as a
+ * narrow strip between two black bars. Neither camera was at fault - the box
+ * was. So the box is sized from this instead.
+ *
+ * null until a <video> has loaded its metadata, when videoWidth and
+ * videoHeight are both 0 - the frame keeps its per-device guess until then
+ * rather than dividing by zero.
+ */
+export function frameAspectRatio(videoWidth: number, videoHeight: number): number | null {
+  if (!Number.isFinite(videoWidth) || !Number.isFinite(videoHeight)) return null;
+  if (videoWidth <= 0 || videoHeight <= 0) return null;
+  return videoWidth / videoHeight;
+}
+
 export function cameraConstraints(mode: CameraFacing): MediaStreamConstraints {
   return {
     video: {

@@ -3,7 +3,7 @@ import { Camera, RefreshCw, X, Check, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { cameraConstraints } from "@/lib/cameraStream";
+import { cameraConstraints, frameAspectRatio } from "@/lib/cameraStream";
 
 interface CameraDialogProps {
   open: boolean;
@@ -28,6 +28,9 @@ interface CameraDialogProps {
   title?: string;
 }
 
+/** How much of the screen the live view may take, leaving the shutter on it. */
+const FRAME_MAX_HEIGHT = "68vh";
+
 export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, onCaptureMany, title = "Take Photo" }: CameraDialogProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -40,6 +43,13 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
   const [starting, setStarting] = useState(false);
   /** The shots taken so far in this session, when `multiple` is on. */
   const [shots, setShots] = useState<{ file: File; url: string }[]>([]);
+  /**
+   * The shape of the live picture, once the camera has reported it.
+   *
+   * Null until then, and again whenever the camera is switched, so the front
+   * camera is measured rather than being shown in the back camera's shape.
+   */
+  const [frameRatio, setFrameRatio] = useState<number | null>(null);
 
   const stopStream = () => {
     if (streamRef.current) {
@@ -86,6 +96,7 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
         prev.forEach((s) => URL.revokeObjectURL(s.url));
         return [];
       });
+      setFrameRatio(null);
     }
     return () => {
       if (!open) stopStream();
@@ -147,6 +158,9 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
   };
 
   const handleSwitchCamera = () => {
+    // The two cameras need not have the same shape, so the frame is measured
+    // again rather than keeping the one it already has.
+    setFrameRatio(null);
     setFacingMode((m) => (m === "environment" ? "user" : "environment"));
   };
 
@@ -189,14 +203,26 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
         <DialogHeader className="px-4 pt-4">
           <DialogTitle className="font-display">{title}</DialogTitle>
         </DialogHeader>
-        {/* The whole frame, at the shape the camera actually produces.
-            This was a fixed 4:3 box with an object-cover video, so a 16:9
-            webcam had its left and right edges cut off on screen - the clinic
-            reported it as not being able to take a wide photo. The picture was
-            never cropped (the capture draws videoWidth x videoHeight), only
-            the view of it, so a shot framed to the edges came out wider than
-            it looked. max-h keeps the shutter on screen in a short window. */}
-        <div className="relative bg-black aspect-video max-h-[70vh] flex items-center justify-center">
+        {/* The frame takes the shape of the camera, rather than imposing one.
+            A fixed shape is wrong on one device or the other: a 4:3 box cut
+            the sides off a desktop webcam - reported as not being able to
+            take a wide photo - and a 16:9 box left a phone held upright as a
+            narrow strip between two black bars. The picture itself was never
+            cropped either way (the capture draws videoWidth x videoHeight);
+            only the view of it was.
+
+            maxWidth is what removes the bars: capping the height alone would
+            leave the box wider than the picture and letterbox it again. Until
+            the camera reports its size, the classes guess by device - upright
+            on a phone, wide on a desktop. */}
+        <div
+          className={`relative bg-black mx-auto w-full flex items-center justify-center ${frameRatio ? "" : "aspect-[3/4] sm:aspect-video"}`}
+          style={{
+            aspectRatio: frameRatio ?? undefined,
+            maxHeight: FRAME_MAX_HEIGHT,
+            maxWidth: frameRatio ? `calc(${FRAME_MAX_HEIGHT} * ${frameRatio})` : undefined,
+          }}
+        >
           {error ? (
             <div className="text-center p-6 text-white space-y-3">
               <Camera className="h-10 w-10 mx-auto opacity-60" />
@@ -223,7 +249,15 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
             <img src={previewUrl} alt="Captured" className="w-full h-full object-contain" />
           ) : (
             <>
-              <video ref={videoRef} className="w-full h-full object-contain" playsInline muted />
+              <video
+                ref={videoRef}
+                className="w-full h-full object-contain"
+                playsInline
+                muted
+                onLoadedMetadata={(e) =>
+                  setFrameRatio(frameAspectRatio(e.currentTarget.videoWidth, e.currentTarget.videoHeight))
+                }
+              />
               {starting && (
                 <div className="absolute inset-0 flex items-center justify-center text-white text-sm">
                   Starting camera…

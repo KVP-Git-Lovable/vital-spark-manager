@@ -21,10 +21,12 @@
  *   2. otherwise your pin, which is why opening the app fresh lands there;
  *   3. otherwise All.
  *
- * Step 1 is remembered per session (sessionStorage), not for ever: moving
- * between modules and reloading the tab keeps your place, while opening the
- * app tomorrow starts from the pin. A pin that always lost to a click made
- * weeks earlier was not a pin.
+ * Step 1 lasts as long as the visit to the module and no longer - see
+ * moduleChoice.ts. Opening a record and coming back keeps what you clicked;
+ * going to another module, or reloading, hands the decision back to the pin.
+ * Kept in sessionStorage it outlived the visit, so one click on All
+ * Appointments beat the pin for the rest of the day on a tab the clinic never
+ * closes, which is how a pinned view came to look broken.
  */
 
 import { ALL_VIEW_ID, isStandardViewId } from "./standardViews";
@@ -67,14 +69,3 @@ export function pickActiveView({ stored, pinned, views }: PickActiveView): Activ
   return { id: ALL_VIEW_ID, forget };
 }
 
-/**
- * Where the remembered view is kept.
- *
- * Per user, not per browser. The front desk machine is shared and the key
- * carried no user id, so whatever the last person was looking at is what the
- * next person's page restored - and under a doctor's own-records scope that
- * can mean a list filtered to somebody else's patients, which comes back
- * empty.
- */
-export const activeViewKey = (section: string, userId?: string): string =>
-  userId ? `${section}.activeListView.${userId}` : `${section}.activeListView`;

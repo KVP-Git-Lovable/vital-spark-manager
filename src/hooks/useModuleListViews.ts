@@ -8,8 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ListView } from "@/lib/listViews/engine";
 import { ALL_VIEW_ID, buildStandardViews, setStandardColumns } from "@/lib/listViews/standardViews";
-import { activeViewKey, pickActiveView } from "@/lib/listViews/pickActiveView";
-import { readRemembered, writeRemembered } from "@/lib/listViews/rememberedView";
+import { pickActiveView } from "@/lib/listViews/pickActiveView";
+import { choiceFor, noteModuleOpened, rememberChoice } from "@/lib/listViews/moduleChoice";
 import { NOT_YOURS_MESSAGE } from "@/lib/rowAccess";
 
 function normalize(row: any, defaultColumns: string[]): ListView {
@@ -41,12 +41,23 @@ function normalize(row: any, defaultColumns: string[]): ListView {
   };
 }
 
-export function useModuleListViews(section: string, objectLabel: string, defaultColumns: string[]) {
-  // Per user, not per browser - see pickActiveView.ts. A ref because the user
-  // id arrives with the first load and selectView must write the same key the
-  // restore read.
-  const storageKeyRef = useRef(activeViewKey(section));
+/**
+ * Who is signed in, read locally first.
+ *
+ * getUser() goes to the server. When it came back empty - a slow connection,
+ * a token mid-refresh - the pin query below was skipped entirely, the page
+ * settled on All, and `initialised` meant it never looked again for the whole
+ * visit. getSession() is served from storage, the way useAuth.tsx reads it, so
+ * the common case needs no round trip at all.
+ */
+const currentUserId = async (): Promise<string | undefined> => {
+  const { data: session } = await supabase.auth.getSession();
+  if (session.session?.user?.id) return session.session.user.id;
+  const { data: user } = await supabase.auth.getUser();
+  return user.user?.id;
+};
 
+export function useModuleListViews(section: string, objectLabel: string, defaultColumns: string[]) {
   const [views, setViews] = useState<ListView[]>([]);
   const [standardViews, setStandardViews] = useState<ListView[]>(() => buildStandardViews(section, objectLabel, defaultColumns));
   const [loading, setLoading] = useState(true);
@@ -56,12 +67,11 @@ export function useModuleListViews(section: string, objectLabel: string, default
   const [initialised, setInitialised] = useState(false);
 
   const load = useCallback(async () => {
-    const { data: auth } = await supabase.auth.getUser();
-    const uid = auth.user?.id;
+    const uid = await currentUserId();
     setUserId(uid);
-    // Set before anything can be remembered, so a click in the first moments
-    // after load is not written under the key with no user in it.
-    storageKeyRef.current = activeViewKey(section, uid);
+    // Which list opened last is how "you left the module" is known - see
+    // moduleChoice.ts.
+    noteModuleOpened(section);
 
     const [viewsResult, pinResult] = await Promise.all([
       supabase.from("list_views").select("*").eq("section", section).order("created_at", { ascending: false }),
@@ -88,9 +98,8 @@ export function useModuleListViews(section: string, objectLabel: string, default
   useEffect(() => {
     load().then(({ list, pinned }) => {
       if (initialised) return;
-      const stored = readRemembered(storageKeyRef.current);
-      const choice = pickActiveView({ stored, pinned, views: list });
-      if (choice.forget) writeRemembered(storageKeyRef.current, null);
+      const choice = pickActiveView({ stored: choiceFor(section), pinned, views: list });
+      if (choice.forget) rememberChoice(section, null);
       setActiveViewId(choice.id);
       setInitialised(true);
     });
@@ -100,8 +109,8 @@ export function useModuleListViews(section: string, objectLabel: string, default
   const selectView = useCallback((id: string | null) => {
     const next = id ?? ALL_VIEW_ID;
     setActiveViewId(next);
-    writeRemembered(storageKeyRef.current, next);
-  }, []);
+    rememberChoice(section, next);
+  }, [section]);
 
   const allViews = useMemo(
     // `is_default` means "pinned by me" everywhere it is read - the pin icon,
@@ -128,8 +137,7 @@ export function useModuleListViews(section: string, objectLabel: string, default
 
   const saveView = useCallback(
     async (payload: Partial<ListView> & { name: string }) => {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
+      const uid = await currentUserId();
       if (!uid) {
         toast.error("You must be signed in to save a view");
         return;
@@ -227,8 +235,7 @@ export function useModuleListViews(section: string, objectLabel: string, default
    */
   const pinDefault = useCallback(
     async (view: ListView) => {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id;
+      const uid = await currentUserId();
       if (!uid) return toast.error("You must be signed in to pin a view");
       const { error } = await supabase
         .from("list_view_defaults")
@@ -250,8 +257,7 @@ export function useModuleListViews(section: string, objectLabel: string, default
    * moved the page there.
    */
   const unpinDefault = useCallback(async () => {
-    const { data: auth } = await supabase.auth.getUser();
-    const uid = auth.user?.id;
+    const uid = await currentUserId();
     if (!uid) return;
     const { error } = await supabase
       .from("list_view_defaults")

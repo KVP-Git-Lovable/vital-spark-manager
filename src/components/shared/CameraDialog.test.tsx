@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { CameraDialog } from "./CameraDialog";
 
@@ -62,5 +62,38 @@ describe("CameraDialog, when the live camera cannot start", () => {
     render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} multiple onCaptureMany={vi.fn()} />);
     expect(screen.getByRole("button", { name: /done/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /done/i }).textContent).toContain("(0)");
+  });
+});
+
+/**
+ * The frame shape is where this went wrong three times over. A fixed 4:3 box
+ * cut the sides off a desktop webcam; a fixed 16:9 box left a phone as a strip
+ * between black bars; and sizing the box to a 9:16 stream inside a stacked
+ * dialog squeezed it to about 280 of a 370px-wide phone. The phone gets the
+ * screen, the desktop gets a shaped box - and neither should quietly become
+ * the other.
+ */
+describe("the camera frame", () => {
+  const widthWas = window.innerWidth;
+  const setWidth = (px: number) =>
+    Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: px });
+  afterEach(() => setWidth(widthWas));
+
+  it("fills the screen on a phone, with no shape imposed on it", () => {
+    setWidth(390);
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} multiple onCaptureMany={vi.fn()} />);
+    const frame = screen.getByTestId("camera-frame");
+    expect(frame.className).toContain("flex-1");
+    // No height cap and no aspect box: those are what left bars down the sides.
+    expect(frame.style.maxHeight).toBe("");
+    expect(frame.style.aspectRatio).toBe("");
+  });
+
+  it("stays a shaped box on a desktop, so the dialog is not swallowed", () => {
+    setWidth(1280);
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} multiple onCaptureMany={vi.fn()} />);
+    const frame = screen.getByTestId("camera-frame");
+    expect(frame.className).toContain("aspect-video");
+    expect(frame.style.maxHeight).not.toBe("");
   });
 });

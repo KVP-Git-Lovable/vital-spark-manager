@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { activeViewKey, pickActiveView } from "./pickActiveView";
+import { pickActiveView } from "./pickActiveView";
 import { ALL_VIEW_ID, RECENT_VIEW_ID } from "./standardViews";
 
 const views = [{ id: "v-shared" }, { id: "v-mine" }, { id: "v-plain" }];
@@ -60,13 +60,3 @@ describe("pickActiveView", () => {
   });
 });
 
-describe("activeViewKey", () => {
-  it("keeps one person's remembered view out of another's", () => {
-    expect(activeViewKey("appointments", "a")).not.toBe(activeViewKey("appointments", "b"));
-    expect(activeViewKey("appointments", "a")).toBe("appointments.activeListView.a");
-  });
-
-  it("still has a key before the user is known", () => {
-    expect(activeViewKey("appointments")).toBe("appointments.activeListView");
-  });
-});

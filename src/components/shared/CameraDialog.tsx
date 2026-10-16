@@ -3,6 +3,7 @@ import { Camera, RefreshCw, X, Check, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { cameraConstraints } from "@/lib/cameraStream";
 
 interface CameraDialogProps {
   open: boolean;
@@ -55,10 +56,7 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error("Camera API not supported in this browser");
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: mode } },
-        audio: false,
-      });
+      const stream = await navigator.mediaDevices.getUserMedia(cameraConstraints(mode));
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -187,11 +185,18 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden">
+      <DialogContent className="max-w-3xl p-0 overflow-hidden">
         <DialogHeader className="px-4 pt-4">
           <DialogTitle className="font-display">{title}</DialogTitle>
         </DialogHeader>
-        <div className="relative bg-black aspect-[4/3] flex items-center justify-center">
+        {/* The whole frame, at the shape the camera actually produces.
+            This was a fixed 4:3 box with an object-cover video, so a 16:9
+            webcam had its left and right edges cut off on screen - the clinic
+            reported it as not being able to take a wide photo. The picture was
+            never cropped (the capture draws videoWidth x videoHeight), only
+            the view of it, so a shot framed to the edges came out wider than
+            it looked. max-h keeps the shutter on screen in a short window. */}
+        <div className="relative bg-black aspect-video max-h-[70vh] flex items-center justify-center">
           {error ? (
             <div className="text-center p-6 text-white space-y-3">
               <Camera className="h-10 w-10 mx-auto opacity-60" />
@@ -218,7 +223,7 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
             <img src={previewUrl} alt="Captured" className="w-full h-full object-contain" />
           ) : (
             <>
-              <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+              <video ref={videoRef} className="w-full h-full object-contain" playsInline muted />
               {starting && (
                 <div className="absolute inset-0 flex items-center justify-center text-white text-sm">
                   Starting camera…

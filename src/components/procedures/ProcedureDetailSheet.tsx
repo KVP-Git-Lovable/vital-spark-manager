@@ -715,20 +715,26 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
       const droppedNotice = droppedMedicineNotice(droppedMedicines);
       if (droppedNotice) toast.warning(droppedNotice);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["procedures"] });
-      queryClient.invalidateQueries({ queryKey: ["procedure-detail", procedureId] });
-      // Without this the next open reads a list fetched before these rows
-      // existed, decides the visit has no services, and invents them again.
-      queryClient.invalidateQueries({ queryKey: ["procedure-services", procedureId] });
-      queryClient.invalidateQueries({ queryKey: ["procedure-prescriptions", procedureId] });
-      queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] });
-      queryClient.invalidateQueries({ queryKey: ["patient", procedure?.patient_id] });
+    onSuccess: async () => {
       const savedId = procedureId!;
       // Saving used to close the sheet, which dropped the doctor back on the
       // list - so checking what had just been written meant finding the row
       // and opening it again. The visit stays open; only its contents are
-      // re-read, from the queries invalidated just above.
+      // re-read. The refetches must finish BEFORE resetEditState(): the
+      // render-time initialisers fire on whatever is cached, and resetting
+      // while the pre-save data is still cached refills the screen with the
+      // old values - a second save then writes those stale values back.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["procedures"] }),
+        queryClient.invalidateQueries({ queryKey: ["procedure-detail", procedureId] }),
+        // Without this the next open reads a list fetched before these rows
+        // existed, decides the visit has no services, and invents them again.
+        queryClient.invalidateQueries({ queryKey: ["procedure-services", procedureId] }),
+        queryClient.invalidateQueries({ queryKey: ["procedure-prescriptions", procedureId] }),
+        queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] }),
+        queryClient.invalidateQueries({ queryKey: ["patient", procedure?.patient_id] }),
+        queryClient.invalidateQueries({ queryKey: ["procedure-detail-patient", procedure?.patient_id] }),
+      ]);
       resetEditState();
       toast.success("Prescription saved");
       onSaved?.(savedId);

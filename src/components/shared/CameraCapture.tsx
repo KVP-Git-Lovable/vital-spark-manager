@@ -142,7 +142,7 @@ export function CameraCapture({ open, onOpenChange, patientId, patientName, cont
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) resetForm(); onOpenChange(next); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="font-display">Take Photo — {patientName}</DialogTitle>
         </DialogHeader>

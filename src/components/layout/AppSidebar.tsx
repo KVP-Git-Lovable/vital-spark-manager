@@ -31,6 +31,8 @@ import {
   History,
   Coins,
   MessageCircle,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -76,6 +78,15 @@ const mainItems = [
   { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard, moduleKey: "dashboards" },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone, moduleKey: "campaigns" },
   { title: "WhatsApp Delivery", url: "/whatsapp-log", icon: MessageCircle, moduleKey: "campaigns" },
+];
+
+// Journey Builder, Meta and Meta Connection join this list when their pages land; until then a
+// link here would only lead to a 404.
+const communicationsItems = [
+  { title: "WhatsApp", url: "/communications/whatsapp", icon: MessageCircle },
+  { title: "Voice", url: "/communications/voice", icon: Phone },
+  { title: "Email", url: "/communications/email", icon: Mail },
+  { title: "Calendar", url: "/communications/calendar", icon: CalendarDays },
 ];
 
 const employeesSubItems = [
@@ -132,6 +143,16 @@ export function AppSidebar() {
   };
 
   const filteredMain = mainItems.filter((i) => canView(i.moduleKey));
+  // The Communications Center renders between "Dashboards" and "Campaigns", which one .map()
+  // cannot express - so the list is drawn in two slices with the group in between. The split is
+  // found on the filtered list, not mainItems, so it stays put if canView ever starts hiding
+  // things. A missing Campaigns entry puts the group at the end rather than losing it.
+  const campaignsAt = filteredMain.findIndex((i) => i.url === "/campaigns");
+  const commsSplitAt = campaignsAt === -1 ? filteredMain.length : campaignsAt;
+  const filteredMainBeforeComms = filteredMain.slice(0, commsSplitAt);
+  const filteredMainAfterComms = filteredMain.slice(commsSplitAt);
+  const showCommunications = canView("communications");
+  const communicationsPaths = communicationsItems.map((i) => i.url);
   const filteredMaster = masterDataItems.filter((i) => canView(i.moduleKey));
   const showSurveys = canView("surveys");
   const showEmployees = canView("staff") || canView("leave");
@@ -171,7 +192,71 @@ export function AppSidebar() {
           <SidebarGroupLabel>Main Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {filteredMain.map((item) => (
+              {filteredMainBeforeComms.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  {(
+                    <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                      <NavLink
+                        to={item.url}
+                        end={item.url === "/"}
+                        className="hover:bg-sidebar-accent"
+                        activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      >
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  )}
+                </SidebarMenuItem>
+              ))}
+
+              {showCommunications && (
+                <Collapsible
+                  defaultOpen={currentPath.startsWith("/communications")}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip="Communications Center"
+                        isActive={currentPath.startsWith("/communications")}
+                      >
+                        <MessageCircle className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>Communications Center</span>}
+                        {!collapsed && (
+                          <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                        )}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {communicationsItems.map((sub) => (
+                          <SidebarMenuSubItem key={sub.url}>
+                            <SidebarMenuSubButton
+                              asChild
+                              // The WhatsApp hub owns /communications/whatsapp, but its own
+                              // sub-pages are separate entries, so a plain prefix match would
+                              // light it up on all of them.
+                              isActive={
+                                sub.url === "/communications/whatsapp"
+                                  ? currentPath === sub.url
+                                  : isActive(sub.url)
+                              }
+                            >
+                              <Link to={sub.url}>
+                                <sub.icon className="mr-2 h-3.5 w-3.5" />
+                                <span>{sub.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              )}
+
+              {filteredMainAfterComms.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   {(
                     <SidebarMenuButton asChild isActive={isActive(item.url)}>

@@ -49,6 +49,14 @@ const Expenses = lazyWithReload(() => import("./pages/Expenses"));
 const StaffManagement = lazyWithReload(() => import("./pages/StaffManagement"));
 const StaffDetail = lazyWithReload(() => import("./pages/StaffDetail"));
 const WhatsAppLog = lazyWithReload(() => import("./pages/WhatsAppLog"));
+const WhatsAppCenter = lazyWithReload(() => import("./pages/communications/WhatsAppCenter"));
+const WhatsAppTemplates = lazyWithReload(() => import("./pages/communications/WhatsAppTemplates"));
+const WhatsAppConfig = lazyWithReload(() => import("./pages/communications/WhatsAppConfig"));
+const WhatsAppConversations = lazyWithReload(() => import("./pages/communications/WhatsAppConversations"));
+const VoiceCenter = lazyWithReload(() => import("./pages/communications/VoiceCenter"));
+const EmailCenter = lazyWithReload(() => import("./pages/communications/EmailCenter"));
+const CommunicationsCalendar = lazyWithReload(() => import("./pages/communications/CommunicationsCalendar"));
+const OAuthResult = lazyWithReload(() => import("./pages/auth/OAuthResult"));
 const Campaigns = lazyWithReload(() => import("./pages/Campaigns"));
 const CampaignDetail = lazyWithReload(() => import("./pages/CampaignDetail"));
 const PortalLanding = lazyWithReload(() => import("./pages/portal/PortalLanding"));
@@ -207,6 +215,9 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
             <Route path="/signup" element={<Signup />} />
+            {/* Where the Meta connect popup lands; it reads the result from the URL fragment
+                and posts it back to the opener. Deliberately outside AppLayout. */}
+            <Route path="/oauth/result" element={<OAuthResult />} />
 
             {/* Public Shop — own layout */}
             <Route path="/shop" element={<ShopLayout />}>
@@ -245,6 +256,13 @@ const App = () => (
                     <Route path="/dashboards/:id" element={<ProtectedRoute moduleKey="dashboards"><DashboardView /></ProtectedRoute>} />
                     <Route path="/dashboard-explore" element={<ProtectedRoute moduleKey="dashboard"><DashboardExplore /></ProtectedRoute>} />
                     <Route path="/whatsapp-log" element={<ProtectedRoute moduleKey="campaigns"><WhatsAppLog /></ProtectedRoute>} />
+                    <Route path="/communications/whatsapp" element={<ProtectedRoute moduleKey="communications"><WhatsAppCenter /></ProtectedRoute>} />
+                    <Route path="/communications/whatsapp/templates" element={<ProtectedRoute moduleKey="communications"><WhatsAppTemplates /></ProtectedRoute>} />
+                    <Route path="/communications/whatsapp/config" element={<ProtectedRoute moduleKey="communications"><WhatsAppConfig /></ProtectedRoute>} />
+                    <Route path="/communications/whatsapp/conversations" element={<ProtectedRoute moduleKey="communications"><WhatsAppConversations /></ProtectedRoute>} />
+                    <Route path="/communications/voice" element={<ProtectedRoute moduleKey="communications"><VoiceCenter /></ProtectedRoute>} />
+                    <Route path="/communications/email" element={<ProtectedRoute moduleKey="communications"><EmailCenter /></ProtectedRoute>} />
+                    <Route path="/communications/calendar" element={<ProtectedRoute moduleKey="communications"><CommunicationsCalendar /></ProtectedRoute>} />
                     <Route path="/campaigns" element={<ProtectedRoute moduleKey="campaigns"><Campaigns /></ProtectedRoute>} />
                     <Route path="/campaigns/:id" element={<ProtectedRoute moduleKey="campaigns"><CampaignDetail /></ProtectedRoute>} />
                     <Route path="/procedures" element={<ProtectedRoute moduleKey="procedures"><Procedures /></ProtectedRoute>} />

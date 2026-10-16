@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cameraConstraints, frameAspectRatio } from "@/lib/cameraStream";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface CameraDialogProps {
   open: boolean;
@@ -50,6 +51,18 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
    * camera is measured rather than being shown in the back camera's shape.
    */
   const [frameRatio, setFrameRatio] = useState<number | null>(null);
+  /**
+   * A phone gets the camera full-screen with the controls over the picture.
+   *
+   * Not decoration. A phone camera sends a 9:16 picture, and a dialog that
+   * stacks a title, the frame and a button row leaves the frame about 280 of
+   * a 370px-wide screen once its height is capped - the clinic reported that,
+   * correctly, as still narrow. There is no arrangement of a stacked layout
+   * that fits an upright picture across the width of an upright screen. Over
+   * the whole screen, with the controls floating on top of it the way every
+   * camera app does it, there is: the picture is as wide as the phone.
+   */
+  const isMobile = useIsMobile();
 
   const stopStream = () => {
     if (streamRef.current) {
@@ -199,8 +212,24 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl p-0 overflow-hidden">
-        <DialogHeader className="px-4 pt-4">
+      <DialogContent
+        className={
+          isMobile
+            ? "w-screen max-w-none h-[100dvh] max-h-[100dvh] gap-0 p-0 sm:p-0 rounded-none border-0 overflow-hidden bg-black text-white [&>button]:z-20 [&>button]:text-white"
+            : "max-w-3xl p-0 overflow-hidden"
+        }
+      >
+        {/* `contents` on a desktop: the wrapper disappears from the layout and
+            the dialog is exactly what it was. On a phone it becomes the
+            full-screen column everything else is positioned against. */}
+        <div className={isMobile ? "absolute inset-0 flex flex-col bg-black" : "contents"}>
+        <DialogHeader
+          className={
+            isMobile
+              ? "absolute inset-x-0 top-0 z-10 px-4 pt-4 pb-10 bg-gradient-to-b from-black/70 to-transparent"
+              : "px-4 pt-4"
+          }
+        >
           <DialogTitle className="font-display">{title}</DialogTitle>
         </DialogHeader>
         {/* The frame takes the shape of the camera, rather than imposing one.
@@ -216,12 +245,21 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
             the camera reports its size, the classes guess by device - upright
             on a phone, wide on a desktop. */}
         <div
-          className={`relative bg-black mx-auto w-full flex items-center justify-center ${frameRatio ? "" : "aspect-[3/4] sm:aspect-video"}`}
-          style={{
-            aspectRatio: frameRatio ?? undefined,
-            maxHeight: FRAME_MAX_HEIGHT,
-            maxWidth: frameRatio ? `calc(${FRAME_MAX_HEIGHT} * ${frameRatio})` : undefined,
-          }}
+          data-testid="camera-frame"
+          className={
+            isMobile
+              ? "relative flex-1 min-h-0 w-full bg-black flex items-center justify-center"
+              : `relative bg-black mx-auto w-full flex items-center justify-center ${frameRatio ? "" : "aspect-video"}`
+          }
+          style={
+            isMobile
+              ? undefined
+              : {
+                  aspectRatio: frameRatio ?? undefined,
+                  maxHeight: FRAME_MAX_HEIGHT,
+                  maxWidth: frameRatio ? `calc(${FRAME_MAX_HEIGHT} * ${frameRatio})` : undefined,
+                }
+          }
         >
           {error ? (
             <div className="text-center p-6 text-white space-y-3">
@@ -270,6 +308,7 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
 
         {/* What has been taken so far, so the doctor can see the set growing
             and drop a bad shot before any of it is sent. */}
+        <div className={isMobile ? "absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/60 to-transparent" : "contents"}>
         {multiple && shots.length > 0 && (
           <div className="flex gap-2 overflow-x-auto px-4 pt-3 pb-1">
             {shots.map((shot, i) => (
@@ -287,7 +326,7 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
             ))}
           </div>
         )}
-        <div className="flex items-center justify-between gap-2 p-4 bg-card">
+        <div className={`flex items-center justify-between gap-2 p-4 ${isMobile ? "" : "bg-card"}`}>
           {multiple ? (
             /* Three cells rather than one row: on a 320px phone the old row -
                Cancel, switch, a 56px shutter and "Done (n)" - was wider than
@@ -353,6 +392,8 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
               </div>
             </>
           )}
+        </div>
+        </div>
         </div>
       </DialogContent>
     </Dialog>

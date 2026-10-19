@@ -33,6 +33,8 @@ import {
   MessageCircle,
   Phone,
   Mail,
+  Target,
+  Workflow,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -76,6 +78,7 @@ const mainItems = [
   { title: "Reports", url: "/reports", icon: BarChart3, moduleKey: "reports" },
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart, moduleKey: "report_builder" },
   { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard, moduleKey: "dashboards" },
+  { title: "Leads", url: "/leads", icon: Target, moduleKey: "leads" },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone, moduleKey: "campaigns" },
   { title: "WhatsApp Delivery", url: "/whatsapp-log", icon: MessageCircle, moduleKey: "campaigns" },
 ];
@@ -86,6 +89,7 @@ const communicationsItems = [
   { title: "WhatsApp", url: "/communications/whatsapp", icon: MessageCircle },
   { title: "Voice", url: "/communications/voice", icon: Phone },
   { title: "Email", url: "/communications/email", icon: Mail },
+  { title: "Journey Builder", url: "/communications/journeys", icon: Workflow },
   { title: "Calendar", url: "/communications/calendar", icon: CalendarDays },
 ];
 

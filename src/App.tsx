@@ -49,6 +49,7 @@ const Expenses = lazyWithReload(() => import("./pages/Expenses"));
 const StaffManagement = lazyWithReload(() => import("./pages/StaffManagement"));
 const StaffDetail = lazyWithReload(() => import("./pages/StaffDetail"));
 const WhatsAppLog = lazyWithReload(() => import("./pages/WhatsAppLog"));
+const Leads = lazyWithReload(() => import("./pages/Leads"));
 const WhatsAppCenter = lazyWithReload(() => import("./pages/communications/WhatsAppCenter"));
 const WhatsAppTemplates = lazyWithReload(() => import("./pages/communications/WhatsAppTemplates"));
 const WhatsAppConfig = lazyWithReload(() => import("./pages/communications/WhatsAppConfig"));
@@ -56,6 +57,10 @@ const WhatsAppConversations = lazyWithReload(() => import("./pages/communication
 const VoiceCenter = lazyWithReload(() => import("./pages/communications/VoiceCenter"));
 const EmailCenter = lazyWithReload(() => import("./pages/communications/EmailCenter"));
 const CommunicationsCalendar = lazyWithReload(() => import("./pages/communications/CommunicationsCalendar"));
+const JourneyBuilder = lazyWithReload(() => import("./pages/communications/JourneyBuilder"));
+const JourneyCanvas = lazyWithReload(() => import("./pages/communications/JourneyCanvas"));
+const JourneyAnalytics = lazyWithReload(() => import("./pages/communications/JourneyAnalytics"));
+const JourneyFailures = lazyWithReload(() => import("./pages/communications/JourneyFailures"));
 const OAuthResult = lazyWithReload(() => import("./pages/auth/OAuthResult"));
 const Campaigns = lazyWithReload(() => import("./pages/Campaigns"));
 const CampaignDetail = lazyWithReload(() => import("./pages/CampaignDetail"));
@@ -256,6 +261,7 @@ const App = () => (
                     <Route path="/dashboards/:id" element={<ProtectedRoute moduleKey="dashboards"><DashboardView /></ProtectedRoute>} />
                     <Route path="/dashboard-explore" element={<ProtectedRoute moduleKey="dashboard"><DashboardExplore /></ProtectedRoute>} />
                     <Route path="/whatsapp-log" element={<ProtectedRoute moduleKey="campaigns"><WhatsAppLog /></ProtectedRoute>} />
+                    <Route path="/leads" element={<ProtectedRoute moduleKey="leads"><Leads /></ProtectedRoute>} />
                     <Route path="/communications/whatsapp" element={<ProtectedRoute moduleKey="communications"><WhatsAppCenter /></ProtectedRoute>} />
                     <Route path="/communications/whatsapp/templates" element={<ProtectedRoute moduleKey="communications"><WhatsAppTemplates /></ProtectedRoute>} />
                     <Route path="/communications/whatsapp/config" element={<ProtectedRoute moduleKey="communications"><WhatsAppConfig /></ProtectedRoute>} />
@@ -263,6 +269,10 @@ const App = () => (
                     <Route path="/communications/voice" element={<ProtectedRoute moduleKey="communications"><VoiceCenter /></ProtectedRoute>} />
                     <Route path="/communications/email" element={<ProtectedRoute moduleKey="communications"><EmailCenter /></ProtectedRoute>} />
                     <Route path="/communications/calendar" element={<ProtectedRoute moduleKey="communications"><CommunicationsCalendar /></ProtectedRoute>} />
+                    <Route path="/communications/journeys" element={<ProtectedRoute moduleKey="communications"><JourneyBuilder /></ProtectedRoute>} />
+                    <Route path="/communications/journeys/:id/analytics" element={<ProtectedRoute moduleKey="communications"><JourneyAnalytics /></ProtectedRoute>} />
+                    <Route path="/communications/journeys/:id/failures" element={<ProtectedRoute moduleKey="communications"><JourneyFailures /></ProtectedRoute>} />
+                    <Route path="/communications/journeys/:id" element={<ProtectedRoute moduleKey="communications"><JourneyCanvas /></ProtectedRoute>} />
                     <Route path="/campaigns" element={<ProtectedRoute moduleKey="campaigns"><Campaigns /></ProtectedRoute>} />
                     <Route path="/campaigns/:id" element={<ProtectedRoute moduleKey="campaigns"><CampaignDetail /></ProtectedRoute>} />
                     <Route path="/procedures" element={<ProtectedRoute moduleKey="procedures"><Procedures /></ProtectedRoute>} />

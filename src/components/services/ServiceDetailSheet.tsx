@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
+import { FieldHistorySection } from "@/components/shared/FieldHistorySection";
 import { moveToTrash } from "@/lib/trash";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -443,6 +444,14 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
                 </AlertDialogContent>
               </AlertDialog>
             </div>
+
+            {/* The same change log the appointment and invoice screens carry.
+                Recording has always worked here - log_field_history is a
+                database trigger on services, switched on from Admin > History
+                Tracking like any other object - but nothing on this sheet ever
+                showed it, so turning it on appeared to do nothing. The panel
+                reads whichever fields the admin chose to track. */}
+            <FieldHistorySection objectType="services" recordId={serviceId} className="mt-4" />
           </div>
         )}
       </SheetContent>

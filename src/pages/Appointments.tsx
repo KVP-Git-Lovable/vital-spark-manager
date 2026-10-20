@@ -31,6 +31,7 @@ import { billedPatientDays, patientDayKey, type BilledDayRow } from "@/lib/bille
 import { withUnlinkedBills, type VisitRow } from "@/lib/unlinkedVisitBills";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import { confirmationSendPlan } from "@/lib/confirmationSend";
+import { patientForBooking } from "@/lib/bookingPatient";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import {
   rescheduleVerdict,
@@ -1459,8 +1460,13 @@ const Appointments = () => {
         }
       }
 
-      const patient = patients.find((p) => p.id === patientId);
-      const patientName = patient ? `${patient.first_name} ${patient.last_name}` : null;
+      // Read by id, not looked up in the page's cached list. The front desk
+      // creates a patient and books them within the minute, so that list
+      // almost never has them yet - and a miss there meant the confirmation
+      // silently did not go out, under "No phone number on this patient's
+      // record" on a screen showing the number. See bookingPatient.ts.
+      const patient = await patientForBooking(patientId, patients.find((p) => p.id === patientId));
+      const patientName = patient?.name ?? null;
       // Appointments created from the clinic app are always tagged "Walk-in".
       // Portal-originated bookings tag themselves as "portal" at creation time.
       const patientSource = "Walk-in";
@@ -1515,7 +1521,8 @@ const Appointments = () => {
         capturedServiceName: serviceName,
         phone: patient?.phone,
         patientName,
-        patientGender: (patient as any)?.gender || null,
+        // Now actually populated: the cached list never selected gender.
+        patientGender: patient?.gender || null,
         firstStartDT: startDT,
         recurrencePattern,
         recurrenceEndDate: wasRecurring ? recurrenceEndDate : null,

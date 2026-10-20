@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { useValidator } from "@/hooks/useValidationRules";
 import { useCustomFields } from "@/lib/custom-fields/api";
@@ -120,6 +120,7 @@ const emptyForm: TablesInsert<"patients"> = {
 };
 
 export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, onSuccess }: PatientFormSheetProps) {
+  const queryClient = useQueryClient();
   const [form, setForm] = useState<TablesInsert<"patients">>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
@@ -582,6 +583,13 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         await saveFamilyRows(patientId);
       }
 
+      // The patient list the booking, billing, procedure and photo screens
+      // each read is one cached query that nothing here ever refreshed, so a
+      // patient created on this page was invisible to them for a minute -
+      // which is exactly the window the front desk books in. The booking now
+      // reads the patient by id regardless (bookingPatient.ts); this stops
+      // every other screen showing a list without them.
+      queryClient.invalidateQueries({ queryKey: ["patients-list"] });
       onSuccess(patientId ? { id: patientId, created: !isEditing } : undefined);
       onOpenChange(false);
     } catch (err: any) {

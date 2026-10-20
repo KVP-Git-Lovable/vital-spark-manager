@@ -81,7 +81,15 @@ export function ActivateJourneyDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <Button disabled={!preview || activate.isPending} onClick={() => activate.mutate()}>
+          {/* Not just a caption: activating asks comms-journey-actions to run the first batch
+              immediately, and it does that the moment LOVABLE_CRON_SECRET exists - it calls the
+              sender itself and does not wait for a scheduled task. So while the scheduler is off
+              this has to actually block, not only warn. */}
+          <Button
+            disabled={!preview || activate.isPending || !JOURNEY_SCHEDULER_ENABLED}
+            title={JOURNEY_SCHEDULER_ENABLED ? undefined : JOURNEY_SCHEDULER_OFF_NOTICE}
+            onClick={() => activate.mutate()}
+          >
             {activate.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Activate
           </Button>
         </AlertDialogFooter>

@@ -11,6 +11,23 @@ import {
 /** Long enough that a run of front-desk deletions is one refresh, not ten. */
 const SETTLE_MS = 1_000;
 
+/**
+ * Every subscription gets its own channel name.
+ *
+ * supabase.channel(topic) hands back an EXISTING channel when one already has
+ * that topic (RealtimeClient.channel), and adding a listener to a channel that
+ * has already subscribed throws. With one fixed name, the second screen to
+ * mount this - the appointment sheet, opening over the list - was handed the
+ * list's subscribed channel and brought the whole page down with
+ * "cannot add postgres_changes callbacks ... after subscribe()".
+ *
+ * A counter and a random suffix, read at subscribe time, so two screens, or
+ * the same screen mounted twice, can never collide. Two channels on one socket
+ * is cheap; each caller debounces, and React Query collapses concurrent
+ * refetches of the same key.
+ */
+let channelSeq = 0;
+
 interface Options {
   /**
    * True while somebody is mid-edit on this screen - a row being edited
@@ -68,14 +85,23 @@ export function useLiveAppointments({ paused = false, onAppointment }: Options =
       }, SETTLE_MS);
     };
 
-    const channel = supabase
-      .channel("appointments-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, (payload) => {
-        const id = appointmentEventId(payload as never);
-        if (id) onAppointmentRef.current?.(id, appointmentChangeKind(payload as never));
-        schedule();
-      })
-      .subscribe();
+    // Live updates are a convenience. If realtime cannot start - a blocked
+    // websocket, a client change, anything - the page must carry on exactly as
+    // it did before this existed, with its data on screen. It must never be
+    // able to take a clinic screen down, which is precisely what it did.
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel(`appointments-live-${++channelSeq}-${Math.random().toString(36).slice(2, 8)}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, (payload) => {
+          const id = appointmentEventId(payload as never);
+          if (id) onAppointmentRef.current?.(id, appointmentChangeKind(payload as never));
+          schedule();
+        })
+        .subscribe();
+    } catch (err) {
+      console.error("Live appointment updates are unavailable", err);
+    }
 
     // Coming back to the tab is the moment to catch up: the app does not
     // refetch on window focus - that was removed as "the app refreshes by
@@ -88,7 +114,11 @@ export function useLiveAppointments({ paused = false, onAppointment }: Options =
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       document.removeEventListener("visibilitychange", onVisible);
-      supabase.removeChannel(channel);
+      try {
+        if (channel) supabase.removeChannel(channel);
+      } catch (err) {
+        console.error("Could not close the live appointment channel", err);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

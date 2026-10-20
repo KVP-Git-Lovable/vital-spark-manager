@@ -177,6 +177,22 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
     setFacingMode((m) => (m === "environment" ? "user" : "environment"));
   };
 
+  /** The phone's own camera, which focuses; the shot joins the strip. */
+  const openPhoneCamera = () => {
+    const input = fileFallbackRef.current;
+    if (!input) return;
+    input.setAttribute("capture", "environment");
+    input.click();
+  };
+
+  /** The gallery. `capture` must come off, or the phone opens the camera. */
+  const openDeviceFiles = () => {
+    const input = fileFallbackRef.current;
+    if (!input) return;
+    input.removeAttribute("capture");
+    input.click();
+  };
+
   const handleFallbackFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (files.length) {
@@ -244,6 +260,22 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
             leave the box wider than the picture and letterbox it again. Until
             the camera reports its size, the classes guess by device - upright
             on a phone, wide on a desktop. */}
+        {/* One input, two intents - the same trick AttachPhotosButton uses.
+            With `capture` the phone opens its own camera, which is the only
+            way to get an iPhone to focus: Safari ignores every focus
+            instruction a web page gives a camera stream, so the in-app
+            viewfinder cannot be made to focus there however it is asked.
+            Without `capture`, the same input opens the gallery. Either way the
+            file lands in the strip through handleFallbackFile and the dialog
+            stays open, so a sharp photo can still be one of several. */}
+        <input
+          ref={fileFallbackRef}
+          type="file"
+          accept="image/*"
+          multiple={multiple}
+          className="hidden"
+          onChange={handleFallbackFile}
+        />
         <div
           data-testid="camera-frame"
           className={
@@ -271,17 +303,14 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
                   collected here and sent together.
                 </p>
               )}
-              <input
-                ref={fileFallbackRef}
-                type="file"
-                accept="image/*"
-                multiple={multiple}
-                className="hidden"
-                onChange={handleFallbackFile}
-              />
-              <Button variant="secondary" size="sm" onClick={() => fileFallbackRef.current?.click()}>
-                <Upload className="h-4 w-4 mr-1.5" /> Choose from device
-              </Button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button variant="secondary" size="sm" onClick={openPhoneCamera}>
+                  <Camera className="h-4 w-4 mr-1.5" /> Phone camera
+                </Button>
+                <Button variant="secondary" size="sm" onClick={openDeviceFiles}>
+                  <Upload className="h-4 w-4 mr-1.5" /> Choose from device
+                </Button>
+              </div>
             </div>
           ) : previewUrl ? (
             <img src={previewUrl} alt="Captured" className="w-full h-full object-contain" />
@@ -324,6 +353,22 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
                 </button>
               </div>
             ))}
+          </div>
+        )}
+        {/* Above the controls, never in them: that row is already Cancel,
+            switch, shutter and Done, and it has been off the edge of a narrow
+            phone once before. */}
+        {multiple && !error && (
+          <div className="px-4 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={`h-7 gap-1.5 text-xs ${isMobile ? "text-white hover:text-white hover:bg-white/10" : ""}`}
+              onClick={openPhoneCamera}
+            >
+              <Camera className="h-3.5 w-3.5" /> Use phone camera for a sharper photo
+            </Button>
           </div>
         )}
         <div className={`flex items-center justify-between gap-2 p-4 ${isMobile ? "" : "bg-card"}`}>

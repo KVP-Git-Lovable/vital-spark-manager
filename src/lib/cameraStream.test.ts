@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { cameraConstraints, frameAspectRatio, IDEAL_HEIGHT, IDEAL_WIDTH } from "./cameraStream";
 
 const video = (mode: "environment" | "user") =>
-  cameraConstraints(mode).video as MediaTrackConstraints;
+  cameraConstraints(mode).video as MediaTrackConstraints & { focusMode?: unknown };
 
 describe("cameraConstraints", () => {
   it("asks for the back camera, and for the front when switched", () => {
@@ -48,5 +48,17 @@ describe("frameAspectRatio", () => {
     expect(frameAspectRatio(-1920, 1080)).toBeNull();
     expect(frameAspectRatio(Number.NaN, 1080)).toBeNull();
     expect(frameAspectRatio(Number.POSITIVE_INFINITY, 1080)).toBeNull();
+  });
+});
+
+describe("keeping the picture in focus", () => {
+  it("asks the camera to keep focusing, rather than locking on the first thing it sees", () => {
+    expect(video("environment").focusMode).toEqual({ ideal: "continuous" });
+  });
+
+  it("asks, never demands - a phone that cannot do it must still open its camera", () => {
+    // Safari on iOS ignores this outright, which is why the dialog also offers
+    // the phone's own camera. An exact constraint there would be fatal.
+    expect(JSON.stringify(cameraConstraints("user"))).not.toContain("exact");
   });
 });

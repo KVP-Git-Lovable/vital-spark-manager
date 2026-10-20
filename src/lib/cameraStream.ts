@@ -38,13 +38,29 @@ export function frameAspectRatio(videoWidth: number, videoHeight: number): numbe
   return videoWidth / videoHeight;
 }
 
+/**
+ * focusMode is real and widely implemented, but it is not in TypeScript's
+ * MediaTrackConstraints, so the shape is stated here rather than cast through
+ * `any`.
+ */
+interface FocusableVideoConstraints extends MediaTrackConstraints {
+  focusMode?: ConstrainDOMString;
+}
+
 export function cameraConstraints(mode: CameraFacing): MediaStreamConstraints {
+  const video: FocusableVideoConstraints = {
+    facingMode: { ideal: mode },
+    width: { ideal: IDEAL_WIDTH },
+    height: { ideal: IDEAL_HEIGHT },
+    // Keep focusing rather than locking on whatever was in front of the lens
+    // first. Ideal, like the rest: a browser that does not know this ignores
+    // it and the camera still opens. Safari on iOS is one of those, which is
+    // why the dialog also offers the phone's own camera - no instruction a web
+    // page gives a stream will focus an iPhone.
+    focusMode: { ideal: "continuous" },
+  };
   return {
-    video: {
-      facingMode: { ideal: mode },
-      width: { ideal: IDEAL_WIDTH },
-      height: { ideal: IDEAL_HEIGHT },
-    },
+    video,
     // Never a microphone. Nothing here records sound, and asking for one would
     // put a second permission in front of taking a photograph.
     audio: false,

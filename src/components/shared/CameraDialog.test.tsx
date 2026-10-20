@@ -23,8 +23,10 @@ describe("CameraDialog, when the live camera cannot start", () => {
       <CameraDialog open onOpenChange={onOpenChange} onCapture={vi.fn()} multiple onCaptureMany={onCaptureMany} />,
     );
 
-    const picker = await screen.findByText(/choose from device/i);
-    const input = picker.closest("div")?.querySelector('input[type="file"]') as HTMLInputElement;
+    // The input is mounted beside the frame rather than inside this block, so
+    // that "Phone camera" can reach it too - the two share it.
+    await screen.findByText(/choose from device/i);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     expect(input).toBeTruthy();
     expect(input.multiple).toBe(true);
 
@@ -95,5 +97,29 @@ describe("the camera frame", () => {
     const frame = screen.getByTestId("camera-frame");
     expect(frame.className).toContain("aspect-video");
     expect(frame.style.maxHeight).not.toBe("");
+  });
+});
+
+/**
+ * The phone's camera and the gallery share one file input, so the `capture`
+ * attribute is the only thing telling them apart. Get it wrong and "Phone
+ * camera" opens the photo library, or "Choose from device" launches the
+ * camera - and the whole point of the phone camera here is that it is the only
+ * way to focus an iPhone.
+ */
+describe("choosing where a photo comes from", () => {
+  const fileInput = () => document.querySelector('input[type="file"]') as HTMLInputElement;
+
+  it("sets capture for the phone's own camera", async () => {
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} multiple onCaptureMany={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: /phone camera/i }));
+    expect(fileInput().getAttribute("capture")).toBe("environment");
+  });
+
+  it("clears it again for the gallery, so the camera does not open instead", async () => {
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} multiple onCaptureMany={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: /phone camera/i }));
+    fireEvent.click(screen.getByRole("button", { name: /choose from device/i }));
+    expect(fileInput().hasAttribute("capture")).toBe(false);
   });
 });

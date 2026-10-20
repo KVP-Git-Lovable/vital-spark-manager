@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { appointmentChangeKind, appointmentEventId, openAppointmentNotice } from "./liveAppointments";
+import { appointmentChangeKind, appointmentEventId, canApplyLiveChange, openAppointmentNotice } from "./liveAppointments";
 
 const ID = "d398da7a-1965-4328-adb0-dc0c3ef96a2c";
 
@@ -47,5 +47,23 @@ describe("openAppointmentNotice", () => {
 
   it("says a change plainly, without alarming anyone", () => {
     expect(openAppointmentNotice("changed")).toBe("This appointment was changed at the front desk.");
+  });
+});
+
+describe("canApplyLiveChange", () => {
+  it("refreshes when the screen is free and someone is looking", () => {
+    expect(canApplyLiveChange({ paused: false, hidden: false })).toBe(true);
+  });
+
+  it("holds while a row is being edited, so nothing moves under the typing", () => {
+    expect(canApplyLiveChange({ paused: true, hidden: false })).toBe(false);
+  });
+
+  it("holds while the tab is in the background, and catches up on return", () => {
+    expect(canApplyLiveChange({ paused: false, hidden: true })).toBe(false);
+  });
+
+  it("holds when both are true", () => {
+    expect(canApplyLiveChange({ paused: true, hidden: true })).toBe(false);
   });
 });

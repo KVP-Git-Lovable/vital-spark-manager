@@ -52,3 +52,21 @@ export function openAppointmentNotice(kind: AppointmentChange): string {
     ? "This appointment has been deleted at the front desk. Anything you save will be kept on the patient's record."
     : "This appointment was changed at the front desk.";
 }
+
+/**
+ * Whether a change that has arrived may be applied right now.
+ *
+ * Two reasons to hold it, both about never redrawing something under
+ * someone:
+ *
+ *  - `paused`: a row is being edited inline, or the booking dialog is open.
+ *  - `hidden`: nobody is looking at this tab, so the work is wasted; the app
+ *    does not refetch on window focus either (that was removed as "the app
+ *    refreshes by itself"), so coming back is the moment to catch up.
+ *
+ * Held is not dropped. The caller remembers and applies it as soon as this
+ * turns true.
+ */
+export function canApplyLiveChange({ paused, hidden }: { paused: boolean; hidden: boolean }): boolean {
+  return !paused && !hidden;
+}

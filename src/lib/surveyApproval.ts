@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { QueryClient } from "@tanstack/react-query";
 import { knownProductIds, productIdForSave } from "@/lib/prescriptionProducts";
+import { appointmentLinkForSave } from "@/lib/procedureAppointment";
 
 /**
  * Merge AI-recommended product/service items with the template's product/service config
@@ -130,6 +131,9 @@ export async function approveSurveyResponse(
   let procCount = 0;
   const patientId = response.patient_id || response.patients?.id;
   if (services.length > 0 && patientId) {
+    // The survey's appointment may have been deleted since it was filled in -
+    // see procedureAppointment.ts. Approving must not fail over that.
+    const surveyAppointment = await appointmentLinkForSave(response.appointment_id);
     const procEntries = services.map((s: any) => {
       const advice = s.advice || "";
       const notes = advice
@@ -137,7 +141,7 @@ export async function approveSurveyResponse(
         : sourcePrefix;
       return {
         patient_id: patientId,
-        appointment_id: response.appointment_id || null,
+        appointment_id: surveyAppointment.id,
         service_name: s.service_name || s.name || "Service",
         status: "Recommended",
         procedure_date: new Date().toISOString(),

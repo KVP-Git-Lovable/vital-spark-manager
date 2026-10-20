@@ -41,6 +41,7 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { MicButton } from "@/components/shared/MicButton";
 import { OTHERS_VALUE } from "@/lib/othersOption";
 import { droppedMedicineNotice, knownProductIds, losesCatalogueLink, productIdForSave } from "@/lib/prescriptionProducts";
+import { APPOINTMENT_REMOVED_NOTICE, appointmentLinkForSave } from "@/lib/procedureAppointment";
 import { applyMedicineDefaults } from "@/lib/medicineDefaults";
 import { usePharmaLookup } from "@/hooks/usePharmaLookup";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
@@ -746,6 +747,12 @@ export function ProcedureFormDialog({
           .map((l) => (effectiveLines.length > 1 ? `${l.name}: ${l[field]}` : l[field]))
           .join("\n\n");
 
+      // The appointment is checked the same way and for the same reason: the
+      // front desk deletes appointments all day, and one deleted while a
+      // consultation was being written up rejected the whole save. See
+      // procedureAppointment.ts.
+      const appointmentLink = await appointmentLinkForSave(appointmentId);
+
       // The medicines are built and checked here, before a single row is
       // written. They used to be built last, after the procedure and its
       // services were already in - so one medicine id the catalogue no longer
@@ -781,7 +788,7 @@ export function ProcedureFormDialog({
           symptoms: medical.symptoms || null,
           diagnosis: medical.diagnosis || null,
           lab_tests: medical.lab_tests || null,
-          appointment_id: appointmentId || null,
+          appointment_id: appointmentLink.id,
           service_name: effectiveLines.map((l) => l.name).join(", "),
           procedure_notes: combine("procedure_notes"),
           recommendations: combine("recommendations") || null,
@@ -819,6 +826,7 @@ export function ProcedureFormDialog({
         const notice = droppedMedicineNotice(droppedMedicines);
         if (notice) toast.warning(notice);
       }
+      if (appointmentLink.removed) toast.warning(APPOINTMENT_REMOVED_NOTICE);
 
       notesFlushFailedRef.current = false;
       if (draftNotes.length > 0) {

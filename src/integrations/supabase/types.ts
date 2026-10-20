@@ -1397,6 +1397,8 @@ export type Database = {
         Row: {
           account_id: string | null
           account_name: string | null
+          api_key_enc: string | null
+          api_key_last4: string | null
           consent_confirmed_at: string | null
           consent_confirmed_by: string | null
           created_at: string
@@ -1417,6 +1419,8 @@ export type Database = {
         Insert: {
           account_id?: string | null
           account_name?: string | null
+          api_key_enc?: string | null
+          api_key_last4?: string | null
           consent_confirmed_at?: string | null
           consent_confirmed_by?: string | null
           created_at?: string
@@ -1437,6 +1441,8 @@ export type Database = {
         Update: {
           account_id?: string | null
           account_name?: string | null
+          api_key_enc?: string | null
+          api_key_last4?: string | null
           consent_confirmed_at?: string | null
           consent_confirmed_by?: string | null
           created_at?: string

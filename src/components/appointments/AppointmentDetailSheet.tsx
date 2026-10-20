@@ -5,6 +5,8 @@ import { withDrPrefix } from "@/lib/staffName";
 import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import { confirmationSendPlan } from "@/lib/confirmationSend";
+import { useLiveAppointments } from "@/hooks/useLiveAppointments";
+import { openAppointmentNotice, type AppointmentChange } from "@/lib/liveAppointments";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { rescheduleVerdict, rescheduleWarning } from "@/lib/appointmentReschedule";
 import { format, isWithinInterval, parseISO, addMonths, addWeeks, addDays } from "date-fns";
@@ -1049,6 +1051,22 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
    * existed the only way to get one out was to re-book the patient. Asks
    * first, because it reaches a real person.
    */
+  /**
+   * What the front desk has done to this appointment while it has been open.
+   *
+   * Shown as a line at the top and nothing more. The page is deliberately NOT
+   * re-read: re-drawing a half-written consultation from the database is the
+   * one thing that must never happen here, so a change offers a link and a
+   * deletion simply says so - the visit saves to the patient either way, see
+   * procedureAppointment.ts.
+   */
+  const [frontDeskChange, setFrontDeskChange] = useState<AppointmentChange | null>(null);
+  useLiveAppointments({
+    onAppointment: (id, kind) => {
+      if (appointmentId && id === appointmentId) setFrontDeskChange(kind);
+    },
+  });
+
   const [resendingConfirmation, setResendingConfirmation] = useState(false);
   const resendConfirmation = async () => {
     const plan = confirmationSendPlan({ status: "Confirmed", phone: patientPhone, patientName });
@@ -1132,6 +1150,24 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
             </div>
           ) : (
             <>
+              {frontDeskChange && (
+                <div className="flex flex-wrap items-center gap-2 border-b bg-amber-50 px-6 py-2.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{openAppointmentNotice(frontDeskChange)}</span>
+                  {frontDeskChange === "changed" && (
+                    <button
+                      type="button"
+                      className="underline underline-offset-2 font-medium"
+                      onClick={() => {
+                        setFrontDeskChange(null);
+                        void retryAppointment();
+                      }}
+                    >
+                      Show the new details
+                    </button>
+                  )}
+                </div>
+              )}
               <SheetHeader className="p-6 pb-4 border-b bg-muted/30">
                 <div className="flex items-start justify-between">
                   <div>

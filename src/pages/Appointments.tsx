@@ -32,6 +32,7 @@ import { withUnlinkedBills, type VisitRow } from "@/lib/unlinkedVisitBills";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import { confirmationSendPlan } from "@/lib/confirmationSend";
 import { patientForBooking } from "@/lib/bookingPatient";
+import { useLiveAppointments } from "@/hooks/useLiveAppointments";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import {
   rescheduleVerdict,
@@ -503,6 +504,11 @@ const Appointments = () => {
 
   // Inline edit state
   const [editingRow, setEditingRow] = useState<string | null>(null);
+
+  // The front desk's changes arrive here rather than waiting for a refresh.
+  // Held while a row is being edited inline or the booking dialog is open, so
+  // nothing is redrawn under somebody who is typing - see useLiveAppointments.
+  useLiveAppointments({ paused: editingRow !== null || open });
   const [editValues, setEditValues] = useState<any>({});
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string; fromSalesforce: boolean } | null>(null);
 

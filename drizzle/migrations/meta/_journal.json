@@ -169,6 +169,13 @@
       "when": 1792070358231,
       "tag": "0023_seed_communications_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792070418231,
+      "tag": "0024_mailchimp_api_key",
+      "breakpoints": true
     }
   ]
 }

@@ -61,6 +61,15 @@ const JourneyBuilder = lazyWithReload(() => import("./pages/communications/Journ
 const JourneyCanvas = lazyWithReload(() => import("./pages/communications/JourneyCanvas"));
 const JourneyAnalytics = lazyWithReload(() => import("./pages/communications/JourneyAnalytics"));
 const JourneyFailures = lazyWithReload(() => import("./pages/communications/JourneyFailures"));
+const MetaHub = lazyWithReload(() => import("./pages/communications/meta/MetaHub"));
+const MetaConnection = lazyWithReload(() => import("./pages/communications/meta/MetaConnection"));
+const MetaMarketing = lazyWithReload(() => import("./pages/communications/meta/MetaMarketing"));
+const MetaCampaigns = lazyWithReload(() => import("./pages/communications/meta/MetaCampaigns"));
+const MetaAdSets = lazyWithReload(() => import("./pages/communications/meta/MetaAdSets"));
+const MetaAds = lazyWithReload(() => import("./pages/communications/meta/MetaAds"));
+const AdPerformance = lazyWithReload(() => import("./pages/communications/meta/AdPerformance"));
+const MetaOrganicPosts = lazyWithReload(() => import("./pages/communications/meta/MetaOrganicPosts"));
+const MetaDiagnostics = lazyWithReload(() => import("./pages/communications/meta/MetaDiagnostics"));
 const OAuthResult = lazyWithReload(() => import("./pages/auth/OAuthResult"));
 const Campaigns = lazyWithReload(() => import("./pages/Campaigns"));
 const CampaignDetail = lazyWithReload(() => import("./pages/CampaignDetail"));
@@ -273,6 +282,15 @@ const App = () => (
                     <Route path="/communications/journeys/:id/analytics" element={<ProtectedRoute moduleKey="communications"><JourneyAnalytics /></ProtectedRoute>} />
                     <Route path="/communications/journeys/:id/failures" element={<ProtectedRoute moduleKey="communications"><JourneyFailures /></ProtectedRoute>} />
                     <Route path="/communications/journeys/:id" element={<ProtectedRoute moduleKey="communications"><JourneyCanvas /></ProtectedRoute>} />
+                    <Route path="/communications/meta" element={<ProtectedRoute moduleKey="meta"><MetaHub /></ProtectedRoute>} />
+                    <Route path="/communications/meta/connection" element={<ProtectedRoute moduleKey="meta_connection"><MetaConnection /></ProtectedRoute>} />
+                    <Route path="/communications/meta/marketing" element={<ProtectedRoute moduleKey="meta"><MetaMarketing /></ProtectedRoute>} />
+                    <Route path="/communications/meta/campaigns" element={<ProtectedRoute moduleKey="meta"><MetaCampaigns /></ProtectedRoute>} />
+                    <Route path="/communications/meta/ad-sets" element={<ProtectedRoute moduleKey="meta"><MetaAdSets /></ProtectedRoute>} />
+                    <Route path="/communications/meta/ads/:id/performance" element={<ProtectedRoute moduleKey="meta"><AdPerformance /></ProtectedRoute>} />
+                    <Route path="/communications/meta/ads" element={<ProtectedRoute moduleKey="meta"><MetaAds /></ProtectedRoute>} />
+                    <Route path="/communications/meta/organic" element={<ProtectedRoute moduleKey="meta"><MetaOrganicPosts /></ProtectedRoute>} />
+                    <Route path="/communications/meta/diagnostics" element={<ProtectedRoute moduleKey="meta"><MetaDiagnostics /></ProtectedRoute>} />
                     <Route path="/campaigns" element={<ProtectedRoute moduleKey="campaigns"><Campaigns /></ProtectedRoute>} />
                     <Route path="/campaigns/:id" element={<ProtectedRoute moduleKey="campaigns"><CampaignDetail /></ProtectedRoute>} />
                     <Route path="/procedures" element={<ProtectedRoute moduleKey="procedures"><Procedures /></ProtectedRoute>} />

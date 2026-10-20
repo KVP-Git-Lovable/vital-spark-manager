@@ -35,6 +35,8 @@ import {
   Mail,
   Target,
   Workflow,
+  Share2,
+  Link2,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -91,6 +93,8 @@ const communicationsItems = [
   { title: "Email", url: "/communications/email", icon: Mail },
   { title: "Journey Builder", url: "/communications/journeys", icon: Workflow },
   { title: "Calendar", url: "/communications/calendar", icon: CalendarDays },
+  { title: "Meta", url: "/communications/meta", icon: Share2 },
+  { title: "Meta Connection", url: "/communications/meta/connection", icon: Link2 },
 ];
 
 const employeesSubItems = [
@@ -244,7 +248,9 @@ export function AppSidebar() {
                               isActive={
                                 sub.url === "/communications/whatsapp"
                                   ? currentPath === sub.url
-                                  : isActive(sub.url)
+                                  : sub.url === "/communications/meta"
+                                    ? isActive(sub.url) && !currentPath.startsWith("/communications/meta/connection")
+                                    : isActive(sub.url)
                               }
                             >
                               <Link to={sub.url}>

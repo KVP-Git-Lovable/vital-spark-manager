@@ -9,10 +9,20 @@
  * date. The app allowed it without a word.
  *
  * The clinic must keep rescheduling freely - a slot moves all day long - so
- * this asks in one case only: the appointment is already in the past, something
- * happened at it (a bill or a procedure), and it is being moved to a different
+ * this asks in one case only: something has already happened at the
+ * appointment (a bill or a procedure) and it is being moved to a different
  * day. That is not a reschedule; it is next week's booking being written over
- * last week's visit, and the answer is almost always a new appointment.
+ * a visit that has taken place, and the answer is almost always a new
+ * appointment.
+ *
+ * It used to require the appointment to be in the past as well, and that let
+ * the same thing happen again. Alister Moras was seen at 11:07 on 21 October,
+ * his prescription written, and at 11:09 the date on that appointment was
+ * moved to 19 November - two minutes later, and still an hour before the
+ * 12:15 slot it was booked for. The clock said "future booking, move it
+ * freely" while the notes said a consultation had already happened. The
+ * clinic sees people early all day, so what matters is whether a visit is
+ * recorded, not whether the hand has passed the hour.
  */
 
 export interface ReschedulableAppointment {
@@ -46,19 +56,19 @@ const sameLocalDay = (a: Date, b: Date): boolean =>
  * "confirm" when moving this appointment would erase a visit that happened.
  *
  * Everything else is "allow", so the ordinary work of the day - dragging a
- * future booking, correcting a time, moving a slot nobody turned up to - is
- * untouched and silent.
+ * booking nothing has happened at, correcting a time, moving a slot nobody
+ * turned up to - is untouched and silent.
  */
 export function rescheduleVerdict(
   appointment: ReschedulableAppointment | null | undefined,
   newStart: string | Date | null | undefined,
   evidence: VisitEvidence = {},
-  now: Date = new Date(),
 ): RescheduleVerdict {
   const current = appointment?.start_time ? new Date(appointment.start_time) : null;
   if (!current || Number.isNaN(current.getTime())) return "allow";
-  if (current.getTime() >= now.getTime()) return "allow";
 
+  // The evidence decides, not the clock. A slot with nothing recorded against
+  // it moves freely whenever it is - that is the ordinary work of the day.
   if (!evidence.hasInvoice && !evidence.hasProcedure) return "allow";
 
   const next = newStart ? new Date(newStart) : null;

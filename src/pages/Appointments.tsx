@@ -1756,15 +1756,18 @@ const Appointments = () => {
 
   const guardVisitMove = async (id: string, newStart: string, proceed: () => void) => {
     const apt = appointmentById(id);
-    // Nothing to protect: the appointment has not happened yet.
-    if (!apt?.start_time || new Date(apt.start_time).getTime() >= Date.now()) {
+    if (!apt?.start_time) {
       proceed();
       return;
     }
+    // Asked for every move, not only for one already in the past. The clinic
+    // sees people early: Alister Moras was prescribed for at 11:07 and his
+    // appointment moved to November at 11:09, an hour before the 12:15 it was
+    // booked for - "still in the future" was exactly why nothing asked.
     const hasInvoice = billInvoiceByAppointmentId.has(id);
     let hasProcedure = false;
     if (!hasInvoice) {
-      // One row, and only for an appointment already in the past.
+      // One row, and only when a bill has not already settled the question.
       const { data } = await supabase.from("procedures").select("id").eq("appointment_id", id).limit(1);
       hasProcedure = (data?.length ?? 0) > 0;
     }

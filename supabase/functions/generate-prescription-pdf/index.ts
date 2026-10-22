@@ -427,10 +427,15 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
 
   const serviceRows = allServiceRows
     .filter((r) => !isPlaceholderService(r.service))
-    .map((r) => ({ service: r.service, notes: r.notes || "-", recommendations: r.recommendations || "-" }));
+    // An empty column is left empty. It used to print "-", which reads as
+    // though something was recorded and found to be nothing: a treatment the
+    // doctor wrote nothing against came out as "SERVICE | - | -". 323 of the
+    // last 9,509 service lines are that. wrap("") gives one empty line, the
+    // same height a dash took, so nothing in the table shifts.
+    .map((r) => ({ service: r.service, notes: r.notes, recommendations: r.recommendations }));
 
-  // The same lines in the shape the shared roll-up rule expects, before the
-  // "-" placeholders above are substituted in.
+  // The same lines in the shape the shared roll-up rule expects. It never saw
+  // the "-" placeholders that used to be substituted above, and still does not.
   const rollUpLines = allServiceRows.map((r) => ({
     service_name: r.service,
     procedure_notes: r.notes,

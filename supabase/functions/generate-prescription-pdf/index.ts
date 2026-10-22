@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
 import { parsePrescriptionText } from "./prescriptionText.ts";
+import { isPlaceholderService } from "./placeholderService.ts";
 import { isRollUpOf } from "./procedureRollup.ts";
 import { tableRowHeight, tableStartSpace } from "./pdfTableLayout.ts";
 
@@ -391,7 +392,6 @@ async function buildPrescriptionPdf(client: ReturnType<typeof createClient>, pro
   };
 
   /** The name the importer uses when Salesforce recorded no treatment at all. */
-  const isPlaceholderService = (name: string) => name.trim().toLowerCase() === "consultation";
 
   // A "Consultation" service name is not a procedure - it means "the patient
   // was seen". 10,586 of these rows carry procedure notes and 9,178 carry

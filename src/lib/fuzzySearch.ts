@@ -74,6 +74,30 @@ export const buildFuzzyOrFilter = (term: string, columns: string[]) => {
     .join(",");
 };
 
+/**
+ * A filter for names that BEGIN with what was typed.
+ *
+ * The global search used to go straight to the substring filter below, and a
+ * substring filter is the wrong question when the clinic types a short name.
+ * "uma" matches 756 patients - every Kumar, Kumari and Numa carries those three
+ * letters - but only 33 patients are actually called something beginning Uma.
+ * With a capped, unordered query the database handed back an arbitrary 25 of
+ * the 756 and not one Uma was among them.
+ *
+ * Tried first, so a name that starts with the term beats a name that merely
+ * contains it. The two other patient searches on this app - the Patients list
+ * and the patient picker - have always done this; the global search was the one
+ * that did not.
+ *
+ * One word only. A prefix of two words is not a prefix of anything, and
+ * multi-word searches are already handled by buildTokenFilters.
+ */
+export const buildPrefixFilter = (term: string, columns: string[]): string => {
+  const tokens = sanitizeTerm(term).split(/\s+/).filter(Boolean);
+  if (tokens.length !== 1 || columns.length === 0) return "";
+  return columns.map((c) => `${c}.ilike.${tokens[0]}%`).join(",");
+};
+
 export function levenshtein(a: string, b: string): number {
   if (a === b) return 0;
   if (!a.length) return b.length;
@@ -122,6 +146,25 @@ export function fuzzyScore(term: string, haystack: string): number {
   return worst;
 }
 
+/**
+ * Does every word typed START a word of this name?
+ *
+ * fuzzyScore returns a flat 1 for anything merely CONTAINING the term, so
+ * searching "uma" scored "Uma M S", "Heema Kumari" and "Amar Kumar" at exactly
+ * 1 each. A tie, and a stable sort then just preserved whatever order the
+ * database happened to return - which is how a search for "uma" came back with
+ * six people, none of them called Uma.
+ *
+ * Used only to break those ties, never to decide who matches, so no caller's
+ * threshold changes meaning.
+ */
+export function wordStartBonus(term: string, haystack: string): number {
+  const tokens = tokenize(term);
+  const words = tokenize(haystack);
+  if (tokens.length === 0 || words.length === 0) return 0;
+  return tokens.every((t) => words.some((w) => w.startsWith(t))) ? 1 : 0;
+}
+
 /** Ranks and filters rows by fuzzy similarity against the given text accessor. */
 export function fuzzyRank<T>(
   rows: T[],
@@ -130,8 +173,13 @@ export function fuzzyRank<T>(
   threshold = 0.6
 ): T[] {
   return rows
-    .map((row) => ({ row, score: fuzzyScore(term, getText(row)) }))
+    .map((row) => {
+      const text = getText(row);
+      return { row, score: fuzzyScore(term, text), startsWord: wordStartBonus(term, text) };
+    })
     .filter((r) => r.score >= threshold)
-    .sort((a, b) => b.score - a.score)
+    // Score first, exactly as before. The bonus only separates rows the score
+    // cannot tell apart, so a row that already ranked higher still does.
+    .sort((a, b) => b.score - a.score || b.startsWord - a.startsWord)
     .map((r) => r.row);
 }

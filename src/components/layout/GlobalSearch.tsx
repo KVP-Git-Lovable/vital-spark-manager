@@ -10,7 +10,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
-import { buildOrFilter, buildTokenFilters, fuzzyRank } from "@/lib/fuzzySearch";
+import { buildOrFilter, buildPrefixFilter, buildTokenFilters, fuzzyRank } from "@/lib/fuzzySearch";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { procedureDateLabel } from "@/lib/procedureDate";
@@ -19,6 +19,16 @@ import {
 } from "@/lib/recentSearch";
 
 type Kind = "patient" | "appointment" | "procedure" | "invoice" | "staff" | "service" | "product";
+
+/** The patient columns this dropdown selects - the only shape the new
+ * prefix/broad merge below needs to know about. */
+type PatientRow = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  email: string | null;
+};
 
 type Result = {
   id: string;
@@ -120,11 +130,30 @@ export function GlobalSearch({ className }: { className?: string }) {
         let query = supabase.from("patients").select("id, first_name, last_name, phone, email");
         for (const f of tokenFilters) query = query.or(f);
         if (tokenFilters.length === 0) query = query.or(`first_name.ilike.${like}`);
-        return query.limit(25);
+        // Ordered, because this is capped. Unordered, the 25 rows the cap kept
+        // were an arbitrary 25 of however many matched - 756 of them for "uma" -
+        // and the person being looked for was usually not in that 25. Most
+        // recently seen is the clinic's own idea of which patient is meant.
+        return query.order("last_visit_date", { ascending: false, nullsFirst: false }).limit(25);
+      };
+
+      // Names that BEGIN with what was typed, which is nearly always who is
+      // meant. Runs alongside the broad search rather than after it, so it costs
+      // no extra wait, and its hits go above the broad ones below.
+      const prefixPatients = async () => {
+        const prefixFilter = buildPrefixFilter(q, ["first_name", "last_name", "phone"]);
+        if (!prefixFilter) return { data: [] as PatientRow[] };
+        return supabase
+          .from("patients")
+          .select("id, first_name, last_name, phone, email")
+          .or(prefixFilter)
+          .order("last_visit_date", { ascending: false, nullsFirst: false })
+          .limit(10);
       };
 
       const noRows = { data: [] as any[] };
-      const [patients, appts, procs, invs, staff, services, products] = await Promise.all([
+      const [prefixHits, patients, appts, procs, invs, staff, services, products] = await Promise.all([
+        wants("patient") ? prefixPatients() : noRows,
         wants("patient") ? strictPatients() : noRows,
         wants("appointment")
           ? supabase.from("appointments").select("id, patient_name, service, start_time, status")
@@ -166,17 +195,32 @@ export function GlobalSearch({ className }: { className?: string }) {
         if (loose) {
           const { data: looseRows } = await supabase
             .from("patients").select("id, first_name, last_name, phone, email")
-            .or(loose).limit(25);
+            .or(loose)
+            .order("last_visit_date", { ascending: false, nullsFirst: false })
+            .limit(25);
           patientRows = looseRows || [];
         }
       }
+      // Prefix hits first, then the broad matches, each patient once. Topping
+      // the broad list up rather than replacing it means the dropdown is never
+      // shorter than it used to be; fuzzyRank's word-start tiebreak then keeps
+      // these above a mid-word match that scored the same as them.
+      const seenPatients = new Set<string>();
+      const mergedPatients = [
+        ...(((prefixHits as { data: PatientRow[] | null }).data || []) as PatientRow[]),
+        ...patientRows,
+      ].filter((p: PatientRow) => {
+        if (!p?.id || seenPatients.has(p.id)) return false;
+        seenPatients.add(p.id);
+        return true;
+      });
       const ranked = fuzzyRank(
-        patientRows,
+        mergedPatients,
         q,
         (p: any) => `${p.first_name || ""} ${p.last_name || ""} ${p.phone || ""}`,
         0.45
       );
-      const usePatients = (ranked.length ? ranked : patientRows).slice(0, 6);
+      const usePatients = (ranked.length ? ranked : mergedPatients).slice(0, 6);
 
       const out: Result[] = [
         ...usePatients.map((p: any) => ({

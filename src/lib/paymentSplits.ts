@@ -70,6 +70,37 @@ export function splitProblem(rows: PaymentSplit[], paidAmount: number): string |
  * mode used twice is named once - two cash rows and a UPI row is "Cash + UPI",
  * not "Cash + Cash + UPI".
  */
+/**
+ * Each mode of a split with what went on it.
+ *
+ * paymentModeLabel answers "how was this paid" - "Card + UPI" - and the clinic
+ * asked the next question: how much on each. The amounts have been sitting in
+ * payment_splits all along beside the modes; nothing read them. Josily Boban's
+ * 17 Oct bill is ₹29,359 of which ₹26,939 went on a card and ₹2,420 by UPI,
+ * and the list said only that two modes were used.
+ *
+ * Repeats of one mode are merged and summed - two cash rows are one "Cash"
+ * holding the total, not "Cash" twice - and the order taken is kept.
+ *
+ * Empty for an ordinary bill, and empty when no row names a mode at all, so
+ * the caller falls back to paymentModeLabel rather than printing nothing.
+ */
+export function paymentSplitParts(storedMode: string | null | undefined, stored: unknown): PaymentSplit[] {
+  const rows = splitsFromInvoice(stored);
+  if (rows.length < 2) return [];
+
+  const byMode = new Map<string, PaymentSplit>();
+  for (const row of rows) {
+    const mode = row.mode.trim();
+    if (!mode) continue;
+    const key = mode.toLowerCase();
+    const existing = byMode.get(key);
+    if (existing) existing.amount += Number(row.amount) || 0;
+    else byMode.set(key, { mode, amount: Number(row.amount) || 0 });
+  }
+  return [...byMode.values()];
+}
+
 export function paymentModeLabel(storedMode: string | null | undefined, stored: unknown): string {
   const rows = splitsFromInvoice(stored);
   if (rows.length < 2) return (storedMode ?? "").trim();

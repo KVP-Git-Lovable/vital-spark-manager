@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { paymentModeForSplits, splitProblem, splitTotal, splitsFromInvoice, paymentModeLabel } from "./paymentSplits";
+import { paymentModeForSplits, paymentModeLabel, paymentSplitParts, splitProblem, splitTotal, splitsFromInvoice } from "./paymentSplits";
 
 /** INV-49320, Basavaraju: ₹32,175 taken as ₹30,000 cash and ₹2,175 UPI. */
 const INV_49320 = [
@@ -108,5 +108,52 @@ describe("paymentModeLabel", () => {
   it("is empty when there is no bill at all, so the cell can show a dash", () => {
     expect(paymentModeLabel(null, null)).toBe("");
     expect(paymentModeLabel("", null)).toBe("");
+  });
+});
+
+describe("paymentSplitParts", () => {
+  it("names each mode with what went on it", () => {
+    // Josily Boban, 17 Oct: ₹29,359 as ₹26,939 card and ₹2,420 UPI.
+    expect(
+      paymentSplitParts("Split", [
+        { mode: "Card", amount: 26939 },
+        { mode: "UPI", amount: 2420 },
+      ]),
+    ).toEqual([
+      { mode: "Card", amount: 26939 },
+      { mode: "UPI", amount: 2420 },
+    ]);
+  });
+
+  it("keeps the order the payments were taken in", () => {
+    const parts = paymentSplitParts("Split", [
+      { mode: "UPI", amount: 500 },
+      { mode: "Cash", amount: 1500 },
+    ]);
+    expect(parts.map((p) => p.mode)).toEqual(["UPI", "Cash"]);
+  });
+
+  it("merges two payments by the same mode into one, summed", () => {
+    expect(
+      paymentSplitParts("Split", [
+        { mode: "Cash", amount: 1000 },
+        { mode: "cash", amount: 250 },
+      ]),
+    ).toEqual([{ mode: "Cash", amount: 1250 }]);
+  });
+
+  it("has nothing to say about an ordinary bill", () => {
+    expect(paymentSplitParts("Cash", [{ mode: "Cash", amount: 500 }])).toEqual([]);
+    expect(paymentSplitParts("Cash", null)).toEqual([]);
+    expect(paymentSplitParts("Cash", [])).toEqual([]);
+  });
+
+  it("falls silent when the rows name no mode, so the label can stand instead", () => {
+    expect(
+      paymentSplitParts("Split", [
+        { mode: "", amount: 100 },
+        { mode: "   ", amount: 200 },
+      ]),
+    ).toEqual([]);
   });
 });

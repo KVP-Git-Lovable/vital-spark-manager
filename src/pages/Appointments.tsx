@@ -104,7 +104,7 @@ import { toast } from "sonner";
 import { fetchAll } from "@/lib/supabasePaginate";
 import { fetchAppointmentsPage } from "@/lib/appointmentsPage";
 import { investigationText } from "@/lib/investigationText";
-import { paymentModeLabel } from "@/lib/paymentSplits";
+import { PaymentModeCell } from "@/components/appointments/PaymentModeCell";
 import { printAppointments } from "@/lib/printAppointments";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
@@ -3167,22 +3167,25 @@ const Appointments = () => {
                                 )}
                                 {shouldShowColumn("payment_mode") && (
                                   <td className="p-3 text-xs">
-                                    {/* A bill paid two ways names them - "Cash + UPI" - rather
-                                        than the word "Split", which is all this column could
-                                        say and told the front desk nothing. See
-                                        paymentSplits.ts. */}
+                                    {/* A bill paid two ways names each mode AND what went on
+                                        it - "Card ₹26,939", "UPI ₹2,420". This column used to
+                                        say only "Split", then only "Card + UPI", and the
+                                        clinic's next question both times was how much on
+                                        each. The amounts were in payment_splits all along.
+                                        Exact, never abbreviated: these get reconciled against
+                                        the drawer. See paymentSplits.ts. */}
                                     {(invoice?.bills ?? []).length > 1 ? (
                                       <span className="flex flex-col items-start gap-0.5">
                                         {invoice!.bills.map((bill, i) => (
-                                          <Badge key={bill.id ?? i} variant="outline" className="text-xs">
-                                            {paymentModeLabel(bill.payment_mode, bill.payment_splits) || "—"}
-                                          </Badge>
+                                          <PaymentModeCell
+                                            key={bill.id ?? i}
+                                            mode={bill.payment_mode}
+                                            splits={bill.payment_splits}
+                                          />
                                         ))}
                                       </span>
                                     ) : invoice?.payment_mode ? (
-                                      <Badge variant="outline" className="text-xs">
-                                        {paymentModeLabel(invoice.payment_mode, invoice.payment_splits)}
-                                      </Badge>
+                                      <PaymentModeCell mode={invoice.payment_mode} splits={invoice.payment_splits} />
                                     ) : (
                                       <span className="text-muted-foreground">—</span>
                                     )}

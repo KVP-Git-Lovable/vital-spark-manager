@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
-import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck, Trash2, History, Coins, Users } from "lucide-react";
+import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck, Trash2, History, Coins, Users, ImageIcon } from "lucide-react";
 
 const sections = [
   {
@@ -38,6 +38,12 @@ const sections = [
     description: "Create users, manage profiles and assign profiles. Admins only.",
     url: "/user-management",
     icon: Users,
+  },
+  {
+    title: "Photo Fingerprints",
+    description: "Let Photos search find a patient from a copy of a photo already on their record.",
+    url: "/admin/photo-fingerprints",
+    icon: ImageIcon,
   },
   {
     title: "Trash Policy & Audit",

@@ -3477,6 +3477,7 @@ export type Database = {
           id: string
           notes: string | null
           patient_id: string
+          phash: string | null
           photo_type: string
           photo_url: string
           procedure_id: string | null
@@ -3489,6 +3490,7 @@ export type Database = {
           id?: string
           notes?: string | null
           patient_id: string
+          phash?: string | null
           photo_type?: string
           photo_url: string
           procedure_id?: string | null
@@ -3501,6 +3503,7 @@ export type Database = {
           id?: string
           notes?: string | null
           patient_id?: string
+          phash?: string | null
           photo_type?: string
           photo_url?: string
           procedure_id?: string | null
@@ -8160,6 +8163,17 @@ export type Database = {
         Returns: undefined
       }
       restore_from_trash: { Args: { _trash_id: string }; Returns: undefined }
+      search_patient_photos_by_hash: {
+        Args: { _hash: string; _limit?: number; _max_distance?: number }
+        Returns: {
+          distance: number
+          patient_id: string
+          photo_id: string
+          photo_url: string
+          taken_at: string
+        }[]
+      }
+      set_patient_photo_hashes: { Args: { _rows: Json }; Returns: number }
       sf_clinical_catchup: {
         Args: {
           _batch?: number

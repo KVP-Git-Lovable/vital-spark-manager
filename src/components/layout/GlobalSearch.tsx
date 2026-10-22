@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search, User, CalendarDays, Stethoscope, Receipt, Loader2, ChevronDown,
-  UserCog, Sparkles, Pill, Clock, ArrowRight, X,
+  UserCog, Sparkles, Pill, Clock, ArrowRight, X, ImageIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { MicButton } from "@/components/shared/MicButton";
@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { buildOrFilter, buildPrefixFilter, buildTokenFilters, fuzzyRank } from "@/lib/fuzzySearch";
+import { hashImageFile } from "@/lib/photoHashImage";
+import { matchQualityLabel, POSSIBLE_MAX } from "@/lib/photoHash";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { procedureDateLabel } from "@/lib/procedureDate";
@@ -18,7 +20,7 @@ import {
   readRecentSearches, rememberRecentSearch, readLastSearch, rememberLastSearch, forgetLastSearch,
 } from "@/lib/recentSearch";
 
-type Kind = "patient" | "appointment" | "procedure" | "invoice" | "staff" | "service" | "product";
+type Kind = "patient" | "appointment" | "procedure" | "invoice" | "staff" | "service" | "product" | "photo";
 
 /** The patient columns this dropdown selects - the only shape the new
  * prefix/broad merge below needs to know about. */
@@ -28,6 +30,15 @@ type PatientRow = {
   last_name: string | null;
   phone: string | null;
   email: string | null;
+};
+
+/** One row of search_patient_photos_by_hash. */
+type PhotoMatch = {
+  photo_id: string;
+  patient_id: string;
+  photo_url: string | null;
+  taken_at: string | null;
+  distance: number;
 };
 
 type Result = {
@@ -46,6 +57,9 @@ const KIND_META: Record<Kind, { label: string; icon: any; listRoute: string }> =
   staff: { label: "Staff", icon: UserCog, listRoute: "/staff" },
   service: { label: "Services", icon: Sparkles, listRoute: "/services" },
   product: { label: "Products", icon: Pill, listRoute: "/pharma" },
+  // Photo results ARE patients - the photo is only how they were found -
+  // so they lead to the patient record like any other patient row.
+  photo: { label: "Photos", icon: ImageIcon, listRoute: "/patients" },
 };
 
 const SCOPES: { key: "all" | Kind; label: string }[] = [
@@ -57,6 +71,7 @@ const SCOPES: { key: "all" | Kind; label: string }[] = [
   { key: "staff", label: "Staff" },
   { key: "service", label: "Services" },
   { key: "product", label: "Products" },
+  { key: "photo", label: "Photos" },
 ];
 
 export function GlobalSearch({ className }: { className?: string }) {
@@ -77,6 +92,14 @@ export function GlobalSearch({ className }: { className?: string }) {
   const [recents, setRecents] = useState<string[]>(readRecentSearches);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Photo scope: there is nothing to type, so the search is driven by a chosen
+  // file instead of by the term. The file itself never leaves the device -
+  // only the 16-character fingerprint below is sent anywhere.
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [photoName, setPhotoName] = useState("");
+  const [photoHash, setPhotoHash] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const photoMode = scope === "photo";
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -111,6 +134,9 @@ export function GlobalSearch({ className }: { className?: string }) {
 
   useEffect(() => {
     let cancelled = false;
+    // Photo scope has no term to search on; its own effect below owns the
+    // results, so this one must not clear them out from under it.
+    if (scope === "photo") return;
     const q = debounced;
     if (q.length < 2) {
       setResults([]);
@@ -283,6 +309,72 @@ export function GlobalSearch({ className }: { className?: string }) {
     return () => { cancelled = true; };
   }, [debounced, scope]);
 
+  // Which patients hold this photograph. The fingerprint is matched in the
+  // database (search_patient_photos_by_hash), then the patients it points at
+  // are named - a photo row on its own would only show a URL.
+  useEffect(() => {
+    if (!photoMode || !photoHash) return;
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("search_patient_photos_by_hash", {
+          _hash: photoHash,
+          // Up to "possible", so a cropped copy still surfaces as a maybe
+          // rather than being thrown away silently.
+          _max_distance: POSSIBLE_MAX,
+          _limit: 40,
+        });
+        if (cancelled) return;
+        if (error) throw error;
+
+        const matches = ((data || []) as PhotoMatch[]).filter((m) => m?.patient_id);
+        // One row per patient, keeping their closest-matching photo: the same
+        // picture is often attached to a visit more than once.
+        const best = new Map<string, PhotoMatch>();
+        for (const m of matches) {
+          const seen = best.get(m.patient_id);
+          if (!seen || m.distance < seen.distance) best.set(m.patient_id, m);
+        }
+
+        const ids = [...best.keys()];
+        const byId = new Map<string, PatientRow>();
+        if (ids.length) {
+          const { data: people } = await supabase
+            .from("patients")
+            .select("id, first_name, last_name, phone, email")
+            .in("id", ids);
+          for (const p of (people || []) as PatientRow[]) byId.set(p.id, p);
+        }
+        if (cancelled) return;
+
+        const out: Result[] = [...best.values()]
+          .sort((a, b) => a.distance - b.distance)
+          .map((m) => {
+            const p = byId.get(m.patient_id);
+            const when = m.taken_at ? format(new Date(m.taken_at), "dd MMM yyyy") : "";
+            return {
+              id: m.photo_id,
+              kind: "photo" as const,
+              title: `${p?.first_name || ""} ${p?.last_name || ""}`.trim() || "Patient",
+              subtitle: [matchQualityLabel(m.distance), p?.phone, when].filter(Boolean).join(" \u00b7 "),
+              route: `/patients/${m.patient_id}`,
+            };
+          });
+        setResults(out);
+        setActiveIndex(0);
+      } catch {
+        if (!cancelled) {
+          setResults([]);
+          setPhotoError("Could not search photos just now. Please try again.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [photoMode, photoHash]);
+
   const grouped = useMemo(() => {
     const map = new Map<Kind, Result[]>();
     results.forEach((r) => {
@@ -295,8 +387,49 @@ export function GlobalSearch({ className }: { className?: string }) {
   // The term is deliberately left in the box: front desk look a patient up,
   // go to Billing, and come back to the same search rather than typing the
   // number again. The X button is the one gesture that clears it.
+  // Switching scope abandons whatever the last one found, rather than leaving
+  // a photo's matches sitting under "Patients" or the reverse.
+  const chooseScope = (key: "all" | Kind) => {
+    setScope(key);
+    setResults([]);
+    setActiveIndex(0);
+    setPhotoName("");
+    setPhotoHash("");
+    setPhotoError("");
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  };
+
+  // Fingerprint the chosen photo here in the browser. The picture itself is
+  // never uploaded: only the 16 characters go to the database.
+  const onPhotoChosen = async (file: File | undefined) => {
+    if (!file) return;
+    setPhotoName(file.name);
+    setPhotoHash("");
+    setPhotoError("");
+    setResults([]);
+    setOpen(true);
+    setLoading(true);
+    const hash = await hashImageFile(file);
+    if (!hash) {
+      setLoading(false);
+      setPhotoError("That image could not be read. JPEG and PNG work; an iPhone HEIC may not.");
+      return;
+    }
+    setPhotoHash(hash);
+  };
+
+  const clearPhoto = () => {
+    setPhotoName("");
+    setPhotoHash("");
+    setPhotoError("");
+    setResults([]);
+    setLoading(false);
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  };
+
   const go = (r: Result) => {
-    rememberTerm(term);
+    // Nothing was typed in photo scope, so there is no search worth recording.
+    if (term.trim()) rememberTerm(term);
     setOpen(false);
     navigate(r.route);
   };
@@ -328,11 +461,56 @@ export function GlobalSearch({ className }: { className?: string }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="bg-popover z-50">
             {SCOPES.map((s) => (
-              <DropdownMenuItem key={s.key} onClick={() => setScope(s.key)}>{s.label}</DropdownMenuItem>
+              <DropdownMenuItem key={s.key} onClick={() => chooseScope(s.key)}>{s.label}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="h-5 w-px bg-border" />
+        {photoMode ? (
+          /* Nothing to type here: the search is a photograph. Same height and
+             width as the text box so the header does not jump when the scope
+             changes. accept="image/*" is what gives a phone the choice of
+             Camera or Photo Library in its own sheet - no second picker. */
+          <div className="relative flex-1 flex items-center gap-2 pl-2.5 pr-1 h-9 w-64">
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => onPhotoChosen(e.target.files?.[0])}
+            />
+            {!photoName ? (
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <ImageIcon className="h-4 w-4 shrink-0" />
+                Choose a photo to match
+              </button>
+            ) : (
+              <>
+                <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                <button
+                  type="button"
+                  title={photoName}
+                  onClick={() => photoInputRef.current?.click()}
+                  className="text-xs truncate flex-1 text-left hover:text-foreground"
+                >
+                  {photoName}
+                </button>
+                <button
+                  type="button"
+                  className="p-1 text-muted-foreground hover:text-foreground shrink-0"
+                  onClick={clearPhoto}
+                  aria-label="Clear photo"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -358,6 +536,7 @@ export function GlobalSearch({ className }: { className?: string }) {
             />
           </div>
         </div>
+        )}
       </div>
 
       {showSuggestions && recents.length > 0 && (
@@ -376,18 +555,39 @@ export function GlobalSearch({ className }: { className?: string }) {
         </div>
       )}
 
-      {open && term.trim().length >= 2 && (
+      {open && (photoMode ? Boolean(photoName) : term.trim().length >= 2) && (
         <div className="absolute z-50 mt-1 w-[28rem] max-h-[70vh] overflow-y-auto rounded-lg border bg-popover shadow-lg p-1">
           <p className="px-3 py-1.5 text-xs text-muted-foreground">
-            {loading ? "Searching…" : `Top results for “${term.trim()}”`}
+            {loading
+              ? photoMode ? "Matching photo…" : "Searching…"
+              : photoMode ? "Patients with this photo" : `Top results for “${term.trim()}”`}
           </p>
           {loading && (
             <div className="flex items-center gap-2 px-3 py-3 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {photoMode ? "Matching photo…" : "Searching…"}
             </div>
           )}
-          {!loading && results.length === 0 && (
-            <p className="px-3 py-4 text-xs text-muted-foreground">No matches for “{term}”</p>
+          {!loading && photoError && (
+            <p className="px-3 py-4 text-xs text-muted-foreground">{photoError}</p>
+          )}
+          {!loading && !photoError && results.length === 0 && (
+            photoMode ? (
+              /* Said plainly, because all three are real reasons and the front
+                 desk should not have to guess which one they have hit. */
+              <div className="px-3 py-3 text-xs text-muted-foreground space-y-1.5">
+                <p>No patient record holds this photo.</p>
+                <p className="text-[11px]">
+                  This finds the same photograph again, through resizing or WhatsApp.
+                  A fresh photo of a patient will not match, and neither will a cropped one.
+                </p>
+                <p className="text-[11px]">
+                  Older photos are still being fingerprinted — Settings → Photo fingerprints.
+                </p>
+              </div>
+            ) : (
+              <p className="px-3 py-4 text-xs text-muted-foreground">No matches for “{term}”</p>
+            )
           )}
           {grouped.map(([kind, items]) => {
             const Meta = KIND_META[kind];
@@ -396,13 +596,15 @@ export function GlobalSearch({ className }: { className?: string }) {
               <div key={kind} className="py-1">
                 <div className="flex items-center justify-between px-3 py-1">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{Meta.label}</p>
-                  <button
-                    type="button"
-                    className="text-[11px] text-primary hover:underline inline-flex items-center gap-0.5"
-                    onClick={() => viewAll(kind)}
-                  >
-                    View more <ArrowRight className="h-3 w-3" />
-                  </button>
+                  {kind !== "photo" && (
+                    <button
+                      type="button"
+                      className="text-[11px] text-primary hover:underline inline-flex items-center gap-0.5"
+                      onClick={() => viewAll(kind)}
+                    >
+                      View more <ArrowRight className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
                 {items.map((r) => {
                   flatIndex += 1;

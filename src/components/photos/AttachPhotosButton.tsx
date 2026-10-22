@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { attachmentStoragePath } from "@/lib/attachmentPath";
 import { uploadFailureMessage, uploadSuccessMessage, type FailedUpload } from "@/lib/uploadSummary";
+import { hashImageFile } from "@/lib/photoHashImage";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -59,11 +60,17 @@ export function AttachPhotosButton({ patientId, appointmentId, procedureId, size
         if (uploadError) throw uploadError;
 
         const photoUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${filePath}`;
+        // The photo's fingerprint, so this picture can be found again later
+        // from a copy of itself - see src/lib/photoHash.ts. Never allowed to
+        // fail an upload: an image the browser cannot decode saves with a null
+        // and the backfill in Settings picks it up afterwards.
+        const phash = await hashImageFile(file);
         const { error } = await supabase.from("patient_photos").insert({
           patient_id: patientId,
           appointment_id: appointmentId || null,
           procedure_id: procedureId || null,
           photo_url: photoUrl,
+          phash,
           notes: null,
           // photo_type is left to the column default, exactly as the patient
           // tab already did - attaching a photo should not grow a new prompt.

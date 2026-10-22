@@ -43,6 +43,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { applyFilters as applyListFilters, type ListView } from "@/lib/listViews/engine";
 import { PHOTO_VIEW_FIELDS, DEFAULT_PHOTO_VIEW_COLUMNS } from "@/lib/listViews/photoFields";
 import { appointmentPatientName } from "@/lib/appointmentPatientName";
+import { hashImageFile } from "@/lib/photoHashImage";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -176,12 +177,17 @@ const Photos = () => {
 
       const photoUrl = `${SUPABASE_URL}/storage/v1/object/public/patient-photos/${fileName}`;
 
+      // Fingerprint it on the way in, so Photos search can find this picture
+      // again from a copy. A decode failure is not an upload failure.
+      const phash = await hashImageFile(selectedFile);
+
       const { error } = await supabase.from("patient_photos").insert({
         patient_id: patientId,
         appointment_id: appointmentId || null,
         procedure_id: procedureId || null,
         photo_type: photoType,
         photo_url: photoUrl,
+        phash,
         notes: notes || null,
       });
       if (error) throw error;

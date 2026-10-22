@@ -122,7 +122,31 @@ interface ProcedureFormDialogProps {
   onSaved?: (procedureId: string) => void;
 }
 
-export function ProcedureFormDialog({
+/**
+ * A new prescription opens blank, every time.
+ *
+ * The form holds everything the doctor types in component state, and on the
+ * patient's own page this dialog was mounted whether it was open or not - so
+ * closing it and starting the next prescription found the last one's Symptoms,
+ * Diagnosis and Lab Tests still in the boxes. Only sometimes, which is what
+ * made it hard to place: the Procedures page and the appointment sheet already
+ * mount it only while it is open, and the medical fields that live on the
+ * patient are re-read whenever the patient changes - so it needed the same
+ * patient twice in a row, from their own page, to show.
+ *
+ * Unmounting it when it closes is what resets it, rather than a list of
+ * setters that the next field added to this form would quietly fall off the
+ * end of. Every caller gets this, including ones not written yet.
+ *
+ * asPage is the full-page route, which is mounted only when navigated to and
+ * is never passed open={false}.
+ */
+export function ProcedureFormDialog(props: ProcedureFormDialogProps) {
+  if (!props.open && !props.asPage) return null;
+  return <ProcedureForm {...props} />;
+}
+
+function ProcedureForm({
   open, onOpenChange,
   defaultPatientId, defaultAppointmentId, defaultStaffId, defaultProblemAreaIds,
   asPage = false, onSaved,

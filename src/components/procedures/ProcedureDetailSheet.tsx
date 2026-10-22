@@ -7,12 +7,14 @@ import { renderPdfToImages } from "@/lib/renderPdf";
 import { isConsultationService } from "@/lib/consultationLine";
 import { isRollUpOf, nextRollUpValue, parentHoldsOwnText as holdsOwnText } from "@/lib/procedureRollup";
 import { assertWrote } from "@/lib/rowAccess";
-import { joinVisitDateTime, splitVisitDateTime } from "@/lib/recurringVisits";
+import { clearVisitAt, joinVisitDateTime, removeVisitAt, splitVisitDateTime, toVisitInputValue, visitsNeedingAppointment } from "@/lib/recurringVisits";
+import { reservedVisits } from "@/lib/reservedVisits";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DateInput } from "@/components/shared/DateInput";
 import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
 import { usePrescriptionPreview } from "@/hooks/usePrescriptionPreview";
-import { MAX_DATETIME, MIN_DATETIME } from "@/lib/dateInput";
+import { MAX_DATETIME, MIN_DATETIME, isPlausibleIso } from "@/lib/dateInput";
 
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -154,6 +156,23 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
   const [medical, setMedical] = useState<Record<string, string>>({});
   const [medicalDirty, setMedicalDirty] = useState(false);
   const [editProcedureNotes, setEditProcedureNotes] = useState("");
+  /**
+   * The visit plan, editable here rather than only shown.
+   *
+   * It used to be a read-only badge: a prescription written as a single visit
+   * could never become a course without starting again, and a course already
+   * written could not have a visit added to it. The dates below are held the
+   * way the create form holds them ("YYYY-MM-DDTHH:mm"); what is stored on the
+   * row is ISO, so seeding converts and saving converts back.
+   */
+  const [editVisitType, setEditVisitType] = useState<"Single" | "Recurring">("Single");
+  const [editRecurringCount, setEditRecurringCount] = useState(2);
+  const [editRecurringDates, setEditRecurringDates] = useState<string[]>(["", ""]);
+  // One investigation per visit, indexed alongside the dates - see
+  // reservedVisits.ts for why they are paired before blanks are dropped. Only
+  // new visits need one; the ones already booked are edited under Follow-up
+  // appointments below.
+  const [editVisitInvestigations, setEditVisitInvestigations] = useState<string[]>([]);
   const [editRecommendations, setEditRecommendations] = useState("");
   // The medicines a Salesforce visit recorded, read out of the free text they
   // were typed into. Only used when this visit has no structured prescription
@@ -402,6 +421,17 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
           ? [(procedure as any).assisted_by as string]
           : [],
     );
+    // Not filtered: a stored date that cannot be read leaves its row on screen
+    // blank rather than quietly shrinking a three-visit course to two, where
+    // the next save would write the shorter list back as the truth.
+    const storedVisits = (((procedure as any).recurring_dates || []) as string[])
+      .map(toVisitInputValue);
+    setEditVisitType((procedure as any).visit_type === "Recurring" ? "Recurring" : "Single");
+    // Two empty rows for a single visit being turned into a course, so there
+    // is somewhere to type the moment the doctor picks Recurring.
+    setEditRecurringDates(storedVisits.length ? storedVisits : ["", ""]);
+    setEditRecurringCount(storedVisits.length || 2);
+    setEditVisitInvestigations(storedVisits.map(() => ""));
     setInitialized(true);
   }
 
@@ -606,8 +636,64 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         symptoms: medical.symptoms || null,
         diagnosis: medical.diagnosis || null,
         lab_tests: medical.lab_tests || null,
+        // The visit plan, written the way the create form writes it so one
+        // prescription cannot mean two different things depending on which
+        // screen last saved it.
+        visit_type: editVisitType,
+        recurring_count: editVisitType === "Recurring" ? editRecurringCount : null,
+        recurring_dates:
+          editVisitType === "Recurring"
+            ? editRecurringDates.filter(Boolean).map((d) => new Date(d).toISOString())
+            : null,
       } as any).eq("id", procedureId!);
       if (error) throw error;
+
+      // Reserve the visits that are new.
+      //
+      // Only the new ones: a course opened, given a fourth date and saved must
+      // book the fourth, not all four again - see visitsNeedingAppointment,
+      // which compares to the minute because a stored instant carries seconds
+      // a picker never will.
+      //
+      // Measured against THIS prescription's own stored dates and nothing
+      // else. Checking the patient's diary as well would have been one more
+      // guard against duplicates, but it would also silently skip a visit
+      // whenever the clinic already had the patient in at that minute for
+      // something unrelated - and overlapping appointments are deliberately
+      // allowed here, not something a save gets to quietly refuse.
+      if (editVisitType === "Recurring") {
+        const planned = reservedVisits(editRecurringDates, editVisitInvestigations);
+        const toBook = visitsNeedingAppointment(
+          planned,
+          ((procedure as any).recurring_dates || []) as string[],
+        );
+        // A browser's min/max only discourages a bad year, it does not stop one
+        // reaching here - which is how a visit came to be reserved in the year 268.
+        if (toBook.some((v) => !isPlausibleIso(v.date))) {
+          throw new Error("Check the visit date - that year looks wrong.");
+        }
+        if (toBook.length > 0 && procedure?.patient_id) {
+          const rows = toBook.map(({ date: d, investigation }) => {
+            const start = new Date(d);
+            return {
+              patient_id: procedure.patient_id,
+              patient_name: patientName || null,
+              staff_id: editStaffId && editStaffId.trim() ? editStaffId : null,
+              service: procedure.service_name || "Follow Up",
+              start_time: start.toISOString(),
+              end_time: new Date(start.getTime() + 30 * 60 * 1000).toISOString(),
+              status: "Reserved",
+              // Blank stays blank rather than becoming an empty string: the
+              // Investigation column treats empty as "nothing recorded".
+              reason_for_consultation: investigation || null,
+              visit_status: "Recurring visit",
+              source: "Procedure",
+            };
+          });
+          const { error: aptErr } = await supabase.from("appointments").insert(rows as any);
+          if (aptErr) throw aptErr;
+        }
+      }
 
       // Sync any edits to the patient's medical information back to the patient record
       if (medicalDirty && procedure?.patient_id) {
@@ -734,6 +820,12 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
         queryClient.invalidateQueries({ queryKey: ["appointment-procedures"] }),
         queryClient.invalidateQueries({ queryKey: ["patient", procedure?.patient_id] }),
         queryClient.invalidateQueries({ queryKey: ["procedure-detail-patient", procedure?.patient_id] }),
+        // A visit added to the course reserves an appointment, so both the
+        // Follow-up appointments list on this screen and the Appointments page
+        // have to be re-read - otherwise the visit just booked is invisible
+        // until a reload, which reads as the save not having worked.
+        queryClient.invalidateQueries({ queryKey: ["procedure-followup-appointments", procedure?.patient_id] }),
+        queryClient.invalidateQueries({ queryKey: ["appointments"] }),
       ]);
       resetEditState();
       toast.success("Prescription saved");
@@ -1163,26 +1255,136 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                     </TabsTrigger>
                   </TabsList>
                   <TabsContent value="procedure" className="space-y-4 mt-4">
-                <div className="rounded-xl border-2 border-primary/25 bg-primary/5 p-3 shadow-sm">
+                {/* The visit plan. Editable here because it could not be
+                    changed at all once the prescription was saved: a single
+                    visit could never become a course, and a course could not
+                    have a visit added to it. Adding a date reserves the
+                    appointment on save; taking one off never cancels what is
+                    already booked - that is the Appointments page's decision
+                    to ask about, not a prescription save's to make quietly. */}
+                <div className="rounded-xl border-2 border-primary/25 bg-primary/5 p-3 shadow-sm space-y-3">
                   <div className="flex items-center gap-2">
                     <Repeat className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-semibold text-primary">
-                      {(procedure as any).visit_type === "Recurring" ? "Recurring visit" : "Single visit"}
-                    </span>
-                    {(procedure as any).visit_type === "Recurring" && (
+                    <span className="text-sm font-semibold text-primary">Visit Type</span>
+                    {editVisitType === "Recurring" && (
                       <Badge variant="outline" className="text-[10px]">
-                        {(procedure as any).recurring_count || ((procedure as any).recurring_dates || []).length} visits
+                        {editRecurringDates.filter(Boolean).length} dated
                       </Badge>
                     )}
                   </div>
-                  {(procedure as any).visit_type === "Recurring" && (
-                    <ul className="mt-2 space-y-0.5">
-                      {(((procedure as any).recurring_dates || []) as string[]).map((d, i) => (
-                        <li key={i} className="text-xs text-muted-foreground">
-                          Visit # {i + 1}: <span className="font-medium text-foreground">{format(new Date(d), "MMM d, yyyy · h:mm a")}</span>
-                        </li>
-                      ))}
-                    </ul>
+
+                  <RadioGroup
+                    value={editVisitType}
+                    onValueChange={(v) => setEditVisitType(v as "Single" | "Recurring")}
+                    className="flex gap-6"
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="Single" id="edit-visit-single" />
+                      <Label htmlFor="edit-visit-single" className="font-normal cursor-pointer">Single visit</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="Recurring" id="edit-visit-recurring" />
+                      <Label htmlFor="edit-visit-recurring" className="font-normal cursor-pointer">Recurring visit</Label>
+                    </div>
+                  </RadioGroup>
+
+                  {editVisitType === "Recurring" && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {editRecurringDates.map((value, i) => {
+                          const { date: visitDate, time: visitTime } = splitVisitDateTime(value);
+                          const setVisit = (date: string, time: string) => {
+                            const next = [...editRecurringDates];
+                            next[i] = joinVisitDateTime(date, time);
+                            setEditRecurringDates(next);
+                          };
+                          const hasSomething = Boolean(visitDate || (editVisitInvestigations[i] || "").trim());
+                          return (
+                            <div key={i} className="rounded-lg border bg-background/60 p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <Label className="text-xs text-muted-foreground">Visit # {i + 1}</Label>
+                                <div className="flex items-center gap-1">
+                                  {hasSomething && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-[11px]"
+                                      onClick={() => {
+                                        const next = clearVisitAt(
+                                          { dates: editRecurringDates, investigations: editVisitInvestigations },
+                                          i,
+                                        );
+                                        setEditRecurringDates(next.dates);
+                                        setEditVisitInvestigations(next.investigations);
+                                      }}
+                                    >
+                                      Clear
+                                    </Button>
+                                  )}
+                                  {editRecurringDates.length > 1 && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                      title="Remove this visit"
+                                      aria-label={`Remove visit ${i + 1}`}
+                                      onClick={() => {
+                                        // Both lists spliced together, or the
+                                        // visit below inherits this one's
+                                        // investigation.
+                                        const next = removeVisitAt(
+                                          { dates: editRecurringDates, investigations: editVisitInvestigations },
+                                          i,
+                                        );
+                                        setEditRecurringDates(next.dates);
+                                        setEditVisitInvestigations(next.investigations);
+                                        setEditRecurringCount(next.dates.length);
+                                      }}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                <DateInput value={visitDate} onChange={(iso) => setVisit(iso, visitTime)} withCalendar className="w-[150px]" />
+                                <TimePicker12h value={visitTime} onChange={(next) => setVisit(visitDate, next)} compact />
+                              </div>
+                              <Input
+                                value={editVisitInvestigations[i] || ""}
+                                onChange={(e) => {
+                                  const next = [...editVisitInvestigations];
+                                  while (next.length < editRecurringDates.length) next.push("");
+                                  next[i] = e.target.value;
+                                  setEditVisitInvestigations(next);
+                                }}
+                                placeholder="Investigation for this visit (optional)"
+                                className="mt-2 h-8 text-xs bg-background"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={() => {
+                          setEditRecurringDates((prev) => [...prev, ""]);
+                          setEditVisitInvestigations((prev) => [...prev, ""]);
+                          setEditRecurringCount((c) => c + 1);
+                        }}
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1" /> Add visit
+                      </Button>
+                      <p className="text-[11px] text-muted-foreground">
+                        Saving reserves an appointment for each new date. Dates already booked are
+                        left alone — change or cancel those under Follow-up appointments below.
+                      </p>
+                    </div>
                   )}
                 </div>
 

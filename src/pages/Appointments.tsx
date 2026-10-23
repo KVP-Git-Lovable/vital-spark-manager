@@ -22,6 +22,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { applyFilters as applyListFilters, fieldDefIn, type ListDisplayMode, type ListView } from "@/lib/listViews/engine";
 import { ALL_VIEW_ID, getKanbanConfig, setKanbanConfig } from "@/lib/listViews/standardViews";
 import { APPOINTMENT_VIEW_FIELDS, DEFAULT_APPOINTMENT_VIEW_COLUMNS } from "@/lib/listViews/appointmentFields";
+import { sortForSearch } from "@/lib/appointmentSearchSort";
 import { resolveViewSort } from "@/lib/listViews/viewSort";
 import { viewDatePreset } from "@/lib/viewDatePreset";
 import { activeAppointmentFilters, emptyAppointmentsMessage } from "@/lib/activeAppointmentFilters";
@@ -419,6 +420,15 @@ const Appointments = () => {
   const DEFAULT_SORT = { column: "start_time", direction: "asc" } as const;
   const [sortColumn, setSortColumn] = useState<string>(DEFAULT_SORT.column);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">(DEFAULT_SORT.direction);
+  /**
+   * Whether the order on screen is one somebody asked for.
+   *
+   * A header click says yes; a view carrying a real sort says yes; everything
+   * else is just the default nobody chose. sortForSearch needs to know,
+   * because while a search is running it replaces the default - and must not
+   * replace a doctor's own choice (see appointmentSearchSort.ts).
+   */
+  const [sortChosen, setSortChosen] = useState(false);
 
   // Apply a saved view's sorting when one is selected - but only when it names
   // a column this list actually sorts on.
@@ -444,8 +454,34 @@ const Appointments = () => {
       );
       setSortColumn(resolved.column);
       setSortDirection(resolved.direction);
+      // resolveViewSort hands back DEFAULT_SORT when the view named nothing
+      // anyone picked - which is exactly "not chosen".
+      setSortChosen(
+        resolved.column !== DEFAULT_SORT.column || resolved.direction !== DEFAULT_SORT.direction,
+      );
+    } else {
+      // A standard view (All Appointments, Recently Viewed) carries no sort of
+      // its own, so switching to one is back to the default.
+      setSortChosen(false);
     }
   }, [activeView?.id]);
+
+  /**
+   * The order to actually use, read by every consumer below.
+   *
+   * Computed once rather than applied at the query on purpose: if the header
+   * arrow kept showing the raw state while the rows came back newest-first,
+   * the first click on Date & Time would set the state to what was already on
+   * screen and appear to do nothing. One value keeps the arrow, the rows and
+   * the next click agreeing.
+   *
+   * debouncedSearchQuery, not searchQuery, so the order turns over with the
+   * rows rather than a third of a second ahead of them.
+   */
+  const effectiveSort = useMemo(
+    () => sortForSearch({ column: sortColumn, direction: sortDirection }, debouncedSearchQuery, sortChosen),
+    [sortColumn, sortDirection, debouncedSearchQuery, sortChosen],
+  );
 
   // Picking a view also moves the quick-date chips to whatever date that view
   // filters on, so the two date filters stop disagreeing. The chips decide what
@@ -922,8 +958,8 @@ const Appointments = () => {
     filterStatus,
     filterVisitStatus,
     debouncedSearchQuery.trim(),
-    sortColumn,
-    sortDirection,
+    effectiveSort.column,
+    effectiveSort.direction,
   ];
 
   const { data: apptPageData, error: apptPageError, refetch: refetchApptPage, isLoading: apptPageFetching } = useQuery({
@@ -937,8 +973,8 @@ const Appointments = () => {
         status: filterStatus,
         visitStatus: filterVisitStatus,
         search: debouncedSearchQuery,
-        sortColumn,
-        sortDirection,
+        sortColumn: effectiveSort.column,
+        sortDirection: effectiveSort.direction,
       }),
     placeholderData: keepPreviousData,
     enabled: viewsReady && view === "table" && !viewHasFilters,
@@ -947,7 +983,7 @@ const Appointments = () => {
   // Reset to page 1 whenever any input that reshapes the result set changes
   useEffect(() => {
     setApptPage(1);
-  }, [datePreset, appointmentsDateRange?.start?.toISOString(), appointmentsDateRange?.end?.toISOString(), sortedFilterDoctors.join(","), filterStatus, filterVisitStatus, debouncedSearchQuery, sortColumn, sortDirection, activeView?.id]);
+  }, [datePreset, appointmentsDateRange?.start?.toISOString(), appointmentsDateRange?.end?.toISOString(), sortedFilterDoctors.join(","), filterStatus, filterVisitStatus, debouncedSearchQuery, effectiveSort.column, effectiveSort.direction, activeView?.id]);
 
   // NOTE: Past Confirmed appointments are intentionally NOT auto-flipped to
   // "No Show" on page load. Doing so silently rewrote real attended visits
@@ -1359,8 +1395,13 @@ const Appointments = () => {
   const colWidth = (weight: number) => `${((weight / totalColumnWeight) * 100).toFixed(4)}%`;
 
   const toggleSort = (column: string) => {
-    if (sortColumn === column) {
-      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    // Read off effectiveSort, not the raw state: while a search is running the
+    // rows are newest-first whatever sortDirection happens to hold, and a
+    // click has to flip what the doctor can actually see.
+    setSortChosen(true);
+    if (effectiveSort.column === column) {
+      setSortColumn(column);
+      setSortDirection(effectiveSort.direction === "asc" ? "desc" : "asc");
     } else {
       setSortColumn(column);
       setSortDirection("asc");
@@ -1368,8 +1409,8 @@ const Appointments = () => {
   };
 
   const SortIcon = ({ column }: { column: string }) => {
-    if (sortColumn !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
-    return sortDirection === "asc" ? <ArrowUp className="h-3 w-3 ml-1 text-primary" /> : <ArrowDown className="h-3 w-3 ml-1 text-primary" />;
+    if (effectiveSort.column !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    return effectiveSort.direction === "asc" ? <ArrowUp className="h-3 w-3 ml-1 text-primary" /> : <ArrowDown className="h-3 w-3 ml-1 text-primary" />;
   };
 
   const startInlineEdit = (apt: any) => {
@@ -1937,7 +1978,7 @@ const Appointments = () => {
    * fixed order - every header on such a view was inert until now.
    */
   const sortedTableRows = useMemo(() => {
-    const needsClientSort = viewHasFilters || isPageSortedColumn(sortColumn);
+    const needsClientSort = viewHasFilters || isPageSortedColumn(effectiveSort.column);
     if (!needsClientSort) return visibleTableRows;
     type SortRow = {
       id: string;
@@ -1950,7 +1991,7 @@ const Appointments = () => {
       staff_id?: string | null;
       doctor_name?: string | null;
     };
-    return sortAppointments(visibleTableRows as SortRow[], sortColumn, sortDirection, {
+    return sortAppointments(visibleTableRows as SortRow[], effectiveSort.column, effectiveSort.direction, {
       invoiceFor: (id: string) => billInvoiceByAppointmentId.get(id),
       patientName: (apt: SortRow) =>
         appointmentPatientName(apt, ""),
@@ -1960,7 +2001,7 @@ const Appointments = () => {
     });
     // getDoctorName reads staffMap, which is the dependency that matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleTableRows, viewHasFilters, sortColumn, sortDirection, billInvoiceByAppointmentId, staffMap]);
+  }, [visibleTableRows, viewHasFilters, effectiveSort.column, effectiveSort.direction, billInvoiceByAppointmentId, staffMap]);
 
   const statusColor = (status: string) => {
     return STATUS_BADGE_CLASSES[status] || STATUS_BADGE_CLASSES.Proposed;

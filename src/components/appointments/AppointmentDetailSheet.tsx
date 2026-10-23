@@ -6,6 +6,7 @@ import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import { confirmationSendPlan } from "@/lib/confirmationSend";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
+import { reviewRequestState } from "@/lib/googleReview";
 import { openAppointmentNotice, type AppointmentChange } from "@/lib/liveAppointments";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { rescheduleVerdict, rescheduleWarning } from "@/lib/appointmentReschedule";
@@ -90,13 +91,14 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
 const NPS_LABELS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 
 function FeedbackTabContent({
-  appointmentId, patientId, patientName,
+  appointmentId, patientId, patientName, patientPhone,
   npsScore, setNpsScore, serviceRating, setServiceRating,
   feedbackSubmitting, setFeedbackSubmitting, queryClient,
 }: {
   appointmentId: string;
   patientId: string | null;
   patientName: string;
+  patientPhone: string;
   npsScore: number | null;
   setNpsScore: (v: number | null) => void;
   serviceRating: number | null;
@@ -146,6 +148,39 @@ function FeedbackTabContent({
     }
   };
 
+  /**
+   * Asking for a Google review, at the moment the patient has just said
+   * something kind. Opens WhatsApp with the clinic's wording and this
+   * patient's number already filled in; staff press send.
+   *
+   * It opens WhatsApp rather than sending through the app because sending
+   * needs a Meta-approved template and a function to send it - see
+   * googleReview.ts and the google_review_request template in Communications
+   * Centre. When both exist this button sends by itself and nothing else here
+   * changes.
+   */
+  const review = reviewRequestState(patientPhone);
+  const reviewRequestButton = (
+    <div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="gap-1.5"
+        data-testid="send-google-review"
+        disabled={!review.enabled}
+        onClick={() => {
+          if (review.url) window.open(review.url, "_blank", "noopener,noreferrer");
+        }}
+      >
+        <Star className="h-3.5 w-3.5" /> Send Google review request
+      </Button>
+      {!review.enabled && (
+        <p className="text-[11px] text-muted-foreground mt-1">{review.reason}</p>
+      )}
+    </div>
+  );
+
   const getNpsColor = (score: number) => {
     if (score <= 6) return "bg-destructive text-destructive-foreground";
     if (score <= 8) return "bg-yellow-500 text-white";
@@ -187,6 +222,7 @@ function FeedbackTabContent({
           )}
           <p className="text-[10px] text-muted-foreground">Submitted {format(new Date(existingFeedback.created_at), "MMM d, yyyy · h:mm a")}</p>
         </div>
+        {reviewRequestButton}
       </TabsContent>
     );
   }
@@ -196,6 +232,7 @@ function FeedbackTabContent({
       <h3 className="text-sm font-semibold font-display flex items-center gap-2">
         <MessageSquare className="h-4 w-4" /> Patient Feedback
       </h3>
+      {reviewRequestButton}
 
       {/* NPS Question */}
       <div className="space-y-2">
@@ -1900,6 +1937,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                   appointmentId={appointmentId!}
                   patientId={appointment.patient_id}
                   patientName={patientName}
+                  patientPhone={patientPhone}
                   npsScore={npsScore}
                   setNpsScore={setNpsScore}
                   serviceRating={serviceRating}

@@ -50,16 +50,28 @@ function clampMinute(m: number) {
  * own Date independently of this input - needs no other changes.
  */
 export function TimePicker12h({ value, onChange, className, disabled, compact }: TimePicker12hProps) {
-  const parsed = parse24h(value);
-  const isSet = !!parsed;
-  const hour12 = parsed?.hour12 ?? 9;
-  const minute = parsed?.minute ?? 0;
-  const period = parsed?.period ?? "AM";
-
   // While typing, the box holds the raw digits the user entered so mid-typing
   // states ("1" on the way to "10") aren't rewritten under the cursor.
   const [hourDraft, setHourDraft] = useState<string | null>(null);
   const [minuteDraft, setMinuteDraft] = useState<string | null>(null);
+  /**
+   * Which side of noon was last asked for, kept for while there is no time to
+   * read it off.
+   *
+   * period is normally derived from the value, and a cleared value has no
+   * period - so it fell back to AM. Clear the boxes on a 2:30 PM appointment,
+   * retype the hour, and it came back AM with nobody having touched the
+   * toggle. This remembers what was chosen until there is a real time again.
+   */
+  const [periodDraft, setPeriodDraft] = useState<"AM" | "PM" | null>(null);
+
+  const parsed = parse24h(value);
+  const isSet = !!parsed;
+  const hour12 = parsed?.hour12 ?? 9;
+  const minute = parsed?.minute ?? 0;
+  // periodDraft only ever speaks for a value that is not set; a real time
+  // says which side of noon it is on itself.
+  const period = parsed?.period ?? periodDraft ?? "AM";
 
   const update = (patch: Partial<{ hour12: number; minute: number; period: "AM" | "PM" }>) => {
     onChange(to24h(patch.hour12 ?? hour12, patch.minute ?? minute, patch.period ?? period));
@@ -67,11 +79,33 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
 
   const digits = (s: string) => s.replace(/\D/g, "").slice(0, 2);
 
+  /**
+   * Emptying ONE box is somebody retyping that box, not clearing the time.
+   *
+   * Both boxes used to be drawn from a single stored value, and emptying
+   * either one called onChange("") - which left nothing for the other box or
+   * the AM/PM toggle to read, so all three went blank at once. Backspacing the
+   * minutes on a 9:00 AM appointment wiped the hour as well, and retyping
+   * from an empty value picked the defaults back up: the minute became :00 and
+   * the side of noon became AM, whatever had been set before. That is both of
+   * the things the front desk reported, from one line.
+   *
+   * So the stored time is only cleared once BOTH boxes are empty, which is
+   * still a thing somebody may want (an optional break time). Until then the
+   * emptied box shows blank from its own draft while the value underneath -
+   * the other box, and the period - stays exactly as it was.
+   */
+  const clearIfBothEmpty = (otherDraft: string | null) => {
+    if (otherDraft !== "" && isSet) return;
+    setPeriodDraft(period);
+    onChange("");
+  };
+
   const onHourInput = (raw: string) => {
     const d = digits(raw);
     setHourDraft(d);
     if (d === "") {
-      onChange(""); // clearing the box clears the value (e.g. optional break times)
+      clearIfBothEmpty(minuteDraft);
       return;
     }
     const n = Number(d);
@@ -82,11 +116,24 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
     const d = digits(raw);
     setMinuteDraft(d);
     if (d === "") {
-      onChange("");
+      clearIfBothEmpty(hourDraft);
       return;
     }
     const n = Number(d);
     if (n >= 0 && n <= 59) update({ minute: n });
+  };
+
+  /**
+   * AM/PM with no time typed yet records the side and nothing else.
+   *
+   * It used to convert through the value, and with no value that meant
+   * inventing nine o'clock - a half-filled box quietly became a real
+   * appointment time. The side is remembered instead and applied to whatever
+   * hour gets typed next.
+   */
+  const choosePeriod = (next: "AM" | "PM") => {
+    setPeriodDraft(next);
+    if (isSet) update({ period: next });
   };
 
   return (
@@ -154,7 +201,7 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
         <button
           type="button"
           disabled={disabled}
-          onClick={() => update({ period: "AM" })}
+          onClick={() => choosePeriod("AM")}
           className={cn(
             "rounded-l-[3px] px-1.5 py-0.5 transition-colors",
             period === "AM" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted",
@@ -165,7 +212,7 @@ export function TimePicker12h({ value, onChange, className, disabled, compact }:
         <button
           type="button"
           disabled={disabled}
-          onClick={() => update({ period: "PM" })}
+          onClick={() => choosePeriod("PM")}
           className={cn(
             "rounded-r-[3px] border-l border-input px-1.5 py-0.5 transition-colors",
             period === "PM" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted",

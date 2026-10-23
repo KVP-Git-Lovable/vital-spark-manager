@@ -41,7 +41,7 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { MicButton } from "@/components/shared/MicButton";
 import { OTHERS_VALUE } from "@/lib/othersOption";
 import { droppedMedicineNotice, knownProductIds, losesCatalogueLink, productIdForSave } from "@/lib/prescriptionProducts";
-import { APPOINTMENT_REMOVED_NOTICE, appointmentLinkForSave } from "@/lib/procedureAppointment";
+import { APPOINTMENT_REMOVED_NOTICE, appointmentDayMismatch, appointmentLinkForSave } from "@/lib/procedureAppointment";
 import { applyMedicineDefaults } from "@/lib/medicineDefaults";
 import { usePharmaLookup } from "@/hooks/usePharmaLookup";
 import { ServicePicker } from "@/components/procedures/ServicePicker";
@@ -159,6 +159,31 @@ function ProcedureForm({
   const [medical, setMedical] = useState<Record<string, string>>({});
   const [medicalDirty, setMedicalDirty] = useState(false);
   const [appointmentId] = useState(defaultAppointmentId || "");
+
+  /**
+   * The visit this will be filed under.
+   *
+   * The form carried an appointment id and never showed it, so a prescription
+   * started from an out-of-date row on the Appointments list was filed on an
+   * out-of-date visit with nothing to give it away - 13 times in the last 90
+   * days, each time passing over an appointment the patient had that same day.
+   * Now it is named on screen before a word is written.
+   */
+  const { data: linkedAppointment } = useQuery({
+    queryKey: ["procedure-form-appointment", defaultAppointmentId],
+    enabled: !!defaultAppointmentId,
+    refetchOnMount: "always",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("id, start_time, service")
+        .eq("id", defaultAppointmentId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const visitDay = appointmentDayMismatch(linkedAppointment?.start_time, new Date());
 
   // One empty line, whatever the visit was booked as. See procedureFormSeed.ts.
   const [serviceLines, setServiceLines] = useState<ServiceLine[]>([blankServiceLine()]);
@@ -1215,6 +1240,18 @@ function ProcedureForm({
               {patientIdentityLine(patientRecord) && (
                 <p className="text-xs text-muted-foreground mt-1">{patientIdentityLine(patientRecord)}</p>
               )}
+              {/* Which visit this is going onto. Plain when it is today's;
+                  called out when it is not, which is the case that was
+                  quietly filing consultations onto months-old appointments. */}
+              {visitDay.dayLabel && (
+                <p
+                  data-testid="filing-under"
+                  className={`text-xs mt-1 ${visitDay.mismatched ? "text-destructive font-medium" : "text-muted-foreground"}`}
+                >
+                  {visitDay.mismatched ? "⚠ Filing under an older visit: " : "Filing under visit: "}
+                  {visitDay.dayLabel}
+                </p>
+              )}
               {unmatchedHints.patient && (
                 <p className="text-xs text-amber-600 mt-1">Couldn't match "{unmatchedHints.patient}" — please select manually.</p>
               )}
@@ -1743,7 +1780,23 @@ function ProcedureForm({
 
           </Tabs>
 
-          <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!patientId || createMutation.isPending}>
+          <Button
+            className="w-full"
+            onClick={() => {
+              // Asked, not refused: writing up last night's clinic this
+              // morning is ordinary and has to stay possible.
+              if (
+                visitDay.mismatched &&
+                !window.confirm(
+                  `This prescription will be filed under the visit on ${visitDay.dayLabel}, not today.\n\nSave it there anyway?`,
+                )
+              ) {
+                return;
+              }
+              createMutation.mutate();
+            }}
+            disabled={!patientId || createMutation.isPending}
+          >
             {createMutation.isPending ? "Saving..." : "Save Procedure"}
           </Button>
         </div>

@@ -70,3 +70,35 @@ export function openAppointmentNotice(kind: AppointmentChange): string {
 export function canApplyLiveChange({ paused, hidden }: { paused: boolean; hidden: boolean }): boolean {
   return !paused && !hidden;
 }
+
+/**
+ * Every query key that holds appointment data.
+ *
+ * This list is the fix for the reported fault, and the fault is worth stating
+ * because the shape of it will recur. Live updates invalidated one key -
+ * "appointments" - and React Query matches keys by PREFIX, so a screen that
+ * named its query anything else was never reached:
+ *
+ *   ["appointments", …]                     the Appointments page   - matched
+ *   ["dashboard-appointments", …]           the dashboard           - MISSED
+ *   ["patient-appointments", id]            the patient record      - MISSED
+ *   ["procedure-followup-appointments", …]  the prescription sheet  - MISSED
+ *
+ * Different first element, no match. So the front desk moved an appointment,
+ * the Appointments page updated itself, and every screen a doctor actually
+ * works on sat on the old date until somebody pressed refresh. With
+ * staleTime at a minute and no refetch on window focus, nothing else brought
+ * it back either.
+ *
+ * Keeping the names in one place is the point. The fault was a second key
+ * invented on another screen with nothing tying it back to the first; the
+ * next screen to invent one now has somewhere obvious to add it, and a test
+ * that fails if it does not.
+ */
+export const APPOINTMENT_QUERY_KEYS = [
+  "appointments",
+  "dashboard-appointments",
+  "patient-appointments",
+  "procedure-followup-appointments",
+  "appointment-procedures",
+] as const;

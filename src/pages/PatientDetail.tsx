@@ -67,6 +67,7 @@ import {
   type ConsultationType,
 } from "@/components/appointments/ConsultationReasonPicker";
 import { useCustomFields } from "@/lib/custom-fields/api";
+import { useLiveAppointments } from "@/hooks/useLiveAppointments";
 
 /** A referral value that is an id rather than a doctor's name. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -249,6 +250,7 @@ const PatientDetail = () => {
       return data;
     },
     enabled: !!id,
+    refetchOnMount: "always",
   });
 
   // Who referred them, when the referrer is another patient. The column holds
@@ -326,6 +328,10 @@ const PatientDetail = () => {
     },
     enabled: !!id,
   });
+
+  // A patient's visits move at the front desk while the doctor is reading
+  // them. See APPOINTMENT_QUERY_KEYS.
+  useLiveAppointments();
 
   const { data: appointments = [] } = useQuery({
     queryKey: ["patient-appointments", id],

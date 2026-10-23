@@ -26,6 +26,7 @@ import { useMoneyFormat } from "@/lib/currency";
 import { formatMoneyCompact } from "@/lib/currency";
 import { kpiColumnClass } from "@/lib/kpiGrid";
 import { appointmentPatientName, appointmentPatientInitialsText } from "@/lib/appointmentPatientName";
+import { useLiveAppointments } from "@/hooks/useLiveAppointments";
 
 
 // Data-heavy panels are capped so a large date range can never turn into a
@@ -174,6 +175,11 @@ const Index = () => {
     },
   });
 
+  // The front desk re-books all day and this is the screen a doctor lands on.
+  // Without this it held whatever it fetched on load - see
+  // APPOINTMENT_QUERY_KEYS for why mounting the hook was not enough on its own.
+  useLiveAppointments();
+
   const { data: appointments = [], isError: apptError, isLoading: apptLoading, refetch: refetchAppts } = useQuery({
     queryKey: ["dashboard-appointments", startISO, endISO],
     queryFn: async () => {
@@ -187,6 +193,10 @@ const Index = () => {
       if (error) throw error;
       return data;
     },
+    // A socket event missed while this screen was closed is corrected the
+    // moment it is opened. Scoped here rather than changed globally: the
+    // app-wide staleTime is what stopped every query re-running on focus.
+    refetchOnMount: "always",
   });
 
   // Patient feedback over the same window as every other card. It replaced

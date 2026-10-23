@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  APPOINTMENT_QUERY_KEYS,
   appointmentChangeKind,
   appointmentEventId,
   canApplyLiveChange,
@@ -67,12 +68,19 @@ export function useLiveAppointments({ paused = false, onAppointment }: Options =
     const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
     if (!canApplyLiveChange({ paused: pausedRef.current, hidden })) return; // held, not dropped
     pendingRef.current = false;
-    queryClient.invalidateQueries({
-      queryKey: ["appointments"],
-      // Only what is actually on screen is re-read. Everything else is marked
-      // stale and refreshes the next time it is opened, which costs nothing now.
-      refetchType: "active",
-    });
+    // Every key that holds appointment data, not just "appointments". React
+    // Query matches by prefix, so the dashboard, the patient record and the
+    // prescription sheet - which all name their queries differently - were
+    // never reached by this and stayed on the old date until a refresh. See
+    // APPOINTMENT_QUERY_KEYS.
+    for (const key of APPOINTMENT_QUERY_KEYS) {
+      queryClient.invalidateQueries({
+        queryKey: [key],
+        // Only what is actually on screen is re-read. Everything else is marked
+        // stale and refreshes the next time it is opened, which costs nothing now.
+        refetchType: "active",
+      });
+    }
   };
 
   useEffect(() => {

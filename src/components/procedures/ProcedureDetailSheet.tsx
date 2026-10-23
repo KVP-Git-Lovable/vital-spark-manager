@@ -10,6 +10,7 @@ import { assertWrote } from "@/lib/rowAccess";
 import { clearVisitAt, joinVisitDateTime, removeVisitAt, splitVisitDateTime, toVisitInputValue, visitsNeedingAppointment } from "@/lib/recurringVisits";
 import { reservedVisits } from "@/lib/reservedVisits";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useLiveAppointments } from "@/hooks/useLiveAppointments";
 import { DateInput } from "@/components/shared/DateInput";
 import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { PdfPreviewDialog } from "@/components/shared/PdfPreviewDialog";
@@ -848,9 +849,15 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
    * asks about before allowing (see appointmentReschedule.ts), and this screen
    * has no business doing it quietly.
    */
+  // The visits listed below are booked and moved at the front desk while the
+  // doctor is writing the prescription that reserved them. See
+  // APPOINTMENT_QUERY_KEYS: this key was never reached by live updates.
+  useLiveAppointments();
+
   const { data: upcomingAppointments = [] } = useQuery({
     queryKey: ["procedure-followup-appointments", procedure?.patient_id],
     enabled: !!procedure?.patient_id,
+    refetchOnMount: "always",
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")

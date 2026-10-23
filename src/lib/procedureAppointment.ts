@@ -63,3 +63,58 @@ export async function appointmentLinkForSave(
   if (error) return { id, removed: false };
   return decideAppointmentLink(id, Boolean(data));
 }
+
+/**
+ * Is this visit about to be filed under an appointment from another day?
+ *
+ * The Appointments list puts an "Add Prescription" button on every row, and it
+ * carries that row's id straight into the form - which never showed which
+ * appointment it was filing under. So an out-of-date row on screen became a
+ * prescription on an out-of-date visit, with nothing to give it away.
+ *
+ * It is not rare. Of 1,643 prescriptions linked to an appointment in the last
+ * 90 days, 14 sit on an appointment from a different day - 7, 11, 30, 49, 57,
+ * 69, 121, 162, 325 and 612 days earlier - and 13 of those were written here
+ * rather than imported. In every one of the 13 the patient had an appointment
+ * that same day which was passed over. About one a week.
+ *
+ * Deliberately a question and not a rule. Writing up yesterday evening's
+ * clinic the next morning is ordinary and has to stay possible, so the caller
+ * asks rather than refuses. Nothing is flagged when no appointment was named -
+ * a walk-in has no link to be wrong about.
+ */
+export interface AppointmentDayCheck {
+  /** True when the appointment is on a different calendar day from the write-up. */
+  mismatched: boolean;
+  /** The appointment's own day, for saying so out loud. Empty when there is none. */
+  dayLabel: string;
+}
+
+const DAY_LABEL: Intl.DateTimeFormatOptions = {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+};
+
+export function appointmentDayMismatch(
+  appointmentStart: string | null | undefined,
+  writtenOn: Date,
+): AppointmentDayCheck {
+  if (!appointmentStart) return { mismatched: false, dayLabel: "" };
+  const when = new Date(appointmentStart);
+  // An unreadable stored date is not evidence of anything; the save proceeds
+  // and the foreign key remains the judge of whether the row exists.
+  if (Number.isNaN(when.getTime())) return { mismatched: false, dayLabel: "" };
+
+  const sameDay =
+    when.getFullYear() === writtenOn.getFullYear() &&
+    when.getMonth() === writtenOn.getMonth() &&
+    when.getDate() === writtenOn.getDate();
+
+  return {
+    mismatched: !sameDay,
+    dayLabel: when.toLocaleString(undefined, DAY_LABEL),
+  };
+}

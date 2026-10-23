@@ -20,3 +20,21 @@ describe("Google review template sending", () => {
     expect(toE164IN("not a phone")).toBeNull();
   });
 });
+import { REVIEW_TEXT, reviewSessionParams, isWithinServiceWindow } from "../../supabase/functions/send-google-review-whatsapp/template";
+import { GOOGLE_REVIEW_MESSAGE } from "@/lib/googleReview";
+
+describe("Google review inside the 24-hour window", () => {
+  const now = new Date("2026-10-23T12:00:00Z");
+  it("uses the approved wording exactly", () => {
+    expect(REVIEW_TEXT).toBe(GOOGLE_REVIEW_MESSAGE);
+    expect(reviewSessionParams("+919606342269", "+911234567890").get("Body")).toBe(GOOGLE_REVIEW_MESSAGE);
+    expect(reviewSessionParams("+919606342269", "+911234567890").has("ContentSid")).toBe(false);
+  });
+  it("counts a patient message from 23 hours ago as inside the window", () => {
+    expect(isWithinServiceWindow("2026-10-22T13:00:00Z", now)).toBe(true);
+  });
+  it("counts a patient message from 25 hours ago, or none, as outside it", () => {
+    expect(isWithinServiceWindow("2026-10-22T11:00:00Z", now)).toBe(false);
+    expect(isWithinServiceWindow(null, now)).toBe(false);
+  });
+});

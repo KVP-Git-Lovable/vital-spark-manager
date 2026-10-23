@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 import { corsHeaders, json, requireStaff, twilioCreds } from "../_shared/comms-auth.ts";
 import { toE164IN } from "../_shared/comms-phone.ts";
-import { reviewTemplateParams } from "./template.ts";
+import { isWithinServiceWindow, reviewSessionParams, reviewTemplateParams } from "./template.ts";
 
 const Body = z.object({
   patient_id: z.string().uuid(),
@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       message_sid: result.sid,
     });
     if (logError) console.error("Review request accepted but conversation recording failed");
-    return json({ ok: true, messageSid: result.sid, recorded: !logError });
+    return json({ ok: true, messageSid: result.sid, recorded: !logError, mode: inWindow ? "session" : "template" });
   } catch {
     return json({ ok: false, error: "The review request could not be completed. Check the WhatsApp delivery log before trying again." }, 500);
   }

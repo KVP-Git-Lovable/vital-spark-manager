@@ -216,18 +216,23 @@ function FeedbackTabContent({
       const { data, error } = await supabase.functions.invoke("send-google-review-whatsapp", {
         body: { patient_id: patientId, appointment_id: appointmentId },
       });
-      if (error) throw new Error(error.message || "Could not send the review request");
+      // edgeFunctionErrorMessage reads the function's own error body rather
+      // than showing "Edge Function returned a non-2xx status code" - kept from
+      // the fix that added the sender.
+      if (error) throw new Error(await edgeFunctionErrorMessage(error, "Could not reach the WhatsApp review sender. Please try again shortly."));
       const result = data as { ok?: boolean; error?: string; messageSid?: string } | null;
-      if (result && result.ok === false) throw new Error(result.error || "Could not send the review request");
+      if (result?.ok !== true) throw new Error(result?.error || "Could not send the review request");
 
+      // ok:true means Twilio accepted it, which is not the same as the patient
+      // receiving it - see confirmDelivery.
       const outcome = await confirmDelivery(result?.messageSid);
       if (outcome.delivered) {
         toast.success(outcome.message);
       } else if (outcome.pending) {
         toast.info(outcome.message);
       } else {
-        // Not an error in the clinic's setup - Meta declined to deliver it -
-        // so the manual route is offered rather than the failure just sitting.
+        // Not a fault in the clinic's setup - Meta declined to deliver it - so
+        // the manual route is offered rather than the failure just sitting.
         setReviewFailed(true);
         toast.error(outcome.message, { duration: 10000 });
       }

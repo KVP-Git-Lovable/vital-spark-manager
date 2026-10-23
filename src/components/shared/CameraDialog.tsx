@@ -476,7 +476,12 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
                 openPhoneCamera();
               }}
               style={{ left: `${noticePlacement.leftPercent}%`, top: `${noticePlacement.topPercent}%` }}
-              className={`absolute z-20 w-max max-w-[80%] -translate-x-1/2 rounded-full bg-black/80 px-3 py-1.5 text-[11px] leading-snug text-white shadow-lg ring-1 ring-white/25 ${
+              // z-10, the same layer as the controls overlay below, which
+              // comes later in the DOM and therefore wins. With the earlier
+              // flip the two should never meet; this settles it the right way
+              // round if they ever do. A pill briefly hidden is a nuisance; a
+              // shutter that cannot be pressed stops the clinic working.
+              className={`absolute z-10 w-max max-w-[80%] -translate-x-1/2 rounded-full bg-black/80 px-3 py-1.5 text-[11px] leading-snug text-white shadow-lg ring-1 ring-white/25 ${
                 noticePlacement.above ? "-translate-y-[calc(100%+2.5rem)]" : "translate-y-10"
               }`}
             >

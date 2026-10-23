@@ -287,3 +287,130 @@ describe("tapping the viewfinder to focus", () => {
     expect(() => fireEvent.click(frame, { clientX: 10, clientY: 10 })).not.toThrow();
   });
 });
+
+/**
+ * The focus offer must not get in the way of building a set of photos.
+ *
+ * Multi-capture is the workflow that was fixed earlier - take several shots
+ * without leaving the camera - and the offer is drawn over the same viewfinder
+ * the shutter and the strip of shots are overlaid on.
+ */
+describe("the focus offer and multi-capture", () => {
+  const trackWith = (capabilities: unknown) => ({
+    stop: vi.fn(),
+    getCapabilities: () => capabilities,
+    applyConstraints: vi.fn().mockResolvedValue(undefined),
+  });
+
+  const mountCamera = (capabilities: unknown) => {
+    const track = trackWith(capabilities);
+    Object.defineProperty(global.navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({
+          getTracks: () => [track],
+          getVideoTracks: () => [track],
+        }),
+      },
+    });
+    return track;
+  };
+
+  const widthWas = window.innerWidth;
+  const setWidth = (px: number) =>
+    Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: px });
+
+  const tapFrame = async (clientX = 100, clientY = 200) => {
+    const frame = await screen.findByTestId("camera-frame");
+    frame.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 200, height: 400, right: 200, bottom: 400, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    fireEvent.click(frame, { clientX, clientY });
+    return frame;
+  };
+
+  const photosInStrip = () => screen.queryAllByAltText(/^Photo \d+$/);
+  const fileInput = () => document.querySelector('input[type="file"]') as HTMLInputElement;
+
+  beforeEach(() => {
+    setWidth(390);
+    HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    setWidth(widthWas);
+    Reflect.deleteProperty(global.navigator, "mediaDevices");
+    vi.restoreAllMocks();
+  });
+
+  it("tapping to focus does not take a photo", async () => {
+    // A focus tap and a shutter press are different gestures. The shutter is a
+    // sibling of the frame rather than inside it, so this also guards the
+    // reverse - pressing the shutter is not a focus tap.
+    const track = mountCamera({});
+    render(
+      <CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} multiple onCaptureMany={vi.fn()} />,
+    );
+    await vi.waitFor(() => expect(track.getCapabilities()).toBeTruthy());
+
+    await tapFrame();
+
+    expect(photosInStrip()).toHaveLength(0);
+  });
+
+  it("keeps the offer on the controls' layer, never above them", async () => {
+    // The controls overlay is z-10 and comes later in the DOM, so an equal
+    // layer means they win. At z-20 the offer painted over the shutter and
+    // would have swallowed the press - and the strip makes the controls taller
+    // the more photos are in the set, so this bites hardest here.
+    const track = mountCamera({});
+    render(
+      <CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} multiple onCaptureMany={vi.fn()} />,
+    );
+    await vi.waitFor(() => expect(track.getCapabilities()).toBeTruthy());
+
+    await tapFrame();
+    const offer = await screen.findByTestId("focus-unavailable");
+
+    expect(offer.className).toContain("z-10");
+    expect(offer.className).not.toContain("z-20");
+  });
+
+  it("stays in the upper half when tapped low, where the strip sits", async () => {
+    const track = mountCamera({});
+    render(
+      <CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} multiple onCaptureMany={vi.fn()} />,
+    );
+    await vi.waitFor(() => expect(track.getCapabilities()).toBeTruthy());
+
+    // Three fifths down a 400px frame - below halfway, but above the old
+    // two-thirds flip point, which is exactly the gap where the offer used to
+    // land on the controls once the strip had photos in it.
+    await tapFrame(100, 240);
+    const offer = await screen.findByTestId("focus-unavailable");
+
+    expect(offer.className).toContain("-translate-y-");
+  });
+
+  it("photos taken from the offer join the set and the camera stays open", async () => {
+    const onOpenChange = vi.fn();
+    const track = mountCamera({});
+    render(
+      <CameraDialog open onOpenChange={onOpenChange} onCapture={vi.fn()} multiple onCaptureMany={vi.fn()} />,
+    );
+    await vi.waitFor(() => expect(track.getCapabilities()).toBeTruthy());
+
+    await tapFrame();
+    fireEvent.click(await screen.findByTestId("focus-unavailable"));
+    expect(fileInput().getAttribute("capture")).toBe("environment");
+
+    // The phone's camera hands one photo back at a time; the set grows.
+    fireEvent.change(fileInput(), { target: { files: [file("one.jpg")] } });
+    expect(photosInStrip()).toHaveLength(1);
+
+    fireEvent.change(fileInput(), { target: { files: [file("two.jpg")] } });
+    expect(photosInStrip()).toHaveLength(2);
+
+    // Nothing closed the dialog along the way - that was the original fault.
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});

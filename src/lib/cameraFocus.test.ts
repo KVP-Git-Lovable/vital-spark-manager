@@ -125,14 +125,29 @@ describe("focusNoticePlacement", () => {
     expect(focusNoticePlacement({ x: 0.8, y: 0.3 }).leftPercent).toBe(80);
   });
 
-  it("flips above the tap near the bottom, clear of the shutter controls", () => {
+  it("flips above the tap below halfway, clear of the shutter and the strip", () => {
+    // The strip of photos taken so far only exists once shots have been taken,
+    // so in multi-shot mode the controls reach further up the screen the more
+    // photos are in the set. Staying in the upper half clears them whatever
+    // the strip is doing.
     expect(focusNoticePlacement({ x: 0.5, y: 0.95 }).above).toBe(true);
     expect(focusNoticePlacement({ x: 0.5, y: 0.71 }).above).toBe(true);
+    expect(focusNoticePlacement({ x: 0.5, y: 0.51 }).above).toBe(true);
   });
 
-  it("stays below the tap everywhere else", () => {
-    expect(focusNoticePlacement({ x: 0.5, y: 0.7 }).above).toBe(false);
+  it("stays below the tap in the upper half", () => {
+    expect(focusNoticePlacement({ x: 0.5, y: 0.5 }).above).toBe(false);
     expect(focusNoticePlacement({ x: 0.5, y: 0.1 }).above).toBe(false);
+  });
+
+  it("never puts the notice low enough to reach the controls", () => {
+    // The rule that keeps it off the shutter, pinned rather than implied: a
+    // notice drawn BELOW its tap can only ever be anchored in the upper half,
+    // and the caller offsets it 40px from there.
+    for (let y = 0; y <= 1; y += 0.01) {
+      const place = focusNoticePlacement({ x: 0.5, y });
+      if (!place.above) expect(place.topPercent).toBeLessThanOrEqual(50);
+    }
   });
 
   it("falls back to the middle rather than rendering nowhere", () => {

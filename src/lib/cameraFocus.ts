@@ -138,8 +138,18 @@ export interface NoticePlacement {
 
 /** Keeps a pill of roughly 200px fully inside a 390px phone screen. */
 const NOTICE_EDGE_MARGIN = 18;
-/** Below this the bottom controls start, so the notice goes above the tap. */
-const NOTICE_FLIP_AT = 0.7;
+/**
+ * Past this the notice goes above the tap rather than below it.
+ *
+ * Halfway, not two thirds. The bottom of the viewfinder is where the shutter
+ * and - in multi-shot mode - the strip of photos taken so far are overlaid,
+ * and that strip only exists once shots have been taken: the more photos in
+ * the set, the further up the controls reach. Flipping at 0.7 put the notice
+ * right where they begin on a full strip, and the notice would have swallowed
+ * the press rather than sat behind it. Flipping here keeps it in the upper
+ * half whatever the strip is doing, which still leaves it beside the finger.
+ */
+const NOTICE_FLIP_AT = 0.5;
 
 export function focusNoticePlacement(point: FocusPoint): NoticePlacement {
   const x = Number.isFinite(point?.x) ? point.x : 0.5;

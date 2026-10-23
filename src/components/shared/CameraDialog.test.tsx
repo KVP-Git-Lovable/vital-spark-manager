@@ -123,3 +123,116 @@ describe("choosing where a photo comes from", () => {
     expect(fileInput().hasAttribute("capture")).toBe(false);
   });
 });
+
+/**
+ * Tapping the viewfinder used to do nothing at all.
+ *
+ * These mount a camera that actually starts, which the suite above
+ * deliberately does not - jsdom has no mediaDevices, so everything there lands
+ * in the "camera will not start" branch and never reaches a video track.
+ */
+describe("tapping the viewfinder to focus", () => {
+  const trackWith = (capabilities: unknown) => ({
+    stop: vi.fn(),
+    getCapabilities: () => capabilities,
+    applyConstraints: vi.fn().mockResolvedValue(undefined),
+  });
+
+  const mountCamera = (capabilities: unknown) => {
+    const track = trackWith(capabilities);
+    Object.defineProperty(global.navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({
+          getTracks: () => [track],
+          getVideoTracks: () => [track],
+        }),
+      },
+    });
+    return track;
+  };
+
+  /** A 200x400 upright viewfinder, so a tap has somewhere to land. */
+  const tapCentre = async () => {
+    const frame = await screen.findByTestId("camera-frame");
+    frame.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 200, height: 400, right: 200, bottom: 400, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    fireEvent.click(frame, { clientX: 100, clientY: 200 });
+    return frame;
+  };
+
+  const widthWas = window.innerWidth;
+  const setWidth = (px: number) =>
+    Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: px });
+
+  beforeEach(() => {
+    // A phone, which is where this was reported and the only place the
+    // "use Phone camera" message is shown.
+    setWidth(390);
+    // jsdom does not implement playback; the dialog only ever awaits it.
+    HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    setWidth(widthWas);
+    // Put it back, or the suite above stops landing in the branch it tests.
+    Reflect.deleteProperty(global.navigator, "mediaDevices");
+    vi.restoreAllMocks();
+  });
+
+  it("aims the camera at the tapped point where the browser allows it", async () => {
+    const track = mountCamera({ focusMode: ["single-shot", "continuous"], pointsOfInterest: {} });
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} />);
+    await vi.waitFor(() => expect(track.getCapabilities()).toBeTruthy());
+
+    await tapCentre();
+
+    await vi.waitFor(() => expect(track.applyConstraints).toHaveBeenCalled());
+    expect(track.applyConstraints).toHaveBeenCalledWith({
+      advanced: [{ focusMode: "single-shot", pointsOfInterest: [{ x: 0.5, y: 0.5 }] }],
+    });
+  });
+
+  it("says so, and names the phone camera, where the browser does not - the iPhone case", async () => {
+    // Safari on iOS reports no focus capabilities at all. Nothing can aim the
+    // lens there, so the tap has to explain itself instead of looking broken.
+    const track = mountCamera({});
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} />);
+    await vi.waitFor(() => expect(track.getCapabilities()).toBeTruthy());
+
+    await tapCentre();
+
+    const note = await screen.findByTestId("focus-unavailable");
+    expect(note.textContent).toMatch(/phone camera/i);
+    expect(track.applyConstraints).not.toHaveBeenCalled();
+  });
+
+  it("does not claim the camera cannot focus when it can", async () => {
+    const track = mountCamera({ focusMode: ["single-shot"], pointsOfInterest: {} });
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} />);
+    await vi.waitFor(() => expect(track.getCapabilities()).toBeTruthy());
+
+    await tapCentre();
+
+    expect(screen.queryByTestId("focus-unavailable")).toBeNull();
+  });
+
+  it("acknowledges the tap on screen, whatever the camera can do", async () => {
+    // The whole complaint was that tapping did nothing visible.
+    mountCamera({});
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} />);
+
+    await tapCentre();
+
+    expect(await screen.findByTestId("focus-ring")).toBeTruthy();
+  });
+
+  it("does not throw when there is no camera to focus", async () => {
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} />);
+    const frame = await screen.findByTestId("camera-frame");
+    frame.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 200, height: 400, right: 200, bottom: 400, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+
+    expect(() => fireEvent.click(frame, { clientX: 10, clientY: 10 })).not.toThrow();
+  });
+});

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cameraConstraints, frameAspectRatio } from "@/lib/cameraStream";
+import { focusPointFromTap, supportsTapFocus, tapFocusConstraints } from "@/lib/cameraFocus";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface CameraDialogProps {
@@ -44,6 +45,29 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
   const [starting, setStarting] = useState(false);
   /** The shots taken so far in this session, when `multiple` is on. */
   const [shots, setShots] = useState<{ file: File; url: string }[]>([]);
+  /**
+   * Where the last tap landed, drawn as a ring for a moment.
+   *
+   * Shown on every device, including the ones that cannot focus at all: the
+   * complaint was that tapping did nothing, and a tap that is seen to register
+   * is most of the answer even where the lens does not move.
+   */
+  const [focusRing, setFocusRing] = useState<{ x: number; y: number; at: number } | null>(null);
+  /**
+   * Set once somebody has tapped a camera that cannot be told where to focus.
+   *
+   * Safari on iOS exposes no focus control to a web page, so on an iPhone -
+   * most of this clinic - no tap will ever move the lens. Rather than leave
+   * that looking like a fault, the tap says so and names the phone's own
+   * camera, which does focus. Only after a tap, so it explains the thing just
+   * done instead of sitting on the viewfinder permanently.
+   *
+   * Phones only, and worded for any camera that cannot be aimed rather than
+   * for iPhone by name: a desktop webcam reports no focus control either, and
+   * telling someone at a laptop to use their phone camera - a button that
+   * opens a file picker there - would be nonsense.
+   */
+  const [focusUnavailable, setFocusUnavailable] = useState(false);
   /**
    * The shape of the live picture, once the camera has reported it.
    *
@@ -96,6 +120,80 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
     }
   };
 
+  /** Not more than one re-acquire in this window, however fast somebody taps. */
+  const REFOCUS_GAP_MS = 1500;
+  const lastRefocusRef = useRef(0);
+
+  /**
+   * Re-run the camera's own autofocus, for a camera that cannot be aimed.
+   *
+   * On an iPhone there is no way to say WHERE to focus, but a camera runs an
+   * autofocus pass as it starts - so acquiring the track again is the one
+   * lever left, and it can bring back a subject that has moved closer since
+   * the viewfinder opened. Best-effort: on some devices it will not look like
+   * much, which is why the message below names the phone's own camera too.
+   *
+   * The new stream is taken BEFORE the old one is stopped. startStream does it
+   * the other way round, which is right when switching between front and back,
+   * but here it would blank the picture on every tap. If the new one fails,
+   * what is on screen is left exactly as it was.
+   */
+  const refocusByRestart = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    const now = Date.now();
+    if (now - lastRefocusRef.current < REFOCUS_GAP_MS) return;
+    lastRefocusRef.current = now;
+
+    const previous = streamRef.current;
+    try {
+      const fresh = await navigator.mediaDevices.getUserMedia(cameraConstraints(facingMode));
+      streamRef.current = fresh;
+      if (videoRef.current) {
+        videoRef.current.srcObject = fresh;
+        await videoRef.current.play().catch(() => {});
+      }
+      previous?.getTracks().forEach((t) => t.stop());
+    } catch {
+      // A tap that cannot refocus must never cost the viewfinder.
+      streamRef.current = previous;
+    }
+  };
+
+  const handleFrameTap = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Nothing to focus on while a shot is being reviewed or the camera failed.
+    if (error || previewUrl) return;
+    const point = focusPointFromTap(e.currentTarget.getBoundingClientRect(), e.clientX, e.clientY);
+    if (!point) return;
+    // The ring goes up first and regardless: the complaint was that tapping
+    // did nothing, and being seen to register is most of the answer even where
+    // the lens cannot move.
+    setFocusRing({ x: point.x, y: point.y, at: Date.now() });
+
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    const capabilities =
+      typeof track.getCapabilities === "function" ? track.getCapabilities() : undefined;
+
+    if (supportsTapFocus(capabilities)) {
+      const constraints = tapFocusConstraints(point, capabilities);
+      if (constraints) {
+        // Cast: focusMode/pointsOfInterest are shipped but absent from
+        // TypeScript's MediaTrackConstraintSet - see cameraFocus.ts.
+        track.applyConstraints(constraints as unknown as MediaTrackConstraints).catch(() => {});
+        return;
+      }
+    }
+    setFocusUnavailable(true);
+    void refocusByRestart();
+  };
+
+  // The ring is a moment's acknowledgement, not a marker left on the picture.
+  useEffect(() => {
+    if (!focusRing) return;
+    const timer = setTimeout(() => setFocusRing(null), 900);
+    return () => clearTimeout(timer);
+  }, [focusRing]);
+
   useEffect(() => {
     if (open && !capturedFile) {
       startStream(facingMode);
@@ -110,6 +208,8 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
         return [];
       });
       setFrameRatio(null);
+      setFocusRing(null);
+      setFocusUnavailable(false);
     }
     return () => {
       if (!open) stopStream();
@@ -276,8 +376,12 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
           className="hidden"
           onChange={handleFallbackFile}
         />
+        {/* Tapping aims the focus where the browser allows it, and where it
+            does not - an iPhone - re-runs the camera's own autofocus and says
+            so. It used to do nothing whatsoever, which read as a fault. */}
         <div
           data-testid="camera-frame"
+          onClick={handleFrameTap}
           className={
             isMobile
               ? "relative flex-1 min-h-0 w-full bg-black flex items-center justify-center"
@@ -331,6 +435,27 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
                 </div>
               )}
             </>
+          )}
+          {/* Transform and opacity only, and only when motion is welcome -
+              see AGENTS.md. */}
+          {focusRing && !previewUrl && !error && (
+            <span
+              aria-hidden
+              data-testid="focus-ring"
+              className="pointer-events-none absolute h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/90 ring-1 ring-black/40 motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:fade-in"
+              style={{ left: `${focusRing.x * 100}%`, top: `${focusRing.y * 100}%` }}
+            />
+          )}
+
+          {/* Said once the person has actually tapped, rather than sitting on
+              the viewfinder forever: it explains the thing they just did. */}
+          {focusUnavailable && isMobile && !previewUrl && !error && (
+            <p
+              data-testid="focus-unavailable"
+              className="pointer-events-none absolute inset-x-0 top-2 z-20 mx-auto w-fit max-w-[90%] rounded-full bg-black/70 px-3 py-1 text-center text-[11px] leading-snug text-white"
+            >
+              This camera can&apos;t be focused from here — use Phone camera for a close-up.
+            </p>
           )}
           <canvas ref={canvasRef} className="hidden" />
         </div>

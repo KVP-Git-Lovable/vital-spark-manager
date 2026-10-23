@@ -82,3 +82,51 @@ export function reviewRequestState(phone: string | null | undefined): ReviewRequ
   }
   return { enabled: true, url, reason: "" };
 }
+
+/**
+ * What the sender records when Twilio returns no body for a template send.
+ *
+ * send-google-review-whatsapp writes result.body into whatsapp_conversations,
+ * and for a template message Twilio often returns none - so this fallback is
+ * the common case, not the rare one. Recognising a previous send has to match
+ * both it and the real body.
+ */
+export const REVIEW_SENT_FALLBACK_TEXT = "Google review request";
+
+/**
+ * Is this recorded outbound message one of these review requests?
+ *
+ * Used to notice that a patient has already had one. A patient received the
+ * same message twice a minute apart because nothing in the app knew the first
+ * had gone: Meta's marketing cap is intermittent, so when nothing arrives the
+ * natural thing is to press again, and when the cap lifts every queued copy
+ * lands at once.
+ */
+export function isReviewRequestMessage(content: string | null | undefined): boolean {
+  const text = String(content ?? "");
+  if (!text.trim()) return false;
+  return text.includes(GOOGLE_REVIEW_LINK) || text.includes(REVIEW_SENT_FALLBACK_TEXT);
+}
+
+/**
+ * When the last one went, in words - so a second send is a decision rather
+ * than a reflex. Empty when none has been sent.
+ */
+export function reviewAlreadySentNotice(
+  lastSentAt: string | Date | null | undefined,
+  now: Date = new Date(),
+): string {
+  if (!lastSentAt) return "";
+  const when = lastSentAt instanceof Date ? lastSentAt : new Date(lastSentAt);
+  if (Number.isNaN(when.getTime())) return "";
+
+  const time = when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const sameDay =
+    when.getFullYear() === now.getFullYear() &&
+    when.getMonth() === now.getMonth() &&
+    when.getDate() === now.getDate();
+  if (sameDay) return `Already sent today at ${time}`;
+
+  const date = when.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return `Already sent on ${date} at ${time}`;
+}

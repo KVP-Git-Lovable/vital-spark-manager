@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { GOOGLE_REVIEW_LINK, GOOGLE_REVIEW_MESSAGE, reviewRequestState, whatsappShareUrl } from "./googleReview";
+import { GOOGLE_REVIEW_LINK, GOOGLE_REVIEW_MESSAGE, isReviewRequestMessage, reviewAlreadySentNotice, reviewRequestState, whatsappShareUrl } from "./googleReview";
 
 describe("GOOGLE_REVIEW_MESSAGE", () => {
   /**
@@ -105,5 +105,58 @@ describe("staying in step with the approved template", () => {
 
   it("is still the length Meta approved", () => {
     expect(GOOGLE_REVIEW_MESSAGE).toHaveLength(302);
+  });
+});
+
+describe("noticing a review request that already went", () => {
+  it("recognises the template body by its link", () => {
+    expect(isReviewRequestMessage(GOOGLE_REVIEW_MESSAGE)).toBe(true);
+  });
+
+  it("recognises what the sender records when Twilio returns no body", () => {
+    // The common case for a template send, not the rare one.
+    expect(
+      isReviewRequestMessage("Google review request sent using the approved clinic template."),
+    ).toBe(true);
+  });
+
+  it("does not mistake the clinic's other messages for one", () => {
+    expect(isReviewRequestMessage("Hello Ms. Divya,\n\nYou have an appointment on...")).toBe(false);
+    expect(isReviewRequestMessage("Thanks for confirming, Ravi! 😊 See you soon")).toBe(false);
+    expect(isReviewRequestMessage("To modify or cancel your booking, please call us")).toBe(false);
+  });
+
+  it("treats nothing as nothing", () => {
+    expect(isReviewRequestMessage("")).toBe(false);
+    expect(isReviewRequestMessage("   ")).toBe(false);
+    expect(isReviewRequestMessage(null)).toBe(false);
+    expect(isReviewRequestMessage(undefined)).toBe(false);
+  });
+});
+
+describe("reviewAlreadySentNotice", () => {
+  const now = new Date(2026, 9, 23, 18, 0);
+
+  it("says today, with the time, for one sent earlier the same day", () => {
+    const notice = reviewAlreadySentNotice(new Date(2026, 9, 23, 17, 5), now);
+    expect(notice).toContain("today");
+    expect(notice).toMatch(/5:05/);
+  });
+
+  it("carries the date when it was not today", () => {
+    const notice = reviewAlreadySentNotice(new Date(2026, 9, 21, 10, 30), now);
+    expect(notice).not.toContain("today");
+    expect(notice).toContain("21");
+    expect(notice).toContain("2026");
+  });
+
+  it("says nothing when none has been sent", () => {
+    expect(reviewAlreadySentNotice(null, now)).toBe("");
+    expect(reviewAlreadySentNotice(undefined, now)).toBe("");
+    expect(reviewAlreadySentNotice("not a date", now)).toBe("");
+  });
+
+  it("accepts the timestamp string the database returns", () => {
+    expect(reviewAlreadySentNotice(new Date(2026, 9, 23, 17, 5).toISOString(), now)).toContain("today");
   });
 });

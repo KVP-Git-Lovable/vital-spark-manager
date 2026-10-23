@@ -6,7 +6,7 @@ import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import { confirmationSendPlan } from "@/lib/confirmationSend";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
-import { reviewRequestState } from "@/lib/googleReview";
+import { isReviewRequestMessage, reviewAlreadySentNotice, reviewRequestState } from "@/lib/googleReview";
 import { deliveryOutcome, type DeliveryOutcome } from "@/lib/whatsappDelivery";
 import { openAppointmentNotice, type AppointmentChange } from "@/lib/liveAppointments";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
@@ -161,6 +161,29 @@ function FeedbackTabContent({
    * changes.
    */
   const review = reviewRequestState(patientPhone);
+  /**
+   * When this patient last had a review request.
+   *
+   * Read from whatsapp_conversations, which the sender writes synchronously -
+   * whatsapp_delivery_log is filled in afterwards by the delivery webhook and
+   * would still be empty for a second press made 43 seconds later, which is
+   * exactly the gap that sent one patient the same message twice.
+   */
+  const { data: lastReviewSentAt, refetch: refetchLastReview } = useQuery({
+    queryKey: ["review-request-sent", patientId],
+    enabled: !!patientId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("whatsapp_conversations")
+        .select("content, created_at")
+        .eq("patient_id", patientId!)
+        .eq("direction", "outbound")
+        .order("created_at", { ascending: false })
+        .limit(30);
+      return (data || []).find((m) => isReviewRequestMessage(m.content))?.created_at ?? null;
+    },
+  });
+  const alreadySent = reviewAlreadySentNotice(lastReviewSentAt);
   const [reviewSending, setReviewSending] = useState(false);
   // Only true once a send has actually failed, so the manual route is offered
   // rather than sitting there inviting people away from the working one.
@@ -210,6 +233,12 @@ function FeedbackTabContent({
 
   const sendReviewRequest = async () => {
     if (!review.enabled || !patientId) return;
+    // Meta's marketing cap is intermittent, so when nothing arrives the
+    // natural thing is to press again - and when the cap lifts, every copy
+    // queued behind it lands at once. Asking once is what stops that.
+    if (alreadySent && !window.confirm(`${alreadySent}.\n\nSend this patient another review request?`)) {
+      return;
+    }
     setReviewSending(true);
     setReviewFailed(false);
     try {
@@ -225,6 +254,9 @@ function FeedbackTabContent({
 
       // ok:true means Twilio accepted it, which is not the same as the patient
       // receiving it - see confirmDelivery.
+      // So a second press is caught by the same guard, not just the first.
+      void refetchLastReview();
+
       const outcome = await confirmDelivery(result?.messageSid);
       if (outcome.delivered) {
         toast.success(outcome.message);
@@ -256,10 +288,15 @@ function FeedbackTabContent({
         onClick={sendReviewRequest}
       >
         <Star className="h-3.5 w-3.5" />
-        {reviewSending ? "Sending…" : "Send Google review request"}
+        {reviewSending ? "Sending…" : alreadySent ? "Send again" : "Send Google review request"}
       </Button>
       {!review.enabled && (
         <p className="text-[11px] text-muted-foreground mt-1">{review.reason}</p>
+      )}
+      {review.enabled && alreadySent && (
+        <p className="text-[11px] text-muted-foreground mt-1" data-testid="review-already-sent">
+          {alreadySent}
+        </p>
       )}
       {reviewFailed && review.url && (
         <p className="text-[11px] text-muted-foreground mt-1">

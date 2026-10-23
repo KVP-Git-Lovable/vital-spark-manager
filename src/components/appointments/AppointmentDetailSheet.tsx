@@ -187,9 +187,9 @@ function FeedbackTabContent({
       const { data, error } = await supabase.functions.invoke("send-google-review-whatsapp", {
         body: { patient_id: patientId, appointment_id: appointmentId },
       });
-      if (error) throw new Error(error.message || "Could not send the review request");
+      if (error) throw new Error(await edgeFunctionErrorMessage(error, "Could not reach the WhatsApp review sender. Please try again shortly."));
       const result = data as { ok?: boolean; error?: string } | null;
-      if (result && result.ok === false) throw new Error(result.error || "Could not send the review request");
+      if (result?.ok !== true) throw new Error(result?.error || "Could not send the review request");
       setReviewFailed(false);
       toast.success("Review request sent on WhatsApp");
     } catch (e) {

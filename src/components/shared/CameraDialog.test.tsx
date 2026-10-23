@@ -207,6 +207,57 @@ describe("tapping the viewfinder to focus", () => {
     expect(track.applyConstraints).not.toHaveBeenCalled();
   });
 
+  it("offers the phone camera as something to press, not just read", async () => {
+    // Saying "use Phone camera" and leaving somebody to find that button down
+    // in the controls was two taps with a hunt in between.
+    const track = mountCamera({});
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} />);
+    await vi.waitFor(() => expect(track.getCapabilities()).toBeTruthy());
+
+    await tapCentre();
+    const offer = await screen.findByTestId("focus-unavailable");
+    expect(offer.tagName).toBe("BUTTON");
+    fireEvent.click(offer);
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input.getAttribute("capture")).toBe("environment");
+  });
+
+  it("pressing the offer is not also another tap on the picture", async () => {
+    // Without stopPropagation the press bubbles to the frame, which raises the
+    // offer again at the press coordinates - moving it out from under the
+    // finger that was reaching for it.
+    const track = mountCamera({});
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} />);
+    await vi.waitFor(() => expect(track.getCapabilities()).toBeTruthy());
+
+    await tapCentre();
+    const offer = await screen.findByTestId("focus-unavailable");
+    const whereItWas = offer.style.left;
+    expect(whereItWas).toBe("50%");
+
+    fireEvent.click(offer, { clientX: 0, clientY: 0 });
+
+    expect((screen.getByTestId("focus-unavailable") as HTMLElement).style.left).toBe(whereItWas);
+  });
+
+  it("puts the offer where the finger landed, not pinned to the top", async () => {
+    const track = mountCamera({});
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} />);
+    await vi.waitFor(() => expect(track.getCapabilities()).toBeTruthy());
+
+    const frame = await screen.findByTestId("camera-frame");
+    frame.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 200, height: 400, right: 200, bottom: 400, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    // Low in the frame, where the shutter controls sit.
+    fireEvent.click(frame, { clientX: 50, clientY: 380 });
+
+    const offer = await screen.findByTestId("focus-unavailable");
+    expect(offer.style.left).toBe("25%");
+    // Flipped above the tap so the controls do not cover it.
+    expect(offer.className).toContain("-translate-y-");
+  });
+
   it("does not claim the camera cannot focus when it can", async () => {
     const track = mountCamera({ focusMode: ["single-shot"], pointsOfInterest: {} });
     render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} />);

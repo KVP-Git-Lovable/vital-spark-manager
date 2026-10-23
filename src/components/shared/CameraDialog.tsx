@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cameraConstraints, frameAspectRatio } from "@/lib/cameraStream";
-import { focusPointFromTap, supportsTapFocus, tapFocusConstraints } from "@/lib/cameraFocus";
+import { focusNoticePlacement, focusPointFromTap, supportsTapFocus, tapFocusConstraints } from "@/lib/cameraFocus";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface CameraDialogProps {
@@ -54,7 +54,8 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
    */
   const [focusRing, setFocusRing] = useState<{ x: number; y: number; at: number } | null>(null);
   /**
-   * Set once somebody has tapped a camera that cannot be told where to focus.
+   * Where to offer the phone's own camera, once somebody has tapped a camera
+   * that cannot be told where to focus.
    *
    * Safari on iOS exposes no focus control to a web page, so on an iPhone -
    * most of this clinic - no tap will ever move the lens. Rather than leave
@@ -66,8 +67,13 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
    * for iPhone by name: a desktop webcam reports no focus control either, and
    * telling someone at a laptop to use their phone camera - a button that
    * opens a file picker there - would be nonsense.
+   *
+   * It carries the tap's position because it IS the button: it has to appear
+   * under the thumb that just tapped, not pinned to the top of the frame. And
+   * it deliberately outlives the ring, which clears itself after 900ms - a
+   * button that vanishes while somebody reaches for it is worse than no button.
    */
-  const [focusUnavailable, setFocusUnavailable] = useState(false);
+  const [focusNotice, setFocusNotice] = useState<{ x: number; y: number } | null>(null);
   /**
    * The shape of the live picture, once the camera has reported it.
    *
@@ -183,9 +189,12 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
         return;
       }
     }
-    setFocusUnavailable(true);
+    setFocusNotice(point);
     void refocusByRestart();
   };
+
+  /** Where the offer sits, so it is reachable wherever the tap landed. */
+  const noticePlacement = focusNotice ? focusNoticePlacement(focusNotice) : null;
 
   // The ring is a moment's acknowledgement, not a marker left on the picture.
   useEffect(() => {
@@ -209,7 +218,7 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
       });
       setFrameRatio(null);
       setFocusRing(null);
-      setFocusUnavailable(false);
+      setFocusNotice(null);
     }
     return () => {
       if (!open) stopStream();
@@ -242,6 +251,9 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
           // The stream is deliberately left running: stopping and restarting
           // it between shots is the couple of seconds that made this slow.
           setShots((prev) => [...prev, { file, url: URL.createObjectURL(blob) }]);
+          // The offer belonged to the tap before this shot. Tapping again
+          // raises it again, wherever the finger lands next.
+          setFocusNotice(null);
           return;
         }
         setCapturedFile(file);
@@ -447,15 +459,32 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
             />
           )}
 
-          {/* Said once the person has actually tapped, rather than sitting on
-              the viewfinder forever: it explains the thing they just did. */}
-          {focusUnavailable && isMobile && !previewUrl && !error && (
-            <p
+          {/* The message IS the button. Saying "use Phone camera" and then
+              leaving somebody to find that button down in the controls was two
+              taps with a hunt in between; this one is under the thumb that
+              just tapped. Still a deliberate press rather than wiring the tap
+              itself, so a stray brush of the picture never yanks anyone out to
+              the phone camera. */}
+          {noticePlacement && isMobile && !previewUrl && !error && (
+            <button
+              type="button"
               data-testid="focus-unavailable"
-              className="pointer-events-none absolute inset-x-0 top-2 z-20 mx-auto w-fit max-w-[90%] rounded-full bg-black/70 px-3 py-1 text-center text-[11px] leading-snug text-white"
+              // Without this the press also counts as a tap on the frame,
+              // which would move the offer out from under the finger.
+              onClick={(e) => {
+                e.stopPropagation();
+                openPhoneCamera();
+              }}
+              style={{ left: `${noticePlacement.leftPercent}%`, top: `${noticePlacement.topPercent}%` }}
+              className={`absolute z-20 w-max max-w-[80%] -translate-x-1/2 rounded-full bg-black/80 px-3 py-1.5 text-[11px] leading-snug text-white shadow-lg ring-1 ring-white/25 ${
+                noticePlacement.above ? "-translate-y-[calc(100%+2.5rem)]" : "translate-y-10"
+              }`}
             >
-              This camera can&apos;t be focused from here — use Phone camera for a close-up.
-            </p>
+              <span className="inline-flex items-center gap-1.5">
+                <Camera className="h-3.5 w-3.5 shrink-0" />
+                Can&apos;t focus here — open phone camera
+              </span>
+            </button>
           )}
           <canvas ref={canvasRef} className="hidden" />
         </div>

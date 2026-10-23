@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { focusPointFromTap, supportsTapFocus, tapFocusConstraints } from "./cameraFocus";
+import { focusNoticePlacement, focusPointFromTap, supportsTapFocus, tapFocusConstraints } from "./cameraFocus";
 
 /** A 300x400 upright viewfinder sitting 20px in from the top-left. */
 const FRAME = { left: 20, top: 20, width: 300, height: 400 };
@@ -101,5 +101,45 @@ describe("tapFocusConstraints", () => {
   it("has nothing to send to a camera that cannot be aimed", () => {
     expect(tapFocusConstraints(point, {})).toBeNull();
     expect(tapFocusConstraints(point, { focusMode: ["continuous"], pointsOfInterest: {} })).toBeNull();
+  });
+});
+
+describe("focusNoticePlacement", () => {
+  it("sits under a tap in the middle of the picture", () => {
+    expect(focusNoticePlacement({ x: 0.5, y: 0.5 })).toEqual({
+      leftPercent: 50,
+      topPercent: 50,
+      above: false,
+    });
+  });
+
+  it("stays on screen when the tap was near an edge", () => {
+    // The failure this prevents is a button rendered half off the side of the
+    // phone, where it cannot be pressed at all.
+    expect(focusNoticePlacement({ x: 0, y: 0.3 }).leftPercent).toBe(18);
+    expect(focusNoticePlacement({ x: 1, y: 0.3 }).leftPercent).toBe(82);
+  });
+
+  it("leaves a tap comfortably inside the frame where it is", () => {
+    expect(focusNoticePlacement({ x: 0.25, y: 0.3 }).leftPercent).toBe(25);
+    expect(focusNoticePlacement({ x: 0.8, y: 0.3 }).leftPercent).toBe(80);
+  });
+
+  it("flips above the tap near the bottom, clear of the shutter controls", () => {
+    expect(focusNoticePlacement({ x: 0.5, y: 0.95 }).above).toBe(true);
+    expect(focusNoticePlacement({ x: 0.5, y: 0.71 }).above).toBe(true);
+  });
+
+  it("stays below the tap everywhere else", () => {
+    expect(focusNoticePlacement({ x: 0.5, y: 0.7 }).above).toBe(false);
+    expect(focusNoticePlacement({ x: 0.5, y: 0.1 }).above).toBe(false);
+  });
+
+  it("falls back to the middle rather than rendering nowhere", () => {
+    expect(focusNoticePlacement({ x: Number.NaN, y: Number.NaN })).toEqual({
+      leftPercent: 50,
+      topPercent: 50,
+      above: false,
+    });
   });
 });

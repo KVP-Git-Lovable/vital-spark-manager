@@ -116,3 +116,37 @@ export function tapFocusConstraints(
   // not at all - the point and the mode have to arrive as one instruction.
   return { advanced: [{ focusMode: mode, pointsOfInterest: [{ x: point.x, y: point.y }] }] };
 }
+
+/**
+ * Where to put the "open phone camera" notice, given where the finger landed.
+ *
+ * The notice is the button now, so the only thing that really matters here is
+ * that it ends up somewhere it can actually be pressed. Two ways it could not:
+ * hanging off the side of the screen when the tap was near an edge, and
+ * sitting underneath the shutter controls, which overlay the bottom of the
+ * viewfinder on a phone.
+ *
+ * Percentages rather than pixels, because the caller positions it against the
+ * frame and the frame is a different size on every device.
+ */
+export interface NoticePlacement {
+  leftPercent: number;
+  topPercent: number;
+  /** Put it above the tap rather than below, to clear the bottom controls. */
+  above: boolean;
+}
+
+/** Keeps a pill of roughly 200px fully inside a 390px phone screen. */
+const NOTICE_EDGE_MARGIN = 18;
+/** Below this the bottom controls start, so the notice goes above the tap. */
+const NOTICE_FLIP_AT = 0.7;
+
+export function focusNoticePlacement(point: FocusPoint): NoticePlacement {
+  const x = Number.isFinite(point?.x) ? point.x : 0.5;
+  const y = Number.isFinite(point?.y) ? point.y : 0.5;
+  return {
+    leftPercent: Math.min(100 - NOTICE_EDGE_MARGIN, Math.max(NOTICE_EDGE_MARGIN, x * 100)),
+    topPercent: clamp01(y) * 100,
+    above: y > NOTICE_FLIP_AT,
+  };
+}

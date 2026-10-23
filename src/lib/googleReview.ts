@@ -17,8 +17,14 @@ import { normalizePhone } from "@/lib/audienceImport";
  *
  * No name placeholder, deliberately. The clinic wrote it without one, and a
  * body with no variables is also the easiest kind for Meta to approve.
+ *
+ * This text is now the APPROVED template, character for character - Twilio
+ * content SID HXf1521e98ec4adb966dd73ac571050e29, approved 23 Oct 2026. Meta
+ * approves a body, not a template name, so editing a word here without
+ * resubmitting the template means the app sends one thing and WhatsApp
+ * delivers another. The test below holds it in place.
  */
-export const GOOGLE_REVIEW_MESSAGE = `It has been a great pleasure serving you . Your feedback really matter to us. Please leave us a review and share your experience about the treatment and clinic with us. 
+export const GOOGLE_REVIEW_MESSAGE = `It has been a great pleasure serving you. Your feedback really matter to us. Please leave us a review and share your experience about the treatment and clinic with us. 
 Click on the link: https://g.co/kgs/6Zy6nc
 
 The Skin Clinic

@@ -160,6 +160,46 @@ function FeedbackTabContent({
    * changes.
    */
   const review = reviewRequestState(patientPhone);
+  const [reviewSending, setReviewSending] = useState(false);
+  // Only true once a send has actually failed, so the manual route is offered
+  // rather than sitting there inviting people away from the working one.
+  const [reviewFailed, setReviewFailed] = useState(false);
+  /**
+   * Send it, the way appointment confirmations are sent.
+   *
+   * This used to open WhatsApp in a new tab, which was always a stopgap - the
+   * template was not approved and nothing could send it. It is approved now
+   * (Twilio content SID HXf1521e98ec4adb966dd73ac571050e29), so the app sends
+   * it itself through send-google-review-whatsapp, exactly as
+   * send-appointment-whatsapp sends a confirmation.
+   *
+   * The stopgap also did not work where the clinic uses the app: opening
+   * wa.me from inside the preview, which runs in a frame, lands on
+   * "api.whatsapp.com refused to connect". So the fallback is no longer taken
+   * automatically - a failure says what went wrong and OFFERS the link, which
+   * the person clicks themselves. A link somebody chooses to click opens; one
+   * the page opens for them is what the frame blocks.
+   */
+  const sendReviewRequest = async () => {
+    if (!review.enabled || !patientId) return;
+    setReviewSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-google-review-whatsapp", {
+        body: { patient_id: patientId, appointment_id: appointmentId },
+      });
+      if (error) throw new Error(error.message || "Could not send the review request");
+      const result = data as { ok?: boolean; error?: string } | null;
+      if (result && result.ok === false) throw new Error(result.error || "Could not send the review request");
+      setReviewFailed(false);
+      toast.success("Review request sent on WhatsApp");
+    } catch (e) {
+      setReviewFailed(true);
+      toast.error(e instanceof Error ? e.message : "Could not send the review request");
+    } finally {
+      setReviewSending(false);
+    }
+  };
+
   const reviewRequestButton = (
     <div>
       <Button
@@ -168,15 +208,28 @@ function FeedbackTabContent({
         size="sm"
         className="gap-1.5"
         data-testid="send-google-review"
-        disabled={!review.enabled}
-        onClick={() => {
-          if (review.url) window.open(review.url, "_blank", "noopener,noreferrer");
-        }}
+        disabled={!review.enabled || reviewSending}
+        onClick={sendReviewRequest}
       >
-        <Star className="h-3.5 w-3.5" /> Send Google review request
+        <Star className="h-3.5 w-3.5" />
+        {reviewSending ? "Sending…" : "Send Google review request"}
       </Button>
       {!review.enabled && (
         <p className="text-[11px] text-muted-foreground mt-1">{review.reason}</p>
+      )}
+      {reviewFailed && review.url && (
+        <p className="text-[11px] text-muted-foreground mt-1">
+          Could not send from the app.{" "}
+          <a
+            href={review.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline text-primary"
+            data-testid="open-whatsapp-instead"
+          >
+            Open WhatsApp instead
+          </a>
+        </p>
       )}
     </div>
   );

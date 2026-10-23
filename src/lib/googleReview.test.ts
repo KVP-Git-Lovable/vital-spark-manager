@@ -88,3 +88,22 @@ describe("reviewRequestState", () => {
     }
   });
 });
+
+describe("staying in step with the approved template", () => {
+  /**
+   * Twilio content SID HXf1521e98ec4adb966dd73ac571050e29, approved 23 Oct
+   * 2026. Meta approves a BODY, not a name - so if this text and the template
+   * drift apart, the app sends one thing and WhatsApp delivers another, and
+   * the template has to be resubmitted and re-approved to fix it.
+   */
+  it("matches the approved body exactly", () => {
+    // The clinic corrected "serving you ." to "serving you." when they created
+    // the template; the app follows the approved wording, not the other way.
+    expect(GOOGLE_REVIEW_MESSAGE).toContain("great pleasure serving you. Your feedback");
+    expect(GOOGLE_REVIEW_MESSAGE).not.toContain("serving you .");
+  });
+
+  it("is still the length Meta approved", () => {
+    expect(GOOGLE_REVIEW_MESSAGE).toHaveLength(302);
+  });
+});

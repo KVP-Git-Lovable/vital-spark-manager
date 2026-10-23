@@ -7,6 +7,7 @@ import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotific
 import { confirmationSendPlan } from "@/lib/confirmationSend";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
 import { reviewRequestState } from "@/lib/googleReview";
+import { deliveryOutcome, type DeliveryOutcome } from "@/lib/whatsappDelivery";
 import { openAppointmentNotice, type AppointmentChange } from "@/lib/liveAppointments";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { rescheduleVerdict, rescheduleWarning } from "@/lib/appointmentReschedule";
@@ -180,18 +181,56 @@ function FeedbackTabContent({
    * the person clicks themselves. A link somebody chooses to click opens; one
    * the page opens for them is what the frame blocks.
    */
+  /**
+   * Did the patient actually get it?
+   *
+   * Twilio accepting a message is not WhatsApp delivering one, and the app was
+   * announcing the first as though it were the second: it said "sent" while
+   * Meta was refusing to deliver the marketing template with error 63049. The
+   * delivery webhook records the real answer in whatsapp_delivery_log within a
+   * second or two, so it is worth waiting for rather than guessing.
+   */
+  const confirmDelivery = async (messageSid?: string): Promise<DeliveryOutcome> => {
+    if (!messageSid) return deliveryOutcome(null, null);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      const { data } = await supabase
+        .from("whatsapp_delivery_log")
+        .select("status, error_code")
+        .eq("message_sid", messageSid)
+        .maybeSingle();
+      if (data) {
+        const outcome = deliveryOutcome(data.status, data.error_code);
+        // Keep waiting only while it is genuinely undecided.
+        if (!outcome.pending) return outcome;
+      }
+    }
+    return deliveryOutcome(null, null);
+  };
+
   const sendReviewRequest = async () => {
     if (!review.enabled || !patientId) return;
     setReviewSending(true);
+    setReviewFailed(false);
     try {
       const { data, error } = await supabase.functions.invoke("send-google-review-whatsapp", {
         body: { patient_id: patientId, appointment_id: appointmentId },
       });
       if (error) throw new Error(error.message || "Could not send the review request");
-      const result = data as { ok?: boolean; error?: string } | null;
+      const result = data as { ok?: boolean; error?: string; messageSid?: string } | null;
       if (result && result.ok === false) throw new Error(result.error || "Could not send the review request");
-      setReviewFailed(false);
-      toast.success("Review request sent on WhatsApp");
+
+      const outcome = await confirmDelivery(result?.messageSid);
+      if (outcome.delivered) {
+        toast.success(outcome.message);
+      } else if (outcome.pending) {
+        toast.info(outcome.message);
+      } else {
+        // Not an error in the clinic's setup - Meta declined to deliver it -
+        // so the manual route is offered rather than the failure just sitting.
+        setReviewFailed(true);
+        toast.error(outcome.message, { duration: 10000 });
+      }
     } catch (e) {
       setReviewFailed(true);
       toast.error(e instanceof Error ? e.message : "Could not send the review request");
@@ -219,7 +258,7 @@ function FeedbackTabContent({
       )}
       {reviewFailed && review.url && (
         <p className="text-[11px] text-muted-foreground mt-1">
-          Could not send from the app.{" "}
+          Not delivered from the app.{" "}
           <a
             href={review.url}
             target="_blank"

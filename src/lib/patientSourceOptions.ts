@@ -36,9 +36,3 @@ export function optionsIncluding(
   if (!value || canonical.includes(value)) return [...canonical];
   return [...canonical, value];
 }
-
-/** Sources that mean "someone referred them", which is what asks for a name. */
-export const isReferralSource = (source: string | null | undefined): boolean => {
-  const value = (source ?? "").trim().toLowerCase();
-  return value === "dr. referral" || value === "referred by patient";
-};

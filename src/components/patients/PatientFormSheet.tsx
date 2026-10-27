@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { X, Search, Check, ChevronsUpDown, Plus, Trash2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,8 @@ import { useValidator } from "@/hooks/useValidationRules";
 import { useCustomFields } from "@/lib/custom-fields/api";
 import { CustomFieldsRenderer, validateCustomFields } from "@/components/custom-fields/CustomFieldsRenderer";
 import { PATIENT_SOURCE_OPTIONS, optionsIncluding } from "@/lib/patientSourceOptions";
+import { referralKind, referrerStillApplies } from "@/lib/patientReferral";
+import { ReferringDoctorPicker } from "./ReferringDoctorPicker";
 import type { ValidationMessage } from "@/lib/validation/engine";
 import { AlertCircle } from "lucide-react";
 import { Sparkles, Loader2 } from "lucide-react";
@@ -133,13 +135,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [consultationReasons, setConsultationReasons] = useState<string[]>([]);
   const [othersAestheticText, setOthersAestheticText] = useState("");
   const [othersClinicalText, setOthersClinicalText] = useState("");
-  const [refDocOpen, setRefDocOpen] = useState(false);
-  const [refDocSearch, setRefDocSearch] = useState("");
-  const [addDoctorOpen, setAddDoctorOpen] = useState(false);
-  const [newDoctorName, setNewDoctorName] = useState("");
-  const [savingDoctor, setSavingDoctor] = useState(false);
-  const [deletingDoctorId, setDeletingDoctorId] = useState<string | null>(null);
-  const [deletingDoctorName, setDeletingDoctorName] = useState("");
   const [familyRows, setFamilyRows] = useState<FamilyRow[]>([]);
   const [activeTab, setActiveTab] = useState("personal");
   const [removedFamilyIds, setRemovedFamilyIds] = useState<string[]>([]);
@@ -151,47 +146,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [familyExisting, setFamilyExisting] = useState<Record<string, any>>({});
   const { toast } = useToast();
   const isEditing = !!patient;
-
-  const { data: referralDoctors = [], refetch: refetchDoctors } = useQuery({
-    queryKey: ["referral-doctors-list"],
-    queryFn: async () => {
-      const [staffResult, externalResult] = await Promise.all([
-        supabase
-          .from("staff")
-          .select("id, first_name, last_name, role, specialization")
-          .in("role", ["Doctor", "Referral Doctor"])
-          .eq("is_active", true)
-          .order("first_name"),
-        supabase
-          .from("external_doctors")
-          .select("id, name, specialization")
-          .order("name")
-      ]);
-
-      const staffDocs = (staffResult.data || []).map(s => ({
-        ...s,
-        type: "internal",
-        display_name: `${s.first_name} ${s.last_name}`
-      }));
-
-      const externalDocs = (externalResult.data || []).map(e => ({
-        ...e,
-        type: "external",
-        display_name: e.name
-      }));
-
-      return [...staffDocs, ...externalDocs].sort((a, b) =>
-        a.display_name.localeCompare(b.display_name)
-      );
-    },
-  });
-  const filteredRefDocs = useMemo(() => {
-    const q = refDocSearch.toLowerCase();
-    return referralDoctors.filter((s: any) =>
-      `${s.first_name} ${s.last_name}`.toLowerCase().includes(q) ||
-      (s.specialization || "").toLowerCase().includes(q)
-    );
-  }, [referralDoctors, refDocSearch]);
 
   const { data: allPatients = [] } = useQuery({
     queryKey: ["patients-lookup"],
@@ -300,22 +254,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
 
   const updateField = (field: keyof typeof form, value: string | null) => {
     setForm((prev) => ({ ...prev, [field]: value || null }));
-  };
-
-  const handleDeleteExternalDoctor = async (doctorId: string) => {
-    try {
-      const { error } = await supabase
-        .from("external_doctors")
-        .delete()
-        .eq("id", doctorId);
-      if (error) throw error;
-      await refetchDoctors();
-      setDeletingDoctorId(null);
-      setDeletingDoctorName("");
-      toast({ title: "Doctor deleted successfully" });
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
   };
 
   const validate = useValidator("patients");
@@ -819,7 +757,14 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
                     ...prev,
                     source: v,
                     source_ad_details: v !== "Advertisement" ? null : (prev as any).source_ad_details,
-                    source_referral_doctor: (v !== "Dr. referral" && v !== "Referred by Patient") ? null : (prev as any).source_referral_doctor,
+                    // The column holds a doctor's NAME for one kind of referral
+                    // and the referring patient's ID for the other, so a switch
+                    // between the two has to clear it - a name left in a column
+                    // read as an id resolves to nobody. Moving between two
+                    // sources of the SAME kind keeps it.
+                    source_referral_doctor: referrerStillApplies((prev as any).source, v)
+                      ? (prev as any).source_referral_doctor
+                      : null,
                     source_other_text: v !== "Other" ? null : (prev as any).source_other_text,
                   }))}
                 >
@@ -851,99 +796,21 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
               </div>
             )}
 
-            {((form as any).source && (form as any).source.toLowerCase().includes("referral")) && (
+            {referralKind((form as any).source) === "doctor" && (
               <div className="animate-fade-in">
                 <Label>Referred Doctor Name *</Label>
-                <Popover open={refDocOpen} onOpenChange={setRefDocOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="w-full mt-1.5 justify-between font-normal"
-                    >
-                      <span className="truncate">
-                        {(form as any).source_referral_doctor || "Select referring doctor..."}
-                      </span>
-                      <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[300px] p-2" align="start">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <Input
-                        placeholder="Search doctors..."
-                        value={refDocSearch}
-                        onChange={(e) => setRefDocSearch(e.target.value)}
-                        className="h-8"
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0 shrink-0"
-                        onClick={() => setAddDoctorOpen(true)}
-                        title="Add new doctor"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="max-h-56 overflow-y-auto space-y-0.5">
-                      {filteredRefDocs.length === 0 ? (
-                        <p className="text-xs text-muted-foreground text-center py-3">
-                          No doctors found.
-                        </p>
-                      ) : (
-                        filteredRefDocs.map((s: any) => {
-                          const name = s.display_name;
-                          const selected = (form as any).source_referral_doctor === name;
-                          return (
-                            <div key={s.id} className="group relative">
-                              <button
-                                type="button"
-                                className={cn(
-                                  "w-full text-left px-2 py-1.5 text-sm rounded flex items-center gap-2 hover:bg-accent",
-                                  selected && "bg-accent"
-                                )}
-                                onClick={() => {
-                                  setForm((prev) => ({ ...prev, source_referral_doctor: name }));
-                                  setRefDocOpen(false);
-                                  setRefDocSearch("");
-                                }}
-                              >
-                                <Check className={cn("h-3.5 w-3.5", selected ? "opacity-100" : "opacity-0")} />
-                                <div className="flex-1 min-w-0">
-                                  <p className="truncate">{name}</p>
-                                  <p className="text-[10px] text-muted-foreground truncate">
-                                    {s.type === "external" ? "External Doctor" : [s.role, s.specialization].filter(Boolean).join(" · ")}
-                                    {s.specialization && s.type === "external" && ` · ${s.specialization}`}
-                                  </p>
-                                </div>
-                              </button>
-                              {s.type === "external" && (
-                                <button
-                                  type="button"
-                                  className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/20 text-destructive transition-opacity"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDeletingDoctorId(s.id);
-                                    setDeletingDoctorName(name);
-                                  }}
-                                  title="Delete external doctor"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                {/* The same picker the patient Details tab now shows, so a
+                    doctor's name is chosen from one list wherever it is set. */}
+                <div className="mt-1.5">
+                  <ReferringDoctorPicker
+                    value={(form as any).source_referral_doctor}
+                    onChange={(name) => setForm((prev) => ({ ...prev, source_referral_doctor: name }))}
+                  />
+                </div>
               </div>
             )}
 
-            {(form as any).source === "Referred by Patient" && (
+            {referralKind((form as any).source) === "patient" && (
               <div className="animate-fade-in">
                 <Label>Referring Patient *</Label>
                 <Popover open={referralPopoverOpen} onOpenChange={setReferralPopoverOpen}>
@@ -1281,85 +1148,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
           </Button>
         </div>
 
-        {/* Add External Doctor Modal */}
-        <Dialog open={addDoctorOpen} onOpenChange={setAddDoctorOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Add External Doctor</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="doctor-name">Doctor Name *</Label>
-                <Input
-                  id="doctor-name"
-                  placeholder="e.g., Dr. John Smith"
-                  value={newDoctorName}
-                  onChange={(e) => setNewDoctorName(e.target.value)}
-                  className="mt-1.5"
-                />
-              </div>
-              <div className="flex gap-2 pt-2">
-                <Button variant="outline" className="flex-1" onClick={() => { setAddDoctorOpen(false); setNewDoctorName(""); }}>
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1"
-                  onClick={async () => {
-                    if (!newDoctorName.trim()) {
-                      toast({ title: "Error", description: "Please enter doctor name" });
-                      return;
-                    }
-                    setSavingDoctor(true);
-                    try {
-                      const { data, error } = await supabase.from("external_doctors").insert({
-                        name: newDoctorName.trim(),
-                      }).select();
-                      if (error) throw error;
-                      if (data && data[0]) {
-                        setForm((prev) => ({ ...prev, source_referral_doctor: data[0].name }));
-                        await refetchDoctors();
-                        toast({ title: "Success", description: "Doctor added successfully" });
-                      }
-                      setAddDoctorOpen(false);
-                      setNewDoctorName("");
-                    } catch (err: any) {
-                      toast({ title: "Error", description: err.message });
-                    } finally {
-                      setSavingDoctor(false);
-                    }
-                  }}
-                  disabled={savingDoctor || !newDoctorName.trim()}
-                >
-                  {savingDoctor ? "Adding..." : "Add Doctor"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Delete External Doctor Confirmation */}
-        <Dialog open={!!deletingDoctorId} onOpenChange={(open) => { if (!open) setDeletingDoctorId(null); }}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Delete Doctor?</DialogTitle>
-            </DialogHeader>
-            <p className="text-sm text-muted-foreground">
-              Are you sure you want to delete <span className="font-medium">{deletingDoctorName}</span>? This action cannot be undone.
-            </p>
-            <div className="flex gap-2 pt-4">
-              <Button variant="outline" className="flex-1" onClick={() => setDeletingDoctorId(null)}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex-1"
-                onClick={() => deletingDoctorId && handleDeleteExternalDoctor(deletingDoctorId)}
-              >
-                Delete
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </DialogContent>
     </Dialog>
     </>

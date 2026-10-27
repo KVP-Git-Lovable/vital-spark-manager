@@ -57,7 +57,10 @@ import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { approveSurveyResponse, enrichAiProducts, enrichAiServices } from "@/lib/surveyApproval";
 import { procedureDateLabel } from "@/lib/procedureDate";
 import { investigationText } from "@/lib/investigationText";
-import { PATIENT_SOURCE_OPTIONS, PATIENT_GENDER_OPTIONS, optionsIncluding, isReferralSource } from "@/lib/patientSourceOptions";
+import { PATIENT_SOURCE_OPTIONS, PATIENT_GENDER_OPTIONS, optionsIncluding } from "@/lib/patientSourceOptions";
+import { referralKind, referrerStillApplies } from "@/lib/patientReferral";
+import { ReferringDoctorPicker } from "@/components/patients/ReferringDoctorPicker";
+import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { CustomFieldsRenderer } from "@/components/custom-fields/CustomFieldsRenderer";
 import {
   ConsultationReasonPicker,
@@ -257,7 +260,7 @@ const PatientDetail = () => {
   // that patient's id in that case, and a doctor's name in the other, so this
   // only looks up something that is actually an id.
   const referringPatientId =
-    patient?.source === "Referred by Patient" && UUID_RE.test(String(patient?.source_referral_doctor || ""))
+    referralKind(patient?.source) === "patient" && UUID_RE.test(String(patient?.source_referral_doctor || ""))
       ? String(patient.source_referral_doctor)
       : null;
   const { data: referringPatient } = useQuery({
@@ -888,7 +891,7 @@ const PatientDetail = () => {
               // stores that patient's id. Show the name either way rather than a
               // raw uuid - referringPatient resolves the second case.
               const referredByLabel =
-                (d.source === "Referred by Patient" && referringPatient
+                (referralKind(d.source) === "patient" && referringPatient
                   ? `${referringPatient.first_name || ""} ${referringPatient.last_name || ""}`.trim()
                   : "") || d.source_referral_doctor;
               // Empty text becomes null, but a boolean is passed through: `false || null`
@@ -1114,7 +1117,23 @@ const PatientDetail = () => {
                         {readOnly ? (
                           <p className="text-sm mt-1">{d.source || <span className="text-muted-foreground/50">—</span>}</p>
                         ) : (
-                          <Select value={d.source || "Walk-in"} onValueChange={(v) => upd("source", v)}>
+                          <Select
+                            value={d.source || "Walk-in"}
+                            onValueChange={(v) =>
+                              setDetailsForm((prev: any) => ({
+                                ...prev,
+                                source: v,
+                                // Same rule as the Add form: the column holds a
+                                // doctor's name for one kind of referral and a
+                                // patient's id for the other, so switching kind
+                                // has to clear it rather than leave a name where
+                                // an id is read.
+                                source_referral_doctor: referrerStillApplies(prev.source, v)
+                                  ? prev.source_referral_doctor
+                                  : null,
+                              }))
+                            }
+                          >
                             <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {/* Was three literal options - Walk-in, Advertisement
@@ -1130,22 +1149,42 @@ const PatientDetail = () => {
                         )}
                       </div>
                       {d.source === "Advertisement" && <Field label="Ad Details" value={d.source_ad_details} field="source_ad_details" />}
-                      {/* Was gated on "Other Dr. referral", a value the form never
-                          writes, so whoever referred the patient never showed. For
-                          "Referred by Patient" the column holds that patient's id,
-                          which would otherwise print as a raw uuid. */}
-                      {isReferralSource(d.source) && (
-                        // For "Referred by Patient" the column holds the referring
-                        // patient's id while this shows their name, so an editable
-                        // box here would write the name over the id and break the
-                        // lookup. That case is chosen with the form's patient
-                        // picker; "Dr. referral" really does store a name.
-                        <Field
-                          label="Referred By"
-                          value={referredByLabel}
-                          field="source_referral_doctor"
-                          neverEditable={UUID_RE.test(String(d.source_referral_doctor || ""))}
-                        />
+                      {/* A free text box here where the Add form shows a list:
+                          the clinic picked a doctor from four on registration and
+                          then retyped the name - or a variant of it - on every
+                          edit. The same two pickers the form uses now, chosen by
+                          the one shared rule, which also recognises the imported
+                          "Reference - other Dr" and "Reference - other patients"
+                          that 546 patients carry and that no screen used to offer
+                          a referrer box for at all. */}
+                      {referralKind(d.source) !== "none" && (
+                        <div>
+                          <Label className="text-xs text-muted-foreground">
+                            {referralKind(d.source) === "patient" ? "Referred By Patient" : "Referred By Doctor"}
+                          </Label>
+                          {readOnly ? (
+                            <p className="text-sm mt-1">
+                              {referredByLabel || <span className="text-muted-foreground/50">—</span>}
+                            </p>
+                          ) : referralKind(d.source) === "doctor" ? (
+                            <ReferringDoctorPicker
+                              value={d.source_referral_doctor}
+                              onChange={(name) => upd("source_referral_doctor", name)}
+                              className="mt-1 h-8 text-sm"
+                            />
+                          ) : (
+                            // Stores the referring patient's id, which is what the
+                            // column holds for this source - the old box wrote the
+                            // displayed name over that id, so it had to be locked
+                            // read-only and the referrer could not be corrected.
+                            <PatientCombobox
+                              value={UUID_RE.test(String(d.source_referral_doctor || "")) ? String(d.source_referral_doctor) : ""}
+                              onValueChange={(patientId) => upd("source_referral_doctor", patientId)}
+                              placeholder="Select patient"
+                              className="mt-1 h-8 text-sm"
+                            />
+                          )}
+                        </div>
                       )}
                       {d.source === "Other" && <Field label="Specify Source" value={d.source_other_text} field="source_other_text" />}
                       <Field label="Facebook URL" value={d.facebook_url} field="facebook_url" />

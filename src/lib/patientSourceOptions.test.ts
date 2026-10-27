@@ -3,7 +3,6 @@ import {
   PATIENT_SOURCE_OPTIONS,
   PATIENT_GENDER_OPTIONS,
   optionsIncluding,
-  isReferralSource,
 } from "./patientSourceOptions";
 
 describe("PATIENT_SOURCE_OPTIONS", () => {
@@ -56,19 +55,3 @@ describe("optionsIncluding", () => {
   });
 });
 
-describe("isReferralSource", () => {
-  it("recognises the two sources that name somebody", () => {
-    expect(isReferralSource("Dr. referral")).toBe(true);
-    expect(isReferralSource("Referred by Patient")).toBe(true);
-  });
-
-  it("ignores case and padding, as the form's own check does", () => {
-    expect(isReferralSource("  dr. referral ")).toBe(true);
-  });
-
-  it("is false for everything else", () => {
-    for (const s of ["Walk-in", "Advertisement", "Campaign", "Other", "Social media", "", null]) {
-      expect(isReferralSource(s)).toBe(false);
-    }
-  });
-});

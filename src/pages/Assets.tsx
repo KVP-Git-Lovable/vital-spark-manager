@@ -9,14 +9,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
 import { Package, Plus, Search, Building2, AlertTriangle, Pencil } from "lucide-react";
 import { AssetFormDialog } from "@/components/assets/AssetFormDialog";
-import { VendorFormDialog } from "@/components/assets/VendorFormDialog";
+import { useNavigate } from "react-router-dom";
+import { primaryVendorContact } from "@/lib/vendorContacts";
 import { IssueFormDialog } from "@/components/assets/IssueFormDialog";
 import { AssetDetailSheet } from "@/components/assets/AssetDetailSheet";
 
 const Assets = () => {
   const [search, setSearch] = useState("");
   const [assetFormOpen, setAssetFormOpen] = useState(false);
-  const [vendorFormOpen, setVendorFormOpen] = useState(false);
+  const navigate = useNavigate();
   const [issueFormOpen, setIssueFormOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   // The asset whose details are being corrected. Null means the form is
@@ -45,6 +46,28 @@ const Assets = () => {
     },
   });
 
+  /**
+   * The contacts Vendor Master writes.
+   *
+   * This tab used to render vendors.contact_person and vendors.phone, which
+   * Vendor Master never writes - it stores contacts in vendor_contacts and
+   * rewrites them on every save. Live data when this was reported: 15 contacts
+   * across 11 of 12 vendors here, and the flat phone column populated on
+   * exactly zero. So the Contact and Phone columns could not have shown
+   * anything, whatever the clinic typed. See primaryVendorContact.
+   */
+  const { data: vendorContacts = [] } = useQuery({
+    queryKey: ["vendor-contacts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vendor_contacts")
+        .select("vendor_id, contact_name, phone, email")
+        .order("created_at");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: issues = [] } = useQuery({
     queryKey: ["asset-issues"],
     queryFn: async () => {
@@ -62,7 +85,7 @@ const Assets = () => {
   );
 
   const filteredVendors = vendors.filter((v: any) =>
-    `${v.name} ${v.contact_person} ${v.category}`.toLowerCase().includes(search.toLowerCase())
+    `${v.name} ${primaryVendorContact(v, vendorContacts).name} ${v.category}`.toLowerCase().includes(search.toLowerCase())
   );
 
   const isWarrantyActive = (endDate: string | null) => endDate ? new Date(endDate) > new Date() : false;
@@ -258,7 +281,7 @@ const Assets = () => {
 
         <TabsContent value="vendors">
           <div className="flex justify-end mb-4">
-            <Button size="sm" className="gap-1.5" onClick={() => setVendorFormOpen(true)}>
+            <Button size="sm" className="gap-1.5" onClick={() => navigate("/vendors?new=1")}>
               <Plus className="h-3.5 w-3.5" /> Add Vendor
             </Button>
           </div>
@@ -267,14 +290,18 @@ const Assets = () => {
           <div className="md:hidden space-y-3">
             {filteredVendors.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-sm">No vendors found</div>
-            ) : filteredVendors.map((v: any) => (
+            ) : filteredVendors.map((v: any) => {
+              const contact = primaryVendorContact(v, vendorContacts);
+              return (
               <div key={v.id} className="stat-card p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-medium text-sm">{v.name}</p>
-                    {v.contact_person && <p className="text-xs text-muted-foreground">{v.contact_person}</p>}
+                    {contact.name && (
+                      <p className="text-xs text-muted-foreground">{contact.name}</p>
+                    )}
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
-                      {v.phone && <span>{v.phone}</span>}
+                      {contact.phone && <span>{contact.phone}</span>}
                       {v.city && <span>{v.city}</span>}
                     </div>
                   </div>
@@ -283,10 +310,14 @@ const Assets = () => {
                     <Badge className={`text-[10px] ${v.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
                       {v.is_active ? "Active" : "Inactive"}
                     </Badge>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => navigate(`/vendors?edit=${v.id}`)}>
+                      Edit
+                    </Button>
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Desktop table */}
@@ -300,16 +331,19 @@ const Assets = () => {
                   <th className="text-left text-xs font-medium text-muted-foreground p-4">City</th>
                   <th className="text-left text-xs font-medium text-muted-foreground p-4">Category</th>
                   <th className="text-left text-xs font-medium text-muted-foreground p-4">Status</th>
+                  <th className="text-right text-xs font-medium text-muted-foreground p-4"></th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {filteredVendors.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-muted-foreground text-sm">No vendors found</td></tr>
-                ) : filteredVendors.map((v: any) => (
+                  <tr><td colSpan={7} className="text-center py-8 text-muted-foreground text-sm">No vendors found</td></tr>
+                ) : filteredVendors.map((v: any) => {
+                  const contact = primaryVendorContact(v, vendorContacts);
+                  return (
                   <tr key={v.id} className="hover:bg-muted/30 transition-colors">
                     <td className="p-4 font-medium text-sm">{v.name}</td>
-                    <td className="p-4 text-sm text-muted-foreground">{v.contact_person || "—"}</td>
-                    <td className="p-4 text-sm text-muted-foreground">{v.phone || "—"}</td>
+                    <td className="p-4 text-sm text-muted-foreground">{contact.name || "—"}</td>
+                    <td className="p-4 text-sm text-muted-foreground">{contact.phone || "—"}</td>
                     <td className="p-4 text-sm text-muted-foreground">{v.city || "—"}</td>
                     <td className="p-4"><Badge variant="outline" className="text-xs">{v.category}</Badge></td>
                     <td className="p-4">
@@ -317,8 +351,17 @@ const Assets = () => {
                         {v.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </td>
+                    {/* Edited in Vendor Master, which owns vendors and their
+                        contacts - rather than a second form here that could
+                        create but never edit. */}
+                    <td className="p-4 text-right">
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => navigate(`/vendors?edit=${v.id}`)}>
+                        Edit
+                      </Button>
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </motion.div>
@@ -396,7 +439,6 @@ const Assets = () => {
         vendors={vendors}
         asset={editingAsset}
       />
-      <VendorFormDialog open={vendorFormOpen} onOpenChange={setVendorFormOpen} />
       <IssueFormDialog open={issueFormOpen} onOpenChange={setIssueFormOpen} assets={assets} vendors={vendors} />
       {selectedAsset && (
         <AssetDetailSheet

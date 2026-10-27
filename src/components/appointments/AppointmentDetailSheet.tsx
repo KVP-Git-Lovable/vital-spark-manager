@@ -36,9 +36,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -70,6 +67,8 @@ import { appointmentDeleteNote } from "@/lib/appointmentDeleteNote";
 // on one screen and "Promoter" on the other.
 import { npsCategory, ratingLabel } from "@/lib/feedbackScores";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
+import { PhotoViewer } from "@/components/patients/PhotoViewer";
+import { orderAppointmentPhotos, photoPositionIn } from "@/lib/appointmentPhotos";
 import { investigationText } from "@/lib/investigationText";
 import { displayDate } from "@/lib/dateInput";
 import { appointmentPatientName, appointmentPatientIsVip } from "@/lib/appointmentPatientName";
@@ -462,7 +461,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [procFormOpen, setProcFormOpen] = useState(false);
   const [scanProcOpen, setScanProcOpen] = useState(false);
   const [selectedProcId, setSelectedProcId] = useState<string | null>(null);
-  const [viewPhoto, setViewPhoto] = useState<any>(null);
+  // An index into the photos as the tab lays them out, not the photo itself:
+  // that is what lets the viewer step to the next one. Mirrors PatientDetail.
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   // Radix's Dialog/Sheet scroll-lock only touches document.body, but this
   // app's real scroll container is <main overflow-auto> in AppLayout.tsx -
@@ -1295,8 +1296,13 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     }
   }, [appointmentId, appointment, patientName]);
 
-  const appointmentPhotos = photos.filter((p: any) => p.appointment_id === appointmentId);
-  const otherPhotos = photos.filter((p: any) => p.appointment_id !== appointmentId);
+  // Both grids and the full-size viewer read from one place, so the order the
+  // page shows and the order the arrows step through cannot drift apart.
+  const {
+    thisAppointment: appointmentPhotos,
+    others: otherPhotos,
+    ordered: orderedPhotos,
+  } = orderAppointmentPhotos(photos as any[], appointmentId);
 
   const TitleTag: any = isPage ? "h1" : SheetTitle;
 
@@ -2018,8 +2024,19 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                         {appointmentPhotos.map((photo: any) => (
                           <div key={photo.id} className="stat-card p-0 overflow-hidden group">
-                            <div className="relative cursor-pointer" onClick={() => setViewPhoto(photo)}>
-                              <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover" />
+                            <div className="relative">
+                              {/* A button, not a clickable div, so the thumbnail
+                                  is reachable from the keyboard - and the delete
+                                  control is a sibling rather than nested inside
+                                  it. Same shape as the patient record's grid. */}
+                              <button
+                                type="button"
+                                aria-label="View photo full size"
+                                className="block w-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={() => setViewerIndex(photoPositionIn(orderedPhotos, photo))}
+                              >
+                                <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover" />
+                              </button>
                               <Button
                                 variant="destructive"
                                 size="icon"
@@ -2045,8 +2062,19 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
                         {otherPhotos.map((photo: any) => (
                           <div key={photo.id} className="stat-card p-0 overflow-hidden group">
-                            <div className="relative cursor-pointer" onClick={() => setViewPhoto(photo)}>
-                              <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover" />
+                            <div className="relative">
+                              {/* A button, not a clickable div, so the thumbnail
+                                  is reachable from the keyboard - and the delete
+                                  control is a sibling rather than nested inside
+                                  it. Same shape as the patient record's grid. */}
+                              <button
+                                type="button"
+                                aria-label="View photo full size"
+                                className="block w-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={() => setViewerIndex(photoPositionIn(orderedPhotos, photo))}
+                              >
+                                <img src={photo.photo_url} alt="" loading="lazy" className="w-full aspect-square object-cover" />
+                              </button>
                               <Button
                                 variant="destructive"
                                 size="icon"
@@ -2204,18 +2232,15 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         </Sheet>
       )}
 
-      <Dialog open={!!viewPhoto} onOpenChange={(o) => { if (!o) setViewPhoto(null); }}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="font-display">
-              {viewPhoto ? `${patientName} · ${format(new Date(viewPhoto.taken_at), "dd MMM yyyy")}` : "Photo"}
-            </DialogTitle>
-          </DialogHeader>
-          {viewPhoto && (
-            <img src={viewPhoto.photo_url} alt="" className="w-full max-h-[75vh] object-contain rounded-lg bg-muted" />
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* The same viewer the patient record opens: chevrons, the arrow keys, a
+          counter and the original. It used to be a bare dialog here, so seeing
+          the next photo meant closing this one and finding the next tile. */}
+      <PhotoViewer
+        photos={orderedPhotos}
+        index={viewerIndex}
+        onIndexChange={setViewerIndex}
+        patientName={patientName}
+      />
       {cameraOpen && appointment?.patient_id && (
         <CameraCapture
           open={cameraOpen}

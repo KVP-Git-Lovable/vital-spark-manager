@@ -1,4 +1,5 @@
 import { hasRealName, isPhoneLikeName, rawPatientName, type NamedPatient } from "@/lib/patientName";
+import { isVipPatient } from "@/lib/vipPatient";
 
 /**
  * Whose name goes on an appointment.
@@ -116,5 +117,7 @@ export function appointmentPatientInitialsText(
 export function appointmentPatientIsVip(
   appointment: LabelledAppointment | null | undefined
 ): boolean {
-  return appointment?.patients?.is_vip === true;
+  // Delegated, so the appointment screens and the patients list cannot come to
+  // disagree about who is a VIP.
+  return isVipPatient(appointment?.patients);
 }

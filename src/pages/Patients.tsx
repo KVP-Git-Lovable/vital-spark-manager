@@ -46,6 +46,8 @@ import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { EngagementBadge } from "@/components/patients/EngagementBadge";
 import { PatientAvatar } from "@/components/patients/PatientAvatar";
+import { VipBadge } from "@/components/shared/VipBadge";
+import { isVipPatient } from "@/lib/vipPatient";
 import { usePatientAvatars } from "@/hooks/usePatientAvatars";
 import { useEngagementScores } from "@/hooks/useEngagementScores";
 import { QueryTimeoutNotice } from "@/components/shared/QueryTimeoutNotice";
@@ -502,7 +504,10 @@ const Patients = () => {
                             photoUrl={avatars[patient.id]}
                           />
                           <div>
-                            <p className="font-medium text-sm">{`${patient.first_name || ""} ${patient.last_name || ""}`.trim() || "Unnamed"}</p>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <p className="font-medium text-sm">{`${patient.first_name || ""} ${patient.last_name || ""}`.trim() || "Unnamed"}</p>
+                              {isVipPatient(patient) && <VipBadge />}
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               {patient.gender || "—"}
                               {getAge(patient.date_of_birth) !== null && ` · Age ${getAge(patient.date_of_birth)}`}

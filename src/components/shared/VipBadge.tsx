@@ -18,6 +18,11 @@ import { cn } from "@/lib/utils";
  * appointment - never for a list. Fifty animated pills in a day's appointments
  * is fifty compositor layers on a clinic PC, and the still badge is already the
  * only gold thing on the row.
+ *
+ * Nothing inside a list page sweeps, including its own detail pane: the split
+ * view shows the selected row and the detail heading side by side, and they are
+ * the same patient, so one swept and one still would read as two different
+ * marks on one screen. The sweep means you are on the record itself.
  */
 
 interface VipBadgeProps {

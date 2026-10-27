@@ -56,7 +56,7 @@ export async function fetchAppointmentsPage({
   // date-bounded views the clinic actually works in all day.
   let q = supabase
     .from("appointments")
-    .select("*, patients(first_name, last_name, phone, gender), staff(first_name, last_name)", { count: "exact" });
+    .select("*, patients(first_name, last_name, phone, gender, is_vip), staff(first_name, last_name)", { count: "exact" });
 
 
   if (dateRange) {

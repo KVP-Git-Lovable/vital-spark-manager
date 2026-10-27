@@ -3,7 +3,7 @@ import { reserveTab, type PendingTab } from "./newTab";
 import { fetchAppointmentsPage, type FetchAppointmentsPageParams } from "@/lib/appointmentsPage";
 import { displayDate } from "@/lib/dateInput";
 import { investigationText } from "@/lib/investigationText";
-import { appointmentPatientName } from "@/lib/appointmentPatientName";
+import { appointmentPatientName, appointmentPatientIsVip } from "@/lib/appointmentPatientName";
 
 const esc = (v: any) =>
   String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
@@ -57,12 +57,16 @@ export async function printAppointments(
     .map((a, i) => {
       const p = a.patients;
       const name = appointmentPatientName(a);
+      // The same mark the screen shows, so a sheet carried to the front desk
+      // says what the screen said. The word rather than the crown: a printer
+      // substitutes a font it has, and a missing glyph prints as a box.
+      const vip = appointmentPatientIsVip(a) ? ' <span class="vip">VIP</span>' : "";
       // Same column order as the list on screen, so a printed sheet can be read
       // alongside it. Date is dd/MM/yyyy via the app's own displayDate, and the
       // start time only - the end time is recorded but not printed.
       return `<tr>
         <td>${i + 1}</td>
-        <td>${esc(name)}</td>
+        <td>${esc(name)}${vip}</td>
         <td>${esc(p?.phone || "")}</td>
         <td>${esc(opts.staffName(a.staff_id))}</td>
         <td>${a.start_time ? esc(displayDate(a.start_time)) : ""}</td>
@@ -92,6 +96,25 @@ export async function printAppointments(
   .empty { font-size: 12px; color: #666; }
   /* The serial number is a counter, not data - it should not take width. */
   td:first-child, th:first-child { width: 8mm; text-align: right; color: #555; }
+  /* The VIP mark. Browsers drop background colours when printing unless told
+     otherwise, and a clinic may well print in black and white, so the border
+     and the bold word carry it on their own - the gold is a bonus when the
+     printer is in colour. nowrap keeps it whole beside the name. */
+  .vip {
+    display: inline-block;
+    white-space: nowrap;
+    margin-left: 4px;
+    padding: 0 4px;
+    border: 1px solid #b8912f;
+    border-radius: 8px;
+    background: #fdf3d7;
+    color: #6b4f12;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 </style></head><body>
 <h1>${esc(opts.clinicName || "Appointments")}</h1>
 <div class="meta">${esc(opts.rangeLabel)} · ${rows.length} appointment(s) · printed ${esc(format(new Date(), "dd MMM yyyy, hh:mm a"))}</div>

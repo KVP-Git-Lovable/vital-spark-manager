@@ -170,3 +170,67 @@ describe("printAppointments - the printed sheet's layout", () => {
     expect(html.indexOf("Dr Vindhya Pai")).toBeLessThan(html.indexOf("Review"));
   });
 });
+
+/**
+ * A sheet printed for the front desk should say what the screen said. The
+ * clinic marks a patient VIP so whoever greets them knows; a day sheet carried
+ * out to the desk that leaves the mark off defeats the point of making it.
+ */
+describe("printAppointments - the VIP mark", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    fetchAppointmentsPage.mockReset();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  const vipRow = (start: string, patient: string, is_vip: boolean) => ({
+    ...row(start, patient),
+    patients: { first_name: patient, last_name: "", phone: "", is_vip },
+  });
+
+  const printed = async (rows: unknown[]) => {
+    fetchAppointmentsPage.mockResolvedValue({ rows, total: rows.length });
+    const written = stubPrintWindow();
+    await printAppointments(baseParams, opts);
+    return written.join("");
+  };
+
+  it("marks the patient the clinic marked", async () => {
+    const html = await printed([vipRow("2026-10-27T10:15:00", "Sanah", true)]);
+    expect(html).toContain('Sanah <span class="vip">VIP</span>');
+  });
+
+  it("leaves everyone else unmarked", async () => {
+    const html = await printed([vipRow("2026-10-27T10:15:00", "Shilpa", false)]);
+    expect(html).not.toContain('class="vip"');
+  });
+
+  // An appointment fetched without the patient join must not be guessed into a
+  // VIP - a mark that should not be there is worse than one that is missing.
+  it("marks nobody when the flag was never fetched", async () => {
+    const html = await printed([row("2026-10-27T10:15:00", "Devaki")]);
+    expect(html).not.toContain('class="vip"');
+  });
+
+  it("puts the mark beside the name, not in a column of its own", async () => {
+    const html = await printed([vipRow("2026-10-27T10:15:00", "Sanah", true)]);
+    // The heading row is untouched: no new column, so nothing else on the
+    // sheet shifts.
+    expect(html).toContain(
+      "<thead><tr><th>#</th><th>Patient</th><th>Phone</th><th>Doctor</th><th>Date</th><th>Time</th><th>Investigation</th><th>Status</th></tr></thead>",
+    );
+    expect(html).toContain('<td>Sanah <span class="vip">VIP</span></td>');
+  });
+
+  // Browsers drop background colours when printing, and a clinic may print in
+  // black and white, so the mark cannot rely on the gold fill alone.
+  it("stays legible without colour", async () => {
+    const html = await printed([vipRow("2026-10-27T10:15:00", "Sanah", true)]);
+    expect(html).toContain("print-color-adjust: exact");
+    expect(html).toMatch(/\.vip\s*\{[^}]*border:\s*1px solid/);
+    expect(html).toMatch(/\.vip\s*\{[^}]*font-weight:\s*700/);
+  });
+});

@@ -7,8 +7,8 @@ import { numVal } from "@/lib/numberInput";
 import { applyMedicineDefaults } from "@/lib/medicineDefaults";
 import { usePharmaLookup } from "@/hooks/usePharmaLookup";
 import { useParams, useNavigate } from "react-router-dom";
-import { shortPatientId } from "@/lib/utils";
-import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound, Megaphone, Search, Sparkles, ImageOff, Lock } from "lucide-react";
+import { cn, shortPatientId } from "@/lib/utils";
+import { ArrowLeft, Camera, Calendar, ClipboardList, Pill, Receipt, User, Loader2, Share2, Copy, Check, ScanEye, FileText, Users, Plus, Save, Edit2, Info, Paperclip, Upload, X, ClipboardCheck, Trash2, ChevronDown, Eye, KeyRound, Megaphone, Search, Sparkles, ImageOff, Lock, Crown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
@@ -61,6 +61,7 @@ import { PATIENT_SOURCE_OPTIONS, PATIENT_GENDER_OPTIONS, optionsIncluding } from
 import { referralKind, referrerStillApplies, referringPatientId } from "@/lib/patientReferral";
 import { ReferringDoctorPicker } from "@/components/patients/ReferringDoctorPicker";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
+import { VipBadge } from "@/components/shared/VipBadge";
 import { CustomFieldsRenderer } from "@/components/custom-fields/CustomFieldsRenderer";
 import {
   ConsultationReasonPicker,
@@ -217,6 +218,7 @@ const PatientDetail = () => {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [skinTrackerOpen, setSkinTrackerOpen] = useState(false);
   const [otpCode, setOtpCode] = useState<string | null>(null);
+  const [vipSaving, setVipSaving] = useState(false);
   const [otpCopied, setOtpCopied] = useState(false);
   const [procedureFormOpen, setProcedureFormOpen] = useState(false);
   const [detailsEditing, setDetailsEditing] = useState(false);
@@ -252,6 +254,34 @@ const PatientDetail = () => {
     enabled: !!id,
     refetchOnMount: "always",
   });
+
+  /**
+   * Mark, or unmark, a patient the front desk should recognise.
+   *
+   * Written straight to the record: the Details tab's Edit/Save is for
+   * correcting a record, and this is a one-click judgement somebody makes while
+   * the patient is standing there. The cached patient is refreshed rather than
+   * patched locally so the badge, the appointment list and anything else
+   * reading the record all agree.
+   */
+  const toggleVip = async () => {
+    if (!id || !patient || vipSaving) return;
+    const next = !patient.is_vip;
+    setVipSaving(true);
+    try {
+      const { error } = await supabase.from("patients").update({ is_vip: next }).eq("id", id);
+      if (error) throw error;
+      await queryClient.invalidateQueries({ queryKey: ["patient", id] });
+      // The appointment lists carry the flag through their patient join, so
+      // they have to be told too or the crown appears on one screen only.
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success(next ? "Marked as VIP" : "VIP removed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update VIP");
+    } finally {
+      setVipSaving(false);
+    }
+  };
 
   // Who referred them, when the referrer is another patient. The column holds
   // that patient's id in that case, and a doctor's name in the other, so this
@@ -663,7 +693,13 @@ const PatientDetail = () => {
                 {patient.first_name[0]}{patient.last_name[0]}
               </div>
               <div className="min-w-0">
-                <h1 className="page-title text-xl md:text-2xl truncate">{patient.first_name} {patient.last_name}</h1>
+                <div className="flex items-center gap-2 min-w-0">
+                  <h1 className="page-title text-xl md:text-2xl truncate">{patient.first_name} {patient.last_name}</h1>
+                  {/* Beside the name, where the eye already is. One of a kind on
+                      this page, so it is allowed the slow sweep; the list rows
+                      are not. */}
+                  {patient.is_vip && <VipBadge size="md" shimmer />}
+                </div>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 md:mt-1 text-xs md:text-sm text-muted-foreground">
                   <span className="font-mono text-primary">{shortPatientId(patient.id)}</span>
                   {patient.gender && <span>{patient.gender}</span>}
@@ -740,6 +776,29 @@ const PatientDetail = () => {
                 }}
               >
                 <KeyRound className="h-3.5 w-3.5" /> Reset Portal PIN
+              </Button>
+              {/* A deliberate mark, not a calculated one - the engagement tier
+                  below is computed from visits and spend and answers a
+                  different question. Written straight to the record rather than
+                  through the Details tab's edit mode, because recognising a
+                  patient at the desk cannot wait for Edit then Save. */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                role="switch"
+                aria-checked={!!patient.is_vip}
+                aria-label={patient.is_vip ? "Remove VIP" : "Mark as VIP"}
+                disabled={vipSaving}
+                className={cn(
+                  "gap-1.5 h-8 text-xs",
+                  patient.is_vip &&
+                    "border-[hsl(var(--vip-border))] bg-[hsl(var(--vip-surface))] text-[hsl(var(--vip-ink))] hover:bg-[hsl(var(--vip-surface))]"
+                )}
+                onClick={() => void toggleVip()}
+              >
+                <Crown className="h-3.5 w-3.5" />
+                {patient.is_vip ? "VIP" : "Mark VIP"}
               </Button>
               <Badge className={`h-8 ${patient.status === "Active" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
                 {patient.status}

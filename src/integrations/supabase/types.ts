@@ -3717,6 +3717,7 @@ export type Database = {
           gender: string | null
           id: string
           instagram_url: string | null
+          is_vip: boolean
           last_name: string
           last_visit_date: string | null
           lifetime_value: number | null
@@ -3781,6 +3782,7 @@ export type Database = {
           gender?: string | null
           id?: string
           instagram_url?: string | null
+          is_vip?: boolean
           last_name: string
           last_visit_date?: string | null
           lifetime_value?: number | null
@@ -3845,6 +3847,7 @@ export type Database = {
           gender?: string | null
           id?: string
           instagram_url?: string | null
+          is_vip?: boolean
           last_name?: string
           last_visit_date?: string | null
           lifetime_value?: number | null

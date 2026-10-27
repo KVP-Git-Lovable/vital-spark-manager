@@ -72,7 +72,8 @@ import { npsCategory, ratingLabel } from "@/lib/feedbackScores";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
 import { investigationText } from "@/lib/investigationText";
 import { displayDate } from "@/lib/dateInput";
-import { appointmentPatientName } from "@/lib/appointmentPatientName";
+import { appointmentPatientName, appointmentPatientIsVip } from "@/lib/appointmentPatientName";
+import { VipBadge } from "@/components/shared/VipBadge";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -511,7 +512,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       if (!appointmentId) return null;
       const { data, error } = await supabase
         .from("appointments")
-        .select("*, patients(id, first_name, last_name, phone, gender), staff(first_name, last_name)")
+        .select("*, patients(id, first_name, last_name, phone, gender, is_vip), staff(first_name, last_name)")
         .eq("id", appointmentId)
         .maybeSingle();
       if (error) throw error;
@@ -1211,6 +1212,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   };
 
   const patientName = appointmentPatientName(appointment, "Unknown");
+  const patientIsVip = appointmentPatientIsVip(appointment);
 
   const patientPhone = appointment?.patients?.phone || "";
 
@@ -1354,6 +1356,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       >
                         {patientName}
                       </button>
+                      {patientIsVip && <VipBadge shimmer />}
                       {patientId && <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />}
                     </TitleTag>
                     <p className="text-sm text-muted-foreground mt-1">
@@ -1415,6 +1418,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         }}
                       >
                         {patientName}
+                        {patientIsVip && <VipBadge />}
                         {patientId && <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />}
                       </Button>
                     </div>

@@ -4,6 +4,7 @@ import {
   appointmentPatientInitials,
   appointmentPatientInitialsText,
   appointmentPatientHaystack,
+  appointmentPatientIsVip,
 } from "./appointmentPatientName";
 
 describe("appointmentPatientName", () => {
@@ -117,5 +118,27 @@ describe("appointmentPatientHaystack", () => {
   it("falls back to whichever one exists", () => {
     expect(appointmentPatientHaystack({ patient_name: "Saher", patients: null })).toBe("Saher");
     expect(appointmentPatientHaystack(null)).toBe("");
+  });
+});
+
+describe("appointmentPatientIsVip", () => {
+  it("reads the flag off the linked record", () => {
+    expect(appointmentPatientIsVip({ patients: { first_name: "Sanah", last_name: "Pai", is_vip: true } })).toBe(true);
+    expect(appointmentPatientIsVip({ patients: { first_name: "Sanah", last_name: "Pai", is_vip: false } })).toBe(false);
+  });
+
+  // A screen that fetched appointments without the patient join must not guess.
+  // A crown that should not be there sends the front desk fussing over the
+  // wrong person, which is worse than one that is merely missing.
+  it("says no when there is nothing to read it from", () => {
+    expect(appointmentPatientIsVip({ patient_name: "Sanah Pai" })).toBe(false);
+    expect(appointmentPatientIsVip({ patients: { first_name: "Sanah", last_name: "Pai" } })).toBe(false);
+    expect(appointmentPatientIsVip({ patients: null })).toBe(false);
+    expect(appointmentPatientIsVip(null)).toBe(false);
+    expect(appointmentPatientIsVip(undefined)).toBe(false);
+  });
+
+  it("is not fooled by a value that is merely truthy", () => {
+    expect(appointmentPatientIsVip({ patients: { first_name: "A", last_name: "B", is_vip: null } })).toBe(false);
   });
 });

@@ -108,6 +108,7 @@ import { investigationText } from "@/lib/investigationText";
 import { PaymentModeCell } from "@/components/appointments/PaymentModeCell";
 import { printAppointments } from "@/lib/printAppointments";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
+import { VipBadge } from "@/components/shared/VipBadge";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { MicButton } from "@/components/shared/MicButton";
 import { TimePicker12h } from "@/components/shared/TimePicker12h";
@@ -115,6 +116,7 @@ import { MANUAL_APPOINTMENT_STATUSES } from "@/lib/appointmentStatus";
 import { QueryTimeoutNotice } from "@/components/shared/QueryTimeoutNotice";
 import {
   appointmentPatientName,
+  appointmentPatientIsVip,
   appointmentPatientInitials,
   appointmentPatientHaystack,
 } from "@/lib/appointmentPatientName";
@@ -872,7 +874,7 @@ const Appointments = () => {
       return await fetchAll<any>((from, to) => {
         let q = supabase
           .from("appointments")
-          .select("*, patients(first_name, last_name, phone, gender)")
+          .select("*, patients(first_name, last_name, phone, gender, is_vip)")
           // Newest first. Where a view's date operator has no chip equivalent
           // (last_n_days, before, after, two date conditions, match "any"),
           // appointmentsDateRange is null and this walks the whole table to
@@ -2154,7 +2156,10 @@ const Appointments = () => {
       onMouseDown={(e) => { e.stopPropagation(); }}
       onClick={(e) => { e.stopPropagation(); openAppointment(apt.id); }}
     >
-      <p className="font-medium truncate">{appointmentPatientName(apt)}</p>
+      <p className="font-medium truncate flex items-center gap-1">
+        {appointmentPatientIsVip(apt) && <VipBadge size="icon" />}
+        <span className="truncate">{appointmentPatientName(apt)}</span>
+      </p>
       {!compact && <p className="opacity-70 truncate">{apt.service}</p>}
       {getDoctorName(apt) && (
         <p className={cn("truncate", compact ? "opacity-70" : "opacity-70 mt-0.5")}>
@@ -3061,8 +3066,9 @@ const Appointments = () => {
                                           strip does not say whose appointment is being changed. */}
                                       <div className="min-w-[9rem]">
                                         <span className="text-[11px] text-muted-foreground">Patient</span>
-                                        <p className="text-sm font-medium leading-tight">
-                                          {appointmentPatientName(apt)}
+                                        <p className="text-sm font-medium leading-tight flex items-center gap-1.5">
+                                          <span>{appointmentPatientName(apt)}</span>
+                                          {appointmentPatientIsVip(apt) && <VipBadge />}
                                         </p>
                                         <p className="text-xs text-muted-foreground leading-tight">{patientPhone || "—"}</p>
                                       </div>
@@ -3188,6 +3194,7 @@ const Appointments = () => {
                                         className="h-8 w-8"
                                       />
                                       <span className="truncate">{appointmentPatientName(apt)}</span>
+                                      {appointmentPatientIsVip(apt) && <VipBadge />}
                                     </div>
                                   </td>
                                 )}

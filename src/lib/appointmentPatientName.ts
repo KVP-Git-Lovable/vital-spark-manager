@@ -23,7 +23,7 @@ import { hasRealName, isPhoneLikeName, rawPatientName, type NamedPatient } from 
 
 export interface LabelledAppointment {
   patient_name?: string | null;
-  patients?: NamedPatient | null;
+  patients?: (NamedPatient & { is_vip?: boolean | null }) | null;
 }
 
 const tidy = (text: string | null | undefined): string => (text ?? "").replace(/\s+/g, " ").trim();
@@ -98,4 +98,23 @@ export function appointmentPatientInitialsText(
 ): string {
   const { firstName, lastName } = appointmentPatientInitials(appointment);
   return `${firstName[0] || "?"}${lastName[0] || ""}`.toUpperCase();
+}
+
+/**
+ * Is the patient on this appointment one the front desk must recognise?
+ *
+ * Only the linked record can answer. The stored `patient_name` copy is text
+ * written when the booking was taken, and it knows nothing about the patient
+ * besides what they were called that day - so an appointment fetched without
+ * the patient join reports false, rather than guessing from a name.
+ *
+ * That matters more here than for a label: a wrongly absent crown is a VIP the
+ * front desk does not greet, but a wrongly present one sends them fussing over
+ * somebody who is not. False is the safe way to be wrong, and the fix is to
+ * join the column.
+ */
+export function appointmentPatientIsVip(
+  appointment: LabelledAppointment | null | undefined
+): boolean {
+  return appointment?.patients?.is_vip === true;
 }

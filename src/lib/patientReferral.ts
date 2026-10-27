@@ -56,3 +56,20 @@ export function referrerStillApplies(
   const next = referralKind(nextSource);
   return next !== "none" && next === referralKind(previousSource);
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The stored referrer, when it is actually a patient id.
+ *
+ * `source_referral_doctor` holds a doctor's NAME for a doctor referral and the
+ * referring patient's ID for a patient one, so a value read as an id may well
+ * be "Dr. Mariappa" - on any record written before the two were kept apart.
+ * Handing that to a patient picker makes it query `.eq("id", "Dr. Mariappa")`,
+ * which Postgres rejects outright (22P02), so the guard belongs here with the
+ * rule that creates the ambiguity rather than copied into each screen.
+ */
+export function referringPatientId(value: string | null | undefined): string {
+  const candidate = String(value ?? "").trim();
+  return UUID.test(candidate) ? candidate : "";
+}

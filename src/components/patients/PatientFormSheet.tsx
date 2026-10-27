@@ -39,12 +39,12 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchAll } from "@/lib/supabasePaginate";
 import { useValidator } from "@/hooks/useValidationRules";
 import { useCustomFields } from "@/lib/custom-fields/api";
 import { CustomFieldsRenderer, validateCustomFields } from "@/components/custom-fields/CustomFieldsRenderer";
 import { PATIENT_SOURCE_OPTIONS, optionsIncluding } from "@/lib/patientSourceOptions";
-import { referralKind, referrerStillApplies } from "@/lib/patientReferral";
+import { referralKind, referrerStillApplies, referringPatientId } from "@/lib/patientReferral";
+import { PatientCombobox } from "./PatientCombobox";
 import { ReferringDoctorPicker } from "./ReferringDoctorPicker";
 import type { ValidationMessage } from "@/lib/validation/engine";
 import { AlertCircle } from "lucide-react";
@@ -126,9 +126,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [form, setForm] = useState<TablesInsert<"patients">>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
-  const [referralPatientSearch, setReferralPatientSearch] = useState("");
-  const [referralPopoverOpen, setReferralPopoverOpen] = useState(false);
-  const [selectedReferralPatientName, setSelectedReferralPatientName] = useState("");
 
   // Reason for Consultation. The tag list and the two "Others" boxes are edited
   // separately and folded into form.consultation_reasons on save.
@@ -147,17 +144,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const { toast } = useToast();
   const isEditing = !!patient;
 
-  const { data: allPatients = [] } = useQuery({
-    queryKey: ["patients-lookup"],
-    queryFn: async () =>
-      await fetchAll<any>((from, to) =>
-        supabase
-          .from("patients")
-          .select("id, first_name, last_name")
-          .order("first_name")
-          .range(from, to)
-      ),
-  });
 
 
   useEffect(() => {
@@ -205,11 +191,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         setOthersAestheticText(parsed.othersAestheticText);
         setOthersClinicalText(parsed.othersClinicalText);
       }
-      // Set referral patient name if source is "Referred by Patient"
-      if ((patient as any).source === "Referred by Patient" && (patient as any).source_referral_doctor) {
-        const refPat = allPatients.find(p => p.id === (patient as any).source_referral_doctor);
-        if (refPat) setSelectedReferralPatientName(`${refPat.first_name} ${refPat.last_name}`);
-      }
     } else if (defaultValues) {
       setForm({
         ...emptyForm,
@@ -229,8 +210,6 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
       setOthersAestheticText("");
       setOthersClinicalText("");
     }
-    // NOTE: `allPatients` is intentionally excluded — it is a new array reference on
-    // every render and would reset the form on each keystroke while editing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patient?.id, open]);
 
@@ -528,6 +507,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
       // reads the patient by id regardless (bookingPatient.ts); this stops
       // every other screen showing a list without them.
       queryClient.invalidateQueries({ queryKey: ["patients-list"] });
+      // Or a patient registered just now is missing from every picker's
+      // unsearched list until its five minutes of staleness run out.
+      queryClient.invalidateQueries({ queryKey: ["patients-combobox-initial"] });
       onSuccess(patientId ? { id: patientId, created: !isEditing } : undefined);
       onOpenChange(false);
     } catch (err: any) {
@@ -813,44 +795,23 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             {referralKind((form as any).source) === "patient" && (
               <div className="animate-fade-in">
                 <Label>Referring Patient *</Label>
-                <Popover open={referralPopoverOpen} onOpenChange={setReferralPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full mt-1.5 justify-start font-normal">
-                      {selectedReferralPatientName || "Select patient..."}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72 p-2" align="start">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Search className="h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search patients..."
-                        value={referralPatientSearch}
-                        onChange={(e) => setReferralPatientSearch(e.target.value)}
-                        className="h-8"
-                      />
-                    </div>
-                    <div className="max-h-48 overflow-y-auto space-y-0.5">
-                      {allPatients
-                        .filter(p => patient ? p.id !== patient.id : true)
-                        .filter(p => `${p.first_name} ${p.last_name}`.toLowerCase().includes(referralPatientSearch.toLowerCase()))
-                        .slice(0, 20)
-                        .map(p => (
-                          <button
-                            key={p.id}
-                            className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent"
-                            onClick={() => {
-                              setForm(prev => ({ ...prev, source_referral_doctor: p.id }));
-                              setSelectedReferralPatientName(`${p.first_name} ${p.last_name}`);
-                              setReferralPopoverOpen(false);
-                              setReferralPatientSearch("");
-                            }}
-                          >
-                            {p.first_name} {p.last_name}
-                          </button>
-                        ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                {/* The same picker the Details tab shows, so a referring patient
+                    is chosen the same way wherever it is set. The list it
+                    replaced read every one of the ~27,000 patients into memory
+                    and showed the first 20 by name - which are the records that
+                    hold a phone number in the name column, rendered here as a
+                    bare phone number with no label at all. */}
+                <div className="mt-1.5">
+                  <PatientCombobox
+                    value={referringPatientId((form as any).source_referral_doctor)}
+                    onValueChange={(patientId) =>
+                      setForm((prev) => ({ ...prev, source_referral_doctor: patientId }))
+                    }
+                    placeholder="Select patient..."
+                    // Nobody refers themselves.
+                    excludeId={patient?.id}
+                  />
+                </div>
               </div>
             )}
 

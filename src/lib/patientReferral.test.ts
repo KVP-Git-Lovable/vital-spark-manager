@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { referralKind, referrerStillApplies } from "./patientReferral";
+import { referralKind, referrerStillApplies, referringPatientId } from "./patientReferral";
 import { PATIENT_SOURCE_OPTIONS } from "./patientSourceOptions";
 
 describe("referralKind", () => {
@@ -62,5 +62,34 @@ describe("referrerStillApplies", () => {
 
   it("does not resurrect one when neither source is a referral", () => {
     expect(referrerStillApplies("Walk-in", "Advertisement")).toBe(false);
+  });
+});
+
+describe("referringPatientId", () => {
+  const id = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+
+  it("passes a real id through", () => {
+    expect(referringPatientId(id)).toBe(id);
+    expect(referringPatientId(id.toUpperCase())).toBe(id.toUpperCase());
+    expect(referringPatientId(` ${id} `)).toBe(id);
+  });
+
+  // The column holds a doctor's name for the other kind of referral, and a
+  // patient picker handed that would query .eq("id", "Dr. Mariappa") - which
+  // Postgres rejects as invalid uuid syntax.
+  it("refuses a doctor's name, which is what the column holds for the other kind", () => {
+    expect(referringPatientId("Dr. Mariappa")).toBe("");
+    expect(referringPatientId("Mariappa")).toBe("");
+  });
+
+  it("refuses an empty or missing value", () => {
+    expect(referringPatientId(null)).toBe("");
+    expect(referringPatientId(undefined)).toBe("");
+    expect(referringPatientId("   ")).toBe("");
+  });
+
+  it("refuses something that merely looks id-ish", () => {
+    expect(referringPatientId("3f2504e0-4f89-41d3-9a0c")).toBe("");
+    expect(referringPatientId("zzzzzzzz-4f89-41d3-9a0c-0305e82c3301")).toBe("");
   });
 });

@@ -58,7 +58,7 @@ import { approveSurveyResponse, enrichAiProducts, enrichAiServices } from "@/lib
 import { procedureDateLabel } from "@/lib/procedureDate";
 import { investigationText } from "@/lib/investigationText";
 import { PATIENT_SOURCE_OPTIONS, PATIENT_GENDER_OPTIONS, optionsIncluding } from "@/lib/patientSourceOptions";
-import { referralKind, referrerStillApplies } from "@/lib/patientReferral";
+import { referralKind, referrerStillApplies, referringPatientId } from "@/lib/patientReferral";
 import { ReferringDoctorPicker } from "@/components/patients/ReferringDoctorPicker";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { CustomFieldsRenderer } from "@/components/custom-fields/CustomFieldsRenderer";
@@ -71,9 +71,6 @@ import {
 } from "@/components/appointments/ConsultationReasonPicker";
 import { useCustomFields } from "@/lib/custom-fields/api";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
-
-/** A referral value that is an id rather than a doctor's name. */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -259,22 +256,22 @@ const PatientDetail = () => {
   // Who referred them, when the referrer is another patient. The column holds
   // that patient's id in that case, and a doctor's name in the other, so this
   // only looks up something that is actually an id.
-  const referringPatientId =
-    referralKind(patient?.source) === "patient" && UUID_RE.test(String(patient?.source_referral_doctor || ""))
-      ? String(patient.source_referral_doctor)
+  const referredByPatientId =
+    referralKind(patient?.source) === "patient"
+      ? referringPatientId(patient?.source_referral_doctor) || null
       : null;
   const { data: referringPatient } = useQuery({
-    queryKey: ["referring-patient", referringPatientId],
+    queryKey: ["referring-patient", referredByPatientId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("patients")
         .select("id, first_name, last_name")
-        .eq("id", referringPatientId!)
+        .eq("id", referredByPatientId!)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
-    enabled: !!referringPatientId,
+    enabled: !!referredByPatientId,
   });
 
   const { data: customFields = [] } = useCustomFields("patients", true);
@@ -1178,9 +1175,11 @@ const PatientDetail = () => {
                             // displayed name over that id, so it had to be locked
                             // read-only and the referrer could not be corrected.
                             <PatientCombobox
-                              value={UUID_RE.test(String(d.source_referral_doctor || "")) ? String(d.source_referral_doctor) : ""}
+                              value={referringPatientId(d.source_referral_doctor)}
                               onValueChange={(patientId) => upd("source_referral_doctor", patientId)}
                               placeholder="Select patient"
+                              // Nobody refers themselves.
+                              excludeId={d.id}
                               className="mt-1 h-8 text-sm"
                             />
                           )}

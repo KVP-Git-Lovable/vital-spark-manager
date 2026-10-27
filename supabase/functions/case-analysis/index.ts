@@ -127,7 +127,13 @@ Rules:
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again shortly." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       if (aiResponse.status === 402) return new Response(JSON.stringify({ error: "AI credits exhausted." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      throw new Error("AI gateway error");
+      if (aiResponse.status === 403) {
+        let message = "AI is blocked for this workspace (credit limit or AI disabled). A workspace admin needs to add credits or raise the AI limit.";
+        try { const b = await aiResponse.json(); if (b?.message || b?.error?.message) message = b.message || b.error.message; } catch { /* keep default */ }
+        return new Response(JSON.stringify({ error: message }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      console.error("case-analysis AI gateway error:", aiResponse.status, (await aiResponse.text()).slice(0, 500));
+      return new Response(JSON.stringify({ error: "The AI service is temporarily unavailable. Please try again later." }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const result = await aiResponse.json();

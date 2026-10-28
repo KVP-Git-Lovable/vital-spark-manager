@@ -32,6 +32,28 @@ import { normalizePhone } from "@/lib/audienceImport";
  * lives at Meta and not here. A patient inside the window gets this one. The
  * mismatch is expected and temporary - it is not a bug to be "fixed" by
  * putting the old link back.
+ *
+ * Submitted as MARKETING, deliberately, and asked about twice now.
+ *
+ * Utility is the category the clinic wants, because Meta's per-user cap on
+ * marketing messages (error 63049) is what makes a review request silently
+ * fail to arrive - and when nothing arrives the natural thing is to press send
+ * again, which is why reviewAlreadySentNotice and isReviewRequestMessage below
+ * exist at all. But Utility will not stick here:
+ *
+ *   - Since 9 April 2025 Meta re-categorises on its own. A template submitted
+ *     as Utility that Meta reads as marketing is approved AS marketing and
+ *     charged at marketing rates, so choosing Utility buys a notice, not an
+ *     exemption.
+ *   - A feedback request counts as Utility only when it is about a SPECIFIC
+ *     order or interaction. This body is generic on purpose - no visit date,
+ *     no service, no variable - so it reads as a general ask.
+ *
+ * The honest route to Utility is to tie the message to the visit: "…for
+ * visiting on {{1}}", with the sender passing the date. That would escape the
+ * cap. It also means new wording and variables to get approved - three of the
+ * earlier rejections were about variable examples - and the clinic chose to
+ * get this one approved first.
  */
 export const GOOGLE_REVIEW_MESSAGE = `It has been a great pleasure serving you. Your feedback really matter to us. Please leave us a review and share your experience about the treatment and clinic with us. 
 Click on the link: https://search.google.com/local/writereview?placeid=ChIJL-NphEdaozsRyFHNoxiLDVA

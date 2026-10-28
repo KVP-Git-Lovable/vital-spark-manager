@@ -85,6 +85,8 @@ export default function DashboardExplore() {
   const urlStaff = params.get("staff") || "all";
   const urlService = params.get("service") || "all";
   const urlStatus = params.get("status") || "all";
+  // Set by the dashboard's Billed Appointments card and the trend chart.
+  const urlBilled = params.get("billed") === "1";
   // Slice drill-downs from the dashboard charts
   const urlPaymentMode = params.get("payment_mode") || "";
   const urlProblemArea = params.get("problem_area") || "";
@@ -143,7 +145,10 @@ export default function DashboardExplore() {
     queryKey: ["explore", kind, fromISO, toISO],
     queryFn: async () => {
       if (kind === "appointments") {
-        let q = supabase.from("appointments").select("*, patients(first_name, last_name, phone)").order("start_time", { ascending: false }).limit(5000);
+        // The bills come with the rows so this screen can answer the same
+        // question the Billed Appointments card asked. Cancelled ones are
+        // dropped below, exactly as the dashboard drops them.
+        let q = supabase.from("appointments").select("*, patients(first_name, last_name, phone), invoices(id, status)").order("start_time", { ascending: false }).limit(5000);
         if (fromISO) q = q.gte("start_time", fromISO);
         if (toISO) q = q.lte("start_time", toISO);
         const { data, error } = await q;
@@ -189,6 +194,9 @@ export default function DashboardExplore() {
           date: d ? format(d, "dd MMM yyyy") : "",
           time: d ? format(d, "h:mm a") : "",
           status: r.status || "",
+          billed: ((r.invoices as { status?: string | null }[] | null) || []).some(
+            (inv) => inv?.status !== "Cancelled",
+          ),
           visit_type: r.visit_type || "",
           next_visit_status: r.next_visit_status || "",
           notes: r.notes || "",
@@ -246,6 +254,7 @@ export default function DashboardExplore() {
     const q = search.trim().toLowerCase();
     return normalized.filter((r: any) => {
       if (status !== "all" && r.status !== status) return false;
+      if (urlBilled && !r.billed) return false;
       if (staff !== "all" && r._staffId !== staff) return false;
       if (service !== "all" && r.service !== service) return false;
       if (urlPaymentMode) {
@@ -259,7 +268,7 @@ export default function DashboardExplore() {
       if (q && !fields.some((f) => String(r[f.key] ?? "").toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [normalized, search, status, staff, service, fields, urlPaymentMode, urlProblemArea]);
+  }, [normalized, search, status, staff, service, fields, urlPaymentMode, urlProblemArea, urlBilled]);
 
   const chartData = useMemo(() => {
     const map: Record<string, number> = {};

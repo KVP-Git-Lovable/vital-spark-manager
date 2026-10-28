@@ -356,6 +356,22 @@ const Index = () => {
   }, [invoices, filtered, selectedStaff, selectedService, apptById, doctorLookup, areaLookup]);
 
   // Chart data
+  /**
+   * Appointments that actually carry a bill, not ones a trigger happened to
+   * mark Completed. The card read 0 on a day a payment had been taken,
+   * because the patient paid before her slot and the trigger skipped her.
+   * Cancelled bills are already out of `invoices` for this purpose.
+   */
+  const billedApptIds = useMemo(
+    () =>
+      new Set(
+        (invoices as { status?: string | null; appointment_id?: string | null }[])
+          .filter((inv) => inv.status !== "Cancelled" && inv.appointment_id)
+          .map((inv) => inv.appointment_id as string),
+      ),
+    [invoices],
+  );
+
   const chartData = useMemo(() => {
     // Status pie
     const statusMap: Record<string, number> = {};
@@ -448,11 +464,13 @@ const Index = () => {
       invoiced: invByBucket[k],
     }));
 
-    // Appointment Trend — completed appointments per bucket (same buckets as revenue trend)
+    // Appointment Trend — billed appointments per bucket (same buckets as the
+    // revenue trend, and the same test as the card above it, so the chart and
+    // the number over it cannot disagree).
     const completedByBucket: Record<string, number> = {};
     Object.keys(paidByBucket).forEach((k) => { completedByBucket[k] = 0; });
     filtered.forEach((a: any) => {
-      if (a.status !== "Completed") return;
+      if (!billedApptIds.has(a.id)) return;
       const k = bucketKey(new Date(a.start_time));
       if (completedByBucket[k] !== undefined) completedByBucket[k] += 1;
     });
@@ -468,7 +486,7 @@ const Index = () => {
       .slice(0, 10);
 
     return { appointmentStatus, appointmentsByDr, revenueByDr, revenueByPaymentMode, revenueByDate, revenueByService, appointmentsByDate };
-  }, [filtered, filteredInvoices, start, end]);
+  }, [filtered, filteredInvoices, billedApptIds, start, end]);
 
   // The same npsBreakdown the Patient Feedback report reads, so the card and the
   // report cannot disagree about who counts as a promoter.
@@ -477,10 +495,9 @@ const Index = () => {
   // Stat card values
   const paidRevenue = filteredInvoices.reduce((s, inv: any) => s + Number(inv.paid_amount || 0), 0);
   const invoicedRevenue = filteredInvoices.reduce((s, inv: any) => s + Number(inv.total_amount || 0), 0);
-  const completedCount = filtered.filter((a: any) => a.status === "Completed").length;
+  const billedCount = filtered.filter((a: any) => billedApptIds.has(a.id)).length;
   const scheduledCount = filtered.filter((a: any) => a.status === "Scheduled").length;
   const confirmedAppts = filtered.filter((a: any) => a.status === "Confirmed");
-  const completedAppts = filtered.filter((a: any) => a.status === "Completed");
   const checkedInStaff = todayAttendance.filter((a: any) => a.check_in_time).length;
   const pendingAmount = pendingInvoices.reduce((s, inv: any) => s + (Number(inv.total_amount) - Number(inv.paid_amount)), 0);
   const dateLabel = DATE_RANGE_OPTIONS.find((o) => o.key === selectedDateRange)?.label || "Today";
@@ -520,7 +537,7 @@ const Index = () => {
         return openDrill("invoices", `Revenue by Doctor${suffix}`, id ? { staff: id } : {});
       }
       case "appointment_trend":
-        return openDrill("appointments", `Appointment Trend — Billed${suffix}`, { status: "Completed" });
+        return openDrill("appointments", `Appointment Trend — Billed${suffix}`, { billed: "1" });
       case "revenue_by_service":
         return openDrill("invoices", `Revenue by Service${suffix}`, key && key !== "Unspecified" ? { service: key } : {});
       case "patient_feedback": {
@@ -636,8 +653,8 @@ const Index = () => {
           </div>
         )}
         {shows("appointments_completed") && (
-          <div className="cursor-pointer h-full" onClick={() => openDrill("appointments", `Billed Appointments — ${dateLabel}`, { status: "Completed" })}>
-            <StatCard title="Billed Appointments" value={completedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} loading={apptLoading} />
+          <div className="cursor-pointer h-full" onClick={() => openDrill("appointments", `Billed Appointments — ${dateLabel}`, { billed: "1" })}>
+            <StatCard title="Billed Appointments" value={billedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} loading={apptLoading} />
           </div>
         )}
         {shows("new_patients") && (
@@ -715,7 +732,7 @@ const Index = () => {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="hidden sm:inline text-xs text-muted-foreground">{format(new Date(apt.start_time), "h:mm a")}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${statusColors[apt.status] || "bg-muted"}`}>{appointmentStatusLabel(apt.status)}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${statusColors[apt.status] || "bg-muted"}`}>{appointmentStatusLabel(apt.status, billedApptIds.has(apt.id))}</span>
                   </div>
                 </div>
               ))

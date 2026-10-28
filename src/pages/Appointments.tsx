@@ -3285,7 +3285,7 @@ const Appointments = () => {
                                       },
                                     })}>
                                       <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">
-                                        <Badge className={cn("text-xs", statusColor(apt.status))}>{appointmentStatusLabel(apt.status)}</Badge>
+                                        <Badge className={cn("text-xs", statusColor(apt.status))}>{appointmentStatusLabel(apt.status, billInvoiceByAppointmentId.has(apt.id))}</Badge>
                                       </SelectTrigger>
                                       <SelectContent>
                                         {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}

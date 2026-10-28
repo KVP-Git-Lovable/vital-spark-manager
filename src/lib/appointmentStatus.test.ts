@@ -94,3 +94,41 @@ describe("appointmentStatusLabel", () => {
     expect(appointmentStatusClasses("Billed")).toBe("bg-muted text-muted-foreground");
   });
 });
+
+/**
+ * The reported fault: a patient paid ₹1,250 at 06:20 for a 06:30 appointment,
+ * and the row still read "Confirmed" while the dashboard's Billed card read 0.
+ *
+ * The trigger that writes "Completed" only fires once, on the invoice, and
+ * skips any appointment whose start time has not arrived - so paying early
+ * leaves the status wrong for ever. The status cannot be trusted to answer
+ * "is this billed?"; the invoice can.
+ */
+describe("appointmentStatusLabel, when the caller knows about the bill", () => {
+  it("says Billed for a visit that has one, whatever the status says", () => {
+    expect(appointmentStatusLabel("Confirmed", true)).toBe("Billed");
+    expect(appointmentStatusLabel("Reserved", true)).toBe("Billed");
+    expect(appointmentStatusLabel("Completed", true)).toBe("Billed");
+  });
+
+  // 45 visits in 90 days are marked Completed with no bill behind them.
+  it("does not call a visit Billed when there is no bill", () => {
+    expect(appointmentStatusLabel("Completed", false)).toBe("Completed");
+    expect(appointmentStatusLabel("Confirmed", false)).toBe("Confirmed");
+    expect(appointmentStatusLabel("Cancelled", false)).toBe("Cancelled");
+  });
+
+  // The print sheet and the patient's Appts tab fetch no invoices, so they
+  // keep reading the status - the best answer available to them.
+  it("falls back to the status when the caller cannot tell", () => {
+    expect(appointmentStatusLabel("Completed")).toBe("Billed");
+    expect(appointmentStatusLabel("Completed", undefined)).toBe("Billed");
+    expect(appointmentStatusLabel("Confirmed")).toBe("Confirmed");
+  });
+
+  it("still has nothing to say about nothing", () => {
+    expect(appointmentStatusLabel(null, false)).toBe("");
+    expect(appointmentStatusLabel(undefined, true)).toBe("Billed");
+    expect(appointmentStatusLabel("", false)).toBe("");
+  });
+});

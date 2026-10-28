@@ -43,20 +43,34 @@ export const appointmentStatusClasses = (status: string | null | undefined): str
 /**
  * What the clinic calls a status on screen.
  *
- * "Completed" is not set by anyone here - a database trigger sets it when the
- * appointment's own invoice reaches Paid. So the word on the badge answers a
- * question nobody asked ("is the visit over?") instead of the one the front
- * desk is actually looking for ("is the bill done?"), and they asked for it to
- * read "Billed".
+ * `billed` is whether this appointment actually has a bill, where the caller
+ * knows. It is the honest answer and it should be passed wherever the invoice
+ * data is already to hand, because the STATUS is not a reliable record of it:
+ * "Completed" is written by a database trigger when the invoice is paid, and
+ * that trigger skips any appointment whose start time has not yet arrived.
+ * A patient who pays on arrival, minutes before their slot, is therefore left
+ * on "Confirmed" for ever - nothing re-checks afterwards. Forty of October's
+ * forty-six mismatches are exactly that, and the clinic reported it the first
+ * day the badge said "Billed".
  *
- * A label, deliberately, and not a rename. The stored value is still
- * "Completed" - the trigger writes it, the dashboard counts it, saved views
- * filter on it, the visit rollups and the reports read it. Changing the value
- * would mean touching every one of those; changing the word costs nothing and
- * is all that was asked for.
+ * Three answers, deliberately:
+ *   billed === true   -> "Billed". It has a bill; that is the whole question.
+ *   billed === false  -> the status as stored. A visit marked Completed with
+ *                        no bill behind it says "Completed", not "Billed".
+ *   billed undefined  -> the caller cannot tell, so fall back to reading the
+ *                        status, which is the best guess available. The print
+ *                        sheet and the patient's Appts tab fetch no invoices.
  *
- * Everything else passes through, including the Salesforce-era values
- * ("Scheduled", "Checked-in", "Requested") that predate this list.
+ * Either way this is a label. The stored value is still "Completed" - the
+ * trigger writes it, the dashboard once counted it, saved views filter on it,
+ * the visit rollups and the reports read it.
  */
-export const appointmentStatusLabel = (status: string | null | undefined): string =>
-  (status || "").trim() === "Completed" ? "Billed" : (status ?? "");
+export const appointmentStatusLabel = (
+  status: string | null | undefined,
+  billed?: boolean,
+): string => {
+  if (billed === true) return "Billed";
+  const value = (status || "").trim();
+  if (billed === false) return status ?? "";
+  return value === "Completed" ? "Billed" : (status ?? "");
+};

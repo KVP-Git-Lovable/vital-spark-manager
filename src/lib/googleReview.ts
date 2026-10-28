@@ -18,21 +18,40 @@ import { normalizePhone } from "@/lib/audienceImport";
  * No name placeholder, deliberately. The clinic wrote it without one, and a
  * body with no variables is also the easiest kind for Meta to approve.
  *
- * This text is now the APPROVED template, character for character - Twilio
- * content SID HXf1521e98ec4adb966dd73ac571050e29, approved 23 Oct 2026. Meta
- * approves a body, not a template name, so editing a word here without
- * resubmitting the template means the app sends one thing and WhatsApp
- * delivers another. The test below holds it in place.
+ * Meta approves a BODY, not a template name, so this text and the approved
+ * template have to say the same thing - the test below holds them together.
+ *
+ * The link changed on 28 Oct 2026. Patients were being asked to sign in to
+ * Google when they tapped the old one, and most then gave up; the clinic
+ * tested this one on a phone and it opens already signed in, on the review box
+ * itself rather than the clinic's listing.
+ *
+ * That means a NEW template: until Meta approves it and
+ * TWILIO_GOOGLE_REVIEW_TEMPLATE_SID is pointed at the new SID, a patient
+ * outside the 24-hour window still receives the old link, because that body
+ * lives at Meta and not here. A patient inside the window gets this one. The
+ * mismatch is expected and temporary - it is not a bug to be "fixed" by
+ * putting the old link back.
  */
 export const GOOGLE_REVIEW_MESSAGE = `It has been a great pleasure serving you. Your feedback really matter to us. Please leave us a review and share your experience about the treatment and clinic with us. 
-Click on the link: https://g.co/kgs/6Zy6nc
+Click on the link: https://search.google.com/local/writereview?placeid=ChIJL-NphEdaozsRyFHNoxiLDVA
 
 The Skin Clinic
 Vyasa Rao Road, Kadri Kambla Rd, Mangalore, Karnataka 575002
 063607 53030`;
 
 /** Where the review actually goes, pulled out so a test can hold it still. */
-export const GOOGLE_REVIEW_LINK = "https://g.co/kgs/6Zy6nc";
+export const GOOGLE_REVIEW_LINK = "https://search.google.com/local/writereview?placeid=ChIJL-NphEdaozsRyFHNoxiLDVA";
+
+/**
+ * The link this message carried until 28 Oct 2026.
+ *
+ * Kept because nine requests have already gone out with it, and the "already
+ * sent" notice finds a previous send by looking for the link in the message.
+ * Drop this and those nine patients read as never asked - and the notice
+ * exists precisely because people were receiving this message twice.
+ */
+export const GOOGLE_REVIEW_LINK_LEGACY = "https://g.co/kgs/6Zy6nc";
 
 /**
  * A WhatsApp link that opens a chat with this patient, message already typed.
@@ -105,7 +124,11 @@ export const REVIEW_SENT_FALLBACK_TEXT = "Google review request";
 export function isReviewRequestMessage(content: string | null | undefined): boolean {
   const text = String(content ?? "");
   if (!text.trim()) return false;
-  return text.includes(GOOGLE_REVIEW_LINK) || text.includes(REVIEW_SENT_FALLBACK_TEXT);
+  return (
+    text.includes(GOOGLE_REVIEW_LINK) ||
+    text.includes(GOOGLE_REVIEW_LINK_LEGACY) ||
+    text.includes(REVIEW_SENT_FALLBACK_TEXT)
+  );
 }
 
 /**

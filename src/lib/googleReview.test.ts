@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { GOOGLE_REVIEW_LINK, GOOGLE_REVIEW_MESSAGE, isReviewRequestMessage, reviewAlreadySentNotice, reviewRequestState, whatsappShareUrl } from "./googleReview";
+import { GOOGLE_REVIEW_LINK, GOOGLE_REVIEW_LINK_LEGACY, GOOGLE_REVIEW_MESSAGE, isReviewRequestMessage, reviewAlreadySentNotice, reviewRequestState, whatsappShareUrl } from "./googleReview";
 
 describe("GOOGLE_REVIEW_MESSAGE", () => {
   /**
@@ -10,7 +10,12 @@ describe("GOOGLE_REVIEW_MESSAGE", () => {
    */
   it("keeps the clinic's review link exactly", () => {
     expect(GOOGLE_REVIEW_MESSAGE).toContain(GOOGLE_REVIEW_LINK);
-    expect(GOOGLE_REVIEW_LINK).toBe("https://g.co/kgs/6Zy6nc");
+    // Changed 28 Oct 2026: the old link made patients sign in to Google when
+    // they tapped it from WhatsApp. This one was tested on a phone and opens
+    // signed in, on the review box rather than the clinic's listing.
+    expect(GOOGLE_REVIEW_LINK).toBe(
+      "https://search.google.com/local/writereview?placeid=ChIJL-NphEdaozsRyFHNoxiLDVA",
+    );
   });
 
   it("keeps the address and the phone number the clinic gave", () => {
@@ -103,8 +108,9 @@ describe("staying in step with the approved template", () => {
     expect(GOOGLE_REVIEW_MESSAGE).not.toContain("serving you .");
   });
 
-  it("is still the length Meta approved", () => {
-    expect(GOOGLE_REVIEW_MESSAGE).toHaveLength(302);
+  it("is still the length the template was submitted at", () => {
+    // 302 until the link changed; only the URL is longer, nothing was reworded.
+    expect(GOOGLE_REVIEW_MESSAGE).toHaveLength(358);
   });
 });
 
@@ -158,5 +164,36 @@ describe("reviewAlreadySentNotice", () => {
 
   it("accepts the timestamp string the database returns", () => {
     expect(reviewAlreadySentNotice(new Date(2026, 9, 23, 17, 5).toISOString(), now)).toContain("today");
+  });
+});
+
+/**
+ * Nine review requests had already gone out carrying the old link when it
+ * changed. The "already sent" notice finds a previous send by looking for the
+ * link in the stored message, and that notice is the only thing stopping a
+ * patient being asked twice - which had already happened to one of them.
+ */
+describe("recognising a request sent before the link changed", () => {
+  const sentWithOldLink = `It has been a great pleasure serving you. Your feedback really matter to us.
+Click on the link: ${GOOGLE_REVIEW_LINK_LEGACY}
+
+The Skin Clinic`;
+
+  it("still counts an old-link message as a review request", () => {
+    expect(isReviewRequestMessage(sentWithOldLink)).toBe(true);
+  });
+
+  it("counts one sent with the new link too", () => {
+    expect(isReviewRequestMessage(GOOGLE_REVIEW_MESSAGE)).toBe(true);
+  });
+
+  it("keeps the two links apart, so the legacy one is not quietly reused", () => {
+    expect(GOOGLE_REVIEW_LINK).not.toBe(GOOGLE_REVIEW_LINK_LEGACY);
+    expect(GOOGLE_REVIEW_MESSAGE).not.toContain(GOOGLE_REVIEW_LINK_LEGACY);
+  });
+
+  it("is still not fooled by an ordinary message", () => {
+    expect(isReviewRequestMessage("Your appointment is confirmed for tomorrow")).toBe(false);
+    expect(isReviewRequestMessage("")).toBe(false);
   });
 });

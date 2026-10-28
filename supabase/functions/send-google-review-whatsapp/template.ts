@@ -3,7 +3,7 @@
  * GOOGLE_REVIEW_MESSAGE in src/lib/googleReview.ts (a test holds them equal).
  */
 export const REVIEW_TEXT = `It has been a great pleasure serving you. Your feedback really matter to us. Please leave us a review and share your experience about the treatment and clinic with us. 
-Click on the link: https://g.co/kgs/6Zy6nc
+Click on the link: https://search.google.com/local/writereview?placeid=ChIJL-NphEdaozsRyFHNoxiLDVA
 
 The Skin Clinic
 Vyasa Rao Road, Kadri Kambla Rd, Mangalore, Karnataka 575002

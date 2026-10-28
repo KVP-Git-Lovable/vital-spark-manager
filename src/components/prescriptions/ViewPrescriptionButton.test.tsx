@@ -78,3 +78,51 @@ describe("ViewPrescriptionButton", () => {
     expect(onRowClick).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The same button, asked for paper rather than a read.
+ *
+ * It was reported from the Prescriptions list, where the row offered neither:
+ * the front desk had to open the prescription, find the toolbar inside it,
+ * preview, and only then print.
+ */
+describe("ViewPrescriptionButton - printing", () => {
+  const rowClick = vi.fn();
+
+  const renderInRow = (action?: "view" | "print") =>
+    render(
+      <div onClick={rowClick} data-testid="row">
+        <ViewPrescriptionButton procedureId="proc-1" action={action} />
+      </div>,
+    );
+
+  beforeEach(() => rowClick.mockClear());
+
+  it("says it will print, so the two buttons in a row are told apart", () => {
+    renderInRow("print");
+    expect(screen.getByRole("button", { name: "Print prescription" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View prescription" })).toBeNull();
+  });
+
+  it("still reads as View when nothing is asked for", () => {
+    renderInRow();
+    expect(screen.getByRole("button", { name: "View prescription" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Print prescription" })).toBeNull();
+  });
+
+  // Printing builds the document by the same route as reading it; what differs
+  // is only what happens once it is built.
+  it("builds the prescription once, without opening the row behind it", () => {
+    renderInRow("print");
+    fireEvent.click(screen.getByRole("button", { name: "Print prescription" }));
+    expect(preview).toHaveBeenCalledTimes(1);
+    expect(rowClick).not.toHaveBeenCalled();
+  });
+
+  it("carries a label in the wider variant too", () => {
+    render(<ViewPrescriptionButton procedureId="proc-1" action="print" variant="full" />);
+    expect(screen.getByRole("button", { name: "Print prescription" })).toHaveTextContent(
+      "Print prescription",
+    );
+  });
+});

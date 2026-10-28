@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Plus, Camera } from "lucide-react";
+import { Plus } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CameraCapture } from "@/components/shared/CameraCapture";
+import { ViewPrescriptionButton } from "@/components/prescriptions/ViewPrescriptionButton";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { useUrlPanel } from "@/hooks/useUrlPanel";
@@ -83,7 +83,6 @@ const Procedures = () => {
   // Two-way now. It was seeded from ?id= but never wrote back, so opening a
   // record left no history entry and Back walked out of the list.
   const { openId: selectedId, open: openProcedure, close: closeProcedure } = useUrlPanel("id");
-  const [cameraProc, setCameraProc] = useState<any>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
@@ -339,9 +338,13 @@ const Procedures = () => {
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
                   <span className="text-xs text-muted-foreground">{procedureDateLabel(proc, "dd/MM/yyyy")}</span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setCameraProc(proc); }}>
-                    <Camera className="h-3.5 w-3.5" />
-                  </Button>
+                  {/* Reading or printing a prescription should not mean
+                      opening it - opening it is one slip away from changing
+                      what was saved. */}
+                  <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                    <ViewPrescriptionButton procedureId={proc.id} className="h-7 w-7" />
+                    <ViewPrescriptionButton procedureId={proc.id} action="print" className="h-7 w-7" />
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -359,7 +362,7 @@ const Procedures = () => {
               {shouldShowColumn("service_name") && <TableHead>Service</TableHead>}
               {shouldShowColumn("doctor") && <TableHead>Doctor</TableHead>}
               {shouldShowColumn("status") && <TableHead>Status</TableHead>}
-              <TableHead className="w-12"></TableHead>
+              <TableHead className="w-24"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -383,10 +386,13 @@ const Procedures = () => {
                       <Badge variant="secondary" className="text-xs">{proc.status}</Badge>
                     </TableCell>
                   )}
-                  <TableCell>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setCameraProc(proc); }} title="Take Photo">
-                      <Camera className="h-4 w-4" />
-                    </Button>
+                  {/* Stopped once on the cell rather than per button, as the
+                      invoice table does. */}
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-end gap-1">
+                      <ViewPrescriptionButton procedureId={proc.id} />
+                      <ViewPrescriptionButton procedureId={proc.id} action="print" />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -406,17 +412,6 @@ const Procedures = () => {
         onClose={closeProcedure}
         onSaved={handleProcedureSaved}
       />
-
-      {cameraProc && (
-        <CameraCapture
-          open={!!cameraProc}
-          onOpenChange={(o) => { if (!o) setCameraProc(null); }}
-          patientId={cameraProc.patient_id}
-          patientName={`${cameraProc.patients?.first_name || ""} ${cameraProc.patients?.last_name || ""}`}
-          context="procedure"
-          contextId={cameraProc.id}
-        />
-      )}
 
       <KanbanSettingsDialog
         open={kanbanOpen}

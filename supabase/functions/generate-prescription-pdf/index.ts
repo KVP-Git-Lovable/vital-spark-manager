@@ -56,11 +56,29 @@ function shortNumFromUuid(uuid: string, digits = 4): string {
   return String(number).padStart(digits, "0");
 }
 
+/**
+ * The patient's age for the printed prescription.
+ *
+ * Under a year this reads in months. A baby's age in years is 0, which printed
+ * "Age: 0" on the prescription - and the dose a doctor writes for a seven month
+ * old is not the dose for a newborn, so that line has to say which.
+ *
+ * Counted by calendar month, matching patientAgeLabel in
+ * src/lib/patientIdentity.ts, so the printed sheet and the record it was
+ * written from say the same thing. (This file cannot import from src/.)
+ */
 function ageFromDob(dob?: string | null): string {
   if (!dob) return "";
-  const date = new Date(dob);
-  if (Number.isNaN(date.getTime())) return "";
-  return String(Math.floor((Date.now() - date.getTime()) / (365.25 * 24 * 3600 * 1000)));
+  const born = new Date(dob);
+  if (Number.isNaN(born.getTime())) return "";
+  const now = new Date();
+  let months = (now.getFullYear() - born.getFullYear()) * 12 + (now.getMonth() - born.getMonth());
+  if (now.getDate() < born.getDate()) months -= 1;
+  if (months < 0) return "";
+  const years = Math.floor(months / 12);
+  if (years >= 1) return String(years);
+  if (months === 0) return "<1 month";
+  return months === 1 ? "1 month" : `${months} months`;
 }
 
 /** Word-wraps one line - no line breaks of its own. See `wrap`. */

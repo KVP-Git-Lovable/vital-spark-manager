@@ -39,7 +39,7 @@ import { PhotoViewer } from "@/components/patients/PhotoViewer";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { AiRepository } from "@/components/shared/AiRepository";
 import { WhatsAppDeliveryLog } from "@/components/shared/WhatsAppDeliveryLog";
-import { patientAgeLabel } from "@/lib/patientIdentity";
+import { patientAgeLabel, patientAgeValue } from "@/lib/patientIdentity";
 import { MessageCircle } from "lucide-react";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
@@ -668,11 +668,6 @@ const PatientDetail = () => {
     );
   }
 
-  const getAge = (dob: string | null) => {
-    if (!dob) return null;
-    return Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-  };
-
   const statusStyles: Record<string, string> = {
     Paid: "bg-success/10 text-success",
     Partial: "bg-warning/10 text-warning",
@@ -703,7 +698,7 @@ const PatientDetail = () => {
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 md:mt-1 text-xs md:text-sm text-muted-foreground">
                   <span className="font-mono text-primary">{shortPatientId(patient.id)}</span>
                   {patient.gender && <span>{patient.gender}</span>}
-                  {getAge(patient.date_of_birth) !== null && <span>• Age {getAge(patient.date_of_birth)}</span>}
+                  {patientAgeValue(patient.date_of_birth) && <span>• Age {patientAgeValue(patient.date_of_birth)}</span>}
                   {patient.blood_group && <span>• {patient.blood_group}</span>}
                   {patient.phone && !hideOtherDoctorDetails && <span className="hidden sm:inline">• {patient.phone}</span>}
                 </div>

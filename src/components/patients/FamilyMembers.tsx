@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { PatientFormSheet } from "./PatientFormSheet";
+import { patientAgeLabel } from "@/lib/patientIdentity";
 import type { Tables } from "@/integrations/supabase/types";
 
 const RELATIONSHIPS = [
@@ -559,15 +560,10 @@ function MemberDetailView({
   onEdit: () => void;
   onViewProfile: () => void;
 }) {
-  const getAge = (dob: string | null) => {
-    if (!dob) return null;
-    return Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-  };
-
   const fields = [
     { label: "Relationship", value: relationship },
     { label: "Gender", value: patient.gender },
-    { label: "Age", value: getAge(patient.date_of_birth) ? `${getAge(patient.date_of_birth)} years` : null },
+    { label: "Age", value: patientAgeLabel(patient.date_of_birth) || null },
     { label: "Date of Birth", value: patient.date_of_birth },
     { label: "Phone", value: patient.phone },
     { label: "Email", value: patient.email },

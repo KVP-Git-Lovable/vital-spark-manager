@@ -48,6 +48,7 @@ import { EngagementBadge } from "@/components/patients/EngagementBadge";
 import { PatientAvatar } from "@/components/patients/PatientAvatar";
 import { VipBadge } from "@/components/shared/VipBadge";
 import { isVipPatient } from "@/lib/vipPatient";
+import { patientAgeValue } from "@/lib/patientIdentity";
 import { usePatientAvatars } from "@/hooks/usePatientAvatars";
 import { useEngagementScores } from "@/hooks/useEngagementScores";
 import { QueryTimeoutNotice } from "@/components/shared/QueryTimeoutNotice";
@@ -241,12 +242,6 @@ const Patients = () => {
     }
     toast.success("Patient updated");
     refetchAll();
-  };
-
-  const getAge = (dob: string | null) => {
-    if (!dob) return null;
-    const diff = Date.now() - new Date(dob).getTime();
-    return Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
   };
 
   const displayColumns = activeView?.columns?.length ? activeView.columns : DEFAULT_VIEW_COLUMNS;
@@ -510,7 +505,7 @@ const Patients = () => {
                             </div>
                             <p className="text-xs text-muted-foreground">
                               {patient.gender || "—"}
-                              {getAge(patient.date_of_birth) !== null && ` · Age ${getAge(patient.date_of_birth)}`}
+                              {patientAgeValue(patient.date_of_birth) && ` · Age ${patientAgeValue(patient.date_of_birth)}`}
                             </p>
                           </div>
                         </div>

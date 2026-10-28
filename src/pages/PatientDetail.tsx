@@ -50,7 +50,7 @@ import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailShe
 import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDetailSheet";
 import { ViewPrescriptionButton } from "@/components/prescriptions/ViewPrescriptionButton";
 import { QuickAppointmentDialog } from "@/components/appointments/QuickAppointmentDialog";
-import { appointmentStatusClasses, appointmentStatusLabel } from "@/lib/appointmentStatus";
+import { appointmentStatusClasses, appointmentStatusLabel, showsAsBilled, BILLED_BADGE_CLASSES } from "@/lib/appointmentStatus";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { toast } from "sonner";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
@@ -1321,7 +1321,7 @@ const PatientDetail = () => {
                       <p className="text-xs text-muted-foreground mt-0.5">{apt.staff ? withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`) : "—"}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <Badge variant="outline" className={`text-xs ${appointmentStatusClasses(apt.status)}`}>{appointmentStatusLabel(apt.status)}</Badge>
+                      <Badge variant="outline" className={`text-xs ${showsAsBilled(apt.status) ? BILLED_BADGE_CLASSES : appointmentStatusClasses(apt.status)}`}>{appointmentStatusLabel(apt.status)}</Badge>
                       <p className="text-xs text-muted-foreground mt-1">{displayDate(apt.start_time)}</p>
                       <p className="text-xs text-muted-foreground">{new Date(apt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
@@ -1354,7 +1354,7 @@ const PatientDetail = () => {
                           when a visit has no investigation recorded. */}
                       <td className="p-4 font-medium text-sm">{investigationText(apt, "—")}</td>
                       <td className="p-4 text-sm text-muted-foreground">{apt.staff ? withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`) : "—"}</td>
-                      <td className="p-4"><Badge variant="outline" className={`text-xs ${appointmentStatusClasses(apt.status)}`}>{appointmentStatusLabel(apt.status)}</Badge></td>
+                      <td className="p-4"><Badge variant="outline" className={`text-xs ${showsAsBilled(apt.status) ? BILLED_BADGE_CLASSES : appointmentStatusClasses(apt.status)}`}>{appointmentStatusLabel(apt.status)}</Badge></td>
                     </tr>
                   ))}
                 </tbody>

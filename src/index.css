@@ -182,6 +182,22 @@
     100% { opacity: 1; transform: scale(1); }
   }
 
+  /* A bill has just been taken.
+
+     The same shape as the VIP arrival above, and finite for the same reason:
+     this one lands on a list of up to fifty rows, where anything that loops
+     would be fifty compositor layers for no new information. Because the list
+     updates live, this plays at the moment the bill is settled. */
+  @keyframes billed-arrive {
+    0% { opacity: 0; transform: scale(0.82); }
+    55% { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  .billed-badge {
+    animation: billed-arrive 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
   .vip-badge {
     position: relative;
     overflow: hidden;
@@ -321,7 +337,8 @@
   .animate-page-reveal,
   .animate-content-reveal,
   .vip-badge,
-  .vip-badge-shimmer::after {
+  .vip-badge-shimmer::after,
+  .billed-badge {
     animation: none;
   }
 

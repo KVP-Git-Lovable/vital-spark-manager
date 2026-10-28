@@ -112,7 +112,7 @@ import { VipBadge } from "@/components/shared/VipBadge";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { MicButton } from "@/components/shared/MicButton";
 import { TimePicker12h } from "@/components/shared/TimePicker12h";
-import { MANUAL_APPOINTMENT_STATUSES, appointmentStatusLabel } from "@/lib/appointmentStatus";
+import { MANUAL_APPOINTMENT_STATUSES, appointmentStatusLabel, showsAsBilled, BILLED_BADGE_CLASSES } from "@/lib/appointmentStatus";
 import { QueryTimeoutNotice } from "@/components/shared/QueryTimeoutNotice";
 import {
   appointmentPatientName,
@@ -3284,8 +3284,12 @@ const Appointments = () => {
                                         patientGender: apt.patients?.gender || null,
                                       },
                                     })}>
-                                      <SelectTrigger className="h-7 w-28 text-xs border-0 bg-transparent p-0">
-                                        <Badge className={cn("text-xs", statusColor(apt.status))}>{appointmentStatusLabel(apt.status, billInvoiceByAppointmentId.has(apt.id))}</Badge>
+                                      {/* Shrink-to-fit. It was a fixed w-28, which
+                                          "Completed" very nearly filled - the shorter
+                                          "Billed" left the remainder as a gap before the
+                                          chevron, the trigger being justify-between. */}
+                                      <SelectTrigger className="h-7 w-auto gap-1 text-xs border-0 bg-transparent p-0">
+                                        <Badge className={cn("text-xs", showsAsBilled(apt.status, billInvoiceByAppointmentId.has(apt.id)) ? BILLED_BADGE_CLASSES : statusColor(apt.status))}>{appointmentStatusLabel(apt.status, billInvoiceByAppointmentId.has(apt.id))}</Badge>
                                       </SelectTrigger>
                                       <SelectContent>
                                         {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}

@@ -74,3 +74,30 @@ export const appointmentStatusLabel = (
   if (billed === false) return status ?? "";
   return value === "Completed" ? "Billed" : (status ?? "");
 };
+
+/**
+ * The badge for a visit that has been billed.
+ *
+ * Solid rather than a tint, because the tints had run out of room: in the
+ * appointments list "Confirmed" and "Completed" were both
+ * `bg-success/15 text-success`, so a paid visit and an unpaid one were the
+ * same pale green and the word was the only thing telling them apart. Filled
+ * green keeps the colour everyone already reads as money while sitting
+ * unmistakably heavier than the Confirmed beside it.
+ *
+ * `billed-badge` is the arrival animation (see index.css) - a single scale and
+ * fade, never a loop: a day's list runs to fifty rows, and fifty looping
+ * badges is fifty compositor layers on a clinic PC.
+ */
+export const BILLED_BADGE_CLASSES =
+  "billed-badge bg-success text-success-foreground border-transparent";
+
+/**
+ * Does this row read "Billed"?
+ *
+ * Asked through appointmentStatusLabel rather than re-deriving it, so the
+ * colour and the word cannot disagree - including on the screens that fetch no
+ * invoices and fall back to reading the status.
+ */
+export const showsAsBilled = (status: string | null | undefined, billed?: boolean): boolean =>
+  appointmentStatusLabel(status, billed) === "Billed";

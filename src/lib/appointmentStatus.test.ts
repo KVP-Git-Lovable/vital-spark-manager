@@ -5,6 +5,9 @@ import {
   ALL_APPOINTMENT_STATUSES,
   AUTOMATIC_APPOINTMENT_STATUSES,
   MANUAL_APPOINTMENT_STATUSES,
+  APPOINTMENT_STATUS_STYLES,
+  showsAsBilled,
+  BILLED_BADGE_CLASSES,
 } from "./appointmentStatus";
 
 /**
@@ -130,5 +133,52 @@ describe("appointmentStatusLabel, when the caller knows about the bill", () => {
     expect(appointmentStatusLabel(null, false)).toBe("");
     expect(appointmentStatusLabel(undefined, true)).toBe("Billed");
     expect(appointmentStatusLabel("", false)).toBe("");
+  });
+});
+
+/**
+ * The colour has to follow the word. In the appointments list "Confirmed" and
+ * "Completed" were both bg-success/15, so a paid visit and an unpaid one were
+ * the same pale green and only the text told them apart.
+ */
+describe("showsAsBilled", () => {
+  it("agrees with the word, in every case the word has", () => {
+    for (const [status, billed] of [
+      ["Confirmed", true], ["Reserved", true], ["Completed", true],
+      ["Completed", false], ["Confirmed", false], ["Cancelled", false],
+      ["Completed", undefined], ["Confirmed", undefined], ["Scheduled", undefined],
+    ] as [string, boolean | undefined][]) {
+      expect(showsAsBilled(status, billed)).toBe(
+        appointmentStatusLabel(status, billed) === "Billed",
+      );
+    }
+  });
+
+  it("lights up for a billed visit whatever its status", () => {
+    expect(showsAsBilled("Confirmed", true)).toBe(true);
+    expect(showsAsBilled("Completed")).toBe(true);
+  });
+
+  // 45 visits in 90 days are Completed with no bill behind them; they must not
+  // be painted as paid.
+  it("stays off for a visit with no bill", () => {
+    expect(showsAsBilled("Completed", false)).toBe(false);
+    expect(showsAsBilled("Confirmed", false)).toBe(false);
+    expect(showsAsBilled("Confirmed")).toBe(false);
+  });
+});
+
+describe("BILLED_BADGE_CLASSES", () => {
+  // The bug being fixed: Billed and Confirmed were the same pale green.
+  it("is not the tint Confirmed wears", () => {
+    expect(APPOINTMENT_STATUS_STYLES.Confirmed).toContain("/10");
+    expect(BILLED_BADGE_CLASSES).not.toContain("/10");
+    expect(BILLED_BADGE_CLASSES).not.toContain("/15");
+    expect(BILLED_BADGE_CLASSES).toContain("bg-success");
+    expect(BILLED_BADGE_CLASSES).toContain("text-success-foreground");
+  });
+
+  it("carries the arrival animation the stylesheet defines", () => {
+    expect(BILLED_BADGE_CLASSES).toContain("billed-badge");
   });
 });

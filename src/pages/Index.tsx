@@ -26,7 +26,7 @@ import { useMoneyFormat } from "@/lib/currency";
 import { formatMoneyCompact } from "@/lib/currency";
 import { kpiColumnClass } from "@/lib/kpiGrid";
 import { appointmentPatientName, appointmentPatientInitialsText } from "@/lib/appointmentPatientName";
-import { appointmentStatusLabel } from "@/lib/appointmentStatus";
+import { appointmentStatusLabel, showsAsBilled, BILLED_BADGE_CLASSES } from "@/lib/appointmentStatus";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
 
 
@@ -732,7 +732,7 @@ const Index = () => {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="hidden sm:inline text-xs text-muted-foreground">{format(new Date(apt.start_time), "h:mm a")}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${statusColors[apt.status] || "bg-muted"}`}>{appointmentStatusLabel(apt.status, billedApptIds.has(apt.id))}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${showsAsBilled(apt.status, billedApptIds.has(apt.id)) ? BILLED_BADGE_CLASSES : statusColors[apt.status] || "bg-muted"}`}>{appointmentStatusLabel(apt.status, billedApptIds.has(apt.id))}</span>
                   </div>
                 </div>
               ))

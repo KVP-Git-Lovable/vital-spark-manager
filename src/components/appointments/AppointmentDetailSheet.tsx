@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { DateInput } from "@/components/shared/DateInput";
 import { ViewPrescriptionButton } from "@/components/prescriptions/ViewPrescriptionButton";
 import { withDrPrefix } from "@/lib/staffName";
-import { MANUAL_APPOINTMENT_STATUSES, appointmentStatusLabel } from "@/lib/appointmentStatus";
+import { MANUAL_APPOINTMENT_STATUSES, appointmentStatusLabel, showsAsBilled, BILLED_BADGE_CLASSES } from "@/lib/appointmentStatus";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import { confirmationSendPlan } from "@/lib/confirmationSend";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
@@ -1749,7 +1749,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                                   service when there is no text. */}
                               <div className="flex items-start justify-between gap-2">
                                 <p className="font-medium text-sm">{investigationText(apt, apt.service || "Consultation")}</p>
-                                <Badge variant="outline" className={`text-xs shrink-0 ${STATUS_BADGE_CLASSES[apt.status] || ""}`}>{appointmentStatusLabel(apt.status)}</Badge>
+                                <Badge variant="outline" className={`text-xs shrink-0 ${showsAsBilled(apt.status) ? BILLED_BADGE_CLASSES : STATUS_BADGE_CLASSES[apt.status] || ""}`}>{appointmentStatusLabel(apt.status)}</Badge>
                               </div>
                               <p className="text-xs mt-1">
                                 <span className="font-medium text-foreground">{displayDate(apt.start_time)}</span>

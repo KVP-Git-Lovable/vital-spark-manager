@@ -4,6 +4,7 @@ import { fetchAppointmentsPage, type FetchAppointmentsPageParams } from "@/lib/a
 import { displayDate } from "@/lib/dateInput";
 import { investigationText } from "@/lib/investigationText";
 import { appointmentPatientName, appointmentPatientIsVip } from "@/lib/appointmentPatientName";
+import { appointmentStatusLabel } from "@/lib/appointmentStatus";
 
 const esc = (v: any) =>
   String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
@@ -72,7 +73,7 @@ export async function printAppointments(
         <td>${a.start_time ? esc(displayDate(a.start_time)) : ""}</td>
         <td>${a.start_time ? esc(format(new Date(a.start_time), "hh:mm a")) : ""}</td>
         <td class="inv">${esc(investigationText(a, "—"))}</td>
-        <td>${esc(a.status || "")}</td>
+        <td>${esc(appointmentStatusLabel(a.status))}</td>
       </tr>`;
     })
     .join("");

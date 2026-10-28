@@ -39,3 +39,24 @@ export const APPOINTMENT_STATUS_STYLES: Record<string, string> = {
  */
 export const appointmentStatusClasses = (status: string | null | undefined): string =>
   APPOINTMENT_STATUS_STYLES[(status || "").trim()] || "bg-muted text-muted-foreground";
+
+/**
+ * What the clinic calls a status on screen.
+ *
+ * "Completed" is not set by anyone here - a database trigger sets it when the
+ * appointment's own invoice reaches Paid. So the word on the badge answers a
+ * question nobody asked ("is the visit over?") instead of the one the front
+ * desk is actually looking for ("is the bill done?"), and they asked for it to
+ * read "Billed".
+ *
+ * A label, deliberately, and not a rename. The stored value is still
+ * "Completed" - the trigger writes it, the dashboard counts it, saved views
+ * filter on it, the visit rollups and the reports read it. Changing the value
+ * would mean touching every one of those; changing the word costs nothing and
+ * is all that was asked for.
+ *
+ * Everything else passes through, including the Salesforce-era values
+ * ("Scheduled", "Checked-in", "Requested") that predate this list.
+ */
+export const appointmentStatusLabel = (status: string | null | undefined): string =>
+  (status || "").trim() === "Completed" ? "Billed" : (status ?? "");

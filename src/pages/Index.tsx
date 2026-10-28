@@ -26,6 +26,7 @@ import { useMoneyFormat } from "@/lib/currency";
 import { formatMoneyCompact } from "@/lib/currency";
 import { kpiColumnClass } from "@/lib/kpiGrid";
 import { appointmentPatientName, appointmentPatientInitialsText } from "@/lib/appointmentPatientName";
+import { appointmentStatusLabel } from "@/lib/appointmentStatus";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
 
 
@@ -519,7 +520,7 @@ const Index = () => {
         return openDrill("invoices", `Revenue by Doctor${suffix}`, id ? { staff: id } : {});
       }
       case "appointment_trend":
-        return openDrill("appointments", `Appointment Trend — Completed${suffix}`, { status: "Completed" });
+        return openDrill("appointments", `Appointment Trend — Billed${suffix}`, { status: "Completed" });
       case "revenue_by_service":
         return openDrill("invoices", `Revenue by Service${suffix}`, key && key !== "Unspecified" ? { service: key } : {});
       case "patient_feedback": {
@@ -635,8 +636,8 @@ const Index = () => {
           </div>
         )}
         {shows("appointments_completed") && (
-          <div className="cursor-pointer h-full" onClick={() => openDrill("appointments", `Completed Appointments — ${dateLabel}`, { status: "Completed" })}>
-            <StatCard title="Completed Appointments" value={completedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} loading={apptLoading} />
+          <div className="cursor-pointer h-full" onClick={() => openDrill("appointments", `Billed Appointments — ${dateLabel}`, { status: "Completed" })}>
+            <StatCard title="Billed Appointments" value={completedCount} change={dateLabel} changeType="positive" icon={UserCheck} iconColor="bg-success/10 text-success" delay={0.1} loading={apptLoading} />
           </div>
         )}
         {shows("new_patients") && (
@@ -714,7 +715,7 @@ const Index = () => {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="hidden sm:inline text-xs text-muted-foreground">{format(new Date(apt.start_time), "h:mm a")}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${statusColors[apt.status] || "bg-muted"}`}>{apt.status}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${statusColors[apt.status] || "bg-muted"}`}>{appointmentStatusLabel(apt.status)}</span>
                   </div>
                 </div>
               ))

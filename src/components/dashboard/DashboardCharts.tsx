@@ -305,7 +305,7 @@ export function DashboardCharts({ data, feedback, onChartClick, showRevenueBySer
             <Line
               type="monotone"
               dataKey="completed"
-              name="Completed Appointments"
+              name="Billed Appointments"
               stroke="hsl(var(--primary))"
               strokeWidth={2}
               dot={{ r: 3 }}

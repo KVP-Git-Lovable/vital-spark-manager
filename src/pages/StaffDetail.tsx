@@ -24,6 +24,7 @@ import { motion } from "framer-motion";
 import StaffPerformanceCharts from "@/components/staff/StaffPerformanceCharts";
 import { procedureDateLabel } from "@/lib/procedureDate";
 import { appointmentPatientName } from "@/lib/appointmentPatientName";
+import { appointmentStatusLabel } from "@/lib/appointmentStatus";
 
 const StaffDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -138,7 +139,7 @@ const AppointmentsTab = ({ staffId }: { staffId: string }) => {
                   <TableCell className="text-sm">{format(new Date(a.start_time), "dd MMM yyyy, hh:mm a")}</TableCell>
                   <TableCell>{appointmentPatientName(a)}</TableCell>
                   <TableCell>{a.service}</TableCell>
-                  <TableCell><Badge variant={a.status === "Completed" ? "default" : "secondary"}>{a.status}</Badge></TableCell>
+                  <TableCell><Badge variant={a.status === "Completed" ? "default" : "secondary"}>{appointmentStatusLabel(a.status)}</Badge></TableCell>
                 </TableRow>
               ))}
             </TableBody>

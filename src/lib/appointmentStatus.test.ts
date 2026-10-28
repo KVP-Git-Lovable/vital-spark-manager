@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { appointmentStatusClasses, ALL_APPOINTMENT_STATUSES } from "./appointmentStatus";
+import {
+  appointmentStatusClasses,
+  appointmentStatusLabel,
+  ALL_APPOINTMENT_STATUSES,
+  AUTOMATIC_APPOINTMENT_STATUSES,
+  MANUAL_APPOINTMENT_STATUSES,
+} from "./appointmentStatus";
 
 /**
  * A patient's Appts tab showed Cancelled in the same grey badge as Completed,
@@ -38,5 +44,53 @@ describe("appointmentStatusClasses", () => {
     for (const status of ALL_APPOINTMENT_STATUSES) {
       expect(appointmentStatusClasses(status)).not.toBe("bg-muted text-muted-foreground");
     }
+  });
+});
+
+/**
+ * The front desk reads a row to find out whether the bill is done. "Completed"
+ * is set by a trigger when the invoice is paid, so that is what it means - but
+ * it does not say so.
+ */
+describe("appointmentStatusLabel", () => {
+  it("calls a paid visit Billed", () => {
+    expect(appointmentStatusLabel("Completed")).toBe("Billed");
+    expect(appointmentStatusLabel(" Completed ")).toBe("Billed");
+  });
+
+  it("leaves every other status exactly as it is", () => {
+    for (const status of ALL_APPOINTMENT_STATUSES) {
+      if (status === "Completed") continue;
+      expect(appointmentStatusLabel(status)).toBe(status);
+    }
+  });
+
+  // Salesforce-era values that predate the list above still have to read.
+  it("passes through a status it has never heard of", () => {
+    expect(appointmentStatusLabel("Scheduled")).toBe("Scheduled");
+    expect(appointmentStatusLabel("Checked-in")).toBe("Checked-in");
+    expect(appointmentStatusLabel("Requested")).toBe("Requested");
+  });
+
+  it("has nothing to say about nothing", () => {
+    expect(appointmentStatusLabel(null)).toBe("");
+    expect(appointmentStatusLabel(undefined)).toBe("");
+    expect(appointmentStatusLabel("")).toBe("");
+  });
+
+  /**
+   * The guard that matters. "Billed" is a word on a badge; "Completed" is the
+   * value a database trigger writes, the dashboard counts, saved views filter
+   * on and the visit rollups read. If anyone ever "tidies" the label into the
+   * stored value, this fails before it reaches the clinic.
+   */
+  it("is a label, not a rename - the stored value is still Completed", () => {
+    expect(AUTOMATIC_APPOINTMENT_STATUSES).toContain("Completed");
+    expect(ALL_APPOINTMENT_STATUSES).toContain("Completed");
+    for (const list of [MANUAL_APPOINTMENT_STATUSES, AUTOMATIC_APPOINTMENT_STATUSES]) {
+      expect(list).not.toContain("Billed");
+    }
+    expect(appointmentStatusClasses("Completed")).toContain("text-success");
+    expect(appointmentStatusClasses("Billed")).toBe("bg-muted text-muted-foreground");
   });
 });

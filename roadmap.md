@@ -7,9 +7,9 @@
 - [x] Verify saved drafts, clinician review history, anonymous read exclusion and appointment readback; 42 matching/prescription tests pass.
 
 # Knowledge enhancements
-- [ ] Add private attachments, documents, image and video/reference links.
-- [ ] Add grounded AI references and further reading with clinician review.
-- [ ] Add prominent demographic/category labels, editable automatic titles, clone/cancel and Trash deletion.
-- [ ] Add detailed named revision history with field changes.
-- [ ] Add shared doctor votes/comments and open counts in master and matched appointment articles.
-- [ ] Verify saved article, feedback, matching, history and security rules.
+- [x] Add private attachments, documents, image and video/reference links.
+- [x] Add grounded AI references, related service articles and educational pictures with clinician review; live proposals generated and discarded.
+- [x] Add prominent demographic/category labels, editable automatic titles, clone/cancel and Trash deletion.
+- [x] Add detailed named revision history with field changes.
+- [x] Add shared doctor votes/comments and open counts in master and matched appointment articles.
+- [x] Verify saved attachment/link, vote/comment readback, before/after history, inactive clone, Trash deletion and phone layout; nine rule tests passed. Real appointment checked excludes unrelated service articles; no existing appointment matches the currently published article for a positive appointment-feedback check.

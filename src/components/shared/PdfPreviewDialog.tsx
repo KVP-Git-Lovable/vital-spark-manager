@@ -107,6 +107,7 @@ export function PdfPreviewDialog({
   useEffect(() => {
     if (!autoPrint || !open || error || !pagesReady) return;
     if (!pages || pages.length === 0) return;
+    if (printFrame.current?.contentDocument !== readyFrame?.document) return;
     if (printedFor.current === pages) return;
     printedFor.current = pages;
     // printPages reads refs only, so it is stable and needs no dep.

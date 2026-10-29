@@ -49,6 +49,8 @@ import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { type ServiceOption } from "@/lib/servicePicker";
 import { blankServiceLine } from "@/lib/procedureFormSeed";
 import { patientIdentityLine } from "@/lib/patientIdentity";
+import { ClinicalGuidelines } from "@/components/knowledge/ClinicalGuidelines";
+import { appendCare } from "@/lib/knowledge";
 
 import {
   MEDICAL_FIELDS,
@@ -1386,6 +1388,7 @@ function ProcedureForm({
                     onChange={(e) => updateServiceLine(line.key, { recommendations: capitaliseFirstWord(e.target.value, e.target.selectionStart) })}
                   />
                 </div>
+                {patientId && line.service_id && <ClinicalGuidelines patientId={patientId} serviceIds={[line.service_id]} onCopyCare={(text) => updateServiceLine(line.key, { recommendations: appendCare(line.recommendations, text) })} />}
               </div>
             ))}
             {/* The same action again at the foot of the list. With three

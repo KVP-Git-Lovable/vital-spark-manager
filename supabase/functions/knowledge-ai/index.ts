@@ -46,7 +46,10 @@ Deno.serve(async (req) => {
         const emit = (value: unknown) => controller.enqueue(encoder.encode(JSON.stringify(value) + "\n"));
         emit({ type: "started" });
         try {
-          for await (const part of result.textStream) emit({ type: "delta", text: part });
+          for await (const part of result.fullStream) {
+            if (part.type === "error") throw part.error;
+            if (part.type === "text-delta") emit({ type: "delta", text: part.text });
+          }
           const text = await result.text;
           if (!text.trim()) throw new Error("Lovable AI returned no draft. The request has ended.");
           emit({ type: "done" });

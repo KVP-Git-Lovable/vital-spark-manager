@@ -1,5 +1,5 @@
 import { createOpenAI } from "npm:@ai-sdk/openai@3";
-import { streamText, type ModelMessage } from "npm:ai@6";
+import { streamText, Output, jsonSchema, type ModelMessage } from "npm:ai@6";
 
 import {
   createLovableAiGatewayRunIdFetch,
@@ -23,6 +23,8 @@ export function createResponsesCall(
   const reasoning = config.model !== "openai/chat-latest";
   const result = streamText({
     model: provider.responses(config.model),
+    maxRetries: 0,
+    output: Output.object({ schema: jsonSchema({ type: "object", additionalProperties: false, properties: { title: { type: "string" }, summary: { type: "string" }, clinical_protocol: { type: "string" }, contraindications: { type: "string" }, pre_post_care: { type: "string" }, complications_management: { type: "string" }, sources: { type: "string" }, is_critical: { type: "boolean" }, ai_change_summary: { type: "string" } }, required: ["title", "summary", "clinical_protocol", "contraindications", "pre_post_care", "complications_management", "sources", "is_critical", "ai_change_summary"] }) }),
     // AI SDK 6 lacks `instructions`: rename this key to `system` there.
     ...(instructions ? { system: instructions } : {}),
     messages,

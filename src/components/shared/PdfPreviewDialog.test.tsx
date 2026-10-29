@@ -17,7 +17,7 @@ describe("prescription print readiness", () => {
     // An early load of the initial about:blank document must not qualify.
     fireEvent.load(frame);
     expect(print).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Print", exact: true })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Print$/ })).toBeDisabled();
 
     const image = doc.createElement("img");
     doc.body.append(image);

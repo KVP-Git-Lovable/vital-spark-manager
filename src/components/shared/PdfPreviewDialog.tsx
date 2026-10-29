@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Download, FileText, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -66,13 +66,15 @@ export function PdfPreviewDialog({
   const printFrame = useRef<HTMLIFrameElement | null>(null);
   /** Auto-print fires once per opening, not once per render. */
   const printedFor = useRef<string[] | null>(null);
+  const [readyFrame, setReadyFrame] = useState<{ pages: string[]; document: Document } | null>(null);
+  const pagesReady = !!pages && readyFrame?.pages === pages;
 
   const printPages = async () => {
     // The drawn pages are printed from a frame carrying them as its own
     // document, via srcdoc. No window is opened and nothing is navigated to,
     // which are the two things that get blocked.
     const frame = printFrame.current;
-    if (!frame?.contentWindow) return;
+    if (!frame?.contentWindow || !pagesReady || frame.contentDocument !== readyFrame?.document) return;
     // The pages are images inside that frame, and printing before they have
     // decoded prints blank sheets. By hand that was hidden - the dialog had
     // been on screen for a while - but auto-print asks the moment the frame
@@ -89,23 +91,28 @@ export function PdfPreviewDialog({
             }),
         ),
     );
+    if (printFrame.current !== frame || frame.contentDocument !== readyFrame?.document) return;
+    if (images.length !== pages?.length || images.some((img) => !img.complete || img.naturalWidth === 0)) return;
     frame.contentWindow.focus();
     frame.contentWindow.print();
   };
 
   // Forgotten when the dialog closes, so the next opening prints again.
   useEffect(() => {
-    if (!open) printedFor.current = null;
+    if (!open) {
+      printedFor.current = null;
+    }
   }, [open]);
 
   useEffect(() => {
-    if (!autoPrint || !open || error) return;
+    if (!autoPrint || !open || error || !pagesReady) return;
     if (!pages || pages.length === 0) return;
+    if (printFrame.current?.contentDocument !== readyFrame?.document) return;
     if (printedFor.current === pages) return;
     printedFor.current = pages;
     // printPages reads refs only, so it is stable and needs no dep.
     void printPages();
-  }, [autoPrint, open, pages, error]);
+  }, [autoPrint, open, pages, error, readyFrame]);
 
   const print = () => {
     const frame = document.getElementById("pdf-preview-frame") as HTMLIFrameElement | null;
@@ -162,6 +169,14 @@ export function PdfPreviewDialog({
               ))}
               <iframe
                 ref={printFrame}
+                onLoad={(event) => {
+                  // srcDoc mounts asynchronously: only this event certifies
+                  // that we are looking at the prescription, not about:blank.
+                  const document = event.currentTarget.contentDocument;
+                  if (!document || document.images.length !== pages.length) return;
+                  if (Array.from(document.images).some((img) => !img.complete || img.naturalWidth === 0)) return;
+                  setReadyFrame({ pages, document });
+                }}
                 title="print"
                 aria-hidden="true"
                 tabIndex={-1}
@@ -196,7 +211,7 @@ export function PdfPreviewDialog({
         {((pages && pages.length > 0) || url || html) && !error && (
           <div className="flex justify-end gap-2">
             {pages && pages.length > 0 ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => void printPages()}>
+              <Button type="button" variant="outline" size="sm" disabled={!pagesReady} onClick={() => void printPages()}>
                 <Printer className="h-4 w-4 mr-1" /> Print
               </Button>
             ) : html ? (

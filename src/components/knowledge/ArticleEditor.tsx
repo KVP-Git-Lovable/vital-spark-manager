@@ -18,6 +18,7 @@ import { ArticleContent } from "./ArticleContent";
 import { ResourceEditor } from "./ArticleResources";
 import { ArticleHistory } from "./ArticleHistory";
 import { ArticleEngagement } from "./ArticleEngagement";
+import { KnowledgePicture } from "./KnowledgePicture";
 
 const blank = { service_id: "", category_id: "", title: "", summary: "", gender: "both", age_rule: "all_ages", min_age: null as number | null, max_age: null as number | null, is_critical: false, clinical_protocol: "", contraindications: "", pre_post_care: "", complications_management: "", sources: "", ai_generated: false, ai_change_summary: "", status: "draft", is_active: true };
 export function ArticleEditor({ article, cloneFrom, serviceId, onClose }: { article?: KnowledgeArticle; cloneFrom?: KnowledgeArticle; serviceId?: string; onClose: () => void }) {
@@ -73,6 +74,7 @@ export function ArticleEditor({ article, cloneFrom, serviceId, onClose }: { arti
         {form.ai_change_summary && <p className="text-sm text-muted-foreground whitespace-pre-wrap">AI change summary: {form.ai_change_summary}</p>}
       </>}
       {!proposal && <ResourceEditor value={resources} onChange={setResources} group={group} />}
+      {!proposal && <KnowledgePicture serviceId={form.service_id} group={group} onAdd={(resource) => setResources((current) => [...current, resource])} />}
       <div className="flex flex-wrap gap-2 border-t pt-4"><Button variant="outline" disabled={save.isPending || busy || !!proposal} onClick={() => save.mutate("draft")}><Save className="h-4 w-4 mr-2" />Save Draft</Button><Button variant="outline" disabled={save.isPending || busy || !!proposal} onClick={() => save.mutate("reviewed")}><ShieldCheck className="h-4 w-4 mr-2" />Mark Reviewed</Button><Button disabled={save.isPending || busy || !!proposal} onClick={() => { if (window.confirm("Confirm you have clinically reviewed this article and approve it for patient appointments?")) save.mutate("published"); }}><BookOpen className="h-4 w-4 mr-2" />Approve & Publish</Button></div>
       <Button variant="ghost" onClick={onClose}>Cancel</Button>
       {article && <><ArticleHistory article={article} /><ArticleEngagement articleId={article.id} trackOpen={false} /></>}

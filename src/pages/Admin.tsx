@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck, Trash2, History, Coins, Users, ImageIcon, BookOpen } from "lucide-react";
 
 const sections = [
+  { title: "Knowledge Articles", description: "Clinical protocols", url: "/knowledge", icon: BookOpen },
   {
     title: "Validation Rules",
     description: "Enforce data quality with branching criteria, error and alert messages.",

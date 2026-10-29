@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { numVal } from "@/lib/numberInput";
 import { applyMedicineDefaults } from "@/lib/medicineDefaults";
 import { usePharmaLookup } from "@/hooks/usePharmaLookup";
@@ -286,6 +287,10 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
           <div className="text-center py-8 text-muted-foreground">Loading...</div>
         ) : (
           <div className="space-y-4 pt-4">
+            <div className="flex flex-wrap gap-2 border-b pb-4">
+              <Button asChild variant="outline"><Link to={`/knowledge?service=${service.id}`} onClick={handleClose}>Knowledge Articles</Link></Button>
+              <Button asChild variant="outline"><Link to={`/knowledge?service=${service.id}&new=1`} onClick={handleClose}>Generate Clinical Knowledge Article</Link></Button>
+            </div>
             <div>
               <Label>Service Name *</Label>
               <Input className="mt-1.5" value={name} onChange={(e) => setName(e.target.value)} />

@@ -65,6 +65,8 @@ import { partitionVisitMedia } from "@/lib/visitMedia";
 import { parsePrescriptionText } from "@/lib/prescriptionText";
 import type { Tables } from "@/integrations/supabase/types";
 import { procedureDateLabel } from "@/lib/procedureDate";
+import { ClinicalGuidelines } from "@/components/knowledge/ClinicalGuidelines";
+import { appendCare } from "@/lib/knowledge";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 // The busiest patient has 310 photos; this is a guard, not a limit anyone
@@ -1493,6 +1495,7 @@ export function ProcedureDetailSheet({ procedureId, onClose, onSaved }: Procedur
                         </div>
                         <Textarea value={line.recommendations} onChange={(e) => updateLine(line.key, { recommendations: capitaliseFirstWord(e.target.value, e.target.selectionStart) })} className="mt-1" rows={3} />
                       </div>
+                      {procedure.patient_id && line.service_id && line.service_id !== OTHERS_VALUE && <ClinicalGuidelines patientId={procedure.patient_id} serviceIds={[line.service_id]} onCopyCare={(text) => updateLine(line.key, { recommendations: appendCare(line.recommendations, text) })} />}
                     </div>
                   ))}
                   {/* Repeated at the foot of the list: with several services

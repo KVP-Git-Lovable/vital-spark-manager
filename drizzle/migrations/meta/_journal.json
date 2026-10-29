@@ -183,6 +183,13 @@
       "when": 1793240726594,
       "tag": "0025_knowledge_article_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793249489330,
+      "tag": "0026_service_knowledge_management",
+      "breakpoints": true
     }
   ]
 }

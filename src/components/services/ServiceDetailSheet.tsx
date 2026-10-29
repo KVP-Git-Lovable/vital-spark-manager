@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ServicePatientsTab, ServiceReportsTab } from "./ServiceUsagePanel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -286,7 +288,16 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
         {!service ? (
           <div className="text-center py-8 text-muted-foreground">Loading...</div>
         ) : (
-          <div className="space-y-4 pt-4">
+          <Tabs defaultValue="details" className="w-full pt-4">
+            {/* Details stays the landing tab: opening a service is still, most
+                of the time, about editing it. The other two only mount when
+                chosen, so they cost nothing until someone asks for them. */}
+            <TabsList className="h-auto flex flex-wrap justify-start gap-1">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="patients">Patients</TabsTrigger>
+              <TabsTrigger value="reports">Reports</TabsTrigger>
+            </TabsList>
+            <TabsContent value="details" className="space-y-4 pt-4">
             <div className="flex flex-wrap gap-2 border-b pb-4">
               <Button asChild variant="outline"><Link to={`/knowledge?service=${service.id}`} onClick={handleClose}>Knowledge Articles</Link></Button>
               <Button asChild variant="outline"><Link to={`/knowledge?service=${service.id}&new=1`} onClick={handleClose}>Generate Clinical Knowledge Article</Link></Button>
@@ -457,7 +468,16 @@ export function ServiceDetailSheet({ serviceId, onClose }: ServiceDetailSheetPro
                 showed it, so turning it on appeared to do nothing. The panel
                 reads whichever fields the admin chose to track. */}
             <FieldHistorySection objectType="services" recordId={serviceId} className="mt-4" />
-          </div>
+            </TabsContent>
+
+            <TabsContent value="patients">
+              <ServicePatientsTab serviceId={service.id} serviceName={service.name} />
+            </TabsContent>
+
+            <TabsContent value="reports">
+              <ServiceReportsTab serviceId={service.id} serviceName={service.name} />
+            </TabsContent>
+          </Tabs>
         )}
       </SheetContent>
     </Sheet>

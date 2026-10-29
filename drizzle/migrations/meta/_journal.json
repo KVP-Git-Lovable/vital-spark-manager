@@ -176,6 +176,13 @@
       "when": 1792070418231,
       "tag": "0024_mailchimp_api_key",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793240726594,
+      "tag": "0025_knowledge_article_categories",
+      "breakpoints": true
     }
   ]
 }

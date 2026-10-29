@@ -98,6 +98,7 @@ const Vendors = lazyWithReload(() => import("./pages/Vendors"));
 const UserManagement = lazyWithReload(() => import("./pages/UserManagement"));
 const HistoryTracking = lazyWithReload(() => import("./pages/admin/HistoryTracking"));
 const PhotoFingerprints = lazyWithReload(() => import("./pages/admin/PhotoFingerprints"));
+const KnowledgeCategories = lazyWithReload(() => import("./pages/admin/KnowledgeCategories"));
 const CurrencyBilling = lazyWithReload(() => import("./pages/admin/CurrencyBilling"));
 const UnitMaster = lazyWithReload(() => import("./pages/UnitMaster"));
 const ValidationRules = lazyWithReload(() => import("./pages/ValidationRules"));
@@ -322,6 +323,7 @@ const App = () => (
                     <Route path="/trash" element={<TrashPage />} />
                     <Route path="/admin/history-tracking" element={<ProtectedRoute moduleKey="settings"><HistoryTracking /></ProtectedRoute>} />
                     <Route path="/admin/photo-fingerprints" element={<ProtectedRoute moduleKey="settings"><PhotoFingerprints /></ProtectedRoute>} />
+                    <Route path="/admin/knowledge-categories" element={<ProtectedRoute moduleKey="settings"><KnowledgeCategories /></ProtectedRoute>} />
                     <Route path="/admin/currency" element={<ProtectedRoute moduleKey="settings"><CurrencyBilling /></ProtectedRoute>} />
                     <Route path="/admin/trash" element={<ProtectedRoute moduleKey="settings"><TrashAdmin /></ProtectedRoute>} />
                     <Route path="/validation-rules/:id" element={<ProtectedRoute moduleKey="settings"><ValidationRuleBuilder /></ProtectedRoute>} />

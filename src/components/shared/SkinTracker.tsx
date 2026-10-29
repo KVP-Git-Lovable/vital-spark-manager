@@ -22,6 +22,9 @@ interface Photo {
   procedures?: { service_name: string } | null;
 }
 
+/** The two photos being compared. "before" is Photo 1, "after" is Photo 2. */
+type Side = "before" | "after";
+
 interface SkinTrackerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -43,36 +46,41 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
   const sliderRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
-  // Zoom and pan are SHARED by both photos, deliberately. The point of this
-  // screen is comparing the same piece of skin across two visits; letting each
-  // photo be zoomed or panned separately would show two different crops side
-  // by side and quietly invite the wrong conclusion.
+  // Zoom, pan and tilt all belong to one photo rather than both.
   //
-  // Tilt is per photo, for the opposite reason: two photos are rarely taken at
-  // exactly the same head angle, and straightening one against the other is
-  // what makes them comparable in the first place.
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  // Zoom moved the two together until Oct 2026, so that one could not be blown
+  // up against the other and a lesion made to look like it had changed. That
+  // was half right. Two photos taken months apart are rarely shot from the
+  // same distance, so they usually arrive at different scales already, and a
+  // shared zoom cannot correct that - it can only preserve the mismatch.
+  // Scaling each photo is what brings them to a common size, for the same
+  // reason tilt has always been per photo: the correction belongs to one
+  // image, not to both.
+  //
+  // The risk the old rule guarded is now carried out in the open, by the note
+  // the toolbar shows whenever the two zooms differ.
+  const [zoom, setZoom] = useState({ before: 1, after: 1 });
+  const [pan, setPan] = useState({ before: { x: 0, y: 0 }, after: { x: 0, y: 0 } });
   const [tilt, setTilt] = useState({ before: 0, after: 0 });
-  const panning = useRef<{ x: number; y: number } | null>(null);
+  const panning = useRef<{ which: Side; x: number; y: number } | null>(null);
 
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 6;
   const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
 
   const resetView = useCallback(() => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
+    setZoom({ before: 1, after: 1 });
+    setPan({ before: { x: 0, y: 0 }, after: { x: 0, y: 0 } });
     setTilt({ before: 0, after: 0 });
   }, []);
 
-  const adjustZoom = useCallback((delta: number) => {
+  const adjustZoom = useCallback((which: Side, delta: number) => {
     setZoom((z) => {
-      const next = clampZoom(z + delta);
+      const next = clampZoom(z[which] + delta);
       // Back at 1x there is nothing to pan to, and leaving an old offset behind
       // would show the photo off-centre with no way to tell why.
-      if (next === 1) setPan({ x: 0, y: 0 });
-      return next;
+      if (next === 1) setPan((p) => ({ ...p, [which]: { x: 0, y: 0 } }));
+      return { ...z, [which]: next };
     });
   }, []);
 
@@ -84,14 +92,15 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
   }, []);
   const handlePointerUp = useCallback(() => { dragging.current = false; panning.current = null; }, []);
 
-  const startPan = useCallback((e: React.PointerEvent) => {
-    if (zoom <= 1) return;
-    panning.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
-  }, [zoom, pan.x, pan.y]);
+  const startPan = useCallback((which: Side, e: React.PointerEvent) => {
+    if (zoom[which] <= 1) return;
+    panning.current = { which, x: e.clientX - pan[which].x, y: e.clientY - pan[which].y };
+  }, [zoom, pan]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (panning.current) {
-      setPan({ x: e.clientX - panning.current.x, y: e.clientY - panning.current.y });
+      const { which, x, y } = panning.current;
+      setPan((p) => ({ ...p, [which]: { x: e.clientX - x, y: e.clientY - y } }));
       return;
     }
     if (!dragging.current || !sliderRef.current) return;
@@ -104,16 +113,34 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
   // wheel keeps scrolling the dialog: this panel sits inside a scrollable
   // dialog, and grabbing the scroll whenever the pointer crossed a photo would
   // trap the page.
-  const handleWheel = useCallback((e: React.WheelEvent) => {
+  const handleWheel = useCallback((which: Side, e: React.WheelEvent) => {
     if (!e.ctrlKey && !e.metaKey) return;
-    adjustZoom(e.deltaY < 0 ? 0.2 : -0.2);
+    adjustZoom(which, e.deltaY < 0 ? 0.2 : -0.2);
   }, [adjustZoom]);
+
+  /** In Slider the two photos share one box, so the divider decides which one a
+   *  gesture belongs to: left of it is Photo 1, right of it Photo 2. That is
+   *  what the eye sees, so it is what the hand should get. */
+  const sideAt = useCallback((clientX: number): Side => {
+    const rect = sliderRef.current?.getBoundingClientRect();
+    if (!rect) return "before";
+    return clientX - rect.left <= (sliderPos / 100) * rect.width ? "before" : "after";
+  }, [sliderPos]);
 
   /** What a photo's transform should be. Pan is outside scale so dragging moves
    *  the image by the distance the pointer moved, not that distance times the
    *  zoom. */
-  const transformFor = (which: "before" | "after") =>
-    `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${tilt[which]}deg)`;
+  const transformFor = (which: Side) =>
+    `translate(${pan[which].x}px, ${pan[which].y}px) scale(${zoom[which]}) rotate(${tilt[which]}deg)`;
+
+  /** Either photo magnified, so the drag hint is worth showing. */
+  const anyZoomed = zoom.before > 1 || zoom.after > 1;
+  /** The two photos are no longer at the same scale, so their sizes cannot be
+   *  read against each other. Said out loud rather than left to be noticed. */
+  const zoomMismatch = zoom.before !== zoom.after;
+  const viewChanged =
+    anyZoomed || zoomMismatch || !!tilt.before || !!tilt.after ||
+    pan.before.x !== 0 || pan.before.y !== 0 || pan.after.x !== 0 || pan.after.y !== 0;
 
   useEffect(() => {
     const up = () => { dragging.current = false; panning.current = null; };
@@ -280,21 +307,26 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
               </div>
 
               {/* Zoom and tilt, the same controls whichever way the photos are
-                  laid out. Zoom moves both together; each photo tilts on its
-                  own so one can be straightened against the other. */}
+                  laid out, and both per photo: one is straightened and scaled
+                  against the other until the same piece of skin is the same
+                  size and the same way up in each. */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] text-muted-foreground mr-1">Zoom</span>
-                  <Button type="button" size="icon" variant="outline" className="h-7 w-7"
-                    onClick={() => adjustZoom(-0.25)} disabled={zoom <= MIN_ZOOM} aria-label="Zoom out">
-                    <ZoomOut className="h-3.5 w-3.5" />
-                  </Button>
-                  <span className="text-[11px] tabular-nums w-10 text-center">{zoom.toFixed(1)}×</span>
-                  <Button type="button" size="icon" variant="outline" className="h-7 w-7"
-                    onClick={() => adjustZoom(0.25)} disabled={zoom >= MAX_ZOOM} aria-label="Zoom in">
-                    <ZoomIn className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                {(["before", "after"] as const).map((which, i) => (
+                  <div key={`zoom-${which}`} className="flex items-center gap-1">
+                    <span className="text-[11px] text-muted-foreground mr-1">Zoom {i + 1}</span>
+                    <Button type="button" size="icon" variant="outline" className="h-7 w-7"
+                      onClick={() => adjustZoom(which, -0.25)} disabled={zoom[which] <= MIN_ZOOM}
+                      aria-label={`Zoom photo ${i + 1} out`}>
+                      <ZoomOut className="h-3.5 w-3.5" />
+                    </Button>
+                    <span className="text-[11px] tabular-nums w-10 text-center">{zoom[which].toFixed(1)}×</span>
+                    <Button type="button" size="icon" variant="outline" className="h-7 w-7"
+                      onClick={() => adjustZoom(which, 0.25)} disabled={zoom[which] >= MAX_ZOOM}
+                      aria-label={`Zoom photo ${i + 1} in`}>
+                      <ZoomIn className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
 
                 {(["before", "after"] as const).map((which, i) => (
                   <div key={which} className="flex items-center gap-1">
@@ -314,12 +346,17 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
                 ))}
 
                 <Button type="button" size="sm" variant="ghost" className="h-7 gap-1.5 text-xs ml-auto"
-                  onClick={resetView} disabled={zoom === 1 && pan.x === 0 && pan.y === 0 && !tilt.before && !tilt.after}>
+                  onClick={resetView} disabled={!viewChanged}>
                   <Undo2 className="h-3.5 w-3.5" /> Reset view
                 </Button>
               </div>
-              {zoom > 1 && (
-                <p className="text-[10px] text-muted-foreground -mt-1">Drag the photo to move around it.</p>
+              {zoomMismatch && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-500 -mt-1">
+                  Photos are at different zoom — sizes are not comparable.
+                </p>
+              )}
+              {anyZoomed && (
+                <p className="text-[10px] text-muted-foreground -mt-1">Drag a photo to move around it.</p>
               )}
 
               <Tabs value={compareMode} onValueChange={(v) => setCompareMode(v as "slider" | "side-by-side")}>
@@ -327,11 +364,11 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
                 <TabsContent value="slider" className="mt-3">
                   <div
                     ref={sliderRef}
-                    className={`relative w-full aspect-[4/3] rounded-xl overflow-hidden border select-none touch-none bg-neutral-900 ${zoom > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-col-resize"}`}
+                    className={`relative w-full aspect-[4/3] rounded-xl overflow-hidden border select-none touch-none bg-neutral-900 ${anyZoomed ? "cursor-grab active:cursor-grabbing" : "cursor-col-resize"}`}
                     onPointerMove={handlePointerMove}
-                    onPointerDown={startPan}
+                    onPointerDown={(e) => startPan(sideAt(e.clientX), e)}
                     onPointerUp={handlePointerUp}
-                    onWheel={handleWheel}
+                    onWheel={(e) => handleWheel(sideAt(e.clientX), e)}
                   >
                     <img src={afterPhoto.photo_url} alt="After" className="absolute inset-0 w-full h-full object-cover"
                       style={{ transform: transformFor("after"), transformOrigin: "center" }} draggable={false} />
@@ -361,11 +398,11 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div
-                        className={`relative rounded-xl overflow-hidden border bg-neutral-900 ${zoom > 1 ? "touch-none cursor-grab active:cursor-grabbing" : ""}`}
-                        onPointerDown={startPan}
+                        className={`relative rounded-xl overflow-hidden border bg-neutral-900 ${zoom.before > 1 ? "touch-none cursor-grab active:cursor-grabbing" : ""}`}
+                        onPointerDown={(e) => startPan("before", e)}
                         onPointerMove={handlePointerMove}
                         onPointerUp={handlePointerUp}
-                        onWheel={handleWheel}
+                        onWheel={(e) => handleWheel("before", e)}
                       >
                         <img src={beforePhoto.photo_url} alt="Photo 1" className="w-full aspect-[3/4] object-cover"
                           style={{ transform: transformFor("before"), transformOrigin: "center" }} draggable={false} />
@@ -377,11 +414,11 @@ export function SkinTracker({ open, onOpenChange, photos, patientName, patientId
                     </div>
                     <div>
                       <div
-                        className={`relative rounded-xl overflow-hidden border bg-neutral-900 ${zoom > 1 ? "touch-none cursor-grab active:cursor-grabbing" : ""}`}
-                        onPointerDown={startPan}
+                        className={`relative rounded-xl overflow-hidden border bg-neutral-900 ${zoom.after > 1 ? "touch-none cursor-grab active:cursor-grabbing" : ""}`}
+                        onPointerDown={(e) => startPan("after", e)}
                         onPointerMove={handlePointerMove}
                         onPointerUp={handlePointerUp}
-                        onWheel={handleWheel}
+                        onWheel={(e) => handleWheel("after", e)}
                       >
                         <img src={afterPhoto.photo_url} alt="Photo 2" className="w-full aspect-[3/4] object-cover"
                           style={{ transform: transformFor("after"), transformOrigin: "center" }} draggable={false} />

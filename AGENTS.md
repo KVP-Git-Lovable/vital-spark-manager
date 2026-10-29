@@ -2,6 +2,7 @@
 
 - Keep service knowledge in dedicated articles with database-enforced active doctor/admin review, immutable revision snapshots, and draft-only AI suggestions; this prevents unreviewed clinical content from appearing in appointments.
 - Resolve appointment knowledge dynamically from the booked service and recorded procedure service IDs, with inclusive demographic matching; never persist guessed article assignments or automatically alter prescriptions.
+- Render new-prescription knowledge in one dedicated tab using the linked appointment's booked service plus current prescription service IDs; this keeps references available without seeding or changing procedure lines.
 - Keep knowledge AI server-only on the Responses gateway with streamed results and persistent terminal access blocks; suggestions enter articles only through an explicit clinician save.
 - Store knowledge resources in article revision snapshots with private signed attachment access; keep doctor feedback and idempotent open events separate so engagement never republishes clinical content.
 - Knowledge Trash retains the article row and its immutable revisions/engagement until retention-based purge; restore clears its deletion marker instead of recreating review history.

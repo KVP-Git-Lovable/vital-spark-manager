@@ -1,4 +1,5 @@
 # Knowledge management
+- [x] Move appointment knowledge into prescriptions, order new-prescription tabs with Procedure default, and show matching articles as cards; verified a real matching article opens in the appointment's new prescription and phone layout fits; 15 existing rule tests passed.
 - [x] Store service-linked articles with demographics, categories and clinical content.
 - [x] Enforce clinician review and publication; preserve published content while AI suggestions await review.
 - [x] Add article management and Service Master entry points.

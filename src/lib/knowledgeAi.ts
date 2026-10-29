@@ -16,12 +16,14 @@ export async function draftKnowledge(body: unknown, signal: AbortSignal): Promis
   const decoder = new TextDecoder();
   let buffer = "", text = "";
   let webSources: { title: string; url: string }[] = [];
+  let relatedArticles: { id: string; title: string }[] = [];
   const consume = (line: string) => {
     if (!line.trim()) return;
     const event = JSON.parse(line);
     if (event.type === "error") throw new Error(event.error);
     if (event.type === "delta") text += event.text;
     if (event.type === "sources") webSources = event.sources;
+    if (event.type === "related") relatedArticles = event.articles;
   };
   try {
     while (true) {
@@ -41,5 +43,6 @@ export async function draftKnowledge(body: unknown, signal: AbortSignal): Promis
     if (!seen.has(source.url)) { proposal.resources.push({ id: crypto.randomUUID(), kind: "link", title: source.title || source.url, url: source.url, note: "Source retrieved during AI web research" }); seen.add(source.url); }
   }
   if (webSources.length) proposal.sources += "\n\n### Web research sources\n" + webSources.map((s) => `- [${s.title || s.url}](${s.url})`).join("\n");
+  proposal.resources.push(...relatedArticles.map((a) => ({ id: crypto.randomUUID(), kind: "article" as const, title: a.title, article_id: a.id, note: "Related published service knowledge article" })));
   return proposal;
 }

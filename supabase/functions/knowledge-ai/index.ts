@@ -74,6 +74,8 @@ Deno.serve(async (req) => {
           if (!text.trim()) throw new Error("Lovable AI returned no draft. The request has ended.");
           const sources = await result.sources;
           emit({ type: "sources", sources: sources.filter((s) => s.sourceType === "url").map((s) => ({ title: s.title, url: s.url })) });
+          const { data: related } = await caller.from("knowledge_articles").select("id,title").eq("service_id", input.service_id).eq("status", "published").eq("is_active", true).is("deleted_at", null).limit(5);
+          emit({ type: "related", articles: (related || []).filter((a) => a.title !== input.current?.title) });
           emit({ type: "done" });
         } catch (error) {
           const e = error as { statusCode?: number; responseBody?: string; message?: string };

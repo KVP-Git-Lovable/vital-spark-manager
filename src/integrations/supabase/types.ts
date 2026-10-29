@@ -8466,6 +8466,7 @@ export type Database = {
           opens: number
         }[]
       }
+      knowledge_file_visible: { Args: { _path: string }; Returns: boolean }
       move_to_trash: {
         Args: { _label?: string; _object_type: string; _record_id: string }
         Returns: string

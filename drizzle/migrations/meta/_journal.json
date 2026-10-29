@@ -197,6 +197,13 @@
       "when": 1793251400890,
       "tag": "0027_knowledge_resources_feedback_history",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793253638427,
+      "tag": "0028_knowledge_resource_security_retention",
+      "breakpoints": true
     }
   ]
 }

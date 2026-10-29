@@ -21,6 +21,16 @@ interface DateInputProps {
    * does. Off by default so every existing date box stays exactly as it is.
    */
   withCalendar?: boolean;
+  /**
+   * Classes for the input itself.
+   *
+   * `className` sizes the wrapper once there is a calendar button to sit
+   * inside it, which is right for a width but leaves no way to make the box
+   * shorter - a compact filter bar wants h-8 text-xs on the input, and
+   * putting that on the wrapper only moves the button. This reaches the box
+   * in both layouts.
+   */
+  inputClassName?: string;
 }
 
 /** Local yyyy-MM-dd. Not toISOString(), which is UTC and lands on the day before. */
@@ -64,6 +74,7 @@ export function DateInput({
   placeholder = "dd/mm/yyyy",
   required,
   withCalendar = false,
+  inputClassName,
 }: DateInputProps) {
   const [text, setText] = useState(() => isoToDisplay(value));
 
@@ -77,7 +88,7 @@ export function DateInput({
   const field = (
     <Input
       id={id}
-      className={withCalendar ? "w-full pr-9" : className}
+      className={withCalendar ? cn("w-full pr-9", inputClassName) : cn(className, inputClassName)}
       required={required}
       value={text}
       inputMode="numeric"

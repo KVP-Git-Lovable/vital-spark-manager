@@ -4,11 +4,16 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { DateInput } from "./DateInput";
 
 /** Mirrors how PatientFormSheet holds date_of_birth: ISO in, ISO out. */
-function Harness({ initial = "", onIso, withCalendar }: { initial?: string; onIso?: (v: string) => void; withCalendar?: boolean }) {
+function Harness({ initial = "", onIso, withCalendar, inputClassName }: { initial?: string; onIso?: (v: string) => void; withCalendar?: boolean; inputClassName?: string }) {
   const [iso, setIso] = useState(initial);
   return (
     <>
-      <DateInput value={iso} onChange={(v) => { setIso(v); onIso?.(v); }} withCalendar={withCalendar} />
+      <DateInput
+        value={iso}
+        onChange={(v) => { setIso(v); onIso?.(v); }}
+        withCalendar={withCalendar}
+        inputClassName={inputClassName}
+      />
       <span data-testid="stored">{iso}</span>
     </>
   );
@@ -116,5 +121,22 @@ describe("DateInput with a calendar", () => {
     fireEvent.click(screen.getByText("15"));
     expect(stored()).toBe("2026-09-15");
     expect(box().value).toBe("15/09/2026");
+  });
+});
+
+describe("sizing the box itself", () => {
+  // className sizes the wrapper once a calendar button has to sit inside it,
+  // which is right for a width but cannot make the box shorter. The reports
+  // filter bar needs h-8 on the input; putting it on the wrapper would only
+  // move the button and leave a full-height box in a compact row.
+  it("reaches the input whether or not there is a calendar", () => {
+    const { unmount } = render(<Harness initial="2026-09-28" inputClassName="h-8 text-xs" />);
+    expect(box().className).toContain("h-8");
+    unmount();
+
+    render(<Harness initial="2026-09-28" withCalendar inputClassName="h-8 text-xs" />);
+    expect(box().className).toContain("h-8");
+    // and the box is still the one the calendar writes into
+    expect(box().className).toContain("pr-9");
   });
 });

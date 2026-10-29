@@ -196,7 +196,8 @@ export function ReportFilterBar({ hideDoctorFilter, filters, state, onChange, sh
                     <DateInput
                       value={state.customStart || ""}
                       onChange={(isoDate) => applyPreset("custom", isoDate, undefined)}
-                      className="h-8 text-xs"
+                      withCalendar
+                      inputClassName="h-8 text-xs"
                     />
                   </div>
                   <div className="min-w-[130px]">
@@ -204,7 +205,8 @@ export function ReportFilterBar({ hideDoctorFilter, filters, state, onChange, sh
                     <DateInput
                       value={state.customEnd || ""}
                       onChange={(isoDate) => applyPreset("custom", undefined, isoDate)}
-                      className="h-8 text-xs"
+                      withCalendar
+                      inputClassName="h-8 text-xs"
                     />
                   </div>
                 </>

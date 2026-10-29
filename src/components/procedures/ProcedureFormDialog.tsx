@@ -7,7 +7,7 @@ import { DateInput } from "@/components/shared/DateInput";
 import { TimePicker12h } from "@/components/shared/TimePicker12h";
 import { capitaliseFirstWord } from "@/lib/sentenceCase";
 import { numVal } from "@/lib/numberInput";
-import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote, Stethoscope, Trash2 } from "lucide-react";
+import { Plus, Pill, Wrench, Check, Sparkles, Loader2, Mic, MicOff, ChevronsUpDown, HeartPulse, ClipboardCheck, CalendarClock, Repeat, StickyNote, Stethoscope, Trash2, BookOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -1155,14 +1155,17 @@ function ProcedureForm({
           {patientId && (
             <PatientToolsBar patientId={patientId} patientName={selectedPatientName} context="patient" />
           )}
-          <Tabs defaultValue="medical" className="w-full">
-            <TabsList>
+          <Tabs defaultValue="procedure" className="w-full">
+            <TabsList className="h-auto flex flex-wrap justify-start gap-1">
+              <TabsTrigger value="procedure">Procedure</TabsTrigger>
               <TabsTrigger value="medical" className="gap-1.5">
                 <HeartPulse className="h-3.5 w-3.5" /> Medical Information
               </TabsTrigger>
-              <TabsTrigger value="procedure">Procedure</TabsTrigger>
               <TabsTrigger value="surveys" className="gap-1.5">
                 <ClipboardList className="h-3.5 w-3.5" /> Surveys
+              </TabsTrigger>
+              <TabsTrigger value="knowledge" className="gap-1.5">
+                <BookOpen className="h-3.5 w-3.5" /> Knowledge Article
               </TabsTrigger>
             </TabsList>
             <TabsContent value="procedure" className="space-y-4 mt-4">
@@ -1388,7 +1391,6 @@ function ProcedureForm({
                     onChange={(e) => updateServiceLine(line.key, { recommendations: capitaliseFirstWord(e.target.value, e.target.selectionStart) })}
                   />
                 </div>
-                {patientId && line.service_id && <ClinicalGuidelines patientId={patientId} serviceIds={[line.service_id]} onCopyCare={(text) => updateServiceLine(line.key, { recommendations: appendCare(line.recommendations, text) })} />}
               </div>
             ))}
             {/* The same action again at the foot of the list. With three
@@ -1778,6 +1780,22 @@ function ProcedureForm({
                 <SurveyHistoryPanel patientId={patientId} appointmentId={appointmentId || null} />
               ) : (
                 <p className="text-sm text-muted-foreground">Select a patient to see their surveys.</p>
+              )}
+            </TabsContent>
+
+            <TabsContent value="knowledge" className="mt-4">
+              {patientId ? (
+                <ClinicalGuidelines
+                  patientId={patientId}
+                  serviceIds={serviceLines.map((line) => line.service_id)}
+                  serviceNames={linkedAppointment?.service ? [linkedAppointment.service] : []}
+                  onCopyCare={(text, serviceId) => {
+                    const line = serviceLines.find((item) => item.service_id === serviceId);
+                    if (line) updateServiceLine(line.key, { recommendations: appendCare(line.recommendations, text) });
+                  }}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">Select a patient to see knowledge articles.</p>
               )}
             </TabsContent>
 

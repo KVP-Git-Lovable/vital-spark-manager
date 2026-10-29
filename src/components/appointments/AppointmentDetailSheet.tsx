@@ -73,7 +73,6 @@ import { investigationText } from "@/lib/investigationText";
 import { displayDate } from "@/lib/dateInput";
 import { appointmentPatientName, appointmentPatientIsVip } from "@/lib/appointmentPatientName";
 import { VipBadge } from "@/components/shared/VipBadge";
-import { ClinicalGuidelines } from "@/components/knowledge/ClinicalGuidelines";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -1397,7 +1396,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
               </SheetHeader>
 
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                {appointment.patient_id && <div className="px-6 py-4 border-b"><ClinicalGuidelines patientId={appointment.patient_id} serviceIds={procServices.map((s) => s.service_id)} serviceNames={[appointment.service, ...procedures.map((p) => p.service_name)].filter((s): s is string => !!s)} /></div>}
                 <TabsList className="w-full justify-start rounded-none border-b px-6 bg-transparent h-auto p-0">
                   <TabsTrigger value="details" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Details</TabsTrigger>
                   <TabsTrigger value="procedures" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent text-xs py-3">Prescriptions</TabsTrigger>

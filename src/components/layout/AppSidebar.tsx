@@ -37,6 +37,7 @@ import {
   Workflow,
   Share2,
   Link2,
+  BookOpen,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";

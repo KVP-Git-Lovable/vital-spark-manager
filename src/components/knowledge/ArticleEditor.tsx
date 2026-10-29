@@ -41,7 +41,7 @@ export function ArticleEditor({ article, cloneFrom, serviceId, onClose }: { arti
     if (form.age_rule === "custom_range" && (form.min_age === null || form.max_age === null || form.min_age < 0 || form.max_age < form.min_age)) throw new Error("Enter minimum and maximum ages");
     const editable = Object.fromEntries(Object.keys(blank).map((key) => [key, form[key as keyof typeof blank]])) as typeof blank;
     const payload = { ...editable, resources: JSON.parse(JSON.stringify(resources)), title: form.title.trim(), status, min_age: form.age_rule === "all_ages" ? null : form.min_age, max_age: form.age_rule === "all_ages" ? null : form.max_age };
-    const request = article ? supabase.from("knowledge_articles").update(payload).eq("id", article.id).eq("revision", article.revision) : supabase.from("knowledge_articles").insert(payload);
+    const request = article ? supabase.from("knowledge_articles").update(payload).eq("id", article.id).eq("revision", article.revision).is("deleted_at", null) : supabase.from("knowledge_articles").insert(payload);
     const { data, error } = await request.select("id");
     if (error) throw error;
     if (!data?.length) throw new Error("This article changed. Reopen it before saving.");

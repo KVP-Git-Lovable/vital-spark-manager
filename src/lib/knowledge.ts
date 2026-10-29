@@ -42,7 +42,7 @@ export function appendCare(existing: string, care: string) {
 }
 export function suggestedArticleTitle(service: string, target: Pick<KnowledgeArticle, "gender" | "age_rule" | "min_age" | "max_age">) {
   if (!service) return "";
-  return `${service} - ${targetLabel(target).replace(" · ", " - ")}`;
+  return `${service.trim()} - ${targetLabel(target).replace(" · ", " - ")}`;
 }
 export function cloneArticle(article: KnowledgeArticle) {
   const { id, created_at, updated_at, created_by, updated_by, created_by_name, updated_by_name, revision, reviewed_at, reviewed_by, deleted_at, ...content } = article;

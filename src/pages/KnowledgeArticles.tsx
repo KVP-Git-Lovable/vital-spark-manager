@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookOpen, Plus, Search, Settings, AlertTriangle, Pencil, Copy, Trash2 } from "lucide-react";
@@ -45,10 +45,11 @@ export default function KnowledgeArticles() {
     return { rows: rows || [], count: count || 0 };
   }});
   const { data: stats = [] } = useKnowledgeStats(data?.rows.map((a) => a.id) || []);
-  useQuery({ queryKey: ["knowledge", "linked", params.get("article")], enabled: !!params.get("article"), queryFn: async () => {
-    const { data, error } = await supabase.from("knowledge_articles").select("*").eq("id", params.get("article") || "").single();
-    if (error) throw error; setView(data); return data;
+  const { data: linkedArticle } = useQuery({ queryKey: ["knowledge", "linked", params.get("article")], enabled: !!params.get("article"), queryFn: async () => {
+    const { data, error } = await supabase.from("knowledge_articles").select("*").eq("id", params.get("article") || "").is("deleted_at", null).single();
+    if (error) throw error; return data;
   }});
+  useEffect(() => { if (linkedArticle) setView(linkedArticle); }, [linkedArticle]);
   const { data: paused } = useQuery({ queryKey: ["knowledge-ai-paused"], enabled: canEdit, queryFn: async () => {
     const { data, error } = await supabase.from("knowledge_ai_state").select("*").maybeSingle();
     if (error) throw error;

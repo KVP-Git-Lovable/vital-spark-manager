@@ -55,6 +55,62 @@ export function materialPercentLabel(percents: Array<number | string | null | un
 }
 
 /**
+ * Every service named on a bill, from both places one can be written down.
+ *
+ * line_items AND the services array, merged, where invoiceServiceLabel below
+ * reads line_items first and only falls back. The difference matters for
+ * matching rather than display: the Dashboard's "Revenue by Service" chart
+ * groups on the services array, so a bar clicked from there has to be findable
+ * even on the rare bill whose two lists disagree - 1 of 2,648 over 90 days.
+ *
+ * invoiceServiceLabel is deliberately left reading line_items first. It fills
+ * the Material Cost report's Service cell beside figures unnested from
+ * line_items, and widening it would change what that report prints.
+ */
+export function invoiceServiceNames(row: unknown): string[] {
+  const inv = (row ?? {}) as Record<string, unknown>;
+  const names: string[] = [];
+
+  const lines = Array.isArray(inv.line_items) ? inv.line_items : [];
+  for (const line of lines) {
+    const name = tidy((line as Record<string, unknown>)?.name);
+    if (name) names.push(name);
+  }
+
+  if (Array.isArray(inv.services)) {
+    for (const s of inv.services) {
+      const name = typeof s === "string"
+        ? tidy(s)
+        : tidy((s as Record<string, unknown>)?.name ?? (s as Record<string, unknown>)?.service);
+      if (name) names.push(name);
+    }
+  }
+
+  // Deduplicated but kept in billed order, as the label is.
+  return Array.from(new Set(names));
+}
+
+/**
+ * Does this drill-down row belong to the service being filtered for?
+ *
+ * The Dashboard's drill-down filtered invoices with `row.service !== value`,
+ * and invoice rows were never given a `service` at all - so clicking a bar on
+ * "Revenue by Service" rejected every row and opened an empty list. A bill can
+ * also carry several services, which a single field cannot answer for.
+ *
+ * Appointment rows still have one `service` and are matched on it, exactly as
+ * before.
+ */
+export function rowMatchesService(
+  row: { service?: string | null; _services?: string[] | null },
+  value: string,
+): boolean {
+  if (!value || value === "all") return true;
+  if (Array.isArray(row?._services)) return row._services.includes(value);
+  return (row?.service ?? "") === value;
+}
+
+/**
  * The services on a bill, as one cell.
  *
  * Read off line_items, which is what material_cost_lines unnests, so the

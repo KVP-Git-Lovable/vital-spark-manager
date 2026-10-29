@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMoney } from "@/lib/currency";
+import { invoiceServiceLabel, invoiceServiceNames, rowMatchesService } from "@/lib/invoiceReportRows";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -211,6 +212,10 @@ export default function DashboardExplore() {
           patient_name: r.patient_name || "Walk-in",
           doctor: r.doctor_id ? staffName.get(r.doctor_id) || "Unassigned" : "Walk-in / Direct",
           payment_mode: r.payment_mode || "",
+          service: invoiceServiceLabel(r),
+          // Matched against separately: one bill can carry several services,
+          // and the column above joins them into a single cell.
+          _services: invoiceServiceNames(r),
           _areas: (((r.appointments?.problem_area_ids as string[]) || [])
             .map((id) => areaName.get(id))
             .filter(Boolean) as string[]),
@@ -242,7 +247,11 @@ export default function DashboardExplore() {
     [normalized]
   );
   const serviceOptions = useMemo(
-    () => Array.from(new Set(normalized.map((r: any) => r.service).filter(Boolean))).sort(),
+    // Flattened, so a bill charging two services offers each of them rather
+    // than one entry naming the pair.
+    () => Array.from(new Set(normalized.flatMap((r: any) =>
+      Array.isArray(r._services) && r._services.length ? r._services : [r.service],
+    ).filter(Boolean))).sort(),
     [normalized]
   );
   const doctorOptions = useMemo(
@@ -256,7 +265,7 @@ export default function DashboardExplore() {
       if (status !== "all" && r.status !== status) return false;
       if (urlBilled && !r.billed) return false;
       if (staff !== "all" && r._staffId !== staff) return false;
-      if (service !== "all" && r.service !== service) return false;
+      if (!rowMatchesService(r, service)) return false;
       if (urlPaymentMode) {
         const mode = r.payment_mode || "Unspecified";
         if (mode !== urlPaymentMode) return false;

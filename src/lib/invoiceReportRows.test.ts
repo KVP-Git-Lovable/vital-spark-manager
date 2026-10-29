@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   attachMaterialCost,
   invoiceServiceLabel,
+  invoiceServiceNames,
+  rowMatchesService,
   materialCostFields,
   materialPercentLabel,
 } from "./invoiceReportRows";
@@ -106,5 +108,59 @@ describe("invoiceServiceLabel", () => {
     expect(invoiceServiceLabel({})).toBe("");
     expect(invoiceServiceLabel(null)).toBe("");
     expect(invoiceServiceLabel({ line_items: [{ name: "  " }, {}] })).toBe("");
+  });
+});
+
+describe("invoiceServiceNames", () => {
+  it("reads the names off the billed lines", () => {
+    expect(
+      invoiceServiceNames({ line_items: [{ name: "Laser toning" }, { name: "Hydra signature" }] }),
+    ).toEqual(["Laser toning", "Hydra signature"]);
+  });
+
+  it("falls back to the services array on an older bill with no lines", () => {
+    expect(invoiceServiceNames({ services: ["Peel B"] })).toEqual(["Peel B"]);
+  });
+
+  it("merges both places a service can be written down, without repeating one", () => {
+    // The chart groups on `services`, the cell reads `line_items`. A bar
+    // clicked from the chart has to be findable even when the two disagree.
+    expect(
+      invoiceServiceNames({
+        line_items: [{ name: "Laser toning" }],
+        services: ["Laser toning", "Consultation"],
+      }),
+    ).toEqual(["Laser toning", "Consultation"]);
+  });
+
+  it("has nothing to say about a bill carrying neither", () => {
+    expect(invoiceServiceNames({})).toEqual([]);
+    expect(invoiceServiceNames(null)).toEqual([]);
+  });
+});
+
+describe("rowMatchesService", () => {
+  const bill = { _services: ["Consultation", "Peel B"] };
+
+  it("lets everything through when no service is chosen", () => {
+    expect(rowMatchesService(bill, "all")).toBe(true);
+    expect(rowMatchesService(bill, "")).toBe(true);
+  });
+
+  it("matches a bill on any one of the services it carries", () => {
+    // This is the bug: invoice rows have no `service` field, so comparing one
+    // rejected every row and the drill-down came back empty.
+    expect(rowMatchesService(bill, "Consultation")).toBe(true);
+    expect(rowMatchesService(bill, "Peel B")).toBe(true);
+  });
+
+  it("rejects a service the bill does not carry", () => {
+    expect(rowMatchesService(bill, "Hydra signature")).toBe(false);
+  });
+
+  it("still matches an appointment row on its single service", () => {
+    expect(rowMatchesService({ service: "Consultation" }, "Consultation")).toBe(true);
+    expect(rowMatchesService({ service: "Consultation" }, "Peel B")).toBe(false);
+    expect(rowMatchesService({ service: "" }, "Peel B")).toBe(false);
   });
 });

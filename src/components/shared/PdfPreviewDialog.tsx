@@ -101,7 +101,6 @@ export function PdfPreviewDialog({
   useEffect(() => {
     if (!open) {
       printedFor.current = null;
-      setReadyFrame(null);
     }
   }, [open]);
 

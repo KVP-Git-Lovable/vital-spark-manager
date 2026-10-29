@@ -15,3 +15,10 @@ export function useKnowledgeServices() {
     return data;
   }});
 }
+export function useKnowledgeStats(ids: string[]) {
+  return useQuery({ queryKey: ["knowledge-stats", [...ids].sort()], enabled: ids.length > 0, queryFn: async () => {
+    const { data, error } = await supabase.rpc("knowledge_article_stats", { _ids: ids });
+    if (error) throw error;
+    return data || [];
+  }});
+}

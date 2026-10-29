@@ -1,4 +1,17 @@
 import type { Tables } from "@/integrations/supabase/types";
+import { z } from "zod";
+
+export const resourceSchema = z.object({
+  id: z.string(), kind: z.enum(["file", "image", "link", "video", "article"]), title: z.string().trim().min(1).max(300),
+  url: z.string().url().refine((s) => ["http:", "https:"].includes(new URL(s).protocol)).optional(),
+  path: z.string().optional(), article_id: z.string().uuid().optional(), note: z.string().max(4000).optional(),
+  source_url: z.string().url().refine((s) => ["http:", "https:"].includes(new URL(s).protocol)).optional(),
+});
+export type KnowledgeResource = z.infer<typeof resourceSchema>;
+export function articleResources(value: unknown): KnowledgeResource[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => { const parsed = resourceSchema.safeParse(item); return parsed.success ? [parsed.data] : []; });
+}
 
 export type KnowledgeArticle = Tables<"knowledge_articles">;
 export const clinicalFields = [
@@ -26,4 +39,16 @@ export function targetLabel(article: Pick<KnowledgeArticle, "gender" | "age_rule
 }
 export function appendCare(existing: string, care: string) {
   return [existing.trim(), care.trim()].filter(Boolean).join("\n\n");
+}
+export function suggestedArticleTitle(service: string, target: Pick<KnowledgeArticle, "gender" | "age_rule" | "min_age" | "max_age">) {
+  if (!service) return "";
+  return `${service} - ${targetLabel(target).replace(" · ", " - ")}`;
+}
+export function cloneArticle(article: KnowledgeArticle) {
+  const { id, created_at, updated_at, created_by, updated_by, created_by_name, updated_by_name, revision, reviewed_at, reviewed_by, deleted_at, ...content } = article;
+  return { ...content, status: "draft", is_active: false, resources: article.resources };
+}
+export function revisionChanges(previous: Record<string, unknown>, current: Record<string, unknown>) {
+  const ignored = new Set(["updated_at", "updated_by", "updated_by_name", "revision", "reviewed_at", "reviewed_by"]);
+  return Object.fromEntries(Object.entries(current).filter(([k, v]) => !ignored.has(k) && JSON.stringify(previous[k]) !== JSON.stringify(v)).map(([k, v]) => [k, { before: previous[k] ?? null, after: v }]));
 }

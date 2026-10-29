@@ -6,6 +6,7 @@ import { appointmentDeleteNote } from "@/lib/appointmentDeleteNote";
 import { displayDate } from "@/lib/dateInput";
 import { ColumnResizeHandle } from "@/components/shared/ColumnResizeHandle";
 import { DateInput } from "@/components/shared/DateInput";
+import { CalendarPopover } from "@/components/shared/CalendarPopover";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useState, useCallback, useRef, useMemo, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -61,7 +62,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format, addWeeks, addMonths, addDays, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isWithinInterval } from "date-fns";
 import { motion } from "framer-motion";
@@ -2429,17 +2429,17 @@ const Appointments = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <Label>Date *</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
+                    <CalendarPopover
+                      selected={startDate}
+                      onSelect={setStartDate}
+                      disabled={disablePastDates}
+                      trigger={
                         <Button variant="outline" className={cn("w-full mt-1.5 justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
                           <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                           <span className="truncate">{startDate ? format(startDate, "PP") : "Pick a date"}</span>
                         </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={startDate} onSelect={setStartDate} disabled={disablePastDates} initialFocus className={cn("p-3 pointer-events-auto")} />
-                      </PopoverContent>
-                    </Popover>
+                      }
+                    />
                   </div>
                   <div>
                     <Label>Start Time *</Label>
@@ -2485,17 +2485,17 @@ const Appointments = () => {
                       </div>
                       <div>
                         <Label>Repeat Until *</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
+                        <CalendarPopover
+                          selected={recurrenceEndDate}
+                          onSelect={setRecurrenceEndDate}
+                          disabled={(date) => date < (startDate || new Date())}
+                          trigger={
                             <Button variant="outline" className={cn("w-full mt-1.5 justify-start text-left font-normal", !recurrenceEndDate && "text-muted-foreground")}>
                               <CalendarIcon className="mr-2 h-4 w-4" />
                               {recurrenceEndDate ? format(recurrenceEndDate, "PPP") : "Select end date"}
                             </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar mode="single" selected={recurrenceEndDate} onSelect={setRecurrenceEndDate} disabled={(date) => date < (startDate || new Date())} initialFocus className={cn("p-3 pointer-events-auto")} />
-                          </PopoverContent>
-                        </Popover>
+                          }
+                        />
                       </div>
                       {startDate && recurrenceEndDate && (
                         <div className="bg-muted/50 rounded-lg p-3">
@@ -2780,43 +2780,40 @@ const Appointments = () => {
             </div>
 
             {datePreset === "specific" && (
-              <Popover>
-                <PopoverTrigger asChild>
+              <CalendarPopover
+                selected={specificDate}
+                onSelect={setSpecificDate}
+                trigger={
                   <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", specificDate && "border-primary text-primary")}>
                     <CalendarIcon className="h-4 w-4" />
                     {specificDate ? format(specificDate, "MMM d, yyyy") : "Pick a date"}
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={specificDate} onSelect={setSpecificDate} initialFocus className={cn("p-3 pointer-events-auto")} />
-                </PopoverContent>
-              </Popover>
+                }
+              />
             )}
 
             {datePreset === "range" && (
               <>
-                <Popover>
-                  <PopoverTrigger asChild>
+                <CalendarPopover
+                  selected={rangeFrom}
+                  onSelect={setRangeFrom}
+                  trigger={
                     <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", rangeFrom && "border-primary text-primary")}>
                       <CalendarIcon className="h-4 w-4" />
                       {rangeFrom ? format(rangeFrom, "MMM d, yyyy") : "From"}
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={rangeFrom} onSelect={setRangeFrom} initialFocus className={cn("p-3 pointer-events-auto")} />
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
+                  }
+                />
+                <CalendarPopover
+                  selected={rangeTo}
+                  onSelect={setRangeTo}
+                  trigger={
                     <Button variant="outline" size="sm" className={cn("h-9 text-sm gap-2", rangeTo && "border-primary text-primary")}>
                       <CalendarIcon className="h-4 w-4" />
                       {rangeTo ? format(rangeTo, "MMM d, yyyy") : "To"}
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={rangeTo} onSelect={setRangeTo} initialFocus className={cn("p-3 pointer-events-auto")} />
-                  </PopoverContent>
-                </Popover>
+                  }
+                />
               </>
             )}
 
@@ -2869,26 +2866,18 @@ const Appointments = () => {
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(-1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Popover>
-                  <PopoverTrigger asChild>
+                <CalendarPopover
+                  selected={currentDate}
+                  onSelect={(date) => { if (date) setCurrentDate(date); }}
+                  trigger={
                     <Button variant="ghost" className="font-display font-semibold text-base hover:bg-muted/50 gap-1.5 px-2">
                       {view === "month"
                         ? format(currentDate, "MMMM yyyy")
                         : currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
                       <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={currentDate}
-                      onSelect={(date) => { if (date) setCurrentDate(date); }}
-                      modifiers={{ hasAppointment: appointmentDates }}
-                      modifiersClassNames={{ hasAppointment: "bg-primary/20 font-bold" }}
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </PopoverContent>
-                </Popover>
+                  }
+                />
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>

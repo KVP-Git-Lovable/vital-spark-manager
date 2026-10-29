@@ -122,6 +122,15 @@ describe("DateInput with a calendar", () => {
     expect(stored()).toBe("2026-09-15");
     expect(box().value).toBe("15/09/2026");
   });
+
+  it("closes once the day is picked, rather than sitting over the page", () => {
+    render(<Harness initial="2026-09-28" withCalendar />);
+    fireEvent.click(screen.getByLabelText("Open calendar"));
+    expect(screen.queryByText(/September 2026/)).toBeTruthy();
+
+    fireEvent.click(screen.getByText("15"));
+    expect(screen.queryByText(/September 2026/)).toBeNull();
+  });
 });
 
 describe("sizing the box itself", () => {

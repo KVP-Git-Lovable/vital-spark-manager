@@ -88,7 +88,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { CalendarPopover } from "@/components/shared/CalendarPopover";
 import { supabase } from "@/integrations/supabase/client";
 import { hsnRateCache, invoiceLineRows, displayServices } from "@/lib/invoiceLines";
 import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
@@ -3004,17 +3004,16 @@ const Billing = () => {
                 </div>
                 <div>
                   <Label>Invoice Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
+                  <CalendarPopover
+                    selected={invoiceDate}
+                    onSelect={(d) => d && setInvoiceDate(d)}
+                    trigger={
                       <Button variant="outline" className={cn("mt-1.5 w-full justify-start text-left font-normal", !invoiceDate && "text-muted-foreground")}>
                         <CalendarClock className="mr-2 h-4 w-4" />
                         {invoiceDate ? format(invoiceDate, "dd MMM yyyy") : "Pick a date"}
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={invoiceDate} onSelect={(d) => d && setInvoiceDate(d)} initialFocus className={cn("p-3 pointer-events-auto")} />
-                    </PopoverContent>
-                  </Popover>
+                    }
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3252,22 +3251,21 @@ const Billing = () => {
                         return (
                           <div key={i} className={cn("grid grid-cols-[3rem_1fr_5rem_5rem_5rem] gap-2 items-center border rounded-lg p-2", invoiceNow ? "border-primary/50 bg-primary/5" : "bg-muted/30")}>
                             <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
-                            <Popover>
-                              <PopoverTrigger asChild>
+                            <CalendarPopover
+                              selected={dueDate}
+                              onSelect={(d) => {
+                                if (d) {
+                                  const updated = [...recurringDueDates];
+                                  updated[i] = d;
+                                  setRecurringDueDates(updated);
+                                }
+                              }}
+                              trigger={
                                 <Button variant="outline" size="sm" className="h-7 text-xs justify-start font-normal w-full">
                                   {format(dueDate, "dd MMM yyyy")}
                                 </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar mode="single" selected={dueDate} onSelect={(d) => {
-                                  if (d) {
-                                    const updated = [...recurringDueDates];
-                                    updated[i] = d;
-                                    setRecurringDueDates(updated);
-                                  }
-                                }} className="p-3 pointer-events-auto" />
-                              </PopoverContent>
-                            </Popover>
+                              }
+                            />
                             <span className="text-xs text-right">{money(recurringAmount)}</span>
                             <Select value={instStatus} onValueChange={(v) => {
                               const updated = [...recurringStatuses];
@@ -3335,26 +3333,20 @@ const Billing = () => {
                                 <span className="flex items-center gap-1">
                                   <CalendarClock className="h-3 w-3" />
                                   Recurring appointment on
-                                  <Popover>
-                                    <PopoverTrigger asChild>
+                                  <CalendarPopover
+                                    selected={recurringApptDates[i] || dueDate}
+                                    onSelect={(d) => {
+                                      if (!d) return;
+                                      const updated = [...recurringApptDates];
+                                      updated[i] = d;
+                                      setRecurringApptDates(updated);
+                                    }}
+                                    trigger={
                                       <Button variant="outline" size="sm" className="h-6 px-2 text-[11px] font-medium">
                                         {format(recurringApptDates[i] || dueDate, "dd MMM yyyy")}
                                       </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                      <Calendar
-                                        mode="single"
-                                        selected={recurringApptDates[i] || dueDate}
-                                        onSelect={(d) => {
-                                          if (!d) return;
-                                          const updated = [...recurringApptDates];
-                                          updated[i] = d;
-                                          setRecurringApptDates(updated);
-                                        }}
-                                        className="p-3 pointer-events-auto"
-                                      />
-                                    </PopoverContent>
-                                  </Popover>
+                                    }
+                                  />
                                   {recurringApptDates[i] && (
                                     <button
                                       type="button"
@@ -3642,29 +3634,27 @@ const Billing = () => {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">Date From</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
+                  <CalendarPopover
+                    selected={filterDateFrom}
+                    onSelect={setFilterDateFrom}
+                    trigger={
                       <Button variant="outline" size="sm" className="w-full justify-start text-left font-normal">
                         {filterDateFrom ? format(filterDateFrom, "PPP") : "Any"}
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={filterDateFrom} onSelect={setFilterDateFrom} className="p-3 pointer-events-auto" />
-                    </PopoverContent>
-                  </Popover>
+                    }
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">Date To</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
+                  <CalendarPopover
+                    selected={filterDateTo}
+                    onSelect={setFilterDateTo}
+                    trigger={
                       <Button variant="outline" size="sm" className="w-full justify-start text-left font-normal">
                         {filterDateTo ? format(filterDateTo, "PPP") : "Any"}
                       </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={filterDateTo} onSelect={setFilterDateTo} className="p-3 pointer-events-auto" />
-                    </PopoverContent>
-                  </Popover>
+                    }
+                  />
                 </div>
                 {!ownScopeOnly && (
                 <div className="space-y-2">

@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
+import { CalendarPopover } from "./CalendarPopover";
 import { cn } from "@/lib/utils";
 import { displayToIso, isoToDisplay, maskTyping } from "@/lib/dateInput";
 
@@ -115,8 +114,18 @@ export function DateInput({
   return (
     <div className={cn("relative", className)}>
       {field}
-      <Popover>
-        <PopoverTrigger asChild>
+      <CalendarPopover
+        selected={selected}
+        align="end"
+        onSelect={(date) => {
+          // Typed text and stored value move together; an empty pick is
+          // ignored here rather than wiping a date the box still shows.
+          if (!date) return;
+          const iso = toIsoDate(date);
+          setText(isoToDisplay(iso));
+          onChange(iso);
+        }}
+        trigger={
           <Button
             type="button"
             variant="ghost"
@@ -126,23 +135,8 @@ export function DateInput({
           >
             <CalendarIcon className="h-4 w-4" />
           </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="end">
-          <Calendar
-            mode="single"
-            selected={selected}
-            defaultMonth={selected}
-            onSelect={(date) => {
-              if (!date) return;
-              const iso = toIsoDate(date);
-              setText(isoToDisplay(iso));
-              onChange(iso);
-            }}
-            initialFocus
-            className={cn("p-3 pointer-events-auto")}
-          />
-        </PopoverContent>
-      </Popover>
+        }
+      />
     </div>
   );
 }

@@ -7574,6 +7574,7 @@ export type Database = {
       }
       trash_items: {
         Row: {
+          child_data: Json
           created_at: string
           deleted_at: string
           deleted_by: string | null
@@ -7591,6 +7592,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          child_data?: Json
           created_at?: string
           deleted_at?: string
           deleted_by?: string | null
@@ -7608,6 +7610,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          child_data?: Json
           created_at?: string
           deleted_at?: string
           deleted_by?: string | null
@@ -8217,6 +8220,14 @@ export type Database = {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       trash_allowed_object: { Args: { _object_type: string }; Returns: boolean }
+      trash_capture_children: {
+        Args: { _object_type: string; _record_id: string }
+        Returns: Json
+      }
+      trash_restore_children: {
+        Args: { _child_data: Json }
+        Returns: undefined
+      }
       whatsapp_message_is_foreign: { Args: { body: string }; Returns: boolean }
     }
     Enums: {

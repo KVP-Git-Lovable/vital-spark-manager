@@ -1829,11 +1829,11 @@ function ProcedureForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-none w-screen h-screen sm:rounded-none overflow-y-auto p-6">
+      <DialogContent className="max-w-none w-screen h-screen sm:rounded-none overflow-y-auto p-6 grid-cols-[minmax(0,1fr)] content-start">
         <DialogHeader>
           <DialogTitle className="font-display">New Prescription</DialogTitle>
         </DialogHeader>
-        <div className="mx-auto w-full max-w-5xl">{body}</div>
+        <div className="mx-auto w-full min-w-0 max-w-5xl">{body}</div>
       </DialogContent>
     </Dialog>
   );

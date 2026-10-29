@@ -34,7 +34,7 @@ export function ClinicalGuidelines({ patientId, serviceIds = [], serviceNames = 
   }});
   const matches = data?.articles.filter((a) => categories.some((c) => c.id === a.category_id && c.is_active)) || [];
   const { data: stats = [] } = useKnowledgeStats(matches.map((a) => a.id));
-  return <section className="space-y-4">
+  return <section className="min-w-0 space-y-4 [overflow-wrap:anywhere]">
     <h2 className="font-semibold flex items-center gap-2"><BookOpen className="h-4 w-4 text-primary" />Clinical Guidelines <Badge variant="secondary">{matches.length}</Badge></h2>
     {isLoading ? <p className="text-sm text-muted-foreground">Loading guidelines…</p> : error ? <div><p className="text-sm text-destructive">{error.message}</p><Button variant="outline" size="sm" onClick={() => refetch()}>Try again</Button></div> : <>
       {(data?.age === null || !data?.gender) && <p className="text-xs text-warning">Patient age or gender is not recorded. Only eligible general guidelines are shown.</p>}
@@ -42,7 +42,7 @@ export function ClinicalGuidelines({ patientId, serviceIds = [], serviceNames = 
       {!matches.length && <p className="text-sm text-muted-foreground">No published guidelines match this service and patient.</p>}
       <div className="grid gap-4">
         {matches.map((a) => {
-          const addCare = onCopyCare && ids.includes(a.service_id);
+          const addCare = ids.includes(a.service_id) ? onCopyCare : undefined;
           return <details key={a.id} className="min-w-0 rounded-lg border bg-card p-4 text-card-foreground" onToggle={(e) => { const open = e.currentTarget.open; setOpened((previous) => { const next = new Set(previous); if (open) next.add(a.id); else next.delete(a.id); return next; }); }}>
             <summary className="cursor-pointer font-medium text-sm break-words">{a.title}{a.is_critical && <Badge variant="destructive" className="ml-2">Critical</Badge>}</summary>
             <p className="mt-2 text-xs text-muted-foreground">{categories.find((c) => c.id === a.category_id)?.name} · {targetLabel(a)}</p>

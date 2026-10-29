@@ -125,6 +125,7 @@ const adminSubItems = [
   { title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal },
   { title: "Duplicate Management", url: "/duplicate-management", icon: CopyCheck },
   { title: "History Tracking", url: "/admin/history-tracking", icon: History },
+  { title: "Knowledge Categories", url: "/admin/knowledge-categories", icon: BookOpen },
   { title: "Currency & Billing", url: "/admin/currency", icon: Coins },
   { title: "User Management", url: "/user-management", icon: Users },
   { title: "Trash Policy & Audit", url: "/admin/trash", icon: Trash2 },

@@ -882,7 +882,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       if (procedureIds.length === 0) return [];
       const { data, error } = await supabase
         .from("procedure_services")
-        .select("service_name, sort_order, procedure_id")
+        .select("service_name, service_id, sort_order, procedure_id")
         .in("procedure_id", procedureIds)
         .order("sort_order");
       if (error) throw error;

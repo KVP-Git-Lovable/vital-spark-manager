@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
-import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck, Trash2, History, Coins, Users, ImageIcon } from "lucide-react";
+import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck, Trash2, History, Coins, Users, ImageIcon, BookOpen } from "lucide-react";
 
 const sections = [
+  { title: "Knowledge Articles", description: "Clinical protocols", url: "/knowledge", icon: BookOpen },
   {
     title: "Validation Rules",
     description: "Enforce data quality with branching criteria, error and alert messages.",
@@ -26,6 +27,12 @@ const sections = [
     description: "Enable field history per object and choose up to 20 fields to track on every record.",
     url: "/admin/history-tracking",
     icon: History,
+  },
+  {
+    title: "Knowledge Article Categories",
+    description: "Create, edit, order and activate the categories used for service knowledge articles.",
+    url: "/admin/knowledge-categories",
+    icon: BookOpen,
   },
   {
     title: "Currency & Billing",

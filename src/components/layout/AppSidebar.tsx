@@ -37,6 +37,7 @@ import {
   Workflow,
   Share2,
   Link2,
+  BookOpen,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -109,6 +110,7 @@ const surveySubItems = [
 
 const masterDataItems = [
   { title: "Service Master", url: "/services", icon: Stethoscope, moduleKey: "services" },
+  { title: "Knowledge Articles", url: "/knowledge", icon: BookOpen, moduleKey: "services" },
   { title: "Vendor Master", url: "/vendors", icon: Building2, moduleKey: "vendors" },
   { title: "Category Master", url: "/category-master", icon: Tags, moduleKey: "category_master" },
   { title: "Tax Master", url: "/tax-master", icon: Percent, moduleKey: "settings" },
@@ -125,6 +127,7 @@ const adminSubItems = [
   { title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal },
   { title: "Duplicate Management", url: "/duplicate-management", icon: CopyCheck },
   { title: "History Tracking", url: "/admin/history-tracking", icon: History },
+  { title: "Knowledge Categories", url: "/admin/knowledge-categories", icon: BookOpen },
   { title: "Currency & Billing", url: "/admin/currency", icon: Coins },
   { title: "User Management", url: "/user-management", icon: Users },
   { title: "Trash Policy & Audit", url: "/admin/trash", icon: Trash2 },

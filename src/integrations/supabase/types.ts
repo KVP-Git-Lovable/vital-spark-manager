@@ -2785,6 +2785,308 @@ export type Database = {
         }
         Relationships: []
       }
+      knowledge_ai_state: {
+        Row: {
+          id: string
+          reason: string
+          status_code: number
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          reason: string
+          status_code: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          reason?: string
+          status_code?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      knowledge_article_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      knowledge_article_comments: {
+        Row: {
+          article_id: string
+          author_name: string
+          body: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          article_id: string
+          author_name?: string
+          body: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Update: {
+          article_id?: string
+          author_name?: string
+          body?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_article_comments_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_article_opens: {
+        Row: {
+          article_id: string
+          id: string
+          opened_at: string
+          user_id: string
+        }
+        Insert: {
+          article_id: string
+          id: string
+          opened_at?: string
+          user_id?: string
+        }
+        Update: {
+          article_id?: string
+          id?: string
+          opened_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_article_opens_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_article_revisions: {
+        Row: {
+          article_id: string
+          changed_at: string
+          changed_by: string | null
+          changed_by_name: string | null
+          changes: Json
+          id: string
+          revision: number
+          snapshot: Json
+        }
+        Insert: {
+          article_id: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_name?: string | null
+          changes?: Json
+          id?: string
+          revision: number
+          snapshot: Json
+        }
+        Update: {
+          article_id?: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_name?: string | null
+          changes?: Json
+          id?: string
+          revision?: number
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_article_revisions_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_article_votes: {
+        Row: {
+          article_id: string
+          id: string
+          updated_at: string
+          user_id: string
+          vote: number
+        }
+        Insert: {
+          article_id: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          vote: number
+        }
+        Update: {
+          article_id?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          vote?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_article_votes_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_articles: {
+        Row: {
+          age_rule: string
+          ai_change_summary: string
+          ai_generated: boolean
+          category_id: string
+          clinical_protocol: string
+          complications_management: string
+          contraindications: string
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          deleted_at: string | null
+          gender: string
+          id: string
+          is_active: boolean
+          is_critical: boolean
+          max_age: number | null
+          min_age: number | null
+          pre_post_care: string
+          resources: Json
+          reviewed_at: string | null
+          reviewed_by: string | null
+          revision: number
+          service_id: string
+          sources: string
+          status: string
+          summary: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+          updated_by_name: string | null
+        }
+        Insert: {
+          age_rule?: string
+          ai_change_summary?: string
+          ai_generated?: boolean
+          category_id: string
+          clinical_protocol?: string
+          complications_management?: string
+          contraindications?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          deleted_at?: string | null
+          gender?: string
+          id?: string
+          is_active?: boolean
+          is_critical?: boolean
+          max_age?: number | null
+          min_age?: number | null
+          pre_post_care?: string
+          resources?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          revision?: number
+          service_id: string
+          sources?: string
+          status?: string
+          summary?: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          updated_by_name?: string | null
+        }
+        Update: {
+          age_rule?: string
+          ai_change_summary?: string
+          ai_generated?: boolean
+          category_id?: string
+          clinical_protocol?: string
+          complications_management?: string
+          contraindications?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          deleted_at?: string | null
+          gender?: string
+          id?: string
+          is_active?: boolean
+          is_critical?: boolean
+          max_age?: number | null
+          min_age?: number | null
+          pre_post_care?: string
+          resources?: Json
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          revision?: number
+          service_id?: string
+          sources?: string
+          status?: string
+          summary?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          updated_by_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_articles_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_article_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_articles_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           city: string | null
@@ -7574,6 +7876,7 @@ export type Database = {
       }
       trash_items: {
         Row: {
+          child_data: Json
           created_at: string
           deleted_at: string
           deleted_by: string | null
@@ -7591,6 +7894,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          child_data?: Json
           created_at?: string
           deleted_at?: string
           deleted_by?: string | null
@@ -7608,6 +7912,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          child_data?: Json
           created_at?: string
           deleted_at?: string
           deleted_by?: string | null
@@ -8116,6 +8421,7 @@ export type Database = {
         Args: { _column: string; _sql_type: string; _table: string }
         Returns: undefined
       }
+      can_manage_knowledge: { Args: never; Returns: boolean }
       can_restore_trash_item: { Args: { _trash_id: string }; Returns: boolean }
       can_see_procedure: { Args: { _procedure_id: string }; Returns: boolean }
       can_trash_record: {
@@ -8147,8 +8453,20 @@ export type Database = {
       }
       has_full_data_scope: { Args: never; Returns: boolean }
       is_admin_user: { Args: never; Returns: boolean }
+      is_knowledge_staff: { Args: never; Returns: boolean }
       is_my_patient: { Args: { _patient_id: string }; Returns: boolean }
       is_pure_consultation: { Args: { _text: string }; Returns: boolean }
+      knowledge_article_stats: {
+        Args: { _ids: string[] }
+        Returns: {
+          article_id: string
+          comments: number
+          dislikes: number
+          likes: number
+          opens: number
+        }[]
+      }
+      knowledge_file_visible: { Args: { _path: string }; Returns: boolean }
       move_to_trash: {
         Args: { _label?: string; _object_type: string; _record_id: string }
         Returns: string
@@ -8217,6 +8535,15 @@ export type Database = {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       trash_allowed_object: { Args: { _object_type: string }; Returns: boolean }
+      trash_capture_children: {
+        Args: { _object_type: string; _record_id: string }
+        Returns: Json
+      }
+      trash_knowledge_article: { Args: { _id: string }; Returns: undefined }
+      trash_restore_children: {
+        Args: { _child_data: Json }
+        Returns: undefined
+      }
       whatsapp_message_is_foreign: { Args: { body: string }; Returns: boolean }
     }
     Enums: {

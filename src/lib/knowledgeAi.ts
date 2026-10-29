@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 const Proposal = z.object({ title: z.string(), summary: z.string(), clinical_protocol: z.string(), contraindications: z.string(), pre_post_care: z.string(), complications_management: z.string(), sources: z.string(), is_critical: z.boolean(), ai_change_summary: z.string() });
-export type KnowledgeProposal = z.infer<typeof Proposal>;
+export type KnowledgeProposal = Required<z.infer<typeof Proposal>>;
 export async function draftKnowledge(body: unknown, signal: AbortSignal): Promise<KnowledgeProposal> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Please sign in");
@@ -30,5 +30,5 @@ export async function draftKnowledge(body: unknown, signal: AbortSignal): Promis
     }
     consume(buffer);
   } finally { await reader.cancel().catch(() => {}); }
-  return Proposal.parse(JSON.parse(text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")));
+  return Proposal.parse(JSON.parse(text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""))) as KnowledgeProposal;
 }

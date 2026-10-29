@@ -41,7 +41,7 @@ export function ArticleEditor({ article, serviceId, onClose }: { article?: Knowl
     const { data, error } = await request.select("id");
     if (error) throw error;
     if (!data?.length) throw new Error("This article changed. Reopen it before saving.");
-  }, onSuccess: async () => { await qc.invalidateQueries({ queryKey: ["knowledge"] }); toast.success("Article saved"); onClose(); }, onError: (e: Error) => toast.error(e.message) });
+  }, onSuccess: async () => { await Promise.all([qc.invalidateQueries({ queryKey: ["knowledge"] }), qc.invalidateQueries({ queryKey: ["knowledge-revisions", article?.id] })]); toast.success("Article saved"); onClose(); }, onError: (e: Error) => toast.error(e.message) });
   const generate = async () => {
     if (!form.service_id || !form.category_id) { toast.error("Choose a service and category first"); return; }
     abort.current = new AbortController(); setBusy(true);

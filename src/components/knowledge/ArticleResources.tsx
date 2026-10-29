@@ -47,7 +47,7 @@ export function ArticleResources({ value }: { value: unknown }) {
   if (!resources.length) return null;
   return <section className="space-y-4 border-t pt-4"><h3 className="font-semibold flex items-center gap-2"><Paperclip className="h-4 w-4" />Attachments & further reading</h3>{resources.map((r) => <ResourceView key={r.id} resource={r} />)}</section>;
 }
-export function ResourceEditor({ value, onChange, group }: { value: KnowledgeResource[]; onChange: (value: KnowledgeResource[]) => void; group: string }) {
+export function ResourceEditor({ value, onChange, group, onBusyChange }: { value: KnowledgeResource[]; onChange: (value: KnowledgeResource[]) => void; group: string; onBusyChange?: (busy: boolean) => void }) {
   const [kind, setKind] = useState<"link" | "video" | "image" | "article">("link");
   const [title, setTitle] = useState(""); const [url, setUrl] = useState(""); const [note, setNote] = useState("");
   const [related, setRelated] = useState(""); const [busy, setBusy] = useState(false);
@@ -65,10 +65,10 @@ export function ResourceEditor({ value, onChange, group }: { value: KnowledgeRes
     <Label className="flex items-center gap-2 text-primary cursor-pointer"><Upload className="h-4 w-4" />{busy ? "Uploading attachments…" : "Attach files"}<input type="file" multiple disabled={busy} className="sr-only" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp,.gif,.mp4,.webm,.mov" onChange={async (e) => {
       const files = Array.from(e.target.files || []); e.target.value = "";
       if (value.length + files.length > 50) { toast.error("Maximum 50 resources per article"); return; }
-      setBusy(true); const added: KnowledgeResource[] = [];
+      setBusy(true); onBusyChange?.(true); const added: KnowledgeResource[] = [];
       try { for (const file of files) added.push(await uploadKnowledgeFile(file, group)); }
       catch (e) { toast.error(e instanceof Error ? e.message : "Attachment upload failed"); }
-      finally { onChange([...value, ...added]); setBusy(false); }
+      finally { onChange([...value, ...added]); setBusy(false); onBusyChange?.(false); }
     }} /></Label>
     {value.map((r) => <div key={r.id} className="flex items-start justify-between gap-3 border-b py-2"><div className="min-w-0"><p className="text-sm font-medium break-words">{r.title}</p><p className="text-xs text-muted-foreground break-all">{r.kind} · {r.note || r.url || "Attached file"}</p></div><Button size="icon" variant="ghost" aria-label={`Remove ${r.title}`} onClick={() => onChange(value.filter((v) => v.id !== r.id))}><Trash2 className="h-4 w-4" /></Button></div>)}
     <div className="grid sm:grid-cols-2 gap-3"><Select value={kind} onValueChange={(v) => setKind(v as typeof kind)}><SelectTrigger aria-label="Resource type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="link">Reference link</SelectItem><SelectItem value="video">Video link</SelectItem><SelectItem value="image">Picture link</SelectItem><SelectItem value="article">Related knowledge article</SelectItem></SelectContent></Select><Input placeholder="Reference title" aria-label="Reference title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} /></div>

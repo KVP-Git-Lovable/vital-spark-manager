@@ -73,8 +73,8 @@ export function ArticleEditor({ article, cloneFrom, serviceId, onClose }: { arti
         {clinicalFields.map(([key, label]) => <div key={key}><Label htmlFor={`article-${key}`}>{label}</Label><Textarea id={`article-${key}`} rows={key === "clinical_protocol" ? 8 : 4} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} /></div>)}
         {form.ai_change_summary && <p className="text-sm text-muted-foreground whitespace-pre-wrap">AI change summary: {form.ai_change_summary}</p>}
       </>}
-      {!proposal && <ResourceEditor value={resources} onChange={setResources} group={group} />}
-      {!proposal && <KnowledgePicture serviceId={form.service_id} group={group} onAdd={(resource) => setResources((current) => [...current, resource])} />}
+      {!proposal && <ResourceEditor value={resources} onChange={setResources} group={group} onBusyChange={setBusy} />}
+      {!proposal && <KnowledgePicture serviceId={form.service_id} group={group} onBusyChange={setBusy} onAdd={(resource) => setResources((current) => [...current, resource])} />}
       <div className="flex flex-wrap gap-2 border-t pt-4"><Button variant="outline" disabled={save.isPending || busy || !!proposal} onClick={() => save.mutate("draft")}><Save className="h-4 w-4 mr-2" />Save Draft</Button><Button variant="outline" disabled={save.isPending || busy || !!proposal} onClick={() => save.mutate("reviewed")}><ShieldCheck className="h-4 w-4 mr-2" />Mark Reviewed</Button><Button disabled={save.isPending || busy || !!proposal} onClick={() => { if (window.confirm("Confirm you have clinically reviewed this article and approve it for patient appointments?")) save.mutate("published"); }}><BookOpen className="h-4 w-4 mr-2" />Approve & Publish</Button></div>
       <Button variant="ghost" onClick={onClose}>Cancel</Button>
       {article && <><ArticleHistory article={article} /><ArticleEngagement articleId={article.id} trackOpen={false} /></>}

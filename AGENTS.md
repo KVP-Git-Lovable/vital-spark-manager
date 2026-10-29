@@ -1,5 +1,9 @@
 # Project Architecture Rules
 
+- Keep service knowledge in dedicated articles with database-enforced active doctor/admin review, immutable revision snapshots, and draft-only AI suggestions; this prevents unreviewed clinical content from appearing in appointments.
+- Resolve appointment knowledge dynamically from the booked service and recorded procedure service IDs, with inclusive demographic matching; never persist guessed article assignments or automatically alter prescriptions.
+- Keep knowledge AI server-only on the Responses gateway with streamed results and persistent terminal access blocks; suggestions enter articles only through an explicit clinician save.
+
 - Send Google review requests through send-google-review-whatsapp using the configured approved template; reuse staff authentication and caller-scoped patient reads so the clinic sender cannot be used anonymously or bypass record access.
 
 - Apply app-wide visual polish through shared UI primitives and semantic CSS tokens so page layouts and workflows remain unchanged.

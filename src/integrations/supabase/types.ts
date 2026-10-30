@@ -3945,6 +3945,30 @@ export type Database = {
           },
         ]
       }
+      patient_referral_doctor_corrections: {
+        Row: {
+          corrected_at: string
+          now: string | null
+          patient_id: string | null
+          sf_id: string | null
+          was: string | null
+        }
+        Insert: {
+          corrected_at?: string
+          now?: string | null
+          patient_id?: string | null
+          sf_id?: string | null
+          was?: string | null
+        }
+        Update: {
+          corrected_at?: string
+          now?: string | null
+          patient_id?: string | null
+          sf_id?: string | null
+          was?: string | null
+        }
+        Relationships: []
+      }
       patient_source_backup_20261007: {
         Row: {
           captured_at: string | null
@@ -8560,6 +8584,7 @@ export type Database = {
         Args: { payload: Json }
         Returns: number
       }
+      sf_set_referring_doctor_bulk: { Args: { payload: Json }; Returns: number }
       sf_suppression_reason: {
         Args: { _object_type: string; _sf_id: string }
         Returns: string

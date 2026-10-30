@@ -46,6 +46,8 @@ export function CalendarPopover({
   onSelect,
   align = "start",
   disabled,
+  modifiers,
+  modifiersClassNames,
   contentClassName,
 }: CalendarPopoverProps) {
   const [open, setOpen] = useState(false);
@@ -61,6 +63,8 @@ export function CalendarPopover({
           // date set months ago does not start with paging backwards.
           defaultMonth={selected}
           disabled={disabled}
+          modifiers={modifiers}
+          modifiersClassNames={modifiersClassNames}
           onSelect={(date) => {
             onSelect(date);
             setOpen(false);

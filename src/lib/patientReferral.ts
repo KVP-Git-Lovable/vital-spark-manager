@@ -73,3 +73,20 @@ export function referringPatientId(value: string | null | undefined): string {
   const candidate = String(value ?? "").trim();
   return UUID.test(candidate) ? candidate : "";
 }
+
+/**
+ * The referring doctor's name, when the stored value actually is one.
+ *
+ * Same ambiguity as above, read the other way round: `source_referral_doctor`
+ * holds a doctor's NAME for a doctor referral and a patient's ID for a patient
+ * one, and older rows mixed the two. A report that printed the raw column
+ * would show a bare UUID in a column headed "Referring doctor", which reads as
+ * data corruption rather than as the blank it really is.
+ *
+ * Empty string, not null, so a table cell and a CSV both come out blank.
+ */
+export function referringDoctorName(value: string | null | undefined): string {
+  const candidate = String(value ?? "").trim();
+  if (!candidate || UUID.test(candidate)) return "";
+  return candidate;
+}

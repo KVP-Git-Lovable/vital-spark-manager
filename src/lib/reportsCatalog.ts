@@ -17,6 +17,7 @@ import {
 import { formatMoneyExact } from "@/lib/currency";
 import { collectionCards, modesOf, paymentModeLabel, PAYMENT_BUCKETS } from "@/lib/paymentModes";
 import { npsBreakdown, npsCategory, ratingLabel } from "@/lib/feedbackScores";
+import { referralKind, referringDoctorName } from "@/lib/patientReferral";
 
 /** Written by the Feedback tab when an appointment has no patient attached. */
 const NO_PATIENT_ID = "00000000-0000-0000-0000-000000000000";
@@ -362,6 +363,80 @@ export const REPORTS: ReportConfig[] = [
           { label: "Active", value: (active ?? 0).toLocaleString() },
         ];
       },
+    },
+  },
+  {
+    key: "doctor_referrals",
+    title: "Doctor Referrals",
+    /**
+     * Who sends the clinic its patients - and for whom that is still unknown.
+     *
+     * The Salesforce import brought the referral FLAG across but not the
+     * referring doctor's NAME: 152 patients carry "Reference - other Dr" and
+     * not one of them says who. They are worth about Rs 12.5 lakh of billing
+     * between them. The name is nowhere in this database - not in the backfill
+     * staging, the source backup or the suppressed inserts - so recovering it
+     * means re-exporting the field from Salesforce. Every one of those 152
+     * still has its sf_id, which is why that column is on this report: it is
+     * the key the clinic would look each one up by.
+     */
+    description: "Patients referred by another doctor, with the referring doctor where it is known.",
+    category: "Patients",
+    defaultSort: { key: "created_at", dir: "desc" },
+    columns: [
+      { key: "name", label: "Patient", sortable: true, accessor: (r) => `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim() },
+      { key: "phone", label: "Phone", sortable: true },
+      { key: "referring_doctor", label: "Referring Doctor", sortable: true, accessor: (r) => referringDoctorName(r.source_referral_doctor) },
+      { key: "source", label: "Source", sortable: true, type: "badge" },
+      { key: "total_visits", label: "Visits", sortable: true, type: "number" },
+      { key: "lifetime_value", label: "Billed", sortable: true, type: "currency" },
+      { key: "created_at", label: "Registered", sortable: true, type: "date" },
+      { key: "sf_id", label: "Salesforce ID", sortable: true },
+    ],
+    filters: [
+      { key: "dateRange", label: "Registered", type: "dateRange", serverDateField: "created_at" },
+      {
+        // The three spellings doctor referrals actually carry: the Salesforce
+        // one and the app's two. Which rows the report shows is decided by
+        // referralKind, not by this list, so a fourth spelling would still
+        // appear in the report even before it is offered here.
+        key: "source", label: "Source", type: "select", field: "source",
+        options: ["Reference - other Dr", "Dr. referral", "Other Dr. referral"]
+          .map((v) => ({ value: v, label: v })),
+      },
+      {
+        key: "named", label: "Doctor Name Recorded", type: "select",
+        options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }],
+        matches: (r, v) => (referringDoctorName(r.source_referral_doctor) !== "") === (v === "yes"),
+      },
+    ],
+    searchFields: ["first_name", "last_name", "phone", "source_referral_doctor", "sf_id"],
+    rowHref: (r) => `/patients/${r.id}`,
+    fetcher: async ({ from, to }) => {
+      // Narrowed in the database to the ~550 rows that mention a referral at
+      // all, then decided precisely here. referralKind matches on what the
+      // words mean, so the Salesforce spelling ("Reference - other Dr") and
+      // the app's ("Dr. referral") both land without either being written out
+      // again, and patient referrals are correctly left out.
+      const rows = await fetchAll((s, e) => {
+        let q = supabase.from("patients").select("*").ilike("source", "%refer%")
+          .order("created_at", { ascending: false }).range(s, e);
+        if (from) q = q.gte("created_at", from);
+        if (to) q = q.lte("created_at", to);
+        return q;
+      });
+      return (rows as Record<string, unknown>[]).filter(
+        (r) => referralKind(r.source as string | null) === "doctor",
+      );
+    },
+    summary: (rows) => {
+      const missing = rows.filter((r) => referringDoctorName(r.source_referral_doctor) === "").length;
+      const billed = rows.reduce((sum, r) => sum + Number(r.lifetime_value || 0), 0);
+      return [
+        { label: "Referred patients", value: String(rows.length) },
+        { label: "Referring doctor unknown", value: String(missing), hint: "not migrated from Salesforce" },
+        { label: "Billed by referred patients", value: formatMoneyExact(billed) },
+      ];
     },
   },
   {

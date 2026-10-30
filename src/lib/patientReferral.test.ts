@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { referralKind, referrerStillApplies, referringPatientId } from "./patientReferral";
+import {
+  referralKind,
+  referrerStillApplies,
+  referringPatientId,
+  referringDoctorName,
+} from "./patientReferral";
 import { PATIENT_SOURCE_OPTIONS } from "./patientSourceOptions";
 
 describe("referralKind", () => {
@@ -91,5 +96,25 @@ describe("referringPatientId", () => {
   it("refuses something that merely looks id-ish", () => {
     expect(referringPatientId("3f2504e0-4f89-41d3-9a0c")).toBe("");
     expect(referringPatientId("zzzzzzzz-4f89-41d3-9a0c-0305e82c3301")).toBe("");
+  });
+});
+
+describe("referringDoctorName", () => {
+  it("gives the doctor's name back", () => {
+    expect(referringDoctorName("Dr. Gaurav Shetty")).toBe("Dr. Gaurav Shetty");
+    expect(referringDoctorName("  Dr.Jyothi  ")).toBe("Dr.Jyothi");
+  });
+
+  it("gives nothing for a patient id stored in the same column", () => {
+    // Two live rows hold a UUID here: a patient referral written into the
+    // column a doctor name also uses. A report must not print it as a doctor.
+    expect(referringDoctorName("750735a9-e3e5-4064-ae0e-a7b7274b8402")).toBe("");
+  });
+
+  it("gives nothing when nothing was recorded", () => {
+    // 153 of the 160 doctor-referred patients, the Salesforce ones included.
+    expect(referringDoctorName("")).toBe("");
+    expect(referringDoctorName(null)).toBe("");
+    expect(referringDoctorName(undefined)).toBe("");
   });
 });

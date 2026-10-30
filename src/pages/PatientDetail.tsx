@@ -37,6 +37,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { PhotoViewer } from "@/components/patients/PhotoViewer";
 import { CopyButton } from "@/components/shared/CopyButton";
+import { PatientAvatarEditor } from "@/components/patients/PatientAvatarEditor";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { AiRepository } from "@/components/shared/AiRepository";
 import { WhatsAppDeliveryLog } from "@/components/shared/WhatsAppDeliveryLog";
@@ -685,9 +686,13 @@ const PatientDetail = () => {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="flex items-center gap-3 md:gap-4">
-              <div className="h-12 w-12 md:h-16 md:w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-bold text-lg md:text-xl shrink-0">
-                {patient.first_name[0]}{patient.last_name[0]}
-              </div>
+              <PatientAvatarEditor
+                patientId={patient.id}
+                firstName={patient.first_name}
+                lastName={patient.last_name}
+                avatarUrl={(patient as { avatar_url?: string | null }).avatar_url}
+                photos={photos as { id: string; photo_url: string }[]}
+              />
               <div className="min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
                   <h1 className="page-title text-xl md:text-2xl truncate">{patient.first_name} {patient.last_name}</h1>

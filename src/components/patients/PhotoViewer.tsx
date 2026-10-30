@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { displayDate } from "@/lib/dateInput";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Download, ImageOff } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, ImageOff, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { photoFileName } from "@/lib/photoDownload";
 
 export interface ViewablePhoto {
   id: string;
@@ -34,6 +36,7 @@ interface PhotoViewerProps {
  */
 export function PhotoViewer({ photos, index, onIndexChange, patientName }: PhotoViewerProps) {
   const [failed, setFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
   const open = index !== null && index >= 0 && index < photos.length;
   const photo = open ? photos[index] : null;
 
@@ -134,13 +137,48 @@ export function PhotoViewer({ photos, index, onIndexChange, patientName }: Photo
               </p>
             )}
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5 shrink-0" asChild>
-            {/* Opens in a new tab rather than forcing a download: the photos are
-                served from another origin, where the download attribute is
-                ignored, and a silently-ignored button is worse than a new tab. */}
-            <a href={photo.photo_url} target="_blank" rel="noreferrer">
-              <Download className="h-3.5 w-3.5" /> Open original
-            </a>
+          {/* The photos are served from another origin, where the download
+              attribute on a plain link is ignored and the browser navigates
+              instead - which is why this used to be "Open original". Fetching
+              the bytes and saving the blob gets round that, because the blob
+              URL is this page's own. Reading them is already known to be
+              allowed: photoHashImage.ts fetches these same URLs to fingerprint
+              them. If it ever is not, the old behaviour is the fallback below,
+              so the button is never silently ignored. */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 shrink-0"
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                const response = await fetch(photo.photo_url);
+                if (!response.ok) throw new Error(String(response.status));
+                const blob = await response.blob();
+                const href = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = href;
+                link.download = photoFileName({
+                  patientName,
+                  takenAt: photo.taken_at,
+                  serviceName: photo.procedures?.service_name,
+                  url: photo.photo_url,
+                });
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(href);
+              } catch {
+                toast.error("Could not download the photo - opening it instead.");
+                window.open(photo.photo_url, "_blank", "noopener,noreferrer");
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            {saving ? "Saving…" : "Download"}
           </Button>
         </div>
       </DialogContent>

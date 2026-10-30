@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PhotoViewer, type ViewablePhoto } from "./PhotoViewer";
 
 const PHOTOS: ViewablePhoto[] = [
@@ -103,11 +103,64 @@ describe("PhotoViewer", () => {
     expect(shownImage().src).toBe("https://cdn.test/b.jpg");
   });
 
-  it("links to the original for anyone who needs the file itself", () => {
-    render(<Harness start={0} />);
-    const link = screen.getByRole("link", { name: /open original/i });
-    expect(link).toHaveAttribute("href", "https://cdn.test/a.jpg");
-    expect(link).toHaveAttribute("target", "_blank");
+  describe("downloading", () => {
+    // The photos come from another origin, where a plain link's download
+    // attribute is ignored. These hold the fetch-and-save that gets round it,
+    // and the fallback for when it cannot.
+    let saved: { name: string; href: string } | null;
+    let opened: string | null;
+
+    beforeEach(() => {
+      saved = null;
+      opened = null;
+      vi.stubGlobal("URL", Object.assign(Object.create(URL), {
+        createObjectURL: () => "blob:photo",
+        revokeObjectURL: () => {},
+      }));
+      vi.spyOn(window, "open").mockImplementation((url) => { opened = String(url); return null; });
+      // What the anchor was asked to save, rather than the anchor itself -
+      // it is removed and its blob URL revoked the moment the click returns.
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+        saved = { name: this.download, href: this.href };
+      });
+    });
+    afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+    it("offers a download, not a link to open by hand", () => {
+      render(<Harness start={0} />);
+      expect(screen.getByRole("button", { name: /download/i })).toBeTruthy();
+      expect(screen.queryByRole("link", { name: /open original/i })).toBeNull();
+    });
+
+    it("fetches the photo and saves it under a name that says who it is", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+        ok: true, blob: async () => new Blob(["x"], { type: "image/jpeg" }),
+      }));
+      render(<Harness start={0} />);
+      fireEvent.click(screen.getByRole("button", { name: /download/i }));
+
+      await waitFor(() => expect(saved).not.toBeNull());
+      expect(fetch).toHaveBeenCalledWith("https://cdn.test/a.jpg");
+      expect(saved!.name).toBe("Asha Rao - Laser Toning - 10-09-2026.jpg");
+      expect(opened).toBeNull();
+    });
+
+    it("opens the photo instead when the download fails, rather than doing nothing", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+      render(<Harness start={0} />);
+      fireEvent.click(screen.getByRole("button", { name: /download/i }));
+
+      await waitFor(() => expect(opened).toBe("https://cdn.test/a.jpg"));
+      expect(saved).toBeNull();
+    });
+
+    it("treats a non-OK response as a failure too", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+      render(<Harness start={0} />);
+      fireEvent.click(screen.getByRole("button", { name: /download/i }));
+
+      await waitFor(() => expect(opened).toBe("https://cdn.test/a.jpg"));
+    });
   });
 
   it("names the patient for a screen reader", () => {

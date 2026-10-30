@@ -36,6 +36,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { PhotoViewer } from "@/components/patients/PhotoViewer";
+import { CopyButton } from "@/components/shared/CopyButton";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
 import { AiRepository } from "@/components/shared/AiRepository";
 import { WhatsAppDeliveryLog } from "@/components/shared/WhatsAppDeliveryLog";
@@ -1352,7 +1353,16 @@ const PatientDetail = () => {
                           that reads "Consultation" on most rows and says
                           nothing. investigationText falls back to the service
                           when a visit has no investigation recorded. */}
-                      <td className="p-4 font-medium text-sm">{investigationText(apt, "—")}</td>
+                      {/* The copy button takes the empty fallback, not the
+                          "—" shown beside it: a blank investigation should
+                          offer no button rather than copy a dash into the next
+                          appointment. */}
+                      <td className="p-4 font-medium text-sm">
+                        <span className="inline-flex items-center gap-1">
+                          {investigationText(apt, "—")}
+                          <CopyButton value={investigationText(apt, "")} label="investigation" />
+                        </span>
+                      </td>
                       <td className="p-4 text-sm text-muted-foreground">{apt.staff ? withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`) : "—"}</td>
                       <td className="p-4"><Badge variant="outline" className={`text-xs ${showsAsBilled(apt.status) ? BILLED_BADGE_CLASSES : appointmentStatusClasses(apt.status)}`}>{appointmentStatusLabel(apt.status)}</Badge></td>
                     </tr>

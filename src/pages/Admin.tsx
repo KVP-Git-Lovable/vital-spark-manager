@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
-import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck, Trash2, History, Coins, Users, ImageIcon, BookOpen } from "lucide-react";
+import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck, Trash2, History, Coins, Users, ImageIcon, BookOpen, Stethoscope} from "lucide-react";
 
 const sections = [
   { title: "Knowledge Articles", description: "Clinical protocols", url: "/knowledge", icon: BookOpen },
@@ -51,6 +51,12 @@ const sections = [
     description: "Let Photos search find a patient from a copy of a photo already on their record.",
     url: "/admin/photo-fingerprints",
     icon: ImageIcon,
+  },
+  {
+    title: "Referring Doctors",
+    description: "Fetch the referring doctors Salesforce holds for patients that have none.",
+    url: "/admin/referring-doctors",
+    icon: Stethoscope,
   },
   {
     title: "Trash Policy & Audit",

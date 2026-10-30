@@ -3697,6 +3697,39 @@ export type Database = {
           },
         ]
       }
+      patient_feedback_backup_20261029: {
+        Row: {
+          appointment_id: string
+          comments: string | null
+          created_at: string
+          id: string
+          nps_score: number
+          patient_id: string
+          patient_name: string | null
+          service_rating: number
+        }
+        Insert: {
+          appointment_id: string
+          comments?: string | null
+          created_at?: string
+          id?: string
+          nps_score: number
+          patient_id: string
+          patient_name?: string | null
+          service_rating: number
+        }
+        Update: {
+          appointment_id?: string
+          comments?: string | null
+          created_at?: string
+          id?: string
+          nps_score?: number
+          patient_id?: string
+          patient_name?: string | null
+          service_rating?: number
+        }
+        Relationships: []
+      }
       patient_name_backup_20261006: {
         Row: {
           backed_up_at: string

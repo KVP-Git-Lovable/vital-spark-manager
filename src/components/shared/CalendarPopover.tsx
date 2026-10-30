@@ -34,6 +34,9 @@ interface CalendarPopoverProps {
   align?: "start" | "center" | "end";
   /** Forwarded to the calendar - the appointment start date disables the past. */
   disabled?: React.ComponentProps<typeof Calendar>["disabled"];
+  /** Forwarded to the calendar - e.g. marking days that have appointments. */
+  modifiers?: React.ComponentProps<typeof Calendar>["modifiers"];
+  modifiersClassNames?: React.ComponentProps<typeof Calendar>["modifiersClassNames"];
   contentClassName?: string;
 }
 
@@ -43,6 +46,8 @@ export function CalendarPopover({
   onSelect,
   align = "start",
   disabled,
+  modifiers,
+  modifiersClassNames,
   contentClassName,
 }: CalendarPopoverProps) {
   const [open, setOpen] = useState(false);
@@ -58,6 +63,8 @@ export function CalendarPopover({
           // date set months ago does not start with paging backwards.
           defaultMonth={selected}
           disabled={disabled}
+          modifiers={modifiers}
+          modifiersClassNames={modifiersClassNames}
           onSelect={(date) => {
             onSelect(date);
             setOpen(false);

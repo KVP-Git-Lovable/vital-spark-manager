@@ -2867,8 +2867,10 @@ const Appointments = () => {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <CalendarPopover
-                  selected={currentDate}
+                   selected={currentDate}
                   onSelect={(date) => { if (date) setCurrentDate(date); }}
+                  modifiers={{ hasAppointment: appointmentDates }}
+                  modifiersClassNames={{ hasAppointment: "bg-primary/20 font-bold" }}
                   trigger={
                     <Button variant="ghost" className="font-display font-semibold text-base hover:bg-muted/50 gap-1.5 px-2">
                       {view === "month"

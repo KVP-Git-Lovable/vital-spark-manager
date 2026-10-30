@@ -1155,12 +1155,12 @@ function ProcedureForm({
           {patientId && (
             <PatientToolsBar patientId={patientId} patientName={selectedPatientName} context="patient" />
           )}
-          <Tabs defaultValue="medical" className="w-full">
+          <Tabs defaultValue="procedure" className="w-full">
             <TabsList className="h-auto flex flex-wrap justify-start gap-1">
+              <TabsTrigger value="procedure">Procedure</TabsTrigger>
               <TabsTrigger value="medical" className="gap-1.5">
                 <HeartPulse className="h-3.5 w-3.5" /> Medical Information
               </TabsTrigger>
-              <TabsTrigger value="procedure">Procedure</TabsTrigger>
               <TabsTrigger value="surveys" className="gap-1.5">
                 <ClipboardList className="h-3.5 w-3.5" /> Surveys
               </TabsTrigger>

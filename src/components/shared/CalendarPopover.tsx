@@ -34,6 +34,9 @@ interface CalendarPopoverProps {
   align?: "start" | "center" | "end";
   /** Forwarded to the calendar - the appointment start date disables the past. */
   disabled?: React.ComponentProps<typeof Calendar>["disabled"];
+  /** Forwarded to the calendar - e.g. marking days that have appointments. */
+  modifiers?: React.ComponentProps<typeof Calendar>["modifiers"];
+  modifiersClassNames?: React.ComponentProps<typeof Calendar>["modifiersClassNames"];
   contentClassName?: string;
 }
 

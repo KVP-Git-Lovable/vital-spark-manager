@@ -78,6 +78,22 @@ export const GOOGLE_REVIEW_LINK_LEGACY = "https://g.co/kgs/6Zy6nc";
 /**
  * A WhatsApp link that opens a chat with this patient, message already typed.
  *
+ * web.whatsapp.com/send and NOT wa.me, which is what this used to be.
+ *
+ * wa.me is a redirector, not WhatsApp: it forwards to api.whatsapp.com/send,
+ * which shows a "Continue to chat" page before handing over. That cost staff
+ * an extra click on every single request, and api.whatsapp.com is the host
+ * that produced "api.whatsapp.com is blocked / ERR_BLOCKED_BY_RESPONSE" when
+ * the button was pressed from inside the Lovable preview - Chrome's wording
+ * for a page refusing to be framed. Going straight to web.whatsapp.com opens
+ * the chat itself: no redirect, no interstitial, and the blocked host is
+ * never involved.
+ *
+ * This is the STAFF link. The patient-facing pages (clinic Landing, patient
+ * portal) keep wa.me deliberately - a patient on a phone should land in the
+ * WhatsApp app, which is exactly what wa.me is for. Front desk are at a
+ * computer with WhatsApp Web already signed in.
+ *
  * null when the number cannot be made into a real one, so the caller can
  * disable the button and say why rather than opening WhatsApp on nothing.
  *
@@ -93,7 +109,7 @@ export function whatsappShareUrl(
   if (!digits) return null;
   // encodeURIComponent, not encodeURI: the message holds newlines, a colon and
   // a slash-heavy URL, and only the former escapes all of them.
-  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  return `https://web.whatsapp.com/send?phone=${digits}&text=${encodeURIComponent(message)}`;
 }
 
 /**

@@ -7,6 +7,8 @@ import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotific
 import { confirmationSendPlan } from "@/lib/confirmationSend";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
 import { isReviewRequestMessage, reviewContactNotice, reviewRequestState } from "@/lib/googleReview";
+import { reserveTab } from "@/lib/newTab";
+import { offerBlockedLink } from "@/components/shared/popupFallback";
 import { openAppointmentNotice, type AppointmentChange } from "@/lib/liveAppointments";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { rescheduleVerdict, rescheduleWarning } from "@/lib/appointmentReschedule";
@@ -218,19 +220,17 @@ function FeedbackTabContent({
   });
   const alreadySent = reviewContactNotice(lastReviewSentAt, lastReviewOpenedAt);
   /**
-   * Record that we opened the link, then let the browser follow it.
+   * Record that the review link was opened for this patient.
    *
-   * Deliberately NOT awaited, and the click is never cancelled for it. The
-   * button is a real anchor because opening wa.me any other way does not work
-   * where the clinic uses the app: window.open from inside the preview, which
-   * runs in a frame, lands on "api.whatsapp.com refused to connect". A link
-   * somebody chooses to click opens; one the page opens for them is what the
-   * frame blocks. Awaiting an insert first would break that - the navigation
-   * would no longer be the direct result of the click.
+   * Deliberately NOT awaited, and the click never waits on it. The tab has
+   * already been claimed and pointed at WhatsApp by the time this runs, and
+   * an await anywhere in that path would spend the click's permission to
+   * open a tab at all - which is the whole reason this button broke once
+   * already.
    *
-   * So the record is best-effort and the send is not. If the insert fails the
-   * patient still gets asked; all that is lost is the notice next time, which
-   * is the right way round.
+   * So the record is best-effort and the send is not. If the insert fails
+   * the patient still gets asked; all that is lost is the notice next time,
+   * which is the right way round.
    */
   const recordReviewOpen = () => {
     if (!patientId) return;
@@ -251,47 +251,55 @@ function FeedbackTabContent({
   };
 
   /**
-   * An anchor wearing the Button's clothes, not a Button with an onClick.
+   * Open WhatsApp in a tab we claimed ourselves.
    *
-   * That is the whole trick. The clinic runs this inside a frame, where
-   * navigating to wa.me in script gets "api.whatsapp.com refused to connect"
-   * - the frame blocks a page that sends you somewhere, but not a link you
-   * chose to click. asChild makes the Button render the anchor itself, so
-   * what the browser sees is an ordinary link.
+   * A plain <a target="_blank"> was tried and gave staff "api.whatsapp.com is
+   * blocked / ERR_BLOCKED_BY_RESPONSE" - Chrome's wording for a page refusing
+   * to be framed, which means the link loaded INSIDE the frame rather than in
+   * a tab. reserveTab is the app's answer to this everywhere else: it claims
+   * a genuine top-level tab in the click itself, and X-Frame-Options cannot
+   * apply to a top-level document.
    *
-   * review.url already carries the message, text and all, so WhatsApp opens
-   * on this patient's chat with it typed and waiting.
+   * It also reports when the browser refused outright, which an anchor cannot
+   * - so a browser that blocks pop-ups gets a toast it can act on instead of
+   * a dead error page.
+   *
+   * Order matters. reserveTab must be the FIRST statement: a browser only
+   * honours window.open while it is still handling the click, and a confirm()
+   * ahead of it spends that permission.
    */
+  const openReviewRequest = () => {
+    if (!review.enabled || !review.url) return;
+    const tab = reserveTab("Opening WhatsApp…");
+    // Asking twice is what this guards - see google_review_opens.
+    if (alreadySent && !window.confirm(`${alreadySent}.\n\nAsk this patient for a review again?`)) {
+      tab.cancel();
+      return;
+    }
+    if (tab.blocked) {
+      // Nothing we can do from here opens a tab; the toast's action is a
+      // fresh gesture and is always allowed.
+      offerBlockedLink(review.url, "WhatsApp");
+      return;
+    }
+    tab.navigate(review.url);
+    recordReviewOpen();
+  };
+
   const reviewRequestButton = (
     <div>
-      {review.enabled ? (
-        <Button asChild variant="outline" size="sm" className="gap-1.5">
-          <a
-            href={review.url!}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="send-google-review"
-            onClick={(e) => {
-              // Asking twice is the thing this guards. preventDefault only on
-              // a "no" - a "yes" leaves the click untouched so it stays the
-              // plain link navigation the frame allows.
-              if (alreadySent && !window.confirm(`${alreadySent}.\n\nAsk this patient for a review again?`)) {
-                e.preventDefault();
-                return;
-              }
-              recordReviewOpen();
-            }}
-          >
-            <Star className="h-3.5 w-3.5" />
-            {alreadySent ? "Ask again on WhatsApp" : "Send Google review request"}
-          </a>
-        </Button>
-      ) : (
-        <Button type="button" variant="outline" size="sm" className="gap-1.5" disabled data-testid="send-google-review">
-          <Star className="h-3.5 w-3.5" />
-          Send Google review request
-        </Button>
-      )}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="gap-1.5"
+        data-testid="send-google-review"
+        disabled={!review.enabled}
+        onClick={openReviewRequest}
+      >
+        <Star className="h-3.5 w-3.5" />
+        {alreadySent ? "Ask again on WhatsApp" : "Send Google review request"}
+      </Button>
       {!review.enabled && (
         <p className="text-[11px] text-muted-foreground mt-1">{review.reason}</p>
       )}

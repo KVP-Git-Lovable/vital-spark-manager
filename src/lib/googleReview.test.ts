@@ -37,17 +37,17 @@ describe("GOOGLE_REVIEW_MESSAGE", () => {
 describe("whatsappShareUrl", () => {
   it("opens a chat with a ten-digit mobile, country code added", () => {
     // 9606342269 is how the clinic's numbers are stored.
-    expect(whatsappShareUrl("9606342269")).toContain("https://wa.me/919606342269?text=");
+    expect(whatsappShareUrl("9606342269")).toContain("https://web.whatsapp.com/send?phone=919606342269&text=");
   });
 
   it("does not add the country code twice", () => {
-    expect(whatsappShareUrl("919606342269")).toContain("wa.me/919606342269?");
-    expect(whatsappShareUrl("+91 96063 42269")).toContain("wa.me/919606342269?");
+    expect(whatsappShareUrl("919606342269")).toContain("phone=919606342269&");
+    expect(whatsappShareUrl("+91 96063 42269")).toContain("phone=919606342269&");
   });
 
   it("survives the punctuation numbers get typed with", () => {
-    expect(whatsappShareUrl("096063-42269")).toContain("wa.me/919606342269?");
-    expect(whatsappShareUrl("(96063) 42269")).toContain("wa.me/919606342269?");
+    expect(whatsappShareUrl("096063-42269")).toContain("phone=919606342269&");
+    expect(whatsappShareUrl("(96063) 42269")).toContain("phone=919606342269&");
   });
 
   it("escapes the message so the link and the line breaks arrive intact", () => {
@@ -57,12 +57,34 @@ describe("whatsappShareUrl", () => {
     expect(url).not.toContain("\n");
     expect(url).toContain("%0A");
     // And the whole thing must decode back to exactly what was written.
-    expect(decodeURIComponent(url.split("?text=")[1])).toBe(GOOGLE_REVIEW_MESSAGE);
+    expect(decodeURIComponent(url.split("&text=")[1])).toBe(GOOGLE_REVIEW_MESSAGE);
   });
 
   it("carries a message of its own when given one", () => {
     const url = whatsappShareUrl("9606342269", "Hello there") ?? "";
     expect(url).toContain("text=Hello%20there");
+  });
+
+  it("goes straight to WhatsApp Web, never through wa.me or api.whatsapp.com", () => {
+    // This is the bug. wa.me is a redirector: it forwards to
+    // api.whatsapp.com/send, which shows a "Continue to chat" page first -
+    // an extra click on every request, and the host that produced
+    // "api.whatsapp.com is blocked / ERR_BLOCKED_BY_RESPONSE" when the
+    // button was pressed. Neither host may come back.
+    const url = whatsappShareUrl("9606342269") ?? "";
+    expect(url).toContain("https://web.whatsapp.com/send");
+    expect(url).not.toContain("wa.me");
+    expect(url).not.toContain("api.whatsapp.com");
+  });
+
+  it("puts the number in the phone parameter, where /send expects it", () => {
+    // web.whatsapp.com/send reads ?phone=, not a number in the path. Keeping
+    // the path form would open WhatsApp Web on no chat at all.
+    const url = new URL(whatsappShareUrl("9606342269") ?? "");
+    expect(url.hostname).toBe("web.whatsapp.com");
+    expect(url.pathname).toBe("/send");
+    expect(url.searchParams.get("phone")).toBe("919606342269");
+    expect(url.searchParams.get("text")).toBe(GOOGLE_REVIEW_MESSAGE);
   });
 
   it("has nowhere to send a patient with no usable number", () => {
@@ -79,7 +101,7 @@ describe("reviewRequestState", () => {
   it("is ready to send when the patient has a number", () => {
     const state = reviewRequestState("9606342269");
     expect(state.enabled).toBe(true);
-    expect(state.url).toContain("wa.me/919606342269");
+    expect(state.url).toContain("web.whatsapp.com/send?phone=919606342269");
     expect(state.reason).toBe("");
   });
 

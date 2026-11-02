@@ -219,6 +219,7 @@ function FeedbackTabContent({
     },
   });
   const alreadySent = reviewContactNotice(lastReviewSentAt, lastReviewOpenedAt);
+  const [askAgainOpen, setAskAgainOpen] = useState(false);
   /**
    * Record that the review link was opened for this patient.
    *
@@ -264,18 +265,17 @@ function FeedbackTabContent({
    * - so a browser that blocks pop-ups gets a toast it can act on instead of
    * a dead error page.
    *
-   * Order matters. reserveTab must be the FIRST statement: a browser only
-   * honours window.open while it is still handling the click, and a confirm()
-   * ahead of it spends that permission.
+   * NEVER put a confirm(), alert() or prompt() in this function, and never
+   * call one between the click and this. reserveTab opens AND FOCUSES a tab,
+   * which leaves this page in the background, and Chrome ignores a dialog
+   * asked for by a background tab - it shows nothing and returns false. That
+   * is exactly how "Ask again" came to open a tab and instantly close it
+   * again: the screen jolted and nothing happened. Anything that needs
+   * asking is asked before this runs, by askAgainOpen below.
    */
-  const openReviewRequest = () => {
+  const openWhatsAppNow = () => {
     if (!review.enabled || !review.url) return;
     const tab = reserveTab("Opening WhatsApp…");
-    // Asking twice is what this guards - see google_review_opens.
-    if (alreadySent && !window.confirm(`${alreadySent}.\n\nAsk this patient for a review again?`)) {
-      tab.cancel();
-      return;
-    }
     if (tab.blocked) {
       // Nothing we can do from here opens a tab; the toast's action is a
       // fresh gesture and is always allowed.
@@ -284,6 +284,22 @@ function FeedbackTabContent({
     }
     tab.navigate(review.url);
     recordReviewOpen();
+  };
+
+  /**
+   * The button. Asking a patient twice is worth a question; asking a patient
+   * who has never been asked is not.
+   *
+   * The dialog's own button is a fresh user gesture, so opening the tab from
+   * there works exactly as it does on a first press.
+   */
+  const openReviewRequest = () => {
+    if (!review.enabled || !review.url) return;
+    if (alreadySent) {
+      setAskAgainOpen(true);
+      return;
+    }
+    openWhatsAppNow();
   };
 
   const reviewRequestButton = (
@@ -308,6 +324,33 @@ function FeedbackTabContent({
           {alreadySent}
         </p>
       )}
+
+      {/* Asked before anything opens - see openWhatsAppNow for why that order
+          is not negotiable. */}
+      <AlertDialog open={askAgainOpen} onOpenChange={setAskAgainOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ask this patient again?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {alreadySent}. Sending a second request is fine if the first one
+              did not reach them — but a patient who gets the same message
+              twice usually just received it late.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="confirm-ask-again"
+              onClick={() => {
+                setAskAgainOpen(false);
+                openWhatsAppNow();
+              }}
+            >
+              Open WhatsApp
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 

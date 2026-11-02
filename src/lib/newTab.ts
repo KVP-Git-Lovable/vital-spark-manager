@@ -24,7 +24,21 @@ export interface PendingTab {
    * to click instead: that click is a fresh gesture and is always allowed.
    */
   readonly blocked: boolean;
-  /** Send the reserved tab to a finished document. */
+  /**
+   * Send the reserved tab to a finished document.
+   *
+   * CAUTION, and it has no callers at the time of writing. The Google review
+   * button used this and the tab sat on the placeholder for ever: navigate
+   * disowns the window (opener = null) before assigning location, and a
+   * disowned popup is no longer the opener's to steer. The assignment is
+   * wrapped in a catch, so the failure is silent. Its tests pass because they
+   * run against a stub window, not a browser.
+   *
+   * Reach for this ONLY when a tab must be claimed before an await. If the
+   * URL is already known - as the review button's was - use
+   * window.open(url, "_blank", "noopener,noreferrer") instead, which is what
+   * the rest of the app does and what that button does now.
+   */
   navigate(url: string): void;
   /** Fill the reserved tab with a document we built ourselves. */
   write(html: string): void;

@@ -6,9 +6,7 @@ import { MANUAL_APPOINTMENT_STATUSES, appointmentStatusLabel, showsAsBilled, BIL
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import { confirmationSendPlan } from "@/lib/confirmationSend";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
-import { isReviewRequestMessage, reviewContactNotice, reviewRequestState } from "@/lib/googleReview";
-import { reserveTab } from "@/lib/newTab";
-import { offerBlockedLink } from "@/components/shared/popupFallback";
+import { GOOGLE_REVIEW_MESSAGE, isReviewRequestMessage, reviewContactNotice, reviewRequestState } from "@/lib/googleReview";
 import { openAppointmentNotice, type AppointmentChange } from "@/lib/liveAppointments";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { rescheduleVerdict, rescheduleWarning } from "@/lib/appointmentReschedule";
@@ -58,6 +56,31 @@ import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog
 import { ProcedureDetailSheet } from "@/components/procedures/ProcedureDetailSheet";
 import { ScanProcedureDialog } from "@/components/procedures/ScanProcedureDialog";
 import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
+
+/**
+ * When the browser will not open a tab at all.
+ *
+ * Deliberately does NOT offer to open the link again. Three rounds of this
+ * button failed on "the browser would not open it", so a fallback whose only
+ * escape is another window.open is no fallback. Copying the message always
+ * works: the staff member switches to the WhatsApp Web tab they already have
+ * open, picks the patient, and pastes.
+ */
+function offerReviewFallback() {
+  toast.message("Your browser blocked the WhatsApp tab", {
+    description: "Copy the message, then paste it into the patient's WhatsApp chat.",
+    action: {
+      label: "Copy message",
+      onClick: () => {
+        navigator.clipboard.writeText(GOOGLE_REVIEW_MESSAGE).then(
+          () => toast.success("Message copied"),
+          () => toast.error("Could not copy - your browser blocked the clipboard."),
+        );
+      },
+    },
+    duration: 20000,
+  });
+}
 import { AiRepository } from "@/components/shared/AiRepository";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { SurveyRecommendations } from "@/components/surveys/SurveyRecommendations";
@@ -252,21 +275,19 @@ function FeedbackTabContent({
   };
 
   /**
-   * Open WhatsApp in a tab we claimed ourselves.
+   * Open WhatsApp in a new tab.
    *
-   * A plain <a target="_blank"> was tried and gave staff "api.whatsapp.com is
-   * blocked / ERR_BLOCKED_BY_RESPONSE" - Chrome's wording for a page refusing
-   * to be framed, which means the link loaded INSIDE the frame rather than in
-   * a tab. reserveTab is the app's answer to this everywhere else: it claims
-   * a genuine top-level tab in the click itself, and X-Frame-Options cannot
-   * apply to a top-level document.
+   * A plain <a target="_blank"> was tried first and gave staff
+   * "api.whatsapp.com is blocked / ERR_BLOCKED_BY_RESPONSE" - Chrome's
+   * wording for a page refusing to be framed, which means the link loaded
+   * INSIDE the frame rather than in a tab. window.open gives a genuine
+   * top-level tab, and X-Frame-Options cannot apply to a top-level document.
    *
-   * It also reports when the browser refused outright, which an anchor cannot
-   * - so a browser that blocks pop-ups gets a toast it can act on instead of
-   * a dead error page.
+   * It also tells us when the browser refused outright, which an anchor
+   * cannot, so that case gets a usable fallback instead of a dead page.
    *
    * NEVER put a confirm(), alert() or prompt() in this function, and never
-   * call one between the click and this. reserveTab opens AND FOCUSES a tab,
+   * call one between the click and this. window.open focuses the new tab,
    * which leaves this page in the background, and Chrome ignores a dialog
    * asked for by a background tab - it shows nothing and returns false. That
    * is exactly how "Ask again" came to open a tab and instantly close it
@@ -275,14 +296,22 @@ function FeedbackTabContent({
    */
   const openWhatsAppNow = () => {
     if (!review.enabled || !review.url) return;
-    const tab = reserveTab("Opening WhatsApp…");
-    if (tab.blocked) {
-      // Nothing we can do from here opens a tab; the toast's action is a
-      // fresh gesture and is always allowed.
-      offerBlockedLink(review.url, "WhatsApp");
+    // One window.open carrying the real URL, exactly as PhotoViewer,
+    // PdfPreviewDialog and the report drill-downs do it.
+    //
+    // This used to go through reserveTab().navigate(), which opens about:blank
+    // and navigates it afterwards, and the tab sat on the placeholder for
+    // ever: navigate() disowns the window (opener = null) before assigning
+    // location, and a disowned popup is no longer the opener's to steer, with
+    // the failure swallowed by a catch. reserveTab earns that two-step dance
+    // when a tab must be claimed BEFORE an await - a PDF being built, an edge
+    // function being called. Nothing is awaited here; the URL is already
+    // known, so there was never anything to reserve.
+    const win = window.open(review.url, "_blank", "noopener,noreferrer");
+    if (!win) {
+      offerReviewFallback();
       return;
     }
-    tab.navigate(review.url);
     recordReviewOpen();
   };
 

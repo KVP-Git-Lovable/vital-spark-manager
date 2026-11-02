@@ -4047,6 +4047,7 @@ export type Database = {
           allergies: string | null
           alternate_phone: string | null
           auth_user_id: string | null
+          avatar_url: string | null
           blood_group: string | null
           city: string | null
           consultation_reasons: string[] | null
@@ -4112,6 +4113,7 @@ export type Database = {
           allergies?: string | null
           alternate_phone?: string | null
           auth_user_id?: string | null
+          avatar_url?: string | null
           blood_group?: string | null
           city?: string | null
           consultation_reasons?: string[] | null
@@ -4177,6 +4179,7 @@ export type Database = {
           allergies?: string | null
           alternate_phone?: string | null
           auth_user_id?: string | null
+          avatar_url?: string | null
           blood_group?: string | null
           city?: string | null
           consultation_reasons?: string[] | null

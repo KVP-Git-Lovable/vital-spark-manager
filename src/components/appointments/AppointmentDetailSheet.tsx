@@ -6,8 +6,7 @@ import { MANUAL_APPOINTMENT_STATUSES, appointmentStatusLabel, showsAsBilled, BIL
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import { confirmationSendPlan } from "@/lib/confirmationSend";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
-import { isReviewRequestMessage, reviewAlreadySentNotice, reviewRequestState } from "@/lib/googleReview";
-import { deliveryOutcome, type DeliveryOutcome } from "@/lib/whatsappDelivery";
+import { isReviewRequestMessage, reviewContactNotice, reviewRequestState } from "@/lib/googleReview";
 import { openAppointmentNotice, type AppointmentChange } from "@/lib/liveAppointments";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { rescheduleVerdict, rescheduleWarning } from "@/lib/appointmentReschedule";
@@ -154,11 +153,19 @@ function FeedbackTabContent({
    * something kind. Opens WhatsApp with the clinic's wording and this
    * patient's number already filled in; staff press send.
    *
-   * It opens WhatsApp rather than sending through the app because sending
-   * needs a Meta-approved template and a function to send it - see
-   * googleReview.ts and the google_review_request template in Communications
-   * Centre. When both exist this button sends by itself and nothing else here
-   * changes.
+   * It opened WhatsApp, then sent through the app once Meta approved the
+   * template, and now opens WhatsApp again. That is not indecision - the
+   * approved body lives at META, not here, and it still carries the OLD
+   * review link, the one that makes a patient sign in to Google before they
+   * can write anything. Most gave up at that screen. The wording in
+   * googleReview.ts has the corrected link, so sending it from a staff
+   * member's own WhatsApp is the only way the patient gets the good link
+   * today.
+   *
+   * send-google-review-whatsapp and its template are left in place, switched
+   * off from here rather than deleted: when Meta approves the corrected body
+   * and TWILIO_GOOGLE_REVIEW_TEMPLATE_SID points at the new SID, this goes
+   * back to sending itself.
    */
   const review = reviewRequestState(patientPhone);
   /**
@@ -183,133 +190,114 @@ function FeedbackTabContent({
       return (data || []).find((m) => isReviewRequestMessage(m.content))?.created_at ?? null;
     },
   });
-  const alreadySent = reviewAlreadySentNotice(lastReviewSentAt);
-  const [reviewSending, setReviewSending] = useState(false);
-  // Only true once a send has actually failed, so the manual route is offered
-  // rather than sitting there inviting people away from the working one.
-  const [reviewFailed, setReviewFailed] = useState(false);
   /**
-   * Send it, the way appointment confirmations are sent.
+   * When this patient last had the review link opened for them.
    *
-   * This used to open WhatsApp in a new tab, which was always a stopgap - the
-   * template was not approved and nothing could send it. It is approved now
-   * (Twilio content SID HXf1521e98ec4adb966dd73ac571050e29), so the app sends
-   * it itself through send-google-review-whatsapp, exactly as
-   * send-appointment-whatsapp sends a confirmation.
+   * The send through the app is switched off, so whatsapp_conversations hears
+   * nothing any more and the notice above would quietly stop updating. This
+   * is what keeps it alive - see the google_review_opens migration for what a
+   * row does and does not mean.
    *
-   * The stopgap also did not work where the clinic uses the app: opening
-   * wa.me from inside the preview, which runs in a frame, lands on
-   * "api.whatsapp.com refused to connect". So the fallback is no longer taken
-   * automatically - a failure says what went wrong and OFFERS the link, which
-   * the person clicks themselves. A link somebody chooses to click opens; one
-   * the page opens for them is what the frame blocks.
+   * `as never` rather than `any`: the table was added by 20261102100000 and
+   * the generated Supabase types are regenerated on sync, so until then the
+   * table is real and the types do not know it.
    */
-  /**
-   * Did the patient actually get it?
-   *
-   * Twilio accepting a message is not WhatsApp delivering one, and the app was
-   * announcing the first as though it were the second: it said "sent" while
-   * Meta was refusing to deliver the marketing template with error 63049. The
-   * delivery webhook records the real answer in whatsapp_delivery_log within a
-   * second or two, so it is worth waiting for rather than guessing.
-   */
-  const confirmDelivery = async (messageSid?: string): Promise<DeliveryOutcome> => {
-    if (!messageSid) return deliveryOutcome(null, null);
-    for (let attempt = 0; attempt < 5; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+  const { data: lastReviewOpenedAt, refetch: refetchLastOpen } = useQuery({
+    queryKey: ["review-link-opened", patientId],
+    enabled: !!patientId,
+    queryFn: async () => {
       const { data } = await supabase
-        .from("whatsapp_delivery_log")
-        .select("status, error_code")
-        .eq("message_sid", messageSid)
+        .from("google_review_opens" as never)
+        .select("opened_at")
+        .eq("patient_id", patientId!)
+        .order("opened_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
-      if (data) {
-        const outcome = deliveryOutcome(data.status, data.error_code);
-        // Keep waiting only while it is genuinely undecided.
-        if (!outcome.pending) return outcome;
+      return (data as { opened_at?: string } | null)?.opened_at ?? null;
+    },
+  });
+  const alreadySent = reviewContactNotice(lastReviewSentAt, lastReviewOpenedAt);
+  /**
+   * Record that we opened the link, then let the browser follow it.
+   *
+   * Deliberately NOT awaited, and the click is never cancelled for it. The
+   * button is a real anchor because opening wa.me any other way does not work
+   * where the clinic uses the app: window.open from inside the preview, which
+   * runs in a frame, lands on "api.whatsapp.com refused to connect". A link
+   * somebody chooses to click opens; one the page opens for them is what the
+   * frame blocks. Awaiting an insert first would break that - the navigation
+   * would no longer be the direct result of the click.
+   *
+   * So the record is best-effort and the send is not. If the insert fails the
+   * patient still gets asked; all that is lost is the notice next time, which
+   * is the right way round.
+   */
+  const recordReviewOpen = () => {
+    if (!patientId) return;
+    void (async () => {
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        await supabase.from("google_review_opens" as never).insert({
+          patient_id: patientId,
+          appointment_id: appointmentId ?? null,
+          opened_by: auth?.user?.id ?? null,
+        } as never);
+        void refetchLastOpen();
+      } catch {
+        // Silent on purpose. WhatsApp is already opening in the other tab and
+        // a toast about bookkeeping would land on a screen nobody is reading.
       }
-    }
-    return deliveryOutcome(null, null);
+    })();
   };
 
-  const sendReviewRequest = async () => {
-    if (!review.enabled || !patientId) return;
-    // Meta's marketing cap is intermittent, so when nothing arrives the
-    // natural thing is to press again - and when the cap lifts, every copy
-    // queued behind it lands at once. Asking once is what stops that.
-    if (alreadySent && !window.confirm(`${alreadySent}.\n\nSend this patient another review request?`)) {
-      return;
-    }
-    setReviewSending(true);
-    setReviewFailed(false);
-    try {
-      const { data, error } = await supabase.functions.invoke("send-google-review-whatsapp", {
-        body: { patient_id: patientId, appointment_id: appointmentId },
-      });
-      // edgeFunctionErrorMessage reads the function's own error body rather
-      // than showing "Edge Function returned a non-2xx status code" - kept from
-      // the fix that added the sender.
-      if (error) throw new Error(await edgeFunctionErrorMessage(error, "Could not reach the WhatsApp review sender. Please try again shortly."));
-      const result = data as { ok?: boolean; error?: string; messageSid?: string } | null;
-      if (result?.ok !== true) throw new Error(result?.error || "Could not send the review request");
-
-      // ok:true means Twilio accepted it, which is not the same as the patient
-      // receiving it - see confirmDelivery.
-      // So a second press is caught by the same guard, not just the first.
-      void refetchLastReview();
-
-      const outcome = await confirmDelivery(result?.messageSid);
-      if (outcome.delivered) {
-        toast.success(outcome.message);
-      } else if (outcome.pending) {
-        toast.info(outcome.message);
-      } else {
-        // Not a fault in the clinic's setup - Meta declined to deliver it - so
-        // the manual route is offered rather than the failure just sitting.
-        setReviewFailed(true);
-        toast.error(outcome.message, { duration: 10000 });
-      }
-    } catch (e) {
-      setReviewFailed(true);
-      toast.error(e instanceof Error ? e.message : "Could not send the review request");
-    } finally {
-      setReviewSending(false);
-    }
-  };
-
+  /**
+   * An anchor wearing the Button's clothes, not a Button with an onClick.
+   *
+   * That is the whole trick. The clinic runs this inside a frame, where
+   * navigating to wa.me in script gets "api.whatsapp.com refused to connect"
+   * - the frame blocks a page that sends you somewhere, but not a link you
+   * chose to click. asChild makes the Button render the anchor itself, so
+   * what the browser sees is an ordinary link.
+   *
+   * review.url already carries the message, text and all, so WhatsApp opens
+   * on this patient's chat with it typed and waiting.
+   */
   const reviewRequestButton = (
     <div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="gap-1.5"
-        data-testid="send-google-review"
-        disabled={!review.enabled || reviewSending}
-        onClick={sendReviewRequest}
-      >
-        <Star className="h-3.5 w-3.5" />
-        {reviewSending ? "Sending…" : alreadySent ? "Send again" : "Send Google review request"}
-      </Button>
+      {review.enabled ? (
+        <Button asChild variant="outline" size="sm" className="gap-1.5">
+          <a
+            href={review.url!}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="send-google-review"
+            onClick={(e) => {
+              // Asking twice is the thing this guards. preventDefault only on
+              // a "no" - a "yes" leaves the click untouched so it stays the
+              // plain link navigation the frame allows.
+              if (alreadySent && !window.confirm(`${alreadySent}.\n\nAsk this patient for a review again?`)) {
+                e.preventDefault();
+                return;
+              }
+              recordReviewOpen();
+            }}
+          >
+            <Star className="h-3.5 w-3.5" />
+            {alreadySent ? "Ask again on WhatsApp" : "Send Google review request"}
+          </a>
+        </Button>
+      ) : (
+        <Button type="button" variant="outline" size="sm" className="gap-1.5" disabled data-testid="send-google-review">
+          <Star className="h-3.5 w-3.5" />
+          Send Google review request
+        </Button>
+      )}
       {!review.enabled && (
         <p className="text-[11px] text-muted-foreground mt-1">{review.reason}</p>
       )}
       {review.enabled && alreadySent && (
         <p className="text-[11px] text-muted-foreground mt-1" data-testid="review-already-sent">
           {alreadySent}
-        </p>
-      )}
-      {reviewFailed && review.url && (
-        <p className="text-[11px] text-muted-foreground mt-1">
-          Not delivered from the app.{" "}
-          <a
-            href={review.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline text-primary"
-            data-testid="open-whatsapp-instead"
-          >
-            Open WhatsApp instead
-          </a>
         </p>
       )}
     </div>

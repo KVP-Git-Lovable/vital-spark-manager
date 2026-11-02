@@ -153,6 +153,25 @@ export function isReviewRequestMessage(content: string | null | undefined): bool
   );
 }
 
+/** A timestamp from the database, or nothing usable. */
+function toDate(value: string | Date | null | undefined): Date | null {
+  if (!value) return null;
+  const when = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(when.getTime()) ? null : when;
+}
+
+/** "today at 3:42 PM", or "on 2 Nov 2026 at 3:42 PM". */
+function whenWords(when: Date, now: Date): string {
+  const time = when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const sameDay =
+    when.getFullYear() === now.getFullYear() &&
+    when.getMonth() === now.getMonth() &&
+    when.getDate() === now.getDate();
+  if (sameDay) return `today at ${time}`;
+  const date = when.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return `on ${date} at ${time}`;
+}
+
 /**
  * When the last one went, in words - so a second send is a decision rather
  * than a reflex. Empty when none has been sent.
@@ -161,17 +180,45 @@ export function reviewAlreadySentNotice(
   lastSentAt: string | Date | null | undefined,
   now: Date = new Date(),
 ): string {
-  if (!lastSentAt) return "";
-  const when = lastSentAt instanceof Date ? lastSentAt : new Date(lastSentAt);
-  if (Number.isNaN(when.getTime())) return "";
+  const when = toDate(lastSentAt);
+  if (!when) return "";
+  return `Already sent ${whenWords(when, now)}`;
+}
 
-  const time = when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  const sameDay =
-    when.getFullYear() === now.getFullYear() &&
-    when.getMonth() === now.getMonth() &&
-    when.getDate() === now.getDate();
-  if (sameDay) return `Already sent today at ${time}`;
-
-  const date = when.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-  return `Already sent on ${date} at ${time}`;
+/**
+ * Has this patient been asked already, by either route?
+ *
+ * There are now two ways a patient gets asked and they leave different marks:
+ *
+ *  - The app sent it through send-google-review-whatsapp, which wrote a row
+ *    into whatsapp_conversations. Eleven of those exist. That route is
+ *    switched off for now, but the history stays true.
+ *  - A staff member opened WhatsApp with the message ready and pressed send
+ *    themselves, which is what the button does today. The app records that it
+ *    opened the link, in google_review_opens.
+ *
+ * The two say different things and the wording has to be honest about which.
+ * A send through the app is a message Twilio accepted. An open is a staff
+ * member having the message in front of them - we cannot see whether they
+ * pressed send, let alone whether it arrived. So "Already sent" for the
+ * first, "Review link opened" for the second.
+ *
+ * The LATER of the two wins, because the only question being answered is "has
+ * this patient been bothered recently". A tie goes to the confirmed send: if
+ * both happened in the same second, the one we actually know about is the
+ * stronger claim.
+ */
+export function reviewContactNotice(
+  lastSentAt: string | Date | null | undefined,
+  lastOpenedAt: string | Date | null | undefined,
+  now: Date = new Date(),
+): string {
+  const sent = toDate(lastSentAt);
+  const opened = toDate(lastOpenedAt);
+  if (!sent && !opened) return "";
+  // >= rather than >: the tie goes to the send.
+  if (sent && (!opened || sent.getTime() >= opened.getTime())) {
+    return `Already sent ${whenWords(sent, now)}`;
+  }
+  return `Review link opened ${whenWords(opened as Date, now)}`;
 }

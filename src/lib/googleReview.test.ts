@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { GOOGLE_REVIEW_LINK, GOOGLE_REVIEW_LINK_LEGACY, GOOGLE_REVIEW_MESSAGE, isReviewRequestMessage, reviewAlreadySentNotice, reviewRequestState, whatsappShareUrl } from "./googleReview";
+import { GOOGLE_REVIEW_LINK, GOOGLE_REVIEW_LINK_LEGACY, GOOGLE_REVIEW_MESSAGE, isReviewRequestMessage, reviewAlreadySentNotice, reviewContactNotice, reviewRequestState, whatsappShareUrl } from "./googleReview";
 
 describe("GOOGLE_REVIEW_MESSAGE", () => {
   /**
@@ -195,5 +195,78 @@ The Skin Clinic`;
   it("is still not fooled by an ordinary message", () => {
     expect(isReviewRequestMessage("Your appointment is confirmed for tomorrow")).toBe(false);
     expect(isReviewRequestMessage("")).toBe(false);
+  });
+});
+
+/**
+ * The button no longer sends through the app - it opens the staff member's
+ * own WhatsApp with the message typed, because the body approved at Meta
+ * still carries the old link that makes patients sign in to Google.
+ *
+ * That means the "already sent" notice has two sources that say different
+ * things, and the wording has to tell them apart: a send the app made, and a
+ * link a staff member opened. These exist because the notice is the only
+ * thing standing between a patient and being asked twice, which has already
+ * happened to one of them.
+ */
+describe("reviewContactNotice", () => {
+  const now = new Date(2026, 10, 2, 18, 0);
+  const todayMorning = new Date(2026, 10, 2, 9, 15);
+  const todayAfternoon = new Date(2026, 10, 2, 15, 42);
+  const lastWeek = new Date(2026, 9, 26, 11, 0);
+
+  it("says nothing when the patient has never been asked", () => {
+    expect(reviewContactNotice(null, null, now)).toBe("");
+    expect(reviewContactNotice(undefined, undefined, now)).toBe("");
+  });
+
+  it("reports a send the app made as sent", () => {
+    const notice = reviewContactNotice(todayAfternoon, null, now);
+    expect(notice).toContain("Already sent");
+    expect(notice).toContain("today");
+  });
+
+  it("reports a link a staff member opened as opened, NOT as sent", () => {
+    // We cannot see whether they pressed send in WhatsApp, so claiming the
+    // patient was sent anything would be a lie the clinic acts on.
+    const notice = reviewContactNotice(null, todayAfternoon, now);
+    expect(notice).toContain("Review link opened");
+    expect(notice).not.toContain("Already sent");
+    expect(notice).toContain("today");
+  });
+
+  it("reports whichever happened later, when both did", () => {
+    expect(reviewContactNotice(lastWeek, todayMorning, now)).toContain("Review link opened");
+    expect(reviewContactNotice(todayMorning, lastWeek, now)).toContain("Already sent");
+  });
+
+  it("gives a tie to the send, which is the thing we actually know happened", () => {
+    expect(reviewContactNotice(todayMorning, todayMorning, now)).toContain("Already sent");
+  });
+
+  it("carries the date when it was not today", () => {
+    const notice = reviewContactNotice(null, lastWeek, now);
+    expect(notice).not.toContain("today");
+    expect(notice).toContain("26");
+    expect(notice).toContain("2026");
+  });
+
+  it("accepts the timestamp strings the database returns", () => {
+    expect(reviewContactNotice(null, todayAfternoon.toISOString(), now)).toContain("Review link opened today");
+    expect(reviewContactNotice(todayAfternoon.toISOString(), null, now)).toContain("Already sent today");
+  });
+
+  it("ignores a timestamp it cannot read rather than claiming contact", () => {
+    expect(reviewContactNotice("not a date", null, now)).toBe("");
+    expect(reviewContactNotice(null, "not a date", now)).toBe("");
+    // One unreadable and one good: the good one still has to show.
+    expect(reviewContactNotice("not a date", todayAfternoon, now)).toContain("Review link opened");
+  });
+
+  it("still words a plain send exactly as it always did", () => {
+    // reviewAlreadySentNotice is unchanged behaviour shared with this one -
+    // if refactoring moved the wording, the whole Feedback tab reads wrong.
+    expect(reviewContactNotice(todayAfternoon, null, now))
+      .toBe(reviewAlreadySentNotice(todayAfternoon, now));
   });
 });

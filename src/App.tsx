@@ -101,6 +101,7 @@ const PhotoFingerprints = lazyWithReload(() => import("./pages/admin/PhotoFinger
 const ReferralDoctorImport = lazyWithReload(() => import("./pages/admin/ReferralDoctorImport"));
 const KnowledgeCategories = lazyWithReload(() => import("./pages/admin/KnowledgeCategories"));
 const KnowledgeArticles = lazyWithReload(() => import("./pages/KnowledgeArticles"));
+const KnowledgeArticleDetail = lazyWithReload(() => import("./pages/KnowledgeArticleDetail"));
 const CurrencyBilling = lazyWithReload(() => import("./pages/admin/CurrencyBilling"));
 const UnitMaster = lazyWithReload(() => import("./pages/UnitMaster"));
 const ValidationRules = lazyWithReload(() => import("./pages/ValidationRules"));
@@ -267,6 +268,7 @@ const App = () => (
                     <Route path="/appointments/:id" element={<ProtectedRoute moduleKey="appointments"><AppointmentDetail /></ProtectedRoute>} />
                     <Route path="/services" element={<ProtectedRoute moduleKey="services"><Services /></ProtectedRoute>} />
                     <Route path="/knowledge" element={<ProtectedRoute moduleKey="services"><KnowledgeArticles /></ProtectedRoute>} />
+                    <Route path="/knowledge/:id" element={<ProtectedRoute moduleKey="services"><KnowledgeArticleDetail /></ProtectedRoute>} />
                     <Route path="/billing" element={<ProtectedRoute moduleKey="billing"><Billing /></ProtectedRoute>} />
                     <Route path="/reports" element={<ProtectedRoute moduleKey="reports"><Reports /></ProtectedRoute>} />
                     <Route path="/reports/:key" element={<ProtectedRoute moduleKey="reports"><ReportView /></ProtectedRoute>} />

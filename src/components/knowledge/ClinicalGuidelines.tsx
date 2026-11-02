@@ -49,7 +49,7 @@ export function ClinicalGuidelines({ patientId, serviceIds = [], serviceNames = 
             {a.summary && <p className="mt-2 text-sm break-words">{a.summary}</p>}
             <div className="mt-2"><EngagementMeter stats={stats.find((s) => s.article_id === a.id)} /></div>
             {opened.has(a.id) && <div className="space-y-4 mt-3">
-              <Button asChild size="sm" variant="link" className="p-0 h-auto"><Link to={`/knowledge?article=${a.id}`}>Open in Knowledge Master</Link></Button>
+              <Button asChild size="sm" variant="link" className="p-0 h-auto"><Link to={`/knowledge/${a.id}`}>Open in Knowledge Master</Link></Button>
               <ArticleContent article={a} />
               {a.pre_post_care && <Button size="sm" variant="outline" onClick={async () => {
                 try { if (addCare) { addCare(a.pre_post_care, a.service_id); toast.success("Care added to prescription notes. Review before saving."); } else { await navigator.clipboard.writeText(a.pre_post_care); toast.success("Care instructions copied"); } } catch { toast.error("Could not copy care instructions"); }

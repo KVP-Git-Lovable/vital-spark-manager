@@ -35,17 +35,26 @@ function ResourceView({ resource }: { resource: KnowledgeResource }) {
   const Icon = resource.kind === "image" ? ImageIcon : resource.kind === "video" ? Film : resource.kind === "file" ? FileText : ExternalLink;
   const href = resource.path ? url : resource.url;
   return <div className="space-y-2 min-w-0">
-    {resource.kind === "article" ? <Button asChild variant="link" className="p-0 h-auto whitespace-normal"><Link to={`/knowledge?article=${resource.article_id}`}>{resource.title}</Link></Button> : href ? <a href={href} target="_blank" rel="noopener noreferrer" className="flex gap-2 items-start text-primary underline underline-offset-4 break-words"><Icon className="h-4 w-4 shrink-0 mt-0.5" />{resource.title}</a> : <p className="text-muted-foreground">{error ? "Attachment unavailable" : "Loading attachment…"}</p>}
+    {resource.kind === "article" ? <Button asChild variant="link" className="p-0 h-auto whitespace-normal"><Link to={`/knowledge/${resource.article_id}`}>{resource.title}</Link></Button> : href ? <a href={href} target="_blank" rel="noopener noreferrer" className="flex gap-2 items-start text-primary underline underline-offset-4 break-words"><Icon className="h-4 w-4 shrink-0 mt-0.5" />{resource.title}</a> : <p className="text-muted-foreground">{error ? "Attachment unavailable" : "Loading attachment…"}</p>}
     {resource.kind === "image" && href && <img src={href} alt={resource.title} loading="lazy" className="max-h-80 max-w-full object-contain rounded-md" />}
     {resource.kind === "video" && resource.path && href && <video controls preload="metadata" src={href} className="max-h-80 w-full" />}
     {resource.note && <p className="text-sm whitespace-pre-wrap text-muted-foreground">{resource.note}</p>}
     {resource.source_url && <a href={resource.source_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">Source / attribution</a>}
   </div>;
 }
-export function ArticleResources({ value }: { value: unknown }) {
+/**
+ * @param heading The section title, or null for no heading and no top border.
+ *   ArticleContent now renders pictures with the article and everything else
+ *   at the end, so the picture group asks for null - a "Attachments & further
+ *   reading" header over a single diagram, mid-article, reads as the end of
+ *   the page. Signed-URL fetching stays in one place either way: an uploaded
+ *   picture lives in a private bucket and only ResourceView knows how to sign
+ *   for it.
+ */
+export function ArticleResources({ value, heading = "Attachments & further reading" }: { value: unknown; heading?: string | null }) {
   const resources = articleResources(value);
   if (!resources.length) return null;
-  return <section className="space-y-4 border-t pt-4"><h3 className="font-semibold flex items-center gap-2"><Paperclip className="h-4 w-4" />Attachments & further reading</h3>{resources.map((r) => <ResourceView key={r.id} resource={r} />)}</section>;
+  return <section className={heading ? "space-y-4 border-t pt-4" : "space-y-4"}>{heading && <h3 className="font-semibold flex items-center gap-2"><Paperclip className="h-4 w-4" />{heading}</h3>}{resources.map((r) => <ResourceView key={r.id} resource={r} />)}</section>;
 }
 export function ResourceEditor({ value, onChange, group, onBusyChange }: { value: KnowledgeResource[]; onChange: (value: KnowledgeResource[]) => void; group: string; onBusyChange?: (busy: boolean) => void }) {
   const [kind, setKind] = useState<"link" | "video" | "image" | "article">("link");

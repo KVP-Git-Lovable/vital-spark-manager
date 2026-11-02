@@ -28,17 +28,26 @@ interface CameraDialogProps {
   /** Called instead of onCapture when `multiple` is on. */
   onCaptureMany?: (files: File[]) => void;
   title?: string;
+  /**
+   * Which camera to open on.
+   *
+   * "environment" by default, which is every existing caller: a patient's
+   * skin, an attachment, a prescription to scan - all things in front of the
+   * phone. Attendance wants "user", because a selfie taken on the rear camera
+   * means turning the phone round and shooting blind.
+   */
+  defaultFacing?: "environment" | "user";
 }
 
 /** How much of the screen the live view may take, leaving the shutter on it. */
 const FRAME_MAX_HEIGHT = "68vh";
 
-export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, onCaptureMany, title = "Take Photo" }: CameraDialogProps) {
+export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, onCaptureMany, title = "Take Photo", defaultFacing = "environment" }: CameraDialogProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileFallbackRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
+  const [facingMode, setFacingMode] = useState<"environment" | "user">(defaultFacing);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);

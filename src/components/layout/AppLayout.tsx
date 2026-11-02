@@ -1,6 +1,6 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
-import { Search, User, LogOut } from "lucide-react";
+import { Search, User, LogOut, CalendarCheck } from "lucide-react";
 import { NotificationsBell } from "@/components/layout/NotificationsBell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -142,6 +142,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                     </div>
                   </div>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate("/attendance")}>
+                    <CalendarCheck className="h-4 w-4 mr-2" />My Attendance
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate("/profile")}>
                     <User className="h-4 w-4 mr-2" />My Profile
                   </DropdownMenuItem>

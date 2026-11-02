@@ -102,6 +102,8 @@ const ReferralDoctorImport = lazyWithReload(() => import("./pages/admin/Referral
 const KnowledgeCategories = lazyWithReload(() => import("./pages/admin/KnowledgeCategories"));
 const KnowledgeArticles = lazyWithReload(() => import("./pages/KnowledgeArticles"));
 const KnowledgeArticleDetail = lazyWithReload(() => import("./pages/KnowledgeArticleDetail"));
+const Attendance = lazyWithReload(() => import("./pages/Attendance"));
+const AttendanceAdmin = lazyWithReload(() => import("./pages/admin/AttendanceAdmin"));
 const CurrencyBilling = lazyWithReload(() => import("./pages/admin/CurrencyBilling"));
 const UnitMaster = lazyWithReload(() => import("./pages/UnitMaster"));
 const ValidationRules = lazyWithReload(() => import("./pages/ValidationRules"));
@@ -264,6 +266,7 @@ const App = () => (
                     <Route path="/patients" element={<ProtectedRoute moduleKey="patients"><Patients /></ProtectedRoute>} />
                     <Route path="/patients/:id" element={<ProtectedRoute moduleKey="patients"><PatientDetail /></ProtectedRoute>} />
                     <Route path="/leave" element={<ProtectedRoute moduleKey="leave"><LeaveManagement /></ProtectedRoute>} />
+                    <Route path="/admin/attendance" element={<ProtectedRoute moduleKey="staff"><AttendanceAdmin /></ProtectedRoute>} />
                     <Route path="/appointments" element={<ProtectedRoute moduleKey="appointments"><Appointments /></ProtectedRoute>} />
                     <Route path="/appointments/:id" element={<ProtectedRoute moduleKey="appointments"><AppointmentDetail /></ProtectedRoute>} />
                     <Route path="/services" element={<ProtectedRoute moduleKey="services"><Services /></ProtectedRoute>} />
@@ -338,6 +341,7 @@ const App = () => (
                     <Route path="/settings" element={<ProtectedRoute moduleKey="settings"><Settings /></ProtectedRoute>} />
                     <Route path="/settings/tax-master/new" element={<ProtectedRoute moduleKey="settings"><TaxMasterForm /></ProtectedRoute>} />
                     <Route path="/settings/tax-master/:id" element={<ProtectedRoute moduleKey="settings"><TaxMasterForm /></ProtectedRoute>} />
+                    <Route path="/attendance" element={<Attendance />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

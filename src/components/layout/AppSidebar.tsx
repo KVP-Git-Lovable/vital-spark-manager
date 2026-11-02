@@ -38,6 +38,7 @@ import {
   Share2,
   Link2,
   BookOpen,
+  CalendarCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -99,8 +100,9 @@ const communicationsItems = [
 ];
 
 const employeesSubItems = [
-  { title: "Staff", url: "/staff", icon: UserCog },
-  { title: "Leave", url: "/leave", icon: CalendarDays },
+  { title: "Staff", url: "/staff", icon: UserCog, moduleKey: "staff" },
+  { title: "Attendance", url: "/admin/attendance", icon: CalendarCheck, moduleKey: "staff" },
+  { title: "Leave", url: "/leave", icon: CalendarDays, moduleKey: "leave" },
 ];
 
 const surveySubItems = [
@@ -168,7 +170,7 @@ export function AppSidebar() {
   const showSurveys = canView("surveys");
   const showEmployees = canView("staff") || canView("leave");
 
-  const employeesPaths = ["/staff", "/leave"];
+  const employeesPaths = ["/staff", "/leave", "/admin/attendance"];
   const adminPaths = ["/admin", ...adminSubItems.map((i) => i.url)];
   const showAdmin = canView("settings");
   const masterPaths = masterDataItems.map((i) => i.url);
@@ -308,7 +310,7 @@ export function AppSidebar() {
                     <CollapsibleContent>
                       <SidebarMenuSub>
                         {employeesSubItems
-                          .filter((sub) => canView(sub.url === "/staff" ? "staff" : "leave"))
+                          .filter((sub) => canView(sub.moduleKey))
                           .map((sub) => (
                             <SidebarMenuSubItem key={sub.url}>
                               <SidebarMenuSubButton

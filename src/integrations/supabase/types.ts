@@ -4047,6 +4047,7 @@ export type Database = {
           allergies: string | null
           alternate_phone: string | null
           auth_user_id: string | null
+          avatar_url: string | null
           blood_group: string | null
           city: string | null
           consultation_reasons: string[] | null
@@ -4112,6 +4113,7 @@ export type Database = {
           allergies?: string | null
           alternate_phone?: string | null
           auth_user_id?: string | null
+          avatar_url?: string | null
           blood_group?: string | null
           city?: string | null
           consultation_reasons?: string[] | null
@@ -4177,6 +4179,7 @@ export type Database = {
           allergies?: string | null
           alternate_phone?: string | null
           auth_user_id?: string | null
+          avatar_url?: string | null
           blood_group?: string | null
           city?: string | null
           consultation_reasons?: string[] | null
@@ -7113,7 +7116,15 @@ export type Database = {
           template_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "survey_assignments_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "survey_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       survey_questions: {
         Row: {

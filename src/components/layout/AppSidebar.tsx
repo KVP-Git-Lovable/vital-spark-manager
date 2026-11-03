@@ -101,7 +101,7 @@ const communicationsItems = [
 
 const employeesSubItems = [
   { title: "Staff", url: "/staff", icon: UserCog, moduleKey: "staff" },
-  { title: "Attendance", url: "/attendance", icon: CalendarCheck, moduleKey: "staff" },
+  { title: "My Attendance", url: "/attendance", icon: CalendarCheck, moduleKey: "staff" },
   { title: "Leave", url: "/leave", icon: CalendarDays, moduleKey: "leave" },
 ];
 
@@ -131,6 +131,7 @@ const adminSubItems = [
   { title: "History Tracking", url: "/admin/history-tracking", icon: History },
   { title: "Knowledge Categories", url: "/admin/knowledge-categories", icon: BookOpen },
   { title: "Currency & Billing", url: "/admin/currency", icon: Coins },
+  { title: "Attendance", url: "/admin/attendance", icon: CalendarCheck },
   { title: "User Management", url: "/user-management", icon: Users },
   { title: "Trash Policy & Audit", url: "/admin/trash", icon: Trash2 },
 ];

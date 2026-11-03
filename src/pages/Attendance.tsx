@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarCheck, Camera, CheckCircle2, Clock, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
+import { CalendarCheck, Camera, CheckCircle2, Clock, Loader2, ShieldAlert, ShieldCheck, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -24,9 +25,6 @@ import { currentPosition, reverseGeocode, type Fix } from "@/lib/geo";
 import { nonWorkingReason } from "@/lib/workingDays";
 import { useAttendanceSettings } from "@/hooks/useAttendanceSettings";
 import { uploadStaffPhoto } from "@/lib/staffPhoto";
-import { TeamAttendance } from "@/components/attendance/TeamAttendance";
-import { AttendancePolicyTab, HolidaysTab, WeekOffsTab } from "@/components/attendance/AttendanceSettings";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 /**
  * Starting and ending a working day.
@@ -254,13 +252,13 @@ export default function Attendance() {
   const hours = hoursWorked(record?.check_in_time, record?.check_out_time);
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-5 max-w-2xl">
       <header className="flex items-center gap-2">
         <CalendarCheck className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-semibold font-display">Attendance</h1>
       </header>
 
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader>
           <CardTitle className="text-lg">{format(new Date(), "EEEE, d MMMM yyyy")}</CardTitle>
         </CardHeader>
@@ -333,22 +331,16 @@ export default function Attendance() {
         </CardContent>
       </Card>
 
-      {/* Admins get everyone else's below their own, and the settings beside
-          them. One page called Attendance, which is where the clinic kept
-          looking - nothing new in the sidebar. */}
+      {/* Everyone else's attendance and the settings live in Admin >
+          Attendance. They were briefly here, which put policy and holidays on
+          the screen where a receptionist starts their day - this page is one
+          person's own day and nothing else. */}
       {isAdmin && (
-        <Tabs defaultValue="all">
-          <TabsList>
-            <TabsTrigger value="all">All staff</TabsTrigger>
-            <TabsTrigger value="policy">Policy</TabsTrigger>
-            <TabsTrigger value="week-offs">Week offs</TabsTrigger>
-            <TabsTrigger value="holidays">Holidays</TabsTrigger>
-          </TabsList>
-          <TabsContent value="all" className="mt-4"><TeamAttendance /></TabsContent>
-          <TabsContent value="policy" className="mt-4"><AttendancePolicyTab /></TabsContent>
-          <TabsContent value="week-offs" className="mt-4"><WeekOffsTab /></TabsContent>
-          <TabsContent value="holidays" className="mt-4"><HolidaysTab /></TabsContent>
-        </Tabs>
+        <Button asChild variant="ghost" size="sm" className="gap-2 -ml-2">
+          <Link to="/admin/attendance">
+            <Users className="h-4 w-4" />View all staff and settings
+          </Link>
+        </Button>
       )}
 
       <CameraDialog

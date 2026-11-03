@@ -221,3 +221,65 @@ export function attendancePhotoPath(
   const unique = Math.random().toString(36).slice(2, 8);
   return `${staffId}/${date}_${kind}_${now.getTime()}-${unique}.jpg`;
 }
+
+/**
+ * Where somebody is in their working day.
+ *
+ * dayButtons() already answers "which control is live". This answers "what
+ * should this look like", which is a different question: the dashboard card
+ * greets you, counts up, or congratulates you depending on the phase, and
+ * deriving that from two disabled flags at the call site is how the two
+ * surfaces would start to disagree.
+ */
+export type DayPhase = "not_started" | "running" | "complete";
+
+export function dayPhase(row: AttendanceRow | null | undefined): DayPhase {
+  if (row?.check_out_time) return "complete";
+  if (row?.check_in_time) return "running";
+  return "not_started";
+}
+
+/**
+ * "3h 42m" - how long the day has run so far, or ran in total.
+ *
+ * Deliberately NOT hoursWorked(): that returns 2.83 for an admin's totals
+ * column, which is the right answer there and an unreadable one on a card
+ * somebody glances at between patients.
+ *
+ * While the day is still open this measures up to `now`, so the card can
+ * tick. Once it is closed `now` is ignored and the figure is fixed, or a
+ * card left open overnight would keep counting a day that ended at six.
+ *
+ * Null when the day has not started. A check-out before the check-in is a
+ * clock fault rather than negative work, so it reads "0m" - the same choice
+ * hoursWorked() makes, for the same reason.
+ */
+export function elapsedLabel(
+  checkIn: string | Date | null | undefined,
+  checkOut: string | Date | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  const start = toDate(checkIn);
+  if (!start) return null;
+  const end = toDate(checkOut) ?? now;
+
+  const ms = end.getTime() - start.getTime();
+  const totalMinutes = ms <= 0 ? 0 : Math.floor(ms / 60_000);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+/**
+ * "Good morning" / "Good afternoon" / "Good evening".
+ *
+ * Boundaries are local-clock, which is the point: the clinic runs on
+ * Asia/Kolkata and a greeting computed in UTC would wish a receptionist
+ * good evening while she is unlocking the front door.
+ */
+export function greeting(at: Date = new Date()): string {
+  const h = at.getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}

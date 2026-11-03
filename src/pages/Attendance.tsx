@@ -1,29 +1,11 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CalendarCheck, Camera, CheckCircle2, Clock, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CameraDialog } from "@/components/shared/CameraDialog";
-import {
-  attendancePhotoPath,
-  dayButtons,
-  faceVerdict,
-  hoursWorked,
-  MAX_FACE_ATTEMPTS,
-  DEFAULT_ATTENDANCE_CONFIG,
-  type AttendanceRecord,
-  type FaceResult,
-} from "@/lib/attendance";
-import { stampPhotoOrOriginal } from "@/lib/stampPhoto";
-import { currentPosition, reverseGeocode, type Fix } from "@/lib/geo";
-import { nonWorkingReason } from "@/lib/workingDays";
-import { useAttendanceSettings } from "@/hooks/useAttendanceSettings";
-import { uploadStaffPhoto } from "@/lib/staffPhoto";
+import { MAX_FACE_ATTEMPTS } from "@/lib/attendance";
+import { useMyAttendanceDay } from "@/hooks/useMyAttendanceDay";
 
 /**
  * Starting and ending a working day.
@@ -46,214 +28,11 @@ import { uploadStaffPhoto } from "@/lib/staffPhoto";
  * src/lib/attendance.ts so they can be tested without a camera, storage and
  * an edge function all mocked.
  */
-const today = () => format(new Date(), "yyyy-MM-dd");
-
-type Step = "idle" | "registering" | "locating" | "photo" | "verifying" | "saving";
-
 export default function Attendance() {
-  const { staffProfile } = useAuth();
-  const qc = useQueryClient();
-  const staffId = staffProfile?.id;
-
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [step, setStep] = useState<Step>("idle");
-  const [attempt, setAttempt] = useState(0);
-  /** Which end of the day the open camera is for. */
-  const [mode, setMode] = useState<"check_in" | "check_out">("check_in");
-  /**
-   * Set when the camera is collecting a FACE REGISTRATION rather than an
-   * attendance selfie. Holds what they pressed, so that once the photo is
-   * saved the check-in continues by itself - the reference's pendingAction.
-   */
-  const [registering, setRegistering] = useState<null | "check_in" | "check_out">(null);
-
-  const { config, weekOffs, holidays } = useAttendanceSettings();
-  const closedToday = nonWorkingReason(new Date(), weekOffs, holidays);
-
-  const { data: staff, refetch: refetchStaff } = useQuery({
-    queryKey: ["staff", "photo", staffId],
-    enabled: !!staffId,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("staff").select("photo_url").eq("id", staffId!).maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: record, refetch } = useQuery({
-    queryKey: ["attendance", "today", staffId],
-    enabled: !!staffId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("attendance_records").select("*")
-        .eq("staff_id", staffId!).eq("date", today()).maybeSingle();
-      if (error) throw error;
-      return (data as unknown as AttendanceRecord) ?? null;
-    },
-  });
-
-  const buttons = dayButtons(record);
-  const hasPhoto = !!String(staff?.photo_url ?? "").trim();
-  const busy = step !== "idle";
-
-  const stepLabel =
-    step === "locating" ? "Getting location…"
-    : step === "registering" || step === "photo" ? "Uploading photo…"
-    : step === "verifying" ? "Verifying face match…"
-    : step === "saving" ? "Saving attendance…"
-    : "";
-
-  /**
-   * Pressing Start My Day or End My Day.
-   *
-   * With no photo on file the camera opens to REGISTER the face first; the
-   * action is remembered and resumed the moment it is saved.
-   */
-  const press = (kind: "check_in" | "check_out") => {
-    setMode(kind);
-    setAttempt(0);
-    // Selfie switched off in settings: record the day without a camera, a
-    // photo or a face call, and mark it unverified so it is never mistaken
-    // for a checked one. The reference's doDirectAttendance.
-    if (!config.require_selfie) {
-      void submit(null, kind);
-      return;
-    }
-    setRegistering(hasPhoto ? null : kind);
-    setCameraOpen(true);
-  };
-
-  /** The face-registration half: save the photo, then carry straight on. */
-  const register = async (file: File, kind: "check_in" | "check_out") => {
-    if (!staffId) return;
-    setStep("registering");
-    try {
-      await uploadStaffPhoto(staffId, file);
-      await refetchStaff();
-      setRegistering(null);
-      toast.success("Face registered. Now take your selfie.");
-      setStep("idle");
-      // Straight back into the camera for the action they actually pressed.
-      setMode(kind);
-      setCameraOpen(true);
-    } catch (e) {
-      setStep("idle");
-      toast.error(e instanceof Error ? e.message : "Could not save your photo");
-    }
-  };
-
-  /**
-   * The whole check-in, from a captured selfie to a saved row.
-   *
-   * Order is deliberate: the photo is stamped and stored BEFORE the face is
-   * checked, because the verifier reads it out of storage - and because a
-   * refused attempt should still leave the photo behind for an admin to look
-   * at when somebody says the check was wrong.
-   */
-  const submit = async (file: File | null, kind: "check_in" | "check_out") => {
-    if (!staffId) return;
-    const now = new Date();
-    const thisAttempt = attempt + 1;
-    setAttempt(thisAttempt);
-
-    try {
-      // Where they are. Best-effort throughout: a denied permission or a
-      // phone that cannot see the sky must never cost somebody their day.
-      let fix: Fix | null = null;
-      let address: string | null = null;
-      if (config.capture_location) {
-        setStep("locating");
-        fix = await currentPosition();
-        if (fix) address = await reverseGeocode(fix.latitude, fix.longitude);
-      }
-
-      let path: string | null = null;
-      if (file) {
-        setStep("photo");
-        // Never costs the check-in: on any failure the unstamped photo is used.
-        const stamped = await stampPhotoOrOriginal(file, {
-          at: now,
-          address,
-          lat: fix?.latitude ?? null,
-          lng: fix?.longitude ?? null,
-        });
-        path = attendancePhotoPath(staffId, kind, now);
-        const { error: upErr } = await supabase.storage
-          .from("attendance-photos").upload(path, stamped, { contentType: "image/jpeg" });
-        if (upErr) throw upErr;
-      }
-
-      setStep("verifying");
-      // The selfie's PATH, not a URL: the function looks up the caller's own
-      // baseline photo server-side, so nobody can ask it to compare a selfie
-      // against somebody else's face.
-      let result: FaceResult = { status: "bypassed", confidence: 0 };
-      if (path) try {
-        const { data, error } = await supabase.functions.invoke("verify-face-match", {
-          body: { selfie_path: path },
-        });
-        if (!error && data) {
-          result = {
-            status: (data.status as FaceResult["status"]) ?? "bypassed",
-            confidence: Number(data.confidence) || 0,
-          };
-        }
-      } catch {
-        // Unreachable function is a service fault, not a mismatch.
-        result = { status: "bypassed", confidence: 0 };
-      }
-
-      const verdict = faceVerdict(result, thisAttempt, config.face_max_attempts);
-      if (!verdict.proceed) {
-        setStep("idle");
-        toast.error(verdict.message, { duration: 8000 });
-        if (verdict.retry) { setMode(kind); setCameraOpen(true); }
-        return;
-      }
-
-      setStep("saving");
-      let photoRef: string | null = null;
-      if (path) {
-        const { data: signed } = await supabase.storage
-          .from("attendance-photos").createSignedUrl(path, 60 * 60 * 24 * 365);
-        photoRef = signed?.signedUrl ?? path;
-      }
-
-      // The caption is burned into the photo; these are the same facts in a
-      // form a query can reach. The reference declares these columns and
-      // never writes them, so its admin screen only ever shows coordinates.
-      if (kind === "check_in") {
-        const { error } = await supabase.from("attendance_records").insert({
-          staff_id: staffId, date: today(), check_in_time: now.toISOString(),
-          check_in_photo: photoRef, check_in_face_status: verdict.recordStatus,
-          check_in_face_confidence: result.confidence, status: "present",
-          check_in_location: fix, check_in_address: address,
-        } as never);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("attendance_records").update({
-          check_out_time: now.toISOString(), check_out_photo: photoRef,
-          check_out_face_status: verdict.recordStatus,
-          check_out_face_confidence: result.confidence,
-          check_out_location: fix, check_out_address: address,
-        } as never).eq("id", record!.id);
-        if (error) throw error;
-      }
-
-      setAttempt(0);
-      await refetch();
-      void qc.invalidateQueries({ queryKey: ["dashboard-attendance"] });
-      toast.success(
-        verdict.message || (kind === "check_in" ? "Your day has started." : "Your day is recorded."),
-      );
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not record attendance");
-    } finally {
-      setStep("idle");
-    }
-  };
-
-  const hours = hoursWorked(record?.check_in_time, record?.check_out_time);
+  const {
+    record, buttons, busy, mode, stepLabel, attempt,
+    hasPhoto, config, closedToday, press, cameraProps, hours,
+  } = useMyAttendanceDay();
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-2xl">
@@ -335,23 +114,7 @@ export default function Attendance() {
         </CardContent>
       </Card>
 
-      <CameraDialog
-        open={cameraOpen}
-        onOpenChange={setCameraOpen}
-        title={
-          registering ? "Register your face"
-          : mode === "check_out" ? "Selfie to end your day"
-          : "Selfie to start your day"
-        }
-        defaultFacing="user"
-        faceGuide
-        onCapture={(file) => {
-          setCameraOpen(false);
-          const pending = registering;
-          if (pending) void register(file, pending);
-          else void submit(file, mode);
-        }}
-      />
+      <CameraDialog {...cameraProps} />
     </div>
   );
 }

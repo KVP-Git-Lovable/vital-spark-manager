@@ -28,6 +28,7 @@ import { kpiColumnClass } from "@/lib/kpiGrid";
 import { appointmentPatientName, appointmentPatientInitialsText } from "@/lib/appointmentPatientName";
 import { appointmentStatusLabel, showsAsBilled, BILLED_BADGE_CLASSES } from "@/lib/appointmentStatus";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
+import { MyDayCard } from "@/components/attendance/MyDayCard";
 
 
 // Data-heavy panels are capped so a large date range can never turn into a
@@ -596,6 +597,12 @@ const Index = () => {
         <h1 className="page-title">{activeDashboard?.name || "Dashboard"}</h1>
         <p className="page-subtitle hidden sm:block">Clinic overview for {format(new Date(), "EEEE, MMMM d")}</p>
       </div>
+
+      {/* Above the KPIs on purpose: starting the day is the first thing
+          somebody does when they sit down, and it used to be three
+          navigations away under Employees > Attendance. Renders nothing for
+          an account with no staff record. */}
+      <MyDayCard />
 
       {(apptError || invoiceError) && (
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">

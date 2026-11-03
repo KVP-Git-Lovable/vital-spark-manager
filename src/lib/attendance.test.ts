@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   dayButtons,
+  dayPhase,
+  elapsedLabel,
   faceVerdict,
+  greeting,
   hoursWorked,
   attendancePhotoPath,
   MAX_FACE_ATTEMPTS,
@@ -194,5 +197,94 @@ describe("attendancePhotoPath", () => {
 
   it("is always a .jpg, which is what the camera hands us", () => {
     expect(attendancePhotoPath(STAFF, "check_in")).toMatch(/\.jpg$/);
+  });
+});
+
+describe("dayPhase", () => {
+  it("is not_started with no record at all", () => {
+    expect(dayPhase(null)).toBe("not_started");
+    expect(dayPhase(undefined)).toBe("not_started");
+    expect(dayPhase({} as never)).toBe("not_started");
+  });
+
+  it("is running once checked in", () => {
+    expect(dayPhase({ check_in_time: "2026-11-03T09:00:00Z" } as never)).toBe("running");
+  });
+
+  it("is complete once checked out", () => {
+    expect(dayPhase({
+      check_in_time: "2026-11-03T09:00:00Z",
+      check_out_time: "2026-11-03T18:00:00Z",
+    } as never)).toBe("complete");
+  });
+
+  it("treats a check-out with no check-in as complete, not running", () => {
+    // Data fault rather than a real state, but the card must not sit there
+    // counting up forever from nothing.
+    expect(dayPhase({ check_out_time: "2026-11-03T18:00:00Z" } as never)).toBe("complete");
+  });
+});
+
+describe("elapsedLabel", () => {
+  const now = new Date("2026-11-03T12:42:00+05:30");
+
+  it("counts up to now while the day is still open", () => {
+    expect(elapsedLabel("2026-11-03T09:00:00+05:30", null, now)).toBe("3h 42m");
+  });
+
+  it("drops the hours entirely under an hour", () => {
+    expect(elapsedLabel("2026-11-03T12:20:00+05:30", null, now)).toBe("22m");
+  });
+
+  it("IGNORES now once the day is closed", () => {
+    // The whole reason now is a parameter. A card left open overnight would
+    // otherwise keep counting a day that ended at six.
+    expect(elapsedLabel("2026-11-03T09:00:00+05:30", "2026-11-03T18:00:00+05:30", now)).toBe("9h 0m");
+  });
+
+  it("is null before the day starts", () => {
+    expect(elapsedLabel(null, null, now)).toBeNull();
+    expect(elapsedLabel(undefined, "2026-11-03T18:00:00+05:30", now)).toBeNull();
+  });
+
+  it("reads 0m rather than a negative when the clock disagrees", () => {
+    expect(elapsedLabel("2026-11-03T18:00:00+05:30", "2026-11-03T09:00:00+05:30", now)).toBe("0m");
+  });
+
+  it("floors rather than rounds, so it never claims time not yet worked", () => {
+    // 90 seconds. Rounding would call this "2m" - two minutes credited for
+    // one and a half. A one-second gap proves nothing here: floor and round
+    // both give 0m, which is how the first version of this test passed
+    // against a mutant using Math.round.
+    expect(elapsedLabel("2026-11-03T12:40:30+05:30", null, now)).toBe("1m");
+    // 3h 59m 59s must not become 4h.
+    expect(elapsedLabel("2026-11-03T08:42:01+05:30", null, now)).toBe("3h 59m");
+  });
+
+  it("survives an unparseable timestamp instead of printing NaN", () => {
+    expect(elapsedLabel("not a date", null, now)).toBeNull();
+    expect(elapsedLabel("2026-11-03T09:00:00+05:30", "rubbish", now)).toBe("3h 42m");
+  });
+});
+
+describe("greeting", () => {
+  // The suite runs with TZ=Asia/Kolkata (see vitest.config.ts), which is the
+  // clinic's clock. These offsets are written out so the test keeps meaning
+  // the same thing if that ever changes.
+  it("greets by the local clock, not UTC", () => {
+    expect(greeting(new Date("2026-11-03T09:00:00+05:30"))).toBe("Good morning");
+    expect(greeting(new Date("2026-11-03T14:00:00+05:30"))).toBe("Good afternoon");
+    expect(greeting(new Date("2026-11-03T20:00:00+05:30"))).toBe("Good evening");
+  });
+
+  it("switches exactly on the hour boundaries", () => {
+    expect(greeting(new Date("2026-11-03T11:59:00+05:30"))).toBe("Good morning");
+    expect(greeting(new Date("2026-11-03T12:00:00+05:30"))).toBe("Good afternoon");
+    expect(greeting(new Date("2026-11-03T16:59:00+05:30"))).toBe("Good afternoon");
+    expect(greeting(new Date("2026-11-03T17:00:00+05:30"))).toBe("Good evening");
+  });
+
+  it("greets the small hours as morning, which is when a night shift ends", () => {
+    expect(greeting(new Date("2026-11-03T02:00:00+05:30"))).toBe("Good morning");
   });
 });

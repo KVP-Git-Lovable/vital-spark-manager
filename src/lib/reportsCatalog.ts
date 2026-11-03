@@ -18,6 +18,7 @@ import { formatMoneyExact } from "@/lib/currency";
 import { collectionCards, modesOf, paymentModeLabel, PAYMENT_BUCKETS } from "@/lib/paymentModes";
 import { npsBreakdown, npsCategory, ratingLabel } from "@/lib/feedbackScores";
 import { referralKind, referringDoctorName } from "@/lib/patientReferral";
+import { contactsByDoctorKey, doctorNameKey } from "@/lib/referralDoctorName";
 
 /** Written by the Feedback tab when an appointment has no patient attached. */
 const NO_PATIENT_ID = "00000000-0000-0000-0000-000000000000";
@@ -400,6 +401,10 @@ export const REPORTS: ReportConfig[] = [
       { key: "name", label: "Patient", sortable: true, accessor: (r) => `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim() },
       { key: "phone", label: "Phone", sortable: true },
       { key: "referring_doctor", label: "Referring Doctor", sortable: true, accessor: (r) => referringDoctorName(r.source_referral_doctor) },
+      // Attached by the fetcher from external_doctors, matched on the
+      // normalised name - the patient record carries only free text, so
+      // "Dr Gaurav shetty" has to find "Dr. Gaurav Shetty".
+      { key: "referring_doctor_phone", label: "Doctor Phone", sortable: true },
       { key: "source", label: "Source", sortable: true, type: "badge" },
       { key: "total_visits", label: "Visits", sortable: true, type: "number" },
       { key: "lifetime_value", label: "Billed", sortable: true, type: "currency" },
@@ -438,9 +443,33 @@ export const REPORTS: ReportConfig[] = [
         if (to) q = q.lte("registered_at", to);
         return q;
       });
-      return (rows as Record<string, unknown>[]).filter(
+      const referrals = (rows as Record<string, unknown>[]).filter(
         (r) => referralKind(r.source as string | null) === "doctor",
       );
+
+      // The referring doctor's phone, where the clinic has it. The patient
+      // record holds only a typed name, so the match is on the normalised
+      // key: a doctor written "Dr Gaurav shetty" on one patient and
+      // "Dr. Gaurav Shetty" on another is one doctor with one number.
+      //
+      // One small query, not one per row, and a failure costs the column
+      // rather than the report - the referral list is still worth reading
+      // without the phone numbers.
+      try {
+        const { data: contacts } = await supabase
+          .from("external_doctors")
+          .select("name, phone, email, clinic_name");
+        const byKey = contactsByDoctorKey(contacts ?? []);
+        for (const r of referrals) {
+          const match = byKey.get(doctorNameKey(referringDoctorName(r.source_referral_doctor as string | null)));
+          r.referring_doctor_phone = match?.phone ?? "";
+          r.referring_doctor_clinic = match?.clinic_name ?? "";
+        }
+      } catch {
+        for (const r of referrals) r.referring_doctor_phone = "";
+      }
+
+      return referrals;
     },
     summary: (rows) => {
       const missing = rows.filter((r) => referringDoctorName(r.source_referral_doctor) === "").length;

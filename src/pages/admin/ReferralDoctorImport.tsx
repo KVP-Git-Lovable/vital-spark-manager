@@ -6,6 +6,7 @@ import { Loader2, Search, Download, Stethoscope, AlertTriangle } from "lucide-re
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { referralFieldCandidates, type SfField } from "@/lib/salesforceReferral";
+import { DoctorContactsImport } from "@/components/admin/DoctorContactsImport";
 
 /**
  * Fetching the referring doctors Salesforce still holds.
@@ -202,6 +203,13 @@ export default function ReferralDoctorImport() {
           Preview first — the Import button stays off until you have.
         </p>
       </Card>
+
+      {/* The names above and the contact details below are two separate pulls
+          from two separate places in Salesforce: the name hangs off each
+          PATIENT record, the phone number off the DOCTOR. They sit on one
+          page because they are one job to the clinic - find out who sends us
+          patients, and how to reach them. */}
+      <DoctorContactsImport />
     </div>
   );
 }

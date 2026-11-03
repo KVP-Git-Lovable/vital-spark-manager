@@ -19,7 +19,7 @@ import type { HolidayRow, WeekOffRow } from "@/lib/workingDays";
  * so until then the tables are real and the types do not know them.
  */
 export function useAttendanceSettings() {
-  const { data: config = DEFAULT_ATTENDANCE_CONFIG, refetch: refetchConfig } = useQuery({
+  const { data: config = DEFAULT_ATTENDANCE_CONFIG, refetch: refetchConfig, error: configError } = useQuery({
     queryKey: ["attendance-config"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -31,7 +31,7 @@ export function useAttendanceSettings() {
     },
   });
 
-  const { data: weekOffs = [], refetch: refetchWeekOffs } = useQuery({
+  const { data: weekOffs = [], refetch: refetchWeekOffs, error: weekOffsError } = useQuery({
     queryKey: ["attendance-week-offs"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -43,7 +43,7 @@ export function useAttendanceSettings() {
     },
   });
 
-  const { data: holidays = [], refetch: refetchHolidays } = useQuery({
+  const { data: holidays = [], refetch: refetchHolidays, error: holidaysError } = useQuery({
     queryKey: ["holidays"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -55,5 +55,14 @@ export function useAttendanceSettings() {
     },
   });
 
-  return { config, weekOffs, holidays, refetchConfig, refetchWeekOffs, refetchHolidays };
+  // The errors are returned, not swallowed. When week_off_config was missing
+  // from the database entirely, this hook fell back to [] and the tab rendered
+  // seven confident "Working day" dropdowns - including for Sunday, which the
+  // migration seeds as closed. A settings screen that invents answers when it
+  // cannot read them is worse than one that says it is broken.
+  return {
+    config, weekOffs, holidays,
+    refetchConfig, refetchWeekOffs, refetchHolidays,
+    configError, weekOffsError, holidaysError,
+  };
 }

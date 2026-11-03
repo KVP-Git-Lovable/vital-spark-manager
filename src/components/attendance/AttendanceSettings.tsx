@@ -48,11 +48,16 @@ export function AttendancePolicyTab() {
     setSaving(true);
     try {
       const { data: auth } = await supabase.auth.getUser();
-      const { error } = await supabase
+      // .select() matters. A row-level-security refusal on an UPDATE is not
+      // an error - Postgres simply matches no rows - so without asking for the
+      // changed row back, a non-admin would be told "saved" while nothing was.
+      const { data, error } = await supabase
         .from("attendance_config" as never)
         .update({ ...form, updated_at: new Date().toISOString(), updated_by: auth?.user?.id ?? null } as never)
-        .eq("singleton", true);
+        .eq("singleton", true)
+        .select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Nothing was saved. Changing attendance settings needs an Admin role.");
       await refetchConfig();
       toast.success("Attendance settings saved");
     } catch (e) {
@@ -124,8 +129,14 @@ export function AttendancePolicyTab() {
 }
 
 export function WeekOffsTab() {
-  const { weekOffs, refetchWeekOffs } = useAttendanceSettings();
+  const { weekOffs, refetchWeekOffs, weekOffsError } = useAttendanceSettings();
   const [busy, setBusy] = useState<number | null>(null);
+
+  // No rows and no error still means the settings are not there to edit. Both
+  // cases render the same warning rather than seven dropdowns reading
+  // "Working day", which is what this screen showed while the table was
+  // missing from the database - Sunday included, though it is seeded closed.
+  const unreadable = Boolean(weekOffsError) || weekOffs.length === 0;
 
   const patternOf = (row: WeekOffRow | undefined) =>
     !row || !row.is_off ? "none" : row.alternate_pattern || "all";
@@ -134,13 +145,17 @@ export function WeekOffsTab() {
     setBusy(day);
     try {
       const isOff = value !== "none";
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("week_off_config" as never)
         // "Working day" clears the pattern too - keeping a stale pattern on a
         // day that is not off is how a row ends up meaning two things.
         .update({ is_off: isOff, alternate_pattern: isOff ? value : null, updated_at: new Date().toISOString() } as never)
-        .eq("day_of_week", day);
+        .eq("day_of_week", day)
+        // See the note in AttendancePolicyTab: an RLS refusal on UPDATE
+        // changes nothing and reports nothing. Ask for the row back.
+        .select("day_of_week");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Nothing was saved. Changing week offs needs an Admin role.");
       await refetchWeekOffs();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save");
@@ -159,6 +174,12 @@ export function WeekOffsTab() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {unreadable && (
+          <p className="text-sm rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-destructive">
+            These settings could not be loaded, so the days below are not the clinic's real week offs. Nothing
+            you change here will be saved until that is fixed.
+          </p>
+        )}
         {DAYS.map((name, day) => {
           const row = weekOffs.find((w) => w.day_of_week === day);
           return (

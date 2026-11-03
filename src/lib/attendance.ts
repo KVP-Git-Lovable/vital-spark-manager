@@ -31,6 +31,12 @@ export interface AttendanceRecord extends AttendanceRow {
   check_in_face_confidence: number | null;
   check_out_face_status: string | null;
   check_out_face_confidence: number | null;
+  /** {latitude, longitude, accuracy} as the browser reported it, or null when
+   *  there was no fix - best-effort, so null is an ordinary outcome. */
+  check_in_location: unknown;
+  check_out_location: unknown;
+  check_in_address: string | null;
+  check_out_address: string | null;
 }
 
 /** One of the two buttons on the attendance page. */
@@ -75,8 +81,28 @@ export interface FaceResult {
   confidence: number;
 }
 
-/** Attempts a person gets before they are told to find an admin. */
+/** Attempts a person gets before they are told to find an admin, when the
+ *  clinic has not set its own. The reference hardcodes this; here it is
+ *  attendance_config.face_max_attempts. */
 export const MAX_FACE_ATTEMPTS = 3;
+
+/** The settings an admin can change. */
+export interface AttendanceConfig {
+  require_selfie: boolean;
+  capture_location: boolean;
+  face_match_threshold: number;
+  face_max_attempts: number;
+}
+
+/** What the app falls back to before the settings row has loaded - the same
+ *  values the migration seeds, so behaviour never changes under somebody
+ *  mid-check-in. */
+export const DEFAULT_ATTENDANCE_CONFIG: AttendanceConfig = {
+  require_selfie: true,
+  capture_location: true,
+  face_match_threshold: 75,
+  face_max_attempts: MAX_FACE_ATTEMPTS,
+};
 
 export interface FaceVerdict {
   /** Save the attendance row? */
@@ -107,19 +133,25 @@ export interface FaceVerdict {
  *
  * @param attempt 1-based: the attempt that just happened.
  */
-export function faceVerdict(result: FaceResult, attempt: number): FaceVerdict {
+export function faceVerdict(
+  result: FaceResult,
+  attempt: number,
+  maxAttempts: number = MAX_FACE_ATTEMPTS,
+): FaceVerdict {
+  // A nonsense setting must not hand somebody infinite goes, nor zero.
+  const cap = Number.isFinite(maxAttempts) && maxAttempts >= 1 ? Math.floor(maxAttempts) : MAX_FACE_ATTEMPTS;
   if (result.status === "verified") {
     return { proceed: true, retry: false, message: "", recordStatus: "verified" };
   }
 
-  const last = attempt >= MAX_FACE_ATTEMPTS;
+  const last = attempt >= cap;
 
   if (result.status === "bypassed") {
     if (!last) {
       return {
         proceed: false,
         retry: true,
-        message: `Face verification service error. Attempt ${attempt}/${MAX_FACE_ATTEMPTS}. Please try again.`,
+        message: `Face verification service error. Attempt ${attempt}/${cap}. Please try again.`,
         recordStatus: "bypassed",
       };
     }
@@ -137,14 +169,14 @@ export function faceVerdict(result: FaceResult, attempt: number): FaceVerdict {
     return {
       proceed: false,
       retry: true,
-      message: `Face verification failed - this does not match your profile photo (${result.confidence}% confidence). Attempt ${attempt}/${MAX_FACE_ATTEMPTS}. Please try again.`,
+      message: `Face verification failed - this does not match your profile photo (${result.confidence}% confidence). Attempt ${attempt}/${cap}. Please try again.`,
       recordStatus: "failed",
     };
   }
   return {
     proceed: false,
     retry: false,
-    message: `Face verification failed after ${MAX_FACE_ATTEMPTS} attempts. Your face does not match the registered profile photo. Please contact your admin.`,
+    message: `Face verification failed after ${cap} attempts. Your face does not match the registered profile photo. Please contact your admin.`,
     recordStatus: "failed",
   };
 }

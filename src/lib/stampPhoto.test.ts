@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stampCaption, captionFontSize, stampTimeOrOriginal } from "./stampPhoto";
+import { stampCaption, captionFontSize, coordLine, stampPhotoOrOriginal } from "./stampPhoto";
 
 describe("stampCaption", () => {
   it("reads dd/mm/yyyy with a 12-hour clock, as the rest of the clinic does", () => {
@@ -34,14 +34,52 @@ describe("captionFontSize", () => {
   });
 });
 
-describe("stampTimeOrOriginal", () => {
+describe("coordLine", () => {
+  it("writes the fix to five decimals, which is metres", () => {
+    // toFixed ROUNDS, it does not truncate - 74.843217 becomes 74.84322.
+    expect(coordLine(12.871453, 74.843217)).toBe("12.87145, 74.84322");
+    expect(coordLine(12.8714, 74.8432)).toBe("12.87140, 74.84320");
+  });
+
+  it("says nothing when there was no fix", () => {
+    // The caption still gets its time line - gating the WHOLE caption on a
+    // GPS fix is how the reference ended up with photos carrying nothing at
+    // all when somebody stood somewhere with no signal.
+    expect(coordLine(null, null)).toBe("");
+    expect(coordLine(undefined, undefined)).toBe("");
+    expect(coordLine(12.87, null)).toBe("");
+    expect(coordLine(null, 74.84)).toBe("");
+  });
+
+  it("refuses a nonsense coordinate rather than printing NaN on the photo", () => {
+    expect(coordLine(Number.NaN, 74.84)).toBe("");
+    expect(coordLine(Infinity, 74.84)).toBe("");
+  });
+
+  it("keeps a southern or western fix negative", () => {
+    expect(coordLine(-33.86785, -151.20732)).toBe("-33.86785, -151.20732");
+  });
+});
+
+describe("stampPhotoOrOriginal", () => {
   it("hands back the original photo rather than throwing", async () => {
     // jsdom has no real canvas, so stamping fails here exactly as it would on
     // a phone whose canvas is unavailable. A caption is worth having; it is
     // not worth refusing somebody's attendance over, so the photo must still
     // come back.
     const original = new Blob(["not really a jpeg"], { type: "image/jpeg" });
-    const out = await stampTimeOrOriginal(original, new Date(2026, 10, 2, 9, 42));
+    const out = await stampPhotoOrOriginal(original, { at: new Date(2026, 10, 3, 9, 42) });
+    expect(out).toBe(original);
+  });
+
+  it("still returns the photo when a location was supplied", async () => {
+    const original = new Blob(["not really a jpeg"], { type: "image/jpeg" });
+    const out = await stampPhotoOrOriginal(original, {
+      at: new Date(2026, 10, 3, 9, 42),
+      address: "Vyasa Rao Road, Mangalore",
+      lat: 12.871453,
+      lng: 74.843217,
+    });
     expect(out).toBe(original);
   });
 });

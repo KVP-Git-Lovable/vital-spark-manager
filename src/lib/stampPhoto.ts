@@ -1,30 +1,41 @@
 /**
- * Burn the time into an attendance photo.
+ * Burn the time and place into an attendance photo.
  *
- * The time is in the database too, but that only travels with the record.
- * Once a check-in photo is downloaded, forwarded, or pasted into a report it
- * is just an image, and when it was taken is gone. Drawing it into the pixels
- * keeps it attached to the picture, which is the whole point of asking for a
- * photo at all.
+ * Both are in the database too, but that only travels with the record. Once a
+ * check-in photo is downloaded, forwarded or pasted into a report it is just
+ * an image, and when and where it was taken is gone. Drawing it into the
+ * pixels keeps it attached to the picture, which is the whole reason for
+ * asking for a photo at all.
  *
- * Ported from the Bharath Builders app's geoStamp (read-only reference),
- * trimmed to time only. That app's staff are spread over construction sites,
- * so its caption carries GPS and a reverse-geocoded address; this clinic has
- * one address and everyone checks in at it, so a location permission prompt
- * would buy nothing. The caption is built in one place below so a location
- * line can be added later without touching the drawing code.
+ * Ported from the Bharath Builders app's geoStamp. The first version here was
+ * time-only - I judged that a single-site clinic gained nothing from GPS, and
+ * the clinic asked for the location, so it is back.
  *
  * Must never cost somebody their check-in: the caller uploads the unstamped
  * photo if this throws.
  */
 
-/** "02/11/2026 · 09:42 AM" - the dd/mm/yyyy the rest of the clinic uses. */
+export interface StampInfo {
+  at: Date;
+  /** Reverse-geocoded street address, when one resolved. */
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+}
+
+/** "03/11/2026 · 09:42 AM" - the dd/mm/yyyy the rest of the clinic uses. */
 export function stampCaption(at: Date): string {
   const p2 = (n: number) => String(n).padStart(2, "0");
   const h24 = at.getHours();
   const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
   const ampm = h24 < 12 ? "AM" : "PM";
   return `${p2(at.getDate())}/${p2(at.getMonth() + 1)}/${at.getFullYear()} · ${p2(h12)}:${p2(at.getMinutes())} ${ampm}`;
+}
+
+/** The coordinate line, or "" when there was no fix. */
+export function coordLine(lat?: number | null, lng?: number | null): string {
+  if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) return "";
+  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
 /**
@@ -35,7 +46,32 @@ export function stampCaption(at: Date): string {
  * legible rather than having one-pixel text.
  */
 export function captionFontSize(imageWidth: number): number {
-  return Math.max(11, Math.round(imageWidth * 0.032));
+  return Math.max(11, Math.round(imageWidth * 0.026));
+}
+
+/** Greedy word wrap, capped at maxLines with an ellipsis on the last. A full
+ *  Nominatim address runs to four lines and would eat a quarter of the photo. */
+function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  for (const w of words) {
+    const next = line ? `${line} ${w}` : w;
+    if (ctx.measureText(next).width <= maxWidth || !line) { line = next; continue; }
+    lines.push(line);
+    line = w;
+    if (lines.length === maxLines) break;
+  }
+  if (lines.length < maxLines && line) lines.push(line);
+  if (lines.length === maxLines) {
+    const last = lines[maxLines - 1];
+    if (ctx.measureText(last).width > maxWidth) {
+      let t = last;
+      while (t.length > 1 && ctx.measureText(`${t}…`).width > maxWidth) t = t.slice(0, -1);
+      lines[maxLines - 1] = `${t}…`;
+    }
+  }
+  return lines;
 }
 
 function loadImage(blob: Blob): Promise<HTMLImageElement> {
@@ -49,13 +85,13 @@ function loadImage(blob: Blob): Promise<HTMLImageElement> {
 }
 
 /**
- * Returns a new JPEG with the time drawn across the bottom.
+ * Returns a new JPEG with the caption drawn across the bottom.
  *
  * A flat dark panel rather than a gradient: it stays readable over a bright
  * window behind somebody and over a dim corridor, and a clinic doorway is
  * usually one or the other.
  */
-export async function stampTime(blob: Blob, at: Date = new Date()): Promise<Blob> {
+export async function stampPhoto(blob: Blob, info: StampInfo): Promise<Blob> {
   const img = await loadImage(blob);
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
@@ -71,7 +107,19 @@ export async function stampTime(blob: Blob, at: Date = new Date()): Promise<Blob
 
   const base = captionFontSize(w);
   const pad = Math.round(base * 0.6);
-  const bandH = pad * 2 + base;
+  const gap = Math.round(base * 0.34);
+  const maxTextW = w - pad * 2;
+
+  ctx.font = `${base}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  const addressLines = info.address ? wrap(ctx, info.address, maxTextW, 2) : [];
+  const coords = coordLine(info.lat, info.lng);
+
+  // The time is always there; the place is added when it is known. Gating the
+  // whole caption on a GPS fix is how the reference ended up with photos
+  // carrying no caption at all - not even the time - whenever somebody stood
+  // somewhere with no signal.
+  const rows = 1 + addressLines.length + (coords ? 1 : 0);
+  const bandH = pad * 2 + rows * base + (rows - 1) * gap;
   const bandY = h - bandH;
 
   ctx.fillStyle = "rgba(0, 0, 0, 0.62)";
@@ -79,20 +127,33 @@ export async function stampTime(blob: Blob, at: Date = new Date()): Promise<Blob
 
   ctx.textBaseline = "top";
   ctx.textAlign = "left";
-  // Belt and braces for a blown-out background, where the panel alone still
-  // leaves white text looking washed out.
   ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
   ctx.shadowBlur = Math.max(2, Math.round(base * 0.18));
+  let y = bandY + pad;
+
   ctx.fillStyle = "#ffffff";
   ctx.font = `600 ${base}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
-  ctx.fillText(stampCaption(at), pad, bandY + pad);
+  ctx.fillText(stampCaption(info.at), pad, y);
+  y += base + gap;
+
+  ctx.font = `${base}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  for (const line of addressLines) {
+    ctx.fillText(line, pad, y);
+    y += base + gap;
+  }
+
+  if (coords) {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.78)";
+    ctx.font = `${Math.round(base * 0.85)}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillText(coords, pad, y);
+  }
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (out) => (out ? resolve(out) : reject(new Error("Stamped encode failed"))),
       "image/jpeg",
-      // Higher than the capture's own compression: the caption is fine text on
-      // a flat panel, which is exactly what low JPEG quality smears.
+      // Higher than the capture's own compression: the caption is fine text
+      // on a flat panel, which is exactly what low JPEG quality smears.
       0.85,
     );
   });
@@ -101,12 +162,12 @@ export async function stampTime(blob: Blob, at: Date = new Date()): Promise<Blob
 /**
  * Stamp it, or hand back what we were given.
  *
- * Every caller wants this rather than stampTime directly. A caption is worth
+ * Every caller wants this rather than stampPhoto directly. A caption is worth
  * having; it is not worth refusing somebody's attendance over.
  */
-export async function stampTimeOrOriginal(blob: Blob, at: Date = new Date()): Promise<Blob> {
+export async function stampPhotoOrOriginal(blob: Blob, info: StampInfo): Promise<Blob> {
   try {
-    return await stampTime(blob, at);
+    return await stampPhoto(blob, info);
   } catch {
     return blob;
   }

@@ -120,6 +120,25 @@ describe("faceVerdict", () => {
     expect(v.message).toMatch(/flagged for review/i);
   });
 
+  it("honours an attempt cap the clinic configured, not a hardcoded three", () => {
+    // attendance_config.face_max_attempts. The reference hardcodes 3.
+    const first = faceVerdict(mismatch, 1, 2);
+    expect(first.retry).toBe(true);
+    expect(first.message).toContain("1/2");
+    const last = faceVerdict(mismatch, 2, 2);
+    expect(last.retry).toBe(false);
+    expect(last.message).toMatch(/after 2 attempts/);
+  });
+
+  it("falls back to three when the setting is nonsense, rather than nought or endless", () => {
+    // A zero cap would refuse everybody on their first try; a NaN would let
+    // somebody retry for ever.
+    for (const bad of [0, -1, Number.NaN, Infinity]) {
+      expect(faceVerdict(mismatch, 3, bad).retry).toBe(false);
+      expect(faceVerdict(mismatch, 1, bad).retry).toBe(true);
+    }
+  });
+
   it("records which way it was decided, so an admin can tell them apart", () => {
     expect(faceVerdict(verified, 1).recordStatus).toBe("verified");
     expect(faceVerdict(mismatch, 1).recordStatus).toBe("failed");

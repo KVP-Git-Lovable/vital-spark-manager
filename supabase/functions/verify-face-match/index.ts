@@ -19,7 +19,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
  * field, so a chatty answer cannot talk its way to a pass.
  */
 
-const CONFIDENCE_THRESHOLD = 75;
+/** Used when the settings row cannot be read - the same value the migration
+ *  seeds, so a database hiccup never silently loosens the check. */
+const DEFAULT_THRESHOLD = 75;
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -73,6 +75,20 @@ Deno.serve(async (req) => {
     // answer rather than an opaque download failure.
     if (!selfiePath.startsWith(`${staff.id}/`)) return json({ error: "That photo is not yours" }, 403);
 
+    // The threshold lives in attendance_config and is applied HERE, not in the
+    // browser, so it cannot be relaxed by anyone holding a devtools console.
+    // Clamped, because a stored 0 would pass every face and a stored 200
+    // would pass none.
+    let threshold = DEFAULT_THRESHOLD;
+    {
+      const { data: cfg } = await caller
+        .from("attendance_config")
+        .select("face_match_threshold")
+        .maybeSingle();
+      const configured = Number(cfg?.face_match_threshold);
+      if (Number.isFinite(configured) && configured >= 1 && configured <= 100) threshold = configured;
+    }
+
     const { data: signed, error: signError } = await caller.storage
       .from("attendance-photos")
       .createSignedUrl(selfiePath, 120);
@@ -125,11 +141,11 @@ Deno.serve(async (req) => {
           content: `You are an EXTREMELY STRICT face verification check used for employee attendance. Your ONLY job is to decide whether two photos show THE EXACT SAME INDIVIDUAL.
 
 CRITICAL RULES:
-- DEFAULT to NOT MATCHED. Return ${CONFIDENCE_THRESHOLD} or above only if you are certain beyond reasonable doubt that both faces are the same person.
+- DEFAULT to NOT MATCHED. Return ${threshold} or above only if you are certain beyond reasonable doubt that both faces are the same person.
 - Compare: distance between eyes, eye shape, nose width and bridge, lip shape, jawline, ear shape, forehead height, cheekbone structure, chin shape.
 - Two DIFFERENT people of the same gender, age range, ethnicity, or with similar hairstyles, glasses or skin tone MUST score below 40. Surface similarity is NOT a match.
 - If either image is blurry, dark, partly covered, shows no clear face, shows several faces, or shows the back or side of a head, return confidence 0 and matched false.
-- If you have ANY doubt they might be different people, return below ${CONFIDENCE_THRESHOLD}.
+- If you have ANY doubt they might be different people, return below ${threshold}.
 - A FALSE POSITIVE lets one employee mark another present. That is far worse than a false negative, which only asks someone to retake a photo.
 
 Respond ONLY with strict JSON: {"confidence": <integer 0-100>, "matched": <true|false>, "reason": "<short explanation>"}
@@ -168,7 +184,7 @@ No markdown, no code fences, no extra text.`,
     }
 
     // Our threshold, not the model's opinion of its own answer.
-    const matched = confidence >= CONFIDENCE_THRESHOLD;
+    const matched = confidence >= threshold;
     return json({ confidence, matched, status: matched ? "verified" : "failed" });
   } catch (err) {
     console.error("verify-face-match error:", err);

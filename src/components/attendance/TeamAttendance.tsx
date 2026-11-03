@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
-import { Users } from "lucide-react";
+import { MapPin, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { hoursWorked, type AttendanceRecord } from "@/lib/attendance";
+import { formatFix, mapsLink, type Fix } from "@/lib/geo";
+import { nonWorkingReason } from "@/lib/workingDays";
+import { useAttendanceSettings } from "@/hooks/useAttendanceSettings";
 import { FaceBadge } from "@/pages/Attendance";
 
 /**
@@ -29,6 +33,7 @@ import { FaceBadge } from "@/pages/Attendance";
  * /leave and is untouched.
  */
 export function TeamAttendance() {
+  const { weekOffs, holidays } = useAttendanceSettings();
   const [from, setFrom] = useState(format(subDays(new Date(), 6), "yyyy-MM-dd"));
   const [to, setTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const [photo, setPhoto] = useState<{ url: string; who: string; when: string } | null>(null);
@@ -83,7 +88,22 @@ export function TeamAttendance() {
                 <CardContent className="p-4 grid gap-4 sm:grid-cols-[1fr_auto]">
                   <div className="min-w-0 space-y-1">
                     <p className="font-semibold">{who} <span className="text-muted-foreground font-normal text-sm">· {staff?.role}</span></p>
-                    <p className="text-sm text-muted-foreground">{format(new Date(r.date), "EEE, d MMM yyyy")}</p>
+                    <p className="text-sm text-muted-foreground flex flex-wrap items-center gap-2">
+                      {format(new Date(r.date), "EEE, d MMM yyyy")}
+                      {/* Why the clinic was shut that day - a record on a
+                          holiday is worth seeing as such, not as an oddity. */}
+                      {nonWorkingReason(new Date(r.date), weekOffs, holidays) && (
+                        <Badge variant="outline" className="text-[11px]">
+                          {nonWorkingReason(new Date(r.date), weekOffs, holidays)}
+                        </Badge>
+                      )}
+                    </p>
+                    <Where
+                      inAddress={r.check_in_address}
+                      inFix={r.check_in_location as Fix | null}
+                      outAddress={r.check_out_address}
+                      outFix={r.check_out_location as Fix | null}
+                    />
                     <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm pt-1">
                       <Stamp label="Started" time={r.check_in_time} status={r.check_in_face_status} confidence={r.check_in_face_confidence} />
                       <Stamp label="Ended" time={r.check_out_time} status={r.check_out_face_status} confidence={r.check_out_face_confidence} />
@@ -108,6 +128,40 @@ export function TeamAttendance() {
         </DialogContent>
       </Dialog>
     </section>
+  );
+}
+
+/**
+ * Where they were, in words where we have them.
+ *
+ * The caption is already burned into the photo; this is the same thing
+ * readable without opening it, and scannable down a list of fifty.
+ */
+function Where({ inAddress, inFix, outAddress, outFix }: {
+  inAddress: string | null; inFix: Fix | null;
+  outAddress: string | null; outFix: Fix | null;
+}) {
+  const start = inAddress || formatFix(inFix);
+  const end = outAddress || formatFix(outFix);
+  // Usually identical - one clinic, one door - so say it once.
+  const same = start && end && start === end;
+  const link = mapsLink(inFix) || mapsLink(outFix);
+  if (!start && !end) return null;
+  return (
+    <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+      <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+      <span className="min-w-0">
+        {same ? start : [start && `In: ${start}`, end && `Out: ${end}`].filter(Boolean).join(" · ")}
+        {link && (
+          <>
+            {" "}
+            <a href={link} target="_blank" rel="noopener noreferrer" className="underline text-primary whitespace-nowrap">
+              Open in Maps
+            </a>
+          </>
+        )}
+      </span>
+    </p>
   );
 }
 

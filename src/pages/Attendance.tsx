@@ -15,12 +15,18 @@ import {
   faceVerdict,
   hoursWorked,
   MAX_FACE_ATTEMPTS,
+  DEFAULT_ATTENDANCE_CONFIG,
   type AttendanceRecord,
   type FaceResult,
 } from "@/lib/attendance";
-import { stampTimeOrOriginal } from "@/lib/stampPhoto";
+import { stampPhotoOrOriginal } from "@/lib/stampPhoto";
+import { currentPosition, reverseGeocode, type Fix } from "@/lib/geo";
+import { nonWorkingReason } from "@/lib/workingDays";
+import { useAttendanceSettings } from "@/hooks/useAttendanceSettings";
 import { uploadStaffPhoto } from "@/lib/staffPhoto";
 import { TeamAttendance } from "@/components/attendance/TeamAttendance";
+import { AttendancePolicyTab, HolidaysTab, WeekOffsTab } from "@/components/attendance/AttendanceSettings";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 /**
  * Starting and ending a working day.
@@ -40,7 +46,7 @@ import { TeamAttendance } from "@/components/attendance/TeamAttendance";
  */
 const today = () => format(new Date(), "yyyy-MM-dd");
 
-type Step = "idle" | "registering" | "photo" | "verifying" | "saving";
+type Step = "idle" | "registering" | "locating" | "photo" | "verifying" | "saving";
 
 export default function Attendance() {
   const { staffProfile, isAdmin } = useAuth();
@@ -58,6 +64,9 @@ export default function Attendance() {
    * saved the check-in continues by itself - the reference's pendingAction.
    */
   const [registering, setRegistering] = useState<null | "check_in" | "check_out">(null);
+
+  const { config, weekOffs, holidays } = useAttendanceSettings();
+  const closedToday = nonWorkingReason(new Date(), weekOffs, holidays);
 
   const { data: staff, refetch: refetchStaff } = useQuery({
     queryKey: ["staff", "photo", staffId],
@@ -86,7 +95,8 @@ export default function Attendance() {
   const busy = step !== "idle";
 
   const stepLabel =
-    step === "registering" || step === "photo" ? "Uploading photo…"
+    step === "locating" ? "Getting location…"
+    : step === "registering" || step === "photo" ? "Uploading photo…"
     : step === "verifying" ? "Verifying face match…"
     : step === "saving" ? "Saving attendance…"
     : "";
@@ -100,6 +110,13 @@ export default function Attendance() {
   const press = (kind: "check_in" | "check_out") => {
     setMode(kind);
     setAttempt(0);
+    // Selfie switched off in settings: record the day without a camera, a
+    // photo or a face call, and mark it unverified so it is never mistaken
+    // for a checked one. The reference's doDirectAttendance.
+    if (!config.require_selfie) {
+      void submit(null, kind);
+      return;
+    }
     setRegistering(hasPhoto ? null : kind);
     setCameraOpen(true);
   };
@@ -131,27 +148,45 @@ export default function Attendance() {
    * refused attempt should still leave the photo behind for an admin to look
    * at when somebody says the check was wrong.
    */
-  const submit = async (file: File, kind: "check_in" | "check_out") => {
+  const submit = async (file: File | null, kind: "check_in" | "check_out") => {
     if (!staffId) return;
     const now = new Date();
     const thisAttempt = attempt + 1;
     setAttempt(thisAttempt);
 
     try {
-      setStep("photo");
-      // Never costs the check-in: on any failure the unstamped photo is used.
-      const stamped = await stampTimeOrOriginal(file, now);
-      const path = attendancePhotoPath(staffId, kind, now);
-      const { error: upErr } = await supabase.storage
-        .from("attendance-photos").upload(path, stamped, { contentType: "image/jpeg" });
-      if (upErr) throw upErr;
+      // Where they are. Best-effort throughout: a denied permission or a
+      // phone that cannot see the sky must never cost somebody their day.
+      let fix: Fix | null = null;
+      let address: string | null = null;
+      if (config.capture_location) {
+        setStep("locating");
+        fix = await currentPosition();
+        if (fix) address = await reverseGeocode(fix.latitude, fix.longitude);
+      }
+
+      let path: string | null = null;
+      if (file) {
+        setStep("photo");
+        // Never costs the check-in: on any failure the unstamped photo is used.
+        const stamped = await stampPhotoOrOriginal(file, {
+          at: now,
+          address,
+          lat: fix?.latitude ?? null,
+          lng: fix?.longitude ?? null,
+        });
+        path = attendancePhotoPath(staffId, kind, now);
+        const { error: upErr } = await supabase.storage
+          .from("attendance-photos").upload(path, stamped, { contentType: "image/jpeg" });
+        if (upErr) throw upErr;
+      }
 
       setStep("verifying");
       // The selfie's PATH, not a URL: the function looks up the caller's own
       // baseline photo server-side, so nobody can ask it to compare a selfie
       // against somebody else's face.
       let result: FaceResult = { status: "bypassed", confidence: 0 };
-      try {
+      if (path) try {
         const { data, error } = await supabase.functions.invoke("verify-face-match", {
           body: { selfie_path: path },
         });
@@ -166,7 +201,7 @@ export default function Attendance() {
         result = { status: "bypassed", confidence: 0 };
       }
 
-      const verdict = faceVerdict(result, thisAttempt);
+      const verdict = faceVerdict(result, thisAttempt, config.face_max_attempts);
       if (!verdict.proceed) {
         setStep("idle");
         toast.error(verdict.message, { duration: 8000 });
@@ -175,15 +210,22 @@ export default function Attendance() {
       }
 
       setStep("saving");
-      const { data: signed } = await supabase.storage
-        .from("attendance-photos").createSignedUrl(path, 60 * 60 * 24 * 365);
-      const photoRef = signed?.signedUrl ?? path;
+      let photoRef: string | null = null;
+      if (path) {
+        const { data: signed } = await supabase.storage
+          .from("attendance-photos").createSignedUrl(path, 60 * 60 * 24 * 365);
+        photoRef = signed?.signedUrl ?? path;
+      }
 
+      // The caption is burned into the photo; these are the same facts in a
+      // form a query can reach. The reference declares these columns and
+      // never writes them, so its admin screen only ever shows coordinates.
       if (kind === "check_in") {
         const { error } = await supabase.from("attendance_records").insert({
           staff_id: staffId, date: today(), check_in_time: now.toISOString(),
           check_in_photo: photoRef, check_in_face_status: verdict.recordStatus,
           check_in_face_confidence: result.confidence, status: "present",
+          check_in_location: fix, check_in_address: address,
         } as never);
         if (error) throw error;
       } else {
@@ -191,6 +233,7 @@ export default function Attendance() {
           check_out_time: now.toISOString(), check_out_photo: photoRef,
           check_out_face_status: verdict.recordStatus,
           check_out_face_confidence: result.confidence,
+          check_out_location: fix, check_out_address: address,
         } as never).eq("id", record!.id);
         if (error) throw error;
       }
@@ -266,7 +309,16 @@ export default function Attendance() {
             </p>
           )}
 
-          {!hasPhoto && (
+          {/* Labelling, not blocking: people do work on days off, and a doctor
+              coming in on a Sunday for one procedure still has to record it. */}
+          {closedToday && (
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <CalendarCheck className="h-4 w-4" />
+              Today is {closedToday === "Week off" ? "a week off" : closedToday}. You can still record your day.
+            </p>
+          )}
+
+          {!hasPhoto && config.require_selfie && (
             <p className="text-xs text-muted-foreground">
               You have no photo on file yet. The first time you press a button above you will be
               asked to take one — your selfie is matched against it each day.
@@ -281,9 +333,23 @@ export default function Attendance() {
         </CardContent>
       </Card>
 
-      {/* Admins get everyone else's below their own. One page called
-          Attendance, which is where the clinic kept looking. */}
-      {isAdmin && <TeamAttendance />}
+      {/* Admins get everyone else's below their own, and the settings beside
+          them. One page called Attendance, which is where the clinic kept
+          looking - nothing new in the sidebar. */}
+      {isAdmin && (
+        <Tabs defaultValue="all">
+          <TabsList>
+            <TabsTrigger value="all">All staff</TabsTrigger>
+            <TabsTrigger value="policy">Policy</TabsTrigger>
+            <TabsTrigger value="week-offs">Week offs</TabsTrigger>
+            <TabsTrigger value="holidays">Holidays</TabsTrigger>
+          </TabsList>
+          <TabsContent value="all" className="mt-4"><TeamAttendance /></TabsContent>
+          <TabsContent value="policy" className="mt-4"><AttendancePolicyTab /></TabsContent>
+          <TabsContent value="week-offs" className="mt-4"><WeekOffsTab /></TabsContent>
+          <TabsContent value="holidays" className="mt-4"><HolidaysTab /></TabsContent>
+        </Tabs>
+      )}
 
       <CameraDialog
         open={cameraOpen}

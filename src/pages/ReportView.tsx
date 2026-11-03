@@ -11,6 +11,8 @@ import { DEFAULT_REPORT_PRESET, getReportDateRange, loadReportPin } from "@/lib/
 import { reportFiltersFromUrl } from "@/lib/reportUrlFilters";
 import type { ReportColumn } from "@/lib/reportsCatalog";
 import { SortableDataTable } from "@/components/reports/SortableDataTable";
+import { visibleReportTool } from "@/components/reports/reportTools";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ReportChart } from "@/components/reports/ReportChart";
 import { downloadReportPdf, exportColumns } from "@/lib/reportPdf";
 import { toCSV } from "@/lib/reportCsv";
@@ -33,7 +35,17 @@ const ReportView = () => {
   // keeping. On these two the rows are already limited to the viewer, so the
   // filter would offer choices that change nothing.
   const INVOICE_SCOPED_REPORTS = ["invoices", "cancelled_invoices"];
-  const { dataScope } = useAuth();
+  const { dataScope, isAdmin } = useAuth();
+
+  /**
+   * An action this particular report offers, beside the exports.
+   *
+   * Admins only. The tools came from pages behind admin settings, and a
+   * report is a far wider audience - without this check anyone who can read
+   * the Doctor Referrals report could run a Salesforce import.
+   */
+  const tool = visibleReportTool(report?.key, isAdmin);
+  const [toolOpen, setToolOpen] = useState(false);
   const hideDoctorFilter = dataScope === "own" && !!key && INVOICE_SCOPED_REPORTS.includes(key);
 
   const { reportPeriodLimit } = useAuth();
@@ -285,7 +297,14 @@ const ReportView = () => {
           <h1 className="page-title">{report.title}</h1>
           <p className="page-subtitle">{report.description}</p>
         </div>
-        <div className="flex items-center gap-2">
+        {/* flex-wrap: on a phone this row can now hold three buttons. */}
+        <div className="flex flex-wrap items-center gap-2">
+          {tool && (
+            <Button variant="outline" size="sm" onClick={() => setToolOpen(true)} className="min-h-11 sm:min-h-0">
+              <tool.icon className="h-4 w-4 mr-1.5" />
+              {tool.label}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={downloadCsv} disabled={noRows || busy}>
             {exporting ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Download className="h-4 w-4 mr-1.5" />}
             Export CSV
@@ -383,6 +402,20 @@ const ReportView = () => {
           rowHref={report.rowHref}
           defaultSort={report.defaultSort}
         />
+      )}
+
+      {/* Mounted only once opened, so a report carrying a tool pays nothing
+          for it until somebody asks. */}
+      {tool && (
+        <Dialog open={toolOpen} onOpenChange={setToolOpen}>
+          <DialogContent className="max-w-3xl max-h-[85dvh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{tool.title}</DialogTitle>
+              {tool.description && <DialogDescription>{tool.description}</DialogDescription>}
+            </DialogHeader>
+            <tool.Component />
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

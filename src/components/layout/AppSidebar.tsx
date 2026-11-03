@@ -132,7 +132,6 @@ const adminSubItems = [
   { title: "Knowledge Categories", url: "/admin/knowledge-categories", icon: BookOpen },
   { title: "Currency & Billing", url: "/admin/currency", icon: Coins },
   { title: "Attendance", url: "/admin/attendance", icon: CalendarCheck },
-  { title: "Visits to Review", url: "/admin/visits-to-review", icon: ClipboardList },
   { title: "User Management", url: "/user-management", icon: Users },
   { title: "Trash Policy & Audit", url: "/admin/trash", icon: Trash2 },
 ];

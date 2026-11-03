@@ -78,6 +78,7 @@ const mainItems = [
   { title: "Photos", url: "/photos", icon: Camera, moduleKey: "photos" },
   { title: "Assets", url: "/assets", icon: Package, moduleKey: "assets" },
   { title: "Portal Orders", url: "/orders", icon: ShoppingBag, moduleKey: "portal_orders" },
+  { title: "Attendance", url: "/attendance", icon: CalendarCheck, moduleKey: "attendance" },
   { title: "Expenses", url: "/expenses", icon: Wallet, moduleKey: "expenses" },
   { title: "Reports", url: "/reports", icon: BarChart3, moduleKey: "reports" },
   { title: "Report Builder", url: "/report-builder", icon: FileBarChart, moduleKey: "report_builder" },
@@ -101,7 +102,7 @@ const communicationsItems = [
 
 const employeesSubItems = [
   { title: "Staff", url: "/staff", icon: UserCog, moduleKey: "staff" },
-  { title: "Attendance", url: "/admin/attendance", icon: CalendarCheck, moduleKey: "staff" },
+  { title: "All Attendance", url: "/admin/attendance", icon: CalendarCheck, moduleKey: "staff" },
   { title: "Leave", url: "/leave", icon: CalendarDays, moduleKey: "leave" },
 ];
 

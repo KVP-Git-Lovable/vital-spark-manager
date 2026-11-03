@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Camera, Loader2, Upload } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { uploadStaffPhoto } from "@/lib/staffPhoto";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CameraDialog } from "@/components/shared/CameraDialog";
@@ -29,31 +29,9 @@ export function StaffPhotoCard({ staffId, photoUrl, name }: { staffId: string; p
   const save = async (file: File) => {
     setBusy(true);
     try {
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const safeExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
-      // Timestamped rather than a fixed name: overwriting one path is served
-      // from cache long after it changed, and the person would swear the new
-      // photo had not saved - the same trap the patient avatar hit.
-      const path = `${staffId}/profile-${Date.now()}.${safeExt}`;
-
-      const { error: upErr } = await supabase.storage
-        .from("attendance-photos")
-        .upload(path, file, { contentType: file.type || "image/jpeg" });
-      if (upErr) throw upErr;
-
-      // Signed for a year: this one is read by the face verifier on every
-      // check-in, and a short expiry would mean re-signing it constantly.
-      const { data: signed, error: signErr } = await supabase.storage
-        .from("attendance-photos")
-        .createSignedUrl(path, 60 * 60 * 24 * 365);
-      if (signErr || !signed?.signedUrl) throw signErr || new Error("Could not prepare the photo");
-
-      const { error: saveErr } = await supabase
-        .from("staff")
-        .update({ photo_url: signed.signedUrl })
-        .eq("id", staffId);
-      if (saveErr) throw saveErr;
-
+      // Shared with the attendance page, where somebody registers their face
+      // mid-check-in - one upload path, not two that can drift.
+      await uploadStaffPhoto(staffId, file);
       await qc.invalidateQueries({ queryKey: ["staff"] });
       toast.success("Profile photo saved. You can check in now.");
       // useAuth reads the staff row once at sign-in, so the page needs to

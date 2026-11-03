@@ -1,41 +1,64 @@
 import { describe, it, expect } from "vitest";
 import {
-  attendanceAction,
-  checkInBlockedReason,
+  dayButtons,
   faceVerdict,
   hoursWorked,
   attendancePhotoPath,
   MAX_FACE_ATTEMPTS,
 } from "./attendance";
 
-describe("attendanceAction", () => {
-  it("offers check in when the day has not started", () => {
-    expect(attendanceAction(null)).toBe("check_in");
-    expect(attendanceAction(undefined)).toBe("check_in");
-    expect(attendanceAction({ check_in_time: null, check_out_time: null })).toBe("check_in");
+/**
+ * The clinic opened the attendance screen and reported that it had no
+ * day-start or day-end option. It had one button that swapped its own label.
+ * Both are on screen now, as the reference app shows them, and these tests
+ * exist so that never silently becomes one button again.
+ */
+describe("dayButtons", () => {
+  const notStarted = { check_in_time: null, check_out_time: null };
+  const working = { check_in_time: "2026-11-03T09:00:00Z", check_out_time: null };
+  const finished = { check_in_time: "2026-11-03T09:00:00Z", check_out_time: "2026-11-03T18:00:00Z" };
+
+  it("offers Start My Day, and refuses End My Day, before the day begins", () => {
+    const b = dayButtons(notStarted);
+    expect(b.start.label).toBe("Start My Day");
+    expect(b.start.disabled).toBe(false);
+    expect(b.end.label).toBe("End My Day");
+    // Nobody ends a day they never started.
+    expect(b.end.disabled).toBe(true);
   });
 
-  it("offers check out once they are in", () => {
-    expect(attendanceAction({ check_in_time: "2026-11-02T09:00:00Z", check_out_time: null })).toBe("check_out");
+  it("treats no record at all the same as a day not yet begun", () => {
+    for (const empty of [null, undefined]) {
+      const b = dayButtons(empty);
+      expect(b.start.disabled).toBe(false);
+      expect(b.end.disabled).toBe(true);
+    }
   });
 
-  it("offers nothing more once the day is closed", () => {
-    expect(attendanceAction({ check_in_time: "2026-11-02T09:00:00Z", check_out_time: "2026-11-02T18:00:00Z" })).toBe("done");
-  });
-});
-
-describe("checkInBlockedReason", () => {
-  it("blocks somebody with no profile photo, and says why", () => {
-    // Without a photo there is nothing to compare the selfie against, so the
-    // check would pass vacuously - the same as having no check at all.
-    expect(checkInBlockedReason(null)).toMatch(/profile photo/i);
-    expect(checkInBlockedReason(undefined)).toMatch(/profile photo/i);
-    expect(checkInBlockedReason("")).toMatch(/profile photo/i);
-    expect(checkInBlockedReason("   ")).toMatch(/profile photo/i);
+  it("swaps to Day Started and opens End My Day once they are in", () => {
+    const b = dayButtons(working);
+    expect(b.start.label).toBe("Day Started");
+    // There is nothing left to start - and pressing it again would try to
+    // insert a second row for the same day.
+    expect(b.start.disabled).toBe(true);
+    expect(b.end.label).toBe("End My Day");
+    expect(b.end.disabled).toBe(false);
   });
 
-  it("lets somebody with a photo through", () => {
-    expect(checkInBlockedReason("https://x.test/me.jpg")).toBe("");
+  it("closes both once the day is done", () => {
+    const b = dayButtons(finished);
+    expect(b.start.label).toBe("Day Ended");
+    expect(b.end.label).toBe("Day Ended");
+    expect(b.start.disabled).toBe(true);
+    expect(b.end.disabled).toBe(true);
+  });
+
+  it("never leaves both buttons live at once", () => {
+    for (const row of [notStarted, working, finished]) {
+      const b = dayButtons(row);
+      expect(b.start.disabled && b.end.disabled ? 0 : b.start.disabled || b.end.disabled ? 1 : 2)
+        .toBeLessThanOrEqual(1);
+    }
   });
 });
 

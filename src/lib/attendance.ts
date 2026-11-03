@@ -33,31 +33,39 @@ export interface AttendanceRecord extends AttendanceRow {
   check_out_face_confidence: number | null;
 }
 
-export type AttendanceAction = "check_in" | "check_out" | "done";
-
-/**
- * Which of the two things the one button does today.
- *
- * One row per staff member per day, enforced by a unique constraint, so the
- * state is just: nothing yet, in but not out, or finished.
- */
-export function attendanceAction(row: AttendanceRow | null | undefined): AttendanceAction {
-  if (!row || !row.check_in_time) return "check_in";
-  if (!row.check_out_time) return "check_out";
-  return "done";
+/** One of the two buttons on the attendance page. */
+export interface DayButton {
+  label: string;
+  disabled: boolean;
 }
 
 /**
- * Why this person cannot start, or empty when they can.
+ * Both buttons, always on screen, as the Bharath Builders app shows them.
  *
- * The face check compares the selfie against the photo on their staff record,
- * so without one there is nothing to compare and the check would pass
- * vacuously - which is the same as having no check at all.
+ * A single button that swaps its own label between "Start my day" and "End my
+ * day" was what shipped first, and the clinic reported that the page had no
+ * day-start or day-end option at all. Seeing BOTH, with the one that is not
+ * available greyed out and naming what already happened, is what tells
+ * somebody at a glance where they are in their day. A control that silently
+ * becomes a different control does not.
  */
-export function checkInBlockedReason(profilePhotoUrl: string | null | undefined): string {
-  return String(profilePhotoUrl ?? "").trim()
-    ? ""
-    : "Set your profile photo before checking in - it is what your selfie is matched against.";
+export function dayButtons(row: AttendanceRow | null | undefined): { start: DayButton; end: DayButton } {
+  const checkedIn = !!row?.check_in_time;
+  const checkedOut = !!row?.check_out_time;
+
+  return {
+    start: {
+      label: checkedOut ? "Day Ended" : checkedIn ? "Day Started" : "Start My Day",
+      // Once the day has started there is nothing left to start, and a
+      // finished day cannot be started again.
+      disabled: checkedIn || checkedOut,
+    },
+    end: {
+      label: checkedOut ? "Day Ended" : "End My Day",
+      // Nobody ends a day they never started.
+      disabled: !checkedIn || checkedOut,
+    },
+  };
 }
 
 /** What the verifier came back with. */

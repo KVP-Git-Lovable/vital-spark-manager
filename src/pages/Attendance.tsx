@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CalendarCheck, Camera, CheckCircle2, Clock, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
@@ -11,9 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CameraDialog } from "@/components/shared/CameraDialog";
 import {
-  attendanceAction,
   attendancePhotoPath,
-  checkInBlockedReason,
+  dayButtons,
   faceVerdict,
   hoursWorked,
   MAX_FACE_ATTEMPTS,
@@ -21,20 +19,27 @@ import {
   type FaceResult,
 } from "@/lib/attendance";
 import { stampTimeOrOriginal } from "@/lib/stampPhoto";
+import { uploadStaffPhoto } from "@/lib/staffPhoto";
 
 /**
  * Starting and ending a working day.
  *
- * One row per person per day, enforced by a unique index, so this page has
- * exactly one button: start the day, end the day, or nothing left to do.
+ * Both buttons are always on screen, as the Bharath Builders app shows them,
+ * with the unavailable one greyed out and naming what already happened. The
+ * first version had a single button that swapped its own label, and the
+ * clinic reported the page had no day-start or day-end option at all.
  *
- * The decisions - which button, whether they may start at all, what a face
- * result means - live in src/lib/attendance.ts so they can be tested without
- * a camera, storage and an edge function all mocked.
+ * Somebody with no profile photo registers their face HERE and carries
+ * straight on into the action they pressed. Sending them to /profile is a
+ * dead end at nine in the morning when they are trying to start work.
+ *
+ * The decisions - which button is live, what a face result means - live in
+ * src/lib/attendance.ts so they can be tested without a camera, storage and
+ * an edge function all mocked.
  */
 const today = () => format(new Date(), "yyyy-MM-dd");
 
-type Step = "idle" | "photo" | "verifying" | "saving";
+type Step = "idle" | "registering" | "photo" | "verifying" | "saving";
 
 export default function Attendance() {
   const { staffProfile } = useAuth();
@@ -44,8 +49,16 @@ export default function Attendance() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [step, setStep] = useState<Step>("idle");
   const [attempt, setAttempt] = useState(0);
+  /** Which end of the day the open camera is for. */
+  const [mode, setMode] = useState<"check_in" | "check_out">("check_in");
+  /**
+   * Set when the camera is collecting a FACE REGISTRATION rather than an
+   * attendance selfie. Holds what they pressed, so that once the photo is
+   * saved the check-in continues by itself - the reference's pendingAction.
+   */
+  const [registering, setRegistering] = useState<null | "check_in" | "check_out">(null);
 
-  const { data: staff } = useQuery({
+  const { data: staff, refetch: refetchStaff } = useQuery({
     queryKey: ["staff", "photo", staffId],
     enabled: !!staffId,
     queryFn: async () => {
@@ -67,15 +80,47 @@ export default function Attendance() {
     },
   });
 
-  const action = attendanceAction(record);
-  const blocked = checkInBlockedReason(staff?.photo_url);
+  const buttons = dayButtons(record);
+  const hasPhoto = !!String(staff?.photo_url ?? "").trim();
   const busy = step !== "idle";
 
   const stepLabel =
-    step === "photo" ? "Saving your photo…"
+    step === "registering" || step === "photo" ? "Saving your photo…"
     : step === "verifying" ? "Checking your face…"
     : step === "saving" ? "Recording…"
     : "";
+
+  /**
+   * Pressing Start My Day or End My Day.
+   *
+   * With no photo on file the camera opens to REGISTER the face first; the
+   * action is remembered and resumed the moment it is saved.
+   */
+  const press = (kind: "check_in" | "check_out") => {
+    setMode(kind);
+    setAttempt(0);
+    setRegistering(hasPhoto ? null : kind);
+    setCameraOpen(true);
+  };
+
+  /** The face-registration half: save the photo, then carry straight on. */
+  const register = async (file: File, kind: "check_in" | "check_out") => {
+    if (!staffId) return;
+    setStep("registering");
+    try {
+      await uploadStaffPhoto(staffId, file);
+      await refetchStaff();
+      setRegistering(null);
+      toast.success("Face registered. Now take your selfie.");
+      setStep("idle");
+      // Straight back into the camera for the action they actually pressed.
+      setMode(kind);
+      setCameraOpen(true);
+    } catch (e) {
+      setStep("idle");
+      toast.error(e instanceof Error ? e.message : "Could not save your photo");
+    }
+  };
 
   /**
    * The whole check-in, from a captured selfie to a saved row.
@@ -85,9 +130,8 @@ export default function Attendance() {
    * refused attempt should still leave the photo behind for an admin to look
    * at when somebody says the check was wrong.
    */
-  const submit = async (file: File) => {
+  const submit = async (file: File, kind: "check_in" | "check_out") => {
     if (!staffId) return;
-    const kind = action === "check_out" ? "check_out" : "check_in";
     const now = new Date();
     const thisAttempt = attempt + 1;
     setAttempt(thisAttempt);
@@ -125,7 +169,7 @@ export default function Attendance() {
       if (!verdict.proceed) {
         setStep("idle");
         toast.error(verdict.message, { duration: 8000 });
-        if (verdict.retry) setCameraOpen(true);
+        if (verdict.retry) { setMode(kind); setCameraOpen(true); }
         return;
       }
 
@@ -177,48 +221,61 @@ export default function Attendance() {
           <CardTitle className="text-lg">{format(new Date(), "EEEE, d MMMM yyyy")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {blocked ? (
-            <div className="space-y-3">
-              <p className="text-sm text-destructive">{blocked}</p>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/profile"><Camera className="h-4 w-4 mr-2" />Set your profile photo</Link>
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <Slot label="Started" time={record?.check_in_time} status={record?.check_in_face_status} />
-                <Slot label="Ended" time={record?.check_out_time} status={record?.check_out_face_status} />
-              </div>
-              {hours !== null && (
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Clock className="h-4 w-4" />{hours} hours recorded
-                </p>
-              )}
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <Slot label="Started" time={record?.check_in_time} status={record?.check_in_face_status} />
+            <Slot label="Ended" time={record?.check_out_time} status={record?.check_out_face_status} />
+          </div>
+          {hours !== null && (
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4" />{hours} hours recorded
+            </p>
+          )}
 
-              {action === "done" ? (
-                <p className="text-sm flex items-center gap-2 text-success">
-                  <CheckCircle2 className="h-4 w-4" />Your day is complete. See you tomorrow.
-                </p>
-              ) : (
-                <Button
-                  type="button"
-                  className="w-full sm:w-auto"
-                  disabled={busy}
-                  onClick={() => setCameraOpen(true)}
-                >
-                  {busy
-                    ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{stepLabel}</>
-                    : <><Camera className="h-4 w-4 mr-2" />{action === "check_in" ? "Start my day" : "End my day"}</>}
-                </Button>
-              )}
+          {/* Both, always. The greyed-out one names what already happened,
+              which is what tells somebody where they are in their day. */}
+          <div className="flex flex-wrap gap-3">
+            <Button
+              type="button"
+              className="flex-1 sm:flex-none"
+              disabled={busy || buttons.start.disabled}
+              onClick={() => press("check_in")}
+              data-testid="start-my-day"
+            >
+              {busy && mode === "check_in"
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{stepLabel}</>
+                : <><Camera className="h-4 w-4 mr-2" />{buttons.start.label}</>}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              disabled={busy || buttons.end.disabled}
+              onClick={() => press("check_out")}
+              data-testid="end-my-day"
+            >
+              {busy && mode === "check_out"
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{stepLabel}</>
+                : <><Camera className="h-4 w-4 mr-2" />{buttons.end.label}</>}
+            </Button>
+          </div>
 
-              {attempt > 0 && attempt < MAX_FACE_ATTEMPTS && (
-                <p className="text-xs text-muted-foreground">
-                  Attempt {attempt} of {MAX_FACE_ATTEMPTS}. Face a window and look straight at the camera.
-                </p>
-              )}
-            </>
+          {buttons.start.disabled && buttons.end.disabled && (
+            <p className="text-sm flex items-center gap-2 text-success">
+              <CheckCircle2 className="h-4 w-4" />Your day is complete. See you tomorrow.
+            </p>
+          )}
+
+          {!hasPhoto && (
+            <p className="text-xs text-muted-foreground">
+              You have no photo on file yet. The first time you press a button above you will be
+              asked to take one — your selfie is matched against it each day.
+            </p>
+          )}
+
+          {attempt > 0 && attempt < MAX_FACE_ATTEMPTS && (
+            <p className="text-xs text-muted-foreground">
+              Attempt {attempt} of {MAX_FACE_ATTEMPTS}. Face a window and look straight at the camera.
+            </p>
           )}
         </CardContent>
       </Card>
@@ -226,9 +283,18 @@ export default function Attendance() {
       <CameraDialog
         open={cameraOpen}
         onOpenChange={setCameraOpen}
-        title={action === "check_out" ? "Selfie to end your day" : "Selfie to start your day"}
+        title={
+          registering ? "Register your face"
+          : mode === "check_out" ? "Selfie to end your day"
+          : "Selfie to start your day"
+        }
         defaultFacing="user"
-        onCapture={(file) => { setCameraOpen(false); void submit(file); }}
+        onCapture={(file) => {
+          setCameraOpen(false);
+          const pending = registering;
+          if (pending) void register(file, pending);
+          else void submit(file, mode);
+        }}
       />
     </div>
   );

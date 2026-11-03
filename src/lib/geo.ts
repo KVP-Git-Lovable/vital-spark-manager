@@ -22,6 +22,10 @@ export interface Fix {
  *  door wondering whether the button worked. */
 const POSITION_TIMEOUT_MS = 10_000;
 
+/** How stale a cached fix may be. Somebody checking out has not moved since
+ *  they checked in, and a cold GPS lock is the slowest part of the flow. */
+const POSITION_MAX_AGE_MS = 120_000;
+
 /** The address lookup is a nicety; the coordinates and the time are the
  *  record. Four seconds, then give up and stamp without it. */
 const GEOCODE_TIMEOUT_MS = 4_000;
@@ -41,7 +45,11 @@ export function currentPosition(): Promise<Fix | null> {
         }),
         // Denied, unavailable or timed out - all the same answer here.
         () => done(null),
-        { enableHighAccuracy: true, timeout: POSITION_TIMEOUT_MS, maximumAge: 0 },
+        // maximumAge was 0, so every call paid for a cold high-accuracy lock
+        // - including check-out, minutes after a check-in from the same spot.
+        // Two minutes is short enough that the fix is still where they are
+        // standing and long enough to make the second lookup instant.
+        { enableHighAccuracy: true, timeout: POSITION_TIMEOUT_MS, maximumAge: POSITION_MAX_AGE_MS },
       );
     } catch {
       done(null);

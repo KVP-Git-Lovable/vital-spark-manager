@@ -103,7 +103,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           this they stretch to the height of the still-mounted page behind them -
           an appointments list is ~11,000px, which is the blank area you could
           scroll through forever after opening an appointment. */}
-      <div className={cn("flex w-full", overlayOpen ? "h-screen overflow-hidden" : "min-h-screen")}>
+      <div className={cn("flex w-full", overlayOpen ? "h-[100dvh] overflow-hidden" : "min-h-[100dvh]")}>
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0 relative">
           {/* Modals */}
@@ -112,7 +112,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
           <ImpersonationBanner />
 
-          <header className="app-glass-header sticky top-0 z-40 h-14 md:h-16 flex items-center justify-between border-b px-3 md:px-4 gap-2 md:gap-4 shrink-0">
+          <header className="app-glass-header safe-inset-top sticky top-0 z-40 h-14 md:h-16 box-content flex items-center justify-between border-b px-3 md:px-4 gap-2 md:gap-4 shrink-0">
             <div className="flex items-center gap-2 md:gap-3 min-w-0">
               <SidebarTrigger className="shrink-0 md:hidden" />
               <GlobalSearch className="hidden md:block" />

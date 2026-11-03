@@ -79,6 +79,7 @@ export function AttendancePolicyTab() {
           hint="Off: staff check in with one tap, no camera and no face check, and the record is marked unverified."
         >
           <Switch
+            className="relative after:absolute after:-inset-x-3 after:-inset-y-3 after:content-[''] sm:after:hidden"
             checked={form.require_selfie}
             onCheckedChange={(v) => setForm((f) => ({ ...f, require_selfie: v }))}
           />
@@ -89,6 +90,7 @@ export function AttendancePolicyTab() {
           hint="Off: no location permission is asked for, and the photo caption carries the time only."
         >
           <Switch
+            className="relative after:absolute after:-inset-x-3 after:-inset-y-3 after:content-[''] sm:after:hidden"
             checked={form.capture_location}
             onCheckedChange={(v) => setForm((f) => ({ ...f, capture_location: v }))}
           />

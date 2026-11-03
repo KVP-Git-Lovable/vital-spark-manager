@@ -47,12 +47,27 @@ interface CameraDialogProps {
    * scanned wants the whole frame, not a face-shaped target.
    */
   faceGuide?: boolean;
+  /**
+   * Refuse anything that is not a live capture.
+   *
+   * Attendance only. The gallery route handed an existing photo straight to
+   * onCapture with no preview, and the check-in then stamped it with the
+   * CURRENT time and the clinic's address - so yesterday's selfie could be
+   * submitted as today's check-in, carrying a burned-in caption asserting a
+   * time and place it was not taken at, and the face match passed because it
+   * genuinely was their face.
+   *
+   * Off by default: patient attachments, the prescription scanner and the
+   * patient page all have good reason to pick an existing picture, and
+   * nothing about them changes.
+   */
+  liveOnly?: boolean;
 }
 
 /** How much of the screen the live view may take, leaving the shutter on it. */
 const FRAME_MAX_HEIGHT = "68vh";
 
-export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, onCaptureMany, title = "Take Photo", defaultFacing = "environment", faceGuide = false }: CameraDialogProps) {
+export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, onCaptureMany, title = "Take Photo", defaultFacing = "environment", faceGuide = false, liveOnly = false }: CameraDialogProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileFallbackRef = useRef<HTMLInputElement>(null);
@@ -126,7 +141,15 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
     stopStream();
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Camera API not supported in this browser");
+        // Browsers have had getUserMedia for a decade. When it is missing on
+        // a phone it is almost always an insecure origin - an http LAN or IP
+        // build - not a browser that cannot do cameras. Saying "not
+        // supported" sent people looking for a different phone.
+        throw new Error(
+          window.isSecureContext === false
+            ? "The camera needs a secure (https) connection. Open the app on its https address and try again."
+            : "This browser will not give access to the camera.",
+        );
       }
       const stream = await navigator.mediaDevices.getUserMedia(cameraConstraints(mode));
       streamRef.current = stream;
@@ -208,6 +231,15 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
         return;
       }
     }
+    // Under liveOnly there is no phone-camera offer to make, and on a front
+    // camera there is nothing to focus on at arm's length anyway. This is
+    // the iOS path: supportsTapFocus() is false for every iOS device, so
+    // ANY tap on the viewfinder - the natural gesture while framing your own
+    // face - used to raise the "open phone camera" pill AND restart a fresh
+    // 1920x1080 stream, stalling the preview for a gesture that cannot work
+    // there. One tap on the pill then submitted a blind shot.
+    if (liveOnly || facingMode === "user") return;
+
     setFocusNotice(point);
     void refocusByRestart();
   };
@@ -308,16 +340,26 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
     setFacingMode((m) => (m === "environment" ? "user" : "environment"));
   };
 
-  /** The phone's own camera, which focuses; the shot joins the strip. */
+  /**
+   * The phone's own camera, which focuses; the shot joins the strip.
+   *
+   * `capture` follows the camera we are actually asking for. It was
+   * hardcoded to "environment", so attendance - which opens with
+   * defaultFacing="user" and a face guide - sent people to the camera on the
+   * BACK of the phone to take a selfie. They shot blind, the face check
+   * failed, and it cost one of their three attempts.
+   */
   const openPhoneCamera = () => {
     const input = fileFallbackRef.current;
     if (!input) return;
-    input.setAttribute("capture", "environment");
+    input.setAttribute("capture", facingMode === "user" ? "user" : "environment");
     input.click();
   };
 
   /** The gallery. `capture` must come off, or the phone opens the camera. */
   const openDeviceFiles = () => {
+    // Belt and braces - the button is not rendered under liveOnly either.
+    if (liveOnly) return;
     const input = fileFallbackRef.current;
     if (!input) return;
     input.removeAttribute("capture");
@@ -335,8 +377,19 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
         // phone while it worked on the desktop.
         setShots((prev) => [...prev, ...files.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
       } else {
-        onCapture(files[0]);
-        onOpenChange(false);
+        // Was: hand the file straight to onCapture and close. On a phone
+        // that meant a photo taken through the phone's own camera app was
+        // submitted with no preview and no Retake - and until the fix above
+        // it was often a blind shot out of the back of the phone. It now
+        // lands in the same preview the live shutter produces, so the
+        // Retake / Use Photo step is identical whichever way the photo was
+        // taken.
+        const file = files[0];
+        setCapturedFile(file);
+        setPreviewUrl(URL.createObjectURL(file));
+        // The live stream, if one was somehow running, has no business
+        // continuing behind a preview - same as the shutter path.
+        stopStream();
       }
     }
     e.target.value = "";
@@ -373,7 +426,7 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
         <DialogHeader
           className={
             isMobile
-              ? "absolute inset-x-0 top-0 z-10 px-4 pt-4 pb-10 bg-gradient-to-b from-black/70 to-transparent"
+              ? "safe-inset-top absolute inset-x-0 top-0 z-10 px-4 pt-4 pb-10 bg-gradient-to-b from-black/70 to-transparent"
               : "px-4 pt-4"
           }
         >
@@ -439,13 +492,25 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
                 </p>
               )}
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <Button variant="secondary" size="sm" onClick={openPhoneCamera}>
+                <Button variant="secondary" onClick={openPhoneCamera} className="min-h-11" data-testid="phone-camera">
                   <Camera className="h-4 w-4 mr-1.5" /> Phone camera
                 </Button>
-                <Button variant="secondary" size="sm" onClick={openDeviceFiles}>
-                  <Upload className="h-4 w-4 mr-1.5" /> Choose from device
-                </Button>
+                {/* Attendance never offers the gallery: an existing photo
+                    would be stamped with the current time and the clinic's
+                    address and pass the face check, because it really is
+                    their face. */}
+                {!liveOnly && (
+                  <Button variant="secondary" onClick={openDeviceFiles} className="min-h-11" data-testid="choose-from-device">
+                    <Upload className="h-4 w-4 mr-1.5" /> Choose from device
+                  </Button>
+                )}
               </div>
+              {liveOnly && (
+                <p className="text-xs opacity-80">
+                  Attendance needs a photo taken now. If the camera will not open, ask an admin to
+                  record your day.
+                </p>
+              )}
             </div>
           ) : previewUrl ? (
             <img src={previewUrl} alt="Captured" className="w-full h-full object-contain" />
@@ -566,7 +631,7 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
             </Button>
           </div>
         )}
-        <div className={`flex items-center justify-between gap-2 p-4 ${isMobile ? "" : "bg-card"}`}>
+        <div className={`flex items-center justify-between gap-2 p-4 ${isMobile ? "safe-inset-bottom" : "bg-card"}`}>
           {multiple ? (
             /* Three cells rather than one row: on a 320px phone the old row -
                Cancel, switch, a 56px shutter and "Done (n)" - was wider than
@@ -603,17 +668,21 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
               </Button>
             </div>
           ) : previewUrl ? (
+            /* These two were 36px. "Use Photo" is the press that commits a
+               check-in, and it was the smallest control on the screen while
+               the shutter above it was 56px. Both are now a 44px target and
+               share the width on a phone. */
             <>
-              <Button variant="outline" size="sm" onClick={handleRetake}>
+              <Button variant="outline" size="sm" onClick={handleRetake} className="min-h-11 flex-1 sm:flex-none">
                 <RefreshCw className="h-4 w-4 mr-1.5" /> Retake
               </Button>
-              <Button size="sm" onClick={handleUse}>
+              <Button size="sm" onClick={handleUse} className="min-h-11 flex-1 sm:flex-none" data-testid="use-photo">
                 <Check className="h-4 w-4 mr-1.5" /> Use Photo
               </Button>
             </>
           ) : (
             <>
-              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="min-h-11">
                 <X className="h-4 w-4 mr-1.5" /> Cancel
               </Button>
               <div className="flex items-center gap-2">

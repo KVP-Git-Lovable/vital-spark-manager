@@ -45,9 +45,12 @@ describe("CameraDialog, when the live camera cannot start", () => {
     expect(onCaptureMany.mock.calls[0][0]).toHaveLength(3);
   });
 
-  it("still takes exactly one photo when it is not in multi-shot mode", () => {
-    // The patient attachments camera, the prescription scanner and the patient
-    // page all want one picture and must not change.
+  it("shows a preview first rather than submitting the photo blind", async () => {
+    // It used to hand the file straight to onCapture and close. On a phone
+    // that meant a photo taken through the phone's own camera app went in
+    // with no preview and no Retake - and for attendance, where `capture`
+    // was hardcoded to the REAR camera, that was a blind shot out of the
+    // back of the phone recorded as somebody's check-in.
     const onCapture = vi.fn();
     const onOpenChange = vi.fn();
     render(<CameraDialog open onOpenChange={onOpenChange} onCapture={onCapture} />);
@@ -56,8 +59,25 @@ describe("CameraDialog, when the live camera cannot start", () => {
     expect(input.multiple).toBe(false);
     fireEvent.change(input, { target: { files: [file("a.jpg")] } });
 
+    // Nothing submitted yet, dialog still open.
+    expect(onCapture).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+
+    // Use Photo is what commits it - exactly as the live shutter path does.
+    fireEvent.click(await screen.findByTestId("use-photo"));
     expect(onCapture).toHaveBeenCalledTimes(1);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("lets the photo be retaken from the preview", () => {
+    const onCapture = vi.fn();
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={onCapture} />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file("a.jpg")] } });
+
+    fireEvent.click(screen.getByRole("button", { name: /retake/i }));
+    expect(screen.queryByTestId("use-photo")).toBeNull();
+    expect(onCapture).not.toHaveBeenCalled();
   });
 
   it("shows the count on Done from the start, so a set is clearly possible", () => {
@@ -412,5 +432,47 @@ describe("the focus offer and multi-capture", () => {
 
     // Nothing closed the dialog along the way - that was the original fault.
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The selfie path.
+ *
+ * Attendance opens this camera with defaultFacing="user" and a face guide.
+ * Two things used to go wrong on a phone and both ended with a check-in
+ * recorded against a photo nobody intended.
+ */
+describe("CameraDialog in selfie / live-only mode", () => {
+  it("sends the phone's own camera to the FRONT lens, not the back", () => {
+    // `capture` was hardcoded to "environment". Attendance asks for "user",
+    // so everyone who fell back to the phone camera shot out of the back of
+    // the phone while looking at the screen: a blind photo, a failed face
+    // match, and one of three attempts gone.
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} defaultFacing="user" faceGuide liveOnly />);
+    fireEvent.click(screen.getByTestId("phone-camera"));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input.getAttribute("capture")).toBe("user");
+  });
+
+  it("still uses the rear lens for everything that is not a selfie", () => {
+    // Patient skin, attachments, the prescription scanner.
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("phone-camera"));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input.getAttribute("capture")).toBe("environment");
+  });
+
+  it("offers NO gallery route when the capture must be live", () => {
+    // A photo picked from the gallery was stamped with the current time and
+    // the clinic's address and passed the face check, because it genuinely
+    // is their face - so yesterday's selfie could be checked in as today's.
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} defaultFacing="user" liveOnly />);
+    expect(screen.queryByTestId("choose-from-device")).toBeNull();
+    expect(screen.getByText(/needs a photo taken now/i)).toBeInTheDocument();
+  });
+
+  it("keeps the gallery for every other caller", () => {
+    render(<CameraDialog open onOpenChange={vi.fn()} onCapture={vi.fn()} />);
+    expect(screen.getByTestId("choose-from-device")).toBeInTheDocument();
   });
 });

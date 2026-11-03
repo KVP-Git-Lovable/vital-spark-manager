@@ -283,3 +283,20 @@ export function greeting(at: Date = new Date()): string {
   if (h < 17) return "Good afternoon";
   return "Good evening";
 }
+
+/**
+ * The longest edge an attendance photo is stored at.
+ *
+ * Only attendance. Clinical photography passes no cap and keeps its full
+ * 1920x1080, for the reasons set out in src/lib/cameraStream.ts.
+ *
+ * An attendance selfie is compared against a baseline face and then shown as
+ * an 80x80 thumbnail in the admin list - 800px is generous for both. What it
+ * buys is the upload: the clinic's staff check in on their phones at the
+ * door, frequently on mobile data, and somebody who falls back to their own
+ * camera app was sending a 12MP, 3-5MB frame. That is tens of seconds of
+ * standing still, and on an older iPhone it is more canvas than Safari will
+ * allocate - at which point the stamp throws and the photo uploads with no
+ * caption at all, which defeats the point of taking it.
+ */
+export const ATTENDANCE_PHOTO_MAX_EDGE = 800;

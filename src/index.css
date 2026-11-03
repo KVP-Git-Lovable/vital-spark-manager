@@ -364,6 +364,51 @@
   html,
   body {
     overflow-x: hidden;
+    /* Stop iOS enlarging text in landscape, which silently breaks the
+       carefully-sized dense tables. */
+    -webkit-text-size-adjust: 100%;
+    /* The grey flash on every tap. The app has its own press affordance
+       (main button:active scale below), so this is pure noise on a phone. */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Rubber-banding the whole page behind an open sheet, and the browser's
+     pull-to-refresh firing while somebody scrolls a long patient list, are
+     both unwanted here. The real scroll container is <main>, not the body. */
+  body {
+    overscroll-behavior-y: contain;
+  }
+
+  /* ---------------------------------------------------------------------
+     Safe areas
+     ---------------------------------------------------------------------
+     index.html sets apple-mobile-web-app-status-bar-style: black-translucent,
+     which draws the page UNDER the status bar and home indicator. That needs
+     real padding or the header sits under the clock and the notch.
+
+     These two class names were already in use - Portal.tsx has used
+     `safe-area-top` and `safe-area-bottom` since before this change - but
+     they were never defined anywhere, so they silently did nothing and the
+     patient portal's bottom nav sat under the home indicator.
+
+     max() rather than the raw inset: on a device with no notch the inset is
+     0px, and these still need their ordinary padding. */
+  .safe-area-top {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+
+  .safe-area-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  /* For elements that already carry their own padding and only need to clear
+     the inset - a sticky header, the camera's control bar. */
+  .safe-inset-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   /* Radix's Dialog/Sheet scroll-lock only touches document.body

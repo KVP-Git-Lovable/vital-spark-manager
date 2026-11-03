@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { shrinkOrOriginal } from "@/lib/stampPhoto";
+import { ATTENDANCE_PHOTO_MAX_EDGE } from "@/lib/attendance";
 
 /**
  * Saving the photo a staff member's attendance selfie is checked against.
@@ -34,11 +36,26 @@ export function staffPhotoPath(staffId: string, fileName?: string | null, now: n
  * here would leave somebody unable to check in with no idea why.
  */
 export async function uploadStaffPhoto(staffId: string, file: File): Promise<string> {
-  const path = staffPhotoPath(staffId, file.name);
+  // The baseline was stored at whatever the source happened to be. Picked
+  // from the gallery on a phone that is a 12MP, 3-5MB frame - uploaded on
+  // clinic data, kept forever, and re-read by the face verifier on every
+  // check-in. 800px is more than the matcher uses.
+  //
+  // Never fails the registration: shrinkOrOriginal hands back the original
+  // on any error, so the worst case is the behaviour we had before.
+  const body = await shrinkOrOriginal(file, ATTENDANCE_PHOTO_MAX_EDGE);
+
+  // The extension follows what is actually being stored, not the name the
+  // phone gave us: shrinkOrOriginal re-encodes to JPEG when it resizes and
+  // returns the untouched original when it does not, so a picked .png can
+  // leave here as either. A path saying .png over JPEG bytes is the kind of
+  // mismatch that serves broken images months later.
+  const type = body.type || file.type || "image/jpeg";
+  const path = staffPhotoPath(staffId, type === "image/jpeg" ? "x.jpg" : file.name);
 
   const { error: upErr } = await supabase.storage
     .from("attendance-photos")
-    .upload(path, file, { contentType: file.type || "image/jpeg" });
+    .upload(path, body, { contentType: type });
   if (upErr) throw upErr;
 
   const { data: signed, error: signErr } = await supabase.storage

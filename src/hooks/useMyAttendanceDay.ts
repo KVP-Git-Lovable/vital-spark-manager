@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +15,7 @@ import {
   type FaceResult,
 } from "@/lib/attendance";
 import { stampPhotoOrOriginal } from "@/lib/stampPhoto";
+import { ATTENDANCE_PHOTO_MAX_EDGE } from "@/lib/attendance";
 import { currentPosition, reverseGeocode, type Fix } from "@/lib/geo";
 import { nonWorkingReason } from "@/lib/workingDays";
 import { useAttendanceSettings } from "@/hooks/useAttendanceSettings";
@@ -62,6 +63,34 @@ export function useMyAttendanceDay() {
    */
   const [registering, setRegistering] = useState<null | DayKind>(null);
 
+  /**
+   * The location lookup, started early and awaited late.
+   *
+   * It used to run at the top of submit(), in band: up to 11s for a
+   * high-accuracy fix (10s timeout plus a 1s safety timer) and then up to 4s
+   * more to turn it into a street address, all AFTER the selfie was taken
+   * and before the upload had begun. On a phone at the clinic door that was
+   * most of a 20-30 second wait staring at "Getting location…".
+   *
+   * The several seconds somebody spends framing and taking a selfie is dead
+   * time for the GPS, so the request now starts the moment they press, and
+   * submit() awaits a promise that has usually already settled.
+   *
+   * It also puts iOS's location prompt where it belongs. Asked from inside
+   * submit(), the sheet appeared after the camera had closed and the photo
+   * was already taken - two system prompts at two unrelated moments.
+   */
+  const locating = useRef<Promise<{ fix: Fix | null; address: string | null }> | null>(null);
+
+  const beginLocating = () => {
+    if (!config.capture_location) { locating.current = null; return; }
+    locating.current = (async () => {
+      const fix = await currentPosition();
+      const address = fix ? await reverseGeocode(fix.latitude, fix.longitude) : null;
+      return { fix, address };
+    })();
+  };
+
   const { config, weekOffs, holidays } = useAttendanceSettings();
   const closedToday = nonWorkingReason(new Date(), weekOffs, holidays);
 
@@ -108,6 +137,8 @@ export function useMyAttendanceDay() {
   const press = (kind: DayKind) => {
     setMode(kind);
     setAttempt(0);
+    // Starts now so it is ready by the time the selfie is taken.
+    beginLocating();
     // Selfie switched off in settings: record the day without a camera, a
     // photo or a face call, and mark it unverified so it is never mistaken
     // for a checked one. The reference's doDirectAttendance.
@@ -155,12 +186,18 @@ export function useMyAttendanceDay() {
     try {
       // Where they are. Best-effort throughout: a denied permission or a
       // phone that cannot see the sky must never cost somebody their day.
+      //
+      // Normally already settled - it was started when they pressed - so
+      // this costs nothing. Started here only on the path where press()
+      // never ran one, which is the selfie-disabled one-tap check-in.
       let fix: Fix | null = null;
       let address: string | null = null;
       if (config.capture_location) {
+        if (!locating.current) beginLocating();
         setStep("locating");
-        fix = await currentPosition();
-        if (fix) address = await reverseGeocode(fix.latitude, fix.longitude);
+        const located = await locating.current;
+        fix = located?.fix ?? null;
+        address = located?.address ?? null;
       }
 
       let path: string | null = null;
@@ -172,6 +209,7 @@ export function useMyAttendanceDay() {
           address,
           lat: fix?.latitude ?? null,
           lng: fix?.longitude ?? null,
+          maxEdge: ATTENDANCE_PHOTO_MAX_EDGE,
         });
         path = attendancePhotoPath(staffId, kind, now);
         const { error: upErr } = await supabase.storage
@@ -264,6 +302,12 @@ export function useMyAttendanceDay() {
       : "Selfie to start your day",
     defaultFacing: "user" as const,
     faceGuide: true,
+    // A check-in must be a photo taken now. Without this the gallery route
+    // let somebody submit an existing selfie, which `submit` then stamped
+    // with the current time and the clinic's address - a caption asserting a
+    // time and place the photo was never taken at - and the face match
+    // passed, because it really is their face.
+    liveOnly: true,
     onCapture: (file: File) => {
       setCameraOpen(false);
       const pending = registering;

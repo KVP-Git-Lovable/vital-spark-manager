@@ -104,7 +104,7 @@ export function MyDayCard() {
               )}
               {phase === "complete" && <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />}
 
-              <h2 className="flex items-baseline gap-2 truncate font-display text-lg font-semibold">
+              <h2 className="flex flex-wrap items-baseline gap-x-2 font-display text-lg font-semibold">
                 {phase === "not_started" && "Your day hasn't started"}
                 {phase === "running" && (
                   <>Working<span className="text-2xl tabular-nums leading-none text-success">{elapsedText}</span></>
@@ -134,14 +134,25 @@ export function MyDayCard() {
           </div>
         </div>
 
-        {/* Both buttons, always, exactly as /attendance shows them: the
-            greyed-out one names what already happened, which is what tells
-            somebody at a glance where they are in their day. */}
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {/* /attendance shows both buttons always, so the greyed-out one
-              names what already happened. Here the headline already says
-              "Day complete - 9h 28m", so a pair of dead buttons both reading
-              "Day Ended" is just noise taking up the strip. */}
+        {/* Full-width and stacked on a phone, inline from sm up. Two
+            reasons, both from watching it at 375px:
+
+            1. These were 36px tall. This is the control the clinic presses
+               twice a day on a phone, and it was the smallest thing on the
+               card.
+            2. The row used to re-wrap mid-check-in. "Start My Day" and
+               "End My Day" fit side by side, but the busy label is
+               "Verifying face match…", which does not - so the moment
+               somebody pressed, the buttons jumped to a second line and
+               took History with them. Giving each its own row on mobile
+               means the label can grow without moving anything. */}
+        <div className="flex w-full shrink-0 flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
+          {/* Both buttons while there is something to press, exactly as
+              /attendance shows them: the greyed-out one names what already
+              happened, which is what tells somebody at a glance where they
+              are in their day. Once the day is complete the headline already
+              says "Day complete - 9h 28m", so a pair of dead buttons both
+              reading "Day Ended" would be noise taking up the strip. */}
           {phase !== "complete" && (<>
           <Button
             type="button"
@@ -149,7 +160,7 @@ export function MyDayCard() {
             disabled={busy || buttons.start.disabled}
             onClick={() => press("check_in")}
             data-testid="dash-start-my-day"
-            className="gap-2 transition-transform hover:-translate-y-0.5 motion-reduce:transform-none motion-reduce:transition-none"
+            className="min-h-11 w-full gap-2 transition-transform hover:-translate-y-0.5 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
           >
             {busy && mode === "check_in"
               ? <><Loader2 className="h-4 w-4 animate-spin" />{stepLabel}</>
@@ -162,14 +173,14 @@ export function MyDayCard() {
             disabled={busy || buttons.end.disabled}
             onClick={() => press("check_out")}
             data-testid="dash-end-my-day"
-            className="gap-2 transition-transform hover:-translate-y-0.5 motion-reduce:transform-none motion-reduce:transition-none"
+            className="min-h-11 w-full gap-2 transition-transform hover:-translate-y-0.5 motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
           >
             {busy && mode === "check_out"
               ? <><Loader2 className="h-4 w-4 animate-spin" />{stepLabel}</>
               : <><Camera className="h-4 w-4" />{buttons.end.label}</>}
           </Button>
           </>)}
-          <Button asChild size="sm" variant="ghost" className="gap-1 text-xs text-muted-foreground">
+          <Button asChild size="sm" variant="ghost" className="min-h-11 gap-1 text-xs text-muted-foreground sm:min-h-0">
             <Link to="/attendance">History<ArrowRight className="h-3 w-3" /></Link>
           </Button>
         </div>

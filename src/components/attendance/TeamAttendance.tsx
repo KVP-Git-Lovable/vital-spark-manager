@@ -57,14 +57,17 @@ export function TeamAttendance() {
         <Users className="h-5 w-5 text-primary" />All staff
       </h2>
 
+      {/* Share the row rather than two fixed 160px boxes: at 375px those
+          came to 332px against ~343px of usable width, and iOS renders a
+          date input wider than that again. */}
       <div className="flex flex-wrap gap-3 items-end">
-        <div>
+        <div className="min-w-0 flex-1 sm:flex-none">
           <Label htmlFor="from" className="text-xs">From</Label>
-          <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
+          <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full sm:w-40" />
         </div>
-        <div>
+        <div className="min-w-0 flex-1 sm:flex-none">
           <Label htmlFor="to" className="text-xs">To</Label>
-          <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" />
+          <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full sm:w-40" />
         </div>
       </div>
 
@@ -124,7 +127,19 @@ export function TeamAttendance() {
       <Dialog open={!!photo} onOpenChange={(open) => { if (!open) setPhoto(null); }}>
         <DialogContent className="max-w-3xl">
           <DialogHeader><DialogTitle>{photo?.who} · {photo?.when}</DialogTitle></DialogHeader>
-          {photo && <img src={photo.url} alt={`${photo.who} at ${photo.when}`} className="w-full rounded-md" />}
+          {/* max-h + object-contain, so the WHOLE photo is on screen at once.
+              A portrait selfie at w-full rendered ~343x610 on a phone inside
+              a max-h-[92dvh] scrolling dialog, which put the bottom of the
+              image below the fold - and the bottom of the image is exactly
+              where stampPhoto draws the time and place. An admin checking a
+              disputed check-in saw a face and no caption. */}
+          {photo && (
+            <img
+              src={photo.url}
+              alt={`${photo.who} at ${photo.when}`}
+              className="max-h-[70dvh] w-full rounded-md object-contain"
+            />
+          )}
         </DialogContent>
       </Dialog>
     </section>

@@ -57,11 +57,18 @@ export default function Attendance() {
           )}
 
           {/* Both, always. The greyed-out one names what already happened,
-              which is what tells somebody where they are in their day. */}
-          <div className="flex flex-wrap gap-3">
+              which is what tells somebody where they are in their day.
+
+              Stacked full-width on a phone. `flex-1 sm:flex-none` gave each
+              button ~162px at 375px, which is narrower than the busy label
+              "Verifying face match…" needs with whitespace-nowrap - so the
+              row collapsed from side-by-side to stacked and back again on
+              every single press. Own row each, and the label can say what
+              it likes. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Button
               type="button"
-              className="flex-1 sm:flex-none"
+              className="min-h-11 w-full sm:w-auto"
               disabled={busy || buttons.start.disabled}
               onClick={() => press("check_in")}
               data-testid="start-my-day"
@@ -73,7 +80,7 @@ export default function Attendance() {
             <Button
               type="button"
               variant="outline"
-              className="flex-1 sm:flex-none"
+              className="min-h-11 w-full sm:w-auto"
               disabled={busy || buttons.end.disabled}
               onClick={() => press("check_out")}
               data-testid="end-my-day"

@@ -39,7 +39,7 @@ describe("Doctor Referrals report", () => {
   it("carries the Salesforce id, which is how a missing name gets looked up", async () => {
     const keys = (await getReport("doctor_referrals")).columns.map((c) => c.key);
     for (const k of ["name", "phone", "referring_doctor", "source", "total_visits",
-                     "lifetime_value", "created_at", "sf_id"]) {
+                     "lifetime_value", "registered_at", "sf_id"]) {
       expect(keys).toContain(k);
     }
   });
@@ -114,5 +114,31 @@ describe("Doctor Referrals report", () => {
     ]);
     expect(cards[0].value).toBe("3");
     expect(cards[1].value).toBe("2");
+  });
+});
+
+/**
+ * The date this report is built on.
+ *
+ * The clinic went looking for 2023 referrals and found nothing before April
+ * 2026. Every patient row in this database was CREATED by the Salesforce
+ * migration on 22 April 2026, so a report dated by created_at starts there
+ * and the clinic's first six years are invisible. registered_at is when the
+ * patient actually registered - populated for all 27,624 of them, back to
+ * August 2020.
+ */
+describe("Doctor Referrals is dated by when the patient registered", () => {
+  it("never dates itself by the row's creation", async () => {
+    const report = await getReport("doctor_referrals");
+    expect(report.columns.map((c) => c.key)).not.toContain("created_at");
+    expect(report.defaultSort?.key).toBe("registered_at");
+  });
+
+  it("filters the database on registered_at, not created_at", async () => {
+    const report = await getReport("doctor_referrals");
+    const range = report.filters?.find((f) => f.key === "dateRange");
+    expect(range?.serverDateField).toBe("registered_at");
+    // The label was always right; only the field it read was wrong.
+    expect(range?.label).toBe("Registered");
   });
 });

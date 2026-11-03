@@ -382,7 +382,20 @@ export const REPORTS: ReportConfig[] = [
      */
     description: "Patients referred by another doctor, with the referring doctor where it is known.",
     category: "Patients",
-    defaultSort: { key: "created_at", dir: "desc" },
+    /**
+     * Dated by registered_at, NOT created_at.
+     *
+     * created_at is when the ROW was made, and every patient in this database
+     * was made by the Salesforce migration on 22 April 2026 - so a report
+     * dated by it begins in April 2026 and the clinic's first six years are
+     * invisible. The clinic asked for 2023 and could not find it.
+     *
+     * registered_at is when the patient actually registered. It is populated
+     * for all 27,624 of them, app-created ones included, and reaches back to
+     * August 2020. The column on this report has always been LABELLED
+     * "Registered"; it was simply reading the wrong field.
+     */
+    defaultSort: { key: "registered_at", dir: "desc" },
     columns: [
       { key: "name", label: "Patient", sortable: true, accessor: (r) => `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim() },
       { key: "phone", label: "Phone", sortable: true },
@@ -390,11 +403,11 @@ export const REPORTS: ReportConfig[] = [
       { key: "source", label: "Source", sortable: true, type: "badge" },
       { key: "total_visits", label: "Visits", sortable: true, type: "number" },
       { key: "lifetime_value", label: "Billed", sortable: true, type: "currency" },
-      { key: "created_at", label: "Registered", sortable: true, type: "date" },
+      { key: "registered_at", label: "Registered", sortable: true, type: "date" },
       { key: "sf_id", label: "Salesforce ID", sortable: true },
     ],
     filters: [
-      { key: "dateRange", label: "Registered", type: "dateRange", serverDateField: "created_at" },
+      { key: "dateRange", label: "Registered", type: "dateRange", serverDateField: "registered_at" },
       {
         // The three spellings doctor referrals actually carry: the Salesforce
         // one and the app's two. Which rows the report shows is decided by
@@ -420,9 +433,9 @@ export const REPORTS: ReportConfig[] = [
       // again, and patient referrals are correctly left out.
       const rows = await fetchAll((s, e) => {
         let q = supabase.from("patients").select("*").ilike("source", "%refer%")
-          .order("created_at", { ascending: false }).range(s, e);
-        if (from) q = q.gte("created_at", from);
-        if (to) q = q.lte("created_at", to);
+          .order("registered_at", { ascending: false }).range(s, e);
+        if (from) q = q.gte("registered_at", from);
+        if (to) q = q.lte("registered_at", to);
         return q;
       });
       return (rows as Record<string, unknown>[]).filter(

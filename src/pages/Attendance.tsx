@@ -20,6 +20,7 @@ import {
 } from "@/lib/attendance";
 import { stampTimeOrOriginal } from "@/lib/stampPhoto";
 import { uploadStaffPhoto } from "@/lib/staffPhoto";
+import { TeamAttendance } from "@/components/attendance/TeamAttendance";
 
 /**
  * Starting and ending a working day.
@@ -42,7 +43,7 @@ const today = () => format(new Date(), "yyyy-MM-dd");
 type Step = "idle" | "registering" | "photo" | "verifying" | "saving";
 
 export default function Attendance() {
-  const { staffProfile } = useAuth();
+  const { staffProfile, isAdmin } = useAuth();
   const qc = useQueryClient();
   const staffId = staffProfile?.id;
 
@@ -85,9 +86,9 @@ export default function Attendance() {
   const busy = step !== "idle";
 
   const stepLabel =
-    step === "registering" || step === "photo" ? "Saving your photo…"
-    : step === "verifying" ? "Checking your face…"
-    : step === "saving" ? "Recording…"
+    step === "registering" || step === "photo" ? "Uploading photo…"
+    : step === "verifying" ? "Verifying face match…"
+    : step === "saving" ? "Saving attendance…"
     : "";
 
   /**
@@ -210,13 +211,13 @@ export default function Attendance() {
   const hours = hoursWorked(record?.check_in_time, record?.check_out_time);
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-2xl">
+    <div className="p-4 md:p-6 space-y-6">
       <header className="flex items-center gap-2">
         <CalendarCheck className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-semibold font-display">Attendance</h1>
       </header>
 
-      <Card>
+      <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle className="text-lg">{format(new Date(), "EEEE, d MMMM yyyy")}</CardTitle>
         </CardHeader>
@@ -280,6 +281,10 @@ export default function Attendance() {
         </CardContent>
       </Card>
 
+      {/* Admins get everyone else's below their own. One page called
+          Attendance, which is where the clinic kept looking. */}
+      {isAdmin && <TeamAttendance />}
+
       <CameraDialog
         open={cameraOpen}
         onOpenChange={setCameraOpen}
@@ -289,6 +294,7 @@ export default function Attendance() {
           : "Selfie to start your day"
         }
         defaultFacing="user"
+        faceGuide
         onCapture={(file) => {
           setCameraOpen(false);
           const pending = registering;

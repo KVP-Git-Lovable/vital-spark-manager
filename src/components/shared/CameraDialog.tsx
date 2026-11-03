@@ -37,12 +37,22 @@ interface CameraDialogProps {
    * means turning the phone round and shooting blind.
    */
   defaultFacing?: "environment" | "user";
+  /**
+   * A dashed circle over the middle of the frame, as the Bharath Builders
+   * attendance camera has.
+   *
+   * It is what tells somebody how far back to stand and where to put their
+   * face, which matters when the photo is about to be compared against
+   * another one. Off by default - a patient's skin or a prescription being
+   * scanned wants the whole frame, not a face-shaped target.
+   */
+  faceGuide?: boolean;
 }
 
 /** How much of the screen the live view may take, leaving the shutter on it. */
 const FRAME_MAX_HEIGHT = "68vh";
 
-export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, onCaptureMany, title = "Take Photo", defaultFacing = "environment" }: CameraDialogProps) {
+export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, onCaptureMany, title = "Take Photo", defaultFacing = "environment", faceGuide = false }: CameraDialogProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileFallbackRef = useRef<HTMLInputElement>(null);
@@ -446,6 +456,14 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
                 className="w-full h-full object-contain"
                 playsInline
                 muted
+                /* Mirrored on the front camera, as every selfie view is and
+                   as the reference does. Un-mirrored, raising your right hand
+                   moves the wrong way on screen and people fight the camera
+                   trying to centre themselves. The CAPTURE is not flipped -
+                   handleCapture draws the raw video - so the stored photo
+                   keeps its real orientation, which is what the face check
+                   and an admin reviewing it need. */
+                style={facingMode === "user" ? { transform: "scaleX(-1)" } : undefined}
                 onLoadedMetadata={(e) =>
                   setFrameRatio(frameAspectRatio(e.currentTarget.videoWidth, e.currentTarget.videoHeight))
                 }
@@ -457,6 +475,15 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
               )}
             </>
           )}
+          {/* Where to put your face. Dashed, so it reads as a guide rather
+              than a frame the photo will be cropped to. Clinic tokens, not
+              the reference's palette. */}
+          {faceGuide && !error && (
+            <div aria-hidden data-testid="face-guide" className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className={`h-48 w-48 rounded-full border-2 border-dashed ${previewUrl ? "border-primary/50" : "border-white/60"}`} />
+            </div>
+          )}
+
           {/* Transform and opacity only, and only when motion is welcome -
               see AGENTS.md. */}
           {focusRing && !previewUrl && !error && (

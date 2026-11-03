@@ -3,6 +3,7 @@ import { DateInput } from "@/components/shared/DateInput";
 import { ViewPrescriptionButton } from "@/components/prescriptions/ViewPrescriptionButton";
 import { withDrPrefix } from "@/lib/staffName";
 import { MANUAL_APPOINTMENT_STATUSES, appointmentStatusLabel, showsAsBilled, BILLED_BADGE_CLASSES } from "@/lib/appointmentStatus";
+import { invoiceMapByAppointment, type VisitBill } from "@/lib/invoicesForAppointments";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
 import { confirmationSendPlan } from "@/lib/confirmationSend";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
@@ -1127,14 +1128,28 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
    * Both lists are loaded for the patient, so the rows belonging to this visit
    * are the ones naming it.
    */
+  /**
+   * Every bill this patient has, keyed by the visit it belongs to.
+   *
+   * invoiceMapByAppointment is the clinic's one definition of "this visit has
+   * a bill": it drops rows with no appointment, and drops Cancelled and
+   * Merged bills, which are not money anybody was charged. The check below
+   * used to be a bare .some() on appointment_id with no status filter at all,
+   * so a cancelled bill counted as evidence the visit had been billed.
+   */
+  const billsByAppointment = useMemo(
+    () => invoiceMapByAppointment(invoices as VisitBill[]),
+    [invoices],
+  );
+
   const visitEvidence = useMemo(
     () => ({
-      hasInvoice: (invoices as { appointment_id?: string | null }[]).some((i) => i.appointment_id === appointmentId),
+      hasInvoice: billsByAppointment.has(appointmentId),
       hasProcedure: (previousProcedures as { appointment_id?: string | null }[]).some(
         (p) => p.appointment_id === appointmentId,
       ),
     }),
-    [invoices, previousProcedures, appointmentId],
+    [billsByAppointment, previousProcedures, appointmentId],
   );
 
   const [moveVisitOpen, setMoveVisitOpen] = useState(false);
@@ -1824,7 +1839,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                                   service when there is no text. */}
                               <div className="flex items-start justify-between gap-2">
                                 <p className="font-medium text-sm">{investigationText(apt, apt.service || "Consultation")}</p>
-                                <Badge variant="outline" className={`text-xs shrink-0 ${showsAsBilled(apt.status) ? BILLED_BADGE_CLASSES : STATUS_BADGE_CLASSES[apt.status] || ""}`}>{appointmentStatusLabel(apt.status)}</Badge>
+                                <Badge variant="outline" className={`text-xs shrink-0 ${showsAsBilled(apt.status, billsByAppointment.has(apt.id)) ? BILLED_BADGE_CLASSES : STATUS_BADGE_CLASSES[apt.status] || ""}`}>{appointmentStatusLabel(apt.status, billsByAppointment.has(apt.id))}</Badge>
                               </div>
                               <p className="text-xs mt-1">
                                 <span className="font-medium text-foreground">{displayDate(apt.start_time)}</span>

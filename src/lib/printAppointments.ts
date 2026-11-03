@@ -5,6 +5,8 @@ import { displayDate } from "@/lib/dateInput";
 import { investigationText } from "@/lib/investigationText";
 import { appointmentPatientName, appointmentPatientIsVip } from "@/lib/appointmentPatientName";
 import { appointmentStatusLabel } from "@/lib/appointmentStatus";
+import { fetchInvoicesByAppointmentIds, invoiceMapByAppointment, type VisitBill } from "@/lib/invoicesForAppointments";
+import { supabase } from "@/integrations/supabase/client";
 
 const esc = (v: any) =>
   String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
@@ -54,6 +56,33 @@ export async function printAppointments(
     throw e;
   }
 
+  /**
+   * The bills behind the printed visits.
+   *
+   * The sheet used to print the appointment's status and call anything
+   * "Completed" billed, which is not a reliable record of a bill: a visit
+   * imported from Salesforce can be Completed with no invoice at all, and a
+   * visit paid minutes before its slot stays on "Confirmed". The sheet is
+   * carried to the front desk and read as fact, so it asks for the bills.
+   *
+   * Best-effort on purpose. If the lookup fails the sheet still prints, with
+   * each row showing its plain status - never a "Billed" nobody can back up.
+   */
+  let billedApptIds = new Set<string>();
+  try {
+    const bills = await fetchInvoicesByAppointmentIds(async (ids: string[]) => {
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("id, appointment_id, status, created_at")
+        .in("appointment_id", ids);
+      if (error) throw error;
+      return data || [];
+    }, rows.map((a) => a.id).filter(Boolean));
+    billedApptIds = new Set(invoiceMapByAppointment(bills as VisitBill[]).keys());
+  } catch {
+    // Printing the list matters more than the billing column.
+  }
+
   const body = rows
     .map((a, i) => {
       const p = a.patients;
@@ -73,7 +102,7 @@ export async function printAppointments(
         <td>${a.start_time ? esc(displayDate(a.start_time)) : ""}</td>
         <td>${a.start_time ? esc(format(new Date(a.start_time), "hh:mm a")) : ""}</td>
         <td class="inv">${esc(investigationText(a, "—"))}</td>
-        <td>${esc(appointmentStatusLabel(a.status))}</td>
+        <td>${esc(appointmentStatusLabel(a.status, billedApptIds.has(a.id)))}</td>
       </tr>`;
     })
     .join("");

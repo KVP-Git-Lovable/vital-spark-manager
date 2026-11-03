@@ -25,6 +25,7 @@ import { npsBreakdown } from "@/lib/feedbackScores";
 import { useMoneyFormat } from "@/lib/currency";
 import { formatMoneyCompact } from "@/lib/currency";
 import { kpiColumnClass } from "@/lib/kpiGrid";
+import { invoiceMapByAppointment, type VisitBill } from "@/lib/invoicesForAppointments";
 import { appointmentPatientName, appointmentPatientInitialsText } from "@/lib/appointmentPatientName";
 import { appointmentStatusLabel, showsAsBilled, BILLED_BADGE_CLASSES } from "@/lib/appointmentStatus";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
@@ -363,13 +364,13 @@ const Index = () => {
    * because the patient paid before her slot and the trigger skipped her.
    * Cancelled bills are already out of `invoices` for this purpose.
    */
+  // invoiceMapByAppointment rather than a local filter. This copy excluded
+  // "Cancelled" only, so a MERGED bill would still have counted the visit as
+  // billed. No invoice carries that status today, so nothing on this screen
+  // changes - but three screens each had their own idea of what counts as a
+  // bill, and they disagreed. There is one definition now.
   const billedApptIds = useMemo(
-    () =>
-      new Set(
-        (invoices as { status?: string | null; appointment_id?: string | null }[])
-          .filter((inv) => inv.status !== "Cancelled" && inv.appointment_id)
-          .map((inv) => inv.appointment_id as string),
-      ),
+    () => new Set(invoiceMapByAppointment(invoices as VisitBill[]).keys()),
     [invoices],
   );
 

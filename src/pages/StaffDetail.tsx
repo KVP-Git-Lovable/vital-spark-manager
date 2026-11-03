@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { DateInput } from "@/components/shared/DateInput";
 import { onlyCountableInvoices } from "@/lib/revenueScope";
 import { numVal } from "@/lib/numberInput";
@@ -24,7 +24,8 @@ import { motion } from "framer-motion";
 import StaffPerformanceCharts from "@/components/staff/StaffPerformanceCharts";
 import { procedureDateLabel } from "@/lib/procedureDate";
 import { appointmentPatientName } from "@/lib/appointmentPatientName";
-import { appointmentStatusLabel } from "@/lib/appointmentStatus";
+import { appointmentStatusLabel, appointmentStatusClasses, showsAsBilled, BILLED_BADGE_CLASSES } from "@/lib/appointmentStatus";
+import { fetchInvoicesByAppointmentIds, invoiceMapByAppointment, type VisitBill } from "@/lib/invoicesForAppointments";
 
 const StaffDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -119,6 +120,37 @@ const AppointmentsTab = ({ staffId }: { staffId: string }) => {
     },
   });
 
+  /**
+   * Which of these visits carry a bill.
+   *
+   * The Status cell used to read the appointment's status and call anything
+   * "Completed" billed. That is not a reliable record of a bill - a visit can
+   * be marked Completed by a Salesforce import with no invoice behind it, and
+   * a visit paid minutes before its slot stays on "Confirmed" for ever - so
+   * the bills are fetched and asked directly.
+   */
+  const appointmentIds = useMemo(() => (appointments as { id: string }[]).map((a) => a.id), [appointments]);
+  const { data: visitBills = [] } = useQuery({
+    // Keyed on the ids themselves, not their count: this list is capped at
+    // 50, so reassigning one visit to another doctor leaves the length
+    // identical and would otherwise serve the previous set's bills.
+    queryKey: ["staff-appointment-bills", staffId, appointmentIds.join(",")],
+    enabled: appointmentIds.length > 0,
+    queryFn: () =>
+      fetchInvoicesByAppointmentIds(async (ids: string[]) => {
+        const { data, error } = await supabase
+          .from("invoices")
+          .select("id, appointment_id, status, created_at")
+          .in("appointment_id", ids);
+        if (error) throw error;
+        return data || [];
+      }, appointmentIds),
+  });
+  const billedApptIds = useMemo(
+    () => new Set(invoiceMapByAppointment(visitBills as VisitBill[]).keys()),
+    [visitBills],
+  );
+
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">Appointments ({appointments.length})</CardTitle></CardHeader>
@@ -139,7 +171,7 @@ const AppointmentsTab = ({ staffId }: { staffId: string }) => {
                   <TableCell className="text-sm">{format(new Date(a.start_time), "dd MMM yyyy, hh:mm a")}</TableCell>
                   <TableCell>{appointmentPatientName(a)}</TableCell>
                   <TableCell>{a.service}</TableCell>
-                  <TableCell><Badge variant={a.status === "Completed" ? "default" : "secondary"}>{appointmentStatusLabel(a.status)}</Badge></TableCell>
+                  <TableCell><Badge variant="outline" className={showsAsBilled(a.status, billedApptIds.has(a.id)) ? BILLED_BADGE_CLASSES : appointmentStatusClasses(a.status)}>{appointmentStatusLabel(a.status, billedApptIds.has(a.id))}</Badge></TableCell>
                 </TableRow>
               ))}
             </TableBody>

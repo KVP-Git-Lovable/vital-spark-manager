@@ -53,13 +53,22 @@ export const appointmentStatusClasses = (status: string | null | undefined): str
  * forty-six mismatches are exactly that, and the clinic reported it the first
  * day the badge said "Billed".
  *
- * Three answers, deliberately:
- *   billed === true   -> "Billed". It has a bill; that is the whole question.
- *   billed === false  -> the status as stored. A visit marked Completed with
- *                        no bill behind it says "Completed", not "Billed".
- *   billed undefined  -> the caller cannot tell, so fall back to reading the
- *                        status, which is the best guess available. The print
- *                        sheet and the patient's Appts tab fetch no invoices.
+ * Two answers, and no guessing:
+ *   billed === true  -> "Billed". It has a bill; that is the whole question.
+ *   anything else    -> the status as stored. A visit marked Completed with
+ *                       no bill behind it says "Completed", not "Billed".
+ *
+ * `undefined` used to mean "the caller cannot tell, so read the status", and
+ * that guess is what the clinic reported: a patient who never attended and
+ * was never invoiced read "Billed" on her Appts tab, because a Salesforce
+ * import had marked the visit Completed. Across the clinic 4,759 Completed
+ * appointments have no invoice at all, and - the same mistake pointing the
+ * other way - 8,147 Confirmed ones DO have one and were not saying so.
+ *
+ * So not knowing now looks exactly like not billed. A screen that forgets to
+ * pass the flag renders "Completed", which is merely less informative; it can
+ * no longer assert a bill that does not exist. That is the point: the only
+ * way to get the word "Billed" on screen is to have looked for the bill.
  *
  * Either way this is a label. The stored value is still "Completed" - the
  * trigger writes it, the dashboard once counted it, saved views filter on it,
@@ -68,12 +77,7 @@ export const appointmentStatusClasses = (status: string | null | undefined): str
 export const appointmentStatusLabel = (
   status: string | null | undefined,
   billed?: boolean,
-): string => {
-  if (billed === true) return "Billed";
-  const value = (status || "").trim();
-  if (billed === false) return status ?? "";
-  return value === "Completed" ? "Billed" : (status ?? "");
-};
+): string => (billed === true ? "Billed" : (status ?? ""));
 
 /**
  * The badge for a visit that has been billed.

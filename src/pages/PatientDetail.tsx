@@ -53,6 +53,7 @@ import { AppointmentDetailSheet } from "@/components/appointments/AppointmentDet
 import { ViewPrescriptionButton } from "@/components/prescriptions/ViewPrescriptionButton";
 import { QuickAppointmentDialog } from "@/components/appointments/QuickAppointmentDialog";
 import { appointmentStatusClasses, appointmentStatusLabel, showsAsBilled, BILLED_BADGE_CLASSES } from "@/lib/appointmentStatus";
+import { invoiceMapByAppointment, type VisitBill } from "@/lib/invoicesForAppointments";
 import { SearchableSelect } from "@/components/shared/SearchableSelect";
 import { toast } from "sonner";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
@@ -395,6 +396,27 @@ const PatientDetail = () => {
     },
     enabled: !!id,
   });
+
+  /**
+   * Which of this patient's visits actually carry a bill.
+   *
+   * The clinic reported a visit the patient never attended reading "Billed"
+   * here. The badge was derived from the STATUS alone - "Completed" was taken
+   * to mean billed - and this patient's 25 September visit came from the
+   * Salesforce import already marked Completed with no invoice behind it. The
+   * same mistake pointing the other way hid two visits that were genuinely
+   * paid but still sat on "Confirmed", because the trigger that completes an
+   * appointment skips any whose start time has not yet arrived.
+   *
+   * No new query: `invoices` above is already this patient's complete bill
+   * history, fetched for the Invoices tab. That also means the answer here is
+   * always KNOWN rather than guessed, and the two tabs are driven by one list
+   * so they cannot contradict each other.
+   */
+  const billedApptIds = useMemo(
+    () => new Set(invoiceMapByAppointment(invoices as VisitBill[]).keys()),
+    [invoices],
+  );
 
   // Live roll-ups: a "visit" is an appointment that actually happened.
   const visitCount = useMemo(
@@ -1327,7 +1349,7 @@ const PatientDetail = () => {
                       <p className="text-xs text-muted-foreground mt-0.5">{apt.staff ? withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`) : "—"}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <Badge variant="outline" className={`text-xs ${showsAsBilled(apt.status) ? BILLED_BADGE_CLASSES : appointmentStatusClasses(apt.status)}`}>{appointmentStatusLabel(apt.status)}</Badge>
+                      <Badge variant="outline" className={`text-xs ${showsAsBilled(apt.status, billedApptIds.has(apt.id)) ? BILLED_BADGE_CLASSES : appointmentStatusClasses(apt.status)}`}>{appointmentStatusLabel(apt.status, billedApptIds.has(apt.id))}</Badge>
                       <p className="text-xs text-muted-foreground mt-1">{displayDate(apt.start_time)}</p>
                       <p className="text-xs text-muted-foreground">{new Date(apt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
@@ -1369,7 +1391,7 @@ const PatientDetail = () => {
                         </span>
                       </td>
                       <td className="p-4 text-sm text-muted-foreground">{apt.staff ? withDrPrefix(`${apt.staff.first_name} ${apt.staff.last_name}`) : "—"}</td>
-                      <td className="p-4"><Badge variant="outline" className={`text-xs ${showsAsBilled(apt.status) ? BILLED_BADGE_CLASSES : appointmentStatusClasses(apt.status)}`}>{appointmentStatusLabel(apt.status)}</Badge></td>
+                      <td className="p-4"><Badge variant="outline" className={`text-xs ${showsAsBilled(apt.status, billedApptIds.has(apt.id)) ? BILLED_BADGE_CLASSES : appointmentStatusClasses(apt.status)}`}>{appointmentStatusLabel(apt.status, billedApptIds.has(apt.id))}</Badge></td>
                     </tr>
                   ))}
                 </tbody>

@@ -307,11 +307,18 @@ function FeedbackTabContent({
     // when a tab must be claimed BEFORE an await - a PDF being built, an edge
     // function being called. Nothing is awaited here; the URL is already
     // known, so there was never anything to reserve.
-    const win = window.open(review.url, "_blank", "noopener,noreferrer");
+    // Do NOT pass "noopener" in the features string: the HTML spec makes
+    // window.open return null whenever noopener is set, even when the tab
+    // opened fine, so the null check below would fire the fallback on every
+    // successful click and recordReviewOpen would never run. Open without it
+    // and disown the opener manually instead - same protection, truthful
+    // return value.
+    const win = window.open(review.url, "_blank");
     if (!win) {
       offerReviewFallback();
       return;
     }
+    win.opener = null;
     recordReviewOpen();
   };
 

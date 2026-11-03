@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarCheck, Camera, CheckCircle2, Clock, Loader2, ShieldAlert, ShieldCheck, Users } from "lucide-react";
+import { CalendarCheck, Camera, CheckCircle2, Clock, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -29,6 +28,11 @@ import { uploadStaffPhoto } from "@/lib/staffPhoto";
 /**
  * Starting and ending a working day.
  *
+ * ONE person's own day, and nothing else. No staff list, no settings, and no
+ * link to them either - everyone's attendance and the policy live in
+ * Admin > Attendance. Both have been on this page at some point and both
+ * were wrong here: this is the screen somebody opens to start a shift.
+ *
  * Both buttons are always on screen, as the Bharath Builders app shows them,
  * with the unavailable one greyed out and naming what already happened. The
  * first version had a single button that swapped its own label, and the
@@ -47,7 +51,7 @@ const today = () => format(new Date(), "yyyy-MM-dd");
 type Step = "idle" | "registering" | "locating" | "photo" | "verifying" | "saving";
 
 export default function Attendance() {
-  const { staffProfile, isAdmin } = useAuth();
+  const { staffProfile } = useAuth();
   const qc = useQueryClient();
   const staffId = staffProfile?.id;
 
@@ -330,18 +334,6 @@ export default function Attendance() {
           )}
         </CardContent>
       </Card>
-
-      {/* Everyone else's attendance and the settings live in Admin >
-          Attendance. They were briefly here, which put policy and holidays on
-          the screen where a receptionist starts their day - this page is one
-          person's own day and nothing else. */}
-      {isAdmin && (
-        <Button asChild variant="ghost" size="sm" className="gap-2 -ml-2">
-          <Link to="/admin/attendance">
-            <Users className="h-4 w-4" />View all staff and settings
-          </Link>
-        </Button>
-      )}
 
       <CameraDialog
         open={cameraOpen}

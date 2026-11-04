@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { formatMoneyTile } from "@/lib/currency";
+import { patientTier, tierEmoji } from "@/lib/patientTier";
 
 interface EngagementData {
   score: number;
@@ -172,16 +173,33 @@ export const EngagementScoreCard = (
             <span className="text-xs text-muted-foreground">/100</span>
           </div>
           <div className="flex items-center gap-1.5">
-            {/* The badge is lifetime billing, the number beside it is
-                engagement - they are independent now, so a patient can read
-                "32/100 · 🏆 Platinum". Said out loud in the tooltip, because
-                the badge used to be a restatement of the score and anyone who
-                remembers that would misread it. */}
+            {/* Banded HERE from the billed figure, not read from data.tier.
+                The edge function returns a tier of its own, but the deployed
+                copy of that function can lag the rule - it did, and a patient
+                with ₹91,448 wore a Platinum badge for an afternoon. Deriving
+                it on this side means the badge agrees with the database by
+                construction instead of by a deployment being in step.
+
+                The badge is lifetime billing, the number beside it is
+                engagement - independent now, so a patient can legitimately
+                read "32/100 · 🏆 Platinum". Said out loud in the tooltip,
+                because the badge used to restate the score. */}
+            {hideBilled ? (
+              /* The amount is withheld from a doctor who is not this
+                 patient's own, and four coarse buckets still disclose it. */
+              <span
+                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border font-semibold text-muted-foreground"
+                title="Only this patient's own doctor can see their category"
+              >
+                <Lock className="h-3 w-3" aria-hidden />
+                <span className="sr-only">Category not shown - only this patient's own doctor can see it</span>
+              </span>
+            ) : (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border font-semibold cursor-help ${tierStyles[data.tier] || tierStyles.Early}`}>
-                    {data.tierEmoji} {data.tier}
+                  <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border font-semibold cursor-help ${tierStyles[patientTier(data.stats.totalBilled)]}`}>
+                    {tierEmoji(patientTier(data.stats.totalBilled))} {patientTier(data.stats.totalBilled)}
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[260px] text-xs">
@@ -191,6 +209,7 @@ export const EngagementScoreCard = (
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            )}
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExpanded(!expanded)}>
               {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </Button>

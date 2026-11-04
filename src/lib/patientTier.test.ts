@@ -144,3 +144,65 @@ describe("no screen can set the category by hand", () => {
     expect(guard, "the guard must come BEFORE the update, not after").toBeLessThan(write);
   });
 });
+
+/**
+ * The badge must not trust the edge function's own `tier`.
+ *
+ * 20261104170000 banded the category on billing and backfilled every patient.
+ * Within the hour a patient showing ₹91,448 was wearing Platinum again: the
+ * corrected function had been pushed to the repository but never deployed, so
+ * the previous version was still recomputing the tier from the engagement
+ * score (82 >= 80) and writing it back. Both badges therefore band the billed
+ * figure themselves, which cannot drift from the database the way a
+ * deployment can.
+ */
+describe("the badges band the billed figure themselves", () => {
+  const card = () => readFileSync("src/components/patients/EngagementScoreCard.tsx", "utf8");
+  const badge = () => readFileSync("src/components/patients/EngagementBadge.tsx", "utf8");
+
+  it("the patient card bands totalBilled and ignores data.tier", () => {
+    expect(card()).toMatch(/patientTier\(data\.stats\.totalBilled\)/);
+    expect(card(), "the card still renders the function's tier").not.toMatch(/\{data\.tier\}/);
+    expect(card(), "the card still renders the function's emoji").not.toMatch(/\{data\.tierEmoji\}/);
+  });
+
+  it("the list badge bands totalBilled and ignores data.tier", () => {
+    expect(badge()).toMatch(/patientTier\(data\.stats\?\.totalBilled\)/);
+    expect(badge(), "the badge still renders the function's tier").not.toMatch(/\{data\.tier\}/);
+    expect(badge(), "the badge still renders the function's emoji").not.toMatch(/\{data\.tierEmoji\}/);
+  });
+
+  it("the card withholds the category when it withholds the amount", () => {
+    // Four coarse buckets still disclose roughly what a colleague's patient
+    // has spent, and the amount beside it is already behind a lock.
+    const text = card();
+    const atBadge = text.indexOf("patientTier(data.stats.totalBilled)");
+    const guard = text.lastIndexOf("hideBilled ?", atBadge);
+    expect(guard, "the tier badge is not behind the hideBilled guard").toBeGreaterThan(-1);
+  });
+});
+
+/**
+ * The database is the backstop. force_patient_tier overrides whatever a
+ * client sends, so the stale edge function's write cannot stick.
+ */
+describe("the database forces the category", () => {
+  it("the migration overrides the caller rather than trusting it", () => {
+    const sql = readFileSync(
+      "supabase/migrations/20261104190000_the_category_cannot_be_written_wrong.sql",
+      "utf8",
+    );
+    expect(sql).toMatch(/new\.engagement_tier\s*:=/);
+    expect(sql).toMatch(/before insert or update on public\.patients/);
+    // The whole point: the caller's value is never read. A `coalesce(
+    // new.engagement_tier, ...)` would let the stale edge function's
+    // "Platinum" straight back in, and reads as a forcing trigger at a
+    // glance. engagement_tier may appear ONCE, as the assignment target.
+    const mentions = (sql.match(/new\.engagement_tier/g) ?? []).length;
+    expect(mentions, "the trigger reads back the value it is supposed to override").toBe(1);
+    // Same bands as everywhere else.
+    expect(sql).toMatch(/new\.lifetime_value > 300000 then 'Platinum'/);
+    expect(sql).toMatch(/new\.lifetime_value >= 100000 then 'Gold'/);
+    expect(sql).toMatch(/new\.lifetime_value > 0 then 'Silver'/);
+  });
+});

@@ -3,6 +3,7 @@ import { Loader2, TrendingUp, ChevronDown, ChevronUp, Sparkles, HelpCircle, Cale
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
+import { formatMoneyTile } from "@/lib/currency";
 
 interface EngagementData {
   score: number;
@@ -207,7 +208,7 @@ export const EngagementScoreCard = (
                   <span className="sr-only">Not shown - only this patient's own doctor can see this</span>
                 </span>
               ) : (
-                `₹${data.stats.totalBilled >= 1000 ? `${(data.stats.totalBilled / 1000).toFixed(1)}k` : data.stats.totalBilled}`
+                formatMoneyTile(data.stats.totalBilled)
               )}
             </p>
             <p className="text-[10px] text-muted-foreground">Billed</p>

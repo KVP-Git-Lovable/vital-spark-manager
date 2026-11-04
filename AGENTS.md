@@ -1,6 +1,7 @@
 # Project Architecture Rules
 
 - Appointment staff embeds must explicitly use appointments_staff_id_fkey and retain the staff response alias; therapist_id also references staff, so implicit embeds are ambiguous.
+- The same holds for every table reached by more than one foreign key: name the relationship rather than embedding by table name. A migration that adds a second route between two tables must add that pair to AMBIGUOUS_EMBEDS in src/lib/ambiguousEmbeds.test.ts, which fails the build on an implicit embed the mocked suite cannot see.
 
 - Keep service knowledge in dedicated articles with database-enforced active doctor/admin review, immutable revision snapshots, and draft-only AI suggestions; this prevents unreviewed clinical content from appearing in appointments.
 - Resolve appointment knowledge dynamically from the booked service and recorded procedure service IDs, with inclusive demographic matching; never persist guessed article assignments or automatically alter prescriptions.

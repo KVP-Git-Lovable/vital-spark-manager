@@ -390,7 +390,7 @@ serve(async (req) => {
     const [patientRes, appointmentsRes, proceduresRes, invoicesRes] = await Promise.all([
       sb.from("patients").select("*").eq("id", patientId).single(),
       sb.from("appointments").select("*, staff:staff!appointments_staff_id_fkey(first_name, last_name)").eq("patient_id", patientId).order("start_time", { ascending: false }).limit(20),
-      sb.from("procedures").select("*, staff(first_name, last_name)").eq("patient_id", patientId).order("procedure_date", { ascending: false }).limit(20),
+      sb.from("procedures").select("*, staff:staff!procedures_staff_id_fkey(first_name, last_name)").eq("patient_id", patientId).order("procedure_date", { ascending: false }).limit(20),
       sb.from("invoices").select("*").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(20),
     ]);
 

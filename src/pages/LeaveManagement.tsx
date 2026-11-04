@@ -101,7 +101,10 @@ const LeaveManagement = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("leave_applications")
-        .select("*, staff(first_name, last_name), leave_types(name)")
+        // leave_applications reaches staff twice - staff_id and approved_by -
+        // so an implicit embed is ambiguous and PostgREST refuses the whole
+        // request. The response alias stays `staff`, so rows read the same.
+        .select("*, staff:staff!leave_applications_staff_id_fkey(first_name, last_name), leave_types(name)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;

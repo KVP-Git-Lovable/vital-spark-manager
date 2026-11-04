@@ -54,6 +54,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_repository_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
+          },
+          {
             foreignKeyName: "ai_repository_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
@@ -124,6 +131,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "appointments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_sticky_notes_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
           },
         ]
       }
@@ -225,6 +239,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "appointments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_parent_appointment_id_fkey"
+            columns: ["parent_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
           },
           {
             foreignKeyName: "appointments_patient_id_fkey"
@@ -471,10 +492,51 @@ export type Database = {
           },
         ]
       }
+      attendance_config: {
+        Row: {
+          capture_location: boolean
+          face_match_threshold: number
+          face_max_attempts: number
+          id: string
+          require_selfie: boolean
+          singleton: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          capture_location?: boolean
+          face_match_threshold?: number
+          face_max_attempts?: number
+          id?: string
+          require_selfie?: boolean
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          capture_location?: boolean
+          face_match_threshold?: number
+          face_max_attempts?: number
+          id?: string
+          require_selfie?: boolean
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       attendance_records: {
         Row: {
+          check_in_address: string | null
+          check_in_face_confidence: number | null
+          check_in_face_status: string | null
+          check_in_location: Json | null
           check_in_photo: string | null
           check_in_time: string | null
+          check_out_address: string | null
+          check_out_face_confidence: number | null
+          check_out_face_status: string | null
+          check_out_location: Json | null
           check_out_photo: string | null
           check_out_time: string | null
           created_at: string
@@ -485,8 +547,16 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          check_in_address?: string | null
+          check_in_face_confidence?: number | null
+          check_in_face_status?: string | null
+          check_in_location?: Json | null
           check_in_photo?: string | null
           check_in_time?: string | null
+          check_out_address?: string | null
+          check_out_face_confidence?: number | null
+          check_out_face_status?: string | null
+          check_out_location?: Json | null
           check_out_photo?: string | null
           check_out_time?: string | null
           created_at?: string
@@ -497,8 +567,16 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          check_in_address?: string | null
+          check_in_face_confidence?: number | null
+          check_in_face_status?: string | null
+          check_in_location?: Json | null
           check_in_photo?: string | null
           check_in_time?: string | null
+          check_out_address?: string | null
+          check_out_face_confidence?: number | null
+          check_out_face_status?: string | null
+          check_out_location?: Json | null
           check_out_photo?: string | null
           check_out_time?: string | null
           created_at?: string
@@ -580,6 +658,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "appointments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bolna_booking_logs_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
           },
           {
             foreignKeyName: "bolna_booking_logs_patient_id_fkey"
@@ -2106,6 +2191,52 @@ export type Database = {
         }
         Relationships: []
       }
+      google_review_opens: {
+        Row: {
+          appointment_id: string | null
+          id: string
+          opened_at: string
+          opened_by: string | null
+          patient_id: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          id?: string
+          opened_at?: string
+          opened_by?: string | null
+          patient_id: string
+        }
+        Update: {
+          appointment_id?: string | null
+          id?: string
+          opened_at?: string
+          opened_by?: string | null
+          patient_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_review_opens_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_review_opens_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
+          },
+          {
+            foreignKeyName: "google_review_opens_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       history_tracking_config: {
         Row: {
           created_at: string
@@ -2127,6 +2258,33 @@ export type Database = {
           object_key?: string
           tracked_fields?: string[]
           updated_at?: string
+        }
+        Relationships: []
+      }
+      holidays: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          date: string
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          date: string
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          description?: string | null
+          id?: string
+          name?: string
         }
         Relationships: []
       }
@@ -2630,6 +2788,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "appointments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
           },
           {
             foreignKeyName: "invoices_doctor_id_fkey"
@@ -3695,6 +3860,13 @@ export type Database = {
             referencedRelation: "appointments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "patient_feedback_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: true
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
+          },
         ]
       }
       patient_feedback_backup_20261029: {
@@ -3852,6 +4024,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "appointments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_photos_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
           },
           {
             foreignKeyName: "patient_photos_patient_id_fkey"
@@ -4046,6 +4225,7 @@ export type Database = {
           address: string | null
           allergies: string | null
           alternate_phone: string | null
+          alternate_phone_last10: string | null
           auth_user_id: string | null
           avatar_url: string | null
           blood_group: string | null
@@ -4085,6 +4265,7 @@ export type Database = {
           notes: string | null
           owner_id: string | null
           phone: string | null
+          phone_last10: string | null
           pincode: string | null
           portal_pin_failed_attempts: number
           portal_pin_hash: string | null
@@ -4112,6 +4293,7 @@ export type Database = {
           address?: string | null
           allergies?: string | null
           alternate_phone?: string | null
+          alternate_phone_last10?: string | null
           auth_user_id?: string | null
           avatar_url?: string | null
           blood_group?: string | null
@@ -4151,6 +4333,7 @@ export type Database = {
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
+          phone_last10?: string | null
           pincode?: string | null
           portal_pin_failed_attempts?: number
           portal_pin_hash?: string | null
@@ -4178,6 +4361,7 @@ export type Database = {
           address?: string | null
           allergies?: string | null
           alternate_phone?: string | null
+          alternate_phone_last10?: string | null
           auth_user_id?: string | null
           avatar_url?: string | null
           blood_group?: string | null
@@ -4217,6 +4401,7 @@ export type Database = {
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
+          phone_last10?: string | null
           pincode?: string | null
           portal_pin_failed_attempts?: number
           portal_pin_hash?: string | null
@@ -5094,6 +5279,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "procedure_attachments_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
+          },
+          {
             foreignKeyName: "procedure_attachments_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
@@ -5365,6 +5557,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "appointments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedures_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
           },
           {
             foreignKeyName: "procedures_assisted_by_fkey"
@@ -7237,6 +7436,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "survey_responses_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
+          },
+          {
             foreignKeyName: "survey_responses_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
@@ -7940,6 +8146,13 @@ export type Database = {
             referencedRelation: "appointments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "therapy_notes_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
+          },
         ]
       }
       trash_items: {
@@ -8238,6 +8451,30 @@ export type Database = {
         }
         Relationships: []
       }
+      week_off_config: {
+        Row: {
+          alternate_pattern: string | null
+          day_of_week: number
+          id: string
+          is_off: boolean
+          updated_at: string
+        }
+        Insert: {
+          alternate_pattern?: string | null
+          day_of_week: number
+          id?: string
+          is_off?: boolean
+          updated_at?: string
+        }
+        Update: {
+          alternate_pattern?: string | null
+          day_of_week?: number
+          id?: string
+          is_off?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       whatsapp_conversations: {
         Row: {
           content: string
@@ -8441,6 +8678,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "invoices_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
+          },
+          {
             foreignKeyName: "invoices_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
@@ -8452,6 +8696,60 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visits_needing_review: {
+        Row: {
+          appointment_id: string | null
+          created_at: string | null
+          doctor_name: string | null
+          from_salesforce: boolean | null
+          patient_id: string | null
+          patient_name: string | null
+          service: string | null
+          staff_id: string | null
+          start_time: string | null
+          status: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string | null
+          doctor_name?: string | null
+          from_salesforce?: never
+          patient_id?: string | null
+          patient_name?: string | null
+          service?: string | null
+          staff_id?: string | null
+          start_time?: string | null
+          status?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string | null
+          doctor_name?: string | null
+          from_salesforce?: never
+          patient_id?: string | null
+          patient_name?: string | null
+          service?: string | null
+          staff_id?: string | null
+          start_time?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
@@ -8541,6 +8839,17 @@ export type Database = {
       }
       next_invoice_numbers: { Args: { _count?: number }; Returns: string[] }
       normalize_name: { Args: { _text: string }; Returns: string }
+      portal_patients_by_phone: {
+        Args: { p_last10: string }
+        Returns: {
+          first_name: string
+          id: string
+          last_name: string
+          portal_pin_failed_attempts: number
+          portal_pin_hash: string
+          portal_pin_locked_until: string
+        }[]
+      }
       promote_billing_lines: { Args: { _batch?: number }; Returns: number }
       purge_trash_item: { Args: { _trash_id: string }; Returns: undefined }
       recalc_patient_invoice_rollups: {

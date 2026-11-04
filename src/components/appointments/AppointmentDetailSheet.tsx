@@ -51,6 +51,8 @@ import { allocateInvoiceNumber, allocateInvoiceNumbers } from "@/lib/invoiceNumb
 import { assertWrote } from "@/lib/rowAccess";
 import { forgetOpenAppointment, rememberOpenAppointment } from "@/lib/openAppointment";
 import { StickyNotes } from "@/components/shared/StickyNotes";
+import { StaffCombobox } from "@/components/shared/StaffCombobox";
+import { THERAPIST_ROLES, therapistDisplayName, therapistNoteTitle } from "@/lib/appointmentTherapist";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
@@ -620,6 +622,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [editStartTime, setEditStartTime] = useState("");
   const [editEndTime, setEditEndTime] = useState("");
   const [editStaffId, setEditStaffId] = useState("");
+  // Who actually carries out the treatment. Separate from the doctor: the
+  // clinic needs both, and a therapist is routinely swapped at short notice.
+  const [editTherapistId, setEditTherapistId] = useState("");
   const [editProblemAreas, setEditProblemAreas] = useState<string[]>([]);
   const [editAppointmentId, setEditAppointmentId] = useState<string | null>(null);
 
@@ -686,6 +691,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditEndTime(appointment.end_time ? format(new Date(appointment.end_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditStaffId(appointment.staff_id || "");
+    setEditTherapistId(appointment.therapist_id || "");
     setEditProblemAreas(((appointment as any).problem_area_ids as string[]) || []);
     setEditAppointmentId(appointment.id);
   }, [appointment, appointmentId]);
@@ -1054,6 +1060,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
           start_time: new Date(editStartTime).toISOString(),
           end_time: new Date(editEndTime).toISOString(),
           staff_id: newStaffId,
+          therapist_id: editTherapistId || null,
           problem_area_ids: editProblemAreas,
         } as any)
         .eq("id", appointmentId!)
@@ -1178,6 +1185,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         patient_id: appointment.patient_id,
         patient_name: appointment.patient_name ?? null,
         staff_id: editStaffId || appointment.staff_id || null,
+        therapist_id: editTherapistId || appointment.therapist_id || null,
         service: editService || appointment.service || null,
         reason_for_consultation: editInvestigation.trim() || null,
         start_time: new Date(editStartTime).toISOString(),
@@ -1657,6 +1665,21 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  {/* Beneath the doctor rather than beside it: the row reads
+                      "who saw them, then who treated them", and on a phone the
+                      two stack anyway. Swapping one costs two taps. */}
+                  <div>
+                    <Label>Therapist</Label>
+                    <StaffCombobox
+                      className="mt-1.5"
+                      value={editTherapistId}
+                      onValueChange={setEditTherapistId}
+                      roleFilter={[...THERAPIST_ROLES]}
+                      allowNone
+                      noneLabel="No therapist assigned"
+                      placeholder="Select therapist"
+                    />
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <Badge
@@ -2297,13 +2320,26 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                 </TabsContent>
 
                 <TabsContent value="notes" className="p-6 space-y-4 mt-0">
-                  <h3 className="text-sm font-semibold font-display flex items-center gap-2">
-                    <StickyNote className="h-4 w-4" /> Notes
-                  </h3>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <h3 className="text-sm font-semibold font-display flex items-center gap-2">
+                      <StickyNote className="h-4 w-4" /> Notes
+                    </h3>
+                    {/* Who did the treatment, without anybody having to type
+                        it. Read from the appointment, so a swap is reflected
+                        here the moment it is saved. */}
+                    <p className="text-xs text-muted-foreground">
+                      {therapistDisplayName(appointment as never)
+                        ? <>Therapist: <span className="font-medium text-foreground">{therapistDisplayName(appointment as never)}</span></>
+                        : "No therapist assigned"}
+                    </p>
+                  </div>
                   {/* No draft mode here, unlike the New Procedure form: the
                       appointment always exists by the time this sheet is open,
                       so notes save straight away. */}
-                  <StickyNotes appointmentId={appointmentId} />
+                  <StickyNotes
+                    appointmentId={appointmentId}
+                    composerDefaults={{ title: therapistNoteTitle(therapistDisplayName(appointment as never)) }}
+                  />
                 </TabsContent>
                 <TabsContent value="ai-repo" className="p-6 mt-0">
                   <AiRepository patientId={appointment.patient_id} patientName={patientName} />

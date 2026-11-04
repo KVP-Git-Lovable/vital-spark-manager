@@ -12,12 +12,16 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 import { StickyNotes, type DraftNote } from "./StickyNotes";
 
 /** Mirrors how ProcedureFormDialog holds the buffer. */
-function Harness({ onChange }: { onChange?: (n: DraftNote[]) => void }) {
+function Harness({ onChange, composerDefaults }: {
+  onChange?: (n: DraftNote[]) => void;
+  composerDefaults?: { title?: string; content?: string };
+}) {
   const [notes, setNotes] = useState<DraftNote[]>([]);
   return (
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <StickyNotes
         notes={notes}
+        composerDefaults={composerDefaults}
         onNotesChange={(next) => { setNotes(next); onChange?.(next); }}
       />
       <output data-testid="buffer">{JSON.stringify(notes)}</output>
@@ -130,5 +134,56 @@ describe("StickyNotes - draft mode", () => {
     const card = screen.getByText("Delete me").closest("div.relative")!;
     fireEvent.click(card.querySelector("button")!);
     expect(buffer()).toHaveLength(0);
+  });
+});
+
+/**
+ * The appointment Notes tab prefills a new note with the assigned therapist's
+ * name, so nobody has to type who did the treatment. Procedures pass nothing
+ * and must behave exactly as they did before the prop existed.
+ */
+describe("StickyNotes - composer defaults", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("opens a new note already titled with the therapist", () => {
+    render(<Harness composerDefaults={{ title: "Therapy note - Rita ." }} />);
+    openComposer();
+    expect(screen.getByPlaceholderText("Title")).toHaveValue("Therapy note - Rita .");
+  });
+
+  it("leaves the body alone - the clinician still writes the note", () => {
+    render(<Harness composerDefaults={{ title: "Therapy note - Rita ." }} />);
+    openComposer();
+    expect(screen.getByPlaceholderText("Take a note...")).toHaveValue("");
+  });
+
+  it("lets the prefilled title be edited away", () => {
+    render(<Harness composerDefaults={{ title: "Therapy note - Rita ." }} />);
+    openComposer();
+    type("Title", "Something else entirely");
+    expect(screen.getByPlaceholderText("Title")).toHaveValue("Something else entirely");
+  });
+
+  it("opens EMPTY when no defaults are given - procedures are untouched", () => {
+    // The guard on the whole change: StickyNotes is shared with the procedure
+    // screens, which pass no defaults and must keep opening a blank composer.
+    render(<Harness />);
+    openComposer();
+    expect(screen.getByPlaceholderText("Title")).toHaveValue("");
+    expect(screen.getByPlaceholderText("Take a note...")).toHaveValue("");
+  });
+
+  it("treats a blank default as no default, not as a blank title", () => {
+    // therapistNoteTitle returns "" when nobody is assigned.
+    render(<Harness composerDefaults={{ title: "   " }} />);
+    openComposer();
+    expect(screen.getByPlaceholderText("Title")).toHaveValue("");
+  });
+
+  it("writes the prefill into the draft buffer, so it survives Save Procedure", () => {
+    render(<Harness composerDefaults={{ title: "Therapy note - Rita ." }} />);
+    openComposer();
+    type("Take a note...", "Patient tolerated the session well.");
+    expect(buffer()[0].title).toBe("Therapy note - Rita .");
   });
 });

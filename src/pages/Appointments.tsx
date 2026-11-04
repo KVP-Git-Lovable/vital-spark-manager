@@ -1,3 +1,5 @@
+import { THERAPIST_ROLES, therapistDisplayName, isTherapistRole, type TherapistCandidate } from "@/lib/appointmentTherapist";
+import { StaffCombobox } from "@/components/shared/StaffCombobox";
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { resizeColumn, mergeSavedWidths, type ColumnWidth } from "@/lib/columnWidths";
 import { isPageSortedColumn, sortAppointments } from "@/lib/appointmentSort";
@@ -205,6 +207,11 @@ const APPOINTMENT_COLUMN_WIDTHS: ColumnWidth[] = [
   ["start_time", 11],
   ["service", 16],
   ["status", 10],
+  // Who carried out the treatment. Off by default - the day sheet already
+  // runs to nine columns and the clinic has asked for its layout to stop
+  // moving - so it is opted into from "Select Fields to Display", and a
+  // saved view remembers the choice.
+  ["therapist", 12],
 ];
 /** The Actions column is always rendered, after every optional one. */
 const ACTIONS_COLUMN_WEIGHT = 7;
@@ -561,6 +568,7 @@ const Appointments = () => {
   // Form state
   const [patientId, setPatientId] = useState("");
   const [staffId, setStaffId] = useState("");
+  const [therapistId, setTherapistId] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [appointmentStatus, setAppointmentStatus] = useState("Reserved");
   const [visitStatus, setVisitStatus] = useState("");
@@ -665,13 +673,23 @@ const Appointments = () => {
   }, [open, staffId, recentVisits, staffList]);
 
   // Saved-view filter builder options for the picklist fields
+  const therapistsList = useMemo(
+    () => (staffList as TherapistCandidate[]).filter((st) => isTherapistRole(st.role)),
+    [staffList]
+  );
+
   const viewDoctorOptions: PickOption[] = useMemo(
     () => doctorsList.map((d: any) => ({ value: d.id, label: `${d.first_name || ""} ${d.last_name || ""}`.trim() })),
     [doctorsList]
   );
+  const viewTherapistOptions: PickOption[] = useMemo(
+    () => therapistsList.map((d) => ({ value: d.id, label: `${d.first_name || ""} ${d.last_name || ""}`.trim() })),
+    [therapistsList]
+  );
   const viewOptionsFor = (source?: string): PickOption[] => {
     switch (source) {
       case "doctor": return viewDoctorOptions;
+      case "therapist": return viewTherapistOptions;
       case "status": return statusOptions.map((s) => ({ value: s, label: s }));
       case "visit_status": return visitStatusOptions.map((s) => ({ value: s, label: s }));
       default: return [];
@@ -1231,6 +1249,7 @@ const Appointments = () => {
       phone: apt.patients?.phone || "",
       service: apt.service || "",
       doctor: apt.staff_id || "",
+      therapist: apt.therapist_id || "",
       status: apt.status || "",
       visit_status: apt.visit_status || "",
       bill: inv?.total_amount || 0,
@@ -1423,6 +1442,7 @@ const Appointments = () => {
       reason_for_consultation: apt.reason_for_consultation || "",
       service: apt.service || "",
       staff_id: apt.staff_id || "",
+      therapist_id: apt.therapist_id || "",
       status: apt.status,
       start_time: format(new Date(apt.start_time), "yyyy-MM-dd'T'HH:mm"),
       end_time: format(new Date(apt.end_time), "yyyy-MM-dd'T'HH:mm"),
@@ -1443,6 +1463,9 @@ const Appointments = () => {
       updates.reason_for_consultation = editValues.reason_for_consultation.trim() || null;
     if (editValues.service) updates.service = editValues.service;
     if (editValues.staff_id) updates.staff_id = editValues.staff_id;
+    // Not a truthy guard, unlike the doctor above: clearing the therapist has
+    // to be possible, so an empty choice must reach the database as null.
+    if (editValues.therapist_id !== undefined) updates.therapist_id = editValues.therapist_id || null;
     if (editValues.status) updates.status = editValues.status;
     if (editValues.start_time) updates.start_time = new Date(editValues.start_time).toISOString();
     if (editValues.end_time) updates.end_time = new Date(editValues.end_time).toISOString();
@@ -1530,6 +1553,7 @@ const Appointments = () => {
           patient_id: patientId || null,
           patient_name: patientName,
           staff_id: staffId || null,
+          therapist_id: therapistId || null,
           service: serviceName,
           status: appointmentStatus,
           visit_status: visitStatus || null,
@@ -1550,6 +1574,7 @@ const Appointments = () => {
           patient_id: patientId || null,
           patient_name: patientName,
           staff_id: staffId || null,
+          therapist_id: therapistId || null,
           service: serviceName,
           status: appointmentStatus,
           visit_status: visitStatus || null,
@@ -1867,6 +1892,7 @@ const Appointments = () => {
   const resetForm = () => {
     setPatientId("");
     setStaffId("");
+    setTherapistId("");
     setServiceId("");
     setAppointmentStatus("Reserved");
     setVisitStatus("");
@@ -2339,6 +2365,23 @@ const Appointments = () => {
                         )}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  {/* Who will carry out the treatment, as opposed to who sees
+                      the patient. Optional at booking - the front desk often
+                      does not know yet, and it is set or swapped later from
+                      the appointment itself. */}
+                  <div>
+                    <Label>Therapist</Label>
+                    <StaffCombobox
+                      className="mt-1.5"
+                      value={therapistId}
+                      onValueChange={setTherapistId}
+                      roleFilter={[...THERAPIST_ROLES]}
+                      allowNone
+                      noneLabel="No therapist assigned"
+                      placeholder="Select therapist"
+                    />
                   </div>
 
                   <div>
@@ -2954,6 +2997,15 @@ const Appointments = () => {
                           />
                         </th>
                       )}
+                      {shouldShowColumn("therapist") && (
+                        <th className="relative text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" onClick={() => toggleSort("therapist")}>
+                          <span className="flex items-center">Therapist<SortIcon column="therapist" /></span>
+                          <ColumnResizeHandle
+                            onResize={(delta) => applyColumnResize("therapist", delta)}
+                            tableWidth={() => appointmentsTableRef.current?.clientWidth ?? 0}
+                          />
+                        </th>
+                      )}
                       {shouldShowColumn("payment_mode") && (
                         <th className="relative text-left p-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none" title="Sorts the appointments on this page - the bill is looked up per page, so it cannot be ordered across them" onClick={() => toggleSort("payment_mode")}>
                           <span className="flex items-center">Payment Mode<SortIcon column="payment_mode" /></span>
@@ -3088,6 +3140,21 @@ const Appointments = () => {
                                         </div>
                                       )}
 
+                                      {shouldShowColumn("therapist") && (
+                                        <div className="w-44">
+                                          <span className="text-[11px] text-muted-foreground">Therapist</span>
+                                          <StaffCombobox
+                                            className="mt-1 h-8 text-xs"
+                                            value={editValues.therapist_id || ""}
+                                            onValueChange={(val) => setEditValues({ ...editValues, therapist_id: val })}
+                                            roleFilter={[...THERAPIST_ROLES]}
+                                            allowNone
+                                            noneLabel="No therapist"
+                                            placeholder="Select"
+                                          />
+                                        </div>
+                                      )}
+
                                       {shouldShowColumn("start_time") && (
                                         <div className="w-36">
                                           <span className="text-[11px] text-muted-foreground">Date</span>
@@ -3202,6 +3269,11 @@ const Appointments = () => {
                                 {shouldShowColumn("doctor") && (
                                   <td className="p-3 font-semibold">
                                     {getDoctorName(apt) || <span className="font-normal text-muted-foreground">—</span>}
+                                  </td>
+                                )}
+                                {shouldShowColumn("therapist") && (
+                                  <td className="p-3">
+                                    {therapistDisplayName(apt) || <span className="text-muted-foreground">—</span>}
                                   </td>
                                 )}
                                 {shouldShowColumn("payment_mode") && (

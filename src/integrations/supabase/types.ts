@@ -168,6 +168,8 @@ export type Database = {
           start_time: string
           status: string
           survey_template_id: string | null
+          therapist_id: string | null
+          therapist_name: string | null
           updated_at: string
           updated_by: string | null
           visit_status: string | null
@@ -198,6 +200,8 @@ export type Database = {
           start_time: string
           status?: string
           survey_template_id?: string | null
+          therapist_id?: string | null
+          therapist_name?: string | null
           updated_at?: string
           updated_by?: string | null
           visit_status?: string | null
@@ -228,6 +232,8 @@ export type Database = {
           start_time?: string
           status?: string
           survey_template_id?: string | null
+          therapist_id?: string | null
+          therapist_name?: string | null
           updated_at?: string
           updated_by?: string | null
           visit_status?: string | null
@@ -266,6 +272,13 @@ export type Database = {
             columns: ["survey_template_id"]
             isOneToOne: false
             referencedRelation: "survey_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_therapist_id_fkey"
+            columns: ["therapist_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]

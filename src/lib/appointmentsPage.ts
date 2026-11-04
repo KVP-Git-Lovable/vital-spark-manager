@@ -113,6 +113,12 @@ export async function fetchAppointmentsPage({
     case "doctor":
       q = q.order("first_name", { referencedTable: "staff", ascending });
       break;
+    // The stored name, not a join onto staff: therapist_name is kept after a
+    // therapist leaves the clinic, so ordering on the join would scatter
+    // their visits among the unassigned ones.
+    case "therapist":
+      q = q.order("therapist_name", { ascending });
+      break;
     case "phone":
       q = q.order("phone", { referencedTable: "patients", ascending });
       break;

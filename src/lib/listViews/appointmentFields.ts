@@ -18,6 +18,11 @@ export const APPOINTMENT_VIEW_FIELDS: FieldDef[] = [
   { key: "start_time", label: "Date & Time", type: "date" },
   { key: "service", label: "Investigation", type: "text" },
   { key: "status", label: "Status", type: "picklist", optionsSource: "status" },
+  // Who carried out the treatment. Deliberately absent from
+  // DEFAULT_APPOINTMENT_VIEW_COLUMNS below: offering the column is not the
+  // same as forcing it onto every existing saved view and every clinic
+  // day sheet that is already nine columns wide.
+  { key: "therapist", label: "Therapist", type: "picklist", optionsSource: "therapist" },
 ];
 
 export const DEFAULT_APPOINTMENT_VIEW_COLUMNS = [

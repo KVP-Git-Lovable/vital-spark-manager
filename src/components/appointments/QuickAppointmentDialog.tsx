@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { Phone, Loader2, User as UserIcon, IdCard } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { StaffCombobox } from "@/components/shared/StaffCombobox";
+import { THERAPIST_ROLES } from "@/lib/appointmentTherapist";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { shortPatientId } from "@/lib/utils";
@@ -37,6 +39,7 @@ const STATUS_OPTIONS = [...MANUAL_APPOINTMENT_STATUSES];
 export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickAppointmentDialogProps) {
   const queryClient = useQueryClient();
   const [staffId, setStaffId] = useState("");
+  const [therapistId, setTherapistId] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [appointmentType, setAppointmentType] = useState<"Walk-in" | "Online">("Walk-in");
   const [appointmentStatus, setAppointmentStatus] = useState("Reserved");
@@ -140,6 +143,7 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
         patient_id: patient.id,
         patient_name: `${patient.first_name} ${patient.last_name}`.trim(),
         staff_id: staffId || null,
+        therapist_id: therapistId || null,
         service: serviceName,
         status: appointmentStatus,
         start_time: start.toISOString(),
@@ -214,6 +218,18 @@ export function QuickAppointmentDialog({ open, onOpenChange, patient }: QuickApp
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label>Therapist</Label>
+              <StaffCombobox
+                className="mt-1.5"
+                value={therapistId}
+                onValueChange={setTherapistId}
+                roleFilter={[...THERAPIST_ROLES]}
+                allowNone
+                noneLabel="No therapist assigned"
+                placeholder="Select"
+              />
             </div>
             <div>
               <Label>Service</Label>

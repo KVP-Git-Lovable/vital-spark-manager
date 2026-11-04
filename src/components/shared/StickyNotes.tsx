@@ -35,6 +35,14 @@ interface Props {
   notes?: DraftNote[];
   onNotesChange?: (next: DraftNote[]) => void;
   className?: string;
+  /**
+   * What a freshly opened composer starts with. The appointment Notes tab
+   * passes the assigned therapist's name as the title, so nobody has to type
+   * who did the treatment. Optional and absent on procedures, which open
+   * empty exactly as before. Always editable, and never applied to a note
+   * that already exists.
+   */
+  composerDefaults?: { title?: string; content?: string };
 }
 
 /** A persisted row of procedure_sticky_notes or appointment_sticky_notes. */
@@ -102,7 +110,7 @@ const notesInsert = (owner: StickyNoteOwner, title: string | null, content: stri
     content: string;
   };
 
-export function StickyNotes({ procedureId, appointmentId, notes, onNotesChange, className }: Props) {
+export function StickyNotes({ procedureId, appointmentId, notes, onNotesChange, className, composerDefaults }: Props) {
   const owner = stickyNoteOwner({ procedureId, appointmentId });
   const draftMode = !owner;
   const draftNotes = notes ?? [];
@@ -160,13 +168,17 @@ export function StickyNotes({ procedureId, appointmentId, notes, onNotesChange, 
       }));
 
   const openComposer = () => {
+    // A blank string is the same as no default: the composer opens empty
+    // rather than with a title about nobody.
+    const title = composerDefaults?.title?.trim() || "";
+    const content = composerDefaults?.content?.trim() || "";
     setNewNoteOpen(true);
-    setNewNoteTitle("");
-    setNewNoteContent("");
+    setNewNoteTitle(title);
+    setNewNoteContent(content);
     if (draftMode) {
       const key = newDraftNoteKey();
       setComposingKey(key);
-      onNotesChange?.([...draftNotes, { key, title: "", content: "" }]);
+      onNotesChange?.([...draftNotes, { key, title, content }]);
     }
   };
 

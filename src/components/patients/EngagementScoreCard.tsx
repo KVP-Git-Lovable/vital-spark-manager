@@ -172,9 +172,25 @@ export const EngagementScoreCard = (
             <span className="text-xs text-muted-foreground">/100</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border font-semibold ${tierStyles[data.tier] || tierStyles.Early}`}>
-              {data.tierEmoji} {data.tier}
-            </span>
+            {/* The badge is lifetime billing, the number beside it is
+                engagement - they are independent now, so a patient can read
+                "32/100 · 🏆 Platinum". Said out loud in the tooltip, because
+                the badge used to be a restatement of the score and anyone who
+                remembers that would misread it. */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border font-semibold cursor-help ${tierStyles[data.tier] || tierStyles.Early}`}>
+                    {data.tierEmoji} {data.tier}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[260px] text-xs">
+                  Category is lifetime billing, not engagement: Platinum above
+                  ₹3 lakh, Gold ₹1–3 lakh, Silver under ₹1 lakh, Early nothing
+                  billed yet. Cancelled bills do not count.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExpanded(!expanded)}>
               {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </Button>

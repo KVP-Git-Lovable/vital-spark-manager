@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  */
 
 interface Call {
+  selectColumns: string;
   selectOptions: unknown;
   or: string[];
   range?: [number, number];
@@ -21,10 +22,11 @@ let serverCount = 0;
 
 vi.mock("@/integrations/supabase/client", () => {
   const makeQuery = () => {
-    const record: Call = { selectOptions: undefined, or: [] };
+    const record: Call = { selectColumns: "", selectOptions: undefined, or: [] };
     calls.push(record);
     const q: Record<string, unknown> = {
       select: (_cols: string, opts?: unknown) => {
+        record.selectColumns = _cols;
         record.selectOptions = opts;
         return q;
       },
@@ -71,6 +73,13 @@ beforeEach(() => {
 });
 
 describe("fetchAppointmentsPage", () => {
+  it("joins the assigned doctor rather than the therapist when both staff relationships exist", async () => {
+    await fetchAppointmentsPage({ ...base, sortColumn: "doctor" });
+    const appointmentQuery = calls.find((c) => c.selectOptions !== undefined);
+    expect(appointmentQuery?.selectColumns).toContain("staff:staff!appointments_staff_id_fkey(first_name, last_name)");
+    expect(appointmentQuery?.selectColumns).not.toContain("appointments_therapist_id_fkey");
+  });
+
   it("counts rather than estimates, whatever is being filtered", async () => {
     const variations: Array<Partial<FetchAppointmentsPageParams>> = [
       {},

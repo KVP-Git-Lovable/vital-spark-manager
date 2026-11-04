@@ -371,7 +371,7 @@ const PatientDetail = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
-        .select("*, staff(first_name, last_name)")
+        .select("*, staff:staff!appointments_staff_id_fkey(first_name, last_name)")
         .eq("patient_id", id!)
         .order("start_time", { ascending: false })
         .order("created_at", { ascending: false });

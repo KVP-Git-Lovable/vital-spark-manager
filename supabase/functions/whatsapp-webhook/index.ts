@@ -60,7 +60,7 @@ async function executeTool(sb: any, toolName: string, args: any, patientId: stri
       return JSON.stringify({ success: true, appointment: { id: appt.id, date: new Date(appt.start_time).toLocaleDateString("en-IN"), time: new Date(appt.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }), service } });
     }
     case "list_patient_appointments": {
-      const { data } = await sb.from("appointments").select("id, service, start_time, status, staff(first_name, last_name)").eq("patient_id", patientId).gte("start_time", new Date().toISOString()).neq("status", "Cancelled").order("start_time", { ascending: true }).limit(10);
+      const { data } = await sb.from("appointments").select("id, service, start_time, status, staff:staff!appointments_staff_id_fkey(first_name, last_name)").eq("patient_id", patientId).gte("start_time", new Date().toISOString()).neq("status", "Cancelled").order("start_time", { ascending: true }).limit(10);
       return JSON.stringify({ upcoming_appointments: (data || []).map((a: any) => ({ id: a.id, service: a.service, date: new Date(a.start_time).toLocaleDateString("en-IN"), time: new Date(a.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }), status: a.status, doctor: a.staff ? `Dr. ${a.staff.first_name} ${a.staff.last_name}` : "Not assigned" })) });
     }
     case "cancel_appointment": {

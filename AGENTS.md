@@ -1,5 +1,7 @@
 # Project Architecture Rules
 
+- Appointment staff embeds must explicitly use appointments_staff_id_fkey and retain the staff response alias; therapist_id also references staff, so implicit embeds are ambiguous.
+
 - Keep service knowledge in dedicated articles with database-enforced active doctor/admin review, immutable revision snapshots, and draft-only AI suggestions; this prevents unreviewed clinical content from appearing in appointments.
 - Resolve appointment knowledge dynamically from the booked service and recorded procedure service IDs, with inclusive demographic matching; never persist guessed article assignments or automatically alter prescriptions.
 - Render new-prescription knowledge in one dedicated tab using the linked appointment's booked service plus current prescription service IDs; this keeps references available without seeding or changing procedure lines.

@@ -387,6 +387,10 @@ export function CameraDialog({ open, onOpenChange, onCapture, multiple = false, 
         const file = files[0];
         setCapturedFile(file);
         setPreviewUrl(URL.createObjectURL(file));
+        // The pick is the answer to the error above it: without clearing it,
+        // the body keeps rendering the error panel over the preview and the
+        // photo looks lost, with only a stray "Use Photo" in the footer.
+        setError(null);
         // The live stream, if one was somehow running, has no business
         // continuing behind a preview - same as the shutter path.
         stopStream();

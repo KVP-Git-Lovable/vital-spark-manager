@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   THERAPIST_ROLES,
@@ -124,5 +125,68 @@ describe("therapistNoteTitle", () => {
     const variable = template![1];
     const rebuilt = `Therapy note - \${${variable}}`.replace(`\${${variable}}`, "Rita .");
     expect(therapistNoteTitle("Rita .")).toBe(rebuilt);
+  });
+});
+
+/**
+ * The cost of a second foreign key, and the guard against paying it twice.
+ *
+ * `therapist_id` made `appointments` the only table with two foreign keys to
+ * `staff`. PostgREST cannot resolve an implicit `staff(...)` embed once that
+ * is true - it does not pick one, it fails the request - so every appointment
+ * query that embedded staff by name started erroring the moment the column
+ * landed, and appointment loading broke in the live clinic until the embeds
+ * were disambiguated to `staff:staff!appointments_staff_id_fkey(...)`.
+ *
+ * No mocked test could have caught it: the suite stubs Supabase, so the
+ * ambiguity only exists against a real PostgREST. This reads the source
+ * instead, which is the one check that does not need a server. It is the
+ * executable form of the rule in AGENTS.md.
+ */
+describe("appointments must never embed staff implicitly", () => {
+  const sourceFiles = (): string[] => {
+    const out: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (/\.(ts|tsx)$/.test(entry.name)) out.push(full);
+      }
+    };
+    walk("src");
+    walk("supabase/functions");
+    return out;
+  };
+
+  /** Each appointments query in a file, as the text that follows it. */
+  const appointmentQueries = (source: string): string[] => {
+    const chunks: string[] = [];
+    const needle = 'from("appointments")';
+    let at = source.indexOf(needle);
+    while (at !== -1) {
+      chunks.push(source.slice(at, at + 600));
+      at = source.indexOf(needle, at + 1);
+    }
+    return chunks;
+  };
+
+  it("names appointments_staff_id_fkey on every staff embed", () => {
+    const offenders: string[] = [];
+    for (const file of sourceFiles()) {
+      const source = readFileSync(file, "utf8");
+      for (const query of appointmentQueries(source)) {
+        const select = query.match(/\.select\(\s*(["'`])([\s\S]*?)\1/);
+        if (!select) continue;
+        const columns = select[2];
+        // `staff:staff!appointments_staff_id_fkey(` is fine; a bare `staff(`
+        // or `staff:staff(` is the ambiguous form.
+        const implicit = /(^|[^!\w])staff(:staff)?\s*\(/.test(columns);
+        if (implicit && !columns.includes("appointments_staff_id_fkey")) {
+          offenders.push(`${file}: ${columns.slice(0, 120)}`);
+        }
+      }
+    }
+    expect(offenders, offenders.join("\n")).toEqual([]);
   });
 });

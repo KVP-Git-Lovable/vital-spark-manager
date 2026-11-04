@@ -591,7 +591,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
       if (!appointmentId) return null;
       const { data, error } = await supabase
         .from("appointments")
-        .select("*, patients(id, first_name, last_name, phone, gender, is_vip), staff(first_name, last_name)")
+        .select("*, patients(id, first_name, last_name, phone, gender, is_vip), staff:staff!appointments_staff_id_fkey(first_name, last_name)")
         .eq("id", appointmentId)
         .maybeSingle();
       if (error) throw error;
@@ -737,7 +737,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
-        .select("*, staff(first_name, last_name)")
+        .select("*, staff:staff!appointments_staff_id_fkey(first_name, last_name)")
         .eq("patient_id", appointment!.patient_id!)
         .order("start_time", { ascending: false });
       if (error) throw error;

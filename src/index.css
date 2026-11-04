@@ -372,10 +372,11 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Rubber-banding the whole page behind an open sheet, and the browser's
-     pull-to-refresh firing while somebody scrolls a long patient list, are
-     both unwanted here. The real scroll container is <main>, not the body. */
-  body {
+  /* The unclamped app scrolls the root document, not body: body grows with
+     the page and has no scroll range of its own. Containment on body traps
+     wheel/touchpad events before they reach the root. Keep pull-to-refresh
+     containment on the actual document scroller; dialogs lock separately. */
+  html {
     overscroll-behavior-y: contain;
   }
 

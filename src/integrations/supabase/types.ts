@@ -274,13 +274,6 @@ export type Database = {
             referencedRelation: "survey_templates"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "appointments_therapist_id_fkey"
-            columns: ["therapist_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
         ]
       }
       asset_issues: {

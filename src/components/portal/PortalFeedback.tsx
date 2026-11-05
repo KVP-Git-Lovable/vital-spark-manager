@@ -78,10 +78,12 @@ export default function PortalFeedback({ patientId }: { patientId: string }) {
   const [rating, setRating] = useState<number | null>(null);
   const [comments, setComments] = useState("");
 
-  const { data: feedback = [], isLoading } = useQuery<PortalFeedbackRow[]>({
+  const { data: feedback = [], isLoading, isError, refetch } = useQuery<PortalFeedbackRow[]>({
     queryKey: ["portal-feedback", patientId],
     queryFn: async () => (await portalRequest<PortalFeedbackRow[]>("feedback")) || [],
     enabled: !!patientId,
+    retry: 1,
+    throwOnError: false,
   });
 
   useEffect(() => {
@@ -113,6 +115,17 @@ export default function PortalFeedback({ patientId }: { patientId: string }) {
     return (
       <div className="flex justify-center py-10">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="bg-card rounded-xl border p-6 text-sm text-muted-foreground text-center space-y-3">
+        <p>We couldn't load your feedback right now.</p>
+        <button type="button" className="text-primary font-medium underline" onClick={() => refetch()}>
+          Try again
+        </button>
       </div>
     );
   }

@@ -1,7 +1,7 @@
-// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { webcrypto } from "node:crypto";
+import { transpileModule, ModuleKind } from "typescript";
 
 // Execute the actual edge handler with an in-memory REST boundary. No clinic
 // records, PINs, or sessions are touched by these regression tests.
@@ -19,9 +19,8 @@ async function handlerFor(candidates = family) {
   });
   vi.stubGlobal("crypto", webcrypto);
   vi.stubGlobal("fetch", vi.fn(async () => Response.json(candidates)));
-  const { transform } = await import("esbuild");
-  const compiled = await transform(source, { loader: "ts", format: "esm" });
-  new Function(compiled.code)();
+  const compiled = transpileModule(source, { compilerOptions: { module: ModuleKind.ESNext } });
+  new Function(compiled.outputText)();
   if (!handler) throw new Error("Edge handler was not registered");
   const serve = handler;
   return async (patientId?: string) => {

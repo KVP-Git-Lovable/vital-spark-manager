@@ -217,3 +217,79 @@ describe("the migration keeps the published build working", () => {
     expect(refs).toEqual(["references public.patient_feedback"]);
   });
 });
+
+/**
+ * Removing feedback entered while testing.
+ *
+ * patient_feedback has no Trash, so a delete is final. The repo's rule, set by
+ * 20261029100000_feedback_given_by_mistake.sql, is that nothing is deleted
+ * until a copy is demonstrably in place. These guard the shape of that file
+ * rather than its effect - it has already run against the clinic's database.
+ */
+describe("the 5 Nov test-feedback cleanup", () => {
+  const cleanup = () =>
+    readFileSync(
+      "supabase/migrations/20261105130000_feedback_entered_while_testing.sql",
+      "utf8",
+    );
+
+  it("copies the row before it deletes it", () => {
+    const sql = cleanup();
+    const copied = sql.indexOf("insert into public.patient_feedback_backup_20261105");
+    const deleted = sql.indexOf("delete from public.patient_feedback");
+    expect(copied, "nothing is copied").toBeGreaterThan(-1);
+    expect(deleted, "nothing is deleted").toBeGreaterThan(-1);
+    expect(copied, "the delete comes before the backup").toBeLessThan(deleted);
+  });
+
+  it("copies the edit snapshots before the row that would cascade them away", () => {
+    const sql = cleanup();
+    const snapshots = sql.indexOf(
+      "insert into public.patient_feedback_revisions_backup_20261105",
+    );
+    const parent = sql.indexOf("insert into public.patient_feedback_backup_20261105");
+    expect(snapshots, "the snapshots are never copied").toBeGreaterThan(-1);
+    expect(snapshots, "the snapshots are copied after the parent, i.e. too late")
+      .toBeLessThan(parent);
+  });
+
+  it("refuses to delete unless the copy verified", () => {
+    const sql = cleanup();
+    const guard = sql.indexOf("was not backed up");
+    const deleted = sql.indexOf("delete from public.patient_feedback");
+    expect(guard, "there is no backup guard").toBeGreaterThan(-1);
+    expect(guard, "the guard runs after the delete").toBeLessThan(deleted);
+    expect(sql).toMatch(/if v_rev_saved <> v_revisions then[\s\S]{0,200}raise exception/);
+  });
+
+  it("keys on the id, never the comment text", () => {
+    // Three rows in the table read "All good"; the other two are real.
+    const sql = cleanup();
+    const stmt = sql.slice(
+      sql.indexOf("delete from public.patient_feedback"),
+      sql.indexOf("get diagnostics v_removed"),
+    );
+    expect(stmt).toMatch(/where id = v_feedback and appointment_id = v_appt/);
+    expect(stmt, "the delete matches on comment text").not.toMatch(/comments/);
+  });
+
+  it("proves only one row went, by difference rather than an expected total", () => {
+    // The clinic records real feedback all day, so a hard-coded total would
+    // be wrong by the time it ran.
+    expect(cleanup()).toMatch(/if v_before - v_after <> 1 then[\s\S]{0,160}raise exception/);
+  });
+
+  it("does nothing on a second run", () => {
+    expect(cleanup()).toMatch(/is already gone - nothing to remove[\s\S]{0,80}return;/);
+  });
+
+  it("locks the new backup tables down, unlike the 29 Oct one", () => {
+    // `create table ... (like ...)` copies neither RLS nor grants, which is
+    // how patient_feedback_backup_20261029 ended up readable by anon while
+    // patient_feedback itself is closed to it.
+    const sql = cleanup();
+    expect(sql).toMatch(/enable row level security/);
+    expect(sql).toMatch(/revoke all on public\.%I from anon/);
+    expect(sql).toMatch(/grant select on public\.%I to authenticated/);
+  });
+});

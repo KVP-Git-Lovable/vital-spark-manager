@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { webcrypto } from "node:crypto";
@@ -22,8 +23,9 @@ async function handlerFor(candidates = family) {
   const compiled = await transform(source, { loader: "ts", format: "esm" });
   new Function(compiled.code)();
   if (!handler) throw new Error("Edge handler was not registered");
+  const serve = handler;
   return async (patientId?: string) => {
-    const response = await handler(new Request("https://test.invalid", {
+    const response = await serve(new Request("https://test.invalid", {
       method: "POST",
       body: JSON.stringify({ action: "check", phone: "9999999999", patientId }),
     }));

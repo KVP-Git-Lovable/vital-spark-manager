@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
-import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck, Trash2, History, Coins, Users, ImageIcon, BookOpen, ClipboardList} from "lucide-react";
+import { ShieldCheck, SlidersHorizontal, ChevronRight, CopyCheck, Trash2, History, Coins, Users, ImageIcon, BookOpen, ClipboardList, Smartphone} from "lucide-react";
 
 const sections = [
   { title: "Knowledge Articles", description: "Clinical protocols", url: "/knowledge", icon: BookOpen },
@@ -39,6 +39,12 @@ const sections = [
     description: "Set decimals, decimal digits and Indian (Lakh/Crore) or US (K/M) number formatting.",
     url: "/admin/currency",
     icon: Coins,
+  },
+  {
+    title: "Patient Portal Modules",
+    description: "Switch on and off what patients see in the portal \u2014 bills, photos, history, shop, surveys, feedback.",
+    url: "/admin/portal-modules",
+    icon: Smartphone,
   },
   {
     title: "User Management",

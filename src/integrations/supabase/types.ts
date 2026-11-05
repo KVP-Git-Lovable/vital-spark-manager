@@ -3833,30 +3833,36 @@ export type Database = {
           comments: string | null
           created_at: string
           id: string
+          last_edited_by: string | null
           nps_score: number
           patient_id: string
           patient_name: string | null
           service_rating: number
+          updated_at: string | null
         }
         Insert: {
           appointment_id: string
           comments?: string | null
           created_at?: string
           id?: string
+          last_edited_by?: string | null
           nps_score: number
           patient_id: string
           patient_name?: string | null
           service_rating: number
+          updated_at?: string | null
         }
         Update: {
           appointment_id?: string
           comments?: string | null
           created_at?: string
           id?: string
+          last_edited_by?: string | null
           nps_score?: number
           patient_id?: string
           patient_name?: string | null
           service_rating?: number
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -3872,6 +3878,53 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "visits_needing_review"
             referencedColumns: ["appointment_id"]
+          },
+        ]
+      }
+      patient_feedback_revisions: {
+        Row: {
+          appointment_id: string | null
+          comments: string | null
+          feedback_id: string
+          id: string
+          nps_score: number | null
+          patient_id: string | null
+          recorded_at: string | null
+          service_rating: number | null
+          superseded_at: string
+          superseded_by: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          comments?: string | null
+          feedback_id: string
+          id?: string
+          nps_score?: number | null
+          patient_id?: string | null
+          recorded_at?: string | null
+          service_rating?: number | null
+          superseded_at?: string
+          superseded_by?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          comments?: string | null
+          feedback_id?: string
+          id?: string
+          nps_score?: number | null
+          patient_id?: string | null
+          recorded_at?: string | null
+          service_rating?: number | null
+          superseded_at?: string
+          superseded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_feedback_revisions_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: false
+            referencedRelation: "patient_feedback"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -5035,6 +5088,7 @@ export type Database = {
           clinical_photos_enabled: boolean
           created_at: string
           expiring_threshold_days: number
+          feedback_enabled: boolean
           hide_expiring_products: boolean
           id: string
           low_stock_threshold: number | null
@@ -5058,6 +5112,7 @@ export type Database = {
           clinical_photos_enabled?: boolean
           created_at?: string
           expiring_threshold_days?: number
+          feedback_enabled?: boolean
           hide_expiring_products?: boolean
           id?: string
           low_stock_threshold?: number | null
@@ -5081,6 +5136,7 @@ export type Database = {
           clinical_photos_enabled?: boolean
           created_at?: string
           expiring_threshold_days?: number
+          feedback_enabled?: boolean
           hide_expiring_products?: boolean
           id?: string
           low_stock_threshold?: number | null

@@ -5,11 +5,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   Home, Calendar, ClipboardList, Camera, Receipt, Pill,
   LogOut, Clock, User, ChevronRight, Plus, Send, Loader2, Stethoscope,
-  MessageCircle, ShoppingBag, ClipboardCheck, Eye, Download,
+  MessageCircle, ShoppingBag, ClipboardCheck, Eye, Download, MessageSquareHeart,
 } from "lucide-react";
 import PortalShop from "@/components/portal/PortalShop";
 import PortalBot from "@/components/portal/PortalBot";
 import PortalSurveyFill from "@/components/portal/PortalSurveyFill";
+import PortalFeedback from "@/components/portal/PortalFeedback";
 import clinicLogo from "@/assets/skin-clinic-logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { portalRequest, PortalSessionError, clearPortalSession } from "@/lib/portalApi";
+import { portalModuleEnabled } from "@/lib/portalModules";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -51,6 +53,7 @@ const tabs = [
   { id: "billing", label: "Bills", icon: Receipt },
   { id: "pharmacy", label: "Shop", icon: ShoppingBag },
   { id: "surveys", label: "Surveys", icon: ClipboardCheck },
+  { id: "feedback", label: "Feedback", icon: MessageSquareHeart },
   { id: "bot", label: "AI Bot", icon: MessageCircle },
 ];
 
@@ -113,7 +116,9 @@ const Portal = () => {
     pharmacy: "pharmacy",
     shop: "pharmacy",
     bot: "bot",
+    "ai-bot": "bot",
     surveys: "surveys",
+    feedback: "feedback",
   };
   const tabToUrlSlug: Record<string, string> = {
     home: "home",
@@ -123,6 +128,7 @@ const Portal = () => {
     billing: "bills",
     pharmacy: "pharmacy",
     surveys: "surveys",
+    feedback: "feedback",
     bot: "ai-bot",
   };
   const initialTab = (tabParam && tabSlugMap[tabParam.toLowerCase()]) || "home";
@@ -269,24 +275,25 @@ const Portal = () => {
       return data;
     },
   });
-  const ps: any = portalSettings || {};
-  const flag = (key: string) => ps[key] !== false; // default true
+  // Each module's own default when the row says nothing, rather than a
+  // blanket "on" - Feedback is opt-in. See src/lib/portalModules.ts.
+  const flag = (key: Parameters<typeof portalModuleEnabled>[1]) =>
+    portalModuleEnabled(portalSettings as Record<string, unknown> | null, key);
   const shopEnabled = flag("shop_enabled");
   const apptsBookingEnabled = flag("appointments_booking_enabled");
-  const apptsRescheduleEnabled = flag("appointments_reschedule_enabled");
   const treatmentHistoryEnabled = flag("treatment_history_enabled");
   const procedureHistoryEnabled = flag("procedure_history_enabled");
   const clinicalPhotosEnabled = flag("clinical_photos_enabled");
   const billsEnabled = flag("bills_enabled");
   const outstandingBalanceEnabled = flag("outstanding_balance_enabled");
   const surveysEnabled = flag("surveys_enabled");
+  const feedbackEnabled = flag("feedback_enabled");
   const aiBotEnabled = flag("ai_bot_enabled");
   const ourTeamEnabled = flag("our_team_enabled");
   const clinicHoursEnabled = flag("clinic_hours_enabled");
   const qaRequestApptEnabled = flag("quick_action_request_appointment_enabled");
   const qaOrderMedicineEnabled = flag("quick_action_order_medicine_enabled");
   const historyTabEnabled = treatmentHistoryEnabled || procedureHistoryEnabled;
-  const apptsTabEnabled = apptsBookingEnabled || true; // viewing appointments always allowed; booking gated separately
 
   const visibleTabs = tabs.filter((t) => {
     if (t.id === "pharmacy") return shopEnabled;
@@ -294,6 +301,7 @@ const Portal = () => {
     if (t.id === "photos") return clinicalPhotosEnabled;
     if (t.id === "billing") return billsEnabled;
     if (t.id === "surveys") return surveysEnabled;
+    if (t.id === "feedback") return feedbackEnabled;
     if (t.id === "bot") return aiBotEnabled;
     return true;
   });
@@ -305,7 +313,7 @@ const Portal = () => {
       navigate("/portal/home", { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shopEnabled, historyTabEnabled, clinicalPhotosEnabled, billsEnabled, surveysEnabled, aiBotEnabled]);
+  }, [shopEnabled, historyTabEnabled, clinicalPhotosEnabled, billsEnabled, surveysEnabled, feedbackEnabled, aiBotEnabled]);
 
   // ─── Mutations ──────────────────────────────────
   const requestAppointment = useMutation({
@@ -804,6 +812,13 @@ const Portal = () => {
             {activeTab === "pharmacy" && shopEnabled && (
               <motion.div key="pharmacy" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
                 <PortalShop patientId={patientId!} patientName={session.patientName} />
+              </motion.div>
+            )}
+
+            {/* ─── FEEDBACK ─── */}
+            {activeTab === "feedback" && (
+              <motion.div key="feedback" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+                <PortalFeedback patientId={patientId!} />
               </motion.div>
             )}
 

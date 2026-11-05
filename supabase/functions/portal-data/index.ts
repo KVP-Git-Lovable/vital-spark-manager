@@ -67,6 +67,47 @@ async function resolveSession(token: unknown): Promise<{ patientId: string } | n
   return { patientId: row.patient_id };
 }
 
+/** The columns the portal's Feedback tab reads. */
+interface FeedbackRow {
+  id: string;
+  appointment_id: string | null;
+  nps_score: number | null;
+  service_rating: number | null;
+  comments: string | null;
+  created_at: string;
+  updated_at: string | null;
+  last_edited_by: string | null;
+}
+
+/** The visit a piece of feedback is about. */
+interface FeedbackVisit {
+  id: string;
+  start_time: string | null;
+  service: string | null;
+  doctor_name: string | null;
+  reason_for_consultation: string | null;
+}
+
+/**
+ * Is the Feedback module switched on?
+ *
+ * The flag lives in portal_settings and the portal hides the tab when it is
+ * off, but a hidden tab is not a closed door: the browser could still call
+ * these actions. Both of them ask here first, so switching Feedback off in
+ * Admin really does stop patients reading and editing feedback.
+ *
+ * Absent or null counts as OFF, matching src/lib/portalModules.ts - this is
+ * the one module that is opt-in.
+ */
+async function feedbackEnabled(): Promise<boolean> {
+  try {
+    const row = (await rows(`portal_settings?select=feedback_enabled&limit=1`))[0];
+    return row?.feedback_enabled === true;
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -216,6 +257,79 @@ Deno.serve(async (req) => {
           });
         }
         return json({ data: inserted ?? null });
+      }
+
+      case "feedback": {
+        if (!(await feedbackEnabled())) return json({ error: "Feedback is not enabled", code: "disabled" }, 403);
+        const list = (await rows(
+          `patient_feedback?select=id,appointment_id,nps_score,service_rating,comments,created_at,updated_at,last_edited_by&patient_id=eq.${pid}&order=created_at.desc`,
+        )) as FeedbackRow[];
+        // The visit each one is about, fetched separately rather than embedded:
+        // patient_feedback.appointment_id is reachable through more than one
+        // route (the appointments table and the visits_needing_review view),
+        // and an implicit embed on an ambiguous column fails outright.
+        const ids = list
+          .map((f) => f.appointment_id)
+          .filter((v, i, a): v is string => !!v && a.indexOf(v) === i);
+        const visits: Record<string, FeedbackVisit> = {};
+        if (ids.length) {
+          const appts = (await rows(
+            `appointments?select=id,start_time,service,doctor_name,reason_for_consultation&id=in.(${ids.join(",")})`,
+          )) as FeedbackVisit[];
+          for (const a of appts) visits[a.id] = a;
+        }
+        return json({
+          data: list.map((f) => ({
+            ...f,
+            appointment: f.appointment_id ? visits[f.appointment_id] ?? null : null,
+          })),
+        });
+      }
+
+      case "update_feedback": {
+        if (!(await feedbackEnabled())) return json({ error: "Feedback is not enabled", code: "disabled" }, 403);
+        const id = String(p.id || "");
+        if (!/^[0-9a-fA-F-]{36}$/.test(id)) return json({ error: "Invalid feedback" }, 400);
+
+        // Both scores are required and must be in range. The table has no
+        // CHECK constraint on either, so this is the only thing standing
+        // between a crafted request and an NPS of 400 in the clinic's report.
+        const nps = Number(p.npsScore);
+        const rating = Number(p.serviceRating);
+        if (!Number.isInteger(nps) || nps < 0 || nps > 10) {
+          return json({ error: "Score must be a whole number from 0 to 10" }, 400);
+        }
+        if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+          return json({ error: "Rating must be a whole number from 1 to 5" }, 400);
+        }
+        let comments: string | null = null;
+        if (p.comments !== null && p.comments !== undefined) {
+          if (typeof p.comments !== "string") return json({ error: "Invalid comments" }, 400);
+          const trimmed = p.comments.trim();
+          if (trimmed.length > 2000) return json({ error: "Comments are too long" }, 400);
+          comments = trimmed || null;
+        }
+
+        // Scoped to this session's patient, so a patient cannot edit anybody
+        // else's feedback even knowing its id. An empty response means the row
+        // is not theirs (or does not exist) - never a silent success.
+        //
+        // The previous answers are kept: patient_feedback_snapshot copies them
+        // into patient_feedback_revisions before this write lands, and stamps
+        // updated_at. Nothing here needs to remember to do that.
+        const res = await sb(`patient_feedback?id=eq.${id}&patient_id=eq.${pid}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            nps_score: nps,
+            service_rating: rating,
+            comments,
+            last_edited_by: "patient",
+          }),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 500);
+        const updated = (await res.json())[0];
+        if (!updated) return json({ error: "Feedback not found" }, 404);
+        return json({ data: updated });
       }
 
       default:

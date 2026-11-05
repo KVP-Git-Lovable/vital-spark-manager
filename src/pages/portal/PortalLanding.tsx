@@ -39,6 +39,9 @@ import {
 import baAcneScars from "@/assets/portal-ba-acne-scars.jpg";
 import baPigmentation from "@/assets/portal-ba-pigmentation.jpg";
 import baAcneFace from "@/assets/portal-ba-acne-face.jpg";
+/* Already in the repo, used by the clinic page - a real 300x300 JPEG. The
+   other two doctors come from the clinic's CDN; she has no CDN image. */
+import docAshwini from "@/assets/clinic/real/dr-ashwini.jpg";
 
 /* ───────── tokens ───────── */
 const heading = { fontFamily: "'Plus Jakarta Sans', sans-serif" };
@@ -295,8 +298,17 @@ const PortalLanding = () => {
             </h2>
             <div className="mt-4 mx-auto h-px w-20 bg-gray-300" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+          {/* Three across from md up: with three doctors the old two-column
+              grid stranded the last one alone on its own row. */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10">
             {[
+              {
+                img: DOCTOR_1,
+                name: "Dr. Vindhya A. Pai",
+                creds: "MBBS, MD Dermatologist",
+                role: "Founder of The Skin Clinic",
+                exp: "14+ Years of Experience",
+              },
               {
                 img: DOCTOR_2,
                 name: "Dr. Punya Suvarna",
@@ -305,13 +317,16 @@ const PortalLanding = () => {
                 exp: "5+ Years of Experience",
               },
               {
-                img: DOCTOR_1,
-                name: "Dr. Vindhya A. Pai",
-                creds: "MBBS, MD Dermatologist",
-                role: "Founder of The Skin Clinic",
-                exp: "14+ Years of Experience",
+                img: docAshwini,
+                name: "Dr. Ashwini Ashokan",
+                creds: "MBBS, MD (DVL)",
+                role: "Consultant Dermatologist",
+                /* No years-of-experience line: nothing in the app or on the
+                   clinic's own page says how long she has practised, and the
+                   clinic chose to leave it out rather than have a number
+                   invented. Add one here when they have it. */
               },
-            ].map((d) => (
+            ].map((d: { img: string; name: string; creds: string; role: string; exp?: string }) => (
               <div key={d.name} className="text-center">
                 <div className="rounded-3xl overflow-hidden shadow-lg aspect-square max-w-sm mx-auto bg-gray-100">
                   <img src={d.img} alt={d.name} loading="lazy" className="w-full h-full object-cover" />
@@ -325,9 +340,11 @@ const PortalLanding = () => {
                 <p className="text-sm md:text-base" style={{ color: NAVY }}>
                   {d.role}
                 </p>
-                <p className="text-sm md:text-base" style={{ color: NAVY }}>
-                  {d.exp}
-                </p>
+                {d.exp && (
+                  <p className="text-sm md:text-base" style={{ color: NAVY }}>
+                    {d.exp}
+                  </p>
+                )}
               </div>
             ))}
           </div>

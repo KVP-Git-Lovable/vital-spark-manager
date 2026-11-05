@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { portalRequest, PortalSessionError, clearPortalSession } from "@/lib/portalApi";
 import { portalModuleEnabled } from "@/lib/portalModules";
+import { statCardSpan } from "@/lib/portalStatGrid";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -56,6 +57,20 @@ const tabs = [
   { id: "feedback", label: "Feedback", icon: MessageSquareHeart },
   { id: "bot", label: "AI Bot", icon: MessageCircle },
 ];
+
+/** One tile in the home screen's stat grid. */
+interface StatCard {
+  key: string;
+  icon: typeof Home;
+  /** Colour class for the icon. */
+  tone: string;
+  value: string;
+  label: string;
+  /** Whether the clinic has this module switched on. */
+  show: boolean;
+  /** Only the Surveys tile is tappable; the rest are display-only. */
+  onClick?: () => void;
+}
 
 function PortalSurveysList({ patientId, onOpen }: { patientId: string; onOpen: (templateId: string, assignmentId?: string) => void }) {
   const { data: assigned = [] } = useQuery({
@@ -295,6 +310,16 @@ const Portal = () => {
   const qaOrderMedicineEnabled = flag("quick_action_order_medicine_enabled");
   const historyTabEnabled = treatmentHistoryEnabled || procedureHistoryEnabled;
 
+  // The surveys this patient still has to fill. Fetched here rather than only
+  // inside the Surveys tab, because the home screen counts them too; the key
+  // is the one PortalSurveysList already uses, so the two share a single
+  // fetch and the invalidation after a submit refreshes both.
+  const { data: assignedSurveys = [] } = useQuery({
+    queryKey: ["portal-assigned-surveys", patientId],
+    queryFn: async () => (await portalRequest("assigned_surveys")) || [],
+    enabled: !!patientId && surveysEnabled,
+  });
+
   const visibleTabs = tabs.filter((t) => {
     if (t.id === "pharmacy") return shopEnabled;
     if (t.id === "procedures") return historyTabEnabled;
@@ -367,6 +392,62 @@ const Portal = () => {
   const totalDue = invoices
     .filter((i: any) => i.status !== "Paid")
     .reduce((s: number, i: any) => s + (Number(i.total_amount) - Number(i.paid_amount)), 0);
+
+  // The home screen's tiles, as data. They used to be four conditional blocks
+  // of JSX inside a fixed two-column grid, which left an empty cell whenever
+  // an odd number of them was switched on - the clinic saw it after turning
+  // Clinical Photos off. As a list, the count is known, and statCardSpan
+  // stretches the odd one out across both columns.
+  const statCards: StatCard[] = [
+    {
+      key: "appointments",
+      icon: Calendar,
+      tone: "text-primary",
+      value: String(upcomingAppts.length),
+      label: "Upcoming Appointments",
+      show: true,
+    },
+    {
+      key: "balance",
+      icon: Receipt,
+      tone: "text-warning",
+      value: `₹${totalDue.toLocaleString()}`,
+      label: "Outstanding Balance",
+      show: outstandingBalanceEnabled,
+    },
+    {
+      key: "procedures",
+      icon: ClipboardList,
+      tone: "text-success",
+      value: String(procedures.length),
+      label: "Total Procedures",
+      show: true,
+    },
+    {
+      key: "photos",
+      icon: Camera,
+      tone: "text-accent-foreground",
+      value: String(photos.length),
+      label: "Clinical Photos",
+      show: clinicalPhotosEnabled,
+    },
+    {
+      key: "surveys",
+      icon: ClipboardCheck,
+      tone: "text-primary",
+      value: String(assignedSurveys.length),
+      label: "Surveys to Fill",
+      show: surveysEnabled,
+      // The only tappable tile: a count of things to do that cannot be
+      // reached is just nagging. navigate() as well as setActiveTab, so the
+      // address bar matches the tab.
+      onClick: () => {
+        setActiveTab("surveys");
+        navigate("/portal/surveys");
+      },
+    },
+  ];
+  const visibleStatCards = statCards.filter((c) => c.show);
 
   const statusColors: Record<string, string> = {
     Scheduled: "bg-primary/10 text-primary",
@@ -487,30 +568,33 @@ const Portal = () => {
               <motion.div key="home" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-4">
                 {/* Quick stats */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-card rounded-xl p-4 border shadow-sm">
-                    <Calendar className="h-5 w-5 text-primary mb-2" />
-                    <p className="text-2xl font-bold">{upcomingAppts.length}</p>
-                    <p className="text-xs text-muted-foreground">Upcoming Appointments</p>
-                  </div>
-                  {outstandingBalanceEnabled && (
-                    <div className="bg-card rounded-xl p-4 border shadow-sm">
-                      <Receipt className="h-5 w-5 text-warning mb-2" />
-                      <p className="text-2xl font-bold">₹{totalDue.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">Outstanding Balance</p>
-                    </div>
-                  )}
-                  <div className="bg-card rounded-xl p-4 border shadow-sm">
-                    <ClipboardList className="h-5 w-5 text-success mb-2" />
-                    <p className="text-2xl font-bold">{procedures.length}</p>
-                    <p className="text-xs text-muted-foreground">Total Procedures</p>
-                  </div>
-                  {clinicalPhotosEnabled && (
-                    <div className="bg-card rounded-xl p-4 border shadow-sm">
-                      <Camera className="h-5 w-5 text-accent-foreground mb-2" />
-                      <p className="text-2xl font-bold">{photos.length}</p>
-                      <p className="text-xs text-muted-foreground">Clinical Photos</p>
-                    </div>
-                  )}
+                  {visibleStatCards.map((card, i) => {
+                    const Icon = card.icon;
+                    const span = statCardSpan(i, visibleStatCards.length);
+                    const inner = (
+                      <>
+                        <div className="flex items-start justify-between">
+                          <Icon className={`h-5 w-5 ${card.tone} mb-2`} />
+                          {card.onClick && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                        </div>
+                        <p className="text-2xl font-bold">{card.value}</p>
+                        <p className="text-xs text-muted-foreground">{card.label}</p>
+                      </>
+                    );
+                    return card.onClick ? (
+                      <button
+                        key={card.key}
+                        onClick={card.onClick}
+                        className={`bg-card rounded-xl p-4 border shadow-sm w-full text-left hover:bg-muted/40 transition-colors ${span}`}
+                      >
+                        {inner}
+                      </button>
+                    ) : (
+                      <div key={card.key} className={`bg-card rounded-xl p-4 border shadow-sm ${span}`}>
+                        {inner}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Quick actions */}

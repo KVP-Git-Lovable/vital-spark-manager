@@ -25,6 +25,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PatientAttachments } from "@/components/patients/PatientAttachments";
+import { FollowupButtons } from "@/components/appointments/FollowupButtons";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
@@ -1540,6 +1541,17 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       </p>
                     )}
                     {sendConfirmationButton}
+                    {/* The two post-treatment follow-ups. Details tab only: the
+                        header above shares this block but is already crowded,
+                        and these are an after-the-visit action, not a booking
+                        one. */}
+                    <FollowupButtons
+                      patientId={patientId}
+                      appointmentId={appointment.id}
+                      patientName={patientName}
+                      patientPhone={patientPhone}
+                      patient={appointment.patients}
+                    />
                   </div>
                   <div>
                     <Label>Investigation</Label>

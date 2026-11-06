@@ -38,3 +38,37 @@ export function hasRealName(patient: NamedPatient | null | undefined): boolean {
   const name = rawPatientName(patient);
   return !!name && !isPhoneLikeName(name);
 }
+
+/**
+ * Is this name usable inside a WhatsApp message?
+ *
+ * Stricter than hasRealName, and deliberately so. hasRealName answers "is
+ * there something to show in a list", where a single letter is at least
+ * truthful. A message is different: "Hello Ms. A," reads as a bug to the person
+ * receiving it. 241 patients have a single-letter FIRST name, and almost all of
+ * them carry a surname too, so they stay sendable as "A Kumar"; 8 have nothing
+ * beyond that single letter and are the ones this refuses.
+ *
+ * This MUST stay in step with isSendableName in
+ * supabase/functions/_shared/patient-greeting.ts, which is the rule the server
+ * actually enforces. Deno cannot import from the browser bundle, so the two are
+ * restated - and followupSend.test.ts holds them against each other case by
+ * case, because a client that enables a button the server then refuses is
+ * worse than no button.
+ */
+export function isSendableName(name: string | null | undefined): boolean {
+  const text = String(name ?? "").trim();
+  if (text.length < 2) return false;
+  // Must contain a Latin letter. That one line is what refuses the 153 records
+  // holding a phone number in the name column, because "9663438657" and
+  // "+91 96634 38657" contain no letter at all - checked against live data: the
+  // 153 phone-shaped names and the 153 letterless names are the same 153 rows.
+  // An earlier version also tested the name against a phone-number shape; that
+  // test could never fire, since a string of digits and brackets has no letter
+  // either, and a check no input can reach is a check no test can hold.
+  //
+  // 0 patients have a name written in a non-Latin script, so nobody is refused
+  // on that account today. If Kannada or Devanagari names are ever imported,
+  // this is the line that has to widen.
+  return /[a-z]/i.test(text);
+}

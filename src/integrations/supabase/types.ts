@@ -3914,6 +3914,45 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_feedback_backup_20261105: {
+        Row: {
+          appointment_id: string
+          comments: string | null
+          created_at: string
+          id: string
+          last_edited_by: string | null
+          nps_score: number
+          patient_id: string
+          patient_name: string | null
+          service_rating: number
+          updated_at: string | null
+        }
+        Insert: {
+          appointment_id: string
+          comments?: string | null
+          created_at?: string
+          id?: string
+          last_edited_by?: string | null
+          nps_score: number
+          patient_id: string
+          patient_name?: string | null
+          service_rating: number
+          updated_at?: string | null
+        }
+        Update: {
+          appointment_id?: string
+          comments?: string | null
+          created_at?: string
+          id?: string
+          last_edited_by?: string | null
+          nps_score?: number
+          patient_id?: string
+          patient_name?: string | null
+          service_rating?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       patient_feedback_revisions: {
         Row: {
           appointment_id: string | null
@@ -3960,6 +3999,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      patient_feedback_revisions_backup_20261105: {
+        Row: {
+          appointment_id: string | null
+          comments: string | null
+          feedback_id: string
+          id: string
+          nps_score: number | null
+          patient_id: string | null
+          recorded_at: string | null
+          service_rating: number | null
+          superseded_at: string
+          superseded_by: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          comments?: string | null
+          feedback_id: string
+          id?: string
+          nps_score?: number | null
+          patient_id?: string | null
+          recorded_at?: string | null
+          service_rating?: number | null
+          superseded_at?: string
+          superseded_by?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          comments?: string | null
+          feedback_id?: string
+          id?: string
+          nps_score?: number | null
+          patient_id?: string | null
+          recorded_at?: string | null
+          service_rating?: number | null
+          superseded_at?: string
+          superseded_by?: string | null
+        }
+        Relationships: []
       }
       patient_name_backup_20261006: {
         Row: {

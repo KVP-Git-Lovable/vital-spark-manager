@@ -97,7 +97,8 @@ function draw(name: SurveyIllustrationKey) {
         </Frame>
       );
 
-    case "mirror":
+        case "skinConcerns":
+case "appearance":
       return (
         <Frame>
           <ellipse cx="60" cy="40" rx="24" ry="28" fill="currentColor" opacity={0.18} />
@@ -109,7 +110,8 @@ function draw(name: SurveyIllustrationKey) {
         </Frame>
       );
 
-    case "frequency":
+        case "speed":
+case "frequency":
       return (
         <Frame>
           <path d="M32 48a28 28 0 0 1 48-20" />
@@ -120,7 +122,11 @@ function draw(name: SurveyIllustrationKey) {
         </Frame>
       );
 
-    case "bottle":
+        case "treatmentOptions":
+    case "products":
+    case "medication":
+    case "pastTreatment":
+case "treatmentsTried":
       return (
         <Frame>
           <path d="M52 16h16v12H52z" />
@@ -143,7 +149,8 @@ function draw(name: SurveyIllustrationKey) {
         </Frame>
       );
 
-    case "target":
+        case "outcome":
+case "goals":
       return (
         <Frame>
           <circle cx="54" cy="52" r="30" />
@@ -166,7 +173,8 @@ function draw(name: SurveyIllustrationKey) {
         </Frame>
       );
 
-    case "sleep":
+        case "downtime":
+case "sleep":
       return (
         <Frame>
           <path d="M72 20a28 28 0 1 0 24 34A30 30 0 0 1 72 20z" fill="currentColor" opacity={0.22} />
@@ -178,7 +186,8 @@ function draw(name: SurveyIllustrationKey) {
         </Frame>
       );
 
-    case "sun":
+        case "motivation":
+case "sun":
       return (
         <Frame>
           <circle cx="60" cy="42" r="16" fill="currentColor" opacity={0.25} />
@@ -190,7 +199,8 @@ function draw(name: SurveyIllustrationKey) {
         </Frame>
       );
 
-    case "stress":
+        case "health":
+case "stress":
       return (
         <Frame>
           <circle cx="60" cy="52" r="24" fill="currentColor" opacity={0.15} />
@@ -203,7 +213,9 @@ function draw(name: SurveyIllustrationKey) {
         </Frame>
       );
 
-    case "smoking":
+        case "hobbies":
+    case "activity":
+case "smoking":
       return (
         <Frame>
           <rect x="26" y="58" width="52" height="14" rx="4" fill="currentColor" opacity={0.22} />
@@ -216,7 +228,8 @@ function draw(name: SurveyIllustrationKey) {
         </Frame>
       );
 
-    case "work":
+        case "workplace":
+case "work":
       return (
         <Frame>
           <rect x="22" y="34" width="76" height="48" rx="8" />
@@ -240,7 +253,10 @@ function draw(name: SurveyIllustrationKey) {
         </Frame>
       );
 
-    case "hair":
+        case "hairPattern":
+    case "scalpCare":
+    case "hairWash":
+case "hairBrush":
       return (
         <Frame>
           <circle cx="52" cy="48" r="22" />
@@ -255,7 +271,9 @@ function draw(name: SurveyIllustrationKey) {
         </Frame>
       );
 
-    case "chat":
+        case "worry":
+    case "dailyLife":
+case "chat":
       return (
         <Frame>
           <path d="M24 28a8 8 0 0 1 8-8h56a8 8 0 0 1 8 8v32a8 8 0 0 1-8 8H52L34 82V68h-2a8 8 0 0 1-8-8z" fill="currentColor" opacity={0.18} />

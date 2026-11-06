@@ -14,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, Check, ClipboardCheck, Loader2, Pencil, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import SurveyIllustration from "@/components/portal/SurveyIllustration";
+import SurveyQuestionImage from "@/components/portal/SurveyQuestionImage";
 import { illustrationFor } from "@/lib/surveyIllustration";
 import {
   answerControl,
@@ -344,7 +344,7 @@ export default function PortalSurveyFill({ patientId, templateId, assignmentId, 
               <Card className="p-4 space-y-4">
                 <Label className="text-base font-medium leading-snug block">{current.question_text}</Label>
 
-                <SurveyIllustration name={illustrationFor(current.question_text, current.question_type)} />
+                <SurveyQuestionImage name={illustrationFor(current.question_text, current.question_type)} />
 
                 <QuestionControl
                   question={current}

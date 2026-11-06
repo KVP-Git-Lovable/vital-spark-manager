@@ -38,6 +38,7 @@ const ALL_MODULES = [
   { key: "portal_orders", label: "Portal Orders" },
   { key: "campaigns", label: "Campaigns" },
   { key: "leads", label: "Leads" },
+  { key: "feedback_rca", label: "Root Cause Analysis" },
   { key: "communications", label: "Communications Center" },
   { key: "meta", label: "Meta" },
   { key: "meta_connection", label: "Meta Connection" },

@@ -2158,6 +2158,124 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback_rca: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          created_by: string | null
+          feedback_id: string
+          id: string
+          nps_score_at_open: number
+          opened_reason: string
+          patient_id: string
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          root_cause: string | null
+          service_rating_at_open: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          created_by?: string | null
+          feedback_id: string
+          id?: string
+          nps_score_at_open: number
+          opened_reason: string
+          patient_id: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          root_cause?: string | null
+          service_rating_at_open: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          created_by?: string | null
+          feedback_id?: string
+          id?: string
+          nps_score_at_open?: number
+          opened_reason?: string
+          patient_id?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          root_cause?: string | null
+          service_rating_at_open?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_rca_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_rca_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_rca_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: true
+            referencedRelation: "patient_feedback"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_rca_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback_rca_comments: {
+        Row: {
+          author_id: string
+          author_name: string
+          body: string
+          created_at: string
+          id: string
+          rca_id: string
+        }
+        Insert: {
+          author_id?: string
+          author_name?: string
+          body: string
+          created_at?: string
+          id?: string
+          rca_id: string
+        }
+        Update: {
+          author_id?: string
+          author_name?: string
+          body?: string
+          created_at?: string
+          id?: string
+          rca_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_rca_comments_rca_id_fkey"
+            columns: ["rca_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_rca"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       field_history: {
         Row: {
           changed_at: string

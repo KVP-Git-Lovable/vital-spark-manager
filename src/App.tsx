@@ -100,6 +100,8 @@ const HistoryTracking = lazyWithReload(() => import("./pages/admin/HistoryTracki
 const PhotoFingerprints = lazyWithReload(() => import("./pages/admin/PhotoFingerprints"));
 const KnowledgeCategories = lazyWithReload(() => import("./pages/admin/KnowledgeCategories"));
 const KnowledgeArticles = lazyWithReload(() => import("./pages/KnowledgeArticles"));
+const FeedbackRca = lazyWithReload(() => import("./pages/FeedbackRca"));
+const FeedbackRcaDetail = lazyWithReload(() => import("./pages/FeedbackRcaDetail"));
 const KnowledgeArticleDetail = lazyWithReload(() => import("./pages/KnowledgeArticleDetail"));
 const Attendance = lazyWithReload(() => import("./pages/Attendance"));
 const AttendanceAdmin = lazyWithReload(() => import("./pages/admin/AttendanceAdmin"));
@@ -273,6 +275,8 @@ const App = () => (
                     <Route path="/appointments/:id" element={<ProtectedRoute moduleKey="appointments"><AppointmentDetail /></ProtectedRoute>} />
                     <Route path="/services" element={<ProtectedRoute moduleKey="services"><Services /></ProtectedRoute>} />
                     <Route path="/knowledge" element={<ProtectedRoute moduleKey="services"><KnowledgeArticles /></ProtectedRoute>} />
+            <Route path="/feedback-rca" element={<ProtectedRoute moduleKey="feedback_rca"><FeedbackRca /></ProtectedRoute>} />
+            <Route path="/feedback-rca/:id" element={<ProtectedRoute moduleKey="feedback_rca"><FeedbackRcaDetail /></ProtectedRoute>} />
                     <Route path="/knowledge/:id" element={<ProtectedRoute moduleKey="services"><KnowledgeArticleDetail /></ProtectedRoute>} />
                     <Route path="/billing" element={<ProtectedRoute moduleKey="billing"><Billing /></ProtectedRoute>} />
                     <Route path="/reports" element={<ProtectedRoute moduleKey="reports"><Reports /></ProtectedRoute>} />

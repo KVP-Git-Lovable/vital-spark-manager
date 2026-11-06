@@ -40,6 +40,7 @@ import {
   Link2,
   BookOpen,
   CalendarCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -86,6 +87,7 @@ const mainItems = [
   { title: "Leads", url: "/leads", icon: Target, moduleKey: "leads" },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone, moduleKey: "campaigns" },
   { title: "WhatsApp Delivery", url: "/whatsapp-log", icon: MessageCircle, moduleKey: "campaigns" },
+  { title: "Root Cause Analysis", url: "/feedback-rca", icon: AlertTriangle, moduleKey: "feedback_rca" },
 ];
 
 // Journey Builder, Meta and Meta Connection join this list when their pages land; until then a

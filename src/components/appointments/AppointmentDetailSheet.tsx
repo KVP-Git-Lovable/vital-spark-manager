@@ -94,6 +94,7 @@ import { appointmentDeleteNote } from "@/lib/appointmentDeleteNote";
 // Shared with the Patient Feedback report, so a visit cannot read "Passive"
 // on one screen and "Promoter" on the other.
 import { npsCategory, ratingLabel } from "@/lib/feedbackScores";
+import { FeedbackRcaPanel } from "@/components/feedback/FeedbackRcaPanel";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
 import { PhotoViewer } from "@/components/patients/PhotoViewer";
 import { orderAppointmentPhotos, photoPositionIn } from "@/lib/appointmentPhotos";
@@ -435,6 +436,9 @@ function FeedbackTabContent({
           )}
           <p className="text-[10px] text-muted-foreground">Submitted {format(new Date(existingFeedback.created_at), "MMM d, yyyy · h:mm a")}</p>
         </div>
+        {/* Renders nothing unless this score opened a case, which 24 of 979
+            did. Also nothing for staff who may not read cases. */}
+        <FeedbackRcaPanel feedbackId={existingFeedback.id} />
         {reviewRequestButton}
       </TabsContent>
     );

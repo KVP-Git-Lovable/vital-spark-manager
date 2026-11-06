@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { X, Search, Check, ChevronsUpDown, Plus, Trash2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,12 @@ import { Sparkles, Loader2 } from "lucide-react";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { findDuplicates, type DuplicateMatch } from "@/lib/duplicates/engine";
 import DuplicateNotificationBand from "@/components/duplicates/DuplicateNotificationBand";
+import PatientPreviewDialog, { type PreviewPatient } from "@/components/patients/PatientPreviewDialog";
+import { patientFormDirty } from "@/lib/patientFormDirty";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import DuplicateResolveDialog from "@/components/duplicates/DuplicateResolveDialog";
 
 
@@ -140,9 +147,19 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   const [resolveWith, setResolveWith] = useState<Record<string, any> | null>(null);
 
   const [duplicateAck, setDuplicateAck] = useState(false);
+  /** The suspected duplicate being looked at, over the form. Never navigates. */
+  const [previewing, setPreviewing] = useState<PreviewPatient | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  /**
+   * The form as it stood when the dialog opened. patientFormDirty compares
+   * against this rather than against a blank object, because emptyForm is not
+   * blank and a lead conversion pre-fills real values.
+   */
+  const initialFormRef = useRef<Record<string, unknown> | null>(null);
   const [familyExisting, setFamilyExisting] = useState<Record<string, any>>({});
   const { toast } = useToast();
   const isEditing = !!patient;
+  const navigate = useNavigate();
 
 
 
@@ -210,6 +227,18 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
       setOthersAestheticText("");
       setOthersClinicalText("");
     }
+    // Anything the dialog was looking at belongs to the previous open.
+    setPreviewing(null);
+    setConfirmDiscard(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patient?.id, open]);
+
+  // The snapshot the dirty check compares against. Taken AFTER the effect
+  // above has settled, in its own effect keyed the same way, so it records
+  // what the form actually opened with - emptyForm, a patient being edited,
+  // or a lead's pre-filled name and number.
+  useEffect(() => {
+    if (open) initialFormRef.current = { ...(form as Record<string, unknown>) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patient?.id, open]);
 
@@ -519,8 +548,64 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
     }
   };
 
+  /**
+   * Closing from the dialog itself - Escape, the overlay, the X.
+   *
+   * Only this path is guarded. handleSave calls the onOpenChange PROP
+   * directly, so a successful save still closes silently; the separation
+   * falls out of the wiring rather than needing a flag to suppress it.
+   */
+  const dirty = () =>
+    patientFormDirty(
+      form as Record<string, unknown>,
+      initialFormRef.current,
+      familyRows.length > 0 || consultationReasons.length > 0,
+    );
+
+  const requestClose = (next: boolean) => {
+    if (next) return onOpenChange(true);
+    if (dirty()) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onOpenChange(false);
+  };
+
+  /**
+   * The duplicate really is the person in front of us. Abandon this entry and
+   * open them - explicit intent, so it deliberately skips the discard prompt.
+   */
+  const useExistingInstead = (record: Record<string, unknown>) => {
+    setPreviewing(null);
+    onOpenChange(false);
+    navigate(`/patients/${String(record.id)}`);
+  };
+
   return (
     <>
+    <PatientPreviewDialog
+      patient={previewing}
+      onClose={() => setPreviewing(null)}
+      onUseInstead={isEditing ? undefined : useExistingInstead}
+    />
+
+    <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Discard this patient's details?</AlertDialogTitle>
+          <AlertDialogDescription>
+            You have typed details that have not been saved. Closing now loses them.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep editing</AlertDialogCancel>
+          <AlertDialogAction onClick={() => { setConfirmDiscard(false); onOpenChange(false); }}>
+            Discard
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
     <DuplicateResolveDialog
       open={!!resolveWith && !!patient}
       onClose={() => setResolveWith(null)}
@@ -529,7 +614,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
       onResolved={() => { setResolveWith(null); setLiveMatches([]); onSuccess(); }}
     />
 
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={requestClose}>
       <DialogContent className="max-w-6xl max-h-[95vh] overflow-y-auto p-6">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">
@@ -566,7 +651,14 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             matches={liveMatches}
             objectKey="patients"
             onIgnore={() => setDuplicateAck(true)}
-            onResolve={(rec) => setResolveWith(rec)}
+            // Show the match over this form instead of navigating to it. The
+            // navigate unmounted the route, and with it every typed field.
+            onOpenRecord={(rec) => setPreviewing(rec as PreviewPatient)}
+            // Merge needs a saved record to merge INTO, so it is offered only
+            // when editing. While adding, the same slot offers the action that
+            // can work: use the existing patient instead of this new entry.
+            onResolve={isEditing ? (rec) => setResolveWith(rec) : undefined}
+            onUseInstead={isEditing ? undefined : useExistingInstead}
           />
         )}
 

@@ -575,7 +575,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
    * The duplicate really is the person in front of us. Abandon this entry and
    * open them - explicit intent, so it deliberately skips the discard prompt.
    */
-  const useExistingInstead = (record: Record<string, unknown>) => {
+  const useExistingInstead = (record: { id?: unknown }) => {
     setPreviewing(null);
     onOpenChange(false);
     navigate(`/patients/${String(record.id)}`);
@@ -653,7 +653,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
             onIgnore={() => setDuplicateAck(true)}
             // Show the match over this form instead of navigating to it. The
             // navigate unmounted the route, and with it every typed field.
-            onOpenRecord={(rec) => setPreviewing(rec as PreviewPatient)}
+            onOpenRecord={(rec) => setPreviewing(rec as unknown as PreviewPatient)}
             // Merge needs a saved record to merge INTO, so it is offered only
             // when editing. While adding, the same slot offers the action that
             // can work: use the existing patient instead of this new entry.

@@ -62,7 +62,7 @@ export default function FeedbackRcaDetail() {
       qc.invalidateQueries({ queryKey: ["patient-feedback", "by-patient"] }),
     ]);
 
-  const patch = async (changes: Record<string, unknown>) => {
+  const patch = async (changes: { status?: string; assigned_to?: string | null; root_cause?: string | null }) => {
     if (!rca) return;
     const { error: err } = await supabase.from("feedback_rca").update(changes).eq("id", rca.id);
     if (err) {

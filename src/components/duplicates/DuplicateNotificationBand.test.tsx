@@ -98,7 +98,7 @@ describe("the Add Patient form's wiring", () => {
       .replace(/^\s*\/\/.*$/gm, "");
 
   it("hands the band somewhere to show the match instead of navigating", () => {
-    expect(form()).toContain("onOpenRecord={(rec) => setPreviewing(rec as PreviewPatient)}");
+    expect(form()).toMatch(/onOpenRecord=\{\(rec\) => setPreviewing\(rec as [^)]*PreviewPatient\)\}/);
   });
 
   it("offers merge only when editing, and use-instead only when adding", () => {

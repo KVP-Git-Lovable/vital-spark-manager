@@ -9045,6 +9045,7 @@ export type Database = {
         Args: { _column: string; _sql_type: string; _table: string }
         Returns: undefined
       }
+      can_manage_feedback_rca: { Args: never; Returns: boolean }
       can_manage_knowledge: { Args: never; Returns: boolean }
       can_restore_trash_item: { Args: { _trash_id: string }; Returns: boolean }
       can_see_procedure: { Args: { _procedure_id: string }; Returns: boolean }
@@ -9066,6 +9067,10 @@ export type Database = {
       drop_custom_field_column: {
         Args: { _column: string; _table: string }
         Returns: undefined
+      }
+      feedback_needs_root_cause: {
+        Args: { _nps: number; _rating: number }
+        Returns: boolean
       }
       get_report_fields: {
         Args: never

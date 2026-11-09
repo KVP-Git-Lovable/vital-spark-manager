@@ -67,6 +67,20 @@ describe("patientFormDirty", () => {
     expect(patientFormDirty({ ...EMPTY }, EMPTY, true)).toBe(true);
   });
 
+  it("saved consultation reasons and family rows in the snapshot are not edits", () => {
+    // Editing a patient who already has reasons and family members, then
+    // closing without touching anything, must not prompt.
+    const saved = {
+      ...EMPTY,
+      first_name: "Nisha",
+      __reasons: ["Acne"],
+      __family: [{ id: "f1", name: "Ravi", relationship: "Father", phone: "", is_primary_contact: false, linked: false }],
+    };
+    expect(patientFormDirty(structuredClone(saved), saved)).toBe(false);
+    expect(patientFormDirty({ ...saved, __reasons: ["Acne", "Scars"] }, saved)).toBe(true);
+    expect(patientFormDirty({ ...saved, __family: [] }, saved)).toBe(true);
+  });
+
   it("does not trip on a number arriving back as a string", () => {
     expect(patientFormDirty({ age: "30" }, { age: 30 })).toBe(false);
   });

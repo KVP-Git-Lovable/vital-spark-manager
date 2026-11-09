@@ -128,6 +128,23 @@ const emptyForm: TablesInsert<"patients"> = {
   consultation_reasons: null,
 };
 
+/**
+ * The form plus the consultation-reason state that lives beside it, as one
+ * object for patientFormDirty. Reasons are compared against what was loaded,
+ * not against "none", so a patient's saved reasons are not counted as typed.
+ */
+const withExtras = (
+  form: Record<string, unknown>,
+  reasons: string[],
+  othersAesthetic: string,
+  othersClinical: string,
+): Record<string, unknown> => ({
+  ...form,
+  __reasons: reasons,
+  __othersAesthetic: othersAesthetic,
+  __othersClinical: othersClinical,
+});
+
 export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, onSuccess }: PatientFormSheetProps) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<TablesInsert<"patients">>(emptyForm);

@@ -156,6 +156,8 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
    * blank and a lead conversion pre-fills real values.
    */
   const initialFormRef = useRef<Record<string, unknown> | null>(null);
+  /** Family rows as loaded for this open ([] for a new patient). */
+  const initialFamilyRef = useRef<FamilyRow[]>([]);
   const [familyExisting, setFamilyExisting] = useState<Record<string, any>>({});
   const { toast } = useToast();
   const isEditing = !!patient;
@@ -164,8 +166,13 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
 
 
   useEffect(() => {
+    // The value the form opens with. Built here and handed to BOTH setForm and
+    // the dirty-check snapshot: reading `form` back in this commit would see
+    // the previous render's state (emptyForm or the last patient), not this.
+    let opening: TablesInsert<"patients">;
+    let openingReasons = { reasons: [] as string[], othersAestheticText: "", othersClinicalText: "" };
     if (patient) {
-      setForm({
+      opening = {
         first_name: patient.first_name,
         last_name: patient.last_name,
         date_of_birth: patient.date_of_birth,
@@ -199,46 +206,36 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         doctor_id: (patient as any).doctor_id || null,
         consultation_type: patient.consultation_type ?? null,
         consultation_reasons: patient.consultation_reasons ?? null,
-      });
+      };
       // Unpack the stored reasons, or editing and saving a patient would drop
       // whatever was typed into "Others".
-      {
-        const parsed = parseConsultationReasonsForEdit(patient.consultation_reasons);
-        setConsultationReasons(parsed.reasons);
-        setOthersAestheticText(parsed.othersAestheticText);
-        setOthersClinicalText(parsed.othersClinicalText);
-      }
+      openingReasons = parseConsultationReasonsForEdit(patient.consultation_reasons);
     } else if (defaultValues) {
-      setForm({
+      opening = {
         ...emptyForm,
         first_name: defaultValues.first_name || "",
         last_name: defaultValues.last_name || "",
         phone: defaultValues.phone || null,
         email: defaultValues.email || null,
-      });
+      };
     } else {
-      setForm(emptyForm);
+      opening = emptyForm;
     }
-    // Reset the consultation-reason state whenever the sheet is not loading an
-    // existing patient, so tags from a previously edited patient don't bleed
-    // into a new (or default-values) patient and get saved onto their record.
-    if (!patient) {
-      setConsultationReasons([]);
-      setOthersAestheticText("");
-      setOthersClinicalText("");
-    }
+    setForm(opening);
+    // Always set (empty when not editing), so tags from a previously edited
+    // patient don't bleed into a new (or default-values) patient.
+    setConsultationReasons(openingReasons.reasons);
+    setOthersAestheticText(openingReasons.othersAestheticText);
+    setOthersClinicalText(openingReasons.othersClinicalText);
+    // The snapshot the dirty check compares against: exactly what the dialog
+    // opened with - emptyForm, the patient being edited, or a lead's pre-fill -
+    // including the saved consultation reasons, so those are not "typed".
+    initialFormRef.current = open
+      ? withExtras(opening as Record<string, unknown>, openingReasons.reasons, openingReasons.othersAestheticText, openingReasons.othersClinicalText)
+      : null;
     // Anything the dialog was looking at belongs to the previous open.
     setPreviewing(null);
     setConfirmDiscard(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patient?.id, open]);
-
-  // The snapshot the dirty check compares against. Taken AFTER the effect
-  // above has settled, in its own effect keyed the same way, so it records
-  // what the form actually opened with - emptyForm, a patient being edited,
-  // or a lead's pre-filled name and number.
-  useEffect(() => {
-    if (open) initialFormRef.current = { ...(form as Record<string, unknown>) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patient?.id, open]);
 
@@ -335,6 +332,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
   useEffect(() => {
     if (!open) return;
     setRemovedFamilyIds([]);
+    initialFamilyRef.current = [];
     if (!patient?.id) {
       setFamilyRows([]);
       return;
@@ -346,16 +344,17 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
         .select("id, name, relationship, phone, is_primary_contact, related_patient_id, related_patient:patients!patient_family_members_related_patient_id_fkey(first_name, last_name, phone)")
         .eq("patient_id", patient.id);
       if (cancelled) return;
-      setFamilyRows(
-        ((data as any[]) || []).map((r) => ({
-          id: r.id,
-          name: r.name || (r.related_patient ? `${r.related_patient.first_name || ""} ${r.related_patient.last_name || ""}`.trim() : ""),
-          relationship: r.relationship || "",
-          phone: r.phone || r.related_patient?.phone || "",
-          is_primary_contact: !!r.is_primary_contact,
-          linked: !!r.related_patient_id,
-        })),
-      );
+      const loaded: FamilyRow[] = ((data as any[]) || []).map((r) => ({
+        id: r.id,
+        name: r.name || (r.related_patient ? `${r.related_patient.first_name || ""} ${r.related_patient.last_name || ""}`.trim() : ""),
+        relationship: r.relationship || "",
+        phone: r.phone || r.related_patient?.phone || "",
+        is_primary_contact: !!r.is_primary_contact,
+        linked: !!r.related_patient_id,
+      }));
+      // Saved family members are not something the user typed this time.
+      initialFamilyRef.current = loaded;
+      setFamilyRows(loaded);
     })();
     return () => { cancelled = true; };
   }, [open, patient?.id]);
@@ -557,9 +556,11 @@ export function PatientFormSheet({ open, onOpenChange, patient, defaultValues, o
    */
   const dirty = () =>
     patientFormDirty(
-      form as Record<string, unknown>,
-      initialFormRef.current,
-      familyRows.length > 0 || consultationReasons.length > 0,
+      {
+        ...withExtras(form as Record<string, unknown>, consultationReasons, othersAestheticText, othersClinicalText),
+        __family: familyRows,
+      },
+      initialFormRef.current && { ...initialFormRef.current, __family: initialFamilyRef.current },
     );
 
   const requestClose = (next: boolean) => {

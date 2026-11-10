@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import { GOOGLE_REVIEW_LINK, GOOGLE_REVIEW_LINK_LEGACY, GOOGLE_REVIEW_MESSAGE, isReviewRequestMessage, reviewAlreadySentNotice, reviewContactNotice, reviewRequestState, whatsappShareUrl } from "./googleReview";
 
 describe("GOOGLE_REVIEW_MESSAGE", () => {
@@ -290,5 +291,33 @@ describe("reviewContactNotice", () => {
     // if refactoring moved the wording, the whole Feedback tab reads wrong.
     expect(reviewContactNotice(todayAfternoon, null, now))
       .toBe(reviewAlreadySentNotice(todayAfternoon, now));
+  });
+});
+
+describe("the review button is wired the way it is meant to be", () => {
+  /**
+   * The button lives in AppointmentDetailSheet, which would need the whole of
+   * Supabase, React Query and the router mocked to render. So its wiring is
+   * read from the source, with comments stripped: the file explains the traps
+   * it avoids, and a plain search finds the warning and reports it as the
+   * mistake.
+   */
+  const sheet = () =>
+    readFileSync("src/components/appointments/AppointmentDetailSheet.tsx", "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+
+  it("opens WhatsApp through the shared helper, not its own window.open", () => {
+    // One copy of the three rules - web.whatsapp.com not wa.me, no noopener,
+    // no dialog in the way - rather than two that drift.
+    const src = sheet();
+    expect(src).toContain("openWhatsApp(review.url, GOOGLE_REVIEW_MESSAGE)");
+    expect(src).not.toContain("window.open(");
+  });
+
+  it("records the ask ONLY when a tab really opened", () => {
+    // Inside the Lovable editor's preview frame no tab can work, and a row
+    // written anyway would later tell the clinic this patient had been asked.
+    expect(sheet()).toMatch(/if \(openWhatsApp\(.+\)\) recordReviewOpen\(\)/);
   });
 });

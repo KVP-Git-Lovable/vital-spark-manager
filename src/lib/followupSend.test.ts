@@ -229,56 +229,76 @@ describe("the browser rule and the server rule are the same rule", () => {
   }
 });
 
-describe("the buttons are wired the way they are meant to be", () => {
-  const raw = () => readFileSync("src/components/appointments/FollowupButtons.tsx", "utf8");
-  /**
-   * The component's comments spell out the traps it is avoiding - "noopener",
-   * "alert()", the name of the switched-off function - so a plain search of
-   * the file finds the warning and reports it as the mistake. These checks run
-   * against the CODE, with comments stripped. The `:` guard keeps "https://"
-   * from being read as the start of one.
-   */
-  const src = () =>
-    raw()
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+const stripComments = (text: string) =>
+  text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+
+describe("the one place that opens WhatsApp", () => {
+  // The three rules used to be written out in each button. Two copies of three
+  // subtle rules is one copy too many, so they live here now - and so do these
+  // checks. Comments are stripped first: the file spells out the traps it
+  // avoids ("noopener", "alert()"), and a plain search finds the warning and
+  // reports it as the mistake.
+  const raw = () => readFileSync("src/lib/whatsappOpen.ts", "utf8");
+  const src = () => stripComments(raw());
 
   it("strips comments before looking, or these checks prove nothing", () => {
     expect(raw()).toContain("noopener");
     expect(src()).not.toContain("noopener");
   });
 
-  it("never puts a dialog between the click and window.open", () => {
-    // window.open focuses the new tab, and Chrome ignores a dialog asked for
-    // by a background tab - it returns false and nothing happens. That is how
-    // the review button once opened a tab and instantly closed it again.
+  it("opens a real tab without noopener, then disowns it by hand", () => {
+    const text = src();
+    expect(text).toContain('window.open(url, "_blank")');
+    expect(text).not.toContain("noopener");
+    expect(text).toContain("win.opener = null");
+  });
+
+  it("never puts a browser dialog between the click and the open", () => {
     const text = src();
     expect(text).not.toContain("window.confirm");
     expect(text).not.toMatch(/\balert\(/);
     expect(text).not.toMatch(/\bprompt\(/);
   });
 
-  it("opens a real tab without noopener, then disowns it by hand", () => {
-    // The spec makes window.open return null whenever noopener is set, even on
-    // success, so the blocked-popup fallback would fire on every good click.
+  it("refuses to open anything at all from inside a frame", () => {
+    // A popup from a sandboxed iframe inherits the sandbox, and WhatsApp
+    // answers ERR_BLOCKED_BY_RESPONSE. Opening the tab anyway wastes the
+    // click and, worse, looks like a send.
     const text = src();
-    expect(text).toContain('window.open(state.url, "_blank")');
-    expect(text).not.toContain("noopener");
-    expect(text).toContain("win.opener = null");
+    const guard = text.indexOf("isEmbedded()");
+    const open = text.indexOf("window.open(");
+    expect(guard, "nothing checks for a frame").toBeGreaterThan(-1);
+    expect(guard, "the frame check runs after the tab is opened").toBeLessThan(open);
   });
 
-  it("offers the message to copy when the browser blocks the tab", () => {
+  it("offers the message to copy whenever a tab is not an option", () => {
     const text = src();
-    expect(text).toContain("blocked the WhatsApp tab");
     expect(text).toContain("navigator.clipboard.writeText");
+    expect(text).toContain("blocked the WhatsApp tab");
   });
+});
+
+describe("the buttons are wired the way they are meant to be", () => {
+  const button = () => stripComments(readFileSync("src/components/appointments/FollowupButtons.tsx", "utf8"));
 
   it("no longer calls the switched-off edge function", () => {
-    expect(src()).not.toContain("send-followup-whatsapp");
+    expect(button()).not.toContain("send-followup-whatsapp");
+  });
+
+  it("goes through the shared opener rather than its own window.open", () => {
+    const text = button();
+    expect(text).toContain("openWhatsApp(state.url");
+    expect(text).not.toContain("window.open(");
+  });
+
+  it("records the open ONLY when a tab really opened", () => {
+    // Two rows were written on 10 Nov for clicks that showed a blocked page.
+    // A row means a staff member had the message in front of them.
+    expect(button()).toMatch(/if \(openWhatsApp\(.+\)\) recordOpen\(kind\)/);
   });
 
   it("records the open without making the click wait for it", () => {
-    const text = src();
+    const text = button();
     expect(text).toContain('from("followup_opens" as never)');
     // An await in the click path spends the click's permission to open a tab.
     expect(text).toMatch(/const recordOpen[\s\S]{0,200}void \(async/);

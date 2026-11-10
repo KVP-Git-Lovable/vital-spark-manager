@@ -70,21 +70,7 @@ import { CaseAnalysis } from "@/components/shared/CaseAnalysis";
  * works: the staff member switches to the WhatsApp Web tab they already have
  * open, picks the patient, and pastes.
  */
-function offerReviewFallback() {
-  toast.message("Your browser blocked the WhatsApp tab", {
-    description: "Copy the message, then paste it into the patient's WhatsApp chat.",
-    action: {
-      label: "Copy message",
-      onClick: () => {
-        navigator.clipboard.writeText(GOOGLE_REVIEW_MESSAGE).then(
-          () => toast.success("Message copied"),
-          () => toast.error("Could not copy - your browser blocked the clipboard."),
-        );
-      },
-    },
-    duration: 20000,
-  });
-}
+import { openWhatsApp } from "@/lib/whatsappOpen";
 import { AiRepository } from "@/components/shared/AiRepository";
 import { SurveyFill } from "@/components/surveys/SurveyFill";
 import { SurveyRecommendations } from "@/components/surveys/SurveyRecommendations";
@@ -281,51 +267,20 @@ function FeedbackTabContent({
   };
 
   /**
-   * Open WhatsApp in a new tab.
+   * Open WhatsApp with the review message ready.
    *
-   * A plain <a target="_blank"> was tried first and gave staff
-   * "api.whatsapp.com is blocked / ERR_BLOCKED_BY_RESPONSE" - Chrome's
-   * wording for a page refusing to be framed, which means the link loaded
-   * INSIDE the frame rather than in a tab. window.open gives a genuine
-   * top-level tab, and X-Frame-Options cannot apply to a top-level document.
+   * How the tab is opened, and why neither wa.me nor a dialog may come near
+   * this path, now lives in src/lib/whatsappOpen.ts, shared with the two
+   * follow-up buttons. It also refuses outright inside the Lovable editor's
+   * preview frame, where a popup inherits the frame's sandbox and WhatsApp
+   * answers with ERR_BLOCKED_BY_RESPONSE.
    *
-   * It also tells us when the browser refused outright, which an anchor
-   * cannot, so that case gets a usable fallback instead of a dead page.
-   *
-   * NEVER put a confirm(), alert() or prompt() in this function, and never
-   * call one between the click and this. window.open focuses the new tab,
-   * which leaves this page in the background, and Chrome ignores a dialog
-   * asked for by a background tab - it shows nothing and returns false. That
-   * is exactly how "Ask again" came to open a tab and instantly close it
-   * again: the screen jolted and nothing happened. Anything that needs
-   * asking is asked before this runs, by askAgainOpen below.
+   * The open is recorded only when a tab really opened: a row written for a
+   * blocked page would later tell the clinic this patient had been asked.
    */
   const openWhatsAppNow = () => {
     if (!review.enabled || !review.url) return;
-    // One window.open carrying the real URL, exactly as PhotoViewer,
-    // PdfPreviewDialog and the report drill-downs do it.
-    //
-    // This used to go through reserveTab().navigate(), which opens about:blank
-    // and navigates it afterwards, and the tab sat on the placeholder for
-    // ever: navigate() disowns the window (opener = null) before assigning
-    // location, and a disowned popup is no longer the opener's to steer, with
-    // the failure swallowed by a catch. reserveTab earns that two-step dance
-    // when a tab must be claimed BEFORE an await - a PDF being built, an edge
-    // function being called. Nothing is awaited here; the URL is already
-    // known, so there was never anything to reserve.
-    // Do NOT pass "noopener" in the features string: the HTML spec makes
-    // window.open return null whenever noopener is set, even when the tab
-    // opened fine, so the null check below would fire the fallback on every
-    // successful click and recordReviewOpen would never run. Open without it
-    // and disown the opener manually instead - same protection, truthful
-    // return value.
-    const win = window.open(review.url, "_blank");
-    if (!win) {
-      offerReviewFallback();
-      return;
-    }
-    win.opener = null;
-    recordReviewOpen();
+    if (openWhatsApp(review.url, GOOGLE_REVIEW_MESSAGE)) recordReviewOpen();
   };
 
   /**

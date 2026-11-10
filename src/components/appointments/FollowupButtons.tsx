@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { MessageCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { openWhatsApp } from "@/lib/whatsappOpen";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,24 +32,11 @@ import type { NamedPatient } from "@/lib/patientName";
  * through send-followup-whatsapp, until the clinic deleted the two approved
  * Meta templates on 10 Nov 2026 - src/lib/followupSend.ts has the full story.
  *
- * ── Three rules in here that are not negotiable ──
- *
- * They are lifted wholesale from the Google review button, which arrived at
- * them the hard way, and breaking any one of them puts the blocked-page back
- * in front of the front desk:
- *
- *  1. web.whatsapp.com, never wa.me. wa.me redirects through
- *     api.whatsapp.com, which refuses to be framed and shows
- *     "api.whatsapp.com is blocked / ERR_BLOCKED_BY_RESPONSE". That decision
- *     lives in whatsappShareUrl and must not be re-made here.
- *  2. window.open with a real URL and NO "noopener" in the features string.
- *     The spec makes window.open return null whenever noopener is set, even
- *     on success, so the blocked-popup fallback would fire on every good
- *     click. The opener is disowned by hand instead.
- *  3. NEVER a confirm(), alert() or prompt() between the click and
- *     window.open. The new tab takes focus, and Chrome silently ignores a
- *     dialog asked for by a background tab - it returns false and nothing
- *     happens. Anything to ask is asked BEFORE, by the AlertDialog below.
+ * How the tab is opened, why web.whatsapp.com rather than wa.me, and why no
+ * dialog may stand between the click and the open all live in
+ * src/lib/whatsappOpen.ts, which the Google review button uses too. They were
+ * written out here as well until the editor's preview frame showed that two
+ * copies of three subtle rules is one copy too many.
  */
 export function FollowupButtons({
   patientId,
@@ -138,26 +125,10 @@ export function FollowupButtons({
   const openNow = (kind: FollowupKind) => {
     const state = followupShareState(patientPhone, patient, kind);
     if (!state.enabled || !state.url) return;
-    const win = window.open(state.url, "_blank");
-    if (!win) {
-      const message = followupMessage(kind, patient);
-      toast.message("Your browser blocked the WhatsApp tab", {
-        description: "Copy the message, then paste it into the patient's WhatsApp chat.",
-        action: {
-          label: "Copy message",
-          onClick: () => {
-            navigator.clipboard.writeText(message).then(
-              () => toast.success("Message copied"),
-              () => toast.error("Could not copy - your browser blocked the clipboard."),
-            );
-          },
-        },
-        duration: 20000,
-      });
-      return;
-    }
-    win.opener = null;
-    recordOpen(kind);
+    // Recorded only when a tab really opened. Two rows were written on 10 Nov
+    // for clicks that showed a blocked page, which would later have told the
+    // clinic this patient had been followed up.
+    if (openWhatsApp(state.url, followupMessage(kind, patient))) recordOpen(kind);
   };
 
   /**

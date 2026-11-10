@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { FollowupButtons } from "./FollowupButtons";
 import { followupMessage } from "@/lib/followupSend";
+import { toast } from "sonner";
 
 /**
  * The two follow-up buttons in a DOM.
@@ -53,6 +54,20 @@ const props = {
   patient: { first_name: "Surekha", last_name: "", gender: "Female" },
 };
 
+/**
+ * Pretend this window is inside a frame.
+ *
+ * Only `top` is redefined. Replacing the whole `window` object breaks React and
+ * jsdom - "Right-hand side of 'instanceof' is not an object" - and leaks into
+ * every test that follows.
+ */
+function framed() {
+  Object.defineProperty(window, "top", { value: { notUs: true }, configurable: true });
+}
+function unframed() {
+  Object.defineProperty(window, "top", { value: window, configurable: true });
+}
+
 let openSpy: ReturnType<typeof vi.fn>;
 const fakeWindow = () => ({ opener: {} as unknown }) as Window;
 
@@ -63,6 +78,11 @@ beforeEach(() => {
   openSpy = vi.fn(() => fakeWindow());
   vi.stubGlobal("open", openSpy);
   vi.spyOn(window, "confirm");
+  unframed();
+  // Without this, a later test reads mock.calls[0] and gets the FIRST toast of
+  // the whole file rather than its own - which is how the blocked-popup check
+  // came to assert against the preview-frame message.
+  vi.mocked(toast.message).mockReset();
 });
 
 describe("opening WhatsApp", () => {
@@ -121,9 +141,23 @@ describe("opening WhatsApp", () => {
   });
 });
 
+describe("inside the Lovable editor's preview frame", () => {
+  it("opens nothing and records nothing", async () => {
+    // A popup from that sandboxed frame inherits the sandbox and WhatsApp
+    // answers ERR_BLOCKED_BY_RESPONSE. Two rows were written on 10 Nov for
+    // exactly such clicks, each claiming the patient had been contacted.
+    framed();
+    wrap(<FollowupButtons {...props} />);
+    fireEvent.click(await screen.findByTestId("send-followup-24h"));
+
+    expect(openSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(toast.message).toHaveBeenCalled());
+    expect(inserted, "a blocked click was recorded as contact").toHaveLength(0);
+  });
+});
+
 describe("when the browser blocks the tab", () => {
   it("offers the message to copy instead, and records nothing", async () => {
-    const { toast } = await import("sonner");
     openSpy.mockReturnValue(null);
     wrap(<FollowupButtons {...props} />);
     fireEvent.click(await screen.findByTestId("send-followup-24h"));

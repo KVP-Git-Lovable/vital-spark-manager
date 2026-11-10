@@ -1548,7 +1548,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                     <FollowupButtons
                       patientId={patientId}
                       appointmentId={appointment.id}
-                      patientName={patientName}
                       patientPhone={patientPhone}
                       patient={appointment.patients}
                     />

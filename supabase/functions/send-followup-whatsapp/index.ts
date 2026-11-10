@@ -14,6 +14,18 @@ import {
 /**
  * The 24-hour and 1-week post-treatment follow-ups.
  *
+ * ── SWITCHED OFF since 10 Nov 2026, and deliberately not deleted ──
+ *
+ * The clinic deleted both approved Meta templates, so TWILIO_FOLLOWUP_24H_
+ * TEMPLATE_SID and its sibling point at nothing and this returns a 503. The
+ * buttons now open WhatsApp Web with the message typed instead - see
+ * src/lib/followupSend.ts and src/components/appointments/FollowupButtons.tsx.
+ *
+ * Left in place exactly as send-google-review-whatsapp was: if templates are
+ * ever approved again, pointing those two secrets at the new SIDs is all that
+ * is needed. The wording in ./template.ts is held against the wording the
+ * buttons use by a test, so the two cannot drift apart while this sleeps.
+ *
  * One function for both, rather than two near-identical ones: the auth, the
  * patient scoping, the service-window branch and the recording are the whole
  * job, and only the template SID and the words differ.

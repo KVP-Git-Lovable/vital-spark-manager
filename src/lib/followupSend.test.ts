@@ -1,171 +1,286 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { FOLLOWUP_KINDS, followupSendState, isFollowupMessage } from "./followupSend";
-import { isSendableName } from "./patientName";
 import {
   FOLLOWUP_BODIES,
-  FOLLOWUP_TEMPLATES,
-  followupText,
-} from "../../supabase/functions/send-followup-whatsapp/template";
-import { isSendableName as serverIsSendableName } from "../../supabase/functions/_shared/patient-greeting";
+  FOLLOWUP_KINDS,
+  followupContactNotice,
+  followupGreeting,
+  followupMessage,
+  followupShareState,
+  isFollowupMessage,
+} from "./followupSend";
+import { isSendableName, titleFromGender } from "./patientName";
+import {
+  isSendableName as serverIsSendableName,
+  titleFromGender as serverTitleFromGender,
+} from "../../supabase/functions/_shared/patient-greeting";
+import { FOLLOWUP_BODIES as TEMPLATE_BODIES } from "../../supabase/functions/send-followup-whatsapp/template";
 
 /**
- * The browser half of the two follow-up buttons: which patients they refuse,
- * and how a sent follow-up is recognised when it is read back.
+ * The two follow-up buttons, now that they open WhatsApp rather than send.
+ *
+ * The clinic deleted both approved Meta templates on 10 Nov 2026, so the
+ * wording is ours again and the patient's name can go in automatically - which
+ * it could not while a template variable had to be approved for it.
  */
 
-const OK = { first_name: "Sheren", last_name: "" };
+const female = { first_name: "Surekha", last_name: "", gender: "Female" };
 
-describe("whether a follow-up can be sent", () => {
-  it("allows an ordinary patient with a number", () => {
-    expect(followupSendState("9606342269", OK)).toEqual({ enabled: true, reason: "" });
+describe("how the clinic addresses the patient", () => {
+  it("puts the name in automatically", () => {
+    expect(followupGreeting(female)).toBe("Hello Ms. Surekha,");
+    expect(followupGreeting({ first_name: "Rahul", last_name: "Bhat", gender: "Male" })).toBe(
+      "Hello Mr. Rahul Bhat,",
+    );
   });
 
-  it("refuses a patient with no number, and says so", () => {
-    const state = followupSendState("", OK);
-    expect(state.enabled).toBe(false);
-    expect(state.reason).toContain("no phone number");
-    // Whitespace is not a phone number.
-    expect(followupSendState("   ", OK).enabled).toBe(false);
-    expect(followupSendState(null, OK).enabled).toBe(false);
+  it("drops the title when gender is not recorded", () => {
+    // 30 patients. A guess here is worse than no title.
+    expect(followupGreeting({ first_name: "Ahalya", last_name: "", gender: null })).toBe("Hello Ahalya,");
+    expect(followupGreeting({ first_name: "Ahalya", last_name: "", gender: "Other" })).toBe("Hello Ahalya,");
   });
 
-  it("refuses a patient whose name is really a phone number", () => {
-    // 153 such records. "Hello Ms. 9663438657," must not be sendable.
-    const state = followupSendState("9663438657", { first_name: "9663438657", last_name: "" });
-    expect(state.enabled).toBe(false);
-    // The reason quotes what is stored, so the receptionist can see the record
-    // is wrong rather than assume the button is broken.
-    expect(state.reason).toContain("9663438657");
+  it("does not stack a title onto a name that already has one", () => {
+    // 642 patients already carry one, 633 of them a "Dr"/"Dr.".
+    expect(followupGreeting({ first_name: "Dr. Krithi", last_name: "", gender: "Female" })).toBe(
+      "Hello Dr. Krithi,",
+    );
   });
 
-  it("refuses a single-letter name, exactly as the server does", () => {
-    // 8 such records. This is the case that caught me out: hasRealName
-    // accepts "A" - truthful enough for a list label - while the server
-    // refuses it, so using hasRealName here enabled a button that then failed
-    // with a 400 and no explanation.
-    expect(followupSendState("9606342269", { first_name: "A", last_name: "" }).enabled).toBe(false);
-    expect(serverIsSendableName("A")).toBe(false);
+  it("falls back to a plain Hello when the name cannot be used", () => {
+    // 161 patients: 153 hold a phone number where the name should be, 8 have a
+    // single character. These used to DISABLE the button; now they just lose
+    // the name, which is the better failure.
+    expect(followupGreeting({ first_name: "9663438657", last_name: "", gender: "Female" })).toBe("Hello,");
+    expect(followupGreeting({ first_name: "A", last_name: "", gender: "Female" })).toBe("Hello,");
+    expect(followupGreeting(null)).toBe("Hello,");
+    // No stray space before the comma, which is what a naive template would do.
+    expect(followupGreeting(null)).not.toContain(" ,");
+  });
+});
+
+describe("the message the clinic asked for", () => {
+  it("the 24-hour message is exactly what was given, with the name added", () => {
+    expect(followupMessage("24h", female)).toBe(
+      "Hello Ms. Surekha,\n" +
+        "This is a quick follow-up regarding your treatment done. We wanted to check how are you doing after the treatment.\n" +
+        "\n" +
+        "Please continue the prescribed medications and aftercare as advised by the doctor.\n" +
+        "We are always here to help you.\n" +
+        "Looking forward to your feedback.\n" +
+        "\n" +
+        "Warm regards,\n" +
+        "The Skin Clinic",
+    );
   });
 
-  it("refuses a patient with no name at all", () => {
-    expect(followupSendState("9606342269", { first_name: "", last_name: "" }).enabled).toBe(false);
-    expect(followupSendState("9606342269", null).reason).toContain("no name");
+  it("the 1-week message is exactly what was given, with the name added", () => {
+    expect(followupMessage("1week", female)).toBe(
+      "Hello Ms. Surekha,\n" +
+        "This is a one week follow up. How are you after the treatment?\n" +
+        "Kindly reply regarding the same.\n" +
+        "Thanks and regards\n" +
+        "The Skin Clinic Team",
+    );
   });
 
-  it("allows a name carrying a digit, which is still a name", () => {
-    expect(followupSendState("9606342269", { first_name: "Dr K2", last_name: "" }).enabled).toBe(true);
+  it("leaves no placeholder behind", () => {
+    for (const { kind } of FOLLOWUP_KINDS) {
+      expect(followupMessage(kind, female)).not.toContain("{greeting}");
+      expect(followupMessage(kind, null)).not.toContain("{greeting}");
+      // {{1}} belonged to the Meta template and must not survive into a typed
+      // WhatsApp message.
+      expect(followupMessage(kind, female)).not.toContain("{{");
+    }
+  });
+
+  it("carries no double spaces or trailing whitespace", () => {
+    for (const [kind, body] of Object.entries(FOLLOWUP_BODIES)) {
+      expect(body, `${kind} has a double space`).not.toMatch(/ {2}/);
+      expect(body, `${kind} has trailing whitespace on a line`).not.toMatch(/[ \t]+\n/);
+      expect(body, `${kind} ends with whitespace`).toBe(body.trimEnd());
+    }
+  });
+
+  it("says the same thing as the switched-off template sender", () => {
+    // send-followup-whatsapp is kept in place, not deleted, so it can be
+    // switched back on if templates are ever approved again. If these two
+    // drift, the same patient gets different words depending on a setting
+    // nobody remembers.
+    for (const { kind } of FOLLOWUP_KINDS) {
+      expect(FOLLOWUP_BODIES[kind].replace("{greeting}", "Hello {{1}},")).toBe(TEMPLATE_BODIES[kind]);
+    }
+  });
+});
+
+describe("the WhatsApp link", () => {
+  it("goes straight to web.whatsapp.com, never through wa.me", () => {
+    // wa.me redirects through api.whatsapp.com, which refuses to be framed and
+    // gives staff "api.whatsapp.com is blocked / ERR_BLOCKED_BY_RESPONSE".
+    const url = followupShareState("9606342269", female, "24h").url ?? "";
+    expect(url.startsWith("https://web.whatsapp.com/send?")).toBe(true);
+    expect(url).not.toContain("wa.me");
+    expect(url).not.toContain("api.whatsapp.com");
+  });
+
+  it("carries the number in full and the message as the text", () => {
+    const url = new URL(followupShareState("9606342269", female, "1week").url ?? "");
+    expect(url.searchParams.get("phone")).toBe("919606342269");
+    expect(url.searchParams.get("text")).toBe(followupMessage("1week", female));
+  });
+
+  it("sends each kind's own words", () => {
+    const a = new URL(followupShareState("9606342269", female, "24h").url ?? "");
+    const b = new URL(followupShareState("9606342269", female, "1week").url ?? "");
+    expect(a.searchParams.get("text")).toContain("quick follow-up regarding your treatment");
+    expect(b.searchParams.get("text")).toContain("one week follow up");
+    expect(a.searchParams.get("text")).not.toBe(b.searchParams.get("text"));
+  });
+
+  it("is disabled ONLY when there is no usable number", () => {
+    const none = followupShareState("", female, "24h");
+    expect(none.enabled).toBe(false);
+    expect(none.url).toBeNull();
+    expect(none.reason).toContain("no usable phone number");
+    expect(followupShareState("12345", female, "24h").enabled).toBe(false);
+  });
+
+  it("is still enabled for a patient whose name cannot be used", () => {
+    // The change of heart: the name used to gate the button because a Meta
+    // template cannot take an empty variable. Typed text can.
+    const state = followupShareState("9606342269", { first_name: "9663438657", last_name: "" }, "24h");
+    expect(state.enabled).toBe(true);
+    expect(new URL(state.url!).searchParams.get("text")).toContain("Hello,");
+  });
+});
+
+describe("recognising a follow-up this patient already had", () => {
+  it("recognises the one that really was sent before the templates went", () => {
+    // Ms. Surekha, 10 Nov 2026, through the old template sender. If this stops
+    // matching, she is offered the same message again as though new.
+    const real =
+      "Hello Ms. Surekha,\nThis is a quick follow-up regarding your treatment done. " +
+      "We wanted to check how are you doing after the treatment.";
+    expect(isFollowupMessage("24h", real)).toBe(true);
+    expect(isFollowupMessage("1week", real)).toBe(false);
+  });
+
+  it("recognises the words that go out now", () => {
+    for (const { kind } of FOLLOWUP_KINDS) {
+      expect(isFollowupMessage(kind, followupMessage(kind, female))).toBe(true);
+    }
+    expect(isFollowupMessage("24h", followupMessage("1week", female))).toBe(false);
+    expect(isFollowupMessage("1week", followupMessage("24h", female))).toBe(false);
+  });
+
+  it("recognises the old sender's fallback line", () => {
+    expect(isFollowupMessage("24h", "24-hour follow-up sent using the approved clinic template.")).toBe(true);
+    expect(isFollowupMessage("1week", "1-week follow-up sent using the approved clinic template.")).toBe(true);
+  });
+
+  it("claims nothing from an unrelated message", () => {
+    expect(isFollowupMessage("24h", "Your appointment is confirmed for 12 Nov.")).toBe(false);
+    expect(isFollowupMessage("1week", "")).toBe(false);
+    expect(isFollowupMessage("1week", null)).toBe(false);
+  });
+});
+
+describe("the notice above the buttons", () => {
+  const now = new Date("2026-11-10T12:00:00Z");
+  const earlier = new Date("2026-11-10T06:14:00Z");
+  const yesterday = new Date("2026-11-09T06:14:00Z");
+
+  it("says nothing when the patient has never been contacted", () => {
+    expect(followupContactNotice(null, null, now)).toBe("");
+  });
+
+  it("says 'sent' only for a message the app really sent", () => {
+    expect(followupContactNotice(earlier, null, now)).toContain("Already sent");
+  });
+
+  it("says 'opened' for a staff member opening WhatsApp, which is not a send", () => {
+    // We cannot see whether they pressed send, let alone whether it arrived.
+    const notice = followupContactNotice(null, earlier, now);
+    expect(notice).toContain("Follow-up opened");
+    expect(notice).not.toContain("sent");
+  });
+
+  it("reports the later of the two, with a tie going to the confirmed send", () => {
+    expect(followupContactNotice(earlier, yesterday, now)).toContain("Already sent");
+    expect(followupContactNotice(yesterday, earlier, now)).toContain("Follow-up opened");
+    expect(followupContactNotice(earlier, earlier, now)).toContain("Already sent");
   });
 });
 
 describe("the browser rule and the server rule are the same rule", () => {
-  // They are restated rather than shared, because Deno cannot import from the
-  // browser bundle. So they are held against each other here: a button that is
-  // enabled for a patient the server then refuses is worse than no button.
-  const cases = [
-    "Sheren",
-    "A",
-    "",
-    " ",
-    "9663438657",
-    "+91 96634 38657",
-    "(0824) 2441234",
-    "Dr. Krithi",
-    "Dr K2",
-    "Jo",
-    "123A",
-    "-",
-  ];
-  for (const name of cases) {
-    it(`agrees on ${JSON.stringify(name)}`, () => {
-      expect(isSendableName(name)).toBe(serverIsSendableName(name));
+  // Restated rather than shared, because Deno cannot import from the browser
+  // bundle. The appointment confirmations are addressed by the server copy and
+  // these follow-ups by the browser one, so the same patient must not be "Ms."
+  // in one message and something else in the next.
+  for (const g of ["Female", "female", "FEMALE", "Male", "m", "Other", "", null]) {
+    it(`agrees on gender ${JSON.stringify(g)}`, () => {
+      expect(titleFromGender(g)).toBe(serverTitleFromGender(g));
+    });
+  }
+  for (const n of ["Surekha", "A", "", " ", "9663438657", "+91 96634 38657", "Dr. Krithi", "Jo", "-"]) {
+    it(`agrees on name ${JSON.stringify(n)}`, () => {
+      expect(isSendableName(n)).toBe(serverIsSendableName(n));
     });
   }
 });
 
-describe("recognising a follow-up that has already been sent", () => {
-  it("recognises the words the patient actually received", () => {
-    for (const { kind } of FOLLOWUP_KINDS) {
-      expect(isFollowupMessage(kind, followupText(kind, "Ms. Sheren"))).toBe(true);
-    }
-  });
-
-  it("recognises the sender's fallback line, which is the COMMON case", () => {
-    // Twilio returns no body for a template send, so send-followup-whatsapp
-    // records its own text instead. If this stopped matching, the button would
-    // offer "Send" again to a patient who was messaged a minute ago.
-    for (const { kind } of FOLLOWUP_KINDS) {
-      const fallback = `${FOLLOWUP_TEMPLATES[kind].label} sent using the approved clinic template.`;
-      expect(isFollowupMessage(kind, fallback), `${kind} fallback unrecognised`).toBe(true);
-    }
-  });
-
-  it("does not mistake one follow-up for the other", () => {
-    expect(isFollowupMessage("24h", followupText("1week", "Ms. Sheren"))).toBe(false);
-    expect(isFollowupMessage("1week", followupText("24h", "Ms. Sheren"))).toBe(false);
-    const f24 = `${FOLLOWUP_TEMPLATES["24h"].label} sent using the approved clinic template.`;
-    const f1w = `${FOLLOWUP_TEMPLATES["1week"].label} sent using the approved clinic template.`;
-    expect(isFollowupMessage("1week", f24)).toBe(false);
-    expect(isFollowupMessage("24h", f1w)).toBe(false);
-  });
-
-  it("claims nothing from an unrelated message", () => {
-    expect(isFollowupMessage("24h", "Your appointment is confirmed for 9 Nov.")).toBe(false);
-    expect(isFollowupMessage("1week", "")).toBe(false);
-    expect(isFollowupMessage("1week", null)).toBe(false);
-  });
-
-  it("the words it matches on are words the approved bodies contain", () => {
-    expect(FOLLOWUP_BODIES["24h"]).toContain("follow-up regarding your treatment");
-    expect(FOLLOWUP_BODIES["1week"]).toContain("one week follow up");
-  });
-});
-
 describe("the buttons are wired the way they are meant to be", () => {
-  const button = () => readFileSync("src/components/appointments/FollowupButtons.tsx", "utf8");
-  const sheet = () => readFileSync("src/components/appointments/AppointmentDetailSheet.tsx", "utf8");
+  const raw = () => readFileSync("src/components/appointments/FollowupButtons.tsx", "utf8");
+  /**
+   * The component's comments spell out the traps it is avoiding - "noopener",
+   * "alert()", the name of the switched-off function - so a plain search of
+   * the file finds the warning and reports it as the mistake. These checks run
+   * against the CODE, with comments stripped. The `:` guard keeps "https://"
+   * from being read as the start of one.
+   */
+  const src = () =>
+    raw()
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
 
-  it("reads whatsapp_conversations, not the delivery log", () => {
-    // whatsapp_delivery_log is filled in by the webhook afterwards and is still
-    // empty for a second press forty seconds later. That gap once sent a
-    // patient the same message twice.
-    const src = button();
-    expect(src).toContain('.from("whatsapp_conversations")');
-    expect(src).not.toContain('.from("whatsapp_delivery_log")');
+  it("strips comments before looking, or these checks prove nothing", () => {
+    expect(raw()).toContain("noopener");
+    expect(src()).not.toContain("noopener");
   });
 
-  it("sends through the follow-up function and nothing else", () => {
-    expect(button()).toContain('supabase.functions.invoke("send-followup-whatsapp"');
+  it("never puts a dialog between the click and window.open", () => {
+    // window.open focuses the new tab, and Chrome ignores a dialog asked for
+    // by a background tab - it returns false and nothing happens. That is how
+    // the review button once opened a tab and instantly closed it again.
+    const text = src();
+    expect(text).not.toContain("window.confirm");
+    expect(text).not.toMatch(/\balert\(/);
+    expect(text).not.toMatch(/\bprompt\(/);
   });
 
-  it("decides enabled/disabled in followupSendState rather than inline", () => {
-    const src = button();
-    expect(src).toContain("followupSendState(patientPhone, patient)");
-    // The reason is shown, not swallowed: a greyed-out button with no
-    // explanation is the thing being avoided.
-    expect(src).toContain("state.reason");
+  it("opens a real tab without noopener, then disowns it by hand", () => {
+    // The spec makes window.open return null whenever noopener is set, even on
+    // success, so the blocked-popup fallback would fire on every good click.
+    const text = src();
+    expect(text).toContain('window.open(state.url, "_blank")');
+    expect(text).not.toContain("noopener");
+    expect(text).toContain("win.opener = null");
   });
 
-  it("confirms before sending, naming the patient and the number", () => {
-    const src = button();
-    expect(src).toMatch(/window\.confirm\([^)]*patientName/);
-    expect(src).toMatch(/window\.confirm\([^)]*patientPhone/);
+  it("offers the message to copy when the browser blocks the tab", () => {
+    const text = src();
+    expect(text).toContain("blocked the WhatsApp tab");
+    expect(text).toContain("navigator.clipboard.writeText");
   });
 
-  it("is rendered on the appointment detail screen, with the patient to check", () => {
-    const src = sheet();
-    expect(src).toContain('import { FollowupButtons } from "@/components/appointments/FollowupButtons"');
-    // On its own line, i.e. rendered unconditionally. A plain toContain check
-    // passes just as happily on `{false && <FollowupButtons` - which is
-    // precisely how the buttons would disappear without a test noticing.
-    expect(src).toMatch(/^\s*<FollowupButtons$/m);
-    // Without patient= the guard above has nothing to read and every button is
-    // enabled, including for the 153 phone-named records.
-    expect(src).toMatch(/<FollowupButtons[\s\S]{0,400}?patient=\{appointment\.patients\}/);
+  it("no longer calls the switched-off edge function", () => {
+    expect(src()).not.toContain("send-followup-whatsapp");
   });
 
-  it("offers exactly the two follow-ups the clinic asked for", () => {
-    expect(FOLLOWUP_KINDS.map((k) => k.kind)).toEqual(["24h", "1week"]);
-    expect(Object.keys(FOLLOWUP_BODIES).sort()).toEqual(["1week", "24h"]);
+  it("records the open without making the click wait for it", () => {
+    const text = src();
+    expect(text).toContain('from("followup_opens" as never)');
+    // An await in the click path spends the click's permission to open a tab.
+    expect(text).toMatch(/const recordOpen[\s\S]{0,200}void \(async/);
   });
 });

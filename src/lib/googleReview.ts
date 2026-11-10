@@ -1,4 +1,7 @@
 import { normalizePhone } from "@/lib/audienceImport";
+// The "already sent / link opened" wording is shared with the follow-up
+// buttons, which face exactly the same two-marks problem. See contactNotice.ts.
+import { contactNotice, toDate, whenWords } from "@/lib/contactNotice";
 
 /**
  * Asking a patient for a Google review.
@@ -169,25 +172,6 @@ export function isReviewRequestMessage(content: string | null | undefined): bool
   );
 }
 
-/** A timestamp from the database, or nothing usable. */
-function toDate(value: string | Date | null | undefined): Date | null {
-  if (!value) return null;
-  const when = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(when.getTime()) ? null : when;
-}
-
-/** "today at 3:42 PM", or "on 2 Nov 2026 at 3:42 PM". */
-function whenWords(when: Date, now: Date): string {
-  const time = when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  const sameDay =
-    when.getFullYear() === now.getFullYear() &&
-    when.getMonth() === now.getMonth() &&
-    when.getDate() === now.getDate();
-  if (sameDay) return `today at ${time}`;
-  const date = when.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-  return `on ${date} at ${time}`;
-}
-
 /**
  * When the last one went, in words - so a second send is a decision rather
  * than a reflex. Empty when none has been sent.
@@ -229,12 +213,5 @@ export function reviewContactNotice(
   lastOpenedAt: string | Date | null | undefined,
   now: Date = new Date(),
 ): string {
-  const sent = toDate(lastSentAt);
-  const opened = toDate(lastOpenedAt);
-  if (!sent && !opened) return "";
-  // >= rather than >: the tie goes to the send.
-  if (sent && (!opened || sent.getTime() >= opened.getTime())) {
-    return `Already sent ${whenWords(sent, now)}`;
-  }
-  return `Review link opened ${whenWords(opened as Date, now)}`;
+  return contactNotice(lastSentAt, lastOpenedAt, "Review link opened", now);
 }

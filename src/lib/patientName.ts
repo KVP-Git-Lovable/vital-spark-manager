@@ -18,6 +18,11 @@ const PHONE_LIKE_NAME = /^[+\d\s()-]{7,}$/;
 export interface NamedPatient {
   first_name?: string | null;
   last_name?: string | null;
+  /**
+   * Only read when a message is being addressed to this patient. Optional, so
+   * every existing caller that passes a name-only object still type-checks.
+   */
+  gender?: string | null;
 }
 
 /** The name as stored, both parts, tidied of double spaces. */
@@ -71,4 +76,44 @@ export function isSendableName(name: string | null | undefined): boolean {
   // on that account today. If Kannada or Devanagari names are ever imported,
   // this is the line that has to widen.
   return /[a-z]/i.test(text);
+}
+
+/**
+ * Mr. / Ms. from a gender, or "" when there is nothing to go on.
+ *
+ * "Ms." rather than "Miss" on purpose: it carries no claim about whether
+ * somebody is married, and 18,867 of this clinic's patients are female, so
+ * the wrong guess is not a rare event. 30 patients have no gender recorded
+ * and correctly get no title at all.
+ *
+ * Restated from supabase/functions/_shared/patient-greeting.ts rather than
+ * imported, because Deno cannot import from the browser bundle. The two are
+ * held against each other case by case in followupSend.test.ts: the WhatsApp
+ * follow-ups are addressed from here and the appointment confirmations from
+ * there, and the same patient must not be "Ms." in one and something else in
+ * the other.
+ */
+export function titleFromGender(gender?: string | null): string {
+  if (!gender) return "";
+  const g = gender.toLowerCase();
+  if (g.startsWith("m")) return "Mr.";
+  if (g.startsWith("f")) return "Ms.";
+  return "";
+}
+
+/**
+ * How the clinic addresses this patient - "Ms. Surekha", "Dr. Krithi", or ""
+ * when the record holds nothing usable.
+ *
+ * Returns "" rather than guessing, so a caller can fall back to a bare
+ * "Hello,". 161 patients land there.
+ */
+export function patientGreeting(patient: NamedPatient | null | undefined): string {
+  const name = rawPatientName(patient);
+  if (!isSendableName(name)) return "";
+  // 642 patients already carry a title, 633 of them a "Dr"/"Dr." - so adding
+  // another would produce "Ms. Dr. Krithi".
+  if (/^(dr|mr|mrs|ms|miss|prof)\.?\s/i.test(name)) return name;
+  const title = titleFromGender(patient?.gender);
+  return title ? `${title} ${name}` : name;
 }

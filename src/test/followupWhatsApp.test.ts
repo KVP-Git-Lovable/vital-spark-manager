@@ -15,7 +15,13 @@ import {
 } from "../../supabase/functions/_shared/patient-greeting";
 
 /**
- * The two post-treatment follow-ups.
+ * The two post-treatment follow-ups, as the TEMPLATE SENDER would send them.
+ *
+ * That sender has been switched off since the clinic deleted both approved
+ * Meta templates on 10 Nov 2026; the buttons open WhatsApp directly now. These
+ * tests are kept because the function is kept, and because followupSend.test.ts
+ * holds the wording here against the wording that actually goes out - so the
+ * two cannot drift apart while this path sleeps.
  *
  * Edge functions are outside the app's tsconfig and there is no Deno here, so
  * the pure helpers carry the coverage - the same arrangement

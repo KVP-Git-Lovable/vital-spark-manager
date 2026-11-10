@@ -211,6 +211,13 @@
       "when": 1793593506700,
       "tag": "0029_survey_assignments_template_fkey",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794298683049,
+      "tag": "0030_signed_in_must_be_staff",
+      "breakpoints": true
     }
   ]
 }

@@ -9130,6 +9130,7 @@ export type Database = {
         }[]
       }
       has_full_data_scope: { Args: never; Returns: boolean }
+      is_active_staff: { Args: never; Returns: boolean }
       is_admin_user: { Args: never; Returns: boolean }
       is_knowledge_staff: { Args: never; Returns: boolean }
       is_my_patient: { Args: { _patient_id: string }; Returns: boolean }

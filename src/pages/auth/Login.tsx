@@ -72,8 +72,8 @@ const Login = () => {
         </form>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
-          Don't have an account?{" "}
-          <Link to="/signup" className="text-primary font-medium hover:underline">Sign Up</Link>
+          Clinic staff only. Patients,{" "}
+          <Link to="/portal" className="text-primary font-medium hover:underline">open the patient portal</Link>
         </p>
         <p className="text-center text-xs text-muted-foreground mt-2">
           <Link to="/shop" className="hover:underline">Continue browsing as guest →</Link>

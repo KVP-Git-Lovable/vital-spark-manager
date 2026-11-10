@@ -77,7 +77,6 @@ const PortalLanding = lazyWithReload(() => import("./pages/portal/PortalLanding"
 const PortalLogin = lazyWithReload(() => import("./pages/portal/PortalLogin"));
 const Portal = lazyWithReload(() => import("./pages/portal/Portal"));
 const Login = lazyWithReload(() => import("./pages/auth/Login"));
-const Signup = lazyWithReload(() => import("./pages/auth/Signup"));
 const OAuthConsent = lazyWithReload(() => import("./pages/auth/OAuthConsent"));
 const ShopHome = lazyWithReload(() => import("./pages/shop/ShopHome"));
 const ShopProduct = lazyWithReload(() => import("./pages/shop/ShopProduct"));
@@ -194,15 +193,39 @@ function DeactivatedNotice() {
   );
 }
 
+// Signed in, but not a clinic staff member (for example a patient who created an
+// account). The clinic app is for staff only; the database refuses these accounts too.
+function NotStaffNotice() {
+  const { signOut } = useAuth();
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="max-w-sm text-center">
+        <h1 className="text-lg font-semibold">This app is for clinic staff only</h1>
+        <p className="text-sm text-muted-foreground mt-2">
+          Your account does not have access. Patients can use the patient portal instead.
+        </p>
+        <div className="mt-4 flex items-center justify-center gap-4 text-sm">
+          <a className="text-primary hover:underline" href="/portal">Go to patient portal</a>
+          <button className="text-primary hover:underline" onClick={() => signOut()}>
+            Sign out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminRoute({ children }: { children: ReactNode }) {
-  const { isAdmin, staffDeactivated, loading } = useAuth();
+  const { isAdmin, staffDeactivated, staffProfile, loading, session } = useAuth();
   if (loading) return null;
+  if (!session) return <Navigate to="/login" replace />;
   if (staffDeactivated) return <DeactivatedNotice />;
+  if (!staffProfile) return <NotStaffNotice />;
   return isAdmin ? <>{children}</> : <AccessDenied />;
 }
 
 function ProtectedRoute({ moduleKey, children }: { moduleKey: string; children: ReactNode }) {
-  const { isAdmin, permissions, staffDeactivated, loading, session } = useAuth();
+  const { isAdmin, permissions, staffDeactivated, staffProfile, loading, session } = useAuth();
   if (loading) return null;
   // Without a session every query reaches the database as "anon", which the
   // grants deny - send the user to sign in instead of rendering empty panels.
@@ -210,9 +233,11 @@ function ProtectedRoute({ moduleKey, children }: { moduleKey: string; children: 
   // Before the checks below, because the last of them treats an empty
   // permissions map as "allow everything" - which a deactivated account has.
   if (staffDeactivated) return <DeactivatedNotice />;
+  // A signed-in account with no staff record is not clinic staff - never let it in.
+  if (!staffProfile) return <NotStaffNotice />;
   if (isAdmin) return <>{children}</>;
   if (permissions[moduleKey]?.can_view) return <>{children}</>;
-  // If no permissions loaded at all (no staff profile / not logged in as staff), allow access
+  // A staff member whose role has no permission rows configured yet keeps access.
   if (Object.keys(permissions).length === 0) return <>{children}</>;
   return <AccessDenied />;
 }
@@ -238,7 +263,8 @@ const App = () => (
             {/* Auth pages */}
             <Route path="/login" element={<Login />} />
             <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
-            <Route path="/signup" element={<Signup />} />
+            {/* Public sign-up is closed: staff logins are created by an admin in User Management. */}
+            <Route path="/signup" element={<Navigate to="/login" replace />} />
             {/* Where the Meta connect popup lands; it reads the result from the URL fragment
                 and posts it back to the opener. Deliberately outside AppLayout. */}
             <Route path="/oauth/result" element={<OAuthResult />} />

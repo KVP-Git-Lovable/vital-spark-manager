@@ -223,19 +223,25 @@ describe("the migration keeps the published build working", () => {
  *
  * patient_feedback has no Trash, so a delete is final. The repo's rule, set by
  * 20261029100000_feedback_given_by_mistake.sql, is that nothing is deleted
- * until a copy is demonstrably in place. These guard the shape of that file
- * rather than its effect - it has already run against the clinic's database.
+ * until a copy is demonstrably in place.
+ *
+ * Run over EVERY cleanup migration rather than the newest one. There are two
+ * now and there will be more - the clinic tests on real screens - and a rule
+ * re-stated by hand each time is a rule that holds until somebody is in a
+ * hurry. These guard the shape of the files, not their effect: both have
+ * already run against the clinic's database.
  */
-describe("the 5 Nov test-feedback cleanup", () => {
-  const cleanup = () =>
-    readFileSync(
-      "supabase/migrations/20261105130000_feedback_entered_while_testing.sql",
-      "utf8",
-    );
+const FEEDBACK_CLEANUPS = [
+  { date: "20261105", file: "supabase/migrations/20261105130000_feedback_entered_while_testing.sql" },
+  { date: "20261110", file: "supabase/migrations/20261110130000_feedback_testing_the_follow_up_buttons.sql" },
+];
+
+describe.each(FEEDBACK_CLEANUPS)("the $date test-feedback cleanup", ({ date, file }) => {
+  const cleanup = () => readFileSync(file, "utf8");
 
   it("copies the row before it deletes it", () => {
     const sql = cleanup();
-    const copied = sql.indexOf("insert into public.patient_feedback_backup_20261105");
+    const copied = sql.indexOf(`insert into public.patient_feedback_backup_${date}`);
     const deleted = sql.indexOf("delete from public.patient_feedback");
     expect(copied, "nothing is copied").toBeGreaterThan(-1);
     expect(deleted, "nothing is deleted").toBeGreaterThan(-1);
@@ -243,11 +249,11 @@ describe("the 5 Nov test-feedback cleanup", () => {
   });
 
   it("copies the edit snapshots before the row that would cascade them away", () => {
+    // They carry `on delete cascade`, so copying them after the parent goes
+    // would be copying nothing.
     const sql = cleanup();
-    const snapshots = sql.indexOf(
-      "insert into public.patient_feedback_revisions_backup_20261105",
-    );
-    const parent = sql.indexOf("insert into public.patient_feedback_backup_20261105");
+    const snapshots = sql.indexOf(`insert into public.patient_feedback_revisions_backup_${date}`);
+    const parent = sql.indexOf(`insert into public.patient_feedback_backup_${date}`);
     expect(snapshots, "the snapshots are never copied").toBeGreaterThan(-1);
     expect(snapshots, "the snapshots are copied after the parent, i.e. too late")
       .toBeLessThan(parent);
@@ -263,7 +269,8 @@ describe("the 5 Nov test-feedback cleanup", () => {
   });
 
   it("keys on the id, never the comment text", () => {
-    // Three rows in the table read "All good"; the other two are real.
+    // Three rows in the table read "All good" and "Testing" is a word a real
+    // patient could write.
     const sql = cleanup();
     const stmt = sql.slice(
       sql.indexOf("delete from public.patient_feedback"),
@@ -274,8 +281,9 @@ describe("the 5 Nov test-feedback cleanup", () => {
   });
 
   it("proves only one row went, by difference rather than an expected total", () => {
-    // The clinic records real feedback all day, so a hard-coded total would
-    // be wrong by the time it ran.
+    // The clinic records real feedback all day - three rows arrived while the
+    // 10 Nov removal was being written - so a hard-coded total would be wrong
+    // by the time it ran.
     expect(cleanup()).toMatch(/if v_before - v_after <> 1 then[\s\S]{0,160}raise exception/);
   });
 
@@ -283,7 +291,7 @@ describe("the 5 Nov test-feedback cleanup", () => {
     expect(cleanup()).toMatch(/is already gone - nothing to remove[\s\S]{0,80}return;/);
   });
 
-  it("locks the new backup tables down, unlike the 29 Oct one", () => {
+  it("locks its backup tables down, unlike the 29 Oct one", () => {
     // `create table ... (like ...)` copies neither RLS nor grants, which is
     // how patient_feedback_backup_20261029 ended up readable by anon while
     // patient_feedback itself is closed to it.
@@ -291,5 +299,17 @@ describe("the 5 Nov test-feedback cleanup", () => {
     expect(sql).toMatch(/enable row level security/);
     expect(sql).toMatch(/revoke all on public\.%I from anon/);
     expect(sql).toMatch(/grant select on public\.%I to authenticated/);
+  });
+});
+
+describe("backup tables created since clinic data went staff-only", () => {
+  // AGENTS.md: every RLS-enabled public table carries the RESTRICTIVE policy
+  // signed_in_must_be_staff. A permissive `using (true)` alone is not enough -
+  // patients hold logins too, for the portal, and these tables hold the very
+  // feedback a patient was looking at.
+  it("the 10 Nov backups are staff-only, not merely signed-in-only", () => {
+    const sql = readFileSync(FEEDBACK_CLEANUPS[1].file, "utf8");
+    expect(sql).toContain("signed_in_must_be_staff");
+    expect(sql).toMatch(/as restrictive[\s\S]{0,120}is_active_staff/);
   });
 });

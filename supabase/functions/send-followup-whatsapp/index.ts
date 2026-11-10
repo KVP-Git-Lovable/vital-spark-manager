@@ -7,6 +7,7 @@ import {
   followupSessionParams,
   followupTemplateParams,
   FOLLOWUP_TEMPLATES,
+  isDeletedTemplateError,
   isWithinServiceWindow,
   type FollowupKind,
 } from "./template.ts";
@@ -130,7 +131,30 @@ Deno.serve(async (req) => {
     });
     const result = await response.json().catch(() => null);
     if (!response.ok) {
-      return json({ ok: false, error: String(result?.message || "WhatsApp could not accept the follow-up"), code: result?.code ?? null }, 502);
+      // The deleted templates, said in words a receptionist can act on.
+      //
+      // Twilio answers a ContentSid that no longer exists with the bare string
+      // "Content was not found", and relaying that put exactly those four
+      // words in front of the front desk on 10 Nov - a message that names
+      // nothing, blames nothing and suggests nothing. The two templates had
+      // been deleted that morning, and this function cannot know that until
+      // Twilio tells it.
+      //
+      // This branch is reachable only from a build that still calls this
+      // function at all. The current buttons open WhatsApp directly and never
+      // get here; an edge function reaches the clinic the moment it deploys,
+      // with no publish, which is why it is worth saying properly here.
+      const twilioSaid = String(result?.message || "");
+      if (isDeletedTemplateError(result?.code, twilioSaid)) {
+        return json({
+          ok: false,
+          error:
+            `The approved WhatsApp template for the ${template.label} no longer exists, so it cannot be sent this way. ` +
+            `Publish the app to get the updated buttons, which open WhatsApp with the message ready instead.`,
+          code: result?.code ?? null,
+        }, 502);
+      }
+      return json({ ok: false, error: twilioSaid || "WhatsApp could not accept the follow-up", code: result?.code ?? null }, 502);
     }
     if (!result?.sid) {
       return json({ ok: false, error: "WhatsApp did not confirm the follow-up. Check the delivery log before trying again." }, 502);

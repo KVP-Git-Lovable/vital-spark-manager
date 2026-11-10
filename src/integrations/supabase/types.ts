@@ -2315,6 +2315,55 @@ export type Database = {
         }
         Relationships: []
       }
+      followup_opens: {
+        Row: {
+          appointment_id: string | null
+          id: string
+          kind: string
+          opened_at: string
+          opened_by: string | null
+          patient_id: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          id?: string
+          kind: string
+          opened_at?: string
+          opened_by?: string | null
+          patient_id: string
+        }
+        Update: {
+          appointment_id?: string | null
+          id?: string
+          kind?: string
+          opened_at?: string
+          opened_by?: string | null
+          patient_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "followup_opens_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_opens_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "visits_needing_review"
+            referencedColumns: ["appointment_id"]
+          },
+          {
+            foreignKeyName: "followup_opens_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_review_opens: {
         Row: {
           appointment_id: string | null

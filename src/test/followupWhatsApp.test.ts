@@ -6,6 +6,7 @@ import {
   followupSessionParams,
   followupTemplateParams,
   followupText,
+  isDeletedTemplateError,
   isWithinServiceWindow,
 } from "../../supabase/functions/send-followup-whatsapp/template";
 import {
@@ -220,6 +221,27 @@ describe("the sender refuses what it should", () => {
     expect(src()).toContain("inWindow");
   });
 
+  it("uses the deleted-template check rather than inlining it", () => {
+    // Inlined, the condition could be turned into `if (false)` and nothing
+    // here would notice - which is exactly what a mutation run showed.
+    const text = src();
+    expect(text).toContain("isDeletedTemplateError(result?.code, twilioSaid)");
+  });
+
+  it("explains a deleted template instead of relaying Twilio's four words", () => {
+    // Twilio answers a ContentSid that no longer exists with the bare string
+    // "Content was not found". That is what the front desk saw on 10 Nov,
+    // after the templates were deleted - a message naming nothing and
+    // suggesting nothing.
+    const text = src();
+    expect(text).toContain("no longer exists");
+    // And it must say what to do about it.
+    expect(text).toContain("Publish the app");
+    // The raw Twilio wording is still used for every OTHER failure, so a real
+    // Twilio problem is not hidden behind this one explanation.
+    expect(text).toContain('twilioSaid || "WhatsApp could not accept the follow-up"');
+  });
+
   it("records the send without letting a failed write fail the send", () => {
     const text = src();
     expect(text).toContain('direction: "outbound"');
@@ -253,5 +275,30 @@ describe("how the delivery log labels a follow-up", () => {
   it("matches on wording the approved bodies actually contain", () => {
     expect(FOLLOWUP_BODIES["24h"].toLowerCase()).toContain("follow-up regarding your treatment");
     expect(FOLLOWUP_BODIES["1week"].toLowerCase()).toContain("one week follow up");
+  });
+});
+
+describe("recognising a template the clinic has deleted", () => {
+  // Twilio's own answer for a ContentSid that is gone. Both halves matter:
+  // the code is the reliable one, the wording is the one that was actually
+  // seen on 10 Nov.
+  it("knows Twilio's 20404", () => {
+    expect(isDeletedTemplateError(20404, "")).toBe(true);
+    expect(isDeletedTemplateError("20404", "anything")).toBe(true);
+  });
+
+  it("knows the wording even without the code", () => {
+    expect(isDeletedTemplateError(null, "Content was not found")).toBe(true);
+    expect(isDeletedTemplateError(undefined, "content was not found")).toBe(true);
+  });
+
+  it("does not blame the template for every other Twilio failure", () => {
+    // 63049 is Meta's per-user marketing cap, 21211 a bad number. Neither is
+    // a deleted template, and hiding them behind one explanation would send
+    // somebody to publish the app over a problem publishing cannot fix.
+    expect(isDeletedTemplateError(63049, "Message failed to send")).toBe(false);
+    expect(isDeletedTemplateError(21211, "Invalid 'To' Phone Number")).toBe(false);
+    expect(isDeletedTemplateError(null, "")).toBe(false);
+    expect(isDeletedTemplateError(null, null)).toBe(false);
   });
 });

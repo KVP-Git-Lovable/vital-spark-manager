@@ -115,3 +115,20 @@ export function isWithinServiceWindow(lastInboundAt: string | null | undefined, 
   // Exactly 24 hours is outside: WhatsApp counts the window as under 24 hours.
   return age >= 0 && age < SERVICE_WINDOW_MS;
 }
+
+/**
+ * Did Twilio refuse because the approved template is gone?
+ *
+ * Twilio answers a ContentSid that no longer exists with error 20404 and the
+ * bare string "Content was not found". The clinic deleted both follow-up
+ * templates on 10 Nov 2026, and relaying those four words put a message that
+ * names nothing and suggests nothing in front of the front desk.
+ *
+ * Lives here rather than in index.ts because index.ts needs Deno to run and
+ * this needs to be provable: a check written inline there could be turned into
+ * `if (false)` and no test would notice.
+ */
+export function isDeletedTemplateError(code: unknown, message: unknown): boolean {
+  if (Number(code) === 20404) return true;
+  return /content was not found/i.test(String(message ?? ""));
+}

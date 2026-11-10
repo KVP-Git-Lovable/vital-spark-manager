@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster";
+import { staffAccess } from "@/lib/staffAccess";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
@@ -227,18 +228,18 @@ function AdminRoute({ children }: { children: ReactNode }) {
 function ProtectedRoute({ moduleKey, children }: { moduleKey: string; children: ReactNode }) {
   const { isAdmin, permissions, staffDeactivated, staffProfile, loading, session } = useAuth();
   if (loading) return null;
-  // Without a session every query reaches the database as "anon", which the
-  // grants deny - send the user to sign in instead of rendering empty panels.
-  if (!session) return <Navigate to="/login" replace />;
-  // Before the checks below, because the last of them treats an empty
-  // permissions map as "allow everything" - which a deactivated account has.
-  if (staffDeactivated) return <DeactivatedNotice />;
-  // A signed-in account with no staff record is not clinic staff - never let it in.
-  if (!staffProfile) return <NotStaffNotice />;
-  if (isAdmin) return <>{children}</>;
-  if (permissions[moduleKey]?.can_view) return <>{children}</>;
-  // A staff member whose role has no permission rows configured yet keeps access.
-  if (Object.keys(permissions).length === 0) return <>{children}</>;
+  const access = staffAccess({
+    hasSession: !!session,
+    isStaff: !!staffProfile,
+    staffDeactivated,
+    isAdmin,
+    permissions,
+    moduleKey,
+  });
+  if (access === "sign_in") return <Navigate to="/login" replace />;
+  if (access === "deactivated") return <DeactivatedNotice />;
+  if (access === "not_staff") return <NotStaffNotice />;
+  if (access === "allowed") return <>{children}</>;
   return <AccessDenied />;
 }
 

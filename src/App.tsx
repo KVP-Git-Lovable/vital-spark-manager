@@ -77,7 +77,6 @@ const PortalLanding = lazyWithReload(() => import("./pages/portal/PortalLanding"
 const PortalLogin = lazyWithReload(() => import("./pages/portal/PortalLogin"));
 const Portal = lazyWithReload(() => import("./pages/portal/Portal"));
 const Login = lazyWithReload(() => import("./pages/auth/Login"));
-const Signup = lazyWithReload(() => import("./pages/auth/Signup"));
 const OAuthConsent = lazyWithReload(() => import("./pages/auth/OAuthConsent"));
 const ShopHome = lazyWithReload(() => import("./pages/shop/ShopHome"));
 const ShopProduct = lazyWithReload(() => import("./pages/shop/ShopProduct"));

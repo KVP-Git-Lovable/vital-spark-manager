@@ -41,6 +41,7 @@ import {
   BookOpen,
   CalendarCheck,
   AlertTriangle,
+  MoreHorizontal,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -79,15 +80,10 @@ const mainItems = [
   { title: "Pharmacy", url: "/pharma", icon: Pill, moduleKey: "pharmacy" },
   { title: "Photos", url: "/photos", icon: Camera, moduleKey: "photos" },
   { title: "Assets", url: "/assets", icon: Package, moduleKey: "assets" },
-  { title: "Portal Orders", url: "/orders", icon: ShoppingBag, moduleKey: "portal_orders" },
-  { title: "Expenses", url: "/expenses", icon: Wallet, moduleKey: "expenses" },
   { title: "Reports", url: "/reports", icon: BarChart3, moduleKey: "reports" },
-  { title: "Report Builder", url: "/report-builder", icon: FileBarChart, moduleKey: "report_builder" },
-  { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard, moduleKey: "dashboards" },
   { title: "Leads", url: "/leads", icon: Target, moduleKey: "leads" },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone, moduleKey: "campaigns" },
   { title: "WhatsApp Delivery", url: "/whatsapp-log", icon: MessageCircle, moduleKey: "campaigns" },
-  { title: "Root Cause Analysis", url: "/feedback-rca", icon: AlertTriangle, moduleKey: "feedback_rca" },
 ];
 
 // Journey Builder, Meta and Meta Connection join this list when their pages land; until then a
@@ -108,9 +104,22 @@ const employeesSubItems = [
   { title: "Leave", url: "/leave", icon: CalendarDays, moduleKey: "leave" },
 ];
 
-const surveySubItems = [
-  { title: "Survey Templates", url: "/survey-templates", icon: FileText },
-  { title: "All Surveys", url: "/all-surveys", icon: ListChecks },
+/**
+ * The occasional pages, out of the daily run.
+ *
+ * Each keeps the moduleKey it carried in the main list, so who can see what is
+ * exactly as it was - this group moves where they sit, not who they are for.
+ */
+const othersItems = [
+  { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard, moduleKey: "dashboards" },
+  { title: "Report Builder", url: "/report-builder", icon: FileBarChart, moduleKey: "report_builder" },
+  { title: "Portal Orders", url: "/orders", icon: ShoppingBag, moduleKey: "portal_orders" },
+  { title: "Expenses", url: "/expenses", icon: Wallet, moduleKey: "expenses" },
+];
+
+/** One entry today. It sits below WhatsApp Delivery, where the clinic looks for it. */
+const feedbackItems = [
+  { title: "Root Cause Analysis", url: "/feedback-rca", icon: AlertTriangle, moduleKey: "feedback_rca" },
 ];
 
 const masterDataItems = [
@@ -120,6 +129,8 @@ const masterDataItems = [
   { title: "Category Master", url: "/category-master", icon: Tags, moduleKey: "category_master" },
   { title: "Tax Master", url: "/tax-master", icon: Percent, moduleKey: "settings" },
   { title: "Primary Concern", url: "/problem-areas", icon: AlertCircle, moduleKey: "problem_areas" },
+  { title: "Survey Templates", url: "/survey-templates", icon: FileText, moduleKey: "surveys" },
+  { title: "All Surveys", url: "/all-surveys", icon: ListChecks, moduleKey: "surveys" },
 ];
 
 const settingsItems = [
@@ -172,8 +183,11 @@ export function AppSidebar() {
   const showCommunications = canView("communications");
   const communicationsPaths = communicationsItems.map((i) => i.url);
   const filteredMaster = masterDataItems.filter((i) => canView(i.moduleKey));
-  const showSurveys = canView("surveys");
   const showEmployees = canView("staff") || canView("leave");
+  const filteredOthers = othersItems.filter((i) => canView(i.moduleKey));
+  const filteredFeedback = feedbackItems.filter((i) => canView(i.moduleKey));
+  const othersPaths = othersItems.map((i) => i.url);
+  const feedbackPaths = feedbackItems.map((i) => i.url);
 
   const employeesPaths = ["/staff", "/leave", "/attendance"];
   const adminPaths = ["/admin", ...adminSubItems.map((i) => i.url)];
@@ -294,6 +308,42 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               ))}
 
+              {filteredFeedback.length > 0 && (
+                <Collapsible
+                  defaultOpen={feedbackPaths.some((p) => currentPath.startsWith(p))}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip="Feedback"
+                        isActive={feedbackPaths.some((p) => currentPath.startsWith(p))}
+                      >
+                        <ClipboardCheck className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>Feedback</span>}
+                        {!collapsed && (
+                          <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                        )}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {filteredFeedback.map((sub) => (
+                          <SidebarMenuSubItem key={sub.url}>
+                            <SidebarMenuSubButton asChild isActive={isActive(sub.url)}>
+                              <Link to={sub.url}>
+                                <sub.icon className="mr-2 h-3.5 w-3.5" />
+                                <span>{sub.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              )}
+
               {showEmployees && (
                 <Collapsible
                   defaultOpen={employeesPaths.some((p) => currentPath.startsWith(p))}
@@ -335,19 +385,19 @@ export function AppSidebar() {
                 </Collapsible>
               )}
 
-              {showSurveys && (
+              {filteredOthers.length > 0 && (
                 <Collapsible
-                  defaultOpen={currentPath.startsWith("/survey-templates") || currentPath.startsWith("/all-surveys")}
+                  defaultOpen={othersPaths.some((p) => currentPath.startsWith(p))}
                   className="group/collapsible"
                 >
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
                       <SidebarMenuButton
-                        tooltip="Surveys"
-                        isActive={currentPath.startsWith("/survey-templates") || currentPath.startsWith("/all-surveys")}
+                        tooltip="Others"
+                        isActive={othersPaths.some((p) => currentPath.startsWith(p))}
                       >
-                        <ClipboardCheck className="mr-2 h-4 w-4" />
-                        {!collapsed && <span>Surveys</span>}
+                        <MoreHorizontal className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>Others</span>}
                         {!collapsed && (
                           <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
                         )}
@@ -355,12 +405,9 @@ export function AppSidebar() {
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenuSub>
-                        {surveySubItems.map((sub) => (
+                        {filteredOthers.map((sub) => (
                           <SidebarMenuSubItem key={sub.url}>
-                            <SidebarMenuSubButton
-                              asChild
-                              isActive={isActive(sub.url)}
-                            >
+                            <SidebarMenuSubButton asChild isActive={isActive(sub.url)}>
                               <Link to={sub.url}>
                                 <sub.icon className="mr-2 h-3.5 w-3.5" />
                                 <span>{sub.title}</span>

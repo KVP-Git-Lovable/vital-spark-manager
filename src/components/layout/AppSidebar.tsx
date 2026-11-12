@@ -70,6 +70,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/useAuth";
+import { canViewModule } from "@/lib/staffAccess";
 
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, moduleKey: "dashboard" },
@@ -100,7 +101,7 @@ const communicationsItems = [
 
 const employeesSubItems = [
   { title: "Staff", url: "/staff", icon: UserCog, moduleKey: "staff" },
-  { title: "My Attendance", url: "/attendance", icon: CalendarCheck, moduleKey: "staff" },
+  { title: "My Attendance", url: "/attendance", icon: CalendarCheck, moduleKey: "attendance" },
   { title: "Leave", url: "/leave", icon: CalendarDays, moduleKey: "leave" },
 ];
 
@@ -134,22 +135,34 @@ const masterDataItems = [
 ];
 
 const settingsItems = [
-  { title: "Trash", url: "/trash", icon: Trash2 },
+  // Trash had no moduleKey and no route guard, so it was on everybody's menu.
+  // Its own key rather than "settings": doctors can reach Trash today and must
+  // keep it, and they have no settings permission.
+  { title: "Trash", url: "/trash", icon: Trash2, moduleKey: "trash" },
   { title: "Settings", url: "/settings", icon: Settings, moduleKey: "settings" },
 ];
 
+/**
+ * Every entry carries the key its ROUTE is guarded by in App.tsx, so the menu
+ * offers exactly what opens. They had no keys at all before, which is why the
+ * whole group sat on a doctor's menu leading to Access Denied on every item.
+ *
+ * User Management is the one exception: its route is AdminRoute, which asks
+ * isAdmin and never looks at a permission row, so the menu has to ask the same
+ * question rather than a key nobody can be granted.
+ */
 const adminSubItems = [
-  { title: "Validation Rules", url: "/validation-rules", icon: ShieldCheck },
-  { title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal },
-  { title: "Duplicate Management", url: "/duplicate-management", icon: CopyCheck },
-  { title: "History Tracking", url: "/admin/history-tracking", icon: History },
-  { title: "Knowledge Categories", url: "/admin/knowledge-categories", icon: BookOpen },
-  { title: "Currency & Billing", url: "/admin/currency", icon: Coins },
-  { title: "Patient Portal Modules", url: "/admin/portal-modules", icon: Smartphone },
-  { title: "Attendance", url: "/admin/attendance", icon: CalendarCheck },
-  { title: "User Management", url: "/user-management", icon: Users },
-  { title: "Trash Policy & Audit", url: "/admin/trash", icon: Trash2 },
-];
+  { title: "Validation Rules", url: "/validation-rules", icon: ShieldCheck, moduleKey: "settings" },
+  { title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal, moduleKey: "settings" },
+  { title: "Duplicate Management", url: "/duplicate-management", icon: CopyCheck, moduleKey: "settings" },
+  { title: "History Tracking", url: "/admin/history-tracking", icon: History, moduleKey: "settings" },
+  { title: "Knowledge Categories", url: "/admin/knowledge-categories", icon: BookOpen, moduleKey: "settings" },
+  { title: "Currency & Billing", url: "/admin/currency", icon: Coins, moduleKey: "settings" },
+  { title: "Patient Portal Modules", url: "/admin/portal-modules", icon: Smartphone, moduleKey: "settings" },
+  { title: "Attendance", url: "/admin/attendance", icon: CalendarCheck, moduleKey: "attendance_admin" },
+  { title: "User Management", url: "/user-management", icon: Users, adminOnly: true },
+  { title: "Trash Policy & Audit", url: "/admin/trash", icon: Trash2, moduleKey: "settings" },
+] as { title: string; url: string; icon: typeof Users; moduleKey?: string; adminOnly?: boolean }[];
 
 export function AppSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
@@ -165,11 +178,10 @@ export function AppSidebar() {
   const isActive = (path: string) =>
     path === "/" ? currentPath === "/" : currentPath.startsWith(path);
 
-  const canView = (moduleKey: string) => {
-    // For now, allow all logged-in users to view all modules
-    // This enables new accounts and patients to access the clinic
-    return true;
-  };
+  // The same answer the route guard gives, from the same function, so the menu
+  // can never offer a page that then refuses to open - or hide one that would.
+  const canView = (moduleKey?: string) =>
+    !!moduleKey && canViewModule({ isAdmin, permissions, moduleKey });
 
   const filteredMain = mainItems.filter((i) => canView(i.moduleKey));
   // The Communications Center renders between "Dashboards" and "Campaigns", which one .map()
@@ -183,7 +195,7 @@ export function AppSidebar() {
   const showCommunications = canView("communications");
   const communicationsPaths = communicationsItems.map((i) => i.url);
   const filteredMaster = masterDataItems.filter((i) => canView(i.moduleKey));
-  const showEmployees = canView("staff") || canView("leave");
+  const showEmployees = canView("staff") || canView("attendance") || canView("leave");
   const filteredOthers = othersItems.filter((i) => canView(i.moduleKey));
   const filteredFeedback = feedbackItems.filter((i) => canView(i.moduleKey));
   const othersPaths = othersItems.map((i) => i.url);
@@ -191,7 +203,8 @@ export function AppSidebar() {
 
   const employeesPaths = ["/staff", "/leave", "/attendance"];
   const adminPaths = ["/admin", ...adminSubItems.map((i) => i.url)];
-  const showAdmin = canView("settings");
+  const filteredAdmin = adminSubItems.filter((i) => (i.adminOnly ? isAdmin : canView(i.moduleKey)));
+  const showAdmin = filteredAdmin.length > 0;
   const masterPaths = masterDataItems.map((i) => i.url);
 
   return (
@@ -503,7 +516,7 @@ export function AppSidebar() {
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                        {adminSubItems.map((item) => (
+                        {filteredAdmin.map((item) => (
                           <SidebarMenuSubItem key={item.title}>
                             <SidebarMenuSubButton asChild isActive={isActive(item.url)}>
                               <Link to={item.url}>

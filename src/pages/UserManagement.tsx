@@ -25,46 +25,8 @@ import CreateUserDialog from "@/components/users/CreateUserDialog";
 import EditUserDialog from "@/components/users/EditUserDialog";
 import { ThemePicker } from "@/components/theme/ThemePicker";
 import { BILLING_AMOUNTS_KEY } from "@/lib/billingVisibility";
+import { ALL_MODULES, defaultsToVisible } from "@/lib/modules";
 
-const ALL_MODULES = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "patients", label: "Patients" },
-  { key: "appointments", label: "Appointments" },
-  { key: "procedures", label: "Procedures" },
-  { key: "photos", label: "Photos" },
-  { key: "pharmacy", label: "Pharmacy" },
-  { key: "billing", label: "Billing" },
-  { key: "leave", label: "Leave" },
-  { key: "assets", label: "Assets" },
-  { key: "portal_orders", label: "Portal Orders" },
-  { key: "campaigns", label: "Campaigns" },
-  { key: "leads", label: "Leads" },
-  { key: "feedback_rca", label: "Root Cause Analysis" },
-  { key: "communications", label: "Communications Center" },
-  { key: "meta", label: "Meta" },
-  { key: "meta_connection", label: "Meta Connection" },
-  { key: "expenses", label: "Expenses" },
-  { key: "staff", label: "Staff" },
-  { key: "problem_areas", label: "Primary Concern" },
-  { key: "reports", label: "Reports" },
-  { key: "dashboards", label: "Dashboards" },
-  { key: "report_builder", label: "Report Builder" },
-  { key: "surveys", label: "Surveys" },
-  { key: "services", label: "Services" },
-  { key: "vendors", label: "Vendors" },
-  { key: "unit_master", label: "Unit Master" },
-  { key: "category_master", label: "Category Master" },
-  { key: "settings", label: "Settings" },
-  { key: "user_management", label: "User Management" },
-  // Not a module: a single switch. Untick View to hide invoice amounts, amounts
-  // paid, revenue figures and payment modes from this role everywhere in the app.
-  // A role with no row keeps seeing them (see lib/billingVisibility.ts), so the
-  // editor treats a missing row as ticked.
-  { key: BILLING_AMOUNTS_KEY, label: "Billing amounts & payment modes (untick to hide)", viewOnly: true },
-] as { key: string; label: string; viewOnly?: boolean }[];
-
-/** Rows the editor shows ticked when the role has no row for them yet. */
-const defaultsToVisible = (key: string) => key === BILLING_AMOUNTS_KEY;
 
 type PermMap = Record<string, { can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }>;
 

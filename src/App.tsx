@@ -296,7 +296,7 @@ const App = () => (
                     <Route path="/patients" element={<ProtectedRoute moduleKey="patients"><Patients /></ProtectedRoute>} />
                     <Route path="/patients/:id" element={<ProtectedRoute moduleKey="patients"><PatientDetail /></ProtectedRoute>} />
                     <Route path="/leave" element={<ProtectedRoute moduleKey="leave"><LeaveManagement /></ProtectedRoute>} />
-                    <Route path="/admin/attendance" element={<ProtectedRoute moduleKey="staff"><AttendanceAdmin /></ProtectedRoute>} />
+                    <Route path="/admin/attendance" element={<ProtectedRoute moduleKey="attendance_admin"><AttendanceAdmin /></ProtectedRoute>} />
                     <Route path="/admin/visits-to-review" element={<ProtectedRoute moduleKey="settings"><VisitsNeedingReview /></ProtectedRoute>} />
                     <Route path="/appointments" element={<ProtectedRoute moduleKey="appointments"><Appointments /></ProtectedRoute>} />
                     <Route path="/appointments/:id" element={<ProtectedRoute moduleKey="appointments"><AppointmentDetail /></ProtectedRoute>} />
@@ -361,7 +361,7 @@ const App = () => (
                     <Route path="/user-management" element={<AdminRoute><UserManagement /></AdminRoute>} />
                     <Route path="/validation-rules" element={<ProtectedRoute moduleKey="settings"><ValidationRules /></ProtectedRoute>} />
                     <Route path="/admin" element={<ProtectedRoute moduleKey="settings"><Admin /></ProtectedRoute>} />
-                    <Route path="/trash" element={<TrashPage />} />
+                    <Route path="/trash" element={<ProtectedRoute moduleKey="trash"><TrashPage /></ProtectedRoute>} />
                     <Route path="/admin/history-tracking" element={<ProtectedRoute moduleKey="settings"><HistoryTracking /></ProtectedRoute>} />
                     <Route path="/admin/photo-fingerprints" element={<ProtectedRoute moduleKey="settings"><PhotoFingerprints /></ProtectedRoute>} />
                     <Route path="/admin/knowledge-categories" element={<ProtectedRoute moduleKey="settings"><KnowledgeCategories /></ProtectedRoute>} />
@@ -374,7 +374,7 @@ const App = () => (
                     <Route path="/settings" element={<ProtectedRoute moduleKey="settings"><Settings /></ProtectedRoute>} />
                     <Route path="/settings/tax-master/new" element={<ProtectedRoute moduleKey="settings"><TaxMasterForm /></ProtectedRoute>} />
                     <Route path="/settings/tax-master/:id" element={<ProtectedRoute moduleKey="settings"><TaxMasterForm /></ProtectedRoute>} />
-                    <Route path="/attendance" element={<Attendance />} />
+                    <Route path="/attendance" element={<ProtectedRoute moduleKey="attendance"><Attendance /></ProtectedRoute>} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>

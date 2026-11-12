@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { THERAPIST_FIELD_LABEL, therapistIdsOf, therapistNamesOf } from "./appointmentTherapist";
+import { applyFilters, formatCell } from "./listViews/engine";
+import { APPOINTMENT_VIEW_FIELDS } from "./listViews/appointmentFields";
 
 /**
  * More than one person on an appointment.
@@ -223,5 +225,82 @@ describe("the migration keeps the published build working", () => {
     const src = sql();
     expect(src).toMatch(/if new\.therapist_id is null then\s*\n\s*new\.therapist_name := null;/);
     expect(src).toContain("create or replace function public.set_appointment_therapist_name()");
+  });
+});
+
+describe("filtering by therapist finds everyone who was on the visit", () => {
+  // Rows exactly as Appointments.tsx's toRow builds them: `therapist` is the
+  // first person, `therapist_ids` is everybody.
+  const led = { therapist: "reena", therapist_ids: ["reena", "akash"] };
+  const assisted = { therapist: "rita", therapist_ids: ["rita", "reena"] };
+  const neither = { therapist: "rita", therapist_ids: ["rita"] };
+  const nobody = { therapist: "", therapist_ids: [] };
+  const rows = [led, assisted, neither, nobody];
+
+  const where = (c: Record<string, unknown>) =>
+    applyFilters(rows, { match: "all", conditions: [c] } as never, APPOINTMENT_VIEW_FIELDS);
+
+  it("finds the visit she assisted on second, not only the ones she led", () => {
+    // The whole point. Before this, "therapist equals Reena" returned one row.
+    expect(where({ field: "therapist", operator: "equals", value: "reena" })).toEqual([led, assisted]);
+  });
+
+  it("matches any of several chosen people", () => {
+    expect(where({ field: "therapist", operator: "in", value: "akash,rita" }))
+      .toEqual([led, assisted, neither]);
+  });
+
+  it("excludes a visit she was on even when somebody else was too", () => {
+    // A negative that only checked the first person would hand back the visit
+    // she assisted on, under a filter that says she was not there.
+    expect(where({ field: "therapist", operator: "not_equals", value: "reena" }))
+      .toEqual([neither, nobody]);
+  });
+
+  it("knows an appointment with nobody on it", () => {
+    expect(where({ field: "therapist", operator: "is_empty" })).toEqual([nobody]);
+    expect(where({ field: "therapist", operator: "is_not_empty" })).toEqual([led, assisted, neither]);
+  });
+
+  it("still filters an appointment the published build saved", () => {
+    // therapist_ids comes back '{}' from clinic.quickapp.ai; toRow fills it
+    // from therapist_id through therapistIdsOf, so the row reaching the
+    // filter always has the list.
+    const fromPublished = { therapist_ids: therapistIdsOf({ therapist_id: "reena", therapist_ids: [] }) };
+    expect(fromPublished.therapist_ids).toEqual(["reena"]);
+    expect(applyFilters([fromPublished], { match: "all", conditions: [
+      { field: "therapist", operator: "equals", value: "reena" },
+    ] } as never, APPOINTMENT_VIEW_FIELDS)).toEqual([fromPublished]);
+  });
+
+  it("leaves every other field matching one value, as before", () => {
+    // Only therapist carries multiKey. A doctor is one person and a filter on
+    // them must not start looking at a list.
+    const defs = APPOINTMENT_VIEW_FIELDS.filter((f) => f.multiKey);
+    expect(defs.map((f) => f.key)).toEqual(["therapist"]);
+    const docs = [{ doctor: "vindhya" }, { doctor: "punya" }];
+    expect(applyFilters(docs, { match: "all", conditions: [
+      { field: "doctor", operator: "equals", value: "vindhya" },
+    ] } as never, APPOINTMENT_VIEW_FIELDS)).toEqual([{ doctor: "vindhya" }]);
+  });
+
+  it("leaves the column itself showing the first person", () => {
+    // The clinic asked for the list column and their saved views to stay as
+    // they were, so the cell reads `therapist`, never the list.
+    expect(formatCell(led, "therapist", APPOINTMENT_VIEW_FIELDS)).toBe("reena");
+    expect(formatCell(nobody, "therapist", APPOINTMENT_VIEW_FIELDS)).toBe("—");
+  });
+
+  it("carries the list onto the row the list view filters", () => {
+    // Positional, not a plain search: the inline row editor sets an
+    // identically-spelled therapist_ids elsewhere in the same file, so a
+    // search would go on passing with the row builder's half deleted.
+    const src = code(PAGE);
+    const builder = src.indexOf('therapist: apt.therapist_id || "",');
+    expect(builder, "the list row no longer carries a therapist").toBeGreaterThan(-1);
+    expect(
+      src.slice(builder, builder + 160),
+      "the row the filter reads has no therapist_ids beside its therapist",
+    ).toContain("therapist_ids: therapistIdsOf(apt)");
   });
 });

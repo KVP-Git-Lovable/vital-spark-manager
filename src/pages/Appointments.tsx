@@ -1275,6 +1275,9 @@ const Appointments = () => {
       service: apt.service || "",
       doctor: apt.staff_id || "",
       therapist: apt.therapist_id || "",
+      // The whole list, for filtering only. The column above still shows the
+      // first person, so nothing that reads `therapist` changes.
+      therapist_ids: therapistIdsOf(apt),
       status: apt.status || "",
       visit_status: apt.visit_status || "",
       bill: canSeeBilling ? inv?.total_amount || 0 : 0,

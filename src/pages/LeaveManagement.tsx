@@ -35,6 +35,47 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { canViewModule } from "@/lib/staffAccess";
+
+/**
+ * Leave, for the person taking it and the person deciding it.
+ *
+ * This page was one admin console: every form made you pick a staff member
+ * from a dropdown of the whole clinic, and nothing defaulted to whoever was
+ * signed in. That was tenable while only admins and doctors had logins. It
+ * stops being tenable the moment therapists, nurses and receptionists get
+ * their own, which is what this change is for.
+ *
+ * So there is now a My Leave tab that everybody gets, and the three original
+ * tabs render only for somebody who can view `leave_admin`. The lists behind
+ * them are NOT re-queried per role - the row-level policies applied in
+ * 20261113060000 already return only your own applications and balances
+ * unless you are an admin, so the filtering below is for the admin's view of
+ * their own rows, not for anybody's privacy.
+ */
+
+/** Only the fields My Leave reads. The admin tabs keep their own looser
+ *  handling of the same rows; this is the half that is new. */
+interface MyLeaveApplication {
+  id: string;
+  staff_id: string;
+  start_date: string;
+  end_date: string;
+  days: number;
+  reason: string | null;
+  status: string;
+  leave_types?: { name?: string | null } | null;
+}
+
+interface MyLeaveBalance {
+  id: string;
+  staff_id: string;
+  year: number;
+  opening_balance: number;
+  used: number;
+  leave_types?: { name?: string | null } | null;
+}
 
 const statusStyles: Record<string, string> = {
   Pending: "bg-warning/10 text-warning",
@@ -44,6 +85,13 @@ const statusStyles: Record<string, string> = {
 
 const LeaveManagement = () => {
   const queryClient = useQueryClient();
+  const { staffProfile, isAdmin, permissions } = useAuth();
+  const myStaffId = staffProfile?.id ?? "";
+  const canAdminLeave = canViewModule({ isAdmin, permissions, moduleKey: "leave_admin" });
+  // Null until somebody picks: an admin lands where they always have, and
+  // everyone else on their own leave. Computed rather than stored so it is
+  // still right if the role resolves a tick after the first render.
+  const [tab, setTab] = useState<string | null>(null);
   const [typeOpen, setTypeOpen] = useState(false);
   const [balanceOpen, setBalanceOpen] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
@@ -111,6 +159,14 @@ const LeaveManagement = () => {
     },
   });
 
+  // My own rows. For everybody but an admin these filters are a no-op - the
+  // policies already returned only their rows - but an admin's My Leave tab
+  // has to pick theirs out of the whole clinic's.
+  const myApplications = (applications as unknown as MyLeaveApplication[])
+    .filter((a) => a.staff_id === myStaffId);
+  const myBalances = (balances as unknown as MyLeaveBalance[])
+    .filter((b) => b.staff_id === myStaffId);
+
   const createLeaveType = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("leave_types").insert({
@@ -155,8 +211,13 @@ const LeaveManagement = () => {
       const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       if (days <= 0) throw new Error("End date must be after start date");
 
+      // An admin may apply on somebody's behalf, which is the flow this
+      // page has always offered. Everybody else can only apply for
+      // themselves - and the insert policy refuses anything else anyway.
+      const staffId = canAdminLeave ? appStaffId : myStaffId;
+      if (!staffId) throw new Error("No staff record is linked to this login");
       const { error } = await supabase.from("leave_applications").insert({
-        staff_id: appStaffId,
+        staff_id: staffId,
         leave_type_id: appLeaveTypeId,
         start_date: appStartDate,
         end_date: appEndDate,
@@ -175,29 +236,51 @@ const LeaveManagement = () => {
 
   const approveLeave = useMutation({
     mutationFn: async (app: any) => {
-      // Update application status
-      const { error: appErr } = await supabase.from("leave_applications").update({ status: "Approved" }).eq("id", app.id);
+      // approved_by has existed and had a foreign key since the table was
+      // created, and was never written - so the record did not say who
+      // decided. It does now.
+      const { error: appErr } = await supabase
+        .from("leave_applications")
+        .update({ status: "Approved", approved_by: myStaffId || null })
+        .eq("id", app.id);
       if (appErr) throw appErr;
 
-      // Deduct from balance
       const year = new Date(app.start_date).getFullYear();
       const { data: bal } = await supabase
         .from("staff_leave_balances")
-        .select("*")
+        .select("id, used")
         .eq("staff_id", app.staff_id)
         .eq("leave_type_id", app.leave_type_id)
         .eq("year", year)
-        .single();
+        .maybeSingle();
 
       if (bal) {
         const { error: balErr } = await supabase.from("staff_leave_balances")
           .update({ used: Number(bal.used) + Number(app.days) })
           .eq("id", bal.id);
         if (balErr) throw balErr;
+      } else {
+        // There was an `if (bal)` here and nothing else, so approving leave
+        // for somebody with no balance row succeeded, said "balance
+        // adjusted", and deducted nothing at all. A row is created instead,
+        // with no opening allowance, so the days taken are on the record and
+        // the remaining figure goes negative rather than silently vanishing.
+        const { error: insErr } = await supabase.from("staff_leave_balances").insert({
+          staff_id: app.staff_id,
+          leave_type_id: app.leave_type_id,
+          year,
+          opening_balance: 0,
+          used: Number(app.days),
+        });
+        if (insErr) throw insErr;
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-applications", "leave-balances"] });
+      // Two keys, not one array holding both: ["leave-applications",
+      // "leave-balances"] is a single composite key that matches no query,
+      // so the Balances tab never refreshed after an approval.
+      queryClient.invalidateQueries({ queryKey: ["leave-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
       toast.success("Leave approved & balance adjusted");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -205,7 +288,10 @@ const LeaveManagement = () => {
 
   const rejectLeave = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("leave_applications").update({ status: "Rejected" }).eq("id", id);
+      const { error } = await supabase
+        .from("leave_applications")
+        .update({ status: "Rejected", approved_by: myStaffId || null })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -230,15 +316,23 @@ const LeaveManagement = () => {
             <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle className="font-display">Apply Leave</DialogTitle></DialogHeader>
               <div className="space-y-4 pt-2">
-                <div>
-                  <Label>Staff Member *</Label>
-                  <Select value={appStaffId} onValueChange={setAppStaffId}>
-                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select staff" /></SelectTrigger>
-                    <SelectContent>
-                      {staffList.map((s) => <SelectItem key={s.id} value={s.id}>{s.first_name} {s.last_name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {canAdminLeave ? (
+                  <div>
+                    <Label>Staff Member *</Label>
+                    <Select value={appStaffId} onValueChange={setAppStaffId}>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select staff" /></SelectTrigger>
+                      <SelectContent>
+                        {staffList.map((s) => <SelectItem key={s.id} value={s.id}>{s.first_name} {s.last_name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground" data-testid="applying-as">
+                    Applying as <span className="font-medium text-foreground">
+                      {[staffProfile?.firstName, staffProfile?.lastName].filter(Boolean).join(" ") || "you"}
+                    </span>
+                  </p>
+                )}
                 <div>
                   <Label>Leave Type *</Label>
                   <Select value={appLeaveTypeId} onValueChange={setAppLeaveTypeId}>
@@ -267,7 +361,7 @@ const LeaveManagement = () => {
                   <Label>Reason</Label>
                   <Textarea className="mt-1.5" value={appReason} onChange={(e) => setAppReason(e.target.value)} rows={2} />
                 </div>
-                <Button className="w-full" onClick={() => applyLeave.mutate()} disabled={!appStaffId || !appLeaveTypeId || !appStartDate || !appEndDate || applyLeave.isPending}>
+                <Button className="w-full" onClick={() => applyLeave.mutate()} disabled={(canAdminLeave ? !appStaffId : !myStaffId) || !appLeaveTypeId || !appStartDate || !appEndDate || applyLeave.isPending}>
                   {applyLeave.isPending ? "Submitting..." : "Submit Leave"}
                 </Button>
               </div>
@@ -276,13 +370,83 @@ const LeaveManagement = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="applications">
+      <Tabs value={tab ?? (canAdminLeave ? "applications" : "mine")} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="applications">Applications ({applications.length})</TabsTrigger>
-          <TabsTrigger value="balances">Balances ({balances.length})</TabsTrigger>
-          <TabsTrigger value="types">Leave Types ({leaveTypes.length})</TabsTrigger>
+          <TabsTrigger value="mine">My Leave ({myApplications.length})</TabsTrigger>
+          {canAdminLeave && <>
+            <TabsTrigger value="applications">Applications ({applications.length})</TabsTrigger>
+            <TabsTrigger value="balances">Balances ({balances.length})</TabsTrigger>
+            <TabsTrigger value="types">Leave Types ({leaveTypes.length})</TabsTrigger>
+          </>}
         </TabsList>
 
+        {/* My Leave - what the person signed in has taken and has left.
+            The rows come from the same two queries the admin tabs use; the
+            policies make them their own rows already, and the filter is
+            what makes an ADMIN's My Leave tab theirs rather than everyone's. */}
+        <TabsContent value="mine">
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mt-4 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {myBalances.length === 0 ? (
+                <p className="text-sm text-muted-foreground" data-testid="no-balance">
+                  No leave balance has been granted to you yet. You can still apply; an admin
+                  decides it.
+                </p>
+              ) : myBalances.map((b) => (
+                <div key={b.id} className="rounded-xl border p-4">
+                  <p className="text-sm font-medium">{b.leave_types?.name ?? "Leave"}</p>
+                  <p className="mt-1 text-2xl font-semibold text-primary">
+                    {Number(b.opening_balance) - Number(b.used)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    days left of {Number(b.opening_balance)} · {Number(b.used)} used · {b.year}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="data-table">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Dates</TableHead>
+                    <TableHead>Days</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {myApplications.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        You have not applied for any leave yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : myApplications.map((a) => (
+                    <TableRow key={a.id}>
+                      <TableCell>{a.leave_types?.name ?? "—"}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {displayDate(a.start_date)} – {displayDate(a.end_date)}
+                      </TableCell>
+                      <TableCell>{a.days}</TableCell>
+                      <TableCell className="max-w-xs truncate">{a.reason || "—"}</TableCell>
+                      <TableCell>
+                        <Badge className={statusStyles[a.status] || ""}>{a.status}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </motion.div>
+        </TabsContent>
+
+        {/* Everyone else's leave, the balances and the types. Rendered
+            only for somebody who can view leave_admin - the database
+            refuses the writes either way since 20261113060000, but a
+            button that always fails is worse than no button. */}
+        {canAdminLeave && (<>
         {/* Applications Tab */}
         <TabsContent value="applications">
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="data-table mt-4">
@@ -447,6 +611,7 @@ const LeaveManagement = () => {
             ))}
           </motion.div>
         </TabsContent>
+        </>)}
       </Tabs>
     </div>
   );

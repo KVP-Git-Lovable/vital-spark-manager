@@ -1,24 +1,13 @@
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import {
-  attendancePhotoPath,
-  dayButtons,
-  dayPhase,
-  elapsedLabel,
-  faceVerdict,
-  hoursWorked,
-  type AttendanceRecord,
-  type FaceResult,
-} from "@/lib/attendance";
+import { attendancePhotoPath, faceVerdict, type FaceResult } from "@/lib/attendance";
 import { stampPhotoOrOriginal } from "@/lib/stampPhoto";
 import { ATTENDANCE_PHOTO_MAX_EDGE } from "@/lib/attendance";
 import { currentPosition, reverseGeocode, type Fix } from "@/lib/geo";
-import { nonWorkingReason } from "@/lib/workingDays";
-import { useAttendanceSettings } from "@/hooks/useAttendanceSettings";
+import { useMyAttendanceToday, attendanceToday } from "@/hooks/useMyAttendanceToday";
 import { uploadStaffPhoto } from "@/lib/staffPhoto";
 
 /**
@@ -41,7 +30,7 @@ import { uploadStaffPhoto } from "@/lib/staffPhoto";
  * dashboard updates the attendance page without either knowing about the
  * other.
  */
-const today = () => format(new Date(), "yyyy-MM-dd");
+const today = attendanceToday;
 
 export type DayStep = "idle" | "registering" | "locating" | "photo" | "verifying" | "saving";
 export type DayKind = "check_in" | "check_out";
@@ -91,8 +80,9 @@ export function useMyAttendanceDay() {
     })();
   };
 
-  const { config, weekOffs, holidays } = useAttendanceSettings();
-  const closedToday = nonWorkingReason(new Date(), weekOffs, holidays);
+  // The reading half, shared with the dashboard card so there is one query
+  // and one idea of "today". Everything below this line is the acting half.
+  const { record, phase, buttons, config, closedToday, hours, elapsed, refetch } = useMyAttendanceToday();
 
   const { data: staff, refetch: refetchStaff } = useQuery({
     queryKey: ["staff", "photo", staffId],
@@ -104,20 +94,6 @@ export function useMyAttendanceDay() {
     },
   });
 
-  const { data: record, refetch } = useQuery({
-    queryKey: ["attendance", "today", staffId],
-    enabled: !!staffId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("attendance_records").select("*")
-        .eq("staff_id", staffId!).eq("date", today()).maybeSingle();
-      if (error) throw error;
-      return (data as unknown as AttendanceRecord) ?? null;
-    },
-  });
-
-  const buttons = dayButtons(record);
-  const phase = dayPhase(record);
   const hasPhoto = !!String(staff?.photo_url ?? "").trim();
   const busy = step !== "idle";
 
@@ -331,8 +307,8 @@ export function useMyAttendanceDay() {
     press,
     cameraProps,
     /** Two decimals, for totals. */
-    hours: hoursWorked(record?.check_in_time, record?.check_out_time),
+    hours,
     /** "3h 42m", for reading at a glance. */
-    elapsed: (now?: Date) => elapsedLabel(record?.check_in_time, record?.check_out_time, now),
+    elapsed,
   };
 }

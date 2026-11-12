@@ -45,7 +45,8 @@ export const ALL_MODULES: ModuleDef[] = [
   // Receptionist holds in full.
   { key: "attendance", label: "My Attendance" },
   { key: "attendance_admin", label: "Attendance - everyone's" },
-  { key: "leave", label: "Leave" },
+  { key: "leave", label: "Leave (apply for my own)" },
+  { key: "leave_admin", label: "Leave - types, balances, approvals" },
   { key: "assets", label: "Assets" },
   { key: "portal_orders", label: "Portal Orders" },
   { key: "campaigns", label: "Campaigns" },

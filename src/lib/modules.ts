@@ -32,6 +32,11 @@ export interface ModuleDef {
 
 export const ALL_MODULES: ModuleDef[] = [
   { key: "dashboard", label: "Dashboard" },
+  // Which dashboard, once it opens. Neither of these granted means the
+  // person sees their own working day and nothing else - see
+  // src/lib/dashboardScope.ts.
+  { key: "dashboard_clinic", label: "Dashboard - clinic-wide figures" },
+  { key: "dashboard_my_appointments", label: "Dashboard - my appointments today" },
   { key: "patients", label: "Patients" },
   { key: "appointments", label: "Appointments" },
   { key: "procedures", label: "Procedures" },

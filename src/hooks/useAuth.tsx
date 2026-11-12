@@ -46,6 +46,8 @@ interface AuthContextType {
   /** Re-reads the staff row, so a gate can lift without a full reload. */
   refreshStaffProfile: () => Promise<void>;
   dataScope: DataScope;
+  /** May approve or reject somebody else's leave or attendance correction. */
+  approvesRequests: boolean;
   reportPeriodLimit: ReportPeriodLimit;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -63,6 +65,7 @@ const AuthContext = createContext<AuthContextType>({
   mustChangePassword: false,
   refreshStaffProfile: async () => {},
   dataScope: "all",
+  approvesRequests: false,
   reportPeriodLimit: "none",
   loading: true,
   signOut: async () => {},
@@ -89,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [dataScope, setDataScope] = useState<DataScope>("all");
   const [reportPeriodLimit, setReportPeriodLimit] = useState<ReportPeriodLimit>("none");
+  const [approvesRequests, setApprovesRequests] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadPatientProfile = async (u: User) => {
@@ -224,6 +228,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setReportPeriodLimit(periodLimit);
 
+    // Who may approve a leave request or an attendance correction. Looked up
+    // on its own for the third time and the same reason: the column arrives
+    // with a migration, and folding it into the select above would turn a
+    // missing column into "not a staff user" and strip every permission.
+    //
+    // Defaults FALSE, unlike the two above. They answer "how much may this
+    // person see", where unknown has to mean unrestricted or an upgrade locks
+    // people out of their own clinic. This answers "may this person decide
+    // for somebody else", where unknown must mean no - and the buttons it
+    // hides are only a courtesy anyway; may_decide_requests() in the database
+    // is what actually refuses.
+    let approver = false;
+    const { data: approverRow, error: approverErr } = await supabase
+      .from("staff")
+      .select("approves_requests")
+      .eq("id", staffData.id)
+      .maybeSingle();
+    if (approverErr) {
+      console.warn("approves_requests unavailable, hiding the approve buttons", approverErr.message);
+    } else {
+      approver = (approverRow as { approves_requests?: boolean } | null)?.approves_requests === true;
+    }
+    setApprovesRequests(approver);
+
     const admin = roleName?.toLowerCase() === "admin";
     setIsAdmin(admin);
 
@@ -337,7 +365,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, patientId, patientName, staffProfile, permissions, isAdmin, staffDeactivated, mustChangePassword, refreshStaffProfile, dataScope, reportPeriodLimit, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, patientId, patientName, staffProfile, permissions, isAdmin, staffDeactivated, mustChangePassword, refreshStaffProfile, dataScope, approvesRequests, reportPeriodLimit, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

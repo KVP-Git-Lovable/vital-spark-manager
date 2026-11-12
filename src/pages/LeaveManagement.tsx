@@ -100,9 +100,14 @@ const statusStyles: Record<string, string> = {
 
 const LeaveManagement = () => {
   const queryClient = useQueryClient();
-  const { staffProfile, isAdmin, permissions } = useAuth();
+  const { staffProfile, isAdmin, permissions, approvesRequests } = useAuth();
   const myStaffId = staffProfile?.id ?? "";
   const canAdminLeave = canViewModule({ isAdmin, permissions, moduleKey: "leave_admin" });
+  // Seeing the requests and deciding them are different rights. Every admin
+  // may look; only the people the clinic named may answer, which is what
+  // may_decide_requests() enforces in the database. Without this, an admin
+  // who is not on that list gets two buttons that fail with a policy error.
+  const mayDecide = approvesRequests;
   // Null until somebody picks: an admin lands where they always have, and
   // everyone else on their own leave. Computed rather than stored so it is
   // still right if the role resolves a tick after the first render.
@@ -659,7 +664,7 @@ const LeaveManagement = () => {
                     <TableCell className="max-w-xs truncate">{r.reason}</TableCell>
                     <TableCell><Badge className={statusStyles[r.status] || ""}>{r.status}</Badge></TableCell>
                     <TableCell>
-                      {canDecide(r.status) && (
+                      {canDecide(r.status) && mayDecide && (
                         <div className="flex gap-1">
                           <Button
                             size="sm"
@@ -722,12 +727,14 @@ const LeaveManagement = () => {
                     <TableCell>
                       {app.status === "Pending" && (
                         <div className="flex gap-1">
-                          <Button size="sm" variant="outline" className="h-7 text-xs text-success" onClick={() => approveLeave.mutate(app)}>
+                          {mayDecide && <>
+                          <Button size="sm" variant="outline" className="h-7 text-xs text-success" data-testid="approve-leave" onClick={() => approveLeave.mutate(app)}>
                             Approve
                           </Button>
                           <Button size="sm" variant="outline" className="h-7 text-xs text-destructive" onClick={() => rejectLeave.mutate(app.id)}>
                             Reject
                           </Button>
+                          </>}
                         </div>
                       )}
                     </TableCell>

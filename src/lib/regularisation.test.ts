@@ -145,7 +145,9 @@ describe("the screens", () => {
   it("records who decided, and only offers it while pending", () => {
     const src = page();
     expect(src).toMatch(/\.update\(\{ status, decided_by: myStaffId \|\| null, decided_at: new Date\(\)\.toISOString\(\) \}\)/);
-    expect(src).toMatch(/\{canDecide\(r\.status\) && \(/);
+    // Two conditions now: pending, AND the person is one of the named
+    // approvers. Being an admin is no longer enough to answer a request.
+    expect(src).toMatch(/\{canDecide\(r\.status\) && mayDecide && \(/);
   });
 
   it("does NOT write the attendance record from the browser", () => {

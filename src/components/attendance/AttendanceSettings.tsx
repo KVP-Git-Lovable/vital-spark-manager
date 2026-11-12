@@ -121,6 +121,22 @@ export function AttendancePolicyTab() {
           />
         </Row>
 
+        {/* The one regularisation setting this page was always going to
+            grow. It is enforced by a trigger on insert, so lowering it here
+            cannot be talked round from a phone - and 0 means no limit,
+            which is what there was before. */}
+        <Row
+          label="Corrections allowed per month"
+          hint="How many attendance corrections one person may ask for against any one month. 0 means no limit. A rejected request does not count."
+        >
+          <Input
+            type="number" min={0} max={31} className="w-24"
+            data-testid="regularisation-limit"
+            value={form.regularisation_monthly_limit}
+            onChange={(e) => setForm((f) => ({ ...f, regularisation_monthly_limit: Number(e.target.value) }))}
+          />
+        </Row>
+
         <Button onClick={save} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
           Save settings

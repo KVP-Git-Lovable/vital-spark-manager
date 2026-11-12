@@ -104,3 +104,62 @@ export function regularisationAsk(row: {
 export function canDecide(status: string | null | undefined): boolean {
   return String(status ?? "").trim() === "Pending";
 }
+
+/**
+ * The monthly cap on corrections.
+ *
+ * attendance_config.regularisation_monthly_limit, 0 meaning no cap, which is
+ * what the clinic runs today. The database enforces it in a BEFORE INSERT
+ * trigger - that is what makes it true. These three exist so the dialog can
+ * say how many are left BEFORE somebody writes a reason and presses send,
+ * and they count rows the same way the trigger does.
+ *
+ * A rejected request does not count. Refusing somebody their only correction
+ * of the month because an earlier one was turned down would punish them for
+ * the admin's decision.
+ */
+
+/** "yyyy-mm" for a date or a yyyy-mm-dd string, in local terms. */
+export function monthKeyOf(value: string | Date | null | undefined): string {
+  if (!value) return "";
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return "";
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
+  }
+  const m = /^(\d{4})-(\d{2})/.exec(String(value).trim());
+  return m ? `${m[1]}-${m[2]}` : "";
+}
+
+/** How many of these rows count against the cap for the month of `monthOf`. */
+export function correctionsUsedIn(
+  rows: { date?: string | null; status?: string | null }[],
+  monthOf: string | Date,
+): number {
+  const want = monthKeyOf(monthOf);
+  if (!want) return 0;
+  return (rows ?? []).filter(
+    (r) => monthKeyOf(r.date) === want && String(r.status ?? "").trim() !== "Rejected",
+  ).length;
+}
+
+/** Corrections still allowed this month, or null when nothing caps them. */
+export function correctionsLeft(
+  limit: number | string | null | undefined,
+  used: number,
+): number | null {
+  const cap = Number(limit ?? 0);
+  if (!Number.isFinite(cap) || cap <= 0) return null;
+  return Math.max(0, cap - (Number(used) || 0));
+}
+
+/** The line the dialog shows above the form, or null when there is no cap. */
+export function correctionsNote(
+  limit: number | string | null | undefined,
+  used: number,
+): string | null {
+  const left = correctionsLeft(limit, used);
+  if (left === null) return null;
+  const cap = Number(limit);
+  if (left === 0) return `You have used all ${cap} correction(s) allowed this month.`;
+  return `${left} of ${cap} correction(s) left this month.`;
+}

@@ -92,6 +92,8 @@ export interface AttendanceConfig {
   capture_location: boolean;
   face_match_threshold: number;
   face_max_attempts: number;
+  /** Corrections one person may ask for against any one month. 0 = no limit. */
+  regularisation_monthly_limit: number;
 }
 
 /** What the app falls back to before the settings row has loaded - the same
@@ -102,6 +104,8 @@ export const DEFAULT_ATTENDANCE_CONFIG: AttendanceConfig = {
   capture_location: true,
   face_match_threshold: 75,
   face_max_attempts: MAX_FACE_ATTEMPTS,
+  // 0 is "no limit", which is what there was before the setting existed.
+  regularisation_monthly_limit: 0,
 };
 
 export interface FaceVerdict {

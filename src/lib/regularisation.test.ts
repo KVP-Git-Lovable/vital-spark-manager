@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
-  canDecide, regularisationAsk, regularisationProblem, regularisationTimestamp,
+  canDecide, correctionsLeft, correctionsNote, correctionsUsedIn, monthKeyOf,
+  regularisationAsk, regularisationProblem, regularisationTimestamp,
 } from "./regularisation";
 
 /**
@@ -232,5 +233,84 @@ describe("the migration", () => {
     expect(src).toContain("add column if not exists approves_requests boolean not null default false");
     expect(src).not.toMatch(/drop column/i);
     expect(src).not.toMatch(/rename/i);
+  });
+});
+
+/**
+ * The monthly cap.
+ *
+ * The clinic asked where to configure how many corrections somebody may ask
+ * for. The database trigger is what enforces it; these let the dialog say
+ * how many are left before somebody writes a reason and presses send, and
+ * they have to count rows the same way the trigger does or the form will
+ * promise what the database then refuses.
+ */
+describe("the monthly cap on corrections", () => {
+  const rows = [
+    { date: "2026-11-02", status: "Approved" },
+    { date: "2026-11-20", status: "Pending" },
+    { date: "2026-11-25", status: "Rejected" },
+    { date: "2026-10-30", status: "Approved" },
+  ];
+
+  it("reads a month off a date or a yyyy-mm-dd", () => {
+    expect(monthKeyOf("2026-11-25")).toBe("2026-11");
+    expect(monthKeyOf(new Date("2026-01-05T12:00:00"))).toBe("2026-01");
+    expect(monthKeyOf("")).toBe("");
+    expect(monthKeyOf(null)).toBe("");
+    expect(monthKeyOf(new Date("nonsense"))).toBe("");
+  });
+
+  it("counts the month being corrected, not the month of asking", () => {
+    // Somebody tidying up a 30 October punch on 2 November spends October's
+    // allowance - which is what date_trunc('month', r.date) does in the
+    // trigger.
+    expect(correctionsUsedIn(rows, "2026-11-20")).toBe(2);
+    expect(correctionsUsedIn(rows, "2026-10-30")).toBe(1);
+    expect(correctionsUsedIn(rows, "2026-09-01")).toBe(0);
+  });
+
+  it("does not count a rejected request", () => {
+    // Refusing somebody their only correction of the month because an
+    // earlier one was turned down would punish them for the decision.
+    expect(correctionsUsedIn([{ date: "2026-11-01", status: "Rejected" }], "2026-11-05")).toBe(0);
+  });
+
+  it("treats 0 and a missing limit as no cap at all", () => {
+    expect(correctionsLeft(0, 5)).toBeNull();
+    expect(correctionsLeft(null, 5)).toBeNull();
+    expect(correctionsNote(0, 5)).toBeNull();
+  });
+
+  it("never reports a negative remainder", () => {
+    expect(correctionsLeft(2, 5)).toBe(0);
+  });
+
+  it("says how many are left", () => {
+    expect(correctionsNote(3, 1)).toMatch(/2 of 3 correction\(s\) left this month/);
+    expect(correctionsNote(3, 3)).toMatch(/used all 3 correction\(s\) allowed this month/);
+  });
+});
+
+describe("the correction dialog", () => {
+  const page = () =>
+    readFileSync("src/pages/LeaveManagement.tsx", "utf8")
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("shows how many corrections are left", () => {
+    expect(page()).toMatch(/data-testid="corrections-left"/);
+  });
+
+  it("counts against the day being corrected, falling back to today", () => {
+    expect(page()).toMatch(/correctionsUsedIn\(myRegularisations, regDate \|\| new Date\(\)\)/);
+  });
+
+  it("stops Send once the cap is reached", () => {
+    // Without this the person fills the form in, presses send and gets a
+    // raw policy error from the trigger.
+    const src = page();
+    expect(src).toMatch(/disabled=\{askForCorrection\.isPending \|\| capReached\}/);
+    expect(src).toMatch(/correctionsUsedThisMonth >= Number\(attendanceConfig\.regularisation_monthly_limit\)/);
   });
 });

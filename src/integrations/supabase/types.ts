@@ -507,6 +507,7 @@ export type Database = {
           face_match_threshold: number
           face_max_attempts: number
           id: string
+          regularisation_monthly_limit: number
           require_selfie: boolean
           singleton: boolean
           updated_at: string
@@ -517,6 +518,7 @@ export type Database = {
           face_match_threshold?: number
           face_max_attempts?: number
           id?: string
+          regularisation_monthly_limit?: number
           require_selfie?: boolean
           singleton?: boolean
           updated_at?: string
@@ -527,6 +529,7 @@ export type Database = {
           face_match_threshold?: number
           face_max_attempts?: number
           id?: string
+          regularisation_monthly_limit?: number
           require_selfie?: boolean
           singleton?: boolean
           updated_at?: string
@@ -3615,6 +3618,7 @@ export type Database = {
       }
       leave_types: {
         Row: {
+          accrual: string
           created_at: string
           default_days_per_year: number
           description: string | null
@@ -3623,6 +3627,7 @@ export type Database = {
           name: string
         }
         Insert: {
+          accrual?: string
           created_at?: string
           default_days_per_year?: number
           description?: string | null
@@ -3631,6 +3636,7 @@ export type Database = {
           name: string
         }
         Update: {
+          accrual?: string
           created_at?: string
           default_days_per_year?: number
           description?: string | null

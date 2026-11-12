@@ -41,7 +41,38 @@ export function canViewModule(input: {
   permissions: Record<string, { can_view?: boolean } | undefined>;
   moduleKey: string;
 }): boolean {
+  return canActOnModule({ ...input, action: "can_view" });
+}
+
+export type ModuleAction = "can_view" | "can_create" | "can_edit" | "can_delete";
+
+/**
+ * Whether this person may do a thing to a module - view, create, edit or
+ * delete it.
+ *
+ * can_create, can_edit and can_delete have been stored on every role and
+ * editable in User Management since the permission table was built, and
+ * enforced NOWHERE: useCanEdit and its two siblings existed with not one
+ * call site in the app. So a therapist's list offered New Appt, a pencil
+ * and a delete button, and the only thing stopping them was that nobody
+ * had tried.
+ *
+ * The same two conventions as viewing, and for the same reason - getting
+ * either wrong does not show somebody too much, it locks real people out:
+ *
+ *   - an admin is decided first and never through the map, which useAuth
+ *     leaves EMPTY for them on purpose;
+ *   - a non-admin with an empty map is a role nobody has configured yet and
+ *     keeps everything. The old useCanEdit read `?? false` here, which would
+ *     have taken every button away from exactly those people.
+ */
+export function canActOnModule(input: {
+  isAdmin: boolean;
+  permissions: Record<string, { can_view?: boolean; can_create?: boolean; can_edit?: boolean; can_delete?: boolean } | undefined>;
+  moduleKey: string;
+  action: ModuleAction;
+}): boolean {
   if (input.isAdmin) return true;
-  if (input.permissions[input.moduleKey]?.can_view) return true;
+  if (input.permissions[input.moduleKey]?.[input.action]) return true;
   return Object.keys(input.permissions).length === 0;
 }

@@ -7,6 +7,8 @@ import {
   type TherapistCandidate,
 } from "@/lib/appointmentTherapist";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
+import { useAuth } from "@/hooks/useAuth";
+import { canActOnModule, canViewModule } from "@/lib/staffAccess";
 import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { resizeColumn, mergeSavedWidths, type ColumnWidth } from "@/lib/columnWidths";
@@ -575,6 +577,28 @@ const Appointments = () => {
   useLiveAppointments({ paused: editingRow !== null || open });
   const [editValues, setEditValues] = useState<any>({});
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string; fromSalesforce: boolean } | null>(null);
+
+  /**
+   * What this person may DO here, as opposed to see.
+   *
+   * can_create, can_edit and can_delete have been stored on every role since
+   * the permission table was built and were enforced nowhere, so a therapist
+   * impersonated into this page was offered New Appt, a pencil, a status
+   * dropdown and a delete button on all 58,001 appointments. The row that
+   * says otherwise already existed; nothing read it.
+   *
+   * "Add Prescription" asks the procedures module instead, because that is
+   * the page it navigates to - offering a button that lands on Access Denied
+   * is worse than not offering it.
+   */
+  const { isAdmin: iAmAdmin, permissions: myPermissions } = useAuth();
+  const mayAct = (action: "can_create" | "can_edit" | "can_delete") =>
+    canActOnModule({ isAdmin: iAmAdmin, permissions: myPermissions, moduleKey: "appointments", action });
+  const canCreateAppt = mayAct("can_create");
+  const canEditAppt = mayAct("can_edit");
+  const canDeleteAppt = mayAct("can_delete");
+  const canAddPrescription = canViewModule({ isAdmin: iAmAdmin, permissions: myPermissions, moduleKey: "procedures" });
+  const showRowActions = canEditAppt || canDeleteAppt || canAddPrescription;
 
   // Drag-reschedule state
   const dragRef = useRef<{ aptId: string; originalStart: string; originalEnd: string } | null>(null);
@@ -2286,9 +2310,11 @@ const Appointments = () => {
             <Printer className="h-4 w-4" />
           </Button>
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setLockPatient(false); }}>
+            {canCreateAppt && (
             <DialogTrigger asChild>
               <Button className="gap-2 h-8 md:h-9 text-xs md:text-sm"><Plus className="h-4 w-4" /> <span className="hidden sm:inline">New</span> Appt</Button>
             </DialogTrigger>
+            )}
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto">
               <DialogHeader>
                 <DialogTitle className="font-display flex items-center justify-between gap-2">
@@ -3089,7 +3115,7 @@ const Appointments = () => {
                           />
                         </th>
                       )}
-                      <th className="text-left p-3 font-medium text-muted-foreground w-20">Actions</th>
+                      {showRowActions && <th className="text-left p-3 font-medium text-muted-foreground w-20">Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -3367,6 +3393,15 @@ const Appointments = () => {
                                 )}
                                 {shouldShowColumn("status") && (
                                   <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                                    {/* A dropdown is an edit. Without a badge to
+                                        fall back to, somebody who may only read
+                                        the list would still be handed the one
+                                        control on it that changes a record. */}
+                                    {!canEditAppt ? (
+                                      <Badge className={cn("text-xs", showsAsBilled(apt.status, billInvoiceByAppointmentId.has(apt.id)) ? BILLED_BADGE_CLASSES : statusColor(apt.status))}>
+                                        {appointmentStatusLabel(apt.status, billInvoiceByAppointmentId.has(apt.id))}
+                                      </Badge>
+                                    ) : (
                                     <Select value={apt.status} onValueChange={(val) => inlineUpdateMutation.mutate({
                                       id: apt.id,
                                       status: val,
@@ -3392,13 +3427,18 @@ const Appointments = () => {
                                         {statusOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                                       </SelectContent>
                                     </Select>
+                                    )}
                                   </td>
                                 )}
+                                {showRowActions && (
                                 <td className="p-3" onClick={(e) => e.stopPropagation()}>
                                   <div className="flex items-center gap-0.5">
+                                    {canEditAppt && (
                                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startInlineEdit(apt)}>
                                       <Pencil className="h-3.5 w-3.5" />
                                     </Button>
+                                    )}
+                                    {canAddPrescription && (
                                     <Button
                                       variant="ghost"
                                       size="icon"
@@ -3416,6 +3456,8 @@ const Appointments = () => {
                                     >
                                       <ClipboardList className="h-3.5 w-3.5" />
                                     </Button>
+                                    )}
+                                    {canDeleteAppt && (
                                     <Button
                                       variant="ghost"
                                       size="icon"
@@ -3429,8 +3471,10 @@ const Appointments = () => {
                                     >
                                       <Trash2 className="h-3.5 w-3.5" />
                                     </Button>
+                                    )}
                                   </div>
                                 </td>
+                                )}
                               </tr>
                             );
                           })}

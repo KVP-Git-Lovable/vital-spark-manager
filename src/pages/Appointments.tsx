@@ -1,5 +1,13 @@
-import { THERAPIST_ROLES, therapistDisplayName, isTherapistRole, type TherapistCandidate } from "@/lib/appointmentTherapist";
+import {
+  THERAPIST_ROLES,
+  THERAPIST_FIELD_LABEL,
+  therapistDisplayName,
+  therapistIdsOf,
+  isTherapistRole,
+  type TherapistCandidate,
+} from "@/lib/appointmentTherapist";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
+import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
 import { useStackedTable } from "@/hooks/useStackedTable";
 import { resizeColumn, mergeSavedWidths, type ColumnWidth } from "@/lib/columnWidths";
 import { isPageSortedColumn, sortAppointments } from "@/lib/appointmentSort";
@@ -579,7 +587,7 @@ const Appointments = () => {
   // Form state
   const [patientId, setPatientId] = useState("");
   const [staffId, setStaffId] = useState("");
-  const [therapistId, setTherapistId] = useState("");
+  const [therapistIds, setTherapistIds] = useState<string[]>([]);
   const [serviceId, setServiceId] = useState("");
   const [appointmentStatus, setAppointmentStatus] = useState("Reserved");
   const [visitStatus, setVisitStatus] = useState("");
@@ -1460,7 +1468,7 @@ const Appointments = () => {
       reason_for_consultation: apt.reason_for_consultation || "",
       service: apt.service || "",
       staff_id: apt.staff_id || "",
-      therapist_id: apt.therapist_id || "",
+      therapist_ids: therapistIdsOf(apt),
       status: apt.status,
       start_time: format(new Date(apt.start_time), "yyyy-MM-dd'T'HH:mm"),
       end_time: format(new Date(apt.end_time), "yyyy-MM-dd'T'HH:mm"),
@@ -1482,8 +1490,13 @@ const Appointments = () => {
     if (editValues.service) updates.service = editValues.service;
     if (editValues.staff_id) updates.staff_id = editValues.staff_id;
     // Not a truthy guard, unlike the doctor above: clearing the therapist has
-    // to be possible, so an empty choice must reach the database as null.
-    if (editValues.therapist_id !== undefined) updates.therapist_id = editValues.therapist_id || null;
+    // to be possible, so an empty choice must reach the database as null. Both
+    // columns move together - therapist_id carries the first of them, which is
+    // all the published build can read.
+    if (editValues.therapist_ids !== undefined) {
+      updates.therapist_ids = editValues.therapist_ids;
+      updates.therapist_id = editValues.therapist_ids[0] || null;
+    }
     if (editValues.status) updates.status = editValues.status;
     if (editValues.start_time) updates.start_time = new Date(editValues.start_time).toISOString();
     if (editValues.end_time) updates.end_time = new Date(editValues.end_time).toISOString();
@@ -1571,7 +1584,8 @@ const Appointments = () => {
           patient_id: patientId || null,
           patient_name: patientName,
           staff_id: staffId || null,
-          therapist_id: therapistId || null,
+          therapist_id: therapistIds[0] || null,
+          therapist_ids: therapistIds,
           service: serviceName,
           status: appointmentStatus,
           visit_status: visitStatus || null,
@@ -1592,7 +1606,8 @@ const Appointments = () => {
           patient_id: patientId || null,
           patient_name: patientName,
           staff_id: staffId || null,
-          therapist_id: therapistId || null,
+          therapist_id: therapistIds[0] || null,
+          therapist_ids: therapistIds,
           service: serviceName,
           status: appointmentStatus,
           visit_status: visitStatus || null,
@@ -1912,7 +1927,7 @@ const Appointments = () => {
   const resetForm = () => {
     setPatientId("");
     setStaffId("");
-    setTherapistId("");
+    setTherapistIds([]);
     setServiceId("");
     setAppointmentStatus("Reserved");
     setVisitStatus("");
@@ -2392,15 +2407,13 @@ const Appointments = () => {
                       does not know yet, and it is set or swapped later from
                       the appointment itself. */}
                   <div>
-                    <Label>Therapist</Label>
-                    <StaffCombobox
+                    <Label>{THERAPIST_FIELD_LABEL}</Label>
+                    <StaffMultiCombobox
                       className="mt-1.5"
-                      value={therapistId}
-                      onValueChange={setTherapistId}
+                      value={therapistIds}
+                      onValueChange={setTherapistIds}
                       roleFilter={[...THERAPIST_ROLES]}
-                      allowNone
-                      noneLabel="No therapist assigned"
-                      placeholder="Select therapist"
+                      placeholder="Select therapist or nurse"
                     />
                   </div>
 
@@ -3162,14 +3175,12 @@ const Appointments = () => {
 
                                       {shouldShowColumn("therapist") && (
                                         <div className="w-44">
-                                          <span className="text-[11px] text-muted-foreground">Therapist</span>
-                                          <StaffCombobox
-                                            className="mt-1 h-8 text-xs"
-                                            value={editValues.therapist_id || ""}
-                                            onValueChange={(val) => setEditValues({ ...editValues, therapist_id: val })}
+                                          <span className="text-[11px] text-muted-foreground">{THERAPIST_FIELD_LABEL}</span>
+                                          <StaffMultiCombobox
+                                            className="mt-1"
+                                            value={editValues.therapist_ids || []}
+                                            onValueChange={(val) => setEditValues({ ...editValues, therapist_ids: val })}
                                             roleFilter={[...THERAPIST_ROLES]}
-                                            allowNone
-                                            noneLabel="No therapist"
                                             placeholder="Select"
                                           />
                                         </div>

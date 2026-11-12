@@ -169,6 +169,7 @@ export type Database = {
           status: string
           survey_template_id: string | null
           therapist_id: string | null
+          therapist_ids: string[]
           therapist_name: string | null
           updated_at: string
           updated_by: string | null
@@ -201,6 +202,7 @@ export type Database = {
           status?: string
           survey_template_id?: string | null
           therapist_id?: string | null
+          therapist_ids?: string[]
           therapist_name?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -233,6 +235,7 @@ export type Database = {
           status?: string
           survey_template_id?: string | null
           therapist_id?: string | null
+          therapist_ids?: string[]
           therapist_name?: string | null
           updated_at?: string
           updated_by?: string | null

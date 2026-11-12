@@ -53,7 +53,16 @@ import { assertWrote } from "@/lib/rowAccess";
 import { forgetOpenAppointment, rememberOpenAppointment } from "@/lib/openAppointment";
 import { StickyNotes } from "@/components/shared/StickyNotes";
 import { StaffCombobox } from "@/components/shared/StaffCombobox";
-import { THERAPIST_ROLES, therapistDisplayName, therapistNoteTitle } from "@/lib/appointmentTherapist";
+import { StaffMultiCombobox } from "@/components/shared/StaffMultiCombobox";
+import {
+  THERAPIST_ROLES,
+  THERAPIST_FIELD_LABEL,
+  therapistDisplayName,
+  therapistIdsOf,
+  therapistNamesOf,
+  therapistNoteTitle,
+} from "@/lib/appointmentTherapist";
+import { useStaffNames } from "@/lib/staffNames";
 import { CameraCapture } from "@/components/shared/CameraCapture";
 import { SkinTracker } from "@/components/shared/SkinTracker";
 import { ProcedureFormDialog } from "@/components/procedures/ProcedureFormDialog";
@@ -586,7 +595,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   const [editStaffId, setEditStaffId] = useState("");
   // Who actually carries out the treatment. Separate from the doctor: the
   // clinic needs both, and a therapist is routinely swapped at short notice.
-  const [editTherapistId, setEditTherapistId] = useState("");
+  const [editTherapistIds, setEditTherapistIds] = useState<string[]>([]);
   const [editProblemAreas, setEditProblemAreas] = useState<string[]>([]);
   const [editAppointmentId, setEditAppointmentId] = useState<string | null>(null);
 
@@ -601,6 +610,21 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
   });
 
   const doctorsList = (staffList as any[]).filter((s: any) => s.role === "Doctor");
+
+  // Everyone recorded on this appointment, and their names.
+  //
+  // Looked up by id rather than read out of staffList above: that list is
+  // active staff only, so somebody deactivated since the visit would silently
+  // drop off an appointment they really worked. therapistDisplayName is the
+  // last resort - it reads the stored therapist_name, which survives the
+  // staff record being deleted altogether.
+  const assignedTherapistIds = therapistIdsOf(appointment as never);
+  const { data: therapistNameMap = {} } = useStaffNames(assignedTherapistIds);
+  const assignedTherapistNames = therapistNamesOf(
+    assignedTherapistIds,
+    therapistNameMap,
+    therapistDisplayName(appointment as never),
+  );
 
   const { data: servicesList = [] } = useQuery({
     queryKey: ["services-list"],
@@ -653,7 +677,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     setEditStartTime(appointment.start_time ? format(new Date(appointment.start_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditEndTime(appointment.end_time ? format(new Date(appointment.end_time), "yyyy-MM-dd'T'HH:mm") : "");
     setEditStaffId(appointment.staff_id || "");
-    setEditTherapistId(appointment.therapist_id || "");
+    setEditTherapistIds(therapistIdsOf(appointment as never));
     setEditProblemAreas(((appointment as any).problem_area_ids as string[]) || []);
     setEditAppointmentId(appointment.id);
   }, [appointment, appointmentId]);
@@ -1022,7 +1046,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
           start_time: new Date(editStartTime).toISOString(),
           end_time: new Date(editEndTime).toISOString(),
           staff_id: newStaffId,
-          therapist_id: editTherapistId || null,
+          therapist_id: editTherapistIds[0] || null,
+          therapist_ids: editTherapistIds,
           problem_area_ids: editProblemAreas,
         } as any)
         .eq("id", appointmentId!)
@@ -1147,7 +1172,8 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
         patient_id: appointment.patient_id,
         patient_name: appointment.patient_name ?? null,
         staff_id: editStaffId || appointment.staff_id || null,
-        therapist_id: editTherapistId || appointment.therapist_id || null,
+        therapist_id: editTherapistIds[0] || appointment.therapist_id || null,
+        therapist_ids: editTherapistIds.length ? editTherapistIds : therapistIdsOf(appointment as never),
         service: editService || appointment.service || null,
         reason_for_consultation: editInvestigation.trim() || null,
         start_time: new Date(editStartTime).toISOString(),
@@ -1644,15 +1670,17 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       "who saw them, then who treated them", and on a phone the
                       two stack anyway. Swapping one costs two taps. */}
                   <div>
-                    <Label>Therapist</Label>
-                    <StaffCombobox
+                    <Label>{THERAPIST_FIELD_LABEL}</Label>
+                    {/* More than one person assists a procedure, so this is
+                        the same multi-select Procedures already uses for
+                        "Assisted By". Removing every badge clears the field;
+                        there is no "none" row to pick. */}
+                    <StaffMultiCombobox
                       className="mt-1.5"
-                      value={editTherapistId}
-                      onValueChange={setEditTherapistId}
+                      value={editTherapistIds}
+                      onValueChange={setEditTherapistIds}
                       roleFilter={[...THERAPIST_ROLES]}
-                      allowNone
-                      noneLabel="No therapist assigned"
-                      placeholder="Select therapist"
+                      placeholder="Select therapist or nurse"
                     />
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -2304,9 +2332,9 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         it. Read from the appointment, so a swap is reflected
                         here the moment it is saved. */}
                     <p className="text-xs text-muted-foreground">
-                      {therapistDisplayName(appointment as never)
-                        ? <>Therapist: <span className="font-medium text-foreground">{therapistDisplayName(appointment as never)}</span></>
-                        : "No therapist assigned"}
+                      {assignedTherapistNames
+                        ? <>{THERAPIST_FIELD_LABEL}: <span className="font-medium text-foreground">{assignedTherapistNames}</span></>
+                        : "No therapist or nurse assigned"}
                     </p>
                   </div>
                   {/* No draft mode here, unlike the New Procedure form: the
@@ -2314,7 +2342,7 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                       so notes save straight away. */}
                   <StickyNotes
                     appointmentId={appointmentId}
-                    composerDefaults={{ title: therapistNoteTitle(therapistDisplayName(appointment as never)) }}
+                    composerDefaults={{ title: therapistNoteTitle(assignedTherapistNames) }}
                   />
                 </TabsContent>
                 <TabsContent value="ai-repo" className="p-6 mt-0">

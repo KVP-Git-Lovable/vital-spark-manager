@@ -438,6 +438,26 @@ export default function UserManagement() {
                       </TableCell>
                       {isAdmin && (
                         <TableCell className="flex gap-1">
+                          {/* One slot, two states. "Log in as this user"
+                              needs a real account to switch into, so it can
+                              never appear for somebody who has none - and on
+                              those rows it read as a missing feature rather
+                              than a missing account. Thirteen of the clinic's
+                              twenty-one staff had an email on their staff row
+                              and no login behind it.
+
+                              So that slot now offers the step that is
+                              actually needed. Creating the account is not
+                              gated on mayImpersonate: that flag is the
+                              impersonate function's own server-side
+                              allow-list and answers "may I become another
+                              user", which is a narrower question than "may I
+                              make one an account" - and this whole cell is
+                              already admin-only.
+
+                              Nothing further to do afterwards: the dialog
+                              invalidates staff-with-roles on success, so the
+                              row comes back with the other branch. */}
                           {mayImpersonate && s.auth_user_id && s.is_active && (
                             <Button
                               variant="ghost"
@@ -446,6 +466,23 @@ export default function UserManagement() {
                               onClick={() => setImpersonateStaff(s)}
                             >
                               <UserCog className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {!s.auth_user_id && s.is_active && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Create login"
+                              data-testid="create-login"
+                              onClick={() => {
+                                setResetPwStaff(s);
+                                setResetPwMode("auto");
+                                setResetPwValue("");
+                                setResetPwConfirm("");
+                                setResetPwOpen(true);
+                              }}
+                            >
+                              <UserPlus className="h-4 w-4" />
                             </Button>
                           )}
                           <Button
@@ -462,7 +499,7 @@ export default function UserManagement() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            title="Reset Password"
+                            title={s.auth_user_id ? "Reset Password" : "Create Login"}
                             onClick={() => {
                               setResetPwStaff(s);
                               setResetPwMode("auto");

@@ -534,6 +534,51 @@ export type Database = {
         }
         Relationships: []
       }
+      attendance_regularisations: {
+        Row: {
+          created_at: string
+          date: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          id: string
+          reason: string
+          requested_check_in: string | null
+          requested_check_out: string | null
+          staff_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          id?: string
+          reason: string
+          requested_check_in?: string | null
+          requested_check_out?: string | null
+          staff_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          id?: string
+          reason?: string
+          requested_check_in?: string | null
+          requested_check_out?: string | null
+          staff_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       attendance_records: {
         Row: {
           check_in_address: string | null
@@ -7265,6 +7310,7 @@ export type Database = {
       }
       staff: {
         Row: {
+          approves_requests: boolean
           auth_user_id: string | null
           consultation_fee: number
           consultation_hsn: string | null
@@ -7289,6 +7335,7 @@ export type Database = {
           work_start_time: string | null
         }
         Insert: {
+          approves_requests?: boolean
           auth_user_id?: string | null
           consultation_fee?: number
           consultation_hsn?: string | null
@@ -7313,6 +7360,7 @@ export type Database = {
           work_start_time?: string | null
         }
         Update: {
+          approves_requests?: boolean
           auth_user_id?: string | null
           consultation_fee?: number
           consultation_hsn?: string | null

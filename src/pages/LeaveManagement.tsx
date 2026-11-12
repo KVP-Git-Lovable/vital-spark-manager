@@ -35,7 +35,11 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  canDecide, regularisationAsk, regularisationProblem, regularisationTimestamp,
+} from "@/lib/regularisation";
 import { canViewModule } from "@/lib/staffAccess";
 
 /**
@@ -68,6 +72,17 @@ interface MyLeaveApplication {
   leave_types?: { name?: string | null } | null;
 }
 
+interface MyRegularisation {
+  id: string;
+  staff_id: string;
+  date: string;
+  requested_check_in: string | null;
+  requested_check_out: string | null;
+  reason: string;
+  status: string;
+  staff?: { first_name?: string | null; last_name?: string | null } | null;
+}
+
 interface MyLeaveBalance {
   id: string;
   staff_id: string;
@@ -92,6 +107,17 @@ const LeaveManagement = () => {
   // everyone else on their own leave. Computed rather than stored so it is
   // still right if the role resolves a tick after the first render.
   const [tab, setTab] = useState<string | null>(null);
+  // The bell links straight at a tab - /leave?tab=regularisations - because a
+  // notification that lands on the page and leaves you to find the request is
+  // only half a notification.
+  const [searchParams] = useSearchParams();
+  const linkedTab = searchParams.get("tab");
+
+  const [regOpen, setRegOpen] = useState(false);
+  const [regDate, setRegDate] = useState("");
+  const [regIn, setRegIn] = useState("");
+  const [regOut, setRegOut] = useState("");
+  const [regReason, setRegReason] = useState("");
   const [typeOpen, setTypeOpen] = useState(false);
   const [balanceOpen, setBalanceOpen] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
@@ -166,6 +192,68 @@ const LeaveManagement = () => {
     .filter((a) => a.staff_id === myStaffId);
   const myBalances = (balances as unknown as MyLeaveBalance[])
     .filter((b) => b.staff_id === myStaffId);
+
+  const { data: regularisations = [] } = useQuery({
+    queryKey: ["attendance-regularisations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("attendance_regularisations")
+        // attendance_regularisations reaches staff twice - staff_id and
+        // decided_by - so an implicit embed is ambiguous and PostgREST
+        // refuses the whole request. Named, with the response alias kept.
+        .select("*, staff:staff!attendance_regularisations_staff_id_fkey(first_name, last_name)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const myRegularisations = (regularisations as unknown as MyRegularisation[])
+    .filter((r) => r.staff_id === myStaffId);
+
+  const askForCorrection = useMutation({
+    mutationFn: async () => {
+      const problem = regularisationProblem({ date: regDate, checkIn: regIn, checkOut: regOut, reason: regReason });
+      if (problem) throw new Error(problem);
+      if (!myStaffId) throw new Error("No staff record is linked to this login");
+      const { error } = await supabase.from("attendance_regularisations").insert({
+        staff_id: myStaffId,
+        date: regDate,
+        requested_check_in: regularisationTimestamp(regDate, regIn),
+        requested_check_out: regularisationTimestamp(regDate, regOut),
+        reason: regReason.trim(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["attendance-regularisations"] });
+      toast.success("Sent for approval");
+      setRegDate(""); setRegIn(""); setRegOut(""); setRegReason(""); setRegOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const decideRegularisation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: "Approved" | "Rejected" }) => {
+      // The attendance record itself is written by a database trigger on
+      // approval, not here. The leave page's own approval is two client
+      // writes that are not a transaction and whose balance half has
+      // silently done nothing since it was written; a correction that says
+      // "approved" and leaves the attendance untouched would be that bug
+      // again with somebody's pay behind it.
+      const { error } = await supabase
+        .from("attendance_regularisations")
+        .update({ status, decided_by: myStaffId || null, decided_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      queryClient.invalidateQueries({ queryKey: ["attendance-regularisations"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      toast.success(`Correction ${v.status.toLowerCase()}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const createLeaveType = useMutation({
     mutationFn: async () => {
@@ -370,15 +458,106 @@ const LeaveManagement = () => {
         </div>
       </div>
 
-      <Tabs value={tab ?? (canAdminLeave ? "applications" : "mine")} onValueChange={setTab}>
-        <TabsList>
+      <Tabs
+        value={tab ?? linkedTab ?? (canAdminLeave ? "applications" : "mine")}
+        onValueChange={setTab}
+      >
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="mine">My Leave ({myApplications.length})</TabsTrigger>
+          <TabsTrigger value="my-regularisations">My Corrections ({myRegularisations.length})</TabsTrigger>
           {canAdminLeave && <>
             <TabsTrigger value="applications">Applications ({applications.length})</TabsTrigger>
+            <TabsTrigger value="regularisations">
+              Corrections ({(regularisations as unknown as MyRegularisation[]).filter((r) => canDecide(r.status)).length})
+            </TabsTrigger>
             <TabsTrigger value="balances">Balances ({balances.length})</TabsTrigger>
             <TabsTrigger value="types">Leave Types ({leaveTypes.length})</TabsTrigger>
           </>}
         </TabsList>
+
+        {/* My Corrections - asking for a forgotten punch to be put right.
+            "Corrections" on screen rather than "Regularisations": it is the
+            word the clinic used to me, not the word anybody says. */}
+        <TabsContent value="my-regularisations">
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mt-4 space-y-4">
+            <div className="flex justify-end">
+              <Dialog open={regOpen} onOpenChange={setRegOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="gap-2" data-testid="ask-correction">
+                    <Plus className="h-4 w-4" /> Ask for a correction
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader><DialogTitle className="font-display">Ask for a correction</DialogTitle></DialogHeader>
+                  <div className="space-y-4 pt-2">
+                    <p className="text-sm text-muted-foreground">
+                      Forgot to start or end a day? Say what it should have been and
+                      an admin will put it right.
+                    </p>
+                    <div>
+                      <Label>Day *</Label>
+                      <DateInput className="mt-1.5" value={regDate} onChange={(iso) => setRegDate(iso)} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Started at</Label>
+                        <Input type="time" className="mt-1.5" value={regIn} onChange={(e) => setRegIn(e.target.value)} />
+                      </div>
+                      <div>
+                        <Label>Ended at</Label>
+                        <Input type="time" className="mt-1.5" value={regOut} onChange={(e) => setRegOut(e.target.value)} />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Fill in only the end you forgot. The other stays as it was recorded.
+                    </p>
+                    <div>
+                      <Label>Reason *</Label>
+                      <Textarea className="mt-1.5" rows={2} value={regReason} onChange={(e) => setRegReason(e.target.value)} />
+                    </div>
+                    <Button
+                      className="w-full"
+                      data-testid="send-correction"
+                      disabled={askForCorrection.isPending}
+                      onClick={() => askForCorrection.mutate()}
+                    >
+                      {askForCorrection.isPending ? "Sending..." : "Send for approval"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            <div className="data-table">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Day</TableHead>
+                    <TableHead>Asked for</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {myRegularisations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                        You have not asked for any corrections.
+                      </TableCell>
+                    </TableRow>
+                  ) : myRegularisations.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="whitespace-nowrap">{displayDate(r.date)}</TableCell>
+                      <TableCell className="whitespace-nowrap">{regularisationAsk(r)}</TableCell>
+                      <TableCell className="max-w-xs truncate">{r.reason}</TableCell>
+                      <TableCell><Badge className={statusStyles[r.status] || ""}>{r.status}</Badge></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </motion.div>
+        </TabsContent>
 
         {/* My Leave - what the person signed in has taken and has left.
             The rows come from the same two queries the admin tabs use; the
@@ -447,6 +626,69 @@ const LeaveManagement = () => {
             refuses the writes either way since 20261113060000, but a
             button that always fails is worse than no button. */}
         {canAdminLeave && (<>
+        {/* Corrections, for whoever decides them. The attendance record is
+            written by a database trigger on approval, so pressing Approve
+            and the day being right cannot come apart. */}
+        <TabsContent value="regularisations">
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="data-table mt-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Staff</TableHead>
+                  <TableHead>Day</TableHead>
+                  <TableHead>Asked for</TableHead>
+                  <TableHead>Reason</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-24">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(regularisations as unknown as MyRegularisation[]).length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      No corrections have been asked for.
+                    </TableCell>
+                  </TableRow>
+                ) : (regularisations as unknown as MyRegularisation[]).map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="whitespace-nowrap">
+                      {[r.staff?.first_name, r.staff?.last_name].filter(Boolean).join(" ") || "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{displayDate(r.date)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{regularisationAsk(r)}</TableCell>
+                    <TableCell className="max-w-xs truncate">{r.reason}</TableCell>
+                    <TableCell><Badge className={statusStyles[r.status] || ""}>{r.status}</Badge></TableCell>
+                    <TableCell>
+                      {canDecide(r.status) && (
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            data-testid="approve-correction"
+                            disabled={decideRegularisation.isPending}
+                            onClick={() => decideRegularisation.mutate({ id: r.id, status: "Approved" })}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive"
+                            disabled={decideRegularisation.isPending}
+                            onClick={() => decideRegularisation.mutate({ id: r.id, status: "Rejected" })}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </motion.div>
+        </TabsContent>
+
         {/* Applications Tab */}
         <TabsContent value="applications">
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="data-table mt-4">

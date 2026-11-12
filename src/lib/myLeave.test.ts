@@ -41,23 +41,38 @@ describe("the Leave page knows who is looking at it", () => {
     expect(src).toContain('<TabsContent value="mine">');
   });
 
-  it("shows the three admin tabs only to somebody who can administer leave", () => {
+  it("shows the admin tabs only to somebody who can administer leave", () => {
     // Rendered, not merely hidden: leaving them mounted puts the Add Leave
     // Type and Grant Leave Balance dialogs in a therapist's DOM.
+    //
+    // Checked by slicing the guarded block rather than by distance from the
+    // guard: a tab added inside it later pushes the others past any fixed
+    // window, and the test would start failing for the wrong reason.
     const src = LEAVE();
-    expect(src).toMatch(/\{canAdminLeave && <>[\s\S]{0,400}<TabsTrigger value="applications">/);
-    expect(src).toMatch(/\{canAdminLeave && \(<>[\s\S]{0,400}<TabsContent value="applications">/);
-    // And they are all inside the one guard, not just the first.
     const guard = src.indexOf("{canAdminLeave && (<>");
-    const close = src.indexOf("</>)}", guard);
-    const inside = src.slice(guard, close);
-    for (const v of ["applications", "balances", "types"]) {
+    expect(guard, "the admin tabs are no longer guarded").toBeGreaterThan(-1);
+    const inside = src.slice(guard, src.indexOf("</>)}", guard));
+    for (const v of ["applications", "balances", "types", "regularisations"]) {
       expect(inside, `the ${v} tab is outside the admin guard`).toContain(`<TabsContent value="${v}">`);
+    }
+
+    const trigGuard = src.indexOf("{canAdminLeave && <>");
+    expect(trigGuard, "the admin tab buttons are no longer guarded").toBeGreaterThan(-1);
+    const triggers = src.slice(trigGuard, src.indexOf("</>}", trigGuard));
+    for (const v of ["applications", "balances", "types", "regularisations"]) {
+      expect(triggers, `the ${v} tab button is outside the admin guard`).toContain(`<TabsTrigger value="${v}"`);
+    }
+
+    // And the two everybody gets are OUTSIDE both guards.
+    for (const v of ["mine", "my-regularisations"]) {
+      expect(inside, `${v} must not be admin-only`).not.toContain(`<TabsContent value="${v}">`);
     }
   });
 
   it("lands an admin where it always did, and everyone else on their own leave", () => {
-    expect(LEAVE()).toContain('value={tab ?? (canAdminLeave ? "applications" : "mine")}');
+    // linkedTab sits between them so a bell notification can open the page
+    // on the request it is about; without a link in the URL nothing changes.
+    expect(LEAVE()).toContain('value={tab ?? linkedTab ?? (canAdminLeave ? "applications" : "mine")}');
   });
 
   it("shows my own rows on My Leave, not the whole clinic's", () => {

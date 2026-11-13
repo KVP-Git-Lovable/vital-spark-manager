@@ -42,8 +42,12 @@ describe("the Leave page knows who is looking at it", () => {
   });
 
   it("shows the admin tabs only to somebody who can administer leave", () => {
-    // Rendered, not merely hidden: leaving them mounted puts the Add Leave
-    // Type and Grant Leave Balance dialogs in a therapist's DOM.
+    // Rendered, not merely hidden: leaving a tab mounted puts its dialogs in
+    // a therapist's DOM.
+    //
+    // Two tabs, not four. Leave Types and Balances are configuration and
+    // moved to Admin > Attendance > Policy; what is left here is answering
+    // what somebody asked for.
     //
     // Checked by slicing the guarded block rather than by distance from the
     // guard: a tab added inside it later pushes the others past any fixed
@@ -52,15 +56,20 @@ describe("the Leave page knows who is looking at it", () => {
     const guard = src.indexOf("{canAdminLeave && (<>");
     expect(guard, "the admin tabs are no longer guarded").toBeGreaterThan(-1);
     const inside = src.slice(guard, src.indexOf("</>)}", guard));
-    for (const v of ["applications", "balances", "types", "regularisations"]) {
+    for (const v of ["applications", "regularisations"]) {
       expect(inside, `the ${v} tab is outside the admin guard`).toContain(`<TabsContent value="${v}">`);
     }
 
     const trigGuard = src.indexOf("{canAdminLeave && <>");
     expect(trigGuard, "the admin tab buttons are no longer guarded").toBeGreaterThan(-1);
     const triggers = src.slice(trigGuard, src.indexOf("</>}", trigGuard));
-    for (const v of ["applications", "balances", "types", "regularisations"]) {
+    for (const v of ["applications", "regularisations"]) {
       expect(triggers, `the ${v} tab button is outside the admin guard`).toContain(`<TabsTrigger value="${v}"`);
+    }
+
+    // And the two that moved are not here under any guard at all.
+    for (const v of ["balances", "types"]) {
+      expect(src, `the ${v} tab is still on this page`).not.toContain(`value="${v}"`);
     }
 
     // And the two everybody gets are OUTSIDE both guards.

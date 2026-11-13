@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { DateInput } from "@/components/shared/DateInput";
 import { displayDate } from "@/lib/dateInput";
-import { numVal } from "@/lib/numberInput";
-import { Plus, Search, Calendar, Loader2, Trash2, RefreshCw } from "lucide-react";
+import { Plus, Search, Calendar, Loader2, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,10 +41,6 @@ import {
   regularisationProblem, regularisationTimestamp,
 } from "@/lib/regularisation";
 import { useAttendanceSettings } from "@/hooks/useAttendanceSettings";
-import {
-  ACCRUAL_OPTIONS, accrualLabel, accrualOf, entitlementToDate, needsTopUp,
-  toppedUpBalance, type LeaveAccrual,
-} from "@/lib/leaveAccrual";
 import { canViewModule } from "@/lib/staffAccess";
 
 /**
@@ -98,6 +93,9 @@ interface MyLeaveBalance {
   leave_types?: { name?: string | null } | null;
 }
 
+/** Every tab this page has. A ?tab= outside this list is ignored. */
+const LEAVE_TABS = ["mine", "my-regularisations", "applications", "regularisations"];
+
 const statusStyles: Record<string, string> = {
   Pending: "bg-warning/10 text-warning",
   Approved: "bg-success/10 text-success",
@@ -122,7 +120,11 @@ const LeaveManagement = () => {
   // notification that lands on the page and leaves you to find the request is
   // only half a notification.
   const [searchParams] = useSearchParams();
-  const linkedTab = searchParams.get("tab");
+  // Only a tab that still exists. ?tab=types and ?tab=balances used to point
+  // at this page and now point at Admin > Attendance > Policy; honouring
+  // either here would select a tab with no content and show a blank page.
+  const askedForTab = searchParams.get("tab");
+  const linkedTab = LEAVE_TABS.includes(askedForTab ?? "") ? askedForTab : null;
 
   // The cap on corrections is an attendance setting, not a leave one, and the
   // database trigger is what enforces it. Reading it here only lets the dialog
@@ -134,22 +136,7 @@ const LeaveManagement = () => {
   const [regIn, setRegIn] = useState("");
   const [regOut, setRegOut] = useState("");
   const [regReason, setRegReason] = useState("");
-  const [typeOpen, setTypeOpen] = useState(false);
-  const [balanceOpen, setBalanceOpen] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
-
-  // Leave type form
-  const [ltName, setLtName] = useState("");
-  const [ltDesc, setLtDesc] = useState("");
-  const [ltDays, setLtDays] = useState(0);
-  const [ltAccrual, setLtAccrual] = useState<LeaveAccrual>("yearly");
-  const [topUpOpen, setTopUpOpen] = useState(false);
-
-  // Balance form
-  const [balStaffId, setBalStaffId] = useState("");
-  const [balLeaveTypeId, setBalLeaveTypeId] = useState("");
-  const [balYear, setBalYear] = useState(new Date().getFullYear());
-  const [balOpening, setBalOpening] = useState(0);
 
   // Apply form
   const [appStaffId, setAppStaffId] = useState("");
@@ -229,29 +216,6 @@ const LeaveManagement = () => {
   const myRegularisations = (regularisations as unknown as MyRegularisation[])
     .filter((r) => r.staff_id === myStaffId);
 
-  /**
-   * What Update allowances would do, before it does it.
-   *
-   * This writes a row per active person per leave type - 72 of them on
-   * today's data - so the figures are shown first. The clinic's Maternity
-   * Leave is 180 days a year and active: seeing "180 days each, to 18
-   * people" is how somebody catches that before it is a balance everybody
-   * can apply against, rather than after.
-   */
-  const allowancePreview = (() => {
-    const year = new Date().getFullYear();
-    const people = (staffList as { is_active?: boolean | null }[])
-      .filter((p) => p.is_active !== false).length;
-    const rows = (leaveTypes as unknown as { id: string; name: string; is_active?: boolean | null }[])
-      .filter((t) => t.is_active !== false)
-      .map((t) => ({ id: t.id, name: t.name, days: entitlementToDate(t as never, year) }));
-    return {
-      year, people,
-      grants: rows.filter((r) => r.days > 0),
-      skipped: rows.filter((r) => r.days <= 0),
-    };
-  })();
-
   // Counted for the month of the day being corrected, not for today, because
   // that is the month the database trigger counts. Someone fixing a 29
   // October punch on 2 November spends October's allowance.
@@ -304,137 +268,6 @@ const LeaveManagement = () => {
       queryClient.invalidateQueries({ queryKey: ["attendance-regularisations"] });
       queryClient.invalidateQueries({ queryKey: ["attendance"] });
       toast.success(`Correction ${v.status.toLowerCase()}`);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  /**
-   * Give everybody what their leave types say they are owed.
-   *
-   * default_days_per_year has been on leave_types since March with nothing
-   * acting on it: 0 of 18 active staff had a balance while Casual Leave
-   * said 12 a year. This is the thing that makes that number mean something.
-   *
-   * Safe to press repeatedly, and that is the point for a monthly type - it
-   * is how the accrual arrives. toppedUpBalance never lowers a figure, so
-   * running it in March cannot take back days an admin granted by hand in
-   * February.
-   */
-  const topUpAllowances = useMutation({
-    mutationFn: async () => {
-      const year = new Date().getFullYear();
-      const people = (staffList as { id: string; is_active?: boolean | null }[])
-        .filter((p) => p.is_active !== false);
-      const types = (leaveTypes as unknown as { id: string; is_active?: boolean | null }[])
-        .filter((t) => t.is_active !== false);
-      if (people.length === 0 || types.length === 0) {
-        throw new Error("There is nobody, or no leave type, to grant.");
-      }
-
-      // Read afresh rather than trust the cached tab. There is a UNIQUE
-      // (staff_id, leave_type_id, year) on this table, so a row the cache had
-      // not seen would fail the whole insert; and an upsert is not the answer
-      // either, because it would carry `used: 0` over somebody's taken leave.
-      const { data: current, error: readError } = await supabase
-        .from("staff_leave_balances")
-        .select("id, staff_id, leave_type_id, year, opening_balance")
-        .eq("year", year);
-      if (readError) throw readError;
-      const existing = new Map(
-        (current ?? []).map((b) => [`${b.staff_id}:${b.leave_type_id}`, b]),
-      );
-
-      const toInsert: Record<string, unknown>[] = [];
-      const toUpdate: { id: string; opening_balance: number }[] = [];
-
-      for (const person of people) {
-        for (const type of types) {
-          const entitled = entitlementToDate(type as never, year);
-          if (entitled <= 0) continue;
-          const row = existing.get(`${person.id}:${type.id}`);
-          if (!row) {
-            toInsert.push({
-              staff_id: person.id, leave_type_id: type.id, year,
-              opening_balance: entitled, used: 0,
-            });
-          } else if (needsTopUp(row.opening_balance, entitled)) {
-            toUpdate.push({ id: row.id, opening_balance: toppedUpBalance(row.opening_balance, entitled) });
-          }
-        }
-      }
-
-      if (toInsert.length > 0) {
-        const { error } = await supabase.from("staff_leave_balances").insert(toInsert as never);
-        if (error) throw error;
-      }
-      // One at a time, and `used` is never sent: an upsert would carry a
-      // stale used figure back over somebody's approved leave.
-      for (const row of toUpdate) {
-        const { error } = await supabase
-          .from("staff_leave_balances")
-          .update({ opening_balance: row.opening_balance })
-          .eq("id", row.id);
-        if (error) throw error;
-      }
-      return { granted: toInsert.length, toppedUp: toUpdate.length };
-    },
-    onSuccess: (r) => {
-      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
-      setTopUpOpen(false);
-      toast.success(
-        r.granted === 0 && r.toppedUp === 0
-          ? "Everybody is already up to date"
-          : `${r.granted} granted, ${r.toppedUp} topped up`,
-      );
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const setAccrual = useMutation({
-    mutationFn: async ({ id, accrual }: { id: string; accrual: LeaveAccrual }) => {
-      const { error } = await supabase.from("leave_types").update({ accrual }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-types"] });
-      toast.success("Saved");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const createLeaveType = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("leave_types").insert({
-        name: ltName,
-        description: ltDesc || null,
-        default_days_per_year: ltDays,
-        accrual: ltAccrual,
-      } as never);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-types"] });
-      toast.success("Leave type created");
-      setLtName(""); setLtDesc(""); setLtDays(0); setLtAccrual("yearly"); setTypeOpen(false);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const createBalance = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("staff_leave_balances").insert({
-        staff_id: balStaffId,
-        leave_type_id: balLeaveTypeId,
-        year: balYear,
-        opening_balance: balOpening,
-        used: 0,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
-      toast.success("Leave balance granted");
-      setBalStaffId(""); setBalLeaveTypeId(""); setBalOpening(0); setBalanceOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -542,7 +375,10 @@ const LeaveManagement = () => {
       <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="page-title">Leave Management</h1>
-          <p className="page-subtitle">Manage leave types, balances, and applications</p>
+          <p className="page-subtitle">
+            Apply for leave, and answer what has been asked. Leave types and
+            allowances are set in Admin &rsaquo; Attendance &rsaquo; Policy.
+          </p>
         </div>
         <div className="flex gap-2">
           <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
@@ -618,8 +454,6 @@ const LeaveManagement = () => {
             <TabsTrigger value="regularisations">
               Corrections ({(regularisations as unknown as MyRegularisation[]).filter((r) => canDecide(r.status)).length})
             </TabsTrigger>
-            <TabsTrigger value="balances">Balances ({balances.length})</TabsTrigger>
-            <TabsTrigger value="types">Leave Types ({leaveTypes.length})</TabsTrigger>
           </>}
         </TabsList>
 
@@ -893,200 +727,6 @@ const LeaveManagement = () => {
                 ))}
               </TableBody>
             </Table>
-          </motion.div>
-        </TabsContent>
-
-        {/* Balances Tab */}
-        <TabsContent value="balances">
-          <div className="flex flex-wrap justify-end gap-2 mb-4 mt-4">
-            <Dialog open={topUpOpen} onOpenChange={setTopUpOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2" data-testid="top-up-allowances">
-                  <RefreshCw className="h-4 w-4" /> Update allowances
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="font-display">Update allowances for {allowancePreview.year}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-2" data-testid="top-up-preview">
-                  <p className="text-sm text-muted-foreground">
-                    Every active person gets at least what each leave type says
-                    they are owed so far this year. An existing balance is only
-                    ever raised, never lowered, and days already taken are left
-                    alone - so this is safe to run again next month.
-                  </p>
-                  <div className="rounded-lg border divide-y">
-                    {allowancePreview.grants.length === 0 ? (
-                      <p className="p-3 text-sm text-muted-foreground">
-                        No leave type grants anything yet. Set Default Days/Year on the Leave Types tab first.
-                      </p>
-                    ) : allowancePreview.grants.map((g) => (
-                      <div key={g.id} className="flex items-center justify-between gap-3 p-3 text-sm">
-                        <span>{g.name}</span>
-                        <span className="font-medium whitespace-nowrap">
-                          {g.days} day{g.days === 1 ? "" : "s"} each
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    To {allowancePreview.people} active staff.
-                    {allowancePreview.skipped.length > 0 && (
-                      <> Skipped, because they are granted by hand: {allowancePreview.skipped.map((t) => t.name).join(", ")}.</>
-                    )}
-                  </p>
-                  <Button
-                    className="w-full"
-                    data-testid="confirm-top-up"
-                    disabled={topUpAllowances.isPending || allowancePreview.grants.length === 0}
-                    onClick={() => topUpAllowances.mutate()}
-                  >
-                    {topUpAllowances.isPending ? "Updating..." : "Update allowances"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-            <Dialog open={balanceOpen} onOpenChange={setBalanceOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Grant Leave Balance</Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-sm">
-                <DialogHeader><DialogTitle className="font-display">Grant Leave Balance</DialogTitle></DialogHeader>
-                <div className="space-y-4 pt-2">
-                  <div>
-                    <Label>Staff *</Label>
-                    <Select value={balStaffId} onValueChange={setBalStaffId}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        {staffList.map((s) => <SelectItem key={s.id} value={s.id}>{s.first_name} {s.last_name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Leave Type *</Label>
-                    <Select value={balLeaveTypeId} onValueChange={setBalLeaveTypeId}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        {leaveTypes.map((lt: any) => <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Year</Label>
-                      <Input type="number" className="mt-1.5" value={numVal(balYear)} onChange={(e) => setBalYear(parseInt(e.target.value))} />
-                    </div>
-                    <div>
-                      <Label>Opening Days *</Label>
-                      <Input type="number" className="mt-1.5" value={numVal(balOpening)} onChange={(e) => setBalOpening(parseFloat(e.target.value) || 0)} />
-                    </div>
-                  </div>
-                  <Button className="w-full" onClick={() => createBalance.mutate()} disabled={!balStaffId || !balLeaveTypeId || balOpening <= 0 || createBalance.isPending}>
-                    {createBalance.isPending ? "Saving..." : "Grant Balance"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="data-table">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Staff</TableHead>
-                  <TableHead>Leave Type</TableHead>
-                  <TableHead>Year</TableHead>
-                  <TableHead className="text-right">Opening</TableHead>
-                  <TableHead className="text-right">Used</TableHead>
-                  <TableHead className="text-right">Remaining</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {balances.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No leave balances configured</TableCell></TableRow>
-                ) : balances.map((bal: any) => (
-                  <TableRow key={bal.id}>
-                    <TableCell className="font-medium">{bal.staff?.first_name} {bal.staff?.last_name}</TableCell>
-                    <TableCell>{bal.leave_types?.name}</TableCell>
-                    <TableCell>{bal.year}</TableCell>
-                    <TableCell className="text-right font-medium">{bal.opening_balance}</TableCell>
-                    <TableCell className="text-right text-destructive">{bal.used}</TableCell>
-                    <TableCell className="text-right font-semibold text-success">{Number(bal.opening_balance) - Number(bal.used)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </motion.div>
-        </TabsContent>
-
-        {/* Leave Types Tab */}
-        <TabsContent value="types">
-          <div className="flex justify-end mb-4 mt-4">
-            <Dialog open={typeOpen} onOpenChange={setTypeOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Add Leave Type</Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-sm">
-                <DialogHeader><DialogTitle className="font-display">New Leave Type</DialogTitle></DialogHeader>
-                <div className="space-y-4 pt-2">
-                  <div>
-                    <Label>Name *</Label>
-                    <Input className="mt-1.5" placeholder="e.g. Casual Leave" value={ltName} onChange={(e) => setLtName(e.target.value)} />
-                  </div>
-                  <div>
-                    <Label>Description</Label>
-                    <Textarea className="mt-1.5" value={ltDesc} onChange={(e) => setLtDesc(e.target.value)} rows={2} />
-                  </div>
-                  <div>
-                    <Label>Default Days/Year</Label>
-                    <Input type="number" className="mt-1.5" value={numVal(ltDays)} onChange={(e) => setLtDays(parseFloat(e.target.value) || 0)} />
-                  </div>
-                  <div>
-                    <Label>How it is given</Label>
-                    <Select value={ltAccrual} onValueChange={(v) => setLtAccrual(v as LeaveAccrual)}>
-                      <SelectTrigger className="mt-1.5" data-testid="lt-accrual"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {ACCRUAL_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1.5">
-                      {accrualLabel({ default_days_per_year: ltDays, accrual: ltAccrual })}
-                    </p>
-                  </div>
-                  <Button className="w-full" onClick={() => createLeaveType.mutate()} disabled={!ltName || createLeaveType.isPending}>
-                    {createLeaveType.isPending ? "Creating..." : "Create Leave Type"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {leaveTypes.map((lt: any) => (
-              <div key={lt.id} className="stat-card">
-                <h3 className="font-display font-semibold">{lt.name}</h3>
-                {lt.description && <p className="text-sm text-muted-foreground mt-1">{lt.description}</p>}
-                <p className="text-2xl font-bold text-primary mt-3">{lt.default_days_per_year}</p>
-                <p className="text-xs text-muted-foreground">days/year default</p>
-                <div className="mt-3 pt-3 border-t">
-                  <Label className="text-xs text-muted-foreground">How it is given</Label>
-                  <Select
-                    value={accrualOf(lt)}
-                    onValueChange={(v) => setAccrual.mutate({ id: lt.id, accrual: v as LeaveAccrual })}
-                    disabled={setAccrual.isPending}
-                  >
-                    <SelectTrigger className="mt-1.5 h-9" data-testid={`accrual-${lt.id}`}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {ACCRUAL_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1.5">{accrualLabel(lt)}</p>
-                </div>
-              </div>
-            ))}
           </motion.div>
         </TabsContent>
         </>)}

@@ -130,57 +130,129 @@ describe("the accrual options", () => {
   });
 });
 
-describe("the Leave screen", () => {
+describe("the leave settings cards", () => {
   const page = () =>
-    readFileSync("src/pages/LeaveManagement.tsx", "utf8")
+    readFileSync("src/components/attendance/LeaveSettings.tsx", "utf8")
       .replace(/^\s*\/\/.*$/gm, "")
       .replace(/\/\*[\s\S]*?\*\//g, "");
 
-  it("offers Update allowances on the Balances tab", () => {
-    const src = page();
-    expect(src).toMatch(/data-testid="top-up-allowances"/);
-    expect(src).toMatch(/onClick=\{\(\) => topUpAllowances\.mutate\(\)\}/);
+  const topUp = () => page().split("const topUpAllowances")[1].split("const createBalance")[0];
+
+  it("offers Update allowances", () => {
+    expect(page()).toMatch(/data-testid="top-up-allowances"/);
   });
 
   it("grants this year's entitlement to date, not the whole year", () => {
-    const body = page().split("const topUpAllowances")[1].split("const setAccrual")[0];
+    const body = topUp();
     expect(body).toMatch(/entitlementToDate\(/);
     expect(body).toMatch(/needsTopUp\(/);
     expect(body).toMatch(/toppedUpBalance\(/);
   });
 
   it("only grants to active staff and active leave types", () => {
-    const body = page().split("const topUpAllowances")[1].split("const setAccrual")[0];
-    expect(body).toMatch(/\.filter\(\(p\) => p\.is_active !== false\)/);
-    expect(body).toMatch(/\.filter\(\(t\) => t\.is_active !== false\)/);
+    const body = topUp();
+    expect(body).toMatch(/staffList\.filter\(\(p\) => p\.is_active !== false\)/);
+    expect(body).toMatch(/leaveTypes\.filter\(\(t\) => t\.is_active !== false\)/);
   });
 
   it("never sends `used` when topping an existing row up", () => {
     // An upsert would carry used: 0 back over somebody's approved leave.
     // The update path must touch opening_balance and nothing else.
-    const body = page().split("const topUpAllowances")[1].split("const setAccrual")[0];
-    const update = body.split(".update(")[1].split(";")[0];
+    const update = topUp().split(".update(")[1].split(";")[0];
     expect(update).toMatch(/opening_balance/);
     expect(update).not.toMatch(/\bused\b/);
   });
 
-  it("reads the balances afresh rather than trusting the cached tab", () => {
+  it("reads the balances afresh rather than trusting the cached card", () => {
     // There is a UNIQUE (staff_id, leave_type_id, year): a row the cache had
     // not seen would fail the whole insert.
-    const body = page().split("const topUpAllowances")[1].split("const setAccrual")[0];
-    expect(body).toMatch(/from\("staff_leave_balances"\)[\s\S]*?\.eq\("year", year\)/);
+    expect(topUp()).toMatch(/from\("staff_leave_balances"\)[\s\S]*?\.eq\("year", year\)/);
   });
 
   it("lets an admin set how each leave type is given", () => {
     const src = page();
-    expect(src).toMatch(/data-testid=\{`accrual-\$\{lt\.id\}`\}/);
-    expect(src).toMatch(/setAccrual\.mutate\(\{ id: lt\.id, accrual: v as LeaveAccrual \}\)/);
+    expect(src).toMatch(/data-testid=\{`accrual-\$\{t\.id\}`\}/);
     expect(src).toMatch(/data-testid="lt-accrual"/);
   });
 
+  it("makes days per year editable, which it never was before", () => {
+    // default_days_per_year could only be set at the moment a type was
+    // created; the clinic's four types were stuck with whatever March chose.
+    const src = page();
+    expect(src).toMatch(/data-testid=\{`days-\$\{t\.id\}`\}/);
+    expect(src).toMatch(/edit\(t\.id, \{ days:/);
+  });
+
+  it("saves only the rows somebody actually changed", () => {
+    const src = page();
+    expect(src).toMatch(/for \(const id of dirty\)/);
+    expect(src).toMatch(/disabled=\{saving \|\| dirty\.length === 0\}/);
+  });
+
+  it("does not report a policy refusal as a save", () => {
+    // An UPDATE refused by row-level security matches no rows and is not an
+    // error, so the save has to ask for the changed row back.
+    const save = page().split("const save = async")[1].split("const create = useMutation")[0];
+    expect(save).toMatch(/\.select\("id"\)/);
+    expect(save).toMatch(/!data \|\| data\.length === 0/);
+  });
+
   it("saves the accrual on a new leave type", () => {
-    const body = page().split("const createLeaveType")[1].split("const createBalance")[0];
-    expect(body).toMatch(/accrual: ltAccrual/);
+    const body = page().split("const create = useMutation")[1].split("return (")[0];
+    expect(body).toMatch(/accrual,/);
+  });
+});
+
+describe("where leave is configured", () => {
+  const settings = () =>
+    readFileSync("src/components/attendance/AttendanceSettings.tsx", "utf8")
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+  const leavePage = () =>
+    readFileSync("src/pages/LeaveManagement.tsx", "utf8")
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("puts both cards on the attendance policy tab", () => {
+    const src = settings();
+    expect(src).toMatch(/<LeaveTypesCard \/>/);
+    expect(src).toMatch(/<LeaveAllowancesCard \/>/);
+  });
+
+  it("gates them on leave_admin, not on reaching the page", () => {
+    // /admin/attendance is guarded by attendance_admin. Setting leave policy
+    // is a different right, and walking in through this page must not
+    // silently become it.
+    const src = settings();
+    expect(src).toMatch(/moduleKey: "leave_admin"/);
+    expect(src).toMatch(/\{canAdminLeave && \(\s*<>/);
+  });
+
+  it("is gone from the Leave page entirely, not merely hidden", () => {
+    // Left mounted behind a guard, the Add Leave Type and Grant Balance
+    // dialogs stay in a therapist's DOM.
+    const src = leavePage();
+    expect(src).not.toMatch(/TabsContent value="balances"/);
+    expect(src).not.toMatch(/TabsContent value="types"/);
+    expect(src).not.toMatch(/TabsTrigger value="balances"/);
+    expect(src).not.toMatch(/TabsTrigger value="types"/);
+    expect(src).not.toMatch(/topUpAllowances|createLeaveType|createBalance/);
+  });
+
+  it("ignores a stale ?tab= that now points somewhere else", () => {
+    // The bell links at /leave?tab=regularisations and must keep working;
+    // ?tab=types used to land here and would now select an empty tab.
+    const src = leavePage();
+    expect(src).toMatch(/const LEAVE_TABS = \["mine", "my-regularisations", "applications", "regularisations"\]/);
+    expect(src).toMatch(/LEAVE_TABS\.includes\(askedForTab \?\? ""\) \? askedForTab : null/);
+  });
+
+  it("still leaves applying and deciding on the Leave page", () => {
+    const src = leavePage();
+    expect(src).toMatch(/TabsContent value="applications"/);
+    expect(src).toMatch(/TabsContent value="regularisations"/);
+    expect(src).toMatch(/TabsContent value="mine"/);
+    expect(src).toMatch(/TabsContent value="my-regularisations"/);
   });
 });
 
@@ -258,7 +330,7 @@ describe("the attendance settings screen", () => {
 
 describe("the allowance confirmation", () => {
   const page = () =>
-    readFileSync("src/pages/LeaveManagement.tsx", "utf8")
+    readFileSync("src/components/attendance/LeaveSettings.tsx", "utf8")
       .replace(/^\s*\/\/.*$/gm, "")
       .replace(/\/\*[\s\S]*?\*\//g, "");
 
@@ -279,7 +351,7 @@ describe("the allowance confirmation", () => {
   });
 
   it("names the types it will skip", () => {
-    const body = page().split("const allowancePreview")[1].split("})();")[0];
+    const body = page().split("const allowancePreview")[1].split("}, [staffList, leaveTypes]);")[0];
     expect(body).toMatch(/grants: rows\.filter\(\(r\) => r\.days > 0\)/);
     expect(body).toMatch(/skipped: rows\.filter\(\(r\) => r\.days <= 0\)/);
     expect(page()).toMatch(/granted by hand: \{allowancePreview\.skipped/);

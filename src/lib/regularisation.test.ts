@@ -162,9 +162,14 @@ describe("the screens", () => {
   });
 
   it("opens on the tab a notification points at", () => {
+    // Still the bell's deep link - /leave?tab=regularisations - but read
+    // through LEAVE_TABS now, because ?tab=types and ?tab=balances used to
+    // land here and would otherwise select a tab that no longer exists.
     const src = page();
-    expect(src).toContain('const linkedTab = searchParams.get("tab");');
+    expect(src).toContain('const askedForTab = searchParams.get("tab");');
+    expect(src).toContain('LEAVE_TABS.includes(askedForTab ?? "") ? askedForTab : null');
     expect(src).toContain('value={tab ?? linkedTab ?? (canAdminLeave ? "applications" : "mine")}');
+    expect(src).toContain('"regularisations"');
   });
 });
 

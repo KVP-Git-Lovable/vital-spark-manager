@@ -11,6 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAttendanceSettings } from "@/hooks/useAttendanceSettings";
+import { useAuth } from "@/hooks/useAuth";
+import { canViewModule } from "@/lib/staffAccess";
+import { SettingRow as Row } from "@/components/attendance/SettingRow";
+import { LeaveAllowancesCard, LeaveTypesCard } from "@/components/attendance/LeaveSettings";
 import type { AttendanceConfig } from "@/lib/attendance";
 import type { WeekOffRow } from "@/lib/workingDays";
 
@@ -24,9 +28,12 @@ import type { WeekOffRow } from "@/lib/workingDays";
  * of switches that do nothing is worse than no control panel, because
  * somebody will set one and believe it took effect.
  *
- * Settings that belong to features this clinic does not have yet
- * (regularisation's three, the whole leave-policy surface) arrive with those
- * features rather than sitting here inert.
+ * Settings arrive with the feature they govern rather than sitting here
+ * inert. Both have now arrived: the monthly cap on corrections is enforced by
+ * a trigger on insert, and leave configuration - which lived two tabs deep on
+ * a page therapists use to book a day off - is on this tab underneath, gated
+ * on `leave_admin` rather than on this page's own `attendance_admin`, so
+ * reaching the page does not silently become the right to set leave policy.
  */
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -39,6 +46,8 @@ const PATTERNS = [
 
 export function AttendancePolicyTab() {
   const { config, refetchConfig } = useAttendanceSettings();
+  const { isAdmin, permissions } = useAuth();
+  const canAdminLeave = canViewModule({ isAdmin, permissions, moduleKey: "leave_admin" });
   const [form, setForm] = useState<AttendanceConfig>(config);
   const [saving, setSaving] = useState(false);
 
@@ -68,6 +77,7 @@ export function AttendancePolicyTab() {
   };
 
   return (
+    <div className="space-y-5">
     <Card className="max-w-2xl">
       <CardHeader>
         <CardTitle className="text-lg">Check-in policy</CardTitle>
@@ -143,6 +153,18 @@ export function AttendancePolicyTab() {
         </Button>
       </CardContent>
     </Card>
+
+    {/* Leave lives here now, not two tabs deep on the page a therapist opens
+        to book a day off. Gated on leave_admin, which only the Admin role
+        carries - reaching this page is attendance_admin, and the two are not
+        the same right. */}
+    {canAdminLeave && (
+      <>
+        <LeaveTypesCard />
+        <LeaveAllowancesCard />
+      </>
+    )}
+    </div>
   );
 }
 
@@ -309,14 +331,4 @@ export function HolidaysTab() {
   );
 }
 
-function Row({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-6">
-      <div className="min-w-0">
-        <Label className="text-sm">{label}</Label>
-        <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>
-      </div>
-      <div className="shrink-0 pt-1">{children}</div>
-    </div>
-  );
-}
+

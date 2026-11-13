@@ -537,51 +537,6 @@ export type Database = {
         }
         Relationships: []
       }
-      attendance_regularisations: {
-        Row: {
-          created_at: string
-          date: string
-          decided_at: string | null
-          decided_by: string | null
-          decision_note: string | null
-          id: string
-          reason: string
-          requested_check_in: string | null
-          requested_check_out: string | null
-          staff_id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          date: string
-          decided_at?: string | null
-          decided_by?: string | null
-          decision_note?: string | null
-          id?: string
-          reason: string
-          requested_check_in?: string | null
-          requested_check_out?: string | null
-          staff_id: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          date?: string
-          decided_at?: string | null
-          decided_by?: string | null
-          decision_note?: string | null
-          id?: string
-          reason?: string
-          requested_check_in?: string | null
-          requested_check_out?: string | null
-          staff_id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       attendance_records: {
         Row: {
           check_in_address: string | null
@@ -646,6 +601,66 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "attendance_records_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_regularisations: {
+        Row: {
+          created_at: string
+          date: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          id: string
+          reason: string
+          requested_check_in: string | null
+          requested_check_out: string | null
+          staff_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          id?: string
+          reason: string
+          requested_check_in?: string | null
+          requested_check_out?: string | null
+          staff_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          id?: string
+          reason?: string
+          requested_check_in?: string | null
+          requested_check_out?: string | null
+          staff_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_regularisations_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_regularisations_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
@@ -4174,6 +4189,45 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_feedback_backup_20261110: {
+        Row: {
+          appointment_id: string
+          comments: string | null
+          created_at: string
+          id: string
+          last_edited_by: string | null
+          nps_score: number
+          patient_id: string
+          patient_name: string | null
+          service_rating: number
+          updated_at: string | null
+        }
+        Insert: {
+          appointment_id: string
+          comments?: string | null
+          created_at?: string
+          id?: string
+          last_edited_by?: string | null
+          nps_score: number
+          patient_id: string
+          patient_name?: string | null
+          service_rating: number
+          updated_at?: string | null
+        }
+        Update: {
+          appointment_id?: string
+          comments?: string | null
+          created_at?: string
+          id?: string
+          last_edited_by?: string | null
+          nps_score?: number
+          patient_id?: string
+          patient_name?: string | null
+          service_rating?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       patient_feedback_revisions: {
         Row: {
           appointment_id: string | null
@@ -4222,6 +4276,45 @@ export type Database = {
         ]
       }
       patient_feedback_revisions_backup_20261105: {
+        Row: {
+          appointment_id: string | null
+          comments: string | null
+          feedback_id: string
+          id: string
+          nps_score: number | null
+          patient_id: string | null
+          recorded_at: string | null
+          service_rating: number | null
+          superseded_at: string
+          superseded_by: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          comments?: string | null
+          feedback_id: string
+          id?: string
+          nps_score?: number | null
+          patient_id?: string | null
+          recorded_at?: string | null
+          service_rating?: number | null
+          superseded_at?: string
+          superseded_by?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          comments?: string | null
+          feedback_id?: string
+          id?: string
+          nps_score?: number | null
+          patient_id?: string | null
+          recorded_at?: string | null
+          service_rating?: number | null
+          superseded_at?: string
+          superseded_by?: string | null
+        }
+        Relationships: []
+      }
+      patient_feedback_revisions_backup_20261110: {
         Row: {
           appointment_id: string | null
           comments: string | null
@@ -8650,6 +8743,7 @@ export type Database = {
       }
       user_roles_config: {
         Row: {
+          appointment_scope: string
           created_at: string
           data_scope: string
           description: string | null
@@ -8658,6 +8752,7 @@ export type Database = {
           name: string
         }
         Insert: {
+          appointment_scope?: string
           created_at?: string
           data_scope?: string
           description?: string | null
@@ -8666,6 +8761,7 @@ export type Database = {
           name: string
         }
         Update: {
+          appointment_scope?: string
           created_at?: string
           data_scope?: string
           description?: string | null
@@ -9203,6 +9299,7 @@ export type Database = {
         }[]
       }
       knowledge_file_visible: { Args: { _path: string }; Returns: boolean }
+      may_decide_requests: { Args: never; Returns: boolean }
       move_to_trash: {
         Args: { _label?: string; _object_type: string; _record_id: string }
         Returns: string
@@ -9241,6 +9338,7 @@ export type Database = {
           taken_at: string
         }[]
       }
+      sees_all_appointments: { Args: never; Returns: boolean }
       set_patient_photo_hashes: { Args: { _rows: Json }; Returns: number }
       sf_clinical_catchup: {
         Args: {

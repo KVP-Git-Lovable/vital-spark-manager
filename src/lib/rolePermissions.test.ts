@@ -248,3 +248,58 @@ describe("the migration shuts the leave tables", () => {
     expect(src).not.toMatch(/drop column/i);
   });
 });
+
+/**
+ * A role added after the fact.
+ *
+ * Manager was created in Roles & Permissions on 13 November and arrived with
+ * nothing but billing_amounts ticked - defaultsToVisible() switches that on
+ * for every role the screen makes, and it is not a page. The clinic asked for
+ * the same set a receptionist carries.
+ */
+describe("the migration that sets the Manager role", () => {
+  const MANAGER = "supabase/migrations/20261115120000_what_a_manager_opens.sql";
+  const managerSql = () => readFileSync(MANAGER, "utf8").replace(/^\s*--.*$/gm, "");
+
+  it("leaves exactly the three a receptionist has", () => {
+    expect(managerSql()).toMatch(/not in \('dashboard', 'attendance', 'leave'\)/);
+  });
+
+  it("keeps create on the two things they do for themselves", () => {
+    // Marking your own day and applying for your own leave are both inserts.
+    const src = managerSql();
+    expect(src).toMatch(/set can_view = true, can_create = true[\s\S]*?module_key in \('attendance', 'leave'\)/);
+    expect(src).toMatch(/set can_view = true, can_create = false[\s\S]*?module_key = 'dashboard'/);
+  });
+
+  it("never grants edit or delete", () => {
+    expect(managerSql()).not.toMatch(/can_edit = true/);
+    expect(managerSql()).not.toMatch(/can_delete = true/);
+  });
+
+  it("switches rows off rather than deleting them", () => {
+    // Roles & Permissions has to keep listing every module with a box.
+    expect(managerSql()).not.toMatch(/delete\s+from/i);
+  });
+
+  it("touches no other role", () => {
+    // The point of a separate migration: re-running it cannot disturb what
+    // was set for the roles configured earlier the same afternoon.
+    const src = managerSql();
+    for (const role of ["Receptionist", "Pharmacist", "Admin", "Doctor", "Nurse", "Therapist"]) {
+      expect(src, `${role} must not appear`).not.toMatch(new RegExp(`'${role}'`));
+    }
+    expect((src.match(/r\.name = 'Manager'/g) ?? []).length).toBe(3);
+  });
+
+  it("gives the same three the receptionist migration does", () => {
+    // Two files, one answer. If one is ever widened the other has to follow,
+    // and this is what makes that loud.
+    const receptionist = readFileSync(
+      "supabase/migrations/20261115060000_what_a_receptionist_opens.sql", "utf8",
+    ).replace(/^\s*--.*$/gm, "");
+    const triples = (text: string) =>
+      (text.match(/'dashboard', 'attendance', 'leave'|'attendance', 'leave'|= 'dashboard'/g) ?? []).join("|");
+    expect(triples(managerSql())).toBe(triples(receptionist));
+  });
+});

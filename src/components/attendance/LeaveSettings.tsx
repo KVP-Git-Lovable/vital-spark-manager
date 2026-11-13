@@ -18,7 +18,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { numVal } from "@/lib/numberInput";
+import { NumberField } from "@/components/shared/NumberField";
 import { isRetired, removalPlan, type LeaveTypeUsage } from "@/lib/leaveTypeRemoval";
 import { SettingRow } from "@/components/attendance/SettingRow";
 import {
@@ -273,10 +273,11 @@ export function LeaveTypesCard() {
               </div>
               <div>
                 <Label>Days per year</Label>
-                <Input
-                  type="number" min={0} className="mt-1.5"
-                  value={numVal(days)}
-                  onChange={(e) => setDays(parseFloat(e.target.value) || 0)}
+                <NumberField
+                  min={0} max={366} emptyValue={0} className="mt-1.5"
+                  data-testid="new-type-days"
+                  value={days}
+                  onChange={setDays}
                 />
               </div>
               <div>
@@ -319,13 +320,13 @@ export function LeaveTypesCard() {
               >
                 <div className="flex items-center gap-2">
                   {off && <Badge variant="secondary" data-testid={`off-${t.id}`}>Off</Badge>}
-                  <Input
-                    type="number" min={0} className="w-20"
+                  <NumberField
+                    min={0} max={366} emptyValue={0} className="w-20"
                     aria-label={`${t.name} days per year`}
                     data-testid={`days-${t.id}`}
                     disabled={off}
-                    value={numVal(v.days)}
-                    onChange={(e) => edit(t.id, { days: parseFloat(e.target.value) || 0 })}
+                    value={v.days}
+                    onChange={(days) => edit(t.id, { days })}
                   />
                   <Select
                     value={v.accrual}
@@ -649,11 +650,23 @@ export function LeaveAllowancesCard() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Year</Label>
-                    <Input type="number" className="mt-1.5" value={numVal(balYear)} onChange={(e) => setBalYear(parseInt(e.target.value))} />
+                    {/* parseInt("") is NaN, and the old handler had no
+                        fallback - clearing this box put NaN in state,
+                        rendered as the string "NaN", and went straight into
+                        the insert as the year. */}
+                    <NumberField
+                      min={2000} max={2100} emptyValue={new Date().getFullYear()}
+                      className="mt-1.5" data-testid="balance-year"
+                      value={balYear} onChange={setBalYear}
+                    />
                   </div>
                   <div>
                     <Label>Opening days *</Label>
-                    <Input type="number" className="mt-1.5" value={numVal(balOpening)} onChange={(e) => setBalOpening(parseFloat(e.target.value) || 0)} />
+                    <NumberField
+                      min={0} max={366} emptyValue={0}
+                      className="mt-1.5" data-testid="balance-opening"
+                      value={balOpening} onChange={setBalOpening}
+                    />
                   </div>
                 </div>
                 <Button

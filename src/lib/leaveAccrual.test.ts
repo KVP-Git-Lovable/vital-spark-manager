@@ -180,7 +180,23 @@ describe("the leave settings cards", () => {
     // created; the clinic's four types were stuck with whatever March chose.
     const src = page();
     expect(src).toMatch(/data-testid=\{`days-\$\{t\.id\}`\}/);
-    expect(src).toMatch(/edit\(t\.id, \{ days:/);
+    expect(src).toMatch(/onChange=\{\(days\) => edit\(t\.id, \{ days \}\)\}/);
+  });
+
+  it("can no longer put NaN in the Grant balance year", () => {
+    // parseInt("") is NaN and the old handler had no fallback, so clearing
+    // the box wrote NaN into state, rendered as the string "NaN", and went
+    // into the insert as the year.
+    const src = page();
+    expect(src).not.toMatch(/parseInt\(e\.target\.value\)/);
+    const block = src.split('data-testid="balance-year"')[0].split("<NumberField").slice(-1)[0];
+    expect(block).toMatch(/min=\{2000\} max=\{2100\} emptyValue=\{new Date\(\)\.getFullYear\(\)\}/);
+  });
+
+  it("no longer collapses a cleared leave figure to zero", () => {
+    const src = page();
+    expect(src).not.toMatch(/parseFloat\(e\.target\.value\) \|\| 0/);
+    expect(src).not.toMatch(/numVal/);
   });
 
   it("saves only the rows somebody actually changed", () => {
@@ -302,6 +318,27 @@ describe("the attendance settings screen", () => {
     readFileSync("src/components/attendance/AttendanceSettings.tsx", "utf8")
       .replace(/^\s*\/\/.*$/gm, "")
       .replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("uses a box the 0 can be backspaced out of", () => {
+    // value={form.x} with onChange={Number(e.target.value)} put the 0 back
+    // on every keystroke: the clinic could not clear this field, and typing
+    // 3 after the surviving 0 gave 30.
+    const src = page();
+    expect(src).not.toMatch(/Number\(e\.target\.value\)/);
+    for (const id of ["regularisation-limit", "face-threshold", "face-attempts"]) {
+      const block = src.split(`data-testid="${id}"`)[0].split("<NumberField").slice(-1)[0];
+      expect(block, `${id} is not a NumberField`).not.toMatch(/<Input/);
+    }
+  });
+
+  it("settles an emptied box on a value that was chosen for it", () => {
+    // Not always 0: the threshold's documented default is 75, and attempts
+    // cannot be 0 at all.
+    const src = page();
+    expect(src).toMatch(/min=\{0\} max=\{31\} emptyValue=\{0\}/);
+    expect(src).toMatch(/min=\{0\} max=\{100\} emptyValue=\{75\}/);
+    expect(src).toMatch(/min=\{1\} max=\{10\} emptyValue=\{1\}/);
+  });
 
   it("is where an admin sets the correction limit", () => {
     // The clinic asked "where to configure how many", and this is the

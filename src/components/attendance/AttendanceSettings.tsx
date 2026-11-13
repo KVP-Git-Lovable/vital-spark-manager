@@ -14,6 +14,7 @@ import { useAttendanceSettings } from "@/hooks/useAttendanceSettings";
 import { useAuth } from "@/hooks/useAuth";
 import { canViewModule } from "@/lib/staffAccess";
 import { SettingRow as Row } from "@/components/attendance/SettingRow";
+import { NumberField } from "@/components/shared/NumberField";
 import { LeaveAllowancesCard, LeaveTypesCard } from "@/components/attendance/LeaveSettings";
 import type { AttendanceConfig } from "@/lib/attendance";
 import type { WeekOffRow } from "@/lib/workingDays";
@@ -111,10 +112,11 @@ export function AttendancePolicyTab() {
           hint="How sure the check must be before it counts as the same person. Applied on the server, so it cannot be relaxed from a phone. 75 is the default."
         >
           <div className="flex items-center gap-2">
-            <Input
-              type="number" min={0} max={100} className="w-24"
+            <NumberField
+              min={0} max={100} emptyValue={75} className="w-24"
+              data-testid="face-threshold"
               value={form.face_match_threshold}
-              onChange={(e) => setForm((f) => ({ ...f, face_match_threshold: Number(e.target.value) }))}
+              onChange={(v) => setForm((f) => ({ ...f, face_match_threshold: v }))}
             />
             <span className="text-sm text-muted-foreground">%</span>
           </div>
@@ -124,10 +126,11 @@ export function AttendancePolicyTab() {
           label="Attempts allowed"
           hint="How many goes somebody gets before being told to contact an admin."
         >
-          <Input
-            type="number" min={1} max={10} className="w-24"
+          <NumberField
+            min={1} max={10} emptyValue={1} className="w-24"
+            data-testid="face-attempts"
             value={form.face_max_attempts}
-            onChange={(e) => setForm((f) => ({ ...f, face_max_attempts: Number(e.target.value) }))}
+            onChange={(v) => setForm((f) => ({ ...f, face_max_attempts: v }))}
           />
         </Row>
 
@@ -139,11 +142,11 @@ export function AttendancePolicyTab() {
           label="Corrections allowed per month"
           hint="How many attendance corrections one person may ask for against any one month. 0 means no limit. A rejected request does not count."
         >
-          <Input
-            type="number" min={0} max={31} className="w-24"
+          <NumberField
+            min={0} max={31} emptyValue={0} className="w-24"
             data-testid="regularisation-limit"
             value={form.regularisation_monthly_limit}
-            onChange={(e) => setForm((f) => ({ ...f, regularisation_monthly_limit: Number(e.target.value) }))}
+            onChange={(v) => setForm((f) => ({ ...f, regularisation_monthly_limit: v }))}
           />
         </Row>
 

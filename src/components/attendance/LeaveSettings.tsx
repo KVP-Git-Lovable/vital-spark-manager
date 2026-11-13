@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, RefreshCw, Save } from "lucide-react";
+import { Loader2, Plus, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,9 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { numVal } from "@/lib/numberInput";
+import { isRetired, removalPlan, type LeaveTypeUsage } from "@/lib/leaveTypeRemoval";
 import { SettingRow } from "@/components/attendance/SettingRow";
 import {
   ACCRUAL_OPTIONS, accrualLabel, accrualOf, entitlementToDate, needsTopUp,
@@ -145,6 +147,85 @@ export function LeaveTypesCard() {
     }
   };
 
+  /**
+   * Remove, which is two different things depending on what points at the row.
+   *
+   * The dialog opens by COUNTING: both foreign keys are ON DELETE CASCADE, so
+   * deleting a type that is in use would take every application and balance
+   * of that type with it, and leave_types is not in trash_allowed_object() so
+   * there would be nothing to restore from. removalPlan() decides which it is
+   * and writes the sentence; the mutation counts again before it acts, so a
+   * row that gained an application while the dialog sat open is switched off
+   * rather than deleted.
+   */
+  const [removing, setRemoving] = useState<LeaveTypeRow | null>(null);
+  const [usage, setUsage] = useState<LeaveTypeUsage | null>(null);
+  const [counting, setCounting] = useState(false);
+
+  const countUsage = async (id: string): Promise<LeaveTypeUsage> => {
+    const [apps, bals] = await Promise.all([
+      supabase.from("leave_applications").select("id", { count: "exact", head: true }).eq("leave_type_id", id),
+      supabase.from("staff_leave_balances").select("id", { count: "exact", head: true }).eq("leave_type_id", id),
+    ]);
+    if (apps.error) throw apps.error;
+    if (bals.error) throw bals.error;
+    return { applications: apps.count ?? 0, balances: bals.count ?? 0 };
+  };
+
+  const openRemove = async (t: LeaveTypeRow) => {
+    setRemoving(t); setUsage(null); setCounting(true);
+    try {
+      setUsage(await countUsage(t.id));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not check what uses this leave type");
+      setRemoving(null);
+    } finally {
+      setCounting(false);
+    }
+  };
+
+  const remove = useMutation({
+    mutationFn: async (t: LeaveTypeRow) => {
+      // Counted again here, not taken from the dialog. The dialog's numbers
+      // are for the person reading; these are the ones that decide.
+      const fresh = await countUsage(t.id);
+      const plan = removalPlan(fresh);
+      if (plan.action === "deactivate") {
+        const { data, error } = await supabase
+          .from("leave_types").update({ is_active: false } as never).eq("id", t.id).select("id");
+        if (error) throw error;
+        if (!data || data.length === 0) throw new Error("Nothing changed. This needs an Admin role.");
+        return { action: plan.action, name: t.name };
+      }
+      const { data, error } = await supabase
+        .from("leave_types").delete().eq("id", t.id).select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Nothing was deleted. This needs an Admin role.");
+      return { action: plan.action, name: t.name };
+    },
+    onSuccess: (r) => {
+      queryClient.invalidateQueries({ queryKey: ["leave-types"] });
+      queryClient.invalidateQueries({ queryKey: ["leave-balances"] });
+      setRemoving(null); setUsage(null);
+      toast.success(r.action === "delete" ? `${r.name} deleted` : `${r.name} switched off`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const restore = useMutation({
+    mutationFn: async (t: LeaveTypeRow) => {
+      const { data, error } = await supabase
+        .from("leave_types").update({ is_active: true } as never).eq("id", t.id).select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Nothing changed. This needs an Admin role.");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leave-types"] });
+      toast.success("Switched back on");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const create = useMutation({
     mutationFn: async () => {
       if (!name.trim()) throw new Error("Give the leave type a name");
@@ -229,33 +310,58 @@ export function LeaveTypesCard() {
           </p>
         ) : leaveTypes.map((t) => {
           const v = valueOf(t);
+          const off = isRetired(t);
           return (
-            <SettingRow
-              key={t.id}
-              label={t.name}
-              hint={t.description || accrualLabel({ default_days_per_year: v.days, accrual: v.accrual })}
-            >
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number" min={0} className="w-20"
-                  aria-label={`${t.name} days per year`}
-                  data-testid={`days-${t.id}`}
-                  value={numVal(v.days)}
-                  onChange={(e) => edit(t.id, { days: parseFloat(e.target.value) || 0 })}
-                />
-                <Select
-                  value={v.accrual}
-                  onValueChange={(val) => edit(t.id, { accrual: val as LeaveAccrual })}
-                >
-                  <SelectTrigger className="w-56" data-testid={`accrual-${t.id}`}><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {ACCRUAL_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </SettingRow>
+            <div key={t.id} className={off ? "opacity-60" : ""}>
+              <SettingRow
+                label={t.name}
+                hint={t.description || accrualLabel({ default_days_per_year: v.days, accrual: v.accrual })}
+              >
+                <div className="flex items-center gap-2">
+                  {off && <Badge variant="secondary" data-testid={`off-${t.id}`}>Off</Badge>}
+                  <Input
+                    type="number" min={0} className="w-20"
+                    aria-label={`${t.name} days per year`}
+                    data-testid={`days-${t.id}`}
+                    disabled={off}
+                    value={numVal(v.days)}
+                    onChange={(e) => edit(t.id, { days: parseFloat(e.target.value) || 0 })}
+                  />
+                  <Select
+                    value={v.accrual}
+                    disabled={off}
+                    onValueChange={(val) => edit(t.id, { accrual: val as LeaveAccrual })}
+                  >
+                    <SelectTrigger className="w-52" data-testid={`accrual-${t.id}`}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ACCRUAL_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {off ? (
+                    <Button
+                      variant="ghost" size="icon" className="shrink-0"
+                      title="Switch this leave type back on"
+                      data-testid={`restore-${t.id}`}
+                      disabled={restore.isPending}
+                      onClick={() => restore.mutate(t)}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost" size="icon" className="shrink-0"
+                      title="Remove this leave type"
+                      data-testid={`remove-${t.id}`}
+                      onClick={() => openRemove(t)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  )}
+                </div>
+              </SettingRow>
+            </div>
           );
         })}
 
@@ -264,6 +370,32 @@ export function LeaveTypesCard() {
           Save leave types
         </Button>
       </CardContent>
+
+      <Dialog open={!!removing} onOpenChange={(o) => { if (!o) { setRemoving(null); setUsage(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Remove {removing?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2" data-testid="remove-leave-type">
+            {counting || !usage ? (
+              <p className="text-sm text-muted-foreground">Checking what uses this leave type…</p>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">{removalPlan(usage).reason}</p>
+                <Button
+                  className="w-full"
+                  variant={removalPlan(usage).action === "delete" ? "destructive" : "default"}
+                  data-testid="confirm-remove"
+                  disabled={remove.isPending}
+                  onClick={() => removing && remove.mutate(removing)}
+                >
+                  {remove.isPending ? "Working..." : removalPlan(usage).confirmLabel}
+                </Button>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

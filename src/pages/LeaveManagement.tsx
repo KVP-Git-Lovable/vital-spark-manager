@@ -216,6 +216,15 @@ const LeaveManagement = () => {
   const myRegularisations = (regularisations as unknown as MyRegularisation[])
     .filter((r) => r.staff_id === myStaffId);
 
+  // A leave type switched off in Admin > Attendance > Policy must stop being
+  // offered here, which is the whole point of switching it off rather than
+  // deleting it. Only this dropdown is filtered: leave already applied for
+  // renders its type name from the embedded row, so history is unaffected,
+  // and the admin card deliberately keeps showing inactive types so they can
+  // be switched back on.
+  const applicableLeaveTypes = (leaveTypes as unknown as { id: string; name: string; is_active?: boolean | null }[])
+    .filter((lt) => lt.is_active !== false);
+
   // Counted for the month of the day being corrected, not for today, because
   // that is the month the database trigger counts. Someone fixing a 29
   // October punch on 2 November spends October's allowance.
@@ -410,7 +419,7 @@ const LeaveManagement = () => {
                   <Select value={appLeaveTypeId} onValueChange={setAppLeaveTypeId}>
                     <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select type" /></SelectTrigger>
                     <SelectContent>
-                      {leaveTypes.map((lt: any) => <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>)}
+                      {applicableLeaveTypes.map((lt) => <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

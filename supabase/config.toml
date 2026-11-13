@@ -96,3 +96,9 @@ verify_jwt = false
 [functions.meta-token-refresh]
 # Driven by cron, same cron-secret Bearer.
 verify_jwt = false
+
+# Creates, resets and deletes staff logins with the service role. It checks
+# the caller is an active admin itself; this is written down rather than
+# inherited so nobody later reads the absence as "no JWT needed".
+[functions.create-user-account]
+verify_jwt = true

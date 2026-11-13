@@ -26,6 +26,8 @@ import EditUserDialog from "@/components/users/EditUserDialog";
 import { ThemePicker } from "@/components/theme/ThemePicker";
 import { BILLING_AMOUNTS_KEY } from "@/lib/billingVisibility";
 import { ALL_MODULES, defaultsToVisible } from "@/lib/modules";
+import { CopyButton } from "@/components/shared/CopyButton";
+import { credentialsMessage } from "@/lib/tempPassword";
 
 
 type PermMap = Record<string, { can_view: boolean; can_create: boolean; can_edit: boolean; can_delete: boolean }>;
@@ -47,6 +49,10 @@ export default function UserManagement() {
   const [resetPwMode, setResetPwMode] = useState<"auto" | "manual">("auto");
   const [resetPwValue, setResetPwValue] = useState("");
   const [resetPwConfirm, setResetPwConfirm] = useState("");
+  /** The one-time credentials on screen, or null when there are none to show. */
+  const [issued, setIssued] = useState<
+    { name: string; email: string; password: string; created: boolean } | null
+  >(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteRoleOpen, setDeleteRoleOpen] = useState(false);
   const [deleteStaff, setDeleteStaff] = useState<any>(null);
@@ -240,6 +246,15 @@ export default function UserManagement() {
     },
   });
 
+  const closeResetDialog = () => {
+    setResetPwOpen(false);
+    setResetPwStaff(null);
+    setResetPwValue("");
+    setResetPwConfirm("");
+    setResetPwMode("auto");
+    setIssued(null);
+  };
+
   const resetPassword = useMutation({
     mutationFn: async () => {
       if (!resetPwStaff) throw new Error("No user selected");
@@ -267,7 +282,11 @@ export default function UserManagement() {
         });
         if (error) throw new Error(await edgeFunctionErrorMessage(error));
         if (data?.error) throw new Error(data.error);
-        return;
+        // Kept, not dropped. This used to be a bare `return;`, so the
+        // generated password - the only copy in existence, since Supabase
+        // stores a hash - went out of scope here and could never be given to
+        // anybody. Akash Macwan's login was created that way on 13 Nov.
+        return { created: true, tempPassword: (data as { temp_password?: string | null })?.temp_password ?? null };
       }
 
       const { data, error } = await supabase.functions.invoke("create-user-account", {
@@ -287,15 +306,29 @@ export default function UserManagement() {
       const { error: flagError } = await supabase
         .from("staff").update({ force_password_change: true } as never).eq("id", resetPwStaff.id);
       if (flagError) throw flagError;
+
+      return { created: false, tempPassword: (data as { temp_password?: string | null })?.temp_password ?? null };
     },
-    onSuccess: () => {
-      toast({ title: resetPwStaff?.auth_user_id ? "Password reset successfully" : "Login account created" });
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["staff-with-roles"] });
-      setResetPwOpen(false);
-      setResetPwStaff(null);
-      setResetPwValue("");
-      setResetPwConfirm("");
-      setResetPwMode("auto");
+      toast({ title: result?.created ? "Login account created" : "Password reset successfully" });
+
+      // An auto-generated password is shown ONCE, here, and the dialog stays
+      // open until it has been. Closing on success is what made this feature
+      // useless: the only copy of the password went with it.
+      if (result?.tempPassword) {
+        setIssued({
+          name: resetPwStaff?.name ?? "",
+          email: resetPwStaff?.email ?? "",
+          password: result.tempPassword,
+          created: !!result.created,
+        });
+        setResetPwValue("");
+        setResetPwConfirm("");
+        return;
+      }
+
+      closeResetDialog();
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -764,13 +797,53 @@ export default function UserManagement() {
       />
 
       {/* Reset Password Dialog */}
-      <Dialog open={resetPwOpen} onOpenChange={setResetPwOpen}>
+      <Dialog open={resetPwOpen} onOpenChange={(o) => { if (!o) closeResetDialog(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {resetPwStaff?.auth_user_id ? "Reset Password for " : "Create Login for "}{resetPwStaff?.name}
+              {issued
+                ? (issued.created ? "Login created for " : "Password reset for ")
+                : resetPwStaff?.auth_user_id ? "Reset Password for " : "Create Login for "}{resetPwStaff?.name}
             </DialogTitle>
           </DialogHeader>
+
+          {issued ? (
+            /* Shown once and never again: Supabase keeps only the hash, so
+               this panel is the single moment the password exists anywhere
+               outside the function that made it. Same shape as the portal
+               access code card on PatientDetail, for the same reason. */
+            <div className="space-y-4" data-testid="issued-credentials">
+              <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">Email</p>
+                  <p className="font-mono text-sm break-all">{issued.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Temporary password</p>
+                  <p className="font-mono text-lg font-bold tracking-wider break-all" data-testid="temp-password">
+                    {issued.password}
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm flex items-start gap-2 text-muted-foreground">
+                <KeyRound className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  Copy this now - it is shown only once and cannot be looked up later.
+                  {issued.name ? ` ${issued.name}` : " They"} will be asked to choose their own
+                  password the first time they sign in.
+                </span>
+              </p>
+              <div className="flex items-center gap-2">
+                <CopyButton
+                  value={credentialsMessage({ name: issued.name, email: issued.email, password: issued.password })}
+                  label="Login details"
+                  className="h-9 w-9"
+                />
+                <span className="text-sm text-muted-foreground">Copy the whole message to send</span>
+              </div>
+              <Button className="w-full" data-testid="issued-done" onClick={closeResetDialog}>Done</Button>
+            </div>
+          ) : (
           <div className="space-y-4">
             {!resetPwStaff?.auth_user_id && (
               <p className="text-sm text-muted-foreground">
@@ -824,6 +897,7 @@ export default function UserManagement() {
                 : (resetPwStaff?.auth_user_id ? "Reset Password" : "Create Login")}
             </Button>
           </div>
+          )}
         </DialogContent>
       </Dialog>
 

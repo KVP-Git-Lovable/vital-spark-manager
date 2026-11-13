@@ -132,3 +132,76 @@ describe("nothing else on the row moved", () => {
     expect(text).toContain("has no email on file");
   });
 });
+
+/**
+ * The password that nobody ever saw.
+ *
+ * Auto-generate produced a password server-side, dropped it, and closed the
+ * dialog on a toast - so there was nothing to hand the employee. Manual mode
+ * was the only usable path, which is why it went unnoticed until eleven
+ * logins needed issuing.
+ */
+describe("the credentials it just issued", () => {
+  const page = () =>
+    readFileSync("src/pages/UserManagement.tsx", "utf8")
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("keeps what the function returned instead of dropping it", () => {
+    // The create branch ended in a bare `return;`, so even if the function
+    // had sent the password back, the client would have binned it.
+    const src = page();
+    expect(src).toMatch(/return \{ created: true, tempPassword:/);
+    expect(src).toMatch(/return \{ created: false, tempPassword:/);
+    expect(src).toMatch(/temp_password/);
+  });
+
+  it("shows the password instead of closing on it", () => {
+    const src = page();
+    expect(src).toMatch(/data-testid="issued-credentials"/);
+    expect(src).toMatch(/data-testid="temp-password"/);
+    // The early return is what keeps the dialog open.
+    const onSuccess = src.split("onSuccess: (result)")[1].split("onError:")[0];
+    expect(onSuccess).toMatch(/if \(result\?\.tempPassword\) \{/);
+    expect(onSuccess).toMatch(/setIssued\(/);
+  });
+
+  it("still just closes when the admin typed the password themselves", () => {
+    // They already know it; a panel telling them what they just typed is noise.
+    const onSuccess = page().split("onSuccess: (result)")[1].split("onError:")[0];
+    expect(onSuccess).toMatch(/closeResetDialog\(\);/);
+  });
+
+  it("copies a message, not a bare password", () => {
+    // The password alone is no use to the person receiving it.
+    const src = page();
+    expect(src).toMatch(/<CopyButton/);
+    expect(src).toMatch(/credentialsMessage\(\{ name: issued\.name, email: issued\.email, password: issued\.password \}\)/);
+  });
+
+  it("says out loud that it will not be shown again", () => {
+    expect(page()).toMatch(/shown only once and cannot be looked up later/i);
+  });
+});
+
+describe("the Create User dialog", () => {
+  const dialog = () =>
+    readFileSync("src/components/users/CreateUserDialog.tsx", "utf8")
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("no longer claims to send an email it never sends", () => {
+    // create-user-account has no Resend, no SMTP and no inviteUserByEmail.
+    const src = dialog();
+    expect(src).not.toMatch(/send via email/i);
+    expect(src).toMatch(/<Label>Auto-generate password<\/Label>/);
+    expect(src).toMatch(/send_email: false/);
+  });
+
+  it("shows the generated password too", () => {
+    const src = dialog();
+    expect(src).toMatch(/data-testid="issued-credentials"/);
+    expect(src).toMatch(/data-testid="temp-password"/);
+    expect(src).toMatch(/if \(temp\) \{/);
+  });
+});

@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { EngagementScoreCard } from "@/components/patients/EngagementScoreCard";
 import { PatientFeedbackSummary, PatientFeedbackList } from "@/components/patients/PatientFeedback";
 import { usePatientFeedback } from "@/hooks/usePatientFeedback";
+import { usePatientAttachments } from "@/hooks/usePatientAttachments";
 import { PatientEngagementRollups } from "@/components/patients/PatientEngagementRollups";
 import { SystemRecordSection } from "@/components/shared/SystemRecordSection";
 import { RecordOwnerField } from "@/components/shared/RecordOwnerField";
@@ -463,26 +464,17 @@ const PatientDetail = () => {
   });
   const hideOtherDoctorDetails = dataScope === "own" && !isMyPatient;
 
-  // Kept for the tab label's count only; PatientAttachments owns the list and
-  // uses this same query key, so this costs no extra request.
   // The tab label's count only. It shares its query key with the summary card
   // and the tab body, the same trick the attachments count below uses, so all
   // three cost one request between them rather than three.
   const feedbackCount = usePatientFeedback(id).data?.rows.length ?? 0;
 
-  const { data: attachments = [] } = useQuery({
-    queryKey: ["patient-attachments", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("procedure_attachments")
-        .select("*, procedures(service_name)")
-        .eq("patient_id", id!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
+  // The tab label's count only, taken from the hook PatientAttachments itself
+  // uses, so the badge and the list in the tab body share one query key, one
+  // request and one row shape. This used to be its own useQuery on that same
+  // key asking for a different select, which left whichever mounted first
+  // deciding what the other was handed.
+  const attachmentCount = usePatientAttachments(id).data?.length ?? 0;
 
   const { data: surveyResponses = [] } = useQuery({
     queryKey: ["patient-surveys", id],
@@ -890,7 +882,7 @@ const PatientDetail = () => {
             <TabsTrigger value="family" title="Family" aria-label="Family" className="gap-1 text-xs md:text-sm"><Users className="h-3.5 w-3.5" /> Family</TabsTrigger>
             <TabsTrigger value="surveys" title="Surveys" aria-label="Surveys" className="gap-1 text-xs md:text-sm"><ClipboardCheck className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Surveys</span> ({surveyResponses.length + surveyAssignments.length})</TabsTrigger>
             <TabsTrigger value="feedback" title="Feedback" aria-label="Feedback" className="gap-1 text-xs md:text-sm"><MessageSquareHeart className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Feedback</span> ({feedbackCount})</TabsTrigger>
-            <TabsTrigger value="attachments" title="Attachments" aria-label="Attachments" className="gap-1 text-xs md:text-sm"><Paperclip className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Attachments</span> ({attachments.length})</TabsTrigger>
+            <TabsTrigger value="attachments" title="Attachments" aria-label="Attachments" className="gap-1 text-xs md:text-sm"><Paperclip className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Attachments</span> ({attachmentCount})</TabsTrigger>
             <TabsTrigger value="campaigns" title="Campaigns" aria-label="Campaigns" className="gap-1 text-xs md:text-sm"><Megaphone className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Campaigns</span> ({patientCampaigns.length})</TabsTrigger>
             <TabsTrigger value="ai-repo" title="AI Repository" aria-label="AI Repository" className="gap-1 text-xs md:text-sm"><Sparkles className="h-3.5 w-3.5" /> <span className="hidden sm:inline">AI Repository</span></TabsTrigger>
             <TabsTrigger value="whatsapp" title="WhatsApp" aria-label="WhatsApp" className="gap-1 text-xs md:text-sm"><MessageCircle className="h-3.5 w-3.5" /> <span className="hidden sm:inline">WhatsApp</span></TabsTrigger>

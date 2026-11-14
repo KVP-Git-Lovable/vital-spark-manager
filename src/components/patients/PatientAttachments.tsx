@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   Camera, FileText, Loader2, Minus, Paperclip, Plus, RotateCcw, Trash2, Upload,
@@ -17,6 +17,7 @@ import { attachmentStoragePath } from "@/lib/attachmentPath";
 import { attachmentKind } from "@/lib/attachmentPreview";
 import { uploadFailureMessage, uploadSuccessMessage, type FailedUpload } from "@/lib/uploadSummary";
 import { useCanEdit } from "@/hooks/useCanEdit";
+import { usePatientAttachments, type PatientAttachment } from "@/hooks/usePatientAttachments";
 import {
   NO_OFFSET, ZOOM_MAX, ZOOM_MIN, canPan, clampPan, nextZoom, toggleZoom,
   zoomLabel, zoomTransform, type Offset,
@@ -39,19 +40,10 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
  * what you need to see at today's appointment, and the file rows carry their
  * own dates, so nothing is hidden by showing everything.
  *
- * The query key is shared with the patient page, so an upload on one screen
- * shows on the other without a refetch being wired between them.
+ * The query lives in usePatientAttachments, shared with the patient page, so
+ * an upload on one screen shows on the other without a refetch being wired
+ * between them - and neither screen can select a different shape.
  */
-
-/** One row of procedure_attachments, as this list reads it. */
-export interface PatientAttachment {
-  id: string;
-  file_name: string | null;
-  file_url: string | null;
-  document_type: string | null;
-  notes: string | null;
-  created_at: string;
-}
 
 const DOCUMENT_TYPES = [
   "Prescription",
@@ -117,20 +109,10 @@ export function PatientAttachments({
     setPan((p) => clampPan(p, next, frameSize()));
   };
 
-  const { data: attachments = [], refetch } = useQuery({
-    queryKey: ["patient-attachments", patientId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("procedure_attachments")
-        // The joined service is no longer read - see the list below.
-        .select("*")
-        .eq("patient_id", patientId!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as PatientAttachment[];
-    },
-    enabled: !!patientId,
-  });
+  // The patient page's tab badge counts the same rows through this same hook,
+  // so the two cannot disagree about the shape of a row and cost one request
+  // between them. The joined service is not read - see the list below.
+  const { data: attachments = [], refetch } = usePatientAttachments(patientId);
 
   /**
    * Put a mis-filed document in the right box.

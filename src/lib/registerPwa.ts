@@ -1,4 +1,4 @@
-import { UPDATE_CHECK_INTERVAL_MS, shouldApplyOnReturn, updateActionFor } from "@/lib/pwaUpdate";
+import { UPDATE_CHECK_INTERVAL_MS, shouldApplyOnReturn, updateActionFor, workIsInProgress } from "@/lib/pwaUpdate";
 
 /** Untouched this long, with nothing open or typed, is a safe moment to update. */
 const IDLE_APPLY_MS = 2 * 60 * 1000;
@@ -23,7 +23,7 @@ const isPreviewHost = (hostname: string) =>
  * one that lost somebody's work. Conservative by design: anything it is unsure
  * about counts as busy, and the update simply waits longer.
  */
-const dialogIsOpen = () => Boolean(document.querySelector('[role="dialog"]'));
+const formIsInProgress = () => workIsInProgress(document);
 
 const somethingIsTyped = () => {
   const fields = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea");
@@ -116,7 +116,7 @@ export const registerPwa = async () => {
       setInterval(() => {
         if (!updateWaiting || document.visibilityState !== "visible") return;
         if (Date.now() - lastActivity < IDLE_APPLY_MS) return;
-        if (dialogIsOpen() || somethingIsTyped()) return;
+        if (formIsInProgress() || somethingIsTyped()) return;
         updateWaiting = false;
         void updateSW(true);
       }, 30_000);
@@ -137,7 +137,7 @@ export const registerPwa = async () => {
         if (!updateWaiting) return;
         if (!shouldApplyOnReturn({
           hiddenForMs: hiddenFor,
-          dialogOpen: dialogIsOpen(),
+          dialogOpen: formIsInProgress(),
           hasTypedContent: somethingIsTyped(),
         })) return;
         updateWaiting = false;

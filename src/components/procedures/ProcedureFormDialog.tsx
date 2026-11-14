@@ -1832,7 +1832,11 @@ function ProcedureForm({
   );
 
   if (asPage) {
-    return <div className="w-full">{body}</div>;
+    // data-work-in-progress is what stops a waiting build reloading the page
+    // out from under a half-written prescription. The dialog branch below gets
+    // that protection free from its role="dialog"; this branch is a plain div,
+    // so it has to say so itself. See WORK_IN_PROGRESS_SELECTOR in pwaUpdate.ts.
+    return <div className="w-full" data-work-in-progress>{body}</div>;
   }
 
   return (

@@ -48,10 +48,35 @@ export const updateActionFor = (msSinceRegistered: number): UpdateAction =>
 /** Hidden for less than this is a glance at a notification, not an absence. */
 export const AWAY_MS = 60_000;
 
+/**
+ * What "somebody is in the middle of something" looks like in the DOM.
+ *
+ * [role="dialog"] was the whole test, and it covered every form in the app
+ * except the one that mattered most. The procedure form is also the New
+ * Prescription route, and that route renders it with asPage - a plain <div>,
+ * no Dialog, so no dialog role. A prescription written from /procedures/new
+ * was therefore invisible to this check, while the very same form opened as a
+ * modal from an appointment was protected. The page could reload itself out
+ * from under a half-written prescription: two minutes untouched is normal
+ * while talking to the patient, and a prescription composed from the product
+ * dropdowns puts nothing in an input for somethingIsTyped() to find.
+ *
+ * [data-work-in-progress] is how a full-page form says the same thing a
+ * dialog says by existing. It stays a read off the page rather than state
+ * threaded through the app, for the reason the busy checks were written that
+ * way to begin with: the form that forgot to report itself would be the one
+ * that lost somebody's work.
+ */
+export const WORK_IN_PROGRESS_SELECTOR = '[role="dialog"], [data-work-in-progress]';
+
+/** Whether anything on the page is a form somebody is in the middle of. */
+export const workIsInProgress = (doc: Pick<Document, "querySelector">): boolean =>
+  Boolean(doc.querySelector(WORK_IN_PROGRESS_SELECTOR));
+
 export interface ReturnContext {
   /** How long the app was in the background. */
   hiddenForMs: number;
-  /** A dialog is open - a form somebody is in the middle of. */
+  /** A form somebody is in the middle of - a dialog, or a full-page form. */
   dialogOpen: boolean;
   /** Something has been typed and not saved. */
   hasTypedContent: boolean;

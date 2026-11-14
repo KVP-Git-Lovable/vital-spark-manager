@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { updateActionFor, UPDATE_AT_LOAD_GRACE_MS, UPDATE_CHECK_INTERVAL_MS, AWAY_MS, shouldApplyOnReturn } from "./pwaUpdate";
+import { updateActionFor, UPDATE_AT_LOAD_GRACE_MS, UPDATE_CHECK_INTERVAL_MS, AWAY_MS, shouldApplyOnReturn, workIsInProgress } from "./pwaUpdate";
 
 describe("updateActionFor", () => {
   it("applies a build that was already waiting when the page loaded", () => {
@@ -53,5 +53,38 @@ describe("shouldApplyOnReturn", () => {
 
   it("never discards something half-typed", () => {
     expect(shouldApplyOnReturn({ ...clean, hasTypedContent: true })).toBe(false);
+  });
+});
+
+describe("workIsInProgress", () => {
+  const docWith = (html: string) => {
+    const root = document.createElement("div");
+    root.innerHTML = html;
+    return root;
+  };
+
+  it("sees a modal form", () => {
+    expect(workIsInProgress(docWith('<div role="dialog"><input /></div>'))).toBe(true);
+  });
+
+  it("sees the New Prescription page, which is a full-page form and not a dialog", () => {
+    // The reported fault: a prescription being written at /procedures/new was
+    // invisible to the dialog check, so a waiting build could reload the page
+    // and take the half-written prescription with it. ProcedureFormDialog's
+    // asPage branch renders a plain div - this attribute is how it reports in.
+    expect(workIsInProgress(docWith('<div data-work-in-progress><input /></div>'))).toBe(true);
+  });
+
+  it("finds the marker wherever it sits in the page", () => {
+    expect(
+      workIsInProgress(docWith('<main><section><div data-work-in-progress></div></section></main>')),
+    ).toBe(true);
+  });
+
+  it("leaves an ordinary page alone, so a waiting build still gets applied", () => {
+    // The other half of the bargain: guarding too much is how a clinic ends up
+    // running last week's bundle for days.
+    expect(workIsInProgress(docWith('<main><table><tr><td>Appointments</td></tr></table></main>'))).toBe(false);
+    expect(workIsInProgress(docWith(""))).toBe(false);
   });
 });

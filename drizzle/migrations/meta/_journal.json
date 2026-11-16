@@ -218,6 +218,13 @@
       "when": 1794298683049,
       "tag": "0030_signed_in_must_be_staff",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794804079993,
+      "tag": "0031_replace_always_true_staff_rules",
+      "breakpoints": true
     }
   ]
 }

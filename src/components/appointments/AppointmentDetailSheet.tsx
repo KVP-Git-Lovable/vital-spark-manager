@@ -5,7 +5,6 @@ import { withDrPrefix } from "@/lib/staffName";
 import { MANUAL_APPOINTMENT_STATUSES, appointmentStatusLabel, showsAsBilled, BILLED_BADGE_CLASSES } from "@/lib/appointmentStatus";
 import { invoiceMapByAppointment, type VisitBill } from "@/lib/invoicesForAppointments";
 import { APPOINTMENT_CONFIRMATION_WHATSAPP_ENABLED } from "@/lib/whatsappNotifications";
-import { confirmationSendPlan } from "@/lib/confirmationSend";
 import { useLiveAppointments } from "@/hooks/useLiveAppointments";
 import { GOOGLE_REVIEW_MESSAGE, isReviewRequestMessage, reviewContactNotice, reviewRequestState } from "@/lib/googleReview";
 import { openAppointmentNotice, type AppointmentChange } from "@/lib/liveAppointments";
@@ -1327,49 +1326,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
     },
   });
 
-  const [resendingConfirmation, setResendingConfirmation] = useState(false);
-  const resendConfirmation = async () => {
-    const plan = confirmationSendPlan({ status: "Confirmed", phone: patientPhone, patientName });
-    if (!plan.send) {
-      toast.warning(plan.skippedBecause ?? "This appointment cannot be confirmed by WhatsApp.");
-      return;
-    }
-    if (!window.confirm(`Send the appointment confirmation to ${patientName} on ${patientPhone}?`)) return;
-    setResendingConfirmation(true);
-    try {
-      const start = new Date(appointment!.start_time);
-      const { error } = await supabase.functions.invoke("send-appointment-whatsapp", {
-        body: {
-          phone: patientPhone,
-          patientName,
-          appointmentDate: format(start, "dd MMM yyyy"),
-          appointmentTime: format(start, "hh:mm a"),
-          serviceName: appointment!.service || "-",
-          patientGender: (appointment as any)?.patients?.gender || null,
-        },
-      });
-      if (error) throw new Error(await edgeFunctionErrorMessage(error, "The WhatsApp confirmation could not be sent."));
-      toast.success("WhatsApp confirmation sent");
-    } catch (e: any) {
-      toast.error(e?.message || "The WhatsApp confirmation could not be sent.");
-    } finally {
-      setResendingConfirmation(false);
-    }
-  };
-
-  const sendConfirmationButton = patientPhone ? (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className="mt-2 h-7 gap-1.5 text-xs"
-      disabled={resendingConfirmation}
-      onClick={resendConfirmation}
-    >
-      <MessageSquare className="h-3 w-3" />
-      {resendingConfirmation ? "Sending…" : "Send confirmation"}
-    </Button>
-  ) : null;
   const patientId = appointment?.patients?.id || appointment?.patient_id;
 
   // While this appointment is open, every other page offers one tap back to it.
@@ -1459,7 +1415,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         <Phone className="h-3 w-3" /> {patientPhone}
                       </p>
                     )}
-                    {sendConfirmationButton}
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     {(() => {
@@ -1521,7 +1476,6 @@ export function AppointmentDetailSheet({ appointmentId, onClose, variant = "shee
                         <Phone className="h-3 w-3" /> {patientPhone}
                       </p>
                     )}
-                    {sendConfirmationButton}
                     {/* The two post-treatment follow-ups. Details tab only: the
                         header above shares this block but is already crowded,
                         and these are an after-the-visit action, not a booking

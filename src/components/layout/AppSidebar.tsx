@@ -123,6 +123,20 @@ const feedbackItems = [
   { title: "Root Cause Analysis", url: "/feedback-rca", icon: AlertTriangle, moduleKey: "feedback_rca" },
 ];
 
+/**
+ * Master Data, with the two survey pages folded into one entry.
+ *
+ * Eight lines read as congestion, and Survey Templates and All Surveys are one
+ * subject sharing one permission key. The parent opens a group rather than a
+ * page: there is no /surveys index route, and /surveys/* already belongs to the
+ * survey RESPONSE pages, so a url here would 404 and then light the entry up on
+ * every /surveys/:id.
+ *
+ * The parent keeps moduleKey "surveys" - the key both children carried - because
+ * canView hides any entry without one. Who sees this is exactly who saw the two
+ * entries before. The children need no key of their own: nothing reaches them
+ * except through a parent already asking the same question.
+ */
 const masterDataItems = [
   { title: "Service Master", url: "/services", icon: Stethoscope, moduleKey: "services" },
   { title: "Knowledge Articles", url: "/knowledge", icon: BookOpen, moduleKey: "services" },
@@ -130,9 +144,22 @@ const masterDataItems = [
   { title: "Category Master", url: "/category-master", icon: Tags, moduleKey: "category_master" },
   { title: "Tax Master", url: "/tax-master", icon: Percent, moduleKey: "settings" },
   { title: "Primary Concern", url: "/problem-areas", icon: AlertCircle, moduleKey: "problem_areas" },
-  { title: "Survey Templates", url: "/survey-templates", icon: FileText, moduleKey: "surveys" },
-  { title: "All Surveys", url: "/all-surveys", icon: ListChecks, moduleKey: "surveys" },
-];
+  {
+    title: "Surveys",
+    icon: ClipboardCheck,
+    moduleKey: "surveys",
+    children: [
+      { title: "Survey Templates", url: "/survey-templates", icon: FileText },
+      { title: "All Surveys", url: "/all-surveys", icon: ListChecks },
+    ],
+  },
+] as {
+  title: string;
+  url?: string;
+  icon: typeof Users;
+  moduleKey?: string;
+  children?: { title: string; url: string; icon: typeof Users }[];
+}[];
 
 const settingsItems = [
   // Trash had no moduleKey and no route guard, so it was on everybody's menu.
@@ -205,7 +232,12 @@ export function AppSidebar() {
   const adminPaths = ["/admin", ...adminSubItems.map((i) => i.url)];
   const filteredAdmin = adminSubItems.filter((i) => (i.adminOnly ? isAdmin : canView(i.moduleKey)));
   const showAdmin = filteredAdmin.length > 0;
-  const masterPaths = masterDataItems.map((i) => i.url);
+  // Flattened, not mapped: the Surveys entry has no url of its own, and the two
+  // pages beneath it still have to open Master Data when one of them is the page
+  // you are on.
+  const masterPaths = masterDataItems.flatMap((i) =>
+    i.url ? [i.url] : (i.children ?? []).map((c) => c.url),
+  );
 
   return (
     <Sidebar collapsible="icon">
@@ -462,19 +494,66 @@ export function AppSidebar() {
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenuSub>
-                        {filteredMaster.map((item) => (
-                          <SidebarMenuSubItem key={item.title}>
-                            <SidebarMenuSubButton
-                              asChild
-                              isActive={isActive(item.url)}
+                        {filteredMaster.map((item) =>
+                          item.children ? (
+                            // The one entry with pages under it. Its own group
+                            // name - never group/collapsible, which Master Data
+                            // above already owns, or the two chevrons turn
+                            // together on one state.
+                            <Collapsible
+                              key={item.title}
+                              defaultOpen={item.children.some((c) => currentPath.startsWith(c.url))}
+                              className="group/surveys"
                             >
-                              <Link to={item.url}>
-                                <item.icon className="mr-2 h-3.5 w-3.5" />
-                                <span>{item.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
+                              <SidebarMenuSubItem>
+                                <CollapsibleTrigger asChild>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    isActive={item.children.some((c) => currentPath.startsWith(c.url))}
+                                  >
+                                    {/* A button, not the default anchor: it opens
+                                        a group rather than going anywhere, and an
+                                        href here would count as a page. */}
+                                    <button type="button" className="w-full">
+                                      <item.icon className="mr-2 h-3.5 w-3.5" />
+                                      <span>{item.title}</span>
+                                      <ChevronDown className="ml-auto h-3.5 w-3.5 transition-transform group-data-[state=open]/surveys:rotate-180" />
+                                    </button>
+                                  </SidebarMenuSubButton>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  {/* mx-1 pl-2 rather than the default mx-3.5
+                                      px-2.5: a third level at full indent reads
+                                      as two steps in, not one. */}
+                                  <SidebarMenuSub className="mx-1 px-0 pl-2">
+                                    {item.children.map((sub) => (
+                                      <SidebarMenuSubItem key={sub.url}>
+                                        <SidebarMenuSubButton asChild isActive={isActive(sub.url)}>
+                                          <Link to={sub.url}>
+                                            <sub.icon className="mr-2 h-3.5 w-3.5" />
+                                            <span>{sub.title}</span>
+                                          </Link>
+                                        </SidebarMenuSubButton>
+                                      </SidebarMenuSubItem>
+                                    ))}
+                                  </SidebarMenuSub>
+                                </CollapsibleContent>
+                              </SidebarMenuSubItem>
+                            </Collapsible>
+                          ) : (
+                            <SidebarMenuSubItem key={item.title}>
+                              <SidebarMenuSubButton
+                                asChild
+                                isActive={isActive(item.url!)}
+                              >
+                                <Link to={item.url!}>
+                                  <item.icon className="mr-2 h-3.5 w-3.5" />
+                                  <span>{item.title}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ),
+                        )}
                       </SidebarMenuSub>
                     </CollapsibleContent>
                   </SidebarMenuItem>

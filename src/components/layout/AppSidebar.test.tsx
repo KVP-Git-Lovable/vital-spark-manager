@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -67,9 +68,11 @@ function sidebarAt(path: string) {
 describe("nothing was lost", () => {
   it("still offers every link it offered before the regrouping", () => {
     // Every group open at once is not a state the menu has, so the pages are
-    // gathered from one render per group and pooled.
+    // gathered from one render per group and pooled. /survey-templates is in
+    // the list for the group INSIDE Master Data: rendering at /services opens
+    // Master Data but leaves Surveys shut, and a shut group is not in the DOM.
     const seen = new Set<string>();
-    for (const path of ["/", "/communications/whatsapp", "/feedback-rca", "/staff", "/dashboards", "/services", "/admin"]) {
+    for (const path of ["/", "/communications/whatsapp", "/feedback-rca", "/staff", "/dashboards", "/services", "/survey-templates", "/admin"]) {
       const { hrefs, unmount } = sidebarAt(path);
       hrefs().forEach((h) => seen.add(h));
       unmount();
@@ -129,17 +132,76 @@ describe("Feedback", () => {
 });
 
 describe("Surveys moved under Master Data", () => {
+  /** The Master Data <li>, which is the whole group including what it contains. */
+  const masterGroup = () =>
+    screen.getAllByText("Master Data").map((el) => el.closest("li")).find(Boolean)!;
+
   it("lists both survey pages there", () => {
     sidebarAt("/survey-templates");
-    const group = screen.getAllByText("Master Data").map((el) => el.closest("li")).find(Boolean)!;
-    const inside = Array.from(group.querySelectorAll("a[href]")).map((a) => a.getAttribute("href"));
+    const inside = Array.from(masterGroup().querySelectorAll("a[href]")).map((a) => a.getAttribute("href"));
     expect(inside).toContain("/survey-templates");
     expect(inside).toContain("/all-surveys");
   });
 
-  it("leaves no Surveys dropdown of its own", () => {
-    sidebarAt("/patients");
+  it("keeps Surveys inside Master Data rather than a group of its own", () => {
+    // What the old wording was really protecting: the two pages were pulled out
+    // of the sidebar root once and must not drift back out. They are now one
+    // step further in, but still under Master Data and nowhere else.
+    sidebarAt("/survey-templates");
+    const surveys = screen.getAllByText("Surveys");
+    expect(surveys).toHaveLength(1);
+    expect(masterGroup().contains(surveys[0])).toBe(true);
+  });
+
+  it("shows one line, not two, until Surveys is opened", () => {
+    // The point of the change. At /services Master Data is open and Surveys is
+    // shut, so neither page is on the menu - that is the congestion removed.
+    sidebarAt("/services");
+    expect(screen.getByText("Surveys")).toBeInTheDocument();
+    const inside = Array.from(masterGroup().querySelectorAll("a[href]")).map((a) => a.getAttribute("href"));
+    expect(inside).not.toContain("/survey-templates");
+    expect(inside).not.toContain("/all-surveys");
+  });
+
+  it("opens both levels on the page you are already on", () => {
+    sidebarAt("/all-surveys");
+    const inside = Array.from(masterGroup().querySelectorAll("a[href]")).map((a) => a.getAttribute("href"));
+    // Master Data opening at all is the flattened path list: the Surveys entry
+    // has no url, so a plain .map() would have lost both pages from it.
+    expect(inside).toContain("/all-surveys");
+    expect(inside).toContain("/survey-templates");
+  });
+
+  it("opens a group rather than going somewhere", () => {
+    // A trigger rendered as the default anchor would be counted as a page by
+    // every test here that reads a[href], and would navigate nowhere.
+    sidebarAt("/survey-templates");
+    const trigger = screen.getByText("Surveys").closest("button");
+    expect(trigger).not.toBeNull();
+    expect(trigger!.getAttribute("href")).toBeNull();
+  });
+
+  it("hides the whole entry from somebody without the surveys permission", () => {
+    auth = {
+      isAdmin: false,
+      permissions: { services: { can_view: true }, surveys: { can_view: false } },
+    };
+    sidebarAt("/services");
     expect(screen.queryByText("Surveys")).toBeNull();
+    expect(screen.queryByText("Survey Templates")).toBeNull();
+    expect(screen.queryByText("All Surveys")).toBeNull();
+  });
+});
+
+describe("the nested group is wired to its own state", () => {
+  it("does not share a collapsible group name with Master Data above it", () => {
+    // Both chevrons are rotated by group-data-[state=open]/<name>. One name for
+    // both would turn the outer arrow when the inner group opened.
+    const src = readFileSync("src/components/layout/AppSidebar.tsx", "utf8")
+      .replace(/\/\/.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(src).toContain("group/surveys");
+    expect(src).toContain("group-data-[state=open]/surveys:rotate-180");
   });
 });
 
@@ -179,7 +241,7 @@ describe("what a therapist sees", () => {
   function allLinksFor(a: typeof therapist) {
     auth = a;
     const seen = new Set<string>();
-    for (const path of ["/", "/communications/whatsapp", "/feedback-rca", "/staff", "/dashboards", "/services", "/admin"]) {
+    for (const path of ["/", "/communications/whatsapp", "/feedback-rca", "/staff", "/dashboards", "/services", "/survey-templates", "/admin"]) {
       const { hrefs, unmount } = sidebarAt(path);
       hrefs().forEach((h) => seen.add(h));
       unmount();
@@ -227,7 +289,7 @@ describe("what the gating must never do", () => {
     // Admins are handled before the map is consulted, and their map is empty.
     auth = { isAdmin: true, permissions: {} };
     const seen = new Set<string>();
-    for (const path of ["/", "/communications/whatsapp", "/feedback-rca", "/staff", "/dashboards", "/services", "/admin"]) {
+    for (const path of ["/", "/communications/whatsapp", "/feedback-rca", "/staff", "/dashboards", "/services", "/survey-templates", "/admin"]) {
       const { hrefs, unmount } = sidebarAt(path);
       hrefs().forEach((h) => seen.add(h));
       unmount();

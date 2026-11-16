@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, BookOpen, Copy, Pencil, Printer, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BookOpen, Copy, Pencil, Printer, Sparkles, Trash2, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useKnowledgeCategories } from "@/hooks/useKnowledge";
@@ -43,6 +43,9 @@ export default function KnowledgeArticleDetail() {
   const { data: categories = [] } = useKnowledgeCategories();
 
   const [editor, setEditor] = useState<KnowledgeArticle | "new" | null>(null);
+  /** Which part of the editor to land on. The sheet is long enough that
+   *  opening it at the top is the same "where is it?" problem one level in. */
+  const [editorFocus, setEditorFocus] = useState<"patient" | undefined>();
   const [cloning, setCloning] = useState<KnowledgeArticle | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -64,12 +67,18 @@ export default function KnowledgeArticleDetail() {
   /**
    * Who sees the patient tab.
    *
-   * An editor sees it whenever there is anything in it, published or not,
-   * because they are the one writing it. Everybody else only once the article
-   * is published and active - patientSummaryIsPublic is the single rule the
-   * whole feature rests on, and the printed handout asks it again for itself.
+   * An editor sees it ALWAYS, empty or not. It was once shown only when there
+   * was already something in it, which hid the feature from exactly the person
+   * who needed it: with no summary written the tab did not render, and the only
+   * way in was a section buried below five clinical textareas inside the Edit
+   * sheet. An empty tab that says what it is for is the point.
+   *
+   * Everybody else only once the article is published and active -
+   * patientSummaryIsPublic is the single rule the whole feature rests on, and
+   * the printed handout asks it again for itself.
    */
-  const showPatient = !!article && (canEdit ? hasPatientSummary(article) : patientSummaryIsPublic(article));
+  const showPatient = !!article && (canEdit || patientSummaryIsPublic(article));
+  const patientSummaryWritten = !!article && hasPatientSummary(article);
   const canPrintHandout = !!article && patientSummaryIsPublic(article);
 
   const back = () => navigate("/knowledge");
@@ -146,19 +155,38 @@ export default function KnowledgeArticleDetail() {
                 <ArticleContent article={article} collapsible />
               </TabsContent>
               <TabsContent value="patient" className="pt-4 space-y-4">
-                {canPrintHandout && (
-                  <Button size="sm" variant="outline" onClick={() => {
-                    // reserveTab FIRST, inside the click, or the browser treats
-                    // the window.open as an unsolicited pop-up. See newTab.ts.
-                    const tab = reserveTab();
-                    try {
-                      printPatientHandout(article, { serviceName: article.title }, tab);
-                    } catch (e) { toast.error((e as Error).message); }
-                  }}>
-                    <Printer className="h-4 w-4 mr-2" />Print handout
-                  </Button>
+                {!patientSummaryWritten ? (
+                  // The whole reason the tab is shown empty: this is the way in.
+                  <div className="rounded-lg border border-dashed py-10 px-6 text-center space-y-3">
+                    <Users className="h-8 w-8 mx-auto text-muted-foreground" />
+                    <div className="space-y-1">
+                      <p className="font-medium">No patient summary yet</p>
+                      <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                        A plain-words version of this article to show the patient during the visit,
+                        and to print as a handout. Written from this article's own text.
+                      </p>
+                    </div>
+                    <Button size="sm" data-testid="write-patient-summary" onClick={() => { setEditorFocus("patient"); setEditor(article); }}>
+                      <Sparkles className="h-4 w-4 mr-2" />Write patient summary
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {canPrintHandout && (
+                      <Button size="sm" variant="outline" onClick={() => {
+                        // reserveTab FIRST, inside the click, or the browser treats
+                        // the window.open as an unsolicited pop-up. See newTab.ts.
+                        const tab = reserveTab();
+                        try {
+                          printPatientHandout(article, { serviceName: article.title }, tab);
+                        } catch (e) { toast.error((e as Error).message); }
+                      }}>
+                        <Printer className="h-4 w-4 mr-2" />Print handout
+                      </Button>
+                    )}
+                    <PatientSummary article={article} />
+                  </>
                 )}
-                <PatientSummary article={article} />
               </TabsContent>
             </Tabs>
           ) : (
@@ -173,9 +201,11 @@ export default function KnowledgeArticleDetail() {
         <ArticleEditor
           article={editor === "new" ? undefined : editor}
           cloneFrom={cloning || undefined}
+          focus={editorFocus}
           onClose={() => {
             setEditor(null);
             setCloning(null);
+            setEditorFocus(undefined);
             void qc.invalidateQueries({ queryKey: ["knowledge"] });
           }}
         />

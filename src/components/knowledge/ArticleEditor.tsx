@@ -26,7 +26,10 @@ import { patientFacts, type PatientFacts } from "@/lib/patientSummary";
 // payload is built from Object.keys(blank), so a field missing from this object
 // is silently dropped on every save.
 const blank = { service_id: "", category_id: "", title: "", summary: "", gender: "both", age_rule: "all_ages", min_age: null as number | null, max_age: null as number | null, is_critical: false, clinical_protocol: "", contraindications: "", pre_post_care: "", complications_management: "", sources: "", ai_generated: false, ai_change_summary: "", status: "draft", is_active: true, patient_summary: "", patient_facts: {} as PatientFacts };
-export function ArticleEditor({ article, cloneFrom, serviceId, onClose }: { article?: KnowledgeArticle; cloneFrom?: KnowledgeArticle; serviceId?: string; onClose: () => void }) {
+/** Where the patient summary section lives, for `focus` to scroll to. */
+export const PATIENT_SUMMARY_SECTION_ID = "patient-summary-section";
+
+export function ArticleEditor({ article, cloneFrom, serviceId, focus, onClose }: { article?: KnowledgeArticle; cloneFrom?: KnowledgeArticle; serviceId?: string; focus?: "patient"; onClose: () => void }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({ ...blank, ...(cloneFrom ? cloneArticle(cloneFrom) : {}), ...article, service_id: article?.service_id || cloneFrom?.service_id || serviceId || "" });
   const [resources, setResources] = useState<KnowledgeResource[]>(articleResources(article?.resources || cloneFrom?.resources));
@@ -36,6 +39,22 @@ export function ArticleEditor({ article, cloneFrom, serviceId, onClose }: { arti
   const [busy, setBusy] = useState(false);
   const abort = useRef<AbortController>();
   useEffect(() => () => abort.current?.abort(), []);
+  /**
+   * Land on the section the caller asked for.
+   *
+   * Opened from the empty "For the patient" tab, this sheet otherwise starts at
+   * the top - service, category, title, demographics, the AI bar, summary and
+   * five clinical textareas above the thing the person came to write. The frame
+   * of delay is the sheet's own open animation: the section has no layout
+   * position until it has rendered inside it.
+   */
+  useEffect(() => {
+    if (focus !== "patient") return;
+    const timer = setTimeout(() => {
+      document.getElementById(PATIENT_SUMMARY_SECTION_ID)?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [focus]);
   const { data: categories = [] } = useKnowledgeCategories();
   const { data: services = [] } = useKnowledgeServices();
   useEffect(() => {

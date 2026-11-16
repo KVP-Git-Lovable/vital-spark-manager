@@ -165,8 +165,34 @@ describe("where the gate is applied", () => {
 
   it("the article page gates the tab and the handout separately", () => {
     const src = read("src/pages/KnowledgeArticleDetail.tsx");
-    expect(src).toContain("patientSummaryIsPublic(article)");
-    expect(src).toMatch(/canEdit \? hasPatientSummary\(article\)/);
+    // An editor sees the tab whether or not anything is written in it - that
+    // empty tab is the only visible way in. Everybody ELSE stays gated, and
+    // that is the half that must never loosen.
+    expect(src).toMatch(/showPatient = !!article && \(canEdit \|\| patientSummaryIsPublic\(article\)\)/);
+    expect(src).not.toMatch(/canEdit \? hasPatientSummary\(article\)/);
+    // The print button asks the published question for itself, not "is the
+    // tab visible" - an editor looking at a draft must not be able to print it.
+    expect(src).toMatch(/canPrintHandout = !!article && patientSummaryIsPublic\(article\)/);
+  });
+
+  it("the empty tab offers the way to write one", () => {
+    const src = read("src/pages/KnowledgeArticleDetail.tsx");
+    expect(src).toContain("No patient summary yet");
+    expect(src).toContain('data-testid="write-patient-summary"');
+    // and it lands on the section rather than the top of a long sheet
+    expect(src).toContain('setEditorFocus("patient")');
+    const editor = read("src/components/knowledge/ArticleEditor.tsx");
+    expect(editor).toMatch(/export const PATIENT_SUMMARY_SECTION_ID/);
+    expect(editor).toContain("scrollIntoView");
+    // The anchor has to be ON the section, not merely named in the scroller.
+    expect(read("src/components/knowledge/PatientSummaryEditor.tsx"))
+      .toContain("id={PATIENT_SUMMARY_SECTION_ID}");
+  });
+
+  it("the list shows which articles already have one", () => {
+    const src = read("src/pages/KnowledgeArticles.tsx");
+    expect(src).toContain("hasPatientSummary(a)");
+    expect(src).toContain("Patient summary");
   });
 
   it("the patient summary AI never searches the web", () => {

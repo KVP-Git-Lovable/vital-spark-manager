@@ -10,6 +10,7 @@ import {
   FACT_CARDS, patientFacts, type PatientFacts, type TimelineStep,
 } from "@/lib/patientSummary";
 import { PatientSummary } from "./PatientSummary";
+import { PATIENT_SUMMARY_SECTION_ID } from "./ArticleEditor";
 
 /**
  * Writing the patient's version, inside the article editor.
@@ -95,7 +96,7 @@ export function PatientSummaryEditor({
   }
 
   return (
-    <section className="space-y-4 rounded-lg border p-4">
+    <section id={PATIENT_SUMMARY_SECTION_ID} className="space-y-4 rounded-lg border p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="font-semibold">Patient summary</h2>

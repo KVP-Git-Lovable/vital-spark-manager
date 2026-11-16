@@ -246,11 +246,28 @@ describe("the one place that opens WhatsApp", () => {
     expect(src()).not.toContain("noopener");
   });
 
-  it("opens a real tab without noopener, then disowns it by hand", () => {
+  it("hands the message to the desktop app, not to a new tab", () => {
+    // "_blank" was the bug: a new tab on every click, and a web address the
+    // browser keeps to itself instead of passing to WhatsApp Desktop.
     const text = src();
-    expect(text).toContain('window.open(url, "_blank")');
+    expect(text).not.toContain('"_blank"');
+    expect(text).toContain("launchDesktopApp(whatsappAppUrl(url))");
+  });
+
+  it("reuses one named tab when it does fall back to the web", () => {
+    const text = src();
+    expect(text).toContain("window.open(url, WHATSAPP_WINDOW_NAME)");
     expect(text).not.toContain("noopener");
     expect(text).toContain("win.opener = null");
+  });
+
+  it("launches the protocol through an anchor, not the address bar", () => {
+    // location.href takes the clinic's own tab away on a machine where the
+    // protocol is unregistered; an iframe is blocked by modern Chrome.
+    const text = src();
+    expect(text).toContain("link.click()");
+    expect(text).not.toContain("location.href");
+    expect(text).not.toContain("createElement(\"iframe\")");
   });
 
   it("never puts a browser dialog between the click and the open", () => {

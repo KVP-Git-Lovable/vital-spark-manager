@@ -69,6 +69,10 @@ function unframed() {
 }
 
 let openSpy: ReturnType<typeof vi.fn>;
+let clickSpy: ReturnType<typeof vi.spyOn>;
+/** The href of the anchor the protocol launch went through. */
+const launchedHref = () =>
+  (clickSpy.mock.instances[0] as HTMLAnchorElement | undefined)?.getAttribute("href");
 const fakeWindow = () => ({ opener: {} as unknown }) as Window;
 
 beforeEach(() => {
@@ -78,6 +82,9 @@ beforeEach(() => {
   openSpy = vi.fn(() => fakeWindow());
   vi.stubGlobal("open", openSpy);
   vi.spyOn(window, "confirm");
+  // Clicking a real anchor in jsdom attempts a navigation it has not
+  // implemented; the spy stands in for the operating system taking the link.
+  clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   unframed();
   // Without this, a later test reads mock.calls[0] and gets the FIRST toast of
   // the whole file rather than its own - which is how the blocked-popup check
@@ -86,19 +93,17 @@ beforeEach(() => {
 });
 
 describe("opening WhatsApp", () => {
-  it("opens a tab with the patient's number and the message ready", async () => {
+  it("hands the patient's number and message to WhatsApp Desktop, with no tab", async () => {
     wrap(<FollowupButtons {...props} />);
     fireEvent.click(await screen.findByTestId("send-followup-24h"));
 
-    expect(openSpy).toHaveBeenCalledTimes(1);
-    const [url, target, features] = openSpy.mock.calls[0];
-    expect(String(url).startsWith("https://web.whatsapp.com/send?")).toBe(true);
-    expect(target).toBe("_blank");
-    // A features string at all would risk "noopener" creeping back in, which
-    // makes window.open return null even on success.
-    expect(features).toBeUndefined();
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    // No tab at all is the fix: three follow-ups used to leave three tabs.
+    expect(openSpy).not.toHaveBeenCalled();
 
-    const parsed = new URL(String(url));
+    const href = String(launchedHref());
+    expect(href.startsWith("whatsapp://send?")).toBe(true);
+    const parsed = new URL(href.replace("whatsapp://send?", "https://x/?"));
     expect(parsed.searchParams.get("phone")).toBe("919606342269");
     expect(parsed.searchParams.get("text")).toBe(followupMessage("24h", props.patient));
   });
@@ -106,7 +111,8 @@ describe("opening WhatsApp", () => {
   it("sends each button's own message", async () => {
     wrap(<FollowupButtons {...props} />);
     fireEvent.click(await screen.findByTestId("send-followup-1week"));
-    const text = new URL(String(openSpy.mock.calls[0][0])).searchParams.get("text");
+    const href = String(launchedHref());
+    const text = new URL(href.replace("whatsapp://send?", "https://x/?")).searchParams.get("text");
     expect(text).toContain("one week follow up");
     expect(text).not.toContain("quick follow-up regarding your treatment");
   });
@@ -119,11 +125,22 @@ describe("opening WhatsApp", () => {
     expect(window.confirm).not.toHaveBeenCalled();
   });
 
-  it("disowns the tab it opened", async () => {
+  it("reuses one named tab when the web is used instead", async () => {
+    // Reached from the toast after a hand-off, for a machine with no app.
     const win = fakeWindow();
     openSpy.mockReturnValue(win);
     wrap(<FollowupButtons {...props} />);
     fireEvent.click(await screen.findByTestId("send-followup-24h"));
+
+    const [, opts] = vi.mocked(toast.message).mock.calls[0] as unknown as [
+      string,
+      { action: { onClick: () => void } },
+    ];
+    opts.action.onClick();
+
+    const [url, target] = openSpy.mock.calls[0];
+    expect(String(url).startsWith("https://web.whatsapp.com/send?")).toBe(true);
+    expect(target).not.toBe("_blank");
     expect(win.opener).toBeNull();
   });
 
@@ -156,16 +173,23 @@ describe("inside the Lovable editor's preview frame", () => {
   });
 });
 
-describe("when the browser blocks the tab", () => {
-  it("offers the message to copy instead, and records nothing", async () => {
+describe("when the browser blocks the web tab", () => {
+  it("offers the message to copy instead", async () => {
+    // Only reachable from the toast now: the first press goes to the app,
+    // which a popup blocker has no say over.
     openSpy.mockReturnValue(null);
     wrap(<FollowupButtons {...props} />);
     fireEvent.click(await screen.findByTestId("send-followup-24h"));
 
     await waitFor(() => expect(toast.message).toHaveBeenCalled());
-    expect(vi.mocked(toast.message).mock.calls[0][0]).toContain("blocked");
-    // Nothing was put in front of the patient, so nothing is recorded.
-    expect(inserted).toHaveLength(0);
+    const [, opts] = vi.mocked(toast.message).mock.calls[0] as unknown as [
+      string,
+      { action: { onClick: () => void } },
+    ];
+    opts.action.onClick();
+
+    const titles = vi.mocked(toast.message).mock.calls.map((c) => String(c[0]));
+    expect(titles.some((t) => t.includes("blocked"))).toBe(true);
   });
 });
 
@@ -176,10 +200,10 @@ describe("a patient who has already been contacted", () => {
     await screen.findByTestId("followup-sent-24h");
 
     fireEvent.click(screen.getByTestId("send-followup-24h"));
-    expect(openSpy).not.toHaveBeenCalled();
+    expect(clickSpy).not.toHaveBeenCalled();
 
     fireEvent.click(await screen.findByTestId("confirm-followup-again"));
-    await waitFor(() => expect(openSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
   });
 
   it("notices the one follow-up that really was sent through the old sender", async () => {
@@ -223,7 +247,8 @@ describe("patients the buttons cannot work for", () => {
     const button = await screen.findByTestId("send-followup-24h");
     expect(button).not.toBeDisabled();
     fireEvent.click(button);
-    const text = new URL(String(openSpy.mock.calls[0][0])).searchParams.get("text") ?? "";
+    const href = String(launchedHref()).replace("whatsapp://send?", "https://x/?");
+    const text = new URL(href).searchParams.get("text") ?? "";
     expect(text.startsWith("Hello,\n")).toBe(true);
     expect(text).not.toContain("9663438657");
   });

@@ -115,6 +115,30 @@ export function whatsappShareUrl(
   return `https://web.whatsapp.com/send?phone=${digits}&text=${encodeURIComponent(message)}`;
 }
 
+/** What a web.whatsapp.com/send URL begins with, before the query. */
+const WEB_SEND_PREFIX = "https://web.whatsapp.com/send?";
+
+/**
+ * The same address, pointed at WhatsApp Desktop instead of the browser.
+ *
+ * The clinic has the desktop app installed on the front-desk machines and it
+ * was never being used: every button handed the browser a web.whatsapp.com
+ * address, so the browser kept it, and a second tab arrived on every click.
+ * `whatsapp://` is the protocol the installed app registers with the
+ * operating system, so the message goes to the app and no tab is created.
+ *
+ * Built by swapping the prefix rather than from the phone again, deliberately:
+ * the query string is then IDENTICAL, so the app and the web fallback cannot
+ * end up addressing a different person or carrying a different message. A URL
+ * that is not a web send link is returned unchanged, so a caller holding
+ * something unexpected falls through to the browser rather than to nothing.
+ */
+export function whatsappAppUrl(webUrl: string): string {
+  return webUrl.startsWith(WEB_SEND_PREFIX)
+    ? `whatsapp://send?${webUrl.slice(WEB_SEND_PREFIX.length)}`
+    : webUrl;
+}
+
 /**
  * What the Feedback tab's review button should do, decided here rather than in
  * the component.

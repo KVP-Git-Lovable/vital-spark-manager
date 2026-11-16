@@ -1,0 +1,180 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import {
+  EMPTY_FACTS, FACT_CARDS, factCards, hasPatientSummary, patientFacts,
+  patientSummaryIsPublic, PATIENT_SUMMARY_DISCLAIMER,
+} from "./patientSummary";
+
+/**
+ * The patient's version of a knowledge article.
+ *
+ * Two things are worth proving here and they are not the same thing. One is
+ * that nothing shown to a patient can throw: patient_facts is jsonb, and a
+ * screen turned towards a patient mid-consult must degrade to a missing card,
+ * never to a blank page. The other is the publication gate - a draft summary
+ * must not reach a patient's eyes or a printer, which is the whole safety
+ * argument for keeping this on the article row.
+ */
+
+const article = (over: Record<string, unknown> = {}) => ({
+  status: "published", is_active: true, patient_summary: "Short and clear.", patient_facts: {}, ...over,
+} as Parameters<typeof patientSummaryIsPublic>[0]);
+
+describe("reading patient_facts back", () => {
+  it("gives the empty shape for anything that is not an object", () => {
+    for (const value of [null, undefined, "sessions", 7, true, ["sessions"]]) {
+      expect(patientFacts(value)).toEqual(EMPTY_FACTS);
+    }
+  });
+
+  it("keeps the good fields and drops the bad ones, rather than all or nothing", () => {
+    // A whole-object parse would throw away "6 sessions" because of the
+    // number beside it. Four good cards must survive one bad one.
+    const facts = patientFacts({ sessions: "6 sessions", each_visit: 20, downtime: "None" });
+    expect(facts.sessions).toBe("6 sessions");
+    expect(facts.downtime).toBe("None");
+    expect(facts.each_visit).toBeUndefined();
+  });
+
+  it("drops a card that is blank or far too long for one", () => {
+    expect(patientFacts({ sessions: "   " }).sessions).toBeUndefined();
+    expect(patientFacts({ sessions: "x".repeat(121) }).sessions).toBeUndefined();
+    expect(patientFacts({ sessions: "x".repeat(120) }).sessions).toHaveLength(120);
+  });
+
+  it("keeps the usable points in a list and skips the rest", () => {
+    const facts = patientFacts({ dos: ["Use sunscreen", "", "   ", 5, "Shave the day before"] });
+    expect(facts.dos).toEqual(["Use sunscreen", "Shave the day before"]);
+  });
+
+  it("caps a list rather than refusing it", () => {
+    const facts = patientFacts({ donts: Array.from({ length: 12 }, (_, i) => `point ${i}`) });
+    expect(facts.donts).toHaveLength(8);
+  });
+
+  it("leaves a list out entirely when nothing in it survives", () => {
+    expect(patientFacts({ dos: ["", "  ", 3] }).dos).toBeUndefined();
+  });
+
+  it("keeps only timeline steps that have both a when and a what", () => {
+    const facts = patientFacts({ timeline: [
+      { when: "Before", what: "Shave the area" },
+      { when: "On the day" },
+      { what: "Use moisturiser" },
+      { when: "After", what: "Avoid the sun" },
+    ] });
+    expect(facts.timeline).toEqual([
+      { when: "Before", what: "Shave the area" },
+      { when: "After", what: "Avoid the sun" },
+    ]);
+  });
+
+  it("ignores keys nobody asked for", () => {
+    // The database guard rejects these on the way in; this is the second half
+    // of the same rule, for rows written before it existed.
+    expect(patientFacts({ dosage: "20mg", sessions: "6" })).toEqual({ sessions: "6" });
+  });
+});
+
+describe("which cards get drawn", () => {
+  it("returns only the ones filled in, in a fixed order", () => {
+    const cards = factCards(patientFacts({ downtime: "A day", sessions: "6 sessions" }));
+    // Declaration order, not the order the object happened to be written in:
+    // the cards must not reshuffle between two articles.
+    expect(cards.map((c) => c.key)).toEqual(["sessions", "downtime"]);
+    expect(cards[0].label).toBe("Sessions");
+  });
+
+  it("returns nothing at all for empty facts", () => {
+    expect(factCards(EMPTY_FACTS)).toEqual([]);
+  });
+
+  it("covers every card key it knows about", () => {
+    const all = Object.fromEntries(FACT_CARDS.map(([key]) => [key, "filled"]));
+    expect(factCards(patientFacts(all))).toHaveLength(FACT_CARDS.length);
+  });
+});
+
+describe("is there anything to show", () => {
+  it("counts text on its own", () => {
+    expect(hasPatientSummary({ patient_summary: "Something", patient_facts: {} })).toBe(true);
+  });
+
+  it("counts facts on their own, including lists and the timeline", () => {
+    expect(hasPatientSummary({ patient_summary: "", patient_facts: { sessions: "6" } })).toBe(true);
+    expect(hasPatientSummary({ patient_summary: "", patient_facts: { dos: ["Use sunscreen"] } })).toBe(true);
+    expect(hasPatientSummary({ patient_summary: "", patient_facts: { donts: ["No waxing"] } })).toBe(true);
+    expect(hasPatientSummary({ patient_summary: "", patient_facts: { timeline: [{ when: "After", what: "Rest" }] } })).toBe(true);
+  });
+
+  it("is false for an article nobody has written one for", () => {
+    expect(hasPatientSummary({ patient_summary: "   ", patient_facts: {} })).toBe(false);
+    expect(hasPatientSummary({ patient_summary: "", patient_facts: { dosage: "20mg" } })).toBe(false);
+  });
+});
+
+describe("the publication gate", () => {
+  it("lets a published, active, written-up article through", () => {
+    expect(patientSummaryIsPublic(article())).toBe(true);
+  });
+
+  it("refuses a draft, however complete", () => {
+    expect(patientSummaryIsPublic(article({ status: "draft" }))).toBe(false);
+  });
+
+  it("refuses an article marked reviewed but not yet published", () => {
+    // "Reviewed" is a doctor's bookmark, not approval for a patient to read it.
+    expect(patientSummaryIsPublic(article({ status: "reviewed" }))).toBe(false);
+  });
+
+  it("refuses a published article that has been deactivated", () => {
+    expect(patientSummaryIsPublic(article({ is_active: false }))).toBe(false);
+  });
+
+  it("refuses a published article with nothing written for the patient", () => {
+    expect(patientSummaryIsPublic(article({ patient_summary: "", patient_facts: {} }))).toBe(false);
+  });
+});
+
+describe("the disclaimer", () => {
+  it("says it is not personal advice, in words a patient would use", () => {
+    expect(PATIENT_SUMMARY_DISCLAIMER).toMatch(/not personal medical advice/i);
+    expect(PATIENT_SUMMARY_DISCLAIMER).toMatch(/doctor/i);
+  });
+});
+
+describe("where the gate is applied", () => {
+  /**
+   * Source with its comments removed, so a commented-out line cannot satisfy
+   * a guard here.
+   *
+   * Only comments that START a line, unlike the usual house helper: this reads
+   * edge-function source, where `https://ai.gateway.lovable.dev` contains a
+   * `//` and the usual regex truncates the rest of that line - which is the
+   * very line carrying `webSearch: false`.
+   */
+  const read = (path: string) =>
+    readFileSync(path, "utf8").replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("the consultation panel asks before offering the patient view", () => {
+    // This panel already queries published articles only. It asks anyway: a
+    // future change to that query must not quietly open the patient view.
+    const src = read("src/components/knowledge/ClinicalGuidelines.tsx");
+    expect(src).toContain("patientSummaryIsPublic(a)");
+  });
+
+  it("the article page gates the tab and the handout separately", () => {
+    const src = read("src/pages/KnowledgeArticleDetail.tsx");
+    expect(src).toContain("patientSummaryIsPublic(article)");
+    expect(src).toMatch(/canEdit \? hasPatientSummary\(article\)/);
+  });
+
+  it("the patient summary AI never searches the web", () => {
+    // It rewrites doctor-approved text. A web result reaching it would be an
+    // unreviewed clinical claim in the one version written for a patient.
+    const src = read("supabase/functions/knowledge-ai/index.ts");
+    expect(src).toContain("webSearch: false");
+    const responses = read("supabase/functions/knowledge-ai/responses.ts");
+    expect(responses).toMatch(/webSearch \? \{ tools:/);
+  });
+});

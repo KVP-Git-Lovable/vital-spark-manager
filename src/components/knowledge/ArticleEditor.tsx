@@ -19,8 +19,13 @@ import { ResourceEditor } from "./ArticleResources";
 import { ArticleHistory } from "./ArticleHistory";
 import { ArticleEngagement } from "./ArticleEngagement";
 import { KnowledgePicture } from "./KnowledgePicture";
+import { PatientSummaryEditor } from "./PatientSummaryEditor";
+import { patientFacts, type PatientFacts } from "@/lib/patientSummary";
 
-const blank = { service_id: "", category_id: "", title: "", summary: "", gender: "both", age_rule: "all_ages", min_age: null as number | null, max_age: null as number | null, is_critical: false, clinical_protocol: "", contraindications: "", pre_post_care: "", complications_management: "", sources: "", ai_generated: false, ai_change_summary: "", status: "draft", is_active: true };
+// patient_summary and patient_facts belong here, not only in the form: the save
+// payload is built from Object.keys(blank), so a field missing from this object
+// is silently dropped on every save.
+const blank = { service_id: "", category_id: "", title: "", summary: "", gender: "both", age_rule: "all_ages", min_age: null as number | null, max_age: null as number | null, is_critical: false, clinical_protocol: "", contraindications: "", pre_post_care: "", complications_management: "", sources: "", ai_generated: false, ai_change_summary: "", status: "draft", is_active: true, patient_summary: "", patient_facts: {} as PatientFacts };
 export function ArticleEditor({ article, cloneFrom, serviceId, onClose }: { article?: KnowledgeArticle; cloneFrom?: KnowledgeArticle; serviceId?: string; onClose: () => void }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({ ...blank, ...(cloneFrom ? cloneArticle(cloneFrom) : {}), ...article, service_id: article?.service_id || cloneFrom?.service_id || serviceId || "" });
@@ -40,7 +45,9 @@ export function ArticleEditor({ article, cloneFrom, serviceId, onClose }: { arti
     if (!form.service_id || !form.category_id || !form.title.trim()) throw new Error("Service, category and title are required");
     if (form.age_rule === "custom_range" && (form.min_age === null || form.max_age === null || form.min_age < 0 || form.max_age < form.min_age)) throw new Error("Enter minimum and maximum ages");
     const editable = Object.fromEntries(Object.keys(blank).map((key) => [key, form[key as keyof typeof blank]])) as typeof blank;
-    const payload = { ...editable, resources: JSON.parse(JSON.stringify(resources)), title: form.title.trim(), status, min_age: form.age_rule === "all_ages" ? null : form.min_age, max_age: form.age_rule === "all_ages" ? null : form.max_age };
+    // Both jsonb columns go through a round-trip for the same reason: the
+    // client's typed object is not the Json shape the generated types demand.
+    const payload = { ...editable, resources: JSON.parse(JSON.stringify(resources)), patient_facts: JSON.parse(JSON.stringify(patientFacts(form.patient_facts))), title: form.title.trim(), status, min_age: form.age_rule === "all_ages" ? null : form.min_age, max_age: form.age_rule === "all_ages" ? null : form.max_age };
     const request = article ? supabase.from("knowledge_articles").update(payload).eq("id", article.id).eq("revision", article.revision).is("deleted_at", null) : supabase.from("knowledge_articles").insert(payload);
     const { data, error } = await request.select("id");
     if (error) throw error;
@@ -73,6 +80,13 @@ export function ArticleEditor({ article, cloneFrom, serviceId, onClose }: { arti
         {clinicalFields.map(([key, label]) => <div key={key}><Label htmlFor={`article-${key}`}>{label}</Label><Textarea id={`article-${key}`} rows={key === "clinical_protocol" ? 8 : 4} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} /></div>)}
         {form.ai_change_summary && <p className="text-sm text-muted-foreground whitespace-pre-wrap">AI change summary: {form.ai_change_summary}</p>}
       </>}
+      {!proposal && <PatientSummaryEditor
+        summary={form.patient_summary}
+        facts={form.patient_facts}
+        source={{ title: form.title, summary: form.summary, clinical_protocol: form.clinical_protocol, contraindications: form.contraindications, pre_post_care: form.pre_post_care, complications_management: form.complications_management }}
+        onChange={({ patient_summary, patient_facts }) => setForm((f) => ({ ...f, patient_summary, patient_facts }))}
+        onBusyChange={setBusy}
+      />}
       {!proposal && <ResourceEditor value={resources} onChange={setResources} group={group} onBusyChange={setBusy} />}
       {!proposal && <KnowledgePicture serviceId={form.service_id} group={group} onBusyChange={setBusy} onAdd={(resource) => setResources((current) => [...current, resource])} />}
       <div className="flex flex-wrap gap-2 border-t pt-4"><Button variant="outline" disabled={save.isPending || busy || !!proposal} onClick={() => save.mutate("draft")}><Save className="h-4 w-4 mr-2" />Save Draft</Button><Button variant="outline" disabled={save.isPending || busy || !!proposal} onClick={() => save.mutate("reviewed")}><ShieldCheck className="h-4 w-4 mr-2" />Mark Reviewed</Button><Button disabled={save.isPending || busy || !!proposal} onClick={() => { if (window.confirm("Confirm you have clinically reviewed this article and approve it for patient appointments?")) save.mutate("published"); }}><BookOpen className="h-4 w-4 mr-2" />Approve & Publish</Button></div>

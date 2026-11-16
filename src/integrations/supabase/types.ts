@@ -3396,6 +3396,8 @@ export type Database = {
           is_critical: boolean
           max_age: number | null
           min_age: number | null
+          patient_facts: Json
+          patient_summary: string
           pre_post_care: string
           resources: Json
           reviewed_at: string | null
@@ -3428,6 +3430,8 @@ export type Database = {
           is_critical?: boolean
           max_age?: number | null
           min_age?: number | null
+          patient_facts?: Json
+          patient_summary?: string
           pre_post_care?: string
           resources?: Json
           reviewed_at?: string | null
@@ -3460,6 +3464,8 @@ export type Database = {
           is_critical?: boolean
           max_age?: number | null
           min_age?: number | null
+          patient_facts?: Json
+          patient_summary?: string
           pre_post_care?: string
           resources?: Json
           reviewed_at?: string | null

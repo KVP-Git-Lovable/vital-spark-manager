@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, BookOpen, Copy, Pencil, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BookOpen, Copy, Pencil, Printer, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useKnowledgeCategories } from "@/hooks/useKnowledge";
@@ -10,6 +10,11 @@ import { ArticleContent } from "@/components/knowledge/ArticleContent";
 import { ArticleEditor } from "@/components/knowledge/ArticleEditor";
 import { ArticleEngagement } from "@/components/knowledge/ArticleEngagement";
 import { ArticleHistory } from "@/components/knowledge/ArticleHistory";
+import { PatientSummary } from "@/components/knowledge/PatientSummary";
+import { hasPatientSummary, patientSummaryIsPublic } from "@/lib/patientSummary";
+import { printPatientHandout } from "@/lib/patientHandout";
+import { reserveTab } from "@/lib/newTab";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import DeleteConfirmDialog from "@/components/shared/DeleteConfirmDialog";
@@ -55,6 +60,17 @@ export default function KnowledgeArticleDetail() {
       return data;
     },
   });
+
+  /**
+   * Who sees the patient tab.
+   *
+   * An editor sees it whenever there is anything in it, published or not,
+   * because they are the one writing it. Everybody else only once the article
+   * is published and active - patientSummaryIsPublic is the single rule the
+   * whole feature rests on, and the printed handout asks it again for itself.
+   */
+  const showPatient = !!article && (canEdit ? hasPatientSummary(article) : patientSummaryIsPublic(article));
+  const canPrintHandout = !!article && patientSummaryIsPublic(article);
 
   const back = () => navigate("/knowledge");
 
@@ -113,10 +129,41 @@ export default function KnowledgeArticleDetail() {
             )}
           </header>
 
-          {/* collapsible: the long sections start folded behind "Read more".
-              Only here - the editor diff and revision history still show
-              every word, because a clinician there is checking wording. */}
-          <ArticleContent article={article} collapsible />
+          {/* Two audiences, one article. The patient tab appears for an editor
+              whenever there is something in it, so they can see what they are
+              writing; for everybody else only once the article is published and
+              active, which is the same gate the clinical text already passes.
+              collapsible: the long clinical sections start folded behind "Read
+              more" - only here, because the editor diff and revision history
+              still show every word to a clinician checking wording. */}
+          {showPatient ? (
+            <Tabs defaultValue="clinical">
+              <TabsList>
+                <TabsTrigger value="clinical">Clinical</TabsTrigger>
+                <TabsTrigger value="patient" data-testid="patient-tab">For the patient</TabsTrigger>
+              </TabsList>
+              <TabsContent value="clinical" className="pt-4">
+                <ArticleContent article={article} collapsible />
+              </TabsContent>
+              <TabsContent value="patient" className="pt-4 space-y-4">
+                {canPrintHandout && (
+                  <Button size="sm" variant="outline" onClick={() => {
+                    // reserveTab FIRST, inside the click, or the browser treats
+                    // the window.open as an unsolicited pop-up. See newTab.ts.
+                    const tab = reserveTab();
+                    try {
+                      printPatientHandout(article, { serviceName: article.title }, tab);
+                    } catch (e) { toast.error((e as Error).message); }
+                  }}>
+                    <Printer className="h-4 w-4 mr-2" />Print handout
+                  </Button>
+                )}
+                <PatientSummary article={article} />
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <ArticleContent article={article} collapsible />
+          )}
           <ArticleEngagement key={article.id} articleId={article.id} />
           {canEdit && <ArticleHistory article={article} />}
         </article>

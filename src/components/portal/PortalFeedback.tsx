@@ -15,6 +15,11 @@ import {
 } from "@/components/ui/dialog";
 import { portalRequest } from "@/lib/portalApi";
 import { npsCategory, ratingLabel } from "@/lib/feedbackScores";
+import { AnswerControl } from "@/components/feedback/AnswerControl";
+import {
+  answersFromRow, askable, BUILTIN_NPS, BUILTIN_RATING, feedbackQuestions, feedbackRowFrom,
+  validateAnswers, type AnswerMap, type AnswerValue,
+} from "@/lib/feedbackQuestions";
 
 /**
  * A patient's own feedback, and a way to put it right.
@@ -74,9 +79,19 @@ function visitLabel(row: PortalFeedbackRow): string {
 export default function PortalFeedback({ patientId }: { patientId: string }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<PortalFeedbackRow | null>(null);
-  const [nps, setNps] = useState<number | null>(null);
-  const [rating, setRating] = useState<number | null>(null);
-  const [comments, setComments] = useState("");
+  const [answers, setAnswers] = useState<AnswerMap>({});
+  const setAnswer = (id: string, value: AnswerValue) => setAnswers((a) => ({ ...a, [id]: value }));
+
+  // Through portal-data, because the portal browser has no database access -
+  // feedback_questions revokes anon entirely.
+  const { data: questionRows = [] } = useQuery({
+    queryKey: ["portal-feedback-questions", patientId],
+    queryFn: async () => (await portalRequest<unknown[]>("feedback_questions")) || [],
+    enabled: !!patientId,
+    retry: 1,
+    throwOnError: false,
+  });
+  const questions = feedbackQuestions(questionRows);
 
   const { data: feedback = [], isLoading, isError, refetch } = useQuery<PortalFeedbackRow[]>({
     queryKey: ["portal-feedback", patientId],
@@ -88,19 +103,26 @@ export default function PortalFeedback({ patientId }: { patientId: string }) {
 
   useEffect(() => {
     if (!editing) return;
-    setNps(editing.nps_score);
-    setRating(editing.service_rating);
-    setComments(editing.comments || "");
+    // Seeded from answers where there are any, and from the three columns
+    // otherwise - the records given before the clinic had its own questions.
+    setAnswers(answersFromRow(questions, editing));
+    // questions is rebuilt each render from the fetched rows; depending on it
+    // would reseed the form under the patient as they typed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
 
   const save = useMutation({
     mutationFn: async () => {
       if (!editing) return;
+      const complaints = validateAnswers(questions, answers);
+      if (complaints.length) throw new Error(complaints[0]);
+      const row = feedbackRowFrom(questions, answers);
       await portalRequest("update_feedback", {
         id: editing.id,
-        npsScore: nps,
-        serviceRating: rating,
-        comments: comments.trim() || null,
+        npsScore: row.nps_score,
+        serviceRating: row.service_rating,
+        comments: row.comments,
+        answers: row.answers,
       });
     },
     onSuccess: () => {
@@ -224,76 +246,26 @@ export default function PortalFeedback({ patientId }: { patientId: string }) {
             <div className="space-y-5">
               <p className="text-xs text-muted-foreground">{visitLabel(editing)}</p>
 
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  How likely are you to recommend us to a friend or colleague?
-                </Label>
-                <div className="flex gap-1 flex-wrap">
-                  {NPS_SCORES.map((i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setNps(i)}
-                      className={`h-8 w-8 rounded-md text-xs font-semibold border transition-all ${
-                        nps === i
-                          ? npsColor(i)
-                          : "bg-background hover:bg-accent text-foreground border-border"
-                      }`}
-                    >
-                      {i}
-                    </button>
-                  ))}
+              {/* Every question the clinic asks, as configured at
+                  Admin > Feedback - the same list the clinic's own screen
+                  uses, fetched through portal-data because the portal has no
+                  database access of its own. */}
+              {askable(questions).map((q) => (
+                <div key={q.id} className="space-y-2">
+                  <Label className="text-xs font-medium">
+                    {q.question_text}
+                    {q.is_required && <span className="text-destructive"> *</span>}
+                  </Label>
+                  {q.help_text && <p className="text-[11px] text-muted-foreground">{q.help_text}</p>}
+                  <AnswerControl question={q} value={answers[q.id] ?? null} onChange={(v) => setAnswer(q.id, v)} />
+                  {q.builtin === BUILTIN_NPS && typeof answers[q.id] === "number" && (
+                    <Badge variant="outline" className="text-xs">{npsCategory(answers[q.id] as number)}</Badge>
+                  )}
+                  {q.builtin === BUILTIN_RATING && typeof answers[q.id] === "number" && (
+                    <p className="text-xs text-muted-foreground">{ratingLabel(answers[q.id] as number)}</p>
+                  )}
                 </div>
-                <div className="flex justify-between text-[10px] text-muted-foreground px-0.5">
-                  <span>Not at all likely</span>
-                  <span>Extremely likely</span>
-                </div>
-                {nps !== null && (
-                  <Badge variant="outline" className="text-xs">
-                    {npsCategory(nps)}
-                  </Badge>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">
-                  How would you rate the overall quality of service?
-                </Label>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setRating(s)}
-                      className="p-1 transition-transform hover:scale-110"
-                      aria-label={`${s} star${s === 1 ? "" : "s"}`}
-                    >
-                      <Star
-                        className={`h-7 w-7 ${
-                          rating !== null && s <= rating
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-muted-foreground/30 hover:text-yellow-300"
-                        }`}
-                      />
-                    </button>
-                  ))}
-                </div>
-                {rating !== null && (
-                  <p className="text-xs text-muted-foreground">{ratingLabel(rating)}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">Any comments or suggestions?</Label>
-                <Textarea
-                  value={comments}
-                  onChange={(e) => setComments(e.target.value)}
-                  placeholder="Tell us in your own words…"
-                  rows={3}
-                  maxLength={2000}
-                  className="text-sm"
-                />
-              </div>
+              ))}
 
               <p className="text-[10px] text-muted-foreground">
                 Your clinic keeps a record of what you said before, so nothing is lost.
@@ -311,7 +283,7 @@ export default function PortalFeedback({ patientId }: { patientId: string }) {
                 <Button
                   className="flex-1 gap-2"
                   onClick={() => save.mutate()}
-                  disabled={save.isPending || nps === null || rating === null}
+                  disabled={save.isPending || validateAnswers(questions, answers).length > 0}
                 >
                   {save.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                   Save changes

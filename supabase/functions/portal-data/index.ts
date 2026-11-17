@@ -394,6 +394,16 @@ Deno.serve(async (req) => {
         });
       }
 
+      // A separate action, deliberately. The published portal build calls
+      // "feedback" and expects a bare array, so adding the questions to that
+      // response would break the build the clinic is running right now.
+      case "feedback_questions": {
+        if (!(await feedbackEnabled())) return json({ error: "Feedback is not enabled", code: "disabled" }, 403);
+        const res = await sb(`feedback_questions?select=id,question_text,help_text,question_type,options,sort_order,is_active,is_required,builtin&is_active=eq.true&order=sort_order.asc`);
+        if (!res.ok) return json({ error: await res.text() }, 500);
+        return json({ data: await res.json() });
+      }
+
       case "update_feedback": {
         if (!(await feedbackEnabled())) return json({ error: "Feedback is not enabled", code: "disabled" }, 403);
         const id = String(p.id || "");
@@ -425,12 +435,65 @@ Deno.serve(async (req) => {
         // The previous answers are kept: patient_feedback_snapshot copies them
         // into patient_feedback_revisions before this write lands, and stamps
         // updated_at. Nothing here needs to remember to do that.
+        // Answers to the clinic's own questions. Absent means "not sent",
+        // which is what the published build does - it is left untouched rather
+        // than wiped. Present means it is checked against the question list
+        // here, for the same reason the two scores are: this is the only thing
+        // between a crafted request and nonsense in the clinic's reports.
+        let answers: Record<string, unknown> | undefined;
+        if (p.answers !== undefined && p.answers !== null) {
+          if (typeof p.answers !== "object" || Array.isArray(p.answers)) {
+            return json({ error: "Invalid answers" }, 400);
+          }
+          const qRes = await sb(`feedback_questions?select=id,question_type,options,is_active&is_active=eq.true`);
+          if (!qRes.ok) return json({ error: await qRes.text() }, 500);
+          const questions = (await qRes.json()) as { id: string; question_type: string; options: Record<string, unknown> }[];
+          const byId = new Map(questions.map((q) => [q.id, q]));
+          answers = {};
+          for (const [key, value] of Object.entries(p.answers as Record<string, unknown>)) {
+            const q = byId.get(key);
+            // A key for a question that is not asked is dropped, not an error:
+            // a question switched off while a patient had the form open must
+            // not stop them saving the rest.
+            if (!q) continue;
+            if (value === null) { answers[key] = null; continue; }
+            const type = q.question_type;
+            if (type === "stars" || type === "emoji" || type === "scale_10") {
+              const n = Number(value);
+              const max = type === "scale_10" ? Number(q.options?.max ?? 10) : type === "emoji" ? 5 : Number(q.options?.max ?? 5);
+              const min = type === "scale_10" ? Number(q.options?.min ?? 0) : 1;
+              if (!Number.isInteger(n) || n < min || n > max) return json({ error: "An answer is out of range" }, 400);
+              answers[key] = n;
+            } else if (type === "yes_no") {
+              if (typeof value !== "boolean") return json({ error: "An answer is invalid" }, 400);
+              answers[key] = value;
+            } else if (type === "choice_one" || type === "choice_many") {
+              const allowed = Array.isArray(q.options?.choices) ? (q.options.choices as unknown[]).map(String) : [];
+              if (type === "choice_one") {
+                if (typeof value !== "string" || !allowed.includes(value)) return json({ error: "An answer is invalid" }, 400);
+                answers[key] = value;
+              } else {
+                if (!Array.isArray(value) || value.some((v) => typeof v !== "string" || !allowed.includes(v))) {
+                  return json({ error: "An answer is invalid" }, 400);
+                }
+                answers[key] = value;
+              }
+            } else {
+              if (typeof value !== "string") return json({ error: "An answer is invalid" }, 400);
+              const trimmed = value.trim();
+              if (trimmed.length > 2000) return json({ error: "An answer is too long" }, 400);
+              answers[key] = trimmed || null;
+            }
+          }
+        }
+
         const res = await sb(`patient_feedback?id=eq.${id}&patient_id=eq.${pid}`, {
           method: "PATCH",
           body: JSON.stringify({
             nps_score: nps,
             service_rating: rating,
             comments,
+            ...(answers === undefined ? {} : { answers }),
             last_edited_by: "patient",
           }),
         });

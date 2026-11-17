@@ -105,8 +105,14 @@ describe("a correction cannot carry a nonsense score", () => {
 
   it("caps the comment, and the editor agrees with the server", () => {
     expect(action("update_feedback")).toMatch(/length > 2000/);
-    expect(readFileSync("src/components/portal/PortalFeedback.tsx", "utf8")).toContain(
-      "maxLength={2000}",
+    // The cap moved when the form became configurable: the editor is now the
+    // shared AnswerControl, which takes its limit from questionMaxLength. The
+    // number still has to be the same one the server enforces.
+    expect(readFileSync("src/components/feedback/AnswerControl.tsx", "utf8")).toContain(
+      "maxLength={questionMaxLength(question)}",
+    );
+    expect(readFileSync("src/lib/feedbackQuestions.ts", "utf8")).toMatch(
+      /questionMaxLength[\s\S]*?max > 0 \? max : 2000/,
     );
   });
 

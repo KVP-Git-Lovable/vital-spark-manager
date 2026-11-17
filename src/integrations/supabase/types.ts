@@ -2366,6 +2366,54 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback_questions: {
+        Row: {
+          id: string
+          question_text: string
+          help_text: string
+          question_type: string
+          options: Json
+          sort_order: number
+          is_active: boolean
+          is_required: boolean
+          score_at_or_below: number | null
+          builtin: string | null
+          created_at: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          question_text: string
+          help_text?: string
+          question_type?: string
+          options?: Json
+          sort_order?: number
+          is_active?: boolean
+          is_required?: boolean
+          score_at_or_below?: number | null
+          builtin?: string | null
+          created_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          question_text?: string
+          help_text?: string
+          question_type?: string
+          options?: Json
+          sort_order?: number
+          is_active?: boolean
+          is_required?: boolean
+          score_at_or_below?: number | null
+          builtin?: string | null
+          created_at?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       field_history: {
         Row: {
           changed_at: string

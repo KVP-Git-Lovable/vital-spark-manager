@@ -89,6 +89,9 @@ import { appointmentDeleteNote } from "@/lib/appointmentDeleteNote";
 // Shared with the Patient Feedback report, so a visit cannot read "Passive"
 // on one screen and "Promoter" on the other.
 import { npsCategory, ratingLabel } from "@/lib/feedbackScores";
+import { AnswerControl, AnswerReadout } from "@/components/feedback/AnswerControl";
+import { useFeedbackQuestions } from "@/hooks/useFeedbackQuestions";
+import { answersFromRow, askable, BUILTIN_COMMENTS, BUILTIN_NPS, BUILTIN_RATING, feedbackRowFrom, validateAnswers, type AnswerMap, type AnswerValue } from "@/lib/feedbackQuestions";
 import { FeedbackRcaPanel } from "@/components/feedback/FeedbackRcaPanel";
 import { AttachPhotosButton } from "@/components/photos/AttachPhotosButton";
 import { PhotoViewer } from "@/components/patients/PhotoViewer";
@@ -146,22 +149,27 @@ function FeedbackTabContent({
     enabled: !!appointmentId,
   });
 
-  const [comments, setComments] = useState("");
+  const { questions, isLoading: questionsLoading } = useFeedbackQuestions();
+  const [answers, setAnswers] = useState<AnswerMap>({});
+  const setAnswer = (id: string, value: AnswerValue) => setAnswers((a) => ({ ...a, [id]: value }));
+  // Required questions, answered in range. The two scores are required rows
+  // out of the box, so this is the same gate as the old "both questions" one.
+  const complaints = validateAnswers(questions, answers);
 
   const handleSubmitFeedback = async () => {
-    if (npsScore === null || serviceRating === null) {
-      toast.error("Please answer both questions");
+    if (complaints.length) {
+      toast.error(complaints[0]);
       return;
     }
     setFeedbackSubmitting(true);
     try {
+      // The three built-ins still land in their own columns; everything else
+      // goes into answers. See feedbackRowFrom.
       const { error } = await supabase.from("patient_feedback").insert({
         appointment_id: appointmentId,
         patient_id: patientId || "00000000-0000-0000-0000-000000000000",
         patient_name: patientName,
-        nps_score: npsScore,
-        service_rating: serviceRating,
-        comments: comments.trim() || null,
+        ...feedbackRowFrom(questions, answers),
       } as any);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["patient-feedback", appointmentId] });
@@ -398,6 +406,19 @@ function FeedbackTabContent({
               <p className="text-sm whitespace-pre-wrap">{(existingFeedback as any).comments}</p>
             </div>
           )}
+          {/* Anything the clinic added beyond the three built-ins. Read from
+              the same config that asked it, so a question switched off later
+              still shows the answer it collected. */}
+          {askable(questions).filter((q) => !q.builtin).map((q) => {
+            const recorded = answersFromRow(questions, existingFeedback);
+            if (!(q.id in recorded)) return null;
+            return (
+              <div key={q.id}>
+                <p className="text-xs text-muted-foreground mb-1">{q.question_text}</p>
+                <AnswerReadout question={q} value={recorded[q.id]} />
+              </div>
+            );
+          })}
           <p className="text-[10px] text-muted-foreground">Submitted {format(new Date(existingFeedback.created_at), "MMM d, yyyy · h:mm a")}</p>
         </div>
         {/* Renders nothing unless this score opened a case, which 24 of 979
@@ -415,74 +436,53 @@ function FeedbackTabContent({
       </h3>
       {reviewRequestButton}
 
-      {/* NPS Question */}
-      <div className="space-y-2">
-        <Label className="text-xs font-medium">How likely are you to recommend us to a friend or colleague?</Label>
-        <div className="flex gap-1 flex-wrap">
-          {NPS_LABELS.map((label, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => setNpsScore(i)}
-              className={`h-8 w-8 rounded-md text-xs font-semibold border transition-all ${
-                npsScore === i
-                  ? getNpsColor(i)
-                  : "bg-background hover:bg-accent text-foreground border-border"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="flex justify-between text-[10px] text-muted-foreground px-0.5">
-          <span>Not at all likely</span>
-          <span>Extremely likely</span>
-        </div>
-        {npsScore !== null && (
-          <Badge variant="outline" className="text-xs">{npsCategory(npsScore)}</Badge>
-        )}
-      </div>
-
-      {/* Service Quality */}
-      <div className="space-y-2">
-        <Label className="text-xs font-medium">How would you rate the overall quality of service?</Label>
-        <div className="flex gap-1">
-          {[1, 2, 3, 4, 5].map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setServiceRating(s)}
-              className="p-1 transition-transform hover:scale-110"
-            >
-              <Star className={`h-7 w-7 ${serviceRating !== null && s <= serviceRating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30 hover:text-yellow-300"}`} />
-            </button>
-          ))}
-        </div>
-        {serviceRating !== null && (
-          <p className="text-xs text-muted-foreground">
-            {ratingLabel(serviceRating)}
-          </p>
-        )}
-      </div>
-
-      {/* Written / dictated feedback */}
-      <div className="space-y-2">
-        <Label className="text-xs font-medium">Any comments or suggestions?</Label>
-        <div className="flex items-start gap-2">
-          <Textarea
-            value={comments}
-            onChange={(e) => setComments(e.target.value)}
-            placeholder="Type the patient's feedback, or use the mic to dictate…"
-            rows={3}
-            className="flex-1 text-sm"
-          />
-          <MicButton value={comments} onChange={setComments} size="md" title="Dictate feedback" />
-        </div>
-      </div>
+      {/* Every question, as configured at Admin > Feedback. The three the
+          clinic started with are rows like any other, so rewording or
+          restyling them here needs no code change - and the comments one keeps
+          its dictation button, which is the one thing a configured control
+          cannot know about. */}
+      {questionsLoading ? (
+        <p className="text-sm text-muted-foreground">Loading questions…</p>
+      ) : (
+        askable(questions).map((q) => (
+          <div key={q.id} className="space-y-2">
+            <Label className="text-xs font-medium">
+              {q.question_text}
+              {q.is_required && <span className="text-destructive"> *</span>}
+            </Label>
+            {q.help_text && <p className="text-[11px] text-muted-foreground">{q.help_text}</p>}
+            {q.builtin === BUILTIN_COMMENTS ? (
+              <div className="flex items-start gap-2">
+                <Textarea
+                  value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : ""}
+                  onChange={(e) => setAnswer(q.id, e.target.value)}
+                  placeholder="Type the patient's feedback, or use the mic to dictate…"
+                  rows={3}
+                  className="flex-1 text-sm"
+                />
+                <MicButton
+                  value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : ""}
+                  onChange={(v) => setAnswer(q.id, v)}
+                  size="md"
+                  title="Dictate feedback"
+                />
+              </div>
+            ) : (
+              <AnswerControl question={q} value={answers[q.id] ?? null} onChange={(v) => setAnswer(q.id, v)} />
+            )}
+            {q.builtin === BUILTIN_NPS && typeof answers[q.id] === "number" && (
+              <Badge variant="outline" className="text-xs">{npsCategory(answers[q.id] as number)}</Badge>
+            )}
+            {q.builtin === BUILTIN_RATING && typeof answers[q.id] === "number" && (
+              <p className="text-xs text-muted-foreground">{ratingLabel(answers[q.id] as number)}</p>
+            )}
+          </div>
+        ))
+      )}
 
       <Button
         onClick={handleSubmitFeedback}
-        disabled={feedbackSubmitting || npsScore === null || serviceRating === null}
+        disabled={feedbackSubmitting || complaints.length > 0 || questionsLoading}
         className="w-full gap-2"
       >
         <Check className="h-4 w-4" /> Submit Feedback

@@ -14,6 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NumberField } from "@/components/shared/NumberField";
 import { SettingRow } from "@/components/attendance/SettingRow";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FeedbackQuestionsEditor } from "@/components/feedback/FeedbackQuestionsEditor";
+import { QuestionThresholds } from "@/components/feedback/QuestionThresholds";
 
 /**
  * Which feedback gets somebody's name on it.
@@ -119,6 +122,17 @@ export default function FeedbackSettings() {
         </p>
       )}
 
+      <Tabs defaultValue="questions">
+        <TabsList>
+          <TabsTrigger value="questions">Questions</TabsTrigger>
+          <TabsTrigger value="rules">When a case opens</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="questions" className="pt-4">
+          <FeedbackQuestionsEditor canEdit={!!isAdmin} />
+        </TabsContent>
+
+        <TabsContent value="rules" className="pt-4">
       <Card>
         <CardHeader><CardTitle className="text-base">Open a case when</CardTitle></CardHeader>
         <CardContent className="space-y-5">
@@ -172,6 +186,8 @@ export default function FeedbackSettings() {
             </div>
           )}
 
+          <QuestionThresholds canEdit={!!isAdmin} />
+
           {!isAdmin && (
             <p className="text-sm text-warning flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -190,6 +206,8 @@ export default function FeedbackSettings() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

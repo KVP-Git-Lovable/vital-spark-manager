@@ -68,7 +68,7 @@ export function ClinicalGuidelines({ patientId, serviceIds = [], serviceNames = 
                 <Button size="sm" variant="outline" onClick={() => {
                   // reserveTab FIRST, in the click itself - see src/lib/newTab.ts.
                   const tab = reserveTab();
-                  try { printPatientHandout(a, { serviceName: a.title }, tab); } catch (e) { toast.error((e as Error).message); }
+                  void printPatientHandout(a, { serviceName: a.title }, tab).catch((e) => toast.error((e as Error).message));
                 }}><Printer className="h-3.5 w-3.5 mr-2" />Print handout</Button>
               </div>}
               {patientView.has(a.id) ? <PatientSummary article={a} /> : <ArticleContent article={a} />}

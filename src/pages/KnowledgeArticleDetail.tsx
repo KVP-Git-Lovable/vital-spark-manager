@@ -178,9 +178,11 @@ export default function KnowledgeArticleDetail() {
                         // reserveTab FIRST, inside the click, or the browser treats
                         // the window.open as an unsolicited pop-up. See newTab.ts.
                         const tab = reserveTab();
-                        try {
-                          printPatientHandout(article, { serviceName: article.title }, tab);
-                        } catch (e) { toast.error((e as Error).message); }
+                        // The pictures are fetched and embedded before printing,
+                        // so this is a promise now; the reserved tab shows its
+                        // own "Preparing…" placeholder meanwhile.
+                        void printPatientHandout(article, { serviceName: article.title }, tab)
+                          .catch((e) => toast.error((e as Error).message));
                       }}>
                         <Printer className="h-4 w-4 mr-2" />Print handout
                       </Button>

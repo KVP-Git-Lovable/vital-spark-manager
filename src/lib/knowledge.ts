@@ -13,6 +13,16 @@ export function articleResources(value: unknown): KnowledgeResource[] {
   return value.flatMap((item) => { const parsed = resourceSchema.safeParse(item); return parsed.success ? [parsed.data] : []; });
 }
 
+/**
+ * Where article attachments live. Private: every read is a signed URL, and
+ * storage RLS only shows a non-editor the files of a published, active article.
+ *
+ * Named here rather than in the component that uploads them, because the
+ * printed patient handout reads from the same bucket and two copies of a
+ * bucket name is a rename waiting to go wrong.
+ */
+export const KNOWLEDGE_BUCKET = "knowledge-attachments";
+
 export type KnowledgeArticle = Tables<"knowledge_articles">;
 export const clinicalFields = [
   ["clinical_protocol", "Clinical protocol"],

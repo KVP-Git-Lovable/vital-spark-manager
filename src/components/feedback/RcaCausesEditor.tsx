@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useRcaConfig } from "@/hooks/useRcaConfig";
 import { asFeedbackQuestion, causeCodeFrom, type RcaCause, type RcaQuestion } from "@/lib/rcaQuestions";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { answerTypeInfo, FEEDBACK_ANSWER_TYPES, questionChoices } from "@/lib/feedbackQuestions";
 import { AnswerControl } from "./AnswerControl";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -30,6 +31,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
  * accept-then-save gate the knowledge AI uses: no wording a model invented
  * should reach a clinic's screen just because a request succeeded.
  */
+
+/**
+ * Shown when the request never reached the function - it is not deployed, or
+ * it is down. Everything else on this screen writes straight to the database,
+ * so the clinic is not stuck: the questions can still be written by hand.
+ */
+export const SUGGESTIONS_UNAVAILABLE =
+  "Suggestions aren't available yet — the AI helper hasn't been deployed. You can still add questions by hand.";
 
 export function RcaCausesEditor({ canEdit }: { canEdit: boolean }) {
   const qc = useQueryClient();
@@ -171,7 +180,10 @@ function CauseRow({
       if (!list.length) throw new Error("No suggestions came back. Try again.");
       setSuggested(list);
     } catch (e) {
-      toast.error((e as Error).message);
+      // Routed through the shared helper so the function's own refusal - "Only
+      // doctors and admins can configure root-cause questions" - reaches the
+      // screen instead of supabase-js's wrapper sentence.
+      toast.error(await edgeFunctionErrorMessage(e, SUGGESTIONS_UNAVAILABLE));
     } finally {
       setSuggesting(false);
     }

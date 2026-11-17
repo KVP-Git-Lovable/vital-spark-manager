@@ -5,6 +5,7 @@ import {
   questionsForCauses, rcaCauses, rcaQuestions, type RcaCause, type RcaQuestion,
 } from "./rcaQuestions";
 import { answerControl, questionChoices } from "./feedbackQuestions";
+import { SUGGESTIONS_UNAVAILABLE } from "@/components/feedback/RcaCausesEditor";
 
 /**
  * Root causes the clinic owns, and the questions that follow from each.
@@ -165,6 +166,22 @@ describe("the case screen", () => {
   it("still offers a retired cause that a case already carries", () => {
     // A case worked months ago should read the way it was worked.
     expect(page()).toContain("c.is_active || chosen.includes(c.code)");
+  });
+});
+
+describe("when the AI helper cannot be reached", () => {
+  const editor = () => readFileSync("src/components/feedback/RcaCausesEditor.tsx", "utf8");
+
+  it("says what the clinic can do instead of showing a developer string", () => {
+    const source = editor();
+    expect(source).toContain("edgeFunctionErrorMessage(e, SUGGESTIONS_UNAVAILABLE)");
+    // Never the raw message: that is how "Failed to send a request to the Edge
+    // Function" reached a clinic screen in the first place.
+    expect(source).not.toMatch(/toast\.error\(\(e as Error\)\.message\)/);
+  });
+
+  it("tells them the questions can still be written by hand", () => {
+    expect(SUGGESTIONS_UNAVAILABLE).toMatch(/by hand/i);
   });
 });
 

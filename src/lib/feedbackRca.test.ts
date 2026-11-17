@@ -1,63 +1,113 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { needsRootCause } from "./feedbackScores";
+import { DEFAULT_FEEDBACK_THRESHOLDS, needsRootCause } from "./feedbackThresholds";
 import { RCA_ROOT_CAUSES, RCA_STATUSES, RCA_CLOSED_STATUSES, NO_PATIENT_ID } from "./feedbackRca";
 
 const MIGRATION = "supabase/migrations/20261106090000_a_low_score_that_someone_owns.sql";
+/** Where the rule lives now: one settings row, read by the gate and the trigger. */
+const THRESHOLD_MIGRATION = "supabase/migrations/20261117060000_how_low_is_low_enough.sql";
 const sql = () => readFileSync(MIGRATION, "utf8");
+const thresholdSql = () => readFileSync(THRESHOLD_MIGRATION, "utf8");
 const read = (p: string) => readFileSync(p, "utf8");
 /** Comments here explain these very rules; strip them or a test passes on its own prose. */
 const code = (text: string) =>
   text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/^\s*--.*$/gm, "");
 
-describe("needsRootCause", () => {
+describe("needsRootCause, at the numbers the clinic ships with", () => {
+  const at = DEFAULT_FEEDBACK_THRESHOLDS;
   it("opens on a detractor score", () => {
-    expect(needsRootCause({ nps_score: 6, service_rating: 5 })).toBe(true);
-    expect(needsRootCause({ nps_score: 0, service_rating: 5 })).toBe(true);
+    expect(needsRootCause({ nps_score: 6, service_rating: 5 }, at)).toBe(true);
+    expect(needsRootCause({ nps_score: 0, service_rating: 5 }, at)).toBe(true);
   });
 
   it("opens on a low service rating, including a merely average 3", () => {
     // Wider than this app's own "Poor", which stops at 2. A 3 out of 5 is not
     // a happy patient and the clinic set the line here deliberately.
-    expect(needsRootCause({ nps_score: 10, service_rating: 3 })).toBe(true);
-    expect(needsRootCause({ nps_score: 10, service_rating: 1 })).toBe(true);
+    expect(needsRootCause({ nps_score: 10, service_rating: 3 }, at)).toBe(true);
+    expect(needsRootCause({ nps_score: 10, service_rating: 1 }, at)).toBe(true);
   });
 
   it("catches the contradictions the live data actually contains", () => {
     // Both of these are real rows: a patient happy to recommend who rated the
     // service 1, and one who rated the service 5 but would not recommend.
     // A rule on either score alone misses one of them.
-    expect(needsRootCause({ nps_score: 8, service_rating: 1 })).toBe(true);
-    expect(needsRootCause({ nps_score: 1, service_rating: 5 })).toBe(true);
+    expect(needsRootCause({ nps_score: 8, service_rating: 1 }, at)).toBe(true);
+    expect(needsRootCause({ nps_score: 1, service_rating: 5 }, at)).toBe(true);
   });
 
   it("leaves a happy visit alone", () => {
-    expect(needsRootCause({ nps_score: 10, service_rating: 5 })).toBe(false);
-    expect(needsRootCause({ nps_score: 9, service_rating: 4 })).toBe(false);
+    expect(needsRootCause({ nps_score: 10, service_rating: 5 }, at)).toBe(false);
+    expect(needsRootCause({ nps_score: 9, service_rating: 4 }, at)).toBe(false);
     // A passive is not a complaint.
-    expect(needsRootCause({ nps_score: 7, service_rating: 4 })).toBe(false);
-    expect(needsRootCause({ nps_score: 8, service_rating: 4 })).toBe(false);
+    expect(needsRootCause({ nps_score: 7, service_rating: 4 }, at)).toBe(false);
+    expect(needsRootCause({ nps_score: 8, service_rating: 4 }, at)).toBe(false);
   });
 
   it("treats a missing score as nothing to chase, never as a zero", () => {
-    expect(needsRootCause({ nps_score: null, service_rating: null })).toBe(false);
-    expect(needsRootCause({})).toBe(false);
-    expect(needsRootCause(null)).toBe(false);
-    expect(needsRootCause(undefined)).toBe(false);
+    expect(needsRootCause({ nps_score: null, service_rating: null }, at)).toBe(false);
+    expect(needsRootCause({}, at)).toBe(false);
+    expect(needsRootCause(null, at)).toBe(false);
+    expect(needsRootCause(undefined, at)).toBe(false);
     // One score missing must not hide a bad one.
-    expect(needsRootCause({ nps_score: null, service_rating: 2 })).toBe(true);
+    expect(needsRootCause({ nps_score: null, service_rating: 2 }, at)).toBe(true);
   });
 });
 
 describe("the database agrees with the client", () => {
-  it("uses the same two thresholds", () => {
+  it("reads the rule from the settings row rather than hardcoding it", () => {
     // The case is opened by a trigger, not by a screen - a patient editing
-    // their score down from the portal runs no client code at all. If these
-    // drift, the worklist and the app disagree about what counts as low.
-    const fn = code(sql()).match(/feedback_needs_root_cause[\s\S]*?\$fn\$;/)?.[0] ?? "";
+    // their score down from the portal runs no client code at all. The numbers
+    // used to be written into this function; now an admin owns them, and a
+    // number reappearing here would quietly overrule the screen.
+    const fn = code(thresholdSql()).match(/create or replace function public\.feedback_needs_root_cause[\s\S]*?\$fn\$;/)?.[0] ?? "";
     expect(fn, "feedback_needs_root_cause not found").not.toBe("");
-    expect(fn).toContain("coalesce(_nps, 10) <= 6");
-    expect(fn).toContain("coalesce(_rating, 5) <= 3");
+    expect(fn).toContain("s.nps_at_or_below");
+    expect(fn).toContain("s.rating_at_or_below");
+    expect(fn).toContain("from public.feedback_settings s");
+    expect(fn).not.toMatch(/<=\s*\d/);
+  });
+
+  it("is stable, not immutable, now that it reads a table", () => {
+    // An immutable function is one Postgres may cache the answer of, which
+    // would hand back yesterday's threshold after an admin changed it.
+    const fn = code(thresholdSql()).match(/create or replace function public\.feedback_needs_root_cause[\s\S]*?\$fn\$;/)?.[0] ?? "";
+    expect(fn).toMatch(/\bstable\b/);
+    expect(fn).not.toMatch(/\bimmutable\b/);
+  });
+
+  it("ships the numbers the clinic already had, so applying it changes nothing", () => {
+    const table = code(thresholdSql()).match(/create table if not exists public\.feedback_settings[\s\S]*?\);/)?.[0] ?? "";
+    expect(table, "feedback_settings not found").not.toBe("");
+    expect(table).toContain(`default ${DEFAULT_FEEDBACK_THRESHOLDS.npsAtOrBelow}`);
+    expect(table).toContain(`default ${DEFAULT_FEEDBACK_THRESHOLDS.ratingAtOrBelow}`);
+  });
+
+  it("labels the case from the same two numbers it opened it with", () => {
+    // The classifier used to repeat the thresholds, so editing one and not the
+    // other would have opened cases carrying the wrong reason.
+    const trigger = code(thresholdSql()).match(/create or replace function public\.open_feedback_rca[\s\S]*?\$fn\$;/)?.[0] ?? "";
+    expect(trigger, "open_feedback_rca not found").not.toBe("");
+    expect(trigger).toContain("_low_nps and _low_rating then 'both'");
+    expect(trigger).toContain("when _low_nps then 'nps'");
+    expect(trigger).not.toMatch(/new\.nps_score\s*<=\s*\d/);
+    expect(trigger).not.toMatch(/new\.service_rating\s*<=\s*\d/);
+  });
+
+  it("still opens a case on an edit, and still never closes one", () => {
+    const trigger = code(thresholdSql()).match(/create or replace function public\.open_feedback_rca[\s\S]*?\$fn\$;/)?.[0] ?? "";
+    // One case per feedback row, ever.
+    expect(trigger).toContain("exists (select 1 from public.feedback_rca where feedback_id = new.id)");
+    expect(trigger).not.toMatch(/update public\.feedback_rca/);
+    expect(trigger).not.toMatch(/delete from public\.feedback_rca/);
+  });
+
+  it("keeps the settings row staff-only, and admin-only to change", () => {
+    const text = code(thresholdSql());
+    expect(text).toContain("revoke all on public.feedback_settings from anon");
+    // AGENTS.md: a new table gets the restrictive rule AND its own staff rule.
+    expect(text).toMatch(/create policy signed_in_must_be_staff on public\.feedback_settings[\s\S]*?as restrictive/);
+    expect(text).toMatch(/create policy feedback_settings_edit[\s\S]*?is_admin_user\(\)/);
+    expect(text).not.toMatch(/feedback_settings[\s\S]{0,400}using \(true\)/);
   });
 
   it("accepts exactly the statuses the client offers", () => {

@@ -108,6 +108,7 @@ const AttendanceAdmin = lazyWithReload(() => import("./pages/admin/AttendanceAdm
 const VisitsNeedingReview = lazyWithReload(() => import("./pages/admin/VisitsNeedingReview"));
 const CurrencyBilling = lazyWithReload(() => import("./pages/admin/CurrencyBilling"));
 const PortalModules = lazyWithReload(() => import("./pages/admin/PortalModules"));
+const FeedbackSettings = lazyWithReload(() => import("./pages/admin/FeedbackSettings"));
 const UnitMaster = lazyWithReload(() => import("./pages/UnitMaster"));
 const ValidationRules = lazyWithReload(() => import("./pages/ValidationRules"));
 const ValidationRuleBuilder = lazyWithReload(() => import("./pages/ValidationRuleBuilder"));
@@ -367,6 +368,7 @@ const App = () => (
                     <Route path="/admin/knowledge-categories" element={<ProtectedRoute moduleKey="settings"><KnowledgeCategories /></ProtectedRoute>} />
                     <Route path="/admin/currency" element={<ProtectedRoute moduleKey="settings"><CurrencyBilling /></ProtectedRoute>} />
                     <Route path="/admin/portal-modules" element={<ProtectedRoute moduleKey="settings"><PortalModules /></ProtectedRoute>} />
+                    <Route path="/admin/feedback" element={<ProtectedRoute moduleKey="settings"><FeedbackSettings /></ProtectedRoute>} />
                     <Route path="/admin/trash" element={<ProtectedRoute moduleKey="settings"><TrashAdmin /></ProtectedRoute>} />
                     <Route path="/validation-rules/:id" element={<ProtectedRoute moduleKey="settings"><ValidationRuleBuilder /></ProtectedRoute>} />
                     <Route path="/duplicate-management" element={<ProtectedRoute moduleKey="settings"><DuplicateManagement /></ProtectedRoute>} />

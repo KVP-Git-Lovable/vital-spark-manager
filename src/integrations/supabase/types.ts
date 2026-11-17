@@ -2342,6 +2342,30 @@ export type Database = {
           },
         ]
       }
+      feedback_settings: {
+        Row: {
+          singleton: boolean
+          nps_at_or_below: number
+          rating_at_or_below: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          singleton?: boolean
+          nps_at_or_below?: number
+          rating_at_or_below?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          singleton?: boolean
+          nps_at_or_below?: number
+          rating_at_or_below?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       field_history: {
         Row: {
           changed_at: string

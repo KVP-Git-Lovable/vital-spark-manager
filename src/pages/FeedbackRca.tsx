@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { npsCategory, ratingLabel } from "@/lib/feedbackScores";
+import { thresholdSentence } from "@/lib/feedbackThresholds";
+import { useFeedbackSettings } from "@/hooks/useFeedbackSettings";
+import { useAuth } from "@/hooks/useAuth";
 import { RCA_OPENED_REASONS, RCA_STATUSES, rcaRootCauseLabel, rcaStatusClass, rcaStatusLabel } from "@/lib/feedbackRca";
 
 /**
@@ -26,6 +29,8 @@ export default function FeedbackRca() {
   const [status, setStatus] = useState("open");
   const [search, setSearch] = useState("");
   const { data: cases = [], isLoading, error } = useRcaCases(status);
+  const { thresholds } = useFeedbackSettings();
+  const { isAdmin } = useAuth();
 
   const term = search.trim().toLowerCase();
   const rows = term
@@ -42,6 +47,16 @@ export default function FeedbackRca() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Low feedback scores, and what the clinic found out about them.
+          </p>
+          {/* The rule in force. A worklist that cannot say why these cases and
+              not others is one you have to take on faith. */}
+          <p className="text-xs text-muted-foreground mt-1" data-testid="rca-rule">
+            {thresholdSentence(thresholds)}
+            {isAdmin && (
+              <Button asChild variant="link" className="h-auto p-0 ml-1 text-xs align-baseline">
+                <Link to="/admin/feedback">Change this</Link>
+              </Button>
+            )}
           </p>
         </div>
       </div>

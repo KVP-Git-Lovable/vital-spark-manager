@@ -98,6 +98,38 @@ export function patientFacts(value: unknown): PatientFacts {
 }
 
 /**
+ * patient_facts as the editor is holding it, exactly as typed.
+ *
+ * patientFacts is the shape a patient sees and the one that is saved - trimmed,
+ * blanks dropped. The editor must NOT redraw its boxes from that: a new "Add"
+ * row starts blank and would vanish on the next render, and a space typed at
+ * the end of "3 " would be trimmed away before the next word could follow it.
+ * So the editor keeps the raw strings, blanks included, and the save step runs
+ * patientFacts over them (see ArticleEditor) so nothing blank or padded is
+ * ever stored. Still forgiving: anything that is not a string is ignored.
+ */
+export function editableFacts(value: unknown): PatientFacts {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return EMPTY_FACTS;
+  const raw = value as Record<string, unknown>;
+  const out: PatientFacts = {};
+  for (const [key] of FACT_CARDS) {
+    if (typeof raw[key] === "string") out[key] = raw[key] as string;
+  }
+  for (const key of ["dos", "donts"] as const) {
+    if (!Array.isArray(raw[key])) continue;
+    out[key] = (raw[key] as unknown[]).filter((p): p is string => typeof p === "string").slice(0, 8);
+  }
+  if (Array.isArray(raw.timeline)) {
+    out.timeline = (raw.timeline as unknown[]).flatMap((s) => {
+      if (!s || typeof s !== "object") return [];
+      const { when, what } = s as Record<string, unknown>;
+      return [{ when: typeof when === "string" ? when : "", what: typeof what === "string" ? what : "" }];
+    }).slice(0, 6);
+  }
+  return out;
+}
+
+/**
  * The cards that are actually filled in, in a fixed order.
  *
  * A half-written summary renders as three cards rather than five with blanks

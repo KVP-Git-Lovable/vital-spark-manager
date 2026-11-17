@@ -108,6 +108,27 @@ async function feedbackEnabled(): Promise<boolean> {
   }
 }
 
+/**
+ * Is the Shop module switched on? Absent or null counts as ON, matching
+ * src/lib/portalModules.ts (shop is one of the original default-on modules).
+ * Orders are patient data, so the flag is enforced here as well as in the UI.
+ */
+async function shopEnabled(): Promise<boolean> {
+  try {
+    const row = (await rows(`portal_settings?select=shop_enabled&limit=1`))[0];
+    return row?.shop_enabled !== false;
+  } catch {
+    return false;
+  }
+}
+
+const UUID_RE = /^[0-9a-fA-F-]{36}$/;
+const clip = (v: unknown, max: number): string | null => {
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  return t ? t.slice(0, max) : null;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -194,6 +215,93 @@ Deno.serve(async (req) => {
             `survey_assignments?select=*,survey_templates(id,name,description)&patient_id=eq.${pid}&status=eq.pending&order=created_at.desc`,
           ),
         });
+
+      case "orders": {
+        if (!(await shopEnabled())) return json({ data: [] });
+        return json({
+          data: await rows(
+            `portal_orders?select=*,portal_order_items(*)&patient_id=eq.${pid}&order=created_at.desc`,
+          ),
+        });
+      }
+
+      case "create_order": {
+        if (!(await shopEnabled())) return json({ error: "The shop is not available right now" }, 403);
+        const rawItems = Array.isArray(p.items) ? p.items : [];
+        if (rawItems.length === 0 || rawItems.length > 50) return json({ error: "Your cart is empty" }, 400);
+        const wanted = new Map<string, number>();
+        for (const it of rawItems) {
+          const id = String(it?.productId || "");
+          const qty = Math.floor(Number(it?.quantity));
+          if (!UUID_RE.test(id) || !Number.isFinite(qty) || qty < 1 || qty > 100) {
+            return json({ error: "Invalid cart item" }, 400);
+          }
+          wanted.set(id, (wanted.get(id) || 0) + qty);
+        }
+        const deliveryMethod = p.deliveryMethod === "delivery" ? "delivery" : "pickup";
+        const delivery = deliveryMethod === "delivery";
+        const address = delivery ? clip(p.address, 300) : null;
+        const city = delivery ? clip(p.city, 100) : null;
+        const pincode = delivery ? clip(p.pincode, 12) : null;
+        if (delivery && (!address || !city || !pincode)) {
+          return json({ error: "Please fill in your delivery address" }, 400);
+        }
+
+        // Names and prices come from the catalogue, never from the browser.
+        const ids = [...wanted.keys()];
+        const products = await rows(
+          `pharma_products?select=id,name,selling_price,gst_percent&id=in.(${ids.join(",")})`,
+        );
+        if (products.length !== ids.length) return json({ error: "A product in your cart is no longer available" }, 400);
+        const items = products.map((pr: any) => {
+          const quantity = wanted.get(pr.id)!;
+          const unit = Number(pr.selling_price) || 0;
+          return { pr, quantity, unit, line: unit * quantity, gst: (unit * quantity * (Number(pr.gst_percent) || 0)) / 100 };
+        });
+        const total = items.reduce((s, i) => s + i.line + i.gst, 0);
+
+        const patient = (await rows(`patients?select=first_name,last_name,phone&id=eq.${pid}&limit=1`))[0];
+        const patientName = patient ? [patient.first_name, patient.last_name].filter(Boolean).join(" ") : null;
+
+        const orderRes = await sb(`portal_orders`, {
+          method: "POST",
+          body: JSON.stringify({
+            patient_id: pid,
+            patient_name: patientName,
+            delivery_method: deliveryMethod,
+            address,
+            city,
+            state: delivery ? clip(p.state, 100) : null,
+            pincode,
+            phone: clip(p.phone, 20) || patient?.phone || null,
+            total_amount: Math.round(total * 100) / 100,
+            notes: clip(p.notes, 1000),
+          }),
+        });
+        if (!orderRes.ok) {
+          console.error("create_order: order insert failed", await orderRes.text());
+          return json({ error: "Could not place your order. Please try again." }, 500);
+        }
+        const order = (await orderRes.json())[0];
+        const itemsRes = await sb(`portal_order_items`, {
+          method: "POST",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify(items.map((i) => ({
+            order_id: order.id,
+            product_id: i.pr.id,
+            product_name: i.pr.name,
+            quantity: i.quantity,
+            unit_price: i.unit,
+            total_price: i.line,
+          }))),
+        });
+        if (!itemsRes.ok) {
+          console.error("create_order: items insert failed", await itemsRes.text());
+          await sb(`portal_orders?id=eq.${order.id}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
+          return json({ error: "Could not place your order. Please try again." }, 500);
+        }
+        return json({ data: { id: order.id } });
+      }
 
       case "create_appointment_request": {
         const { patientName, service, startTime, endTime } = p;

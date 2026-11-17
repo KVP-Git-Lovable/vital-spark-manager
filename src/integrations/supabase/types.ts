@@ -9305,6 +9305,7 @@ export type Database = {
         }[]
       }
       knowledge_file_visible: { Args: { _path: string }; Returns: boolean }
+      live_portal_settings_id: { Args: never; Returns: string }
       may_decide_requests: { Args: never; Returns: boolean }
       move_to_trash: {
         Args: { _label?: string; _object_type: string; _record_id: string }

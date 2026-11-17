@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { draftPatientSummary } from "@/lib/knowledgeAi";
 import {
-  aiWriteLabel, FACT_CARDS, factCards, patientFacts, type PatientFacts, type TimelineStep,
+  aiWriteLabel, editableFacts, FACT_CARDS, factCards, patientFacts, type PatientFacts, type TimelineStep,
 } from "@/lib/patientSummary";
 import { PatientSummary } from "./PatientSummary";
 import { PATIENT_SUMMARY_SECTION_ID } from "./ArticleEditor";
@@ -46,13 +46,18 @@ export function PatientSummaryEditor({
   onChange: (next: { patient_summary: string; patient_facts: PatientFacts }) => void;
   onBusyChange: (busy: boolean) => void;
 }) {
-  const parsed = patientFacts(facts);
+  // Drawn from the raw draft, not patientFacts: the cleaned-up version drops
+  // blank rows and trailing spaces, which made "Add" and typing a second word
+  // impossible. Saving cleans it (ArticleEditor), so nothing padded is stored.
+  const parsed = editableFacts(facts);
+  // What the patient would actually see, for "is anything written yet?".
+  const clean = patientFacts(facts);
   const [proposal, setProposal] = useState<{ patient_summary: string; patient_facts: PatientFacts; ai_change_summary: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const abort = useRef<AbortController>();
   const started = useRef(false);
   useEffect(() => () => abort.current?.abort(), []);
-  const written = !!summary.trim() || !!factCards(parsed).length || !!parsed.dos?.length || !!parsed.donts?.length || !!parsed.timeline?.length;
+  const written = !!summary.trim() || !!factCards(clean).length || !!clean.dos?.length || !!clean.donts?.length || !!clean.timeline?.length;
 
   const setFacts = (next: PatientFacts) => onChange({ patient_summary: summary, patient_facts: next });
 

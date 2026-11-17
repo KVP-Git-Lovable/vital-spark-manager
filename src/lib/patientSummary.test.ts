@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  EMPTY_FACTS, FACT_CARDS, factCards, hasPatientSummary, patientFacts,
+  EMPTY_FACTS, FACT_CARDS, editableFacts, factCards, hasPatientSummary, patientFacts,
   patientSummaryIsPublic, PATIENT_SUMMARY_DISCLAIMER, aiWriteLabel, WRITE_SUMMARY_CTA,
 } from "./patientSummary";
 
@@ -275,5 +275,26 @@ describe("where the gate is applied", () => {
     expect(src).toContain("webSearch: false");
     const responses = read("supabase/functions/knowledge-ai/responses.ts");
     expect(responses).toMatch(/webSearch \? \{ tools:/);
+  });
+});
+
+describe("editableFacts - what the editor draws while a doctor types", () => {
+  it("keeps a blank point so Add shows a new row", () => {
+    expect(editableFacts({ dos: ["Use sunscreen", ""] }).dos).toEqual(["Use sunscreen", ""]);
+  });
+  it("keeps a blank timeline step so Add step shows a new row", () => {
+    expect(editableFacts({ timeline: [{ when: "", what: "" }] }).timeline).toEqual([{ when: "", what: "" }]);
+  });
+  it("keeps a trailing space so a second word can be typed", () => {
+    expect(editableFacts({ sessions: "3 " }).sessions).toBe("3 ");
+    expect(editableFacts({ donts: ["Avoid "] }).donts).toEqual(["Avoid "]);
+  });
+  it("still saves trimmed with blanks dropped", () => {
+    expect(patientFacts({ sessions: "3 to 6 ", dos: ["Use sunscreen ", ""], timeline: [{ when: "", what: "" }] }))
+      .toEqual({ sessions: "3 to 6", dos: ["Use sunscreen"] });
+  });
+  it("ignores non-string junk", () => {
+    expect(editableFacts({ sessions: 4, dos: [1, "ok"], timeline: [null, { when: 2 }] }))
+      .toEqual({ dos: ["ok"], timeline: [{ when: "", what: "" }] });
   });
 });

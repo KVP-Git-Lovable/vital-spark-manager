@@ -32,13 +32,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
  * every report and the root-cause cases all read.
  */
 
+/**
+ * A new question starts with wording, not blank.
+ *
+ * question_text is CHECKed to be between 1 and 300 characters, so an empty
+ * string was refused outright and "Add a question" failed with a constraint
+ * error. The placeholder is also the better behaviour: the row appears, the
+ * clinic types over it, and a question that is never renamed still reads as
+ * something to finish rather than as an empty box on a patient's screen.
+ */
+export const NEW_QUESTION_TEXT = "New question";
+
 const blankQuestion = (sort_order: number) => ({
-  question_text: "",
+  question_text: NEW_QUESTION_TEXT,
   help_text: "",
   question_type: "stars",
   options: { max: 5 },
   sort_order,
-  is_active: true,
+  // Switched OFF until the clinic says otherwise. Both feedback forms read
+  // this table live, so a question that defaulted to on would be in front of
+  // the next patient under the name "New question", half written.
+  is_active: false,
   is_required: false,
   score_at_or_below: null as number | null,
 });
@@ -168,7 +182,12 @@ function QuestionCard({
               disabled={!canEdit}
               maxLength={300}
               onChange={(e) => setText(e.target.value)}
-              onBlur={() => text.trim() && text !== question.question_text && onPatch({ question_text: text.trim() })}
+              onBlur={() => {
+                // Blank is refused by the database, so put the stored wording
+                // back rather than leaving an empty box that looks saved.
+                if (!text.trim()) { setText(question.question_text); return; }
+                if (text.trim() !== question.question_text) onPatch({ question_text: text.trim() });
+              }}
             />
           </div>
           <div className="flex items-center gap-1 pt-6">

@@ -257,6 +257,20 @@ describe("what the database and the edge function promise", () => {
     expect(fn).toContain("answers === undefined ? {} : { answers }");
   });
 
+  it("adds a question the database will accept, switched off", () => {
+    // "Add a question" sent an empty question_text and was refused by the
+    // CHECK, so the button simply failed. And a new question must not appear
+    // on a live patient form under the name "New question" before it is
+    // written, so it starts switched off.
+    const editor = read("src/components/feedback/FeedbackQuestionsEditor.tsx");
+    expect(editor).toContain('export const NEW_QUESTION_TEXT = "New question"');
+    expect(editor).toContain("question_text: NEW_QUESTION_TEXT");
+    expect(editor).not.toMatch(/question_text:\s*""/);
+    expect(editor).toMatch(/is_active: false/);
+    // and the database's own rule is what made it necessary
+    expect(read(MIGRATION)).toContain("length(btrim(question_text)) between 1 and 300");
+  });
+
   it("checks a patient's answers server-side, like the two scores", () => {
     const fn = read("supabase/functions/portal-data/index.ts");
     expect(fn).toContain("An answer is out of range");
